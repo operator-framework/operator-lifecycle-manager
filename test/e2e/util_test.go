@@ -6,12 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
-	"github.com/sirupsen/logrus"
+	. "github.com/onsi/ginkgo"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
@@ -32,14 +30,13 @@ import (
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
-	. "github.com/onsi/ginkgo"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	pmclient "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 )
 
 const (
@@ -91,39 +88,19 @@ func (c *namespaceCleaner) NotifyTestComplete(t GinkgoTInterface, cleanup bool) 
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
 func newKubeClient(t GinkgoTInterface) operatorclient.ClientInterface {
-	if kubeConfigPath == nil {
-		t.Log("using in-cluster config")
-	}
-	// TODO: impersonate ALM serviceaccount
-	// TODO: thread logger from test
-	return operatorclient.NewClientFromConfig(*kubeConfigPath, logrus.New())
+	return ctx.Ctx().KubeClient()
 }
 
 func newCRClient(t GinkgoTInterface) versioned.Interface {
-	if kubeConfigPath == nil {
-		t.Log("using in-cluster config")
-	}
-	// TODO: impersonate ALM serviceaccount
-	crclient, err := client.NewClient(*kubeConfigPath)
-	require.NoError(t, err)
-	return crclient
+	return ctx.Ctx().OperatorClient()
 }
 
 func newDynamicClient(t GinkgoTInterface, config *rest.Config) dynamic.Interface {
-	// TODO: impersonate ALM serviceaccount
-	dynamicClient, err := dynamic.NewForConfig(config)
-	require.NoError(t, err)
-	return dynamicClient
+	return ctx.Ctx().DynamicClient()
 }
 
 func newPMClient(t GinkgoTInterface) pmversioned.Interface {
-	if kubeConfigPath == nil {
-		t.Log("using in-cluster config")
-	}
-	// TODO: impersonate ALM serviceaccount
-	pmc, err := pmclient.NewClient(*kubeConfigPath)
-	require.NoError(t, err)
-	return pmc
+	return ctx.Ctx().PackageClient()
 }
 
 // awaitPods waits for a set of pods to exist in the cluster

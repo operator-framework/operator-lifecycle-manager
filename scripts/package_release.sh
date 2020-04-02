@@ -12,15 +12,15 @@ version=$1
 chartdir=$2
 values=$3
 
-charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`
+charttmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t charttmpdir)
 
 charttmpdir=${charttmpdir}/chart
 
-cp -R deploy/chart/ ${charttmpdir}
-echo "Version: $1" >> ${charttmpdir}/Chart.yaml
+cp -R deploy/chart/ "${charttmpdir}"
+sed -i "s/^[Vv]ersion:.*\$/version: ${version}/" "${charttmpdir}/Chart.yaml"
 
-mkdir -p ${chartdir}
+mkdir -p "${chartdir}"
 
-go run -mod=vendor helm.sh/helm/v3/cmd/helm template -n olm -f ${values} --include-crds --output-dir ${charttmpdir} ${charttmpdir}
+go run -mod=vendor helm.sh/helm/v3/cmd/helm template -n olm -f "${values}" --include-crds --output-dir "${charttmpdir}" "${charttmpdir}"
 
 cp -R "${charttmpdir}"/olm/{templates,crds}/. "${chartdir}"
