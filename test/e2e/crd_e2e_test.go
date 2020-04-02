@@ -24,8 +24,8 @@ var _ = Describe("CRD Versions", func() {
 		By("This test proves that OLM is able to handle v1beta1 CRDs successfully. Creating v1 CRDs has more " +
 			"restrictions around the schema. v1beta1 validation schemas are not necessarily valid in v1. " +
 			"OLM should support both v1beta1 and v1 CRDs")
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
@@ -80,14 +80,14 @@ var _ = Describe("CRD Versions", func() {
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSource(GinkgoT(), crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
-		subscriptionCleanup := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(Equal(nil))
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -103,8 +103,8 @@ var _ = Describe("CRD Versions", func() {
 	})
 	It("creates v1 CRDs with a v1 schema successfully", func() {
 		By("v1 crds with a valid openapiv3 schema should be created successfully by OLM")
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
@@ -152,14 +152,14 @@ var _ = Describe("CRD Versions", func() {
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSource(GinkgoT(), crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
-		subscriptionCleanup := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(Equal(nil))
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -173,7 +173,7 @@ var _ = Describe("CRD Versions", func() {
 		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
 	})
-	AfterEach(func() { cleaner.NotifyTestComplete(GinkgoT(), true) }, float64(10))
+	AfterEach(func() { cleaner.NotifyTestComplete(true) }, float64(10))
 })
 
 func checkCRD(v1crd *apiextensionsv1.CustomResourceDefinition) bool {

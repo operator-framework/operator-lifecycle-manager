@@ -33,8 +33,8 @@ var _ = Describe("CSVs with a Webhook", func() {
 	var nsCleanupFunc cleanupFunc
 	var nsLabels map[string]string
 	BeforeEach(func() {
-		c = newKubeClient(GinkgoT())
-		crc = newCRClient(GinkgoT())
+		c = newKubeClient()
+		crc = newCRClient()
 		nsLabels = map[string]string{
 			"foo": "bar",
 		}

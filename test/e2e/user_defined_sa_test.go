@@ -23,10 +23,10 @@ import (
 var _ = Describe("User defined service account", func() {
 	It("with no permission", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), false)
+		defer cleaner.NotifyTestComplete(false)
 
-		kubeclient := newKubeClient(GinkgoT())
-		crclient := newCRClient(GinkgoT())
+		kubeclient := newKubeClient()
+		crclient := newCRClient()
 
 		namespace := genName("scoped-ns-")
 		_, cleanupNS := newNamespace(GinkgoT(), kubeclient, namespace)
@@ -47,15 +47,15 @@ var _ = Describe("User defined service account", func() {
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSource(GinkgoT(), crclient, catsrc.GetName(), namespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crclient, catsrc.GetName(), namespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("scoped-sub-")
-		cleanupSubscription := createSubscriptionForCatalog(GinkgoT(), crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
+		cleanupSubscription := createSubscriptionForCatalog(crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 		defer cleanupSubscription()
 
 		// Wait until an install plan is created.
-		subscription, err := fetchSubscription(GinkgoT(), crclient, namespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crclient, namespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -77,11 +77,11 @@ var _ = Describe("User defined service account", func() {
 	})
 	It("with permission", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), false)
+		defer cleaner.NotifyTestComplete(false)
 
 		// Create the CatalogSource
-		kubeclient := newKubeClient(GinkgoT())
-		crclient := newCRClient(GinkgoT())
+		kubeclient := newKubeClient()
+		crclient := newCRClient()
 
 		namespace := genName("scoped-ns-")
 		_, cleanupNS := newNamespace(GinkgoT(), kubeclient, namespace)
@@ -104,15 +104,15 @@ var _ = Describe("User defined service account", func() {
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSource(GinkgoT(), crclient, catsrc.GetName(), namespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crclient, catsrc.GetName(), namespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("scoped-sub-")
-		cleanupSubscription := createSubscriptionForCatalog(GinkgoT(), crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
+		cleanupSubscription := createSubscriptionForCatalog(crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 		defer cleanupSubscription()
 
 		// Wait until an install plan is created.
-		subscription, err := fetchSubscription(GinkgoT(), crclient, namespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crclient, namespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -134,10 +134,10 @@ var _ = Describe("User defined service account", func() {
 	})
 	It("with retry", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), false)
+		defer cleaner.NotifyTestComplete(false)
 
-		kubeclient := newKubeClient(GinkgoT())
-		crclient := newCRClient(GinkgoT())
+		kubeclient := newKubeClient()
+		crclient := newCRClient()
 
 		namespace := genName("scoped-ns-")
 		_, cleanupNS := newNamespace(GinkgoT(), kubeclient, namespace)
@@ -158,15 +158,15 @@ var _ = Describe("User defined service account", func() {
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSource(GinkgoT(), crclient, catsrc.GetName(), namespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crclient, catsrc.GetName(), namespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("scoped-sub-")
-		cleanupSubscription := createSubscriptionForCatalog(GinkgoT(), crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
+		cleanupSubscription := createSubscriptionForCatalog(crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 		defer cleanupSubscription()
 
 		// Wait until an install plan is created.
-		subscription, err := fetchSubscription(GinkgoT(), crclient, namespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crclient, namespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 

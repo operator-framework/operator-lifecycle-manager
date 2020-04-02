@@ -37,8 +37,8 @@ var _ = Describe("Scoped Client", func() {
 	BeforeEach(func() {
 		config = ctx.Ctx().RESTConfig()
 
-		kubeclient = newKubeClient(GinkgoT())
-		crclient = newCRClient(GinkgoT())
+		kubeclient = newKubeClient()
+		crclient = newCRClient()
 		dynamicclient = ctx.Ctx().DynamicClient()
 
 		logger = logrus.New()

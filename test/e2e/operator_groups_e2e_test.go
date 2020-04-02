@@ -47,14 +47,14 @@ var _ = Describe("Operator Group", func() {
 		// Verify the copied CSV transitions to FAILED
 		// Delete CSV
 		// Verify copied CVS is deleted
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := genName(testNamespace + "-")
@@ -412,11 +412,11 @@ var _ = Describe("Operator Group", func() {
 		// Create crd so csv succeeds
 		// Ensure clusterroles created and aggregated for access provided APIs
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		// Generate namespaceA
 		nsA := genName("a")
-		c := newKubeClient(GinkgoT())
+		c := newKubeClient()
 		for _, ns := range []string{nsA} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -431,7 +431,7 @@ var _ = Describe("Operator Group", func() {
 		}
 
 		// Generate operatorGroupA - OwnNamespace
-		crc := newCRClient(GinkgoT())
+		crc := newCRClient()
 		groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -604,13 +604,13 @@ var _ = Describe("Operator Group", func() {
 		// Update csvA to have AllNamespaces supported=true
 		// Ensure csvA transitions to Pending
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		// Generate namespaceA and namespaceB
 		nsA := genName("a")
 		nsB := genName("b")
 
-		c := newKubeClient(GinkgoT())
+		c := newKubeClient()
 		for _, ns := range []string{nsA, nsB} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -625,7 +625,7 @@ var _ = Describe("Operator Group", func() {
 		}
 
 		// Generate operatorGroupA
-		crc := newCRClient(GinkgoT())
+		crc := newCRClient()
 		groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -845,7 +845,7 @@ var _ = Describe("Operator Group", func() {
 		// Wait for operatorGroupB to have providedAPI annotation with crdB's Kind.version.group
 		// Wait for csvB to have a CSV with a copied status in namespace C
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		// Create a catalog for csvA, csvB, and csvD
 		pkgA := genName("a-")
@@ -870,8 +870,8 @@ var _ = Describe("Operator Group", func() {
 
 		// Create namespaces
 		nsA, nsB, nsC, nsD, nsE := genName("a-"), genName("b-"), genName("c-"), genName("d-"), genName("e-")
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		for _, ns := range []string{nsA, nsB, nsC, nsD, nsE} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -913,15 +913,15 @@ var _ = Describe("Operator Group", func() {
 		catalog := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsA, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
-		_, err := fetchCatalogSource(GinkgoT(), crc, catalog, nsA, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalog, nsA, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 		_, cleanupCatalogSource = createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSource(GinkgoT(), crc, catalog, nsB, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsB, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 		_, cleanupCatalogSource = createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsD, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSource(GinkgoT(), crc, catalog, nsD, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsD, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create operatorgroups
@@ -938,9 +938,9 @@ var _ = Describe("Operator Group", func() {
 
 		// Create subscription for csvD in namespaceD
 		subDName := genName("d-")
-		cleanupSubD := createSubscriptionForCatalog(GinkgoT(), crc, nsD, subDName, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
+		cleanupSubD := createSubscriptionForCatalog(crc, nsD, subDName, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubD()
-		subD, err := fetchSubscription(GinkgoT(), crc, nsD, subDName, subscriptionHasInstallPlanChecker)
+		subD, err := fetchSubscription(crc, nsD, subDName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subD)
 
@@ -961,9 +961,9 @@ var _ = Describe("Operator Group", func() {
 
 		// Create subscription for csvD2 in namespaceA
 		subD2Name := genName("d2-")
-		cleanupSubD2 := createSubscriptionForCatalog(GinkgoT(), crc, nsA, subD2Name, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
+		cleanupSubD2 := createSubscriptionForCatalog(crc, nsA, subD2Name, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubD2()
-		subD2, err := fetchSubscription(GinkgoT(), crc, nsA, subD2Name, subscriptionHasInstallPlanChecker)
+		subD2, err := fetchSubscription(crc, nsA, subD2Name, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subD2)
 
@@ -985,9 +985,9 @@ var _ = Describe("Operator Group", func() {
 
 		// Create subscription for csvA in namespaceA
 		subAName := genName("a-")
-		cleanupSubA := createSubscriptionForCatalog(GinkgoT(), crc, nsA, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
+		cleanupSubA := createSubscriptionForCatalog(crc, nsA, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubA()
-		subA, err := fetchSubscription(GinkgoT(), crc, nsA, subAName, subscriptionHasInstallPlanChecker)
+		subA, err := fetchSubscription(crc, nsA, subAName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subA)
 
@@ -1056,9 +1056,9 @@ var _ = Describe("Operator Group", func() {
 
 		// Create subscription for csvB in namespaceB
 		subBName := genName("b-")
-		cleanupSubB := createSubscriptionForCatalog(GinkgoT(), crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
+		cleanupSubB := createSubscriptionForCatalog(crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubB()
-		subB, err := fetchSubscription(GinkgoT(), crc, nsB, subBName, subscriptionHasInstallPlanChecker)
+		subB, err := fetchSubscription(crc, nsB, subBName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subB)
 
@@ -1127,7 +1127,7 @@ var _ = Describe("Operator Group", func() {
 		// Wait for KindA.version.group providedAPI annotation to be removed from operatorGroupC's providedAPIs annotation
 		// Ensure KindA.version.group providedAPI annotation on operatorGroupA
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		// Create a catalog for csvA, csvB
 		pkgA := genName("a-")
@@ -1146,8 +1146,8 @@ var _ = Describe("Operator Group", func() {
 
 		// Create namespaces
 		nsA, nsB, nsC, nsD := genName("a-"), genName("b-"), genName("c-"), genName("d-")
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		for _, ns := range []string{nsA, nsB, nsC, nsD} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1183,11 +1183,11 @@ var _ = Describe("Operator Group", func() {
 		catalog := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
-		_, err := fetchCatalogSource(GinkgoT(), crc, catalog, nsB, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalog, nsB, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 		_, cleanupCatalogSource = createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsC, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSource(GinkgoT(), crc, catalog, nsC, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsC, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create OperatorGroups
@@ -1204,9 +1204,9 @@ var _ = Describe("Operator Group", func() {
 
 		// Create subscription for csvA in namespaceB
 		subAName := genName("a-")
-		cleanupSubA := createSubscriptionForCatalog(GinkgoT(), crc, nsB, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
+		cleanupSubA := createSubscriptionForCatalog(crc, nsB, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubA()
-		subA, err := fetchSubscription(GinkgoT(), crc, nsB, subAName, subscriptionHasInstallPlanChecker)
+		subA, err := fetchSubscription(crc, nsB, subAName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subA)
 
@@ -1230,9 +1230,9 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
 		// Create subscription for csvA in namespaceC
-		cleanupSubAC := createSubscriptionForCatalog(GinkgoT(), crc, nsC, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
+		cleanupSubAC := createSubscriptionForCatalog(crc, nsC, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubAC()
-		subAC, err := fetchSubscription(GinkgoT(), crc, nsC, subAName, subscriptionHasInstallPlanChecker)
+		subAC, err := fetchSubscription(crc, nsC, subAName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subAC)
 
@@ -1256,9 +1256,9 @@ var _ = Describe("Operator Group", func() {
 
 		// Create subscription for csvB in namespaceB
 		subBName := genName("b-")
-		cleanupSubB := createSubscriptionForCatalog(GinkgoT(), crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
+		cleanupSubB := createSubscriptionForCatalog(crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubB()
-		subB, err := fetchSubscription(GinkgoT(), crc, nsB, subBName, subscriptionHasInstallPlanChecker)
+		subB, err := fetchSubscription(crc, nsB, subBName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subB)
 
@@ -1320,9 +1320,9 @@ var _ = Describe("Operator Group", func() {
 	// TODO: Test Subscription upgrade paths with + and - providedAPIs
 	It("CSV copy watching all namespaces", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		defer cleaner.NotifyTestComplete(true)
+		c := newKubeClient()
+		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := testNamespace
@@ -1565,14 +1565,14 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("insufficient permissions resolve via RBAC", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		csvName := genName("another-csv-")
 
 		newNamespaceName := genName(testNamespace + "-")
@@ -1702,14 +1702,14 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("insufficient permissions resolve via service account removal", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		csvName := genName("another-csv-")
 
 		newNamespaceName := genName(testNamespace + "-")
@@ -1805,9 +1805,9 @@ var _ = Describe("Operator Group", func() {
 	// preventing them from being GCd. This ensures that any leftover CSVs in that state are properly cleared up.
 	It("cleanup csvs with bad owner operator groups", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		defer cleaner.NotifyTestComplete(true)
+		c := newKubeClient()
+		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := testNamespace
@@ -2047,8 +2047,8 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 	})
 	It("OperatorGroupLabels", func() {
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create the namespaces that will have an OperatorGroup Label applied.
 		testNamespaceA := genName("namespace-a-")
@@ -2148,8 +2148,8 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 	})
 	It("CleanupDeletedOperatorGroupLabels", func() {
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create the namespaces that will have an OperatorGroup Label applied.
 		testNamespaceA := genName("namespace-a-")
