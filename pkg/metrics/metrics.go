@@ -12,6 +12,7 @@ import (
 const (
 	NAME_LABEL      = "name"
 	INSTALLED_LABEL = "installed"
+	PACKAGE_LABEL   = "package"
 )
 
 // TODO(alecmerdler): Can we use this to emit Kubernetes events?
@@ -143,7 +144,7 @@ var (
 			Name: "subscription_sync_total",
 			Help: "Monotonic count of subscription syncs",
 		},
-		[]string{NAME_LABEL, INSTALLED_LABEL},
+		[]string{NAME_LABEL, INSTALLED_LABEL, PACKAGE_LABEL},
 	)
 )
 
@@ -159,6 +160,6 @@ func RegisterCatalog() {
 	prometheus.MustRegister(SubscriptionSyncCount)
 }
 
-func CounterForSubscription(name, installedCSV string) prometheus.Counter {
-	return SubscriptionSyncCount.WithLabelValues(name, installedCSV)
+func CounterForSubscription(name, installedCSV, packageName string) prometheus.Counter {
+	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, packageName)
 }

@@ -621,7 +621,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 }
 
 func (o *Operator) recordMetrics(sub *v1alpha1.Subscription) {
-	metrics.CounterForSubscription(sub.GetName(), sub.Status.InstalledCSV).Inc()
+	metrics.CounterForSubscription(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Package).Inc()
 }
 
 func (o *Operator) resolveNamespace(namespace string) {
