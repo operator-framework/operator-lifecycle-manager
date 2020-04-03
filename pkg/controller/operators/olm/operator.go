@@ -1398,7 +1398,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Install owned APIServices and update strategy with serving cert data
-		strategy, syncError = a.installOwnedAPIServiceRequirements(out, strategy)
+		deploymentCAPEMs := make(map[string][]byte)
+		strategy, deploymentCAPEMs, syncError = a.installOwnedAPIServiceRequirements(out, strategy)
 		if syncError != nil {
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install API services failed: %s", syncError), now, a.recorder)
 			return
@@ -1412,6 +1413,29 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			}
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError), now, a.recorder)
 			return
+		}
+
+		// Create APIService
+		for _, desc := range out.GetOwnedAPIServiceDescriptions() {
+			if deploymentCAPEMs == nil {
+				err = fmt.Errorf("Deployment CAPEM map should not be nil")
+				return
+			}
+			caPEM, ok := deploymentCAPEMs[desc.DeploymentName]
+			if !ok {
+				err = fmt.Errorf("Deployment not associated with APIService")
+				return
+			}
+			err = a.createOrUpdateAPIService(caPEM, desc, out)
+			if err != nil {
+				return
+			}
+
+			// Cleanup legacy resources
+			err = a.deleteLegacyAPIServiceResources(out, desc)
+			if err != nil {
+				return
+			}
 		}
 
 		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy", now, a.recorder)
