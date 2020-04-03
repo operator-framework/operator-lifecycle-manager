@@ -230,6 +230,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 
 			for i, m := range tt.createOrUpdateMocks {
 				fakeClient.CreateDeploymentReturns(nil, m.returnError)
+				fakeClient.IsDeploymentReadyReturns(true, nil)
 				defer func(i int, expectedDeployment appsv1.Deployment) {
 					dep := fakeClient.CreateOrUpdateDeploymentArgsForCall(i)
 					expectedDeployment.Spec.Template.Annotations = map[string]string{}

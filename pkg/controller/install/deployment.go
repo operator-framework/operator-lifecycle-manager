@@ -11,6 +11,7 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
+	depstatus "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install/status"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -84,7 +85,22 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 }
 
 func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.StrategyDeploymentSpec) error {
-	for _, d := range deps {
+	for n, d := range deps {
+		if n > 0 {
+			// Check previous deployment
+			prev := deps[n-1]
+			ready, err := i.strategyClient.IsDeploymentReady(i.owner.GetNamespace(), prev.Name)
+			if err != nil {
+				log.Infof("Unable to retrieve deployment: %v", err)
+				return err
+			}
+
+			if !ready {
+				msg := fmt.Sprintf("Waiting on deployment %s/%s to be ready", prev.Name, i.owner.GetNamespace())
+				log.Infof(msg)
+				return fmt.Errorf(msg)
+			}
+		}
 		deployment, _, err := i.deploymentForSpec(d.Name, d.Spec)
 		if err != nil {
 			return err
@@ -239,7 +255,7 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1al
 			log.Debugf("missing deployment with name=%s", spec.Name)
 			return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("missing deployment with name=%s", spec.Name)}
 		}
-		reason, ready, err := DeploymentStatus(dep)
+		reason, ready, err := depstatus.DeploymentStatus(dep)
 		if err != nil {
 			log.Debugf("deployment %s not ready before timeout: %s", dep.Name, err.Error())
 			return StrategyError{Reason: StrategyErrReasonTimeout, Message: fmt.Sprintf("deployment %s not ready before timeout: %s", dep.Name, err.Error())}

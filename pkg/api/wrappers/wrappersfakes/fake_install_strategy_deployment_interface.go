@@ -151,6 +151,20 @@ type FakeInstallStrategyDeploymentInterface struct {
 		result1 *v1b.ServiceAccount
 		result2 error
 	}
+	IsDeploymentReadyStub        func(string, string) (bool, error)
+	isDeploymentReadyMutex       sync.RWMutex
+	isDeploymentReadyArgsForCall []struct {
+		arg1 string
+		arg2 string
+	}
+	isDeploymentReadyReturns struct {
+		result1 bool
+		result2 error
+	}
+	isDeploymentReadyReturnsOnCall map[int]struct {
+		result1 bool
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -829,6 +843,70 @@ func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameRetur
 	}{result1, result2}
 }
 
+func (fake *FakeInstallStrategyDeploymentInterface) IsDeploymentReady(arg1 string, arg2 string) (bool, error) {
+	fake.isDeploymentReadyMutex.Lock()
+	ret, specificReturn := fake.isDeploymentReadyReturnsOnCall[len(fake.isDeploymentReadyArgsForCall)]
+	fake.isDeploymentReadyArgsForCall = append(fake.isDeploymentReadyArgsForCall, struct {
+		arg1 string
+		arg2 string
+	}{arg1, arg2})
+	fake.recordInvocation("IsDeploymentReady", []interface{}{arg1, arg2})
+	fake.isDeploymentReadyMutex.Unlock()
+	if fake.IsDeploymentReadyStub != nil {
+		return fake.IsDeploymentReadyStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.isDeploymentReadyReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) IsDeploymentReadyCallCount() int {
+	fake.isDeploymentReadyMutex.RLock()
+	defer fake.isDeploymentReadyMutex.RUnlock()
+	return len(fake.isDeploymentReadyArgsForCall)
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) IsDeploymentReadyCalls(stub func(string, string) (bool, error)) {
+	fake.isDeploymentReadyMutex.Lock()
+	defer fake.isDeploymentReadyMutex.Unlock()
+	fake.IsDeploymentReadyStub = stub
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) IsDeploymentReadyArgsForCall(i int) (string, string) {
+	fake.isDeploymentReadyMutex.RLock()
+	defer fake.isDeploymentReadyMutex.RUnlock()
+	argsForCall := fake.isDeploymentReadyArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) IsDeploymentReadyReturns(result1 bool, result2 error) {
+	fake.isDeploymentReadyMutex.Lock()
+	defer fake.isDeploymentReadyMutex.Unlock()
+	fake.IsDeploymentReadyStub = nil
+	fake.isDeploymentReadyReturns = struct {
+		result1 bool
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) IsDeploymentReadyReturnsOnCall(i int, result1 bool, result2 error) {
+	fake.isDeploymentReadyMutex.Lock()
+	defer fake.isDeploymentReadyMutex.Unlock()
+	fake.IsDeploymentReadyStub = nil
+	if fake.isDeploymentReadyReturnsOnCall == nil {
+		fake.isDeploymentReadyReturnsOnCall = make(map[int]struct {
+			result1 bool
+			result2 error
+		})
+	}
+	fake.isDeploymentReadyReturnsOnCall[i] = struct {
+		result1 bool
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeInstallStrategyDeploymentInterface) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -854,6 +932,8 @@ func (fake *FakeInstallStrategyDeploymentInterface) Invocations() map[string][][
 	defer fake.getOpListerMutex.RUnlock()
 	fake.getServiceAccountByNameMutex.RLock()
 	defer fake.getServiceAccountByNameMutex.RUnlock()
+	fake.isDeploymentReadyMutex.RLock()
+	defer fake.isDeploymentReadyMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

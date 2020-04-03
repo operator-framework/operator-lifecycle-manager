@@ -1,8 +1,9 @@
-package install
+package status
 
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	apps "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -116,4 +117,11 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestNilDeployment(t *testing.T) {
+	msg, done, err := DeploymentStatus(nil)
+	require.Equal(t, "Deployment pointer cannot be nil", msg)
+	require.False(t, done)
+	require.Error(t, err)
 }

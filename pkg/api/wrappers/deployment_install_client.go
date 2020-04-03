@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	depstatus "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install/status"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -24,6 +25,7 @@ type InstallStrategyDeploymentInterface interface {
 	EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error)
 	CreateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
 	CreateOrUpdateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
+	IsDeploymentReady(namespace, name string) (bool, error)
 	DeleteDeployment(name string) error
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
 	FindAnyDeploymentsMatchingNames(depNames []string) ([]*appsv1.Deployment, error)
@@ -98,6 +100,15 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	return c.opClient.CreateDeployment(deployment)
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) IsDeploymentReady(namespace, name string) (bool, error) {
+	deployment, err := c.opClient.GetDeployment(namespace, name)
+	if err != nil {
+		return false, err
+	}
+	_, ready, err := depstatus.DeploymentStatus(deployment)
+	return ready, err
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name string) error {

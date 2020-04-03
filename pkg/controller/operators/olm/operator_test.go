@@ -3126,7 +3126,7 @@ func TestUpdates(t *testing.T) {
 		[]*apiextensionsv1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseNone)
 
-	simulateSuccessfulRollout := func(csv *v1alpha1.ClusterServiceVersion, client operatorclient.ClientInterface) {
+	simulateSuccessfulRollout := func(client operatorclient.ClientInterface) {
 		// get the deployment, which should exist
 		dep, err := client.GetDeployment(namespace, deploymentName)
 		require.NoError(t, err)
@@ -3325,7 +3325,7 @@ func TestUpdates(t *testing.T) {
 				current := csvsToSync[e.whenIn.name]
 
 				if current.Status.Phase == v1alpha1.CSVPhaseInstalling {
-					simulateSuccessfulRollout(current, op.opClient)
+					simulateSuccessfulRollout(op.opClient)
 				}
 				for current.Status.Phase != e.whenIn.phase {
 					fmt.Printf("waiting for (when) %s to be %s\n", e.whenIn.name, e.whenIn.phase)

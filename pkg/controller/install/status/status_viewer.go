@@ -1,4 +1,4 @@
-package install
+package status
 
 // See kubernetes/pkg/kubectl/rollout_status.go
 
@@ -12,6 +12,9 @@ const TimedOutReason = "ProgressDeadlineExceeded"
 
 // Status returns a message describing deployment status, and a bool value indicating if the status is considered done.
 func DeploymentStatus(deployment *appsv1.Deployment) (string, bool, error) {
+	if deployment == nil {
+		return "Deployment pointer cannot be nil", false, fmt.Errorf("nil pointer")
+	}
 	if deployment.Generation <= deployment.Status.ObservedGeneration {
 		// check if deployment has timed out
 		cond := getDeploymentCondition(deployment.Status, appsv1.DeploymentProgressing)
