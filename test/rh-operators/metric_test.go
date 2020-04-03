@@ -81,7 +81,7 @@ func testInstallOperators(t *testing.T, c operatorclient.ClientInterface, crc ps
 		CleanupOperatorNamespace(t, o)
 	}
 
-	err = o.WaitToDeleteNamespace(o.namespace)
+	err = o.WaitToDeleteNamespace()
 	if err != nil {
 		t.Logf("error cleaning up Namespace: %s, %v", o.namespace, err)
 	}

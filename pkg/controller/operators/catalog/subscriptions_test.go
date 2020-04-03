@@ -866,12 +866,12 @@ func TestSyncSubscriptions(t *testing.T) {
 			}
 
 			for _, s := range tt.wantSubscriptions {
-				fetched, err := o.client.OperatorsV1alpha1().Subscriptions(testNamespace).Get(s.GetName(), metav1.GetOptions{})
+				fetched, err := o.client.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), s.GetName(), metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Equal(t, s, fetched)
 			}
 			if tt.wantInstallPlan != nil {
-				installPlans, err := o.client.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+				installPlans, err := o.client.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
 				require.NoError(t, err)
 				require.Equal(t, 1, len(installPlans.Items))
 				ip := installPlans.Items[0]

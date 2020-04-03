@@ -146,7 +146,7 @@ func (i *ImageLoader) loadManifests(manifests string, annotationsFile *registry.
 		return fmt.Errorf("Could not translate annotations file into packageManifest %s", err)
 	}
 
-	if err := i.loadOperatorBundle(packageManifest, *bundle); err != nil {
+	if err := i.loadOperatorBundle(packageManifest, bundle); err != nil {
 		return fmt.Errorf("Error adding package %s", err)
 	}
 
@@ -206,7 +206,7 @@ func (i *ImageLoader) findCSV(manifests string) (*unstructured.Unstructured, err
 }
 
 // loadOperatorBundle adds the package information to the loader's store
-func (i *ImageLoader) loadOperatorBundle(manifest registry.PackageManifest, bundle registry.Bundle) error {
+func (i *ImageLoader) loadOperatorBundle(manifest registry.PackageManifest, bundle *registry.Bundle) error {
 	if manifest.PackageName == "" {
 		return nil
 	}

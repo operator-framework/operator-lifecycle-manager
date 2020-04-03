@@ -1,4 +1,4 @@
-FROM openshift/origin-release:golang-1.12 as builder
+FROM openshift/origin-release:golang-1.13 as builder
 RUN yum update -y
 RUN yum install -y make git
 

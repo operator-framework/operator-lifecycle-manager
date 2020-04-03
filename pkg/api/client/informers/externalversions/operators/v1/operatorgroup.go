@@ -19,6 +19,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
 	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
@@ -61,13 +62,13 @@ func NewFilteredOperatorGroupInformer(client versioned.Interface, namespace stri
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().OperatorGroups(namespace).List(options)
+				return client.OperatorsV1().OperatorGroups(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1().OperatorGroups(namespace).Watch(options)
+				return client.OperatorsV1().OperatorGroups(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&operatorsv1.OperatorGroup{},

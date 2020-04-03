@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,7 +64,7 @@ var _ = Describe("Metrics", func() {
 
 func getOLMPodName(t GinkgoTInterface, client operatorclient.ClientInterface) string {
 	listOptions := metav1.ListOptions{LabelSelector: "app=olm-operator"}
-	podList, err := client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(listOptions)
+	podList, err := client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(context.TODO(), listOptions)
 	if err != nil {
 		log.Infof("Error %v\n", err)
 		t.Fatalf("Listing pods failed: %v\n", err)
@@ -79,7 +80,7 @@ func getOLMPodName(t GinkgoTInterface, client operatorclient.ClientInterface) st
 }
 
 func getMetricsFromPod(t GinkgoTInterface, client operatorclient.ClientInterface, podName string, namespace string, port string) (string, error) {
-	olmPod, err := client.KubernetesInterface().CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	olmPod, err := client.KubernetesInterface().CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -112,7 +113,7 @@ func getMetricsFromPod(t GinkgoTInterface, client operatorclient.ClientInterface
 		SubResource("proxy").
 		Name(net.JoinSchemeNamePort(scheme, podName, port)).
 		Suffix("metrics").
-		Do().Raw()
+		Do(context.TODO()).Raw()
 	if err != nil {
 		return "", err
 	}

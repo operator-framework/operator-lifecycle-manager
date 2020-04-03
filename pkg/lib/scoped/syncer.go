@@ -1,18 +1,20 @@
 package scoped
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/reference"
+
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 // NewUserDefinedServiceAccountSyncer returns a new instance of UserDefinedServiceAccountSyncer.
@@ -70,7 +72,7 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 	}
 
 	// A service account has been specified, we need to update the status.
-	sa, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(serviceAccountName, metav1.GetOptions{})
+	sa, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), serviceAccountName, metav1.GetOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed to get service account, sa=%s %v", serviceAccountName, err)
 		return
@@ -104,6 +106,6 @@ func (s *UserDefinedServiceAccountSyncer) update(in *v1.OperatorGroup, ref *core
 
 	out.Status = *status
 
-	out, err = s.versioned.OperatorsV1().OperatorGroups(out.GetNamespace()).UpdateStatus(out)
+	out, err = s.versioned.OperatorsV1().OperatorGroups(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
 	return
 }

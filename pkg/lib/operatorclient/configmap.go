@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -11,17 +12,17 @@ import (
 
 // CreateConfigMap creates the ConfigMap.
 func (c *Client) CreateConfigMap(ig *corev1.ConfigMap) (*corev1.ConfigMap, error) {
-	return c.CoreV1().ConfigMaps(ig.GetNamespace()).Create(ig)
+	return c.CoreV1().ConfigMaps(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
 }
 
 // GetConfigMap returns the existing ConfigMap.
 func (c *Client) GetConfigMap(namespace, name string) (*corev1.ConfigMap, error) {
-	return c.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
+	return c.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 // DeleteConfigMap deletes the ConfigMap.
 func (c *Client) DeleteConfigMap(namespace, name string, options *metav1.DeleteOptions) error {
-	return c.CoreV1().ConfigMaps(namespace).Delete(name, options)
+	return c.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), name, *options)
 }
 
 // UpdateConfigMap will update the given ConfigMap resource.
@@ -35,5 +36,5 @@ func (c *Client) UpdateConfigMap(configmap *corev1.ConfigMap) (*corev1.ConfigMap
 	if err != nil {
 		return nil, fmt.Errorf("error creating patch for ConfigMap: %v", err)
 	}
-	return c.CoreV1().ConfigMaps(configmap.GetNamespace()).Patch(configmap.GetName(), types.StrategicMergePatchType, patchBytes)
+	return c.CoreV1().ConfigMaps(configmap.GetNamespace()).Patch(context.TODO(), configmap.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 }

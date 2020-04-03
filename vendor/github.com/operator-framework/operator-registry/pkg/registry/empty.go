@@ -24,6 +24,14 @@ func (EmptyQuery) GetPackage(ctx context.Context, name string) (*PackageManifest
 	return nil, errors.New("empty querier: cannot get package")
 }
 
+func (EmptyQuery) GetDefaultPackage(ctx context.Context, name string) (string, error) {
+	return "", errors.New("empty querier: cannot get default package")
+}
+
+func (EmptyQuery) GetChannelEntriesFromPackage(ctx context.Context, packageName string) ([]ChannelEntryAnnotated, error) {
+	return nil, errors.New("empty querier: cannot get all channel entries for package")
+}
+
 func (EmptyQuery) GetBundle(ctx context.Context, pkgName, channelName, csvName string) (*api.Bundle, error) {
 	return nil, errors.New("empty querier: cannot get bundle")
 }

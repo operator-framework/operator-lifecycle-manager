@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -483,7 +484,7 @@ func TestUpdateHealth(t *testing.T) {
 
 				// Ensure the client's view of the subscription matches the typestate's
 				sub := transitioned.(SubscriptionState).Subscription()
-				clusterSub, err := fakeClient.Get(sub.GetName(), metav1.GetOptions{})
+				clusterSub, err := fakeClient.Get(context.TODO(), sub.GetName(), metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Equal(t, sub, clusterSub)
 			}
@@ -917,7 +918,7 @@ func TestInstallPlanNotFound(t *testing.T) {
 
 				// Ensure the client's view of the subscription matches the typestate's
 				sub := transitioned.(SubscriptionState).Subscription()
-				clusterSub, err := fakeClient.Get(sub.GetName(), metav1.GetOptions{})
+				clusterSub, err := fakeClient.Get(context.TODO(), sub.GetName(), metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Equal(t, sub, clusterSub)
 			}
@@ -1681,7 +1682,7 @@ func TestCheckInstallPlanStatus(t *testing.T) {
 
 				// Ensure the client's view of the subscription matches the typestate's
 				sub := transitioned.(SubscriptionState).Subscription()
-				clusterSub, err := fakeClient.Get(sub.GetName(), metav1.GetOptions{})
+				clusterSub, err := fakeClient.Get(context.TODO(), sub.GetName(), metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Equal(t, sub, clusterSub)
 			}

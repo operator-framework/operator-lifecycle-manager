@@ -19,6 +19,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	"time"
 
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -37,15 +38,15 @@ type InstallPlansGetter interface {
 
 // InstallPlanInterface has methods to work with InstallPlan resources.
 type InstallPlanInterface interface {
-	Create(*v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error)
-	Update(*v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error)
-	UpdateStatus(*v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error)
-	Delete(name string, options *v1.DeleteOptions) error
-	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
-	Get(name string, options v1.GetOptions) (*v1alpha1.InstallPlan, error)
-	List(opts v1.ListOptions) (*v1alpha1.InstallPlanList, error)
-	Watch(opts v1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.InstallPlan, err error)
+	Create(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.CreateOptions) (*v1alpha1.InstallPlan, error)
+	Update(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.UpdateOptions) (*v1alpha1.InstallPlan, error)
+	UpdateStatus(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.UpdateOptions) (*v1alpha1.InstallPlan, error)
+	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.InstallPlan, error)
+	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.InstallPlanList, error)
+	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.InstallPlan, err error)
 	InstallPlanExpansion
 }
 
@@ -64,20 +65,20 @@ func newInstallPlans(c *OperatorsV1alpha1Client, namespace string) *installPlans
 }
 
 // Get takes name of the installPlan, and returns the corresponding installPlan object, and an error if there is any.
-func (c *installPlans) Get(name string, options v1.GetOptions) (result *v1alpha1.InstallPlan, err error) {
+func (c *installPlans) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.InstallPlan, err error) {
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("installplans").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of InstallPlans that match those selectors.
-func (c *installPlans) List(opts v1.ListOptions) (result *v1alpha1.InstallPlanList, err error) {
+func (c *installPlans) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.InstallPlanList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -88,13 +89,13 @@ func (c *installPlans) List(opts v1.ListOptions) (result *v1alpha1.InstallPlanLi
 		Resource("installplans").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested installPlans.
-func (c *installPlans) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *installPlans) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -105,87 +106,90 @@ func (c *installPlans) Watch(opts v1.ListOptions) (watch.Interface, error) {
 		Resource("installplans").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a installPlan and creates it.  Returns the server's representation of the installPlan, and an error, if there is any.
-func (c *installPlans) Create(installPlan *v1alpha1.InstallPlan) (result *v1alpha1.InstallPlan, err error) {
+func (c *installPlans) Create(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.CreateOptions) (result *v1alpha1.InstallPlan, err error) {
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("installplans").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(installPlan).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a installPlan and updates it. Returns the server's representation of the installPlan, and an error, if there is any.
-func (c *installPlans) Update(installPlan *v1alpha1.InstallPlan) (result *v1alpha1.InstallPlan, err error) {
+func (c *installPlans) Update(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.UpdateOptions) (result *v1alpha1.InstallPlan, err error) {
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("installplans").
 		Name(installPlan.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(installPlan).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *installPlans) UpdateStatus(installPlan *v1alpha1.InstallPlan) (result *v1alpha1.InstallPlan, err error) {
+func (c *installPlans) UpdateStatus(ctx context.Context, installPlan *v1alpha1.InstallPlan, opts v1.UpdateOptions) (result *v1alpha1.InstallPlan, err error) {
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("installplans").
 		Name(installPlan.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(installPlan).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the installPlan and deletes it. Returns an error if one occurs.
-func (c *installPlans) Delete(name string, options *v1.DeleteOptions) error {
+func (c *installPlans) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("installplans").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *installPlans) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+func (c *installPlans) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("installplans").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched installPlan.
-func (c *installPlans) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.InstallPlan, err error) {
+func (c *installPlans) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.InstallPlan, err error) {
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("installplans").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

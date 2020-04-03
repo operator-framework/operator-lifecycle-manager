@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	corev1 "k8s.io/api/core/v1"
@@ -55,12 +56,12 @@ func createDockerRegistry(client operatorclient.ClientInterface, namespace strin
 		},
 	}
 
-	_, err := client.KubernetesInterface().CoreV1().Pods(namespace).Create(registry)
+	_, err := client.KubernetesInterface().CoreV1().Pods(namespace).Create(context.TODO(), registry, metav1.CreateOptions{})
 	if err != nil {
 		return "", fmt.Errorf("creating test registry: %s", err)
 	}
 
-	_, err = client.KubernetesInterface().CoreV1().Services(namespace).Create(svc)
+	_, err = client.KubernetesInterface().CoreV1().Services(namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
 	if err != nil {
 		return "", fmt.Errorf("creating test registry: %s", err)
 	}
@@ -69,8 +70,8 @@ func createDockerRegistry(client operatorclient.ClientInterface, namespace strin
 }
 
 func deleteDockerRegistry(client operatorclient.ClientInterface, namespace string) {
-	_ = client.KubernetesInterface().CoreV1().Pods(namespace).Delete(registryName, &metav1.DeleteOptions{})
-	_ = client.KubernetesInterface().CoreV1().Services(namespace).Delete(registryName, &metav1.DeleteOptions{})
+	_ = client.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), registryName, metav1.DeleteOptions{})
+	_ = client.KubernetesInterface().CoreV1().Services(namespace).Delete(context.TODO(), registryName, metav1.DeleteOptions{})
 }
 
 // port-forward registry pod port 5000 for local test

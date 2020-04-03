@@ -40,7 +40,7 @@ func (d *PackageRemover) Remove() error {
 	log.Infof("packages: %s", packages)
 
 	for _, pkg := range packages {
-		if err := d.store.RmPackageName(pkg); err != nil {
+		if err := d.store.RemovePackage(pkg); err != nil {
 			errs = append(errs, fmt.Errorf("error removing operator package %s: %s", pkg, err))
 		}
 	}

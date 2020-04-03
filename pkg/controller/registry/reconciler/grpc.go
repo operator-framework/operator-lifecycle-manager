@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -166,12 +167,12 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, ov
 			return nil
 		}
 		for _, p := range currentLivePods {
-			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0)); err != nil {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
 			}
 		}
 	}
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(source.Pod())
+	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), source.Pod(), metav1.CreateOptions{})
 	if err != nil {
 		return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetGenerateName())
 	}
@@ -197,7 +198,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 			updatePod.Labels[CatalogSourceUpdateKey] = ""
 
 			// Update the update pod to promote it to serving pod
-			_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Update(updatePod)
+			_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Update(context.TODO(), updatePod, metav1.UpdateOptions{})
 			if err != nil {
 				return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetName())
 			}
@@ -261,7 +262,7 @@ func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorat
 	p.Labels[CatalogSourceLabelKey] = ""
 	p.Labels[CatalogSourceUpdateKey] = source.Name
 
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(p)
+	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), p, metav1.CreateOptions{})
 	if err != nil {
 		logrus.WithField("pod", source.Pod().GetName()).Warn("couldn't create new catalogsource pod")
 		return err
@@ -301,7 +302,7 @@ func getPodImageID(pod *corev1.Pod) string {
 
 func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string) error {
 	for _, p := range pods {
-		err := c.OpClient.KubernetesInterface().CoreV1().Pods(namespace).Delete(p.GetName(), metav1.NewDeleteOptions(0))
+		err := c.OpClient.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0))
 		if err != nil {
 			return errors.Wrapf(err, "error deleting pod: %s", p.GetName())
 		}

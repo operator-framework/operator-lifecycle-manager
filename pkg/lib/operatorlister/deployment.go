@@ -58,23 +58,6 @@ func (udl *UnionDeploymentLister) Deployments(namespace string) appsv1.Deploymen
 	return &NullDeploymentNamespaceLister{}
 }
 
-func (udl *UnionDeploymentLister) GetDeploymentsForReplicaSet(rs *v1.ReplicaSet) ([]*v1.Deployment, error) {
-	udl.deploymentLock.RLock()
-	defer udl.deploymentLock.RUnlock()
-
-	// Check for specific namespace listers
-	if dl, ok := udl.deploymentListers[rs.GetNamespace()]; ok {
-		return dl.GetDeploymentsForReplicaSet(rs)
-	}
-
-	// Check for any namespace-all listers
-	if dl, ok := udl.deploymentListers[metav1.NamespaceAll]; ok {
-		return dl.GetDeploymentsForReplicaSet(rs)
-	}
-
-	return nil, fmt.Errorf("no listers found for namespace %s", rs.GetNamespace())
-}
-
 func (udl *UnionDeploymentLister) RegisterDeploymentLister(namespace string, lister appsv1.DeploymentLister) {
 	udl.deploymentLock.Lock()
 	defer udl.deploymentLock.Unlock()

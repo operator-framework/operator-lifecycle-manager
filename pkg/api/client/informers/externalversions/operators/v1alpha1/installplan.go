@@ -19,6 +19,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	time "time"
 
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -61,13 +62,13 @@ func NewFilteredInstallPlanInformer(client versioned.Interface, namespace string
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1alpha1().InstallPlans(namespace).List(options)
+				return client.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1alpha1().InstallPlans(namespace).Watch(options)
+				return client.OperatorsV1alpha1().InstallPlans(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&operatorsv1alpha1.InstallPlan{},

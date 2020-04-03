@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -46,7 +47,7 @@ func (c *Client) GetCustomResourceRaw(apiGroup, version, namespace, resourcePlur
 	uri := customResourceURI(apiGroup, version, namespace, resourcePlural, resourceName)
 	klog.V(4).Infof("[GET]: %s", uri)
 
-	return httpRestClient.Get().RequestURI(uri).DoRaw()
+	return httpRestClient.Get().RequestURI(uri).DoRaw(context.TODO())
 }
 
 // CreateCustomResource creates the custom resource.
@@ -76,7 +77,7 @@ func (c *Client) CreateCustomResourceRaw(apiGroup, version, namespace, kind stri
 	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
 	uri := customResourceDefinitionURI(apiGroup, version, namespace, kind)
 	klog.V(4).Infof("[POST]: %s", uri)
-	result := httpRestClient.Post().RequestURI(uri).Body(data).Do()
+	result := httpRestClient.Post().RequestURI(uri).Body(data).Do(context.TODO())
 
 	if result.Error() != nil {
 		return result.Error()
@@ -138,7 +139,7 @@ func (c *Client) UpdateCustomResourceRaw(apiGroup, version, namespace, resourceP
 	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
 	uri := customResourceURI(apiGroup, version, namespace, resourcePlural, resourceName)
 	klog.V(4).Infof("[PUT]: %s", uri)
-	result := httpRestClient.Put().RequestURI(uri).Body(data).Do()
+	result := httpRestClient.Put().RequestURI(uri).Body(data).Do(context.TODO())
 
 	if result.Error() != nil {
 		return result.Error()
@@ -191,7 +192,7 @@ func (c *Client) DeleteCustomResource(apiGroup, version, namespace, resourcePlur
 	uri := customResourceURI(apiGroup, version, namespace, resourcePlural, resourceName)
 
 	klog.V(4).Infof("[DELETE]: %s", uri)
-	_, err := httpRestClient.Delete().RequestURI(uri).DoRaw()
+	_, err := httpRestClient.Delete().RequestURI(uri).DoRaw(context.TODO())
 	return err
 }
 
@@ -280,7 +281,7 @@ func (c *Client) ListCustomResource(apiGroup, version, namespace, resourcePlural
 	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
 	uri := customResourceDefinitionURI(apiGroup, version, namespace, resourcePlural)
 	klog.V(4).Infof("[GET]: %s", uri)
-	bytes, err := httpRestClient.Get().RequestURI(uri).DoRaw()
+	bytes, err := httpRestClient.Get().RequestURI(uri).DoRaw(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get custom resource list: %v", err)
 	}

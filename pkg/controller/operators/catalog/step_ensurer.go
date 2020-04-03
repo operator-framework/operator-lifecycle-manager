@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 
 	errorwrap "github.com/pkg/errors"
@@ -36,7 +37,7 @@ type StepEnsurer struct {
 // EnsureClusterServiceVersion writes the specified ClusterServiceVersion
 // object to the cluster.
 func (o *StepEnsurer) EnsureClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.crClient.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Create(csv)
+	_, createErr := o.crClient.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Create(context.TODO(), csv, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -53,7 +54,7 @@ func (o *StepEnsurer) EnsureClusterServiceVersion(csv *v1alpha1.ClusterServiceVe
 
 // EnsureSubscription writes the specified Subscription object to the cluster.
 func (o *StepEnsurer) EnsureSubscription(subscription *v1alpha1.Subscription) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.crClient.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Create(subscription)
+	_, createErr := o.crClient.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Create(context.TODO(), subscription, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -71,7 +72,7 @@ func (o *StepEnsurer) EnsureSubscription(subscription *v1alpha1.Subscription) (s
 // EnsureSecret copies the secret from the OLM namespace and writes a new one
 // to the namespace requested.
 func (o *StepEnsurer) EnsureSecret(operatorNamespace, planNamespace, name string) (status v1alpha1.StepStatus, err error) {
-	secret, getError := o.kubeClient.KubernetesInterface().CoreV1().Secrets(operatorNamespace).Get(name, metav1.GetOptions{})
+	secret, getError := o.kubeClient.KubernetesInterface().CoreV1().Secrets(operatorNamespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if getError != nil {
 		if k8serrors.IsNotFound(getError) {
 			err = fmt.Errorf("secret %s does not exist - %v", name, getError)
@@ -95,7 +96,7 @@ func (o *StepEnsurer) EnsureSecret(operatorNamespace, planNamespace, name string
 		Type: secret.Type,
 	}
 
-	if _, createError := o.kubeClient.KubernetesInterface().CoreV1().Secrets(planNamespace).Create(newSecret); createError != nil {
+	if _, createError := o.kubeClient.KubernetesInterface().CoreV1().Secrets(planNamespace).Create(context.TODO(), newSecret, metav1.CreateOptions{}); createError != nil {
 		if k8serrors.IsAlreadyExists(createError) {
 			status = v1alpha1.StepStatusPresent
 			return
@@ -111,7 +112,7 @@ func (o *StepEnsurer) EnsureSecret(operatorNamespace, planNamespace, name string
 
 // EnsureServiceAccount writes the specified ServiceAccount object to the cluster.
 func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceAccount) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Create(sa)
+	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Create(context.TODO(), sa, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -123,7 +124,8 @@ func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceA
 	}
 
 	// Carrying secrets through the service account update.
-	preSa, getErr := o.kubeClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(sa.Name,
+	preSa, getErr := o.kubeClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(),
+		sa.Name,
 		metav1.GetOptions{})
 	if getErr != nil {
 		err = errorwrap.Wrapf(getErr, "error getting older version of service account: %s", sa.GetName())
@@ -147,7 +149,7 @@ func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceA
 
 // EnsureService writes the specified Service object to the cluster.
 func (o *StepEnsurer) EnsureService(namespace string, service *corev1.Service) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().Services(namespace).Create(service)
+	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().Services(namespace).Create(context.TODO(), service, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -170,7 +172,7 @@ func (o *StepEnsurer) EnsureService(namespace string, service *corev1.Service) (
 
 // EnsureClusterRole writes the specified ClusterRole object to the cluster.
 func (o *StepEnsurer) EnsureClusterRole(cr *rbacv1.ClusterRole, step *v1alpha1.Step) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().ClusterRoles().Create(cr)
+	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), cr, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -197,7 +199,7 @@ func (o *StepEnsurer) EnsureClusterRole(cr *rbacv1.ClusterRole, step *v1alpha1.S
 
 // EnsureClusterRoleBinding writes the specified ClusterRoleBinding object to the cluster.
 func (o *StepEnsurer) EnsureClusterRoleBinding(crb *rbacv1.ClusterRoleBinding, step *v1alpha1.Step) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(crb)
+	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(context.TODO(), crb, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -224,7 +226,7 @@ func (o *StepEnsurer) EnsureClusterRoleBinding(crb *rbacv1.ClusterRoleBinding, s
 
 // EnsureRole writes the specified Role object to the cluster.
 func (o *StepEnsurer) EnsureRole(namespace string, role *rbacv1.Role) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().Roles(namespace).Create(role)
+	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().Roles(namespace).Create(context.TODO(), role, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -248,7 +250,7 @@ func (o *StepEnsurer) EnsureRole(namespace string, role *rbacv1.Role) (status v1
 
 // EnsureRoleBinding writes the specified RoleBinding object to the cluster.
 func (o *StepEnsurer) EnsureRoleBinding(namespace string, rb *rbacv1.RoleBinding) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().RoleBindings(namespace).Create(rb)
+	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().RoleBindings(namespace).Create(context.TODO(), rb, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -271,7 +273,7 @@ func (o *StepEnsurer) EnsureRoleBinding(namespace string, rb *rbacv1.RoleBinding
 
 // EnsureUnstructuredObject writes the unspecified resource object to the cluster.
 func (o *StepEnsurer) EnsureUnstructuredObject(client dynamic.ResourceInterface, obj *unstructured.Unstructured) (status v1alpha1.StepStatus, err error) {
-	_, createErr := client.Create(obj, metav1.CreateOptions{})
+	_, createErr := client.Create(context.TODO(), obj, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
@@ -282,7 +284,7 @@ func (o *StepEnsurer) EnsureUnstructuredObject(client dynamic.ResourceInterface,
 		return
 	}
 
-	original, getError := client.Get(obj.GetName(), metav1.GetOptions{})
+	original, getError := client.Get(context.TODO(), obj.GetName(), metav1.GetOptions{})
 	if getError != nil {
 		err = errorwrap.Wrapf(getError, "error getting unstructured object %s", obj.GetName())
 		return
@@ -291,8 +293,8 @@ func (o *StepEnsurer) EnsureUnstructuredObject(client dynamic.ResourceInterface,
 	// Set the objects resource version
 	obj.SetResourceVersion(original.GetResourceVersion())
 
-	_, updateError := client.Update(obj, metav1.UpdateOptions{})
-	if err != nil {
+	_, updateError := client.Update(context.TODO(), obj, metav1.UpdateOptions{})
+	if updateError != nil {
 		err = errorwrap.Wrapf(updateError, "error updating unstructured object %s", obj.GetName())
 		return
 	}
@@ -303,7 +305,7 @@ func (o *StepEnsurer) EnsureUnstructuredObject(client dynamic.ResourceInterface,
 
 // EnsureConfigMap writes the specified ConfigMap object to the cluster.
 func (o *StepEnsurer) EnsureConfigMap(namespace string, configmap *corev1.ConfigMap) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(configmap)
+	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), configmap, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return

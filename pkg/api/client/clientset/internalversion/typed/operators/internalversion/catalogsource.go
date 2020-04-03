@@ -19,6 +19,7 @@ limitations under the License.
 package internalversion
 
 import (
+	"context"
 	"time"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
@@ -37,15 +38,15 @@ type CatalogSourcesGetter interface {
 
 // CatalogSourceInterface has methods to work with CatalogSource resources.
 type CatalogSourceInterface interface {
-	Create(*operators.CatalogSource) (*operators.CatalogSource, error)
-	Update(*operators.CatalogSource) (*operators.CatalogSource, error)
-	UpdateStatus(*operators.CatalogSource) (*operators.CatalogSource, error)
-	Delete(name string, options *v1.DeleteOptions) error
-	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
-	Get(name string, options v1.GetOptions) (*operators.CatalogSource, error)
-	List(opts v1.ListOptions) (*operators.CatalogSourceList, error)
-	Watch(opts v1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.CatalogSource, err error)
+	Create(ctx context.Context, catalogSource *operators.CatalogSource, opts v1.CreateOptions) (*operators.CatalogSource, error)
+	Update(ctx context.Context, catalogSource *operators.CatalogSource, opts v1.UpdateOptions) (*operators.CatalogSource, error)
+	UpdateStatus(ctx context.Context, catalogSource *operators.CatalogSource, opts v1.UpdateOptions) (*operators.CatalogSource, error)
+	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*operators.CatalogSource, error)
+	List(ctx context.Context, opts v1.ListOptions) (*operators.CatalogSourceList, error)
+	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.CatalogSource, err error)
 	CatalogSourceExpansion
 }
 
@@ -64,20 +65,20 @@ func newCatalogSources(c *OperatorsClient, namespace string) *catalogSources {
 }
 
 // Get takes name of the catalogSource, and returns the corresponding catalogSource object, and an error if there is any.
-func (c *catalogSources) Get(name string, options v1.GetOptions) (result *operators.CatalogSource, err error) {
+func (c *catalogSources) Get(ctx context.Context, name string, options v1.GetOptions) (result *operators.CatalogSource, err error) {
 	result = &operators.CatalogSource{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("catalogsources").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of CatalogSources that match those selectors.
-func (c *catalogSources) List(opts v1.ListOptions) (result *operators.CatalogSourceList, err error) {
+func (c *catalogSources) List(ctx context.Context, opts v1.ListOptions) (result *operators.CatalogSourceList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -88,13 +89,13 @@ func (c *catalogSources) List(opts v1.ListOptions) (result *operators.CatalogSou
 		Resource("catalogsources").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested catalogSources.
-func (c *catalogSources) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *catalogSources) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -105,87 +106,90 @@ func (c *catalogSources) Watch(opts v1.ListOptions) (watch.Interface, error) {
 		Resource("catalogsources").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a catalogSource and creates it.  Returns the server's representation of the catalogSource, and an error, if there is any.
-func (c *catalogSources) Create(catalogSource *operators.CatalogSource) (result *operators.CatalogSource, err error) {
+func (c *catalogSources) Create(ctx context.Context, catalogSource *operators.CatalogSource, opts v1.CreateOptions) (result *operators.CatalogSource, err error) {
 	result = &operators.CatalogSource{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("catalogsources").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(catalogSource).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a catalogSource and updates it. Returns the server's representation of the catalogSource, and an error, if there is any.
-func (c *catalogSources) Update(catalogSource *operators.CatalogSource) (result *operators.CatalogSource, err error) {
+func (c *catalogSources) Update(ctx context.Context, catalogSource *operators.CatalogSource, opts v1.UpdateOptions) (result *operators.CatalogSource, err error) {
 	result = &operators.CatalogSource{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("catalogsources").
 		Name(catalogSource.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(catalogSource).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *catalogSources) UpdateStatus(catalogSource *operators.CatalogSource) (result *operators.CatalogSource, err error) {
+func (c *catalogSources) UpdateStatus(ctx context.Context, catalogSource *operators.CatalogSource, opts v1.UpdateOptions) (result *operators.CatalogSource, err error) {
 	result = &operators.CatalogSource{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("catalogsources").
 		Name(catalogSource.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(catalogSource).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the catalogSource and deletes it. Returns an error if one occurs.
-func (c *catalogSources) Delete(name string, options *v1.DeleteOptions) error {
+func (c *catalogSources) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("catalogsources").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *catalogSources) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+func (c *catalogSources) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("catalogsources").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched catalogSource.
-func (c *catalogSources) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.CatalogSource, err error) {
+func (c *catalogSources) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.CatalogSource, err error) {
 	result = &operators.CatalogSource{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("catalogsources").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

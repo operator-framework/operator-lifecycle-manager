@@ -76,6 +76,18 @@ type ChannelEntry struct {
 	Replaces    string
 }
 
+// ChannelEntryAnnotated is a denormalized node in a channel graph annotated with additional entry level info
+type ChannelEntryAnnotated struct {
+	PackageName        string
+	ChannelName        string
+	BundleName         string
+	BundlePath         string
+	Version            string
+	Replaces           string
+	ReplacesVersion    string
+	ReplacesBundlePath string
+}
+
 // AnnotationsFile holds annotation information about a bundle
 type AnnotationsFile struct {
 	// annotations is a list of annotations for a given bundle

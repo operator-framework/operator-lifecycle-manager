@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var installplansResource = schema.GroupVersionResource{Group: "operators.coreos.
 var installplansKind = schema.GroupVersionKind{Group: "operators.coreos.com", Version: "", Kind: "InstallPlan"}
 
 // Get takes name of the installPlan, and returns the corresponding installPlan object, and an error if there is any.
-func (c *FakeInstallPlans) Get(name string, options v1.GetOptions) (result *operators.InstallPlan, err error) {
+func (c *FakeInstallPlans) Get(ctx context.Context, name string, options v1.GetOptions) (result *operators.InstallPlan, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(installplansResource, c.ns, name), &operators.InstallPlan{})
 
@@ -50,7 +52,7 @@ func (c *FakeInstallPlans) Get(name string, options v1.GetOptions) (result *oper
 }
 
 // List takes label and field selectors, and returns the list of InstallPlans that match those selectors.
-func (c *FakeInstallPlans) List(opts v1.ListOptions) (result *operators.InstallPlanList, err error) {
+func (c *FakeInstallPlans) List(ctx context.Context, opts v1.ListOptions) (result *operators.InstallPlanList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(installplansResource, installplansKind, c.ns, opts), &operators.InstallPlanList{})
 
@@ -72,14 +74,14 @@ func (c *FakeInstallPlans) List(opts v1.ListOptions) (result *operators.InstallP
 }
 
 // Watch returns a watch.Interface that watches the requested installPlans.
-func (c *FakeInstallPlans) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeInstallPlans) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(installplansResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a installPlan and creates it.  Returns the server's representation of the installPlan, and an error, if there is any.
-func (c *FakeInstallPlans) Create(installPlan *operators.InstallPlan) (result *operators.InstallPlan, err error) {
+func (c *FakeInstallPlans) Create(ctx context.Context, installPlan *operators.InstallPlan, opts v1.CreateOptions) (result *operators.InstallPlan, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(installplansResource, c.ns, installPlan), &operators.InstallPlan{})
 
@@ -90,7 +92,7 @@ func (c *FakeInstallPlans) Create(installPlan *operators.InstallPlan) (result *o
 }
 
 // Update takes the representation of a installPlan and updates it. Returns the server's representation of the installPlan, and an error, if there is any.
-func (c *FakeInstallPlans) Update(installPlan *operators.InstallPlan) (result *operators.InstallPlan, err error) {
+func (c *FakeInstallPlans) Update(ctx context.Context, installPlan *operators.InstallPlan, opts v1.UpdateOptions) (result *operators.InstallPlan, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(installplansResource, c.ns, installPlan), &operators.InstallPlan{})
 
@@ -102,7 +104,7 @@ func (c *FakeInstallPlans) Update(installPlan *operators.InstallPlan) (result *o
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeInstallPlans) UpdateStatus(installPlan *operators.InstallPlan) (*operators.InstallPlan, error) {
+func (c *FakeInstallPlans) UpdateStatus(ctx context.Context, installPlan *operators.InstallPlan, opts v1.UpdateOptions) (*operators.InstallPlan, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(installplansResource, "status", c.ns, installPlan), &operators.InstallPlan{})
 
@@ -113,7 +115,7 @@ func (c *FakeInstallPlans) UpdateStatus(installPlan *operators.InstallPlan) (*op
 }
 
 // Delete takes name of the installPlan and deletes it. Returns an error if one occurs.
-func (c *FakeInstallPlans) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeInstallPlans) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(installplansResource, c.ns, name), &operators.InstallPlan{})
 
@@ -121,15 +123,15 @@ func (c *FakeInstallPlans) Delete(name string, options *v1.DeleteOptions) error 
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeInstallPlans) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(installplansResource, c.ns, listOptions)
+func (c *FakeInstallPlans) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(installplansResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &operators.InstallPlanList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched installPlan.
-func (c *FakeInstallPlans) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.InstallPlan, err error) {
+func (c *FakeInstallPlans) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.InstallPlan, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(installplansResource, c.ns, name, pt, data, subresources...), &operators.InstallPlan{})
 

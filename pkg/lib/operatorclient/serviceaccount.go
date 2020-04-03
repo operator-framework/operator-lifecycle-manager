@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -11,17 +12,17 @@ import (
 
 // CreateServiceAccount creates the serviceAccount.
 func (c *Client) CreateServiceAccount(ig *v1.ServiceAccount) (*v1.ServiceAccount, error) {
-	return c.CoreV1().ServiceAccounts(ig.GetNamespace()).Create(ig)
+	return c.CoreV1().ServiceAccounts(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
 }
 
 // GetServiceAccount returns the existing serviceAccount.
 func (c *Client) GetServiceAccount(namespace, name string) (*v1.ServiceAccount, error) {
-	return c.CoreV1().ServiceAccounts(namespace).Get(name, metav1.GetOptions{})
+	return c.CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 // DeleteServiceAccount deletes the serviceAccount.
 func (c *Client) DeleteServiceAccount(namespace, name string, options *metav1.DeleteOptions) error {
-	return c.CoreV1().ServiceAccounts(namespace).Delete(name, options)
+	return c.CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), name, *options)
 }
 
 // UpdateServiceAccount will update the given ServiceAccount resource.
@@ -35,5 +36,5 @@ func (c *Client) UpdateServiceAccount(sa *v1.ServiceAccount) (*v1.ServiceAccount
 	if err != nil {
 		return nil, fmt.Errorf("error creating patch for ServiceAccount: %v", err)
 	}
-	return c.CoreV1().ServiceAccounts(sa.GetNamespace()).Patch(sa.GetName(), types.StrategicMergePatchType, patchBytes)
+	return c.CoreV1().ServiceAccounts(sa.GetNamespace()).Patch(context.TODO(), sa.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 }

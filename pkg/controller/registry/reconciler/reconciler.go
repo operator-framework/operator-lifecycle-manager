@@ -1,4 +1,4 @@
-//go:generate counterfeiter -o ../../../fakes/fake_reconciler_factory.go . RegistryReconcilerFactory
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../../fakes/fake_reconciler_factory.go . RegistryReconcilerFactory
 package reconciler
 
 import (

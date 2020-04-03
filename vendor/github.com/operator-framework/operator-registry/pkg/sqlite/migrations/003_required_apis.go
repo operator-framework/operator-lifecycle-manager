@@ -86,7 +86,7 @@ func extractRequiredApis(ctx context.Context, tx *sql.Tx, entryId int64, name st
 		return err
 	}
 	defer func() {
-		if err := addAPI.Close();err != nil {
+		if err := addAPI.Close(); err != nil {
 			logrus.WithError(err).Warningf("error closing prepared statement")
 		}
 	}()
@@ -133,7 +133,6 @@ func extractRequiredApis(ctx context.Context, tx *sql.Tx, entryId int64, name st
 
 	return nil
 }
-
 
 func SplitCRDName(crdName string) (plural, group string, err error) {
 	pluralGroup := strings.SplitN(crdName, ".", 2)

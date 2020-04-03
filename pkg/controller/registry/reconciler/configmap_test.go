@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -441,7 +442,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 
 			pod := decorated.Pod(registryImageName)
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
-			outPods, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(listOptions)
+			outPods, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
 			require.NoError(t, err)
 			require.Len(t, outPods.Items, 1)
 			outPod := outPods.Items[0]
@@ -450,22 +451,22 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			require.Equal(t, pod.Spec, outPod.Spec)
 
 			service := decorated.Service()
-			outService, err := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(service.GetName(), metav1.GetOptions{})
+			outService, err := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(context.TODO(), service.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, service, outService)
 
 			serviceAccount := decorated.ServiceAccount()
-			outServiceAccount, err := client.KubernetesInterface().CoreV1().ServiceAccounts(serviceAccount.GetNamespace()).Get(serviceAccount.GetName(), metav1.GetOptions{})
+			outServiceAccount, err := client.KubernetesInterface().CoreV1().ServiceAccounts(serviceAccount.GetNamespace()).Get(context.TODO(), serviceAccount.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, serviceAccount, outServiceAccount)
 
 			role := decorated.Role()
-			outRole, err := client.KubernetesInterface().RbacV1().Roles(role.GetNamespace()).Get(role.GetName(), metav1.GetOptions{})
+			outRole, err := client.KubernetesInterface().RbacV1().Roles(role.GetNamespace()).Get(context.TODO(), role.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, role, outRole)
 
 			roleBinding := decorated.RoleBinding()
-			outRoleBinding, err := client.KubernetesInterface().RbacV1().RoleBindings(roleBinding.GetNamespace()).Get(roleBinding.GetName(), metav1.GetOptions{})
+			outRoleBinding, err := client.KubernetesInterface().RbacV1().RoleBindings(roleBinding.GetNamespace()).Get(context.TODO(), roleBinding.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, roleBinding, outRoleBinding)
 		})

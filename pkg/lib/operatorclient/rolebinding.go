@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"fmt"
 
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -11,17 +12,17 @@ import (
 
 // CreateRoleBinding creates the roleBinding.
 func (c *Client) CreateRoleBinding(ig *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error) {
-	return c.RbacV1().RoleBindings(ig.GetNamespace()).Create(ig)
+	return c.RbacV1().RoleBindings(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
 }
 
 // GetRoleBinding returns the existing roleBinding.
 func (c *Client) GetRoleBinding(namespace, name string) (*rbacv1.RoleBinding, error) {
-	return c.RbacV1().RoleBindings(namespace).Get(name, metav1.GetOptions{})
+	return c.RbacV1().RoleBindings(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 // DeleteRoleBinding deletes the roleBinding.
 func (c *Client) DeleteRoleBinding(namespace, name string, options *metav1.DeleteOptions) error {
-	return c.RbacV1().RoleBindings(namespace).Delete(name, options)
+	return c.RbacV1().RoleBindings(namespace).Delete(context.TODO(), name, *options)
 }
 
 // UpdateRoleBinding will update the given RoleBinding resource.
@@ -35,5 +36,5 @@ func (c *Client) UpdateRoleBinding(crb *rbacv1.RoleBinding) (*rbacv1.RoleBinding
 	if err != nil {
 		return nil, fmt.Errorf("error creating patch for RoleBinding: %v", err)
 	}
-	return c.RbacV1().RoleBindings(crb.GetNamespace()).Patch(crb.GetName(), types.StrategicMergePatchType, patchBytes)
+	return c.RbacV1().RoleBindings(crb.GetNamespace()).Patch(context.TODO(), crb.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 }

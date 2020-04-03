@@ -6,9 +6,8 @@ type GetImageDataOptions struct {
 
 type GetImageDataOption func(*GetImageDataOptions)
 
-
 func WithWorkingDir(workingDir string) GetImageDataOption {
 	return func(o *GetImageDataOptions) {
-        o.WorkingDir = workingDir
-    }
+		o.WorkingDir = workingDir
+	}
 }

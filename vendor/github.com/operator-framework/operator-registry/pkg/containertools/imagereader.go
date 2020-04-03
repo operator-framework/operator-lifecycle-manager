@@ -184,19 +184,15 @@ func extractTarballToDir(outputDir string, tarReader *tar.Reader) error {
 				os.Mkdir(directoryToWrite, 0777)
 			}
 		case tar.TypeReg:
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(tarReader)
-			b := buf.Bytes()
-
 			manifestToWrite := filepath.Join(outputDir, header.Name)
 
 			m, err := os.Create(manifestToWrite)
 			if err != nil {
 				return err
 			}
-			defer m.Close()
 
-			_, err = m.Write(b)
+			_, err = io.Copy(m, tarReader)
+			m.Close()
 			if err != nil {
 				return err
 			}
