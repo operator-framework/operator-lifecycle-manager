@@ -11,6 +11,7 @@ require (
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-openapi/spec v0.19.4
 	github.com/golang/mock v1.3.1
+	github.com/irifrance/gini v1.0.1
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 	github.com/mikefarah/yq/v2 v2.4.1
 	github.com/mitchellh/hashstructure v1.0.0
