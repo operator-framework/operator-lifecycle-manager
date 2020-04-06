@@ -27,6 +27,8 @@ type InstallStrategyDeploymentInterface interface {
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
 	FindAnyDeploymentsMatchingNames(depNames []string) ([]*appsv1.Deployment, error)
 	FindAnyDeploymentsMatchingLabels(label labels.Selector) ([]*appsv1.Deployment, error)
+	GetOpClient() operatorclient.ClientInterface
+	GetOpLister() operatorlister.OperatorLister
 }
 
 type InstallStrategyDeploymentClientForNamespace struct {
@@ -43,6 +45,14 @@ func NewInstallStrategyDeploymentClient(opClient operatorclient.ClientInterface,
 		opLister:  opLister,
 		Namespace: namespace,
 	}
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) GetOpClient() operatorclient.ClientInterface {
+	return c.opClient
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) GetOpLister() operatorlister.OperatorLister {
+	return c.opLister
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateRole(role *rbacv1.Role) (*rbacv1.Role, error) {

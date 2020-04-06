@@ -1397,14 +1397,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		// Install owned APIServices and update strategy with serving cert data
-		deploymentCAPEMs := make(map[string][]byte)
-		strategy, deploymentCAPEMs, syncError = a.installOwnedAPIServiceRequirements(out, strategy)
-		if syncError != nil {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install API services failed: %s", syncError), now, a.recorder)
-			return
-		}
-
 		if syncError = installer.Install(strategy); syncError != nil {
 			if install.IsErrorUnrecoverable(syncError) {
 				logger.Infof("Setting CSV reason to failed without retry: %v", syncError)
@@ -1415,27 +1407,13 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		// Create APIService
-		for _, desc := range out.GetOwnedAPIServiceDescriptions() {
-			if deploymentCAPEMs == nil {
-				err = fmt.Errorf("Deployment CAPEM map should not be nil")
-				return
-			}
-			caPEM, ok := deploymentCAPEMs[desc.DeploymentName]
-			if !ok {
-				err = fmt.Errorf("Deployment not associated with APIService")
-				return
-			}
-			err = a.createOrUpdateAPIService(caPEM, desc, out)
-			if err != nil {
-				return
-			}
-
-			// Cleanup legacy resources
-			err = a.deleteLegacyAPIServiceResources(out, desc)
-			if err != nil {
-				return
-			}
+		if len(out.GetAllAPIServiceDescriptions()) > 0 {
+			expiration := time.Now().Add(DefaultCertValidFor)
+			rotateAt := expiration.Add(-1 * DefaultCertMinFresh)
+			now := metav1.Now()
+			rotateTime := metav1.NewTime(rotateAt)
+			out.Status.CertsLastUpdated = &now
+			out.Status.CertsRotateAt = &rotateTime
 		}
 
 		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy", now, a.recorder)
@@ -1728,7 +1706,7 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	strName := strategy.GetStrategyName()
-	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.GetAnnotations(), previousStrategy)
+	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.GetAnnotations(), csv.GetAllAPIServiceDescriptions(), previousStrategy)
 	return installer, strategy
 }
 
@@ -1808,7 +1786,7 @@ func (a *Operator) apiServiceOwnerConflicts(csv *v1alpha1.ClusterServiceVersion)
 			continue
 		}
 
-		adoptable, err := a.isAPIServiceAdoptable(csv, apiService)
+		adoptable, err := install.IsAPIServiceAdoptable(a.lister, csv, apiService)
 		if err != nil {
 			a.logger.WithFields(log.Fields{"obj": "apiService", "labels": apiService.GetLabels()}).Errorf("adoption check failed - %v", err)
 		}

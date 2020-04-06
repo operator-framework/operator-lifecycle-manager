@@ -12,7 +12,7 @@ import (
 )
 
 type FakeStrategyResolverInterface struct {
-	InstallerForStrategyStub        func(string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, map[string]string, install.Strategy) install.StrategyInstaller
+	InstallerForStrategyStub        func(string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, map[string]string, []v1alpha1.APIServiceDescription, install.Strategy) install.StrategyInstaller
 	installerForStrategyMutex       sync.RWMutex
 	installerForStrategyArgsForCall []struct {
 		arg1 string
@@ -20,7 +20,8 @@ type FakeStrategyResolverInterface struct {
 		arg3 operatorlister.OperatorLister
 		arg4 ownerutil.Owner
 		arg5 map[string]string
-		arg6 install.Strategy
+		arg6 []v1alpha1.APIServiceDescription
+		arg7 install.Strategy
 	}
 	installerForStrategyReturns struct {
 		result1 install.StrategyInstaller
@@ -45,7 +46,12 @@ type FakeStrategyResolverInterface struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeStrategyResolverInterface) InstallerForStrategy(arg1 string, arg2 operatorclient.ClientInterface, arg3 operatorlister.OperatorLister, arg4 ownerutil.Owner, arg5 map[string]string, arg6 install.Strategy) install.StrategyInstaller {
+func (fake *FakeStrategyResolverInterface) InstallerForStrategy(arg1 string, arg2 operatorclient.ClientInterface, arg3 operatorlister.OperatorLister, arg4 ownerutil.Owner, arg5 map[string]string, arg6 []v1alpha1.APIServiceDescription, arg7 install.Strategy) install.StrategyInstaller {
+	var arg6Copy []v1alpha1.APIServiceDescription
+	if arg6 != nil {
+		arg6Copy = make([]v1alpha1.APIServiceDescription, len(arg6))
+		copy(arg6Copy, arg6)
+	}
 	fake.installerForStrategyMutex.Lock()
 	ret, specificReturn := fake.installerForStrategyReturnsOnCall[len(fake.installerForStrategyArgsForCall)]
 	fake.installerForStrategyArgsForCall = append(fake.installerForStrategyArgsForCall, struct {
@@ -54,12 +60,13 @@ func (fake *FakeStrategyResolverInterface) InstallerForStrategy(arg1 string, arg
 		arg3 operatorlister.OperatorLister
 		arg4 ownerutil.Owner
 		arg5 map[string]string
-		arg6 install.Strategy
-	}{arg1, arg2, arg3, arg4, arg5, arg6})
-	fake.recordInvocation("InstallerForStrategy", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6})
+		arg6 []v1alpha1.APIServiceDescription
+		arg7 install.Strategy
+	}{arg1, arg2, arg3, arg4, arg5, arg6Copy, arg7})
+	fake.recordInvocation("InstallerForStrategy", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6Copy, arg7})
 	fake.installerForStrategyMutex.Unlock()
 	if fake.InstallerForStrategyStub != nil {
-		return fake.InstallerForStrategyStub(arg1, arg2, arg3, arg4, arg5, arg6)
+		return fake.InstallerForStrategyStub(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 	}
 	if specificReturn {
 		return ret.result1
@@ -74,17 +81,17 @@ func (fake *FakeStrategyResolverInterface) InstallerForStrategyCallCount() int {
 	return len(fake.installerForStrategyArgsForCall)
 }
 
-func (fake *FakeStrategyResolverInterface) InstallerForStrategyCalls(stub func(string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, map[string]string, install.Strategy) install.StrategyInstaller) {
+func (fake *FakeStrategyResolverInterface) InstallerForStrategyCalls(stub func(string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, map[string]string, []v1alpha1.APIServiceDescription, install.Strategy) install.StrategyInstaller) {
 	fake.installerForStrategyMutex.Lock()
 	defer fake.installerForStrategyMutex.Unlock()
 	fake.InstallerForStrategyStub = stub
 }
 
-func (fake *FakeStrategyResolverInterface) InstallerForStrategyArgsForCall(i int) (string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, map[string]string, install.Strategy) {
+func (fake *FakeStrategyResolverInterface) InstallerForStrategyArgsForCall(i int) (string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, map[string]string, []v1alpha1.APIServiceDescription, install.Strategy) {
 	fake.installerForStrategyMutex.RLock()
 	defer fake.installerForStrategyMutex.RUnlock()
 	argsForCall := fake.installerForStrategyArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6, argsForCall.arg7
 }
 
 func (fake *FakeStrategyResolverInterface) InstallerForStrategyReturns(result1 install.StrategyInstaller) {

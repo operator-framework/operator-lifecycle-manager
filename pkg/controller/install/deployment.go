@@ -17,12 +17,18 @@ import (
 
 const DeploymentSpecHashLabelKey = "olm.deployment-spec-hash"
 
+type installerAPIServiceDescriptions struct {
+	apiServiceDescription v1alpha1.APIServiceDescription
+	caPEM                 []byte
+}
+
 type StrategyDeploymentInstaller struct {
-	strategyClient      wrappers.InstallStrategyDeploymentInterface
-	owner               ownerutil.Owner
-	previousStrategy    Strategy
-	templateAnnotations map[string]string
-	initializers        DeploymentInitializerFuncChain
+	strategyClient         wrappers.InstallStrategyDeploymentInterface
+	owner                  ownerutil.Owner
+	previousStrategy       Strategy
+	templateAnnotations    map[string]string
+	initializers           DeploymentInitializerFuncChain
+	apiServiceDescriptions []installerAPIServiceDescriptions
 }
 
 var _ Strategy = &v1alpha1.StrategyDetailsDeployment{}
@@ -59,13 +65,19 @@ func (c DeploymentInitializerFuncChain) Apply(deployment *appsv1.Deployment) (er
 // the given context.
 type DeploymentInitializerBuilderFunc func(owner ownerutil.Owner) DeploymentInitializerFunc
 
-func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy, initializers DeploymentInitializerFuncChain) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy, initializers DeploymentInitializerFuncChain, apiServiceDescriptions []v1alpha1.APIServiceDescription) StrategyInstaller {
+	apiDescs := make([]installerAPIServiceDescriptions, len(apiServiceDescriptions))
+	for i := range apiServiceDescriptions {
+		apiDescs[i] = installerAPIServiceDescriptions{apiServiceDescriptions[i], []byte{}}
+	}
+
 	return &StrategyDeploymentInstaller{
-		strategyClient:      strategyClient,
-		owner:               owner,
-		previousStrategy:    previousStrategy,
-		templateAnnotations: templateAnnotations,
-		initializers:        initializers,
+		strategyClient:         strategyClient,
+		owner:                  owner,
+		previousStrategy:       previousStrategy,
+		templateAnnotations:    templateAnnotations,
+		initializers:           initializers,
+		apiServiceDescriptions: apiDescs,
 	}
 }
 
@@ -79,11 +91,29 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.Strateg
 		if _, err := i.strategyClient.CreateOrUpdateDeployment(deployment); err != nil {
 			return err
 		}
-	}
 
+		if err := i.createOrUpdateAPIServicesForDeployment(deployment.GetName()); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
+func (i *StrategyDeploymentInstaller) createOrUpdateAPIServicesForDeployment(deploymentName string) error {
+	for _, desc := range i.apiServiceDescriptionsForDeployment(deploymentName) {
+		err := i.createOrUpdateAPIService(desc.caPEM, desc.apiServiceDescription)
+		if err != nil {
+			return err
+		}
+
+		// Cleanup legacy resources
+		err = i.deleteLegacyAPIServiceResources(desc)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec) (deployment *appsv1.Deployment, hash string, err error) {
 	dep := &appsv1.Deployment{Spec: spec}
 	dep.SetName(name)
@@ -136,7 +166,17 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		return fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
 	}
 
-	if err := i.installDeployments(strategy.DeploymentSpecs); err != nil {
+	// Install owned APIServices and update strategy with serving cert data
+	updatedStrategy, err := i.installOwnedAPIServiceRequirements(strategy)
+	if err != nil {
+		return err
+	}
+
+	for _, desc := range i.apiServiceDescriptions {
+		log.Infof("Desc %s has been given ca %v", desc.apiServiceDescription.Name, desc.caPEM)
+	}
+
+	if err := i.installDeployments(updatedStrategy.DeploymentSpecs); err != nil {
 		if k8serrors.IsForbidden(err) {
 			return StrategyError{Reason: StrategyErrInsufficientPermissions, Message: fmt.Sprintf("install strategy failed: %s", err)}
 		}
@@ -144,7 +184,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	}
 
 	// Clean up orphaned deployments
-	return i.cleanupOrphanedDeployments(strategy.DeploymentSpecs)
+	return i.cleanupOrphanedDeployments(updatedStrategy.DeploymentSpecs)
 }
 
 // CheckInstalled can return nil (installed), or errors
