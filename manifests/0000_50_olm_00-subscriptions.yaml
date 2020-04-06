@@ -157,7 +157,11 @@ spec:
                               divisor:
                                 description: Specifies the output format of the exposed
                                   resources, defaults to "1"
-                                type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                x-kubernetes-int-or-string: true
                               resource:
                                 description: 'Required: resource to select'
                                 type: string
@@ -236,7 +240,11 @@ spec:
                         resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                       type: object
                       additionalProperties:
-                        type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        x-kubernetes-int-or-string: true
                     requests:
                       description: 'Requests describes the minimum amount of compute
                         resources required. If Requests is omitted for a container,
@@ -244,7 +252,11 @@ spec:
                         to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                       type: object
                       additionalProperties:
-                        type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        x-kubernetes-int-or-string: true
                 selector:
                   description: Selector is the label selector for pods to be configured.
                     Existing ReplicaSets whose pods are selected by this will be the
@@ -717,7 +729,11 @@ spec:
                                     divisor:
                                       description: Specifies the output format of
                                         the exposed resources, defaults to "1"
-                                      type: string
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      x-kubernetes-int-or-string: true
                                     resource:
                                       description: 'Required: resource to select'
                                       type: string
@@ -740,7 +756,11 @@ spec:
                               specified here and the sum of memory limits of all containers
                               in a pod. The default is nil which means that the limit
                               is undefined. More info: http://kubernetes.io/docs/user-guide/volumes#emptydir'
-                            type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
                       fc:
                         description: FC represents a Fibre Channel resource that is
                           attached to a kubelet's host machine and then exposed to
@@ -1226,7 +1246,11 @@ spec:
                                                 description: Specifies the output
                                                   format of the exposed resources,
                                                   defaults to "1"
-                                                type: string
+                                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                anyOf:
+                                                - type: integer
+                                                - type: string
+                                                x-kubernetes-int-or-string: true
                                               resource:
                                                 description: 'Required: resource to
                                                   select'
