@@ -1866,7 +1866,11 @@ spec:
                                                               the output format of
                                                               the exposed resources,
                                                               defaults to "1"
-                                                            type: string
+                                                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                            anyOf:
+                                                            - type: integer
+                                                            - type: string
+                                                            x-kubernetes-int-or-string: true
                                                           resource:
                                                             description: 'Required:
                                                               resource to select'
@@ -2434,6 +2438,10 @@ spec:
                                                       Must be UDP, TCP, or SCTP. Defaults
                                                       to "TCP".
                                                     type: string
+                                              x-kubernetes-list-map-keys:
+                                              - containerPort
+                                              - protocol
+                                              x-kubernetes-list-type: map
                                             readinessProbe:
                                               description: 'Periodic probe of container
                                                 service readiness. Container will
@@ -2595,7 +2603,11 @@ spec:
                                                     allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                                                   type: object
                                                   additionalProperties:
-                                                    type: string
+                                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                    anyOf:
+                                                    - type: integer
+                                                    - type: string
+                                                    x-kubernetes-int-or-string: true
                                                 requests:
                                                   description: 'Requests describes
                                                     the minimum amount of compute
@@ -2607,7 +2619,11 @@ spec:
                                                     More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                                                   type: object
                                                   additionalProperties:
-                                                    type: string
+                                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                    anyOf:
+                                                    - type: integer
+                                                    - type: string
+                                                    x-kubernetes-int-or-string: true
                                             securityContext:
                                               description: 'Security options the pod
                                                 should run with. More info: https://kubernetes.io/docs/concepts/policy/security-context/
@@ -3329,7 +3345,11 @@ spec:
                                                               the output format of
                                                               the exposed resources,
                                                               defaults to "1"
-                                                            type: string
+                                                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                            anyOf:
+                                                            - type: integer
+                                                            - type: string
+                                                            x-kubernetes-int-or-string: true
                                                           resource:
                                                             description: 'Required:
                                                               resource to select'
@@ -4039,7 +4059,11 @@ spec:
                                                     allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                                                   type: object
                                                   additionalProperties:
-                                                    type: string
+                                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                    anyOf:
+                                                    - type: integer
+                                                    - type: string
+                                                    x-kubernetes-int-or-string: true
                                                 requests:
                                                   description: 'Requests describes
                                                     the minimum amount of compute
@@ -4051,7 +4075,11 @@ spec:
                                                     More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                                                   type: object
                                                   additionalProperties:
-                                                    type: string
+                                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                    anyOf:
+                                                    - type: integer
+                                                    - type: string
+                                                    x-kubernetes-int-or-string: true
                                             securityContext:
                                               description: SecurityContext is not
                                                 allowed for ephemeral containers.
@@ -4769,7 +4797,11 @@ spec:
                                                               the output format of
                                                               the exposed resources,
                                                               defaults to "1"
-                                                            type: string
+                                                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                            anyOf:
+                                                            - type: integer
+                                                            - type: string
+                                                            x-kubernetes-int-or-string: true
                                                           resource:
                                                             description: 'Required:
                                                               resource to select'
@@ -5337,6 +5369,10 @@ spec:
                                                       Must be UDP, TCP, or SCTP. Defaults
                                                       to "TCP".
                                                     type: string
+                                              x-kubernetes-list-map-keys:
+                                              - containerPort
+                                              - protocol
+                                              x-kubernetes-list-type: map
                                             readinessProbe:
                                               description: 'Periodic probe of container
                                                 service readiness. Container will
@@ -5498,7 +5534,11 @@ spec:
                                                     allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                                                   type: object
                                                   additionalProperties:
-                                                    type: string
+                                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                    anyOf:
+                                                    - type: integer
+                                                    - type: string
+                                                    x-kubernetes-int-or-string: true
                                                 requests:
                                                   description: 'Requests describes
                                                     the minimum amount of compute
@@ -5510,7 +5550,11 @@ spec:
                                                     More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                                                   type: object
                                                   additionalProperties:
-                                                    type: string
+                                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                    anyOf:
+                                                    - type: integer
+                                                    - type: string
+                                                    x-kubernetes-int-or-string: true
                                             securityContext:
                                               description: 'Security options the pod
                                                 should run with. More info: https://kubernetes.io/docs/concepts/policy/security-context/
@@ -6032,7 +6076,11 @@ spec:
                                           enable the PodOverhead feature.'
                                         type: object
                                         additionalProperties:
-                                          type: string
+                                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                          anyOf:
+                                          - type: integer
+                                          - type: string
+                                          x-kubernetes-int-or-string: true
                                       preemptionPolicy:
                                         description: PreemptionPolicy is the Policy
                                           for preempting pods with lower priority.
@@ -6495,6 +6543,10 @@ spec:
                                                 make it *more* imbalanced. It''s a
                                                 required field.'
                                               type: string
+                                        x-kubernetes-list-map-keys:
+                                        - topologyKey
+                                        - whenUnsatisfiable
+                                        x-kubernetes-list-type: map
                                       volumes:
                                         description: 'List of volumes that can be
                                           mounted by containers belonging to the pod.
@@ -6945,7 +6997,11 @@ spec:
                                                               the output format of
                                                               the exposed resources,
                                                               defaults to "1"
-                                                            type: string
+                                                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                            anyOf:
+                                                            - type: integer
+                                                            - type: string
+                                                            x-kubernetes-int-or-string: true
                                                           resource:
                                                             description: 'Required:
                                                               resource to select'
@@ -6977,7 +7033,11 @@ spec:
                                                     default is nil which means that
                                                     the limit is undefined. More info:
                                                     http://kubernetes.io/docs/user-guide/volumes#emptydir'
-                                                  type: string
+                                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                  anyOf:
+                                                  - type: integer
+                                                  - type: string
+                                                  x-kubernetes-int-or-string: true
                                             fc:
                                               description: FC represents a Fibre Channel
                                                 resource that is attached to a kubelet's
@@ -7630,7 +7690,11 @@ spec:
                                                                         resources,
                                                                         defaults to
                                                                         "1"
-                                                                      type: string
+                                                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                                      anyOf:
+                                                                      - type: integer
+                                                                      - type: string
+                                                                      x-kubernetes-int-or-string: true
                                                                     resource:
                                                                       description: 'Required:
                                                                         resource to
