@@ -25,29 +25,29 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-
 OUTPUT_BASE=$(mktemp -d)
 trap 'rm -rf "${OUTPUT_BASE}"' ERR EXIT
 
-MODULE="github.com/operator-framework/operator-lifecycle-manager"
+ORG="github.com/operator-framework"
+API_MODULE="${ORG}/api"
+MODULE="${ORG}/operator-lifecycle-manager"
 
 # generate the code with:
 # --output-base    because this script should also be able to run inside the vendor dir of
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
-bash "${CODEGEN_PKG}/generate-internal-groups.sh" "conversion,informer,lister" \
+bash "${CODEGEN_PKG}/generate-groups.sh" "lister,informer" \
   "${MODULE}/pkg/api/client" \
-  "${MODULE}/pkg/api/apis" \
-  "${MODULE}/pkg/api/apis" \
+  "${API_MODULE}/pkg" \
   "operators:v1alpha1,v1" \
   --output-base "${OUTPUT_BASE}" \
   --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
 
-bash "${CODEGEN_PKG}/generate-internal-groups.sh" "client" \
+bash "${CODEGEN_PKG}/generate-groups.sh" "client" \
   "${MODULE}/pkg/api/client" \
-  "${MODULE}/pkg/api/apis" \
-  "${MODULE}/pkg/api/apis" \
-  "operators:v1alpha1,v1" \
+  "${API_MODULE}/pkg" \
+  "operators:v1alpha1,v1,v2alpha1" \
   --output-base "${OUTPUT_BASE}" \
   --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
 
-export OPENAPI_EXTRA_PACKAGES="${MODULE}/pkg/api/apis/operators/v1alpha1,${MODULE}/pkg/lib/version"
+export OPENAPI_EXTRA_PACKAGES="${API_MODULE}/pkg/operators/v1alpha1,${API_MODULE}/pkg/lib/version"
 bash "${CODEGEN_PKG}/generate-internal-groups.sh" all \
   "${MODULE}/pkg/package-server/client" \
   "${MODULE}/pkg/package-server/apis" \

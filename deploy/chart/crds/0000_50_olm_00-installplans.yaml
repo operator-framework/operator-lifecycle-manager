@@ -140,6 +140,7 @@ spec:
                 type: object
                 required:
                 - catalogSourceRef
+                - identifier
                 - path
                 - replaces
                 properties:
@@ -212,6 +213,10 @@ spec:
                         type:
                           description: Type of condition.
                           type: string
+                  identifier:
+                    description: Identifier is the catalog-unique name of the operator
+                      (the name of the CSV for bundles that contain CSVs)
+                    type: string
                   path:
                     description: Path refers to the location of a bundle to pull.
                       It's typically an image reference.

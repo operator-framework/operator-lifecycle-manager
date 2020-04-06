@@ -1,6 +1,6 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
-go 1.12
+go 1.13
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
@@ -9,22 +9,27 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-bindata/go-bindata/v3 v3.1.3
+	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.4
 	github.com/golang/mock v1.3.1
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 	github.com/mikefarah/yq/v2 v2.4.1
 	github.com/mitchellh/hashstructure v1.0.0
-	github.com/onsi/ginkgo v1.10.1
-	github.com/onsi/gomega v1.7.0
+	github.com/mitchellh/mapstructure v1.1.2
+	github.com/onsi/ginkgo v1.11.0
+	github.com/onsi/gomega v1.8.1
 	github.com/openshift/api v0.0.0-20200205133042-34f0ec8dab87
 	github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b
+	github.com/operator-framework/api v0.2.0
 	github.com/operator-framework/operator-registry v1.6.1
 	github.com/otiai10/copy v1.0.2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.2.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.4.0
+	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	google.golang.org/grpc v1.27.0
 	gopkg.in/yaml.v2 v2.2.8
@@ -40,7 +45,8 @@ require (
 	k8s.io/kube-aggregator v0.17.3
 	k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
 	rsc.io/letsencrypt v0.0.3 // indirect
-	sigs.k8s.io/controller-tools v0.2.4
+	sigs.k8s.io/controller-runtime v0.5.2
+	sigs.k8s.io/controller-tools v0.2.8
 	sigs.k8s.io/kind v0.7.0
 )
 

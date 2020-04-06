@@ -9,7 +9,10 @@ undefine GOFLAGS
 endif
 
 SHELL := /bin/bash
-PKG   := github.com/operator-framework/operator-lifecycle-manager
+ORG := github.com/operator-framework
+PKG   := $(ORG)/operator-lifecycle-manager
+OS := $(shell go env GOOS)
+ARCH := $(shell go env GOARCH)
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.1[1-9]") && echo -mod=vendor)
 CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
 TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
@@ -39,8 +42,16 @@ all: test build
 
 test: clean cover.out
 
-unit:
-	go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -count=1 ./pkg/...
+unit: kubebuilder
+	$(KUBEBUILDER_ENV) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -count=1 ./pkg/...
+
+# Install kubebuilder if not found
+KUBEBUILDER_DIR := /tmp/kubebuilder_2.3.1_$(OS)_$(ARCH)/bin 
+kubebuilder:
+ifeq (, $(shell which kubebuilder))
+	[ ! -d "$(KUBEBUILDER_DIR)" ] && (curl -sL https://go.kubebuilder.io/dl/2.3.1/$(OS)/$(ARCH) | tar -xz -C /tmp/)
+KUBEBUILDER_ENV := KUBEBUILDER_ASSETS=$(KUBEBUILDER_DIR)
+endif
 
 schema-check:
 
@@ -154,17 +165,13 @@ clean:
 	@rm -rf e2e.namespace
 
 
-# Generate manifests for CRDs
+# Copy CRD manifests
 manifests: vendor
-	$(CONTROLLER_GEN) schemapatch:manifests=./deploy/chart/crds paths=./pkg/api/apis/operators/... output:dir=./deploy/chart/crds
-
-	$(YQ_INTERNAL) w --inplace deploy/chart/crds/0000_50_olm_03-clusterserviceversion.crd.yaml spec.validation.openAPIV3Schema.properties.spec.properties.install.properties.spec.properties.deployments.items.properties.spec.properties.template.properties.metadata.x-kubernetes-preserve-unknown-fields true
+	./scripts/copy_crds.sh
 
 # Generate deepcopy, conversion, clients, listers, and informers
 codegen:
-	# Deepcopy
-	$(CONTROLLER_GEN) object:headerFile=./boilerplate.go.txt paths=./pkg/api/apis/operators/...i
-	# Conversion, clients, listers, and informers
+	# Clients, listers, and informers
 	$(CODEGEN)
 
 # Generate mock types.
@@ -182,11 +189,10 @@ verify-mockgen: mockgen diff
 verify-manifests: manifests diff
 verify: verify-codegen verify-mockgen verify-manifests
 
-
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
 release: ver=$(shell cat OLM_VERSION)
-release:
+release: manifests
 	docker pull quay.io/operator-framework/olm:$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 	$(MAKE) target=ocp ver=$(ver) package
@@ -220,3 +226,4 @@ endif
 run-console-local:
 	@echo Running script to run the OLM console locally:
 	. ./scripts/run_console_local.sh
+
