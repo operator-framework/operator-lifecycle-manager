@@ -31,6 +31,7 @@ type ClientInterface interface {
 	ClusterRoleBindingClient
 	ClusterRoleClient
 	DeploymentClient
+	ConfigMapClient
 }
 
 // CustomResourceClient contains methods for the Custom Resource.
@@ -125,6 +126,14 @@ type DeploymentClient interface {
 	RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*appsv1.Deployment, bool, error)
 	CreateOrRollingUpdateDeployment(*appsv1.Deployment) (*appsv1.Deployment, bool, error)
 	ListDeploymentsWithLabels(namespace string, labels labels.Set) (*appsv1.DeploymentList, error)
+}
+
+// ConfigMapClient contains methods for the ConfigMap resource
+type ConfigMapClient interface {
+	CreateConfigMap(*v1.ConfigMap) (*v1.ConfigMap, error)
+	GetConfigMap(namespace, name string) (*v1.ConfigMap, error)
+	UpdateConfigMap(modified *v1.ConfigMap) (*v1.ConfigMap, error)
+	DeleteConfigMap(namespace, name string, options *metav1.DeleteOptions) error
 }
 
 // Interface assertion.

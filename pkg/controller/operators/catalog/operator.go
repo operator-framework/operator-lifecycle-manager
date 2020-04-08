@@ -61,6 +61,7 @@ const (
 	secretKind             = "Secret"
 	clusterRoleKind        = "ClusterRole"
 	clusterRoleBindingKind = "ClusterRoleBinding"
+	configMapKind          = "ConfigMap"
 	serviceAccountKind     = "ServiceAccount"
 	serviceKind            = "Service"
 	roleKind               = "Role"
@@ -1725,6 +1726,28 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				s.SetNamespace(namespace)
 
 				status, err := ensurer.EnsureService(namespace, &s)
+				if err != nil {
+					return err
+				}
+
+				plan.Status.Plan[i].Status = status
+
+			case configMapKind:
+				var cfg corev1.ConfigMap
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &cfg)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+				}
+
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(cfg.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error generating ownerrefs for configmap: %s", cfg.GetName())
+				}
+				cfg.SetOwnerReferences(updated)
+				cfg.SetNamespace(namespace)
+
+				status, err := ensurer.EnsureConfigMap(plan.Namespace, &cfg)
 				if err != nil {
 					return err
 				}
