@@ -29,7 +29,11 @@ const (
 )
 
 const (
-	CatalogSourceConfigMapError      ConditionReason = "ConfigMapError"
+	// CatalogSourceSpecInvalidError denotes when fields on the spec of the CatalogSource are not valid.
+	CatalogSourceSpecInvalidError ConditionReason = "SpecInvalidError"
+	// CatalogSourceConfigMapError denotes when there is an issue extracting manifests from the specified ConfigMap.
+	CatalogSourceConfigMapError ConditionReason = "ConfigMapError"
+	// CatalogSourceRegistryServerError denotes when there is an issue querying the specified registry server.
 	CatalogSourceRegistryServerError ConditionReason = "RegistryServerError"
 )
 
@@ -104,10 +108,10 @@ type GRPCConnectionState struct {
 }
 
 type CatalogSourceStatus struct {
-	// A human readable message indicating details about why the ClusterServiceVersion is in this condition.
+	// A human readable message indicating details about why the CatalogSource is in this condition.
 	// +optional
 	Message string `json:"message,omitempty"`
-	// Reason is the reason the Subscription was transitioned to its current state.
+	// Reason is the reason the CatalogSource was transitioned to its current state.
 	// +optional
 	Reason ConditionReason `json:"reason,omitempty"`
 
