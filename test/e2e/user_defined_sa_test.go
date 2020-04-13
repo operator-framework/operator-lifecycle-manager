@@ -298,7 +298,7 @@ func newCatalogSource(t GinkgoTInterface, kubeclient operatorclient.ClientInterf
 	}
 
 	catalogSourceName := genName(prefixFunc("catsrc"))
-	catsrc, cleanup = createInternalCatalogSource(t, kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	catsrc, cleanup = createInternalCatalogSource(kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 	require.NotNil(t, catsrc)
 	require.NotNil(t, cleanup)
 
@@ -366,7 +366,7 @@ func newCatalogSourceWithDependencies(t GinkgoTInterface, kubeclient operatorcli
 	}
 
 	catalogSourceName := genName(prefixFunc("catsrc"))
-	catsrc, cleanup = createInternalCatalogSource(t, kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	catsrc, cleanup = createInternalCatalogSource(kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 	require.NotNil(t, catsrc)
 	require.NotNil(t, cleanup)
 
@@ -431,8 +431,8 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 
 	clusterrole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:genName("scoped-clusterrole-"),
-		Namespace: namespace},
+			Name:      genName("scoped-clusterrole-"),
+			Namespace: namespace},
 		Rules: []rbacv1.PolicyRule{
 			{
 				Verbs:     []string{rbac.VerbAll},

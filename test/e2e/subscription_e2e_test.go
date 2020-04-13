@@ -150,7 +150,7 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create catalog source
-		_, cleanupMainCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{mainCSV})
+		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanupMainCatalogSource()
 		// Attempt to get the catalog source before creating subscription
 		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
@@ -261,7 +261,7 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
-		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
@@ -402,7 +402,7 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
-		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
@@ -488,7 +488,7 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
-		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogSourceName, testNamespace, manifests, nil, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, testNamespace, manifests, nil, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
@@ -920,7 +920,7 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 		catalogName := genName("catalog-")
-		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupCatalogSource()
 		_, err = fetchCatalogSourceOnStatus(crc, catalogName, ns.GetName(), catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
@@ -1808,7 +1808,7 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	var crdsRaw []byte
 	crdStrings := []string{}
 	for _, crd := range crds {
-		crdStrings = append(crdStrings, serializeCRD(t, crd))
+		crdStrings = append(crdStrings, serializeCRD(crd))
 	}
 	crdsRaw, err = yaml.Marshal(crdStrings)
 	require.NoError(t, err)

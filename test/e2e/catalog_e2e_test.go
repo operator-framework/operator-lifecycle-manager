@@ -56,7 +56,7 @@ var _ = Describe("Catalog", func() {
 		crc := newCRClient()
 
 		catalogSourceName := genName("mock-ocs-")
-		_, cleanupSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
 
 		// ensure the mock catalog exists and has been synced by the catalog operator
@@ -132,7 +132,7 @@ var _ = Describe("Catalog", func() {
 		}
 
 		// Create the initial catalog source
-		createInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, globalNS, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+		createInternalCatalogSource(c, crc, mainCatalogName, globalNS, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
 
 		// Attempt to get the catalog source before creating install plan
 		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
@@ -243,7 +243,7 @@ var _ = Describe("Catalog", func() {
 		}
 
 		// Create the initial catalogsource
-		createInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+		createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 
 		// Attempt to get the catalog source before creating install plan
 		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
@@ -363,7 +363,7 @@ var _ = Describe("Catalog", func() {
 		}
 
 		// Create the initial catalogsource
-		_, cleanupSource := createInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+		_, cleanupSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 
 		// Attempt to get the catalog source before creating install plan
 		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
@@ -381,7 +381,7 @@ var _ = Describe("Catalog", func() {
 		cleanupSource()
 
 		// create a catalog with the same name
-		createInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
@@ -465,8 +465,8 @@ var _ = Describe("Catalog", func() {
 		}
 
 		// Create ConfigMap CatalogSources
-		createInternalCatalogSource(GinkgoT(), c, crc, mainSourceName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
-		createInternalCatalogSource(GinkgoT(), c, crc, replacementSourceName, testNamespace, append(replacementManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{replacementCSV, mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, mainSourceName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, replacementSourceName, testNamespace, append(replacementManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{replacementCSV, mainCSV, dependentCSV})
 
 		// Wait for ConfigMap CatalogSources to be ready
 		mainSource, err := fetchCatalogSourceOnStatus(crc, mainSourceName, testNamespace, catalogSourceRegistryPodSynced)
@@ -565,7 +565,7 @@ var _ = Describe("Catalog", func() {
 
 		c := newKubeClient()
 		crc := newCRClient()
-		_, cleanupSource := createInternalCatalogSource(GinkgoT(), c, crc, sourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		_, cleanupSource := createInternalCatalogSource(c, crc, sourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
 
 		// Wait for a new registry pod to be created

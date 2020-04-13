@@ -968,6 +968,7 @@ var _ = Describe("CSV", func() {
 
 			deleted := make(chan struct{})
 			go func() {
+				defer GinkgoRecover()
 				events := watcher.ResultChan()
 				for {
 					select {
@@ -1514,6 +1515,7 @@ var _ = Describe("CSV", func() {
 		quit := make(chan struct{})
 		defer close(quit)
 		go func() {
+			defer GinkgoRecover()
 			events := watcher.ResultChan()
 			for {
 				select {

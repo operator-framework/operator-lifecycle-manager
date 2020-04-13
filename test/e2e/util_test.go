@@ -105,7 +105,7 @@ func newDynamicClient(t GinkgoTInterface, config *rest.Config) dynamic.Interface
 	return ctx.Ctx().DynamicClient()
 }
 
-func newPMClient(t GinkgoTInterface) pmversioned.Interface {
+func newPMClient() pmversioned.Interface {
 	return ctx.Ctx().PackageClient()
 }
 
@@ -408,7 +408,6 @@ func cleanupOLM(namespace string) {
 	err = c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{})
 	Expect(err).NotTo(HaveOccurred())
 
-	//var err error
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
 		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "csvs")
@@ -438,17 +437,19 @@ func cleanupOLM(namespace string) {
 	Expect(err).NotTo(HaveOccurred())
 }
 
-func buildCatalogSourceCleanupFunc(t GinkgoTInterface, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
+func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
 	return func() {
 		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
-		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{}))
+		err := crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
 	}
 }
 
-func buildConfigMapCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string, configMap *corev1.ConfigMap) cleanupFunc {
+func buildConfigMapCleanupFunc(c operatorclient.ClientInterface, namespace string, configMap *corev1.ConfigMap) cleanupFunc {
 	return func() {
-		t.Logf("Deleting config map %s...", configMap.GetName())
-		require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(context.TODO(), configMap.GetName(), metav1.DeleteOptions{}))
+		ctx.Ctx().Logf("Deleting config map %s...", configMap.GetName())
+		err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(context.TODO(), configMap.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
 	}
 }
 
@@ -459,8 +460,8 @@ func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientI
 	}
 }
 
-func createInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
-	configMap, configMapCleanup := createConfigMapForCatalogData(t, c, name, namespace, manifests, crds, csvs)
+func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
+	configMap, configMapCleanup := createConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
 	catalogSource := &v1alpha1.CatalogSource{
@@ -479,16 +480,16 @@ func createInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInte
 	}
 	catalogSource.SetNamespace(namespace)
 
-	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
+	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
 	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 	}
-	t.Logf("Catalog source %s created", name)
+	ctx.Ctx().Logf("Catalog source %s created", name)
 
 	cleanupInternalCatalogSource := func() {
 		configMapCleanup()
-		buildCatalogSourceCleanupFunc(t, crc, namespace, catalogSource)()
+		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }
@@ -513,21 +514,21 @@ func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.Clien
 	}
 	catalogSource.SetNamespace(namespace)
 
-	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
+	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
 	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
-	t.Logf("Catalog source %s created", name)
+	ctx.Ctx().Logf("Catalog source %s created", name)
 
 	cleanupInternalCatalogSource := func() {
 		configMapCleanup()
-		buildCatalogSourceCleanupFunc(t, crc, namespace, catalogSource)()
+		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }
 
-func createConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
+func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
@@ -542,7 +543,7 @@ func createConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientIn
 	// Add raw manifests
 	if manifests != nil {
 		manifestsRaw, err := yaml.Marshal(manifests)
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 		catalogConfigMap.Data[registry.ConfigMapPackageName] = string(manifestsRaw)
 	}
 
@@ -551,26 +552,26 @@ func createConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientIn
 	if crds != nil {
 		crdStrings := []string{}
 		for _, crd := range crds {
-			crdStrings = append(crdStrings, serializeCRD(t, crd))
+			crdStrings = append(crdStrings, serializeCRD(crd))
 		}
 		var err error
 		crdsRaw, err = yaml.Marshal(crdStrings)
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 	}
 	catalogConfigMap.Data[registry.ConfigMapCRDName] = strings.Replace(string(crdsRaw), "- |\n  ", "- ", -1)
 
 	// Add raw CSVs
 	if csvs != nil {
 		csvsRaw, err := yaml.Marshal(csvs)
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 		catalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 	}
 
 	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), catalogConfigMap, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 	}
-	return createdConfigMap, buildConfigMapCleanupFunc(t, c, namespace, createdConfigMap)
+	return createdConfigMap, buildConfigMapCleanupFunc(c, namespace, createdConfigMap)
 }
 
 func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
@@ -616,17 +617,18 @@ func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.Cli
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
-	return createdConfigMap, buildConfigMapCleanupFunc(t, c, namespace, createdConfigMap)
+	return createdConfigMap, buildConfigMapCleanupFunc(c, namespace, createdConfigMap)
 }
 
-func serializeCRD(t GinkgoTInterface, crd apiextensions.CustomResourceDefinition) string {
+func serializeCRD(crd apiextensions.CustomResourceDefinition) string {
 	scheme := runtime.NewScheme()
-	require.NoError(t, extScheme.AddToScheme(scheme))
-	require.NoError(t, k8sscheme.AddToScheme(scheme))
-	require.NoError(t, v1beta1.AddToScheme(scheme))
+
+	Expect(extScheme.AddToScheme(scheme)).Should(Succeed())
+	Expect(k8sscheme.AddToScheme(scheme)).Should(Succeed())
+	Expect(v1beta1.AddToScheme(scheme)).Should(Succeed())
 
 	out := &v1beta1.CustomResourceDefinition{}
-	require.NoError(t, scheme.Convert(&crd, out, nil))
+	Expect(scheme.Convert(&crd, out, nil)).To(Succeed())
 	out.TypeMeta = metav1.TypeMeta{
 		Kind:       "CustomResourceDefinition",
 		APIVersion: "apiextensions.k8s.io/v1beta1",
@@ -637,7 +639,7 @@ func serializeCRD(t GinkgoTInterface, crd apiextensions.CustomResourceDefinition
 
 	// create an object manifest
 	var manifest bytes.Buffer
-	require.NoError(t, serializer.Encode(out, &manifest))
+	Expect(serializer.Encode(out, &manifest)).To(Succeed())
 	return manifest.String()
 }
 
