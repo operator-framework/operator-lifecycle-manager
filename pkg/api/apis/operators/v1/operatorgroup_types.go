@@ -104,7 +104,7 @@ func (o *OperatorGroup) HasServiceAccountSynced() bool {
 	return false
 }
 
-// getOperatorGroupLabel returns a label that is applied to Namespaces to signify that the
+// GetLabel returns a label that is applied to Namespaces to signify that the
 // namespace is a part of the OperatorGroup using selectors.
 func (o *OperatorGroup) GetLabel() string {
 	return fmt.Sprintf(operatorGroupLabelTemplate, o.GetNamespace(), o.GetName())

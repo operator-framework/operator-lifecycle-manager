@@ -14,7 +14,7 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/registry"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 type CatalogKey struct {

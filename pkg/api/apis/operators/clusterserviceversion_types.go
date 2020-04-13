@@ -9,7 +9,7 @@ import (
 	rbac "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/lib/version"
 )
 
 // ClusterServiceVersionKind is the PascalCase name of a CSV's kind.
