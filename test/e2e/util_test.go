@@ -9,29 +9,35 @@ import (
 
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/dynamic"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/component-base/featuregate"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/feature"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -227,7 +233,7 @@ func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("Waiting for annotations to match %v", expected)
 		obj, err := query()
-		if err != nil && !errors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return false, err
 		}
 		t.Logf("current annotations: %v", obj.GetAnnotations())
@@ -263,7 +269,7 @@ func waitForDelete(checkResource checkResourceFunc) error {
 	var err error
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		err := checkResource()
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return true, nil
 		}
 		if err != nil {
@@ -295,7 +301,7 @@ func waitForGVR(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource
 	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			if errors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
 			return false, err
@@ -465,7 +471,7 @@ func createInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInte
 
 	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
 	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
-	if err != nil && !errors.IsAlreadyExists(err) {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
 	t.Logf("Catalog source %s created", name)
@@ -517,7 +523,7 @@ func createConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientIn
 	}
 
 	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), catalogConfigMap, metav1.CreateOptions{})
-	if err != nil && !errors.IsAlreadyExists(err) {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
 	return createdConfigMap, buildConfigMapCleanupFunc(t, c, namespace, createdConfigMap)
@@ -577,7 +583,7 @@ func Local(client operatorclient.ClientInterface) (bool, error) {
 
 	groups, err := client.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gv)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return true, nil
 		}
 		return true, fmt.Errorf("checking if cluster is local: checking server groups: %s", err)
@@ -590,4 +596,182 @@ func Local(client operatorclient.ClientInterface) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// predicateFunc is a predicate for watch events.
+type predicateFunc func(event watch.Event) (met bool)
+
+// awaitPredicates waits for all predicates to be met by events of a watch in the order given.
+func awaitPredicates(ctx context.Context, w watch.Interface, fns ...predicateFunc) {
+	if len(fns) < 1 {
+		panic("no predicates given to await")
+	}
+
+	i := 0
+	for i < len(fns) {
+		select {
+		case <-ctx.Done():
+			Expect(ctx.Err()).ToNot(HaveOccurred())
+			return
+		case event, ok := <-w.ResultChan():
+			if !ok {
+				return
+			}
+
+			if fns[i](event) {
+				i++
+			}
+		}
+	}
+}
+
+// filteredPredicate filters events to the given predicate by event type to the given types.
+// When no event types are given as arguments, all event types are passed through.
+func filteredPredicate(fn predicateFunc, eventTypes ...watch.EventType) predicateFunc {
+	return func(event watch.Event) bool {
+		valid := true
+		for _, eventType := range eventTypes {
+			if valid = eventType == event.Type; valid {
+				break
+			}
+		}
+
+		if !valid {
+			return false
+		}
+
+		return fn(event)
+	}
+}
+
+func deploymentPredicate(fn func(*appsv1.Deployment) bool) predicateFunc {
+	return func(event watch.Event) bool {
+		deployment, ok := event.Object.(*appsv1.Deployment)
+		Expect(ok).To(BeTrue(), "unexpected event object type %T in deployment", event.Object)
+
+		return fn(deployment)
+	}
+}
+
+var deploymentAvailable = filteredPredicate(deploymentPredicate(func(deployment *appsv1.Deployment) bool {
+	for _, condition := range deployment.Status.Conditions {
+		if condition.Type == appsv1.DeploymentAvailable && condition.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+
+	return false
+}), watch.Added, watch.Modified)
+
+func deploymentReplicas(replicas int32) predicateFunc {
+	return filteredPredicate(deploymentPredicate(func(deployment *appsv1.Deployment) bool {
+		return deployment.Status.Replicas == replicas
+	}), watch.Added, watch.Modified)
+}
+
+const (
+	cvoNamespace      = "openshift-cluster-version"
+	cvoDeploymentName = "cluster-version-operator"
+)
+
+func toggleCVO() {
+	c := ctx.Ctx().KubeClient().KubernetesInterface().AppsV1().Deployments(cvoNamespace)
+	scale, err := c.GetScale(cvoDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// CVO is not enabled
+			return
+		}
+
+		Expect(err).ToNot(HaveOccurred())
+	}
+
+	if scale.Spec.Replicas > 0 {
+		scale.Spec.Replicas = 0
+	} else {
+		scale.Spec.Replicas = 1
+	}
+
+	Eventually(func() error {
+		_, err := c.UpdateScale(cvoDeploymentName, scale)
+		return err
+	}).Should(Succeed())
+}
+
+// togglev2alpha1 toggles the v2alpha1 feature gate on or off.
+func togglev2alpha1() {
+	// Set the feature flag on OLM's deployment
+	c := ctx.Ctx().KubeClient()
+	deployment, err := getOperatorDeployment(c, operatorNamespace, labels.Set{"app": "olm-operator"})
+	Expect(err).ToNot(HaveOccurred())
+	toggleFeatureGates(deployment, feature.OperatorLifecycleManagerV2)
+}
+
+// toggleFeatureGates toggles the given feature gates on or off based on their current setting in the deployment.
+func toggleFeatureGates(deployment *appsv1.Deployment, toToggle ...featuregate.Feature) {
+	var (
+		c              = ctx.Ctx().KubeClient().KubernetesInterface().AppsV1().Deployments(deployment.GetNamespace())
+		containers     = deployment.Spec.Template.Spec.Containers
+		containerIndex = -1
+		argIndex       = -1
+		prefix         = "--feature-gates="
+		gateVals       string
+	)
+
+	// Find the container and argument indices for the feature gate option
+	for i, container := range containers {
+		if container.Name != "olm-operator" {
+			continue
+		}
+		containerIndex = i
+
+		for j, arg := range container.Args {
+			if gateVals = strings.TrimPrefix(arg, prefix); arg == gateVals {
+				continue
+			}
+			argIndex = j
+
+			break
+		}
+
+		break
+	}
+	// This should never happen since Deployments must have at least one container
+	Expect(containerIndex).ToNot(BeNumerically("<", 0), "deployment %s has no containers", deployment.GetName())
+
+	gate := feature.Gate.DeepCopy()
+	if argIndex >= 0 {
+		// Collect existing gate values
+		Expect(gate.Set(gateVals)).To(Succeed())
+	}
+
+	// Toggle gates
+	toggled := map[string]bool{}
+	for _, feature := range toToggle {
+		toggled[string(feature)] = !gate.Enabled(feature)
+	}
+	Expect(gate.SetFromMap(toggled)).To(Succeed())
+
+	gateArg := fmt.Sprintf("%s%s", prefix, gate)
+	if argIndex >= 0 {
+		// Overwrite existing gate options
+		containers[containerIndex].Args[argIndex] = gateArg
+	} else {
+		// No existing gate options, add one
+		containers[containerIndex].Args = append(containers[containerIndex].Args, gateArg)
+	}
+
+	w, err := c.Watch(metav1.ListOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	timeout := 1 * time.Minute
+	Eventually(func() error {
+		_, err := c.Update(deployment)
+		return err
+	}, timeout).Should(Succeed())
+
+	deadline, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	awaitPredicates(deadline, w, deploymentReplicas(2), deploymentAvailable, deploymentReplicas(1))
 }
