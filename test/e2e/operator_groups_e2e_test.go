@@ -360,7 +360,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err, "could not update csv installmodes")
 
 		// Ensure CSV fails
-		_, err = fetchCSV(GinkgoT(), crc, csvName, opGroupNamespace, csvFailedChecker)
+		_, err = fetchCSV(crc, csvName, opGroupNamespace, csvFailedChecker)
 		require.NoError(GinkgoT(), err, "csv did not transition to failed as expected")
 
 		// ensure deletion cleans up copied CSV
@@ -457,7 +457,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		defer cleanupCRD()
 
-		_, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, csvSucceededChecker)
+		_, err = fetchCSV(crc, csvA.GetName(), nsA, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Create a csv for an apiserver
@@ -524,11 +524,11 @@ var _ = Describe("Operator Group", func() {
 		csvB.SetName(depName)
 
 		// Create the APIService CSV
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csvB, nsA, false, true)
+		cleanupCSV, err := createCSV(c, crc, csvB, nsA, false, true)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csvB.GetName(), nsA, csvSucceededChecker)
+		_, err = fetchCSV(crc, csvB.GetName(), nsA, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Ensure clusterroles created and aggregated for access provided APIs
@@ -669,7 +669,7 @@ var _ = Describe("Operator Group", func() {
 		failedWithUnsupportedOperatorGroup := func(csv *v1alpha1.ClusterServiceVersion) bool {
 			return csvFailedChecker(csv) && csv.Status.Reason == v1alpha1.CSVReasonUnsupportedOperatorGroup
 		}
-		csvA, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
+		csvA, err = fetchCSV(crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
 		require.NoError(GinkgoT(), err)
 
 		// Update csvA to have OwnNamespace supported=true
@@ -700,7 +700,7 @@ var _ = Describe("Operator Group", func() {
 		defer cleanupCRD()
 
 		// Ensure csvA transitions to Succeeded
-		csvA, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, csvSucceededChecker)
+		csvA, err = fetchCSV(crc, csvA.GetName(), nsA, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update operatorGroupA's target namespaces to select namespaceB
@@ -711,7 +711,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
-		csvA, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
+		csvA, err = fetchCSV(crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
 		require.NoError(GinkgoT(), err)
 
 		// Update csvA to have SingleNamespace supported=true
@@ -737,7 +737,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Ensure csvA transitions to Succeeded
-		csvA, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, csvSucceededChecker)
+		csvA, err = fetchCSV(crc, csvA.GetName(), nsA, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update operatorGroupA's target namespaces to select namespaceA and namespaceB
@@ -748,7 +748,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
-		csvA, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
+		csvA, err = fetchCSV(crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
 		require.NoError(GinkgoT(), err)
 
 		// Update csvA to have MultiNamespace supported=true
@@ -774,7 +774,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Ensure csvA transitions to Succeeded
-		csvA, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, csvSucceededChecker)
+		csvA, err = fetchCSV(crc, csvA.GetName(), nsA, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update operatorGroupA's target namespaces to select all namespaces
@@ -785,7 +785,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
-		csvA, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
+		csvA, err = fetchCSV(crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
 		require.NoError(GinkgoT(), err)
 
 		// Update csvA to have AllNamespaces supported=true
@@ -811,7 +811,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Ensure csvA transitions to Pending
-		csvA, err = fetchCSV(GinkgoT(), crc, csvA.GetName(), nsA, csvSucceededChecker)
+		csvA, err = fetchCSV(crc, csvA.GetName(), nsA, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
 	It("intersection", func() {
@@ -1440,7 +1440,7 @@ var _ = Describe("Operator Group", func() {
 		_, err = c.UpdateRoleBinding(createdRoleBinding)
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("wait for CSV to succeed")
-		_, err = fetchCSV(GinkgoT(), crc, createdCSV.GetName(), opGroupNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, createdCSV.GetName(), opGroupNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("wait for roles to be promoted to clusterroles")
 		var fetchedRole *rbacv1.ClusterRole
@@ -1925,7 +1925,7 @@ var _ = Describe("Operator Group", func() {
 		_, err = c.UpdateRoleBinding(createdRoleBinding)
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("wait for CSV to succeed")
-		_, err = fetchCSV(GinkgoT(), crc, createdCSV.GetName(), opGroupNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, createdCSV.GetName(), opGroupNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("wait for roles to be promoted to clusterroles")
 		var fetchedRole *rbacv1.ClusterRole

@@ -90,10 +90,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
 			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
@@ -129,10 +129,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
 			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
@@ -189,10 +189,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 			csv.Spec.WebhookDefinitions = append(csv.Spec.WebhookDefinitions, webhook)
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvFailedChecker)
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvFailedChecker)
 			Expect(err).Should(BeNil())
 		})
 		It("Fails if the webhooks intercepts all resources", func() {
@@ -219,10 +219,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			failedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvFailedChecker)
+			failedCSV, err := fetchCSV(crc, csv.Name, namespace.Name, csvFailedChecker)
 			Expect(err).Should(BeNil())
 			Expect(failedCSV.Status.Message).Should(Equal("Webhook rules cannot include all groups"))
 		})
@@ -250,10 +250,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			failedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvFailedChecker)
+			failedCSV, err := fetchCSV(crc, csv.Name, namespace.Name, csvFailedChecker)
 			Expect(err).Should(BeNil())
 			Expect(failedCSV.Status.Message).Should(Equal("Webhook rules cannot include the OLM group"))
 		})
@@ -281,10 +281,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			failedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvFailedChecker)
+			failedCSV, err := fetchCSV(crc, csv.Name, namespace.Name, csvFailedChecker)
 			Expect(err).Should(BeNil())
 			Expect(failedCSV.Status.Message).Should(Equal("Webhook rules cannot include MutatingWebhookConfiguration or ValidatingWebhookConfiguration resources"))
 		})
@@ -314,10 +314,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 		})
 		It("Can be installed and upgraded successfully", func() {
@@ -345,11 +345,11 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 
-			_, err := createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			_, err := createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 			// cleanup by upgrade
 
-			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
 			_, err = getWebhookWithGenerateName(c, webhook.GenerateName)
@@ -361,10 +361,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			previousWebhookName := webhook.GenerateName
 			webhook.GenerateName = "webhook2.test.com"
 			csv.Spec.WebhookDefinitions[0] = webhook
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			_, err = fetchCSV(GinkgoT(), crc, csv.GetName(), namespace.Name, csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.GetName(), namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
 			_, err = getWebhookWithGenerateName(c, webhook.GenerateName)
@@ -394,10 +394,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
 			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
@@ -419,7 +419,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			fetchedCSV.Status.CertsRotateAt = &now
 			fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.Name).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 			Expect(err).Should(BeNil())
-			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
 				// Should create deployment
 				dep, err = c.GetDeployment(namespace.Name, csv.Spec.WebhookDefinitions[0].DeploymentName)
 				Expect(err).Should(BeNil())
@@ -471,10 +471,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			csv := createCSVWithWebhook(namespace.GetName(), webhook)
 
 			var err error
-			cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace.Name, false, false)
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
 			Expect(err).Should(BeNil())
 
-			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
 			Expect(err).Should(BeNil())
@@ -515,19 +515,19 @@ var _ = Describe("CSVs with a Webhook", func() {
 		csv = createCSVWithWebhook(namespace.GetName(), webhook)
 
 		csv.Namespace = namespace1.GetName()
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, namespace1.Name, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, namespace1.Name, false, false)
 		Expect(err).Should(BeNil())
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace1.Name, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, namespace1.Name, csvSucceededChecker)
 		Expect(err).Should(BeNil())
 
 		csv.Namespace = namespace2.Name
-		cleanupCSV, err = createCSV(GinkgoT(), c, crc, csv, namespace2.Name, false, false)
+		cleanupCSV, err = createCSV(c, crc, csv, namespace2.Name, false, false)
 		Expect(err).Should(BeNil())
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace2.Name, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, namespace2.Name, csvSucceededChecker)
 		Expect(err).Should(BeNil())
 
 		webhooks, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{})

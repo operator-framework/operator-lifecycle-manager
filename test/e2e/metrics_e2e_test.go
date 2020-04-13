@@ -5,66 +5,99 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"regexp"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
+	"regexp"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Metrics", func() {
-	It("endpoint", func() {
+var _ = Describe("Metrics are generated for OLM pod", func() {
 
-		// TestMetrics tests the metrics endpoint of the OLM pod.
+	var (
+		c   operatorclient.ClientInterface
+		crc versioned.Interface
+	)
 
-		c := newKubeClient()
-		crc := newCRClient()
+	BeforeEach(func() {
+		c = newKubeClient()
+		crc = newCRClient()
 
-		failingCSV := v1alpha1.ClusterServiceVersion{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("failing-csv-test-"),
-			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
-					StrategySpec: strategy,
-				},
-			},
-		}
+	})
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, failingCSV, testNamespace, false, false)
-		Expect(err).ToNot(HaveOccurred())
+	Context("Given an OperatorGroup that supports all namespaces", func() {
+		By("using the default OperatorGroup created in BeforeSuite")
+		When("a CSV spec does not include Install Mode", func() {
 
-		_, err = fetchCSV(GinkgoT(), crc, failingCSV.Name, testNamespace, csvFailedChecker)
-		Expect(err).ToNot(HaveOccurred())
+			var (
+				cleanupCSV cleanupFunc
+				failingCSV v1alpha1.ClusterServiceVersion
+			)
 
-		// Verify metrics have been emitted for packageserver csv
-		Expect(getMetricsFromPod(c, getOLMPod(c), "8081")).To(And(
-			ContainSubstring("csv_abnormal"),
-			ContainSubstring(fmt.Sprintf("name=\"%s\"", failingCSV.Name)),
-			ContainSubstring("phase=\"Failed\""),
-			ContainSubstring("reason=\"UnsupportedOperatorGroup\""),
-			ContainSubstring("version=\"0.0.0\""),
-			ContainSubstring("csv_succeeded"),
-		))
+			BeforeEach(func() {
 
-		cleanupCSV()
+				failingCSV = v1alpha1.ClusterServiceVersion{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.ClusterServiceVersionKind,
+						APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: genName("failing-csv-test-"),
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						InstallStrategy: v1alpha1.NamedInstallStrategy{
+							StrategyName: v1alpha1.InstallStrategyNameDeployment,
+							StrategySpec: strategy,
+						},
+					},
+				}
 
-		// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
-		Expect(getMetricsFromPod(c, getOLMPod(c), "8081")).ToNot(And(
-			ContainSubstring("csv_abnormal{name=\"%s\"", failingCSV.Name),
-			ContainSubstring("csv_succeeded{name=\"%s\"", failingCSV.Name),
-		))
+				var err error
+				cleanupCSV, err = createCSV(c, crc, failingCSV, testNamespace, false, false)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = fetchCSV(crc, failingCSV.Name, testNamespace, csvFailedChecker)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("generates csv_abnormal metric for OLM pod", func() {
+
+				// Verify metrics have been emitted for packageserver csv
+				Expect(getMetricsFromPod(c, getOLMPod(c), "8081")).To(And(
+					ContainSubstring("csv_abnormal"),
+					ContainSubstring(fmt.Sprintf("name=\"%s\"", failingCSV.Name)),
+					ContainSubstring("phase=\"Failed\""),
+					ContainSubstring("reason=\"UnsupportedOperatorGroup\""),
+					ContainSubstring("version=\"0.0.0\""),
+					ContainSubstring("csv_succeeded"),
+				))
+
+				cleanupCSV()
+			})
+
+			When("the failed CSV is deleted", func() {
+
+				BeforeEach(func() {
+					if cleanupCSV != nil {
+						cleanupCSV()
+					}
+				})
+
+				It("deletes its associated CSV metrics", func() {
+					// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
+					Expect(getMetricsFromPod(c, getOLMPod(c), "8081")).ToNot(And(
+						ContainSubstring("csv_abnormal{name=\"%s\"", failingCSV.Name),
+						ContainSubstring("csv_succeeded{name=\"%s\"", failingCSV.Name),
+					))
+				})
+			})
+		})
 	})
 })
 
@@ -101,7 +134,7 @@ func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod, p
 	} else {
 		scheme = "http"
 	}
-	log.Infof("Retrieving metrics using scheme %v\n", scheme)
+	ctx.Ctx().Logf("Retrieving metrics using scheme %v\n", scheme)
 
 	var raw []byte
 	Eventually(func() (err error) {
