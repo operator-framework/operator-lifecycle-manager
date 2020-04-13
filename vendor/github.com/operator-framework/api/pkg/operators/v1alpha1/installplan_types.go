@@ -28,6 +28,7 @@ type InstallPlanSpec struct {
 	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
 	Approval                   Approval `json:"approval"`
 	Approved                   bool     `json:"approved"`
+	Generation                 int      `json:"generation"`
 }
 
 // InstallPlanPhase is the current status of a InstallPlan as a whole.
@@ -251,6 +252,8 @@ type BundleLookup struct {
 	// Path refers to the location of a bundle to pull.
 	// It's typically an image reference.
 	Path string `json:"path"`
+	// Identifier is the catalog-unique name of the operator (the name of the CSV for bundles that contain CSVs)
+	Identifier string `json:"identifier"`
 	// Replaces is the name of the bundle to replace with the one found at Path.
 	Replaces string `json:"replaces"`
 	// CatalogSourceRef is a reference to the CatalogSource the bundle path was resolved from.
@@ -303,39 +306,6 @@ func (b *BundleLookup) SetCondition(cond BundleLookupCondition) BundleLookupCond
 	b.Conditions = append(b.Conditions, cond)
 
 	return cond
-}
-
-// ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps
-// matches those in the InstallPlanStatus.
-func (s *InstallPlanStatus) CSVManifestsMatch(steps []*Step) bool {
-	if s.Plan == nil && steps == nil {
-		return true
-	}
-	if s.Plan == nil || steps == nil {
-		return false
-	}
-
-	manifests := make(map[string]struct{})
-	for _, step := range s.Plan {
-		resource := step.Resource
-		if resource.Kind != ClusterServiceVersionKind {
-			continue
-		}
-		manifests[resource.Manifest] = struct{}{}
-	}
-
-	for _, step := range steps {
-		resource := step.Resource
-		if resource.Kind != ClusterServiceVersionKind {
-			continue
-		}
-		if _, ok := manifests[resource.Manifest]; !ok {
-			return false
-		}
-		delete(manifests, resource.Manifest)
-	}
-
-	return len(manifests) == 0
 }
 
 func (s *Step) String() string {
