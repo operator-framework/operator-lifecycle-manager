@@ -733,7 +733,6 @@ func TestCatalogImageUpdate(t *testing.T) {
 
 		// ensure registry pod is ready before attempting port-forwarding
 		_ = awaitPod(t, c, testNamespace, registryName, podReady)
-		
 		err = registryPortForward(testNamespace)
 		if err != nil {
 			t.Fatalf("port-forwarding local registry: %s", err)
@@ -780,8 +779,8 @@ func TestCatalogImageUpdate(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
 	sourceName := genName("catalog-")
-	packageName := "etcd"
-	channelName := "clusterwide-alpha"
+	packageName := "busybox"
+	channelName := "alpha"
 
 	// Create gRPC CatalogSource using an external registry image and poll interval
 	var image string
@@ -918,7 +917,7 @@ func TestCatalogImageUpdate(t *testing.T) {
 	require.NoError(t, err, "error awaiting registry pod")
 
 	subChecker := func(sub *v1alpha1.Subscription) bool {
-		return sub.Status.InstalledCSV == "etcdoperator.v0.9.2-clusterwide"
+		return sub.Status.InstalledCSV == "busybox.v2.0.0"
 	}
 	// Wait for the Subscription to succeed
 	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subChecker)
@@ -931,17 +930,13 @@ func TestCatalogImageUpdate(t *testing.T) {
 
 	// check version of running csv to ensure the latest version (0.9.2) was installed onto the cluster
 	v := csv.Spec.Version
-	etcdVersion := semver.Version{
-		Major: 0,
-		Minor: 9,
-		Patch: 2,
-		Pre: []semver.PRVersion{
-			{
-				VersionStr: "clusterwide",
-			},
-		},
+	busyboxVersion := semver.Version{
+		Major: 2,
+		Minor: 0,
+		Patch: 0,
 	}
-	if !reflect.DeepEqual(v, version.OperatorVersion{Version: etcdVersion}) {
+
+	if !reflect.DeepEqual(v, version.OperatorVersion{Version: busyboxVersion}) {
 		t.Errorf("latest version of operator not installed: catalog souce update failed")
 	}
 }
