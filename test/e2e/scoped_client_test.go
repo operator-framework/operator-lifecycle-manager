@@ -2,17 +2,14 @@ package e2e
 
 import (
 	"context"
-	"time"
-
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
@@ -22,17 +19,18 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Scoped Client", func() {
+var _ = Describe("Scoped Client bound to a service account can be used to make API calls", func() {
 	// TestScopedClient ensures that we can create a scoped client bound to a
 	// service account and then we can use the scoped client to make API calls.
+	var (
+		config *rest.Config
 
-	var config *rest.Config
+		kubeclient    operatorclient.ClientInterface
+		crclient      versioned.Interface
+		dynamicclient dynamic.Interface
 
-	var kubeclient operatorclient.ClientInterface
-	var crclient versioned.Interface
-	var dynamicclient dynamic.Interface
-
-	var logger *logrus.Logger
+		logger *logrus.Logger
+	)
 
 	BeforeEach(func() {
 		config = ctx.Ctx().RESTConfig()
@@ -42,6 +40,7 @@ var _ = Describe("Scoped Client", func() {
 		dynamicclient = ctx.Ctx().DynamicClient()
 
 		logger = logrus.New()
+		logger.SetOutput(GinkgoWriter)
 	})
 
 	type testParameter struct {
@@ -55,30 +54,28 @@ var _ = Describe("Scoped Client", func() {
 		// scoped client has enough permission, we expect a NotFound error code.
 		// Otherwise, we expect a 'Forbidden' error code due to lack of permission.
 
-		table.Entry("ServiceAccountDoesNotHaveAnyPermission", testParameter{
+		table.Entry("returns error on API calls as ServiceAccount does not have any permission", testParameter{
 			// The service account does not have any permission granted to it.
 			// We expect the get api call to return 'Forbidden' error due to
 			// lack of permission.
-			name: "ServiceAccountDoesNotHaveAnyPermission",
 			assertFunc: func(errGot error) {
-				require.True(GinkgoT(), k8serrors.IsForbidden(errGot))
+				Expect(k8serrors.IsForbidden(errGot)).To(BeTrue())
 			},
 		}),
-		table.Entry("ServiceAccountHasPermission", testParameter{
+		table.Entry("successfully allows API calls to be made when ServiceAccount has permission", testParameter{
 			// The service account does have permission granted to it.
 			// We expect the get api call to return 'NotFound' error.
-			name: "ServiceAccountHasPermission",
 			grant: func(namespace, name string) (cleanup cleanupFunc) {
 				cleanup = grantPermission(GinkgoT(), kubeclient, namespace, name)
 				return
 			},
 			assertFunc: func(errGot error) {
-				require.True(GinkgoT(), k8serrors.IsNotFound(errGot))
+				Expect(k8serrors.IsNotFound(errGot)).To(BeTrue())
 			},
 		}),
 	}
 
-	table.DescribeTable("Test", func(tt testParameter) {
+	table.DescribeTable("API call using scoped client", func(tc testParameter) {
 		// Steps:
 		// 1. Create a new namespace
 		// 2. Create a service account.
@@ -91,10 +88,16 @@ var _ = Describe("Scoped Client", func() {
 		defer cleanupNS()
 
 		saName := genName("user-defined-")
-		sa, cleanupSA := newServiceAccount(GinkgoT(), kubeclient, namespace, saName)
+		sa, cleanupSA := newServiceAccount(kubeclient, namespace, saName)
 		defer cleanupSA()
 
-		waitForServiceAccountSecretAvailable(GinkgoT(), kubeclient, sa.GetNamespace(), sa.GetName())
+		By("Wait for ServiceAccount secret to be available")
+		Eventually(func() (*corev1.ServiceAccount, error) {
+			sa, err := kubeclient.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Get(context.TODO(), sa.GetName(), metav1.GetOptions{})
+			return sa, err
+		}).ShouldNot(WithTransform(func(v *corev1.ServiceAccount) []corev1.ObjectReference {
+			return v.Secrets
+		}, BeEmpty()))
 
 		strategy := scoped.NewClientAttenuator(logger, config, kubeclient, crclient, dynamicclient)
 		getter := func() (reference *corev1.ObjectReference, err error) {
@@ -102,52 +105,32 @@ var _ = Describe("Scoped Client", func() {
 				Namespace: namespace,
 				Name:      saName,
 			}
-
 			return
 		}
 
-		if tt.grant != nil {
-			cleanupPerm := tt.grant(sa.GetNamespace(), sa.GetName())
+		if tc.grant != nil {
+			cleanupPerm := tc.grant(sa.GetNamespace(), sa.GetName())
 			defer cleanupPerm()
 		}
 
-		// We expect to get scoped client instance(s).
+		By("Get scoped client instance(s)")
 		kubeclientGot, crclientGot, dynamicClientGot, errGot := strategy.AttenuateClient(getter)
-		require.NoError(GinkgoT(), errGot)
-		require.NotNil(GinkgoT(), kubeclientGot)
-		require.NotNil(GinkgoT(), crclientGot)
+		Expect(errGot).ToNot(HaveOccurred())
+		Expect(kubeclientGot).ToNot(BeNil())
+		Expect(crclientGot).ToNot(BeNil())
+		Expect(dynamicClientGot).ToNot(BeNil())
 
 		_, errGot = kubeclientGot.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
-		require.Error(GinkgoT(), errGot)
-		tt.assertFunc(errGot)
+		Expect(errGot).To(HaveOccurred())
+		tc.assertFunc(errGot)
 
 		_, errGot = crclientGot.OperatorsV1alpha1().CatalogSources(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
-		require.Error(GinkgoT(), errGot)
-		tt.assertFunc(errGot)
+		Expect(errGot).To(HaveOccurred())
+		tc.assertFunc(errGot)
 
 		gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "ConfigMap"}
 		_, errGot = dynamicClientGot.Resource(gvr).Namespace(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
-		require.Error(GinkgoT(), errGot)
-		tt.assertFunc(errGot)
+		Expect(errGot).To(HaveOccurred())
+		tc.assertFunc(errGot)
 	}, tableEntries...)
 })
-
-func waitForServiceAccountSecretAvailable(t GinkgoTInterface, client operatorclient.ClientInterface, namespace, name string) *corev1.ServiceAccount {
-	var sa *corev1.ServiceAccount
-	err := wait.Poll(5*time.Second, time.Minute, func() (bool, error) {
-		sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-
-		if len(sa.Secrets) > 0 {
-			return true, nil
-		}
-
-		return false, nil
-
-	})
-
-	require.NoError(t, err)
-	return sa
-}
