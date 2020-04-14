@@ -19,7 +19,7 @@ var log = ctrl.Log.WithName("manager")
 
 func Manager(ctx context.Context) (ctrl.Manager, error) {
 	ctrl.SetLogger(zap.Logger(true))
-	setupLog := log.WithName("setup").V(1)
+	setupLog := log.WithName("setup").V(4)
 
 	// Setup a Manager
 	setupLog.Info("configuring manager")
