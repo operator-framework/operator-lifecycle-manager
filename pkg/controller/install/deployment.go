@@ -17,18 +17,14 @@ import (
 
 const DeploymentSpecHashLabelKey = "olm.deployment-spec-hash"
 
-type installerAPIServiceDescriptions struct {
-	apiServiceDescription v1alpha1.APIServiceDescription
-	caPEM                 []byte
-}
-
 type StrategyDeploymentInstaller struct {
 	strategyClient         wrappers.InstallStrategyDeploymentInterface
 	owner                  ownerutil.Owner
 	previousStrategy       Strategy
 	templateAnnotations    map[string]string
 	initializers           DeploymentInitializerFuncChain
-	apiServiceDescriptions []installerAPIServiceDescriptions
+	apiServiceDescriptions []certResource
+	webhookDescriptions    []certResource
 }
 
 var _ Strategy = &v1alpha1.StrategyDetailsDeployment{}
@@ -65,10 +61,15 @@ func (c DeploymentInitializerFuncChain) Apply(deployment *appsv1.Deployment) (er
 // the given context.
 type DeploymentInitializerBuilderFunc func(owner ownerutil.Owner) DeploymentInitializerFunc
 
-func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy, initializers DeploymentInitializerFuncChain, apiServiceDescriptions []v1alpha1.APIServiceDescription) StrategyInstaller {
-	apiDescs := make([]installerAPIServiceDescriptions, len(apiServiceDescriptions))
+func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy, initializers DeploymentInitializerFuncChain, apiServiceDescriptions []v1alpha1.APIServiceDescription, webhookDescriptions []v1alpha1.WebhookDescription) StrategyInstaller {
+	apiDescs := make([]certResource, len(apiServiceDescriptions))
 	for i := range apiServiceDescriptions {
-		apiDescs[i] = installerAPIServiceDescriptions{apiServiceDescriptions[i], []byte{}}
+		apiDescs[i] = &apiServiceDescriptionsWithCAPEM{apiServiceDescriptions[i], []byte{}}
+	}
+
+	webhookDescs := make([]certResource, len(webhookDescriptions))
+	for i := range webhookDescs {
+		webhookDescs[i] = &webhookDescriptionWithCAPEM{webhookDescriptions[i], []byte{}}
 	}
 
 	return &StrategyDeploymentInstaller{
@@ -78,6 +79,7 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 		templateAnnotations:    templateAnnotations,
 		initializers:           initializers,
 		apiServiceDescriptions: apiDescs,
+		webhookDescriptions:    webhookDescs,
 	}
 }
 
@@ -92,28 +94,39 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.Strateg
 			return err
 		}
 
-		if err := i.createOrUpdateAPIServicesForDeployment(deployment.GetName()); err != nil {
+		if err := i.createOrUpdateCertResourcesForDeployment(deployment.GetName()); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) createOrUpdateAPIServicesForDeployment(deploymentName string) error {
-	for _, desc := range i.apiServiceDescriptionsForDeployment(deploymentName) {
-		err := i.createOrUpdateAPIService(desc.caPEM, desc.apiServiceDescription)
-		if err != nil {
-			return err
-		}
+func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment(deploymentName string) error {
+	for _, desc := range i.getCertResources() {
+		switch d := desc.(type) {
+		case *apiServiceDescriptionsWithCAPEM:
+			err := i.createOrUpdateAPIService(d.caPEM, d.apiServiceDescription)
+			if err != nil {
+				return err
+			}
 
-		// Cleanup legacy resources
-		err = i.deleteLegacyAPIServiceResources(desc)
-		if err != nil {
-			return err
+			// Cleanup legacy APIService resources
+			err = i.deleteLegacyAPIServiceResources(*d)
+			if err != nil {
+				return err
+			}
+		case *webhookDescriptionWithCAPEM:
+			err := i.createOrUpdateWebhook(d.caPEM, d.webhookDescription)
+			if err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("Unsupported CA Resource")
 		}
 	}
 	return nil
 }
+
 func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec) (deployment *appsv1.Deployment, hash string, err error) {
 	dep := &appsv1.Deployment{Spec: spec}
 	dep.SetName(name)
@@ -167,13 +180,9 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	}
 
 	// Install owned APIServices and update strategy with serving cert data
-	updatedStrategy, err := i.installOwnedAPIServiceRequirements(strategy)
+	updatedStrategy, err := i.installCertRequirements(strategy)
 	if err != nil {
 		return err
-	}
-
-	for _, desc := range i.apiServiceDescriptions {
-		log.Infof("Desc %s has been given ca %v", desc.apiServiceDescription.Name, desc.caPEM)
 	}
 
 	if err := i.installDeployments(updatedStrategy.DeploymentSpecs); err != nil {

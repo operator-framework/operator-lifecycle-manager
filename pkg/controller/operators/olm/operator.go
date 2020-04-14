@@ -772,7 +772,8 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 			if namespace.Labels == nil {
 				namespace.Labels = make(map[string]string, 1)
 			}
-			namespace.Labels[group.GetLabel()] = ""
+			ogLabelKey, ogLabelValue := group.OGLabelKeyAndValue()
+			namespace.Labels[ogLabelKey] = ogLabelValue
 		}
 	}
 
@@ -1366,6 +1367,14 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
+		// Check if Webhooks have valid rules
+		for _, desc := range out.Spec.WebhookDefinitions {
+			if syncError = install.ValidWebhookRules(desc.Rules); syncError != nil {
+				out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonUnsupportedWebhookRules, syncError.Error(), now, a.recorder)
+				return
+			}
+		}
+
 		// Check for CRD ownership conflicts
 		if syncError = a.crdOwnerConflicts(out, a.csvSet(out.GetNamespace(), v1alpha1.CSVPhaseAny)); syncError != nil {
 			if syncError == ErrCRDOwnerConflict {
@@ -1407,10 +1416,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		if len(out.GetAllAPIServiceDescriptions()) > 0 {
-			expiration := time.Now().Add(DefaultCertValidFor)
-			rotateAt := expiration.Add(-1 * DefaultCertMinFresh)
+		if out.HasCertResources() {
 			now := metav1.Now()
+			expiration := now.Add(install.DefaultCertValidFor)
+			rotateAt := expiration.Add(-1 * install.DefaultCertMinFresh)
 			rotateTime := metav1.NewTime(rotateAt)
 			out.Status.CertsLastUpdated = &now
 			out.Status.CertsRotateAt = &rotateTime
@@ -1706,7 +1715,7 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	strName := strategy.GetStrategyName()
-	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.GetAnnotations(), csv.GetAllAPIServiceDescriptions(), previousStrategy)
+	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.GetAnnotations(), csv.GetAllAPIServiceDescriptions(), csv.Spec.WebhookDefinitions, previousStrategy)
 	return installer, strategy
 }
 

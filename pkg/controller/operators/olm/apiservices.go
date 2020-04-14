@@ -2,7 +2,6 @@ package olm
 
 import (
 	"fmt"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -19,27 +18,9 @@ import (
 )
 
 const (
-	// DefaultCertMinFresh is the default min-fresh value - 1 day
-	DefaultCertMinFresh = time.Hour * 24
-	// DefaultCertValidFor is the default duration a cert can be valid for - 2 years
-	DefaultCertValidFor = time.Hour * 24 * 730
-	// OLMCAHashAnnotationKey is the label key used to store the hash of the CA cert
-	OLMCAHashAnnotationKey = "olmcahash"
-	// Organization is the organization name used in the generation of x509 certs
-	Organization = "Red Hat, Inc."
 	// Name of packageserver API service
 	PackageserverName = "v1.packages.operators.coreos.com"
-	// Kubernetes System namespace
-	kubeSystem = "kube-system"
 )
-
-func secretName(serviceName string) string {
-	return serviceName + "-cert"
-}
-
-func serviceName(deploymentName string) string {
-	return deploymentName + "-service"
-}
 
 func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	now := metav1.Now()
@@ -103,7 +84,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 			return utilerrors.NewAggregate(errs)
 		}
 
-		serviceName := serviceName(desc.DeploymentName)
+		serviceName := install.ServiceName(desc.DeploymentName)
 		service, err := a.lister.CoreV1().ServiceLister().Services(csv.GetNamespace()).Get(serviceName)
 		if err != nil {
 			logger.WithField("service", serviceName).Warnf("could not retrieve generated Service")
@@ -133,7 +114,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 
 		// Check if serving cert is active
-		secretName := secretName(serviceName)
+		secretName := install.SecretName(serviceName)
 		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName)
 		if err != nil {
 			logger.WithField("secret", secretName).Warnf("could not retrieve generated Secret")
@@ -154,7 +135,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 
 		// Check if CA hash matches expected
 		caHash := hashFunc(caBundle)
-		if hash, ok := secret.GetAnnotations()[OLMCAHashAnnotationKey]; !ok || hash != caHash {
+		if hash, ok := secret.GetAnnotations()[install.OLMCAHashAnnotationKey]; !ok || hash != caHash {
 			logger.WithField("secret", secretName).Warnf("secret CA cert hash does not match expected")
 			errs = append(errs, fmt.Errorf("secret %s CA cert hash does not match expected", secretName))
 			continue
@@ -179,7 +160,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 			errs = append(errs, err)
 			continue
 		}
-		if hash, ok := deployment.Spec.Template.GetAnnotations()[OLMCAHashAnnotationKey]; !ok || hash != caHash {
+		if hash, ok := deployment.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey]; !ok || hash != caHash {
 			logger.WithField("deployment", desc.DeploymentName).Warnf("Deployment CA cert hash does not match expected")
 			errs = append(errs, fmt.Errorf("Deployment %s CA cert hash does not match expected", desc.DeploymentName))
 			continue
@@ -208,18 +189,18 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 					ResourceNames: []string{secret.GetName()},
 				},
 			},
-			kubeSystem:          {},
+			install.KubeSystem:  {},
 			metav1.NamespaceAll: {},
 		}
 
 		// extension-apiserver-authentication-reader
-		authReaderRole, err := a.lister.RbacV1().RoleLister().Roles(kubeSystem).Get("extension-apiserver-authentication-reader")
+		authReaderRole, err := a.lister.RbacV1().RoleLister().Roles(install.KubeSystem).Get("extension-apiserver-authentication-reader")
 		if err != nil {
 			logger.Warnf("could not retrieve Role extension-apiserver-authentication-reader")
 			errs = append(errs, err)
 			continue
 		}
-		rulesMap[kubeSystem] = append(rulesMap[kubeSystem], authReaderRole.Rules...)
+		rulesMap[install.KubeSystem] = append(rulesMap[install.KubeSystem], authReaderRole.Rules...)
 
 		// system:auth-delegator
 		authDelegatorClusterRole, err := a.lister.RbacV1().ClusterRoleLister().Get("system:auth-delegator")
@@ -276,6 +257,44 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 // updateDeploymentSpecsWithApiServiceData transforms an install strategy to include information about apiservices
 // it is used in generating hashes for deployment specs to know when something in the spec has changed,
 // but duplicates a lot of installAPIServiceRequirements and should be refactored.
+func (a *Operator) getCaBundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, error) {
+	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
+		apiServiceName := desc.GetName()
+		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+		if err != nil {
+			return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
+		}
+		if len(apiService.Spec.CABundle) > 0 {
+			return apiService.Spec.CABundle, nil
+		}
+	}
+
+	for _, desc := range csv.Spec.WebhookDefinitions {
+		webhookName := desc.Name
+		if desc.Type == "ValidatingAdmissionWebhook" {
+			webhook, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhookName, metav1.GetOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
+			}
+			if len(webhook.Webhooks[0].ClientConfig.CABundle) > 0 {
+				return webhook.Webhooks[0].ClientConfig.CABundle, nil
+			}
+		} else {
+			webhook, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(webhookName, metav1.GetOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
+			}
+			if len(webhook.Webhooks[0].ClientConfig.CABundle) > 0 {
+				return webhook.Webhooks[0].ClientConfig.CABundle, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("Unable to find ca")
+}
+
+// updateDeploymentSpecsWithApiServiceData transforms an install strategy to include information about apiservices
+// it is used in generating hashes for deployment specs to know when something in the spec has changed,
+// but duplicates a lot of installAPIServiceRequirements and should be refactored.
 func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, error) {
 	// Assume the strategy is for a deployment
 	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
@@ -283,10 +302,8 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		return nil, fmt.Errorf("unsupported InstallStrategy type")
 	}
 
-	apiDescs := csv.GetOwnedAPIServiceDescriptions()
-
 	// Return early if there are no owned APIServices
-	if len(apiDescs) == 0 {
+	if !csv.HasCertResources() {
 		return strategyDetailsDeployment, nil
 	}
 
@@ -295,16 +312,13 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		depSpecs[sddSpec.Name] = sddSpec.Spec
 	}
 
-	for _, desc := range apiDescs {
-		apiServiceName := desc.GetName()
-		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
-		if err != nil {
-			return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
-		}
+	caBundle, err := a.getCaBundle(csv)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve caBundle: %v", err)
+	}
+	caHash := certs.PEMSHA256(caBundle)
 
-		caBundle := apiService.Spec.CABundle
-		caHash := certs.PEMSHA256(caBundle)
-
+	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
 		depSpec, ok := depSpecs[desc.DeploymentName]
 		if !ok {
 			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIServices %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
@@ -315,9 +329,9 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		}
 
 		// Update deployment with secret volume mount.
-		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName(serviceName(desc.DeploymentName)))
+		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(install.SecretName(install.ServiceName(desc.DeploymentName)))
 		if err != nil {
-			return nil, fmt.Errorf("Unable to get secret %s", secretName(serviceName(desc.DeploymentName)))
+			return nil, fmt.Errorf("Unable to get secret %s", install.SecretName(install.ServiceName(desc.DeploymentName)))
 		}
 
 		volume := corev1.Volume{
@@ -376,7 +390,85 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 
 			depSpec.Template.Spec.Containers[i] = container
 		}
-		depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
+		depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{install.OLMCAHashAnnotationKey: caHash})
+		depSpecs[desc.DeploymentName] = depSpec
+	}
+
+	for _, desc := range csv.Spec.WebhookDefinitions {
+		caHash := certs.PEMSHA256(caBundle)
+
+		depSpec, ok := depSpecs[desc.DeploymentName]
+		if !ok {
+			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIServices %s", desc.DeploymentName, desc.Name)
+		}
+
+		if depSpec.Template.Spec.ServiceAccountName == "" {
+			depSpec.Template.Spec.ServiceAccountName = "default"
+		}
+
+		// Update deployment with secret volume mount.
+		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(install.SecretName(install.ServiceName(desc.DeploymentName)))
+		if err != nil {
+			return nil, fmt.Errorf("Unable to get secret %s", install.SecretName(install.ServiceName(desc.DeploymentName)))
+		}
+
+		volume := corev1.Volume{
+			Name: "apiservice-cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secret.GetName(),
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "apiserver.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "apiserver.key",
+						},
+					},
+				},
+			},
+		}
+
+		replaced := false
+		for i, v := range depSpec.Template.Spec.Volumes {
+			if v.Name == volume.Name {
+				depSpec.Template.Spec.Volumes[i] = volume
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			depSpec.Template.Spec.Volumes = append(depSpec.Template.Spec.Volumes, volume)
+		}
+
+		mount := corev1.VolumeMount{
+			Name:      volume.Name,
+			MountPath: "/apiserver.local.config/certificates",
+		}
+		for i, container := range depSpec.Template.Spec.Containers {
+			found := false
+			for j, m := range container.VolumeMounts {
+				if m.Name == mount.Name {
+					found = true
+					break
+				}
+
+				// Replace if mounting to the same location.
+				if m.MountPath == mount.MountPath {
+					container.VolumeMounts[j] = mount
+					found = true
+					break
+				}
+			}
+			if !found {
+				container.VolumeMounts = append(container.VolumeMounts, mount)
+			}
+
+			depSpec.Template.Spec.Containers[i] = container
+		}
+		depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{install.OLMCAHashAnnotationKey: caHash})
 		depSpecs[desc.DeploymentName] = depSpec
 	}
 

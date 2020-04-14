@@ -24,7 +24,7 @@ type StrategyInstaller interface {
 
 type StrategyResolverInterface interface {
 	UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error)
-	InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, owner ownerutil.Owner, annotations map[string]string, apiServiceDescriptions []v1alpha1.APIServiceDescription, previousStrategy Strategy) StrategyInstaller
+	InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, owner ownerutil.Owner, annotations map[string]string, apiServiceDescriptions []v1alpha1.APIServiceDescription, webhookDescriptions []v1alpha1.WebhookDescription, previousStrategy Strategy) StrategyInstaller
 }
 
 type StrategyResolver struct {
@@ -40,7 +40,7 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 	return
 }
 
-func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, owner ownerutil.Owner, annotations map[string]string, apiServiceDescriptions []v1alpha1.APIServiceDescription, previousStrategy Strategy) StrategyInstaller {
+func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, owner ownerutil.Owner, annotations map[string]string, apiServiceDescriptions []v1alpha1.APIServiceDescription, webhookDescriptions []v1alpha1.WebhookDescription, previousStrategy Strategy) StrategyInstaller {
 	switch strategyName {
 	case v1alpha1.InstallStrategyNameDeployment:
 		strategyClient := wrappers.NewInstallStrategyDeploymentClient(opClient, opLister, owner.GetNamespace())
@@ -50,7 +50,7 @@ func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient op
 			initializers = append(initializers, r.OverridesBuilderFunc(owner))
 		}
 
-		return NewStrategyDeploymentInstaller(strategyClient, annotations, owner, previousStrategy, initializers, apiServiceDescriptions)
+		return NewStrategyDeploymentInstaller(strategyClient, annotations, owner, previousStrategy, initializers, apiServiceDescriptions, webhookDescriptions)
 	}
 
 	// Insurance against these functions being called incorrectly (unmarshal strategy will return a valid strategy name)

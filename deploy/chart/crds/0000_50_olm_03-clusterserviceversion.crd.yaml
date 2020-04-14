@@ -8310,6 +8310,148 @@ spec:
               description: OperatorVersion is a wrapper around semver.Version which
                 supports correct marshaling to YAML and JSON.
               type: string
+            webhookdefinitions:
+              type: array
+              items:
+                description: WebhookDescription provides details to OLM about required
+                  webhooks
+                type: object
+                required:
+                - admissionReviewVersions
+                - name
+                - sideEffects
+                - type
+                properties:
+                  admissionReviewVersions:
+                    type: array
+                    items:
+                      type: string
+                  containerPort:
+                    type: integer
+                    format: int32
+                  deploymentName:
+                    type: string
+                  failurePolicy:
+                    type: string
+                  matchPolicy:
+                    description: MatchPolicyType specifies the type of match policy
+                    type: string
+                  name:
+                    type: string
+                  objectSelector:
+                    description: A label selector is a label query over a set of resources.
+                      The result of matchLabels and matchExpressions are ANDed. An
+                      empty label selector matches all objects. A null label selector
+                      matches no objects.
+                    type: object
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        type: array
+                        items:
+                          description: A label selector requirement is a selector
+                            that contains values, a key, and an operator that relates
+                            the key and values.
+                          type: object
+                          required:
+                          - key
+                          - operator
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: operator represents a key's relationship
+                                to a set of values. Valid operators are In, NotIn,
+                                Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: values is an array of string values. If
+                                the operator is In or NotIn, the values array must
+                                be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced
+                                during a strategic merge patch.
+                              type: array
+                              items:
+                                type: string
+                      matchLabels:
+                        description: matchLabels is a map of {key,value} pairs. A
+                          single {key,value} in the matchLabels map is equivalent
+                          to an element of matchExpressions, whose key field is "key",
+                          the operator is "In", and the values array contains only
+                          "value". The requirements are ANDed.
+                        type: object
+                        additionalProperties:
+                          type: string
+                  reinvocationPolicy:
+                    description: ReinvocationPolicyType specifies what type of policy
+                      the admission hook uses.
+                    type: string
+                  rules:
+                    type: array
+                    items:
+                      description: RuleWithOperations is a tuple of Operations and
+                        Resources. It is recommended to make sure that all the tuple
+                        expansions are valid.
+                      type: object
+                      properties:
+                        apiGroups:
+                          description: APIGroups is the API groups the resources belong
+                            to. '*' is all groups. If '*' is present, the length of
+                            the slice must be one. Required.
+                          type: array
+                          items:
+                            type: string
+                        apiVersions:
+                          description: APIVersions is the API versions the resources
+                            belong to. '*' is all versions. If '*' is present, the
+                            length of the slice must be one. Required.
+                          type: array
+                          items:
+                            type: string
+                        operations:
+                          description: Operations is the operations the admission
+                            hook cares about - CREATE, UPDATE, or * for all operations.
+                            If '*' is present, the length of the slice must be one.
+                            Required.
+                          type: array
+                          items:
+                            type: string
+                        resources:
+                          description: "Resources is a list of resources this rule
+                            applies to. \n For example: 'pods' means pods. 'pods/log'
+                            means the log subresource of pods. '*' means all resources,
+                            but not subresources. 'pods/*' means all subresources
+                            of pods. '*/scale' means all scale subresources. '*/*'
+                            means all resources and their subresources. \n If wildcard
+                            is present, the validation rule will ensure resources
+                            do not overlap with each other. \n Depending on the enclosing
+                            object, subresources might not be allowed. Required."
+                          type: array
+                          items:
+                            type: string
+                        scope:
+                          description: scope specifies the scope of this rule. Valid
+                            values are "Cluster", "Namespaced", and "*" "Cluster"
+                            means that only cluster-scoped resources will match this
+                            rule. Namespace API objects are cluster-scoped. "Namespaced"
+                            means that only namespaced resources will match this rule.
+                            "*" means that there are no scope restrictions. Subresources
+                            match the scope of their parent resource. Default is "*".
+                          type: string
+                  sideEffects:
+                    type: string
+                  timeoutSeconds:
+                    type: integer
+                    format: int32
+                  type:
+                    description: WebhookAdmissionType is the type of admission webhooks
+                      supported by OLM
+                    type: string
+                  webhookPath:
+                    type: string
         status:
           description: ClusterServiceVersionStatus represents information about the
             status of a pod. Status may trail the actual state of a system.

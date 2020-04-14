@@ -265,7 +265,7 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 		},
 	}
 	fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
-	strategy := NewStrategyDeploymentInstaller(fakeClient, map[string]string{"test": "annotation"}, &mockOwner, nil, nil, nil)
+	strategy := NewStrategyDeploymentInstaller(fakeClient, map[string]string{"test": "annotation"}, &mockOwner, nil, nil, nil, nil)
 	require.Implements(t, (*StrategyInstaller)(nil), strategy)
 	require.Error(t, strategy.Install(&BadStrategy{}))
 	installed, err := strategy.CheckInstalled(&BadStrategy{})
@@ -303,7 +303,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 		t.Run(tt.description, func(t *testing.T) {
 			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
 			strategy := strategy(1, namespace, &mockOwner)
-			installer := NewStrategyDeploymentInstaller(fakeClient, map[string]string{"test": "annotation"}, &mockOwner, nil, nil, nil)
+			installer := NewStrategyDeploymentInstaller(fakeClient, map[string]string{"test": "annotation"}, &mockOwner, nil, nil, nil, nil)
 
 			dep := testDeployment("olm-dep-1", namespace, &mockOwner)
 			dep.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
