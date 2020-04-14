@@ -17,4 +17,6 @@ reviewers:
   - exdx
   - awgreene
   - Bowenislandsong
-  - benluddy 
+  - benluddy
+# Bugzilla component
+component: "OLM"
