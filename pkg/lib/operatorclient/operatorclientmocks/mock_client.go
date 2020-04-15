@@ -886,6 +886,65 @@ func (mr *MockClientInterfaceMockRecorder) ListDeploymentsWithLabels(namespace, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDeploymentsWithLabels", reflect.TypeOf((*MockClientInterface)(nil).ListDeploymentsWithLabels), namespace, labels)
 }
 
+// CreateConfigMap mocks base method
+func (m *MockClientInterface) CreateConfigMap(arg0 *v10.ConfigMap) (*v10.ConfigMap, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateConfigMap", arg0)
+	ret0, _ := ret[0].(*v10.ConfigMap)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateConfigMap indicates an expected call of CreateConfigMap
+func (mr *MockClientInterfaceMockRecorder) CreateConfigMap(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateConfigMap", reflect.TypeOf((*MockClientInterface)(nil).CreateConfigMap), arg0)
+}
+
+// GetConfigMap mocks base method
+func (m *MockClientInterface) GetConfigMap(namespace, name string) (*v10.ConfigMap, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConfigMap", namespace, name)
+	ret0, _ := ret[0].(*v10.ConfigMap)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetConfigMap indicates an expected call of GetConfigMap
+func (mr *MockClientInterfaceMockRecorder) GetConfigMap(namespace, name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigMap", reflect.TypeOf((*MockClientInterface)(nil).GetConfigMap), namespace, name)
+}
+
+// UpdateConfigMap mocks base method
+func (m *MockClientInterface) UpdateConfigMap(modified *v10.ConfigMap) (*v10.ConfigMap, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateConfigMap", modified)
+	ret0, _ := ret[0].(*v10.ConfigMap)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateConfigMap indicates an expected call of UpdateConfigMap
+func (mr *MockClientInterfaceMockRecorder) UpdateConfigMap(modified interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateConfigMap", reflect.TypeOf((*MockClientInterface)(nil).UpdateConfigMap), modified)
+}
+
+// DeleteConfigMap mocks base method
+func (m *MockClientInterface) DeleteConfigMap(namespace, name string, options *v12.DeleteOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteConfigMap", namespace, name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteConfigMap indicates an expected call of DeleteConfigMap
+func (mr *MockClientInterfaceMockRecorder) DeleteConfigMap(namespace, name, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteConfigMap", reflect.TypeOf((*MockClientInterface)(nil).DeleteConfigMap), namespace, name, options)
+}
+
 // MockCustomResourceClient is a mock of CustomResourceClient interface
 type MockCustomResourceClient struct {
 	ctrl     *gomock.Controller
@@ -1915,4 +1974,86 @@ func (m *MockDeploymentClient) ListDeploymentsWithLabels(namespace string, label
 func (mr *MockDeploymentClientMockRecorder) ListDeploymentsWithLabels(namespace, labels interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDeploymentsWithLabels", reflect.TypeOf((*MockDeploymentClient)(nil).ListDeploymentsWithLabels), namespace, labels)
+}
+
+// MockConfigMapClient is a mock of ConfigMapClient interface
+type MockConfigMapClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockConfigMapClientMockRecorder
+}
+
+// MockConfigMapClientMockRecorder is the mock recorder for MockConfigMapClient
+type MockConfigMapClientMockRecorder struct {
+	mock *MockConfigMapClient
+}
+
+// NewMockConfigMapClient creates a new mock instance
+func NewMockConfigMapClient(ctrl *gomock.Controller) *MockConfigMapClient {
+	mock := &MockConfigMapClient{ctrl: ctrl}
+	mock.recorder = &MockConfigMapClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockConfigMapClient) EXPECT() *MockConfigMapClientMockRecorder {
+	return m.recorder
+}
+
+// CreateConfigMap mocks base method
+func (m *MockConfigMapClient) CreateConfigMap(arg0 *v10.ConfigMap) (*v10.ConfigMap, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateConfigMap", arg0)
+	ret0, _ := ret[0].(*v10.ConfigMap)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateConfigMap indicates an expected call of CreateConfigMap
+func (mr *MockConfigMapClientMockRecorder) CreateConfigMap(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateConfigMap", reflect.TypeOf((*MockConfigMapClient)(nil).CreateConfigMap), arg0)
+}
+
+// GetConfigMap mocks base method
+func (m *MockConfigMapClient) GetConfigMap(namespace, name string) (*v10.ConfigMap, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConfigMap", namespace, name)
+	ret0, _ := ret[0].(*v10.ConfigMap)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetConfigMap indicates an expected call of GetConfigMap
+func (mr *MockConfigMapClientMockRecorder) GetConfigMap(namespace, name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigMap", reflect.TypeOf((*MockConfigMapClient)(nil).GetConfigMap), namespace, name)
+}
+
+// UpdateConfigMap mocks base method
+func (m *MockConfigMapClient) UpdateConfigMap(modified *v10.ConfigMap) (*v10.ConfigMap, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateConfigMap", modified)
+	ret0, _ := ret[0].(*v10.ConfigMap)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateConfigMap indicates an expected call of UpdateConfigMap
+func (mr *MockConfigMapClientMockRecorder) UpdateConfigMap(modified interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateConfigMap", reflect.TypeOf((*MockConfigMapClient)(nil).UpdateConfigMap), modified)
+}
+
+// DeleteConfigMap mocks base method
+func (m *MockConfigMapClient) DeleteConfigMap(namespace, name string, options *v12.DeleteOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteConfigMap", namespace, name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteConfigMap indicates an expected call of DeleteConfigMap
+func (mr *MockConfigMapClientMockRecorder) DeleteConfigMap(namespace, name, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteConfigMap", reflect.TypeOf((*MockConfigMapClient)(nil).DeleteConfigMap), namespace, name, options)
 }

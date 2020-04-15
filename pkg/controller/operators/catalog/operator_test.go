@@ -414,6 +414,27 @@ func TestExecutePlan(t *testing.T) {
 			err:  nil,
 		},
 		{
+			testName: "CreateConfigMap",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "ConfigMap",
+							Name:                   "cfg",
+							Manifest: toManifest(t, configmap("cfg", namespace)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			want: []runtime.Object{configmap("cfg", namespace)},
+			err:  nil,
+		},
+		{
 			testName: "UpdateServiceAccountWithSameFields",
 			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
@@ -557,6 +578,8 @@ func TestExecutePlan(t *testing.T) {
 					fetched, err = op.opClient.GetSecret(namespace, o.GetName())
 				case *corev1.Service:
 					fetched, err = op.opClient.GetService(namespace, o.GetName())
+				case *corev1.ConfigMap:
+					fetched, err = op.opClient.GetConfigMap(namespace, o.GetName())
 				case *v1beta1.CustomResourceDefinition:
 					fetched, err = op.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(o.GetName(), getOpts)
 				case *v1alpha1.ClusterServiceVersion:
@@ -1319,6 +1342,13 @@ func serviceAccount(name, namespace, generateName string, secretRef *corev1.Obje
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName},
 		Secrets:    []corev1.ObjectReference{*secretRef},
+	}
+}
+
+func configmap(name, namespace string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{Kind: configMapKind},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 	}
 }
 

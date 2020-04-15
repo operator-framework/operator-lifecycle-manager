@@ -300,3 +300,26 @@ func (o *StepEnsurer) EnsureUnstructuredObject(client dynamic.ResourceInterface,
 	status = v1alpha1.StepStatusPresent
 	return
 }
+
+// EnsureConfigMap writes the specified ConfigMap object to the cluster.
+func (o *StepEnsurer) EnsureConfigMap(namespace string, configmap *corev1.ConfigMap) (status v1alpha1.StepStatus, err error) {
+	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(configmap)
+	if createErr == nil {
+		status = v1alpha1.StepStatusCreated
+		return
+	}
+
+	if !k8serrors.IsAlreadyExists(createErr) {
+		err = errorwrap.Wrapf(createErr, "error updating configmap: %s", configmap.GetName())
+		return
+	}
+
+	configmap.SetNamespace(namespace)
+	if _, updateErr := o.kubeClient.UpdateConfigMap(configmap); updateErr != nil {
+		err = errorwrap.Wrapf(updateErr, "error updating configmap: %s", configmap.GetName())
+		return
+	}
+
+	status = v1alpha1.StepStatusPresent
+	return
+}
