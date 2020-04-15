@@ -322,6 +322,7 @@ type StepResource struct {
 	Kind                   string `json:"kind"`
 	Name                   string `json:"name"`
 	Manifest               string `json:"manifest,omitempty"`
+	BundleSecret           bool   `json:"bundleSecret"`
 }
 
 func (r StepResource) String() string {

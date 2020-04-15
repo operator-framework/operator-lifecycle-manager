@@ -425,6 +425,50 @@ func TestExecutePlan(t *testing.T) {
 			err:  nil,
 		},
 		{
+			testName: "CreateSecretFromBundle",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "Secret",
+							Name:                   "s",
+							Manifest:               toManifest(t, secret("s", namespace)),
+							BundleSecret:           true,
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			want: []runtime.Object{secret("s", namespace)},
+			err:  nil,
+		},
+		{
+			testName: "DoesNotCreateSecretNotFromBundle",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "Secret",
+							Name:                   "s",
+							Manifest:               toManifest(t, secret("s", namespace)),
+							BundleSecret:           false,
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			want: []runtime.Object{},
+			err:  fmt.Errorf("secret s does not exist - secrets \"s\" not found"),
+		},
+		{
 			testName: "UpdateServiceAccountWithSameFields",
 			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
@@ -1381,6 +1425,15 @@ func service(name, namespace string) *corev1.Service {
 			Kind:       serviceKind,
 			APIVersion: "",
 		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+}
+
+func secret(name, namespace string) *corev1.Secret {
+	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,

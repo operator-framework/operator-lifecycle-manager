@@ -1518,6 +1518,21 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				plan.Status.Plan[i].Status = status
 
 			case secretKind:
+				if step.Resource.BundleSecret {
+					var s corev1.Secret
+					err := json.Unmarshal([]byte(step.Resource.Manifest), &s)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+					status, err := ensurer.EnsureBundleSecret(plan.Namespace, &s)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+					continue
+				}
+
 				status, err := ensurer.EnsureSecret(o.namespace, plan.GetNamespace(), step.Resource.Name)
 				if err != nil {
 					return err

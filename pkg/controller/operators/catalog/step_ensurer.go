@@ -109,6 +109,30 @@ func (o *StepEnsurer) EnsureSecret(operatorNamespace, planNamespace, name string
 	return
 }
 
+// EnsureBundleSecret creates user-specified secrets from the bundle. Called when StepResource.Secret is true
+func (o *StepEnsurer) EnsureBundleSecret(namespace string, secret *corev1.Secret) (status v1alpha1.StepStatus, err error) {
+	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().Secrets(namespace).Create(secret)
+	if createErr == nil {
+		status = v1alpha1.StepStatusCreated
+		return
+	}
+
+	if !k8serrors.IsAlreadyExists(createErr) {
+		err = errorwrap.Wrapf(createErr, "error updating secret: %s", secret.GetName())
+		return
+	}
+
+	secret.SetNamespace(namespace)
+	// NOTE: any annotations/changes applied to the secret are lost
+	if _, updateErr := o.kubeClient.UpdateSecret(secret); updateErr != nil {
+		err = errorwrap.Wrapf(updateErr, "error updating secret: %s", secret.GetName())
+		return
+	}
+
+	status = v1alpha1.StepStatusPresent
+	return
+}
+
 // EnsureServiceAccount writes the specified ServiceAccount object to the cluster.
 func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceAccount) (status v1alpha1.StepStatus, err error) {
 	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Create(sa)
