@@ -88,6 +88,7 @@ func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueOperator).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueOperator).
@@ -194,6 +195,7 @@ func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels
 		&corev1.NamespaceList{},
 		&corev1.ServiceAccountList{},
 		&corev1.SecretList{},
+		&corev1.ConfigMapList{},
 		&rbacv1.RoleList{},
 		&rbacv1.RoleBindingList{},
 		&rbacv1.ClusterRoleList{},
