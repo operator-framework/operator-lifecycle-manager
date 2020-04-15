@@ -35,6 +35,5 @@ func AddFlag(fs *pflag.FlagSet) {
 }
 
 var featureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	// OperatorLifecycleManagerV2: {Default: false, PreRelease: featuregate.Alpha},
 	OperatorLifecycleManagerV2: {Default: false, PreRelease: featuregate.Alpha},
 }
