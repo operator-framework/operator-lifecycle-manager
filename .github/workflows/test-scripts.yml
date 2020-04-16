@@ -4,6 +4,7 @@ on:
     paths:
     - 'scripts/**'
     - 'Makefile'
+    - '.github/workflows/test-scripts.yml'
   schedule:
   - cron: '0 0 * * *' # daily to pick up releases
 jobs:
