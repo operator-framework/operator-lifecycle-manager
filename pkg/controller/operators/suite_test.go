@@ -38,8 +38,9 @@ var (
 	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
-	scheme    = runtime.NewScheme()
+	stop      chan struct{}
 
+	scheme            = runtime.NewScheme()
 	gracePeriod int64 = 0
 	propagation       = metav1.DeletePropagationForeground
 	deleteOpts        = &client.DeleteOptions{
@@ -96,7 +97,7 @@ var _ = BeforeSuite(func() {
 	By("Adding the operator controller to the manager")
 	Expect(reconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
 
-	stop := ctrl.SetupSignalHandler()
+	stop = make(chan struct{})
 	go func() {
 		defer GinkgoRecover()
 
@@ -112,6 +113,9 @@ var _ = BeforeSuite(func() {
 }, 60)
 
 var _ = AfterSuite(func() {
+	By("stopping the controller manager")
+	close(stop)
+
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
