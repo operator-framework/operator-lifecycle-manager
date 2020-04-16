@@ -15,6 +15,7 @@ COPY vendor vendor
 COPY go.mod go.mod
 COPY go.sum go.sum
 COPY cmd cmd
+COPY util util
 COPY test test
 RUN make build
 RUN make build-util
