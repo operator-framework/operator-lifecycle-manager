@@ -510,8 +510,8 @@ github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b h1:E++qQ7W1/Ed
 github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b/go.mod h1:6rzn+JTr7+WYS2E1TExP4gByoABxMznR6y2SnUIkmxk=
 github.com/openzipkin/zipkin-go v0.1.6/go.mod h1:QgAqvLzwWbR/WpD4A3cGpPtJrZXNIiJc5AZX7/PBEpw=
 github.com/operator-framework/api v0.1.1/go.mod h1:yzNYR7qyJqRGOOp+bT6Z/iYSbSPNxeh3Si93Gx/3OBY=
-github.com/operator-framework/api v0.2.0 h1:Fqw+N94vA5vNfjGOxOm7iUwJLY1DAO3IQDAJVsRWEXw=
-github.com/operator-framework/api v0.2.0/go.mod h1:tOJUgbX7u1fBEEjt2cz3QjXzydBPJ19SwWwmAjiSz/s=
+github.com/operator-framework/api v0.3.0 h1:Ey7hpg/pwzIBkJtFICksbQLORLYmIjlPdGt+6GNeWT0=
+github.com/operator-framework/api v0.3.0/go.mod h1:tOJUgbX7u1fBEEjt2cz3QjXzydBPJ19SwWwmAjiSz/s=
 github.com/operator-framework/operator-registry v1.5.3/go.mod h1:agrQlkWOo1q8U1SAaLSS2WQ+Z9vswNT2M2HFib9iuLY=
 github.com/operator-framework/operator-registry v1.6.1 h1:Ow0Ko9DRIZ4xvH55vFAslcTy6A9FhlIeXvm+FhyRd84=
 github.com/operator-framework/operator-registry v1.6.1/go.mod h1:sx4wWMiZtYhlUiaKscg3QQUPPM/c1bkrAs4n4KipDb4=

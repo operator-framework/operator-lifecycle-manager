@@ -2,10 +2,11 @@ package v1alpha1
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"time"
 )
 
 const (
@@ -137,6 +138,12 @@ func (r *ConfigMapResourceReference) IsAMatch(object *metav1.ObjectMeta) bool {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
+// +kubebuilder:resource:shortName=catsrc,categories=olm
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Display",type=string,JSONPath=`.spec.displayName`,description="The pretty name of the catalog"
+// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.sourceType`,description="The type of the catalog"
+// +kubebuilder:printcolumn:name="Publisher",type=string,JSONPath=`.spec.publisher`,description="The publisher of the catalog"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // CatalogSource is a repository of CSVs, CRDs, and operator packages.
 type CatalogSource struct {

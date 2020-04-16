@@ -57,6 +57,9 @@ type OperatorGroupStatus struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
+// +kubebuilder:storageversion
+// +kubebuilder:resource:shortName=og,categories=olm
+// +kubebuilder:subresource:status
 
 // OperatorGroup is the unit of multitenancy for OLM managed operators.
 // It constrains the installation of operators in its namespace to a specified set of target namespaces.
