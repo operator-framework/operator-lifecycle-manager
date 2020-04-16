@@ -161,12 +161,8 @@ func (r *OperatorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	}
 
-	if err := r.Update(ctx, operator.Operator); err != nil {
+	if err := r.Status().Update(ctx, operator.Operator); err != nil {
 		log.Error(err, "Could not update Operator status")
-		return ctrl.Result{}, err
-	}
-
-	if err := r.Get(ctx, req.NamespacedName, operator.Operator); err != nil {
 		return ctrl.Result{}, err
 	}
 
