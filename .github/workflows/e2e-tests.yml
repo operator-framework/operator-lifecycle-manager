@@ -1,0 +1,12 @@
+name: e2e-tests
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+jobs:
+  run-e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: make -f x.mk e2e-local

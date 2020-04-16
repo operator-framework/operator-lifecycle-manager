@@ -5,6 +5,7 @@ package e2e
 import (
 	"fmt"
 	"net"
+	"os"
 	"reflect"
 	"time"
 
@@ -697,7 +698,9 @@ var _ = Describe("Catalog", func() {
 		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
 	})
 	It("image update", func() {
-
+		if os.Getenv("GITHUB_ACTIONS") == "true" {
+			Skip("This spec fails when run using KIND cluster. See https://github.com/operator-framework/operator-lifecycle-manager/issues/1380 for more details")
+		}
 		// Create an image based catalog source from public Quay image
 		// Use a unique tag as identifier
 		// See https://quay.io/repository/olmtest/catsrc-update-test?namespace=olmtest for registry
