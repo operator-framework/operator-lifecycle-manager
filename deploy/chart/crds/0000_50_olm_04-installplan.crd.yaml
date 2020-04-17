@@ -67,7 +67,6 @@ spec:
           - approval
           - approved
           - clusterServiceVersionNames
-          - generation
           properties:
             approval:
               description: Approval is the user approval policy for an InstallPlan.
