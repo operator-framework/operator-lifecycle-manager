@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 )
 
