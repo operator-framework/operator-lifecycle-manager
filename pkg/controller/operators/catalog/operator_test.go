@@ -17,7 +17,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -134,10 +135,10 @@ func TestTransitionInstallPlan(t *testing.T) {
 	}
 }
 
-func TestEnsureCRDVersions(t *testing.T) {
+func TestEnsureV1CRDVersions(t *testing.T) {
 	mainCRDPlural := "ins-main-abcde"
 
-	currentVersions := []v1beta1.CustomResourceDefinitionVersion{
+	currentVersions := []apiextensionsv1.CustomResourceDefinitionVersion{
 		{
 			Name:    "v1alpha1",
 			Served:  true,
@@ -145,7 +146,7 @@ func TestEnsureCRDVersions(t *testing.T) {
 		},
 	}
 
-	addedVersions := []v1beta1.CustomResourceDefinitionVersion{
+	addedVersions := []apiextensionsv1.CustomResourceDefinitionVersion{
 		{
 			Name:    "v1alpha1",
 			Served:  true,
@@ -158,7 +159,7 @@ func TestEnsureCRDVersions(t *testing.T) {
 		},
 	}
 
-	missingVersions := []v1beta1.CustomResourceDefinitionVersion{
+	missingVersions := []apiextensionsv1.CustomResourceDefinitionVersion{
 		{
 			Name:    "v1alpha2",
 			Served:  true,
@@ -168,66 +169,61 @@ func TestEnsureCRDVersions(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		oldCRD          v1beta1.CustomResourceDefinition
-		newCRD          v1beta1.CustomResourceDefinition
+		oldCRD          apiextensionsv1.CustomResourceDefinition
+		newCRD          apiextensionsv1.CustomResourceDefinition
 		expectedFailure bool
 	}{
 		{
 			name: "existing versions are present",
-			oldCRD: func() v1beta1.CustomResourceDefinition {
-				oldCRD := crd(mainCRDPlural)
-				oldCRD.Spec.Version = ""
+			oldCRD: func() apiextensionsv1.CustomResourceDefinition {
+				oldCRD := v1crd(mainCRDPlural)
 				oldCRD.Spec.Versions = currentVersions
 				return oldCRD
 			}(),
-			newCRD: func() v1beta1.CustomResourceDefinition {
-				newCRD := crd(mainCRDPlural)
-				newCRD.Spec.Version = ""
+			newCRD: func() apiextensionsv1.CustomResourceDefinition {
+				newCRD := v1crd(mainCRDPlural)
 				newCRD.Spec.Versions = addedVersions
 				return newCRD
 			}(),
 			expectedFailure: false,
 		},
 		{
-			name: "missing versions in new CRD",
-			oldCRD: func() v1beta1.CustomResourceDefinition {
-				oldCRD := crd(mainCRDPlural)
-				oldCRD.Spec.Version = ""
+			name: "missing versions in new CRD 1",
+			oldCRD: func() apiextensionsv1.CustomResourceDefinition {
+				oldCRD := v1crd(mainCRDPlural)
 				oldCRD.Spec.Versions = currentVersions
 				return oldCRD
 			}(),
-			newCRD: func() v1beta1.CustomResourceDefinition {
-				newCRD := crd(mainCRDPlural)
-				newCRD.Spec.Version = ""
+			newCRD: func() apiextensionsv1.CustomResourceDefinition {
+				newCRD := v1crd(mainCRDPlural)
 				newCRD.Spec.Versions = missingVersions
 				return newCRD
 			}(),
 			expectedFailure: true,
 		},
 		{
-			name: "missing version in new CRD",
-			oldCRD: func() v1beta1.CustomResourceDefinition {
-				oldCRD := crd(mainCRDPlural)
-				oldCRD.Spec.Version = "v1alpha1"
+			name: "missing version in new CRD 2",
+			oldCRD: func() apiextensionsv1.CustomResourceDefinition {
+				oldCRD := v1crd(mainCRDPlural)
+				oldCRD.Spec.Versions[0].Name = "v1alpha1"
 				return oldCRD
 			}(),
-			newCRD: func() v1beta1.CustomResourceDefinition {
-				newCRD := crd(mainCRDPlural)
-				newCRD.Spec.Version = "v1alpha2"
+			newCRD: func() apiextensionsv1.CustomResourceDefinition {
+				newCRD := v1crd(mainCRDPlural)
+				newCRD.Spec.Versions[0].Name = "v1alpha2"
 				return newCRD
 			}(),
 			expectedFailure: true,
 		},
 		{
 			name: "existing version is present in new CRD's versions",
-			oldCRD: func() v1beta1.CustomResourceDefinition {
-				oldCRD := crd(mainCRDPlural)
-				oldCRD.Spec.Version = "v1alpha1"
+			oldCRD: func() apiextensionsv1.CustomResourceDefinition {
+				oldCRD := v1crd(mainCRDPlural)
+				oldCRD.Spec.Versions[0].Name = "v1alpha1"
 				return oldCRD
 			}(),
-			newCRD: func() v1beta1.CustomResourceDefinition {
-				newCRD := crd(mainCRDPlural)
-				newCRD.Spec.Version = ""
+			newCRD: func() apiextensionsv1.CustomResourceDefinition {
+				newCRD := v1crd(mainCRDPlural)
 				newCRD.Spec.Versions = addedVersions
 				return newCRD
 			}(),
@@ -236,17 +232,17 @@ func TestEnsureCRDVersions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		err := ensureCRDVersions(&tt.oldCRD, &tt.newCRD)
+		err := EnsureCRDVersions(&tt.oldCRD, &tt.newCRD)
 		if tt.expectedFailure {
 			require.Error(t, err)
 		}
 	}
 }
 
-func TestRemoveDeprecatedStoredVersions(t *testing.T) {
+func TestRemoveDeprecatedV1StoredVersions(t *testing.T) {
 	mainCRDPlural := "ins-main-test"
 
-	currentVersions := []v1beta1.CustomResourceDefinitionVersion{
+	currentVersions := []apiextensionsv1.CustomResourceDefinitionVersion{
 		{
 			Name:    "v1alpha1",
 			Served:  true,
@@ -259,42 +255,40 @@ func TestRemoveDeprecatedStoredVersions(t *testing.T) {
 		},
 	}
 
-	newVersions := []v1beta1.CustomResourceDefinitionVersion{
+	newVersions := []apiextensionsv1.CustomResourceDefinitionVersion{
 		{
 			Name:    "v1alpha2",
 			Served:  true,
 			Storage: false,
 		},
 		{
-			Name:    "v1beta1",
+			Name:    "apiextensionsv1beta1",
 			Served:  true,
 			Storage: true,
 		},
 	}
 
-	crdStatusStoredVersions := v1beta1.CustomResourceDefinitionStatus{
+	crdStatusStoredVersions := apiextensionsv1.CustomResourceDefinitionStatus{
 		StoredVersions: []string{},
 	}
 
 	tests := []struct {
 		name           string
-		oldCRD         v1beta1.CustomResourceDefinition
-		newCRD         v1beta1.CustomResourceDefinition
+		oldCRD         apiextensionsv1.CustomResourceDefinition
+		newCRD         apiextensionsv1.CustomResourceDefinition
 		expectedResult []string
 	}{
 		{
 			name: "only one stored version exists",
-			oldCRD: func() v1beta1.CustomResourceDefinition {
-				oldCRD := crd(mainCRDPlural)
-				oldCRD.Spec.Version = ""
+			oldCRD: func() apiextensionsv1.CustomResourceDefinition {
+				oldCRD := v1crd(mainCRDPlural)
 				oldCRD.Spec.Versions = currentVersions
 				oldCRD.Status = crdStatusStoredVersions
 				oldCRD.Status.StoredVersions = []string{"v1alpha1"}
 				return oldCRD
 			}(),
-			newCRD: func() v1beta1.CustomResourceDefinition {
-				newCRD := crd(mainCRDPlural)
-				newCRD.Spec.Version = ""
+			newCRD: func() apiextensionsv1.CustomResourceDefinition {
+				newCRD := v1crd(mainCRDPlural)
 				newCRD.Spec.Versions = newVersions
 				return newCRD
 			}(),
@@ -302,16 +296,14 @@ func TestRemoveDeprecatedStoredVersions(t *testing.T) {
 		},
 		{
 			name: "multiple stored versions with one deprecated version",
-			oldCRD: func() v1beta1.CustomResourceDefinition {
-				oldCRD := crd(mainCRDPlural)
-				oldCRD.Spec.Version = ""
+			oldCRD: func() apiextensionsv1.CustomResourceDefinition {
+				oldCRD := v1crd(mainCRDPlural)
 				oldCRD.Spec.Versions = currentVersions
 				oldCRD.Status.StoredVersions = []string{"v1alpha1", "v1alpha2"}
 				return oldCRD
 			}(),
-			newCRD: func() v1beta1.CustomResourceDefinition {
-				newCRD := crd(mainCRDPlural)
-				newCRD.Spec.Version = ""
+			newCRD: func() apiextensionsv1.CustomResourceDefinition {
+				newCRD := v1crd(mainCRDPlural)
 				newCRD.Spec.Versions = newVersions
 				return newCRD
 			}(),
@@ -319,16 +311,14 @@ func TestRemoveDeprecatedStoredVersions(t *testing.T) {
 		},
 		{
 			name: "multiple stored versions with all deprecated version",
-			oldCRD: func() v1beta1.CustomResourceDefinition {
-				oldCRD := crd(mainCRDPlural)
-				oldCRD.Spec.Version = ""
+			oldCRD: func() apiextensionsv1.CustomResourceDefinition {
+				oldCRD := v1crd(mainCRDPlural)
 				oldCRD.Spec.Versions = currentVersions
 				oldCRD.Status.StoredVersions = []string{"v1alpha1", "v1alpha3"}
 				return oldCRD
 			}(),
-			newCRD: func() v1beta1.CustomResourceDefinition {
-				newCRD := crd(mainCRDPlural)
-				newCRD.Spec.Version = ""
+			newCRD: func() apiextensionsv1.CustomResourceDefinition {
+				newCRD := v1crd(mainCRDPlural)
 				newCRD.Spec.Versions = newVersions
 				return newCRD
 			}(),
@@ -337,7 +327,7 @@ func TestRemoveDeprecatedStoredVersions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		resultCRD := removeDeprecatedStoredVersions(&tt.oldCRD, &tt.newCRD)
+		resultCRD := removeDeprecatedV1StoredVersions(&tt.oldCRD, &tt.newCRD)
 		require.Equal(t, tt.expectedResult, resultCRD)
 	}
 }
@@ -425,7 +415,7 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1",
 							Kind:                   "ConfigMap",
 							Name:                   "cfg",
-							Manifest: toManifest(t, configmap("cfg", namespace)),
+							Manifest:               toManifest(t, configmap("cfg", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -534,7 +524,7 @@ func TestExecutePlan(t *testing.T) {
 					},
 				},
 			),
-			extObjs: []runtime.Object{decodeFile(t, "./testdata/prometheusrule.crd.yaml", &v1beta1.CustomResourceDefinition{})},
+			extObjs: []runtime.Object{decodeFile(t, "./testdata/prometheusrule.crd.yaml", &apiextensionsv1beta1.CustomResourceDefinition{})},
 			want: []runtime.Object{
 				csv("csv", namespace, nil, nil),
 				modify(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{}),
@@ -543,6 +533,41 @@ func TestExecutePlan(t *testing.T) {
 				),
 			},
 			err: nil,
+		},
+		{
+			testName: "V1CRDResourceIsCreated",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "crdv1"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "apiextensions.k8s.io",
+							Version:                "v1",
+							Kind:                   crdKind,
+							Name:                   "crd",
+							Manifest: toManifest(t,
+								&apiextensionsv1.CustomResourceDefinition{
+									TypeMeta: metav1.TypeMeta{
+										Kind:       "CustomResourceDefinition",
+										APIVersion: "apiextensions.k8s.io/v1", // v1 CRD version of API
+									},
+									ObjectMeta: metav1.ObjectMeta{Name: "test"},
+									Spec:       apiextensionsv1.CustomResourceDefinitionSpec{},
+								}),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				}),
+			want: []runtime.Object{
+				&apiextensionsv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{Name: "test"},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "CustomResourceDefinition",
+						APIVersion: "apiextensions.k8s.io/v1", // v1 CRD version of API
+					},
+				},
+			},
 		},
 	}
 
@@ -580,8 +605,10 @@ func TestExecutePlan(t *testing.T) {
 					fetched, err = op.opClient.GetService(namespace, o.GetName())
 				case *corev1.ConfigMap:
 					fetched, err = op.opClient.GetConfigMap(namespace, o.GetName())
-				case *v1beta1.CustomResourceDefinition:
-					fetched, err = op.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(o.GetName(), getOpts)
+				case *apiextensionsv1beta1.CustomResourceDefinition:
+					fetched, err = op.opClient.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(o.GetName(), getOpts)
+				case *apiextensionsv1.CustomResourceDefinition:
+					fetched, err = op.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(o.GetName(), getOpts)
 				case *v1alpha1.ClusterServiceVersion:
 					fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), getOpts)
 				case *unstructured.Unstructured:
@@ -1079,7 +1106,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 
 func fakeConfigMapData() map[string]string {
 	data := make(map[string]string)
-	yaml, err := yaml.Marshal([]v1beta1.CustomResourceDefinition{crd("fake-crd")})
+	yaml, err := yaml.Marshal([]apiextensionsv1beta1.CustomResourceDefinition{crd("fake-crd")})
 	if err != nil {
 		return data
 	}
@@ -1296,6 +1323,10 @@ func csv(name, namespace string, owned, required []string) *v1alpha1.ClusterServ
 	}
 
 	return &v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       csvKind,
+			APIVersion: "operators.coreos.com/v1alpha1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -1309,15 +1340,35 @@ func csv(name, namespace string, owned, required []string) *v1alpha1.ClusterServ
 	}
 }
 
-func crd(name string) v1beta1.CustomResourceDefinition {
-	return v1beta1.CustomResourceDefinition{
+func crd(name string) apiextensionsv1beta1.CustomResourceDefinition {
+	return apiextensionsv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: v1beta1.CustomResourceDefinitionSpec{
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
 			Group:   name + "group",
 			Version: "v1",
-			Names: v1beta1.CustomResourceDefinitionNames{
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Kind: name,
+			},
+		},
+	}
+}
+
+func v1crd(name string) apiextensionsv1.CustomResourceDefinition {
+	return apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: name + "group",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:   "v1",
+					Served: true,
+				},
+			},
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
 				Kind: name,
 			},
 		},
@@ -1326,6 +1377,10 @@ func crd(name string) v1beta1.CustomResourceDefinition {
 
 func service(name, namespace string) *corev1.Service {
 	return &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceKind,
+			APIVersion: "",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -1336,10 +1391,12 @@ func service(name, namespace string) *corev1.Service {
 func serviceAccount(name, namespace, generateName string, secretRef *corev1.ObjectReference) *corev1.ServiceAccount {
 	if secretRef == nil {
 		return &corev1.ServiceAccount{
+			TypeMeta:   metav1.TypeMeta{Kind: serviceAccountKind, APIVersion: ""},
 			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName},
 		}
 	}
 	return &corev1.ServiceAccount{
+		TypeMeta:   metav1.TypeMeta{Kind: serviceAccountKind, APIVersion: ""},
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName},
 		Secrets:    []corev1.ObjectReference{*secretRef},
 	}
@@ -1347,7 +1404,7 @@ func serviceAccount(name, namespace, generateName string, secretRef *corev1.Obje
 
 func configmap(name, namespace string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{Kind: configMapKind},
+		TypeMeta:   metav1.TypeMeta{Kind: configMapKind},
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 	}
 }
@@ -1452,15 +1509,15 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	apis := []*metav1.APIResourceList{}
 	for _, o := range objs {
 		switch o.(type) {
-		case *v1beta1.CustomResourceDefinition:
-			crd := o.(*v1beta1.CustomResourceDefinition)
+		case *apiextensionsv1beta1.CustomResourceDefinition:
+			crd := o.(*apiextensionsv1beta1.CustomResourceDefinition)
 			apis = append(apis, &metav1.APIResourceList{
 				GroupVersion: metav1.GroupVersion{Group: crd.Spec.Group, Version: crd.Spec.Versions[0].Name}.String(),
 				APIResources: []metav1.APIResource{
 					{
 						Name:         crd.GetName(),
 						SingularName: crd.Spec.Names.Singular,
-						Namespaced:   crd.Spec.Scope == v1beta1.NamespaceScoped,
+						Namespaced:   crd.Spec.Scope == apiextensionsv1beta1.NamespaceScoped,
 						Group:        crd.Spec.Group,
 						Version:      crd.Spec.Versions[0].Name,
 						Kind:         crd.Spec.Names.Kind,

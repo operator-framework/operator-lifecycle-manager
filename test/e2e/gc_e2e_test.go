@@ -35,7 +35,7 @@ var _ = Describe("Garbage collector", func() {
 
 	It("should delete a ClusterRole owned by a CustomResourceDefinition when the owner is deleted", func() {
 		group := fmt.Sprintf("%s.com", rand.String(16))
-		crd, err := kubeClient.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Create(&apiextensionsv1.CustomResourceDefinition{
+		crd, err := kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(&apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: fmt.Sprintf("plural.%s", group),
 			},
@@ -62,7 +62,7 @@ var _ = Describe("Garbage collector", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		defer func() {
-			IgnoreError(kubeClient.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{}))
+			IgnoreError(kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{}))
 		}()
 
 		cr, err := kubeClient.CreateClusterRole(&rbacv1.ClusterRole{
@@ -76,7 +76,7 @@ var _ = Describe("Garbage collector", func() {
 			IgnoreError(kubeClient.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
 		}()
 
-		Expect(kubeClient.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{})).To(Succeed())
+		Expect(kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{})).To(Succeed())
 		Eventually(func() bool {
 			_, err := kubeClient.GetClusterRole(cr.GetName())
 			return k8serrors.IsNotFound(err)

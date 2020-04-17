@@ -366,7 +366,7 @@ func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup,
 // ensureClusterRolesForCSV ensures that ClusterRoles for writing and reading provided APIs exist for each operator
 func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1.OperatorGroup) error {
 	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
-		crd, err := a.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(owned.Name)
+		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(owned.Name)
 		if err != nil {
 			return fmt.Errorf("crd %q not found: %s", owned.Name, err.Error())
 		}

@@ -11,7 +11,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -79,13 +80,13 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 	for _, r := range crdDescs {
 		status := v1alpha1.RequirementStatus{
 			Group:   "apiextensions.k8s.io",
-			Version: "v1beta1",
+			Version: "v1",
 			Kind:    "CustomResourceDefinition",
 			Name:    r.Name,
 		}
 
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
-		crd, err := a.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(r.Name)
+		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(r.Name)
 		if err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			status.Message = "CRD is not present"
@@ -95,25 +96,23 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 			continue
 		}
 
-		if crd.Spec.Version != r.Version {
-			served := false
-			for _, version := range crd.Spec.Versions {
-				if version.Name == r.Version {
-					if version.Served {
-						served = true
-					}
-					break
+		served := false
+		for _, version := range crd.Spec.Versions {
+			if version.Name == r.Version {
+				if version.Served {
+					served = true
 				}
+				break
 			}
+		}
 
-			if !served {
-				status.Status = v1alpha1.RequirementStatusReasonNotPresent
-				status.Message = "CRD version not served"
-				a.logger.Debugf("Setting 'met' to false, %v with status %v, CRD version %v not found", r.Name, status, r.Version)
-				met = false
-				statuses = append(statuses, status)
-				continue
-			}
+		if !served {
+			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+			status.Message = "CRD version not served"
+			a.logger.Debugf("Setting 'met' to false, %v with status %v, CRD version %v not found", r.Name, status, r.Version)
+			met = false
+			statuses = append(statuses, status)
+			continue
 		}
 
 		// Check if CRD has successfully registered with k8s API
@@ -121,12 +120,12 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 		namesAccepted := false
 		for _, cdt := range crd.Status.Conditions {
 			switch cdt.Type {
-			case v1beta1.Established:
-				if cdt.Status == v1beta1.ConditionTrue {
+			case apiextensionsv1.Established:
+				if cdt.Status == apiextensionsv1.ConditionTrue {
 					established = true
 				}
-			case v1beta1.NamesAccepted:
-				if cdt.Status == v1beta1.ConditionTrue {
+			case apiextensionsv1.NamesAccepted:
+				if cdt.Status == apiextensionsv1.ConditionTrue {
 					namesAccepted = true
 				}
 			}
@@ -276,7 +275,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.Strategy
 				dependent := v1alpha1.DependentStatus{
 					Group:   "rbac.authorization.k8s.io",
 					Kind:    "PolicyRule",
-					Version: "v1beta1",
+					Version: "v1",
 				}
 
 				marshalled, err := json.Marshal(rule)

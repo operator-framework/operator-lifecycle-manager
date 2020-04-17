@@ -487,9 +487,9 @@ var _ = Describe("Install Plan", func() {
 			newCRD          *apiextensions.CustomResourceDefinition
 		}
 
-		var min float64 = 2
-		var max float64 = 256
-		var newMax float64 = 50
+		var min float64 = 2.1
+		var max float64 = 256.1
+		var newMax float64 = 50.1
 		// generated outside of the test table so that the same naming can be used for both old and new CSVs
 		mainCRDPlural := "testcrd"
 
@@ -508,24 +508,7 @@ var _ = Describe("Install Plan", func() {
 							Storage: true,
 						},
 					}
-					return &oldCRD
-				}(),
-				newCRD: func() *apiextensions.CustomResourceDefinition {
-					newCRD := newCRD(mainCRDPlural + "a")
-					newCRD.Spec.Version = ""
-					newCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
-						{
-							Name:    "v1alpha1",
-							Served:  true,
-							Storage: true,
-						},
-						{
-							Name:    "v1alpha2",
-							Served:  true,
-							Storage: false,
-						},
-					}
-					newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
+					oldCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
 						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 							Type: "object",
 							Properties: map[string]apiextensions.JSONSchemaProps{
@@ -538,6 +521,62 @@ var _ = Describe("Install Plan", func() {
 											Description: "Scalar value that should have a min and max.",
 											Minimum:     &min,
 											Maximum:     &max,
+										},
+									},
+								},
+							},
+						},
+					}
+
+					return &oldCRD
+				}(),
+				newCRD: func() *apiextensions.CustomResourceDefinition {
+					newCRD := newCRD(mainCRDPlural + "a")
+					newCRD.Spec.Version = ""
+					newCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+						{
+							Name:    "v1alpha1",
+							Served:  true,
+							Storage: true,
+							Schema: &apiextensions.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensions.JSONSchemaProps{
+										"spec": {
+											Type:        "object",
+											Description: "Spec of a test object.",
+											Properties: map[string]apiextensions.JSONSchemaProps{
+												"scalar": {
+													Type:        "number",
+													Description: "Scalar value that should have a min and max.",
+													Minimum:     &min,
+													Maximum:     &max,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Name:    "v1alpha2",
+							Served:  true,
+							Storage: false,
+							Schema: &apiextensions.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensions.JSONSchemaProps{
+										"spec": {
+											Type:        "object",
+											Description: "Spec of a test object.",
+											Properties: map[string]apiextensions.JSONSchemaProps{
+												"scalar": {
+													Type:        "number",
+													Description: "Scalar value that should have a min and max.",
+													Minimum:     &min,
+													Maximum:     &max,
+												},
+											},
 										},
 									},
 								},
@@ -568,27 +607,22 @@ var _ = Describe("Install Plan", func() {
 						{
 							Name:    "v1alpha1",
 							Served:  true,
-							Storage: true,
-						},
-						{
-							Name:    "v1alpha2",
-							Served:  true,
 							Storage: false,
-						},
-					}
-					newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-							Type: "object",
-							Properties: map[string]apiextensions.JSONSchemaProps{
-								"spec": {
-									Type:        "object",
-									Description: "Spec of a test object.",
+							Schema: &apiextensions.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+									Type: "object",
 									Properties: map[string]apiextensions.JSONSchemaProps{
-										"scalar": {
-											Type:        "number",
-											Description: "Scalar value that should have a min and max.",
-											Minimum:     &min,
-											Maximum:     &newMax,
+										"spec": {
+											Type:        "object",
+											Description: "Spec of a test object.",
+											Properties: map[string]apiextensions.JSONSchemaProps{
+												"scalar": {
+													Type:        "number",
+													Description: "Scalar value that should have a min and max.",
+													Minimum:     &min,
+													Maximum:     &newMax,
+												},
+											},
 										},
 									},
 								},
@@ -663,22 +697,37 @@ var _ = Describe("Install Plan", func() {
 				newCRD: func() *apiextensions.CustomResourceDefinition {
 					newCRD := newCRD(mainCRDPlural + "d")
 					newCRD.Spec.Version = "v1alpha1"
-					newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-							Type: "object",
-							Properties: map[string]apiextensions.JSONSchemaProps{
-								"spec": {
-									Type:        "object",
-									Description: "Spec of a test object.",
+					newCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+						{
+							Name:    "v1alpha1",
+							Served:  true,
+							Storage: true,
+							Schema: &apiextensions.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+									Type: "object",
 									Properties: map[string]apiextensions.JSONSchemaProps{
-										"scalar": {
-											Type:        "number",
-											Description: "Scalar value that should have a min and max.",
-											Minimum:     &min,
-											Maximum:     &max,
+										"spec": {
+											Type:        "object",
+											Description: "Spec of a test object.",
+											Properties: map[string]apiextensions.JSONSchemaProps{
+												"scalar": {
+													Type:        "number",
+													Description: "Scalar value that should have a min and max.",
+													Minimum:     &min,
+													Maximum:     &max,
+												},
+											},
 										},
 									},
 								},
+							},
+						},
+						{
+							Name:    "v1alpha3",
+							Served:  false,
+							Storage: false,
+							Schema: &apiextensions.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{Type: "object"},
 							},
 						},
 					}
@@ -1820,7 +1869,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
-			fetchedCRD, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), len(fetchedCRD.Spec.Versions), len(updatedCRD.Spec.Versions), "The CRD versions counts don't match")
 
@@ -1981,7 +2030,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
-			fetchedCRD, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), len(fetchedCRD.Spec.Versions), len(mainCRD.Spec.Versions), "The CRD versions counts don't match")
 
@@ -2266,8 +2315,8 @@ var _ = Describe("Install Plan", func() {
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
-		var min float64 = 2
-		var max float64 = 256
+		var min float64 = 2.1
+		var max float64 = 256.1
 
 		// Create CRD with offending property
 		crd := apiextensions.CustomResourceDefinition{
@@ -2277,15 +2326,35 @@ var _ = Describe("Install Plan", func() {
 			Spec: apiextensions.CustomResourceDefinitionSpec{
 				Group:   "cluster.com",
 				Version: "v1alpha1",
-				Names: apiextensions.CustomResourceDefinitionNames{
-					Plural:   crdPlural,
-					Singular: crdPlural,
-					Kind:     crdPlural,
-					ListKind: "list" + crdPlural,
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type: "object",
+								Properties: map[string]apiextensions.JSONSchemaProps{
+									"spec": {
+										Type:        "object",
+										Description: "Spec of a test object.",
+										Properties: map[string]apiextensions.JSONSchemaProps{
+											"scalar": {
+												Type:        "number",
+												Description: "Scalar value that should have a min and max.",
+												Minimum:     &min,
+												Maximum:     &max,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
-				Scope: "Namespaced",
 				Validation: &apiextensions.CustomResourceValidation{
 					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+						Type: "object",
 						Properties: map[string]apiextensions.JSONSchemaProps{
 							"spec": {
 								Type:        "object",
@@ -2302,6 +2371,13 @@ var _ = Describe("Install Plan", func() {
 						},
 					},
 				},
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+				Scope: "Namespaced",
 			},
 		}
 
@@ -2575,7 +2651,7 @@ var _ = Describe("Install Plan", func() {
 
 		// Make sure to clean up the installed CRD
 		defer func() {
-			require.NoError(GinkgoT(), c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(dependentCRD.GetName(), deleteOpts))
+			require.NoError(GinkgoT(), c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(dependentCRD.GetName(), deleteOpts))
 		}()
 
 		// ensure there is only one installplan
@@ -2590,7 +2666,7 @@ type checkInstallPlanFunc func(fip *operatorsv1alpha1.InstallPlan) bool
 
 func validateCRDVersions(t GinkgoTInterface, c operatorclient.ClientInterface, name string, expectedVersions map[string]struct{}) {
 	// Retrieve CRD information
-	crd, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
+	crd, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	require.Equal(t, len(expectedVersions), len(crd.Spec.Versions), "number of CRD versions don't not match installed")

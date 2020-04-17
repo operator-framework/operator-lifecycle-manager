@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -152,12 +152,12 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 						{
 							Group:   "rbac.authorization.k8s.io",
 							Kind:    "PolicyRule",
-							Version: "v1beta1",
+							Version: "v1",
 						},
 						{
 							Group:   "rbac.authorization.k8s.io",
 							Kind:    "PolicyRule",
-							Version: "v1beta1",
+							Version: "v1",
 						},
 					},
 				},
@@ -290,12 +290,12 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 						{
 							Group:   "rbac.authorization.k8s.io",
 							Kind:    "PolicyRule",
-							Version: "v1beta1",
+							Version: "v1",
 						},
 						{
 							Group:   "rbac.authorization.k8s.io",
 							Kind:    "PolicyRule",
-							Version: "v1beta1",
+							Version: "v1",
 						},
 					},
 				},
@@ -331,8 +331,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 					},
 					nil,
 				),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
-				[]*v1beta1.CustomResourceDefinition{crd("c2", "v1", "g2")},
+				[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+				[]*apiextensionsv1.CustomResourceDefinition{crd("c2", "v1", "g2")},
 				v1alpha1.CSVPhasePending,
 			),
 			existingObjs: []runtime.Object{
@@ -392,7 +392,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 						{
 							Group:   "rbac.authorization.k8s.io",
 							Kind:    "PolicyRule",
-							Version: "v1beta1",
+							Version: "v1",
 						},
 					},
 				},
@@ -406,20 +406,20 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 						{
 							Group:   "rbac.authorization.k8s.io",
 							Kind:    "PolicyRule",
-							Version: "v1beta1",
+							Version: "v1",
 						},
 					},
 				},
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
+				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
-					Version: "v1beta1",
+					Version: "v1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonPresent,
 				},
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c2.g2"}: {
+				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c2.g2"}: {
 					Group:   "apiextensions.k8s.io",
-					Version: "v1beta1",
+					Version: "v1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c2.g2",
 					Status:  v1alpha1.RequirementStatusReasonPresent,
@@ -441,7 +441,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"0.0.0",
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2", "g1")},
+				[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v2", "g1")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
@@ -451,9 +451,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
+				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
-					Version: "v1beta1",
+					Version: "v1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotPresent,
@@ -475,7 +475,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"0.0.0",
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "version-not-found", "g1")},
+				[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "version-not-found", "g1")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
@@ -485,9 +485,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
+				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
-					Version: "v1beta1",
+					Version: "v1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
@@ -509,25 +509,25 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"0.0.0",
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2", "g1")},
+				[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v2", "g1")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
 			existingObjs: nil,
 			existingExtObjs: []runtime.Object{
-				func() *v1beta1.CustomResourceDefinition {
+				func() *apiextensionsv1.CustomResourceDefinition {
 					newCRD := crd("c1", "v2", "g1")
 					// condition order: established, name accepted
-					newCRD.Status.Conditions[0].Status = v1beta1.ConditionTrue
-					newCRD.Status.Conditions[1].Status = v1beta1.ConditionFalse
+					newCRD.Status.Conditions[0].Status = apiextensionsv1.ConditionTrue
+					newCRD.Status.Conditions[1].Status = apiextensionsv1.ConditionFalse
 					return newCRD
 				}(),
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
+				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
-					Version: "v1beta1",
+					Version: "v1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
@@ -549,25 +549,25 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"0.0.0",
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2", "g1")},
+				[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v2", "g1")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
 			existingObjs: nil,
 			existingExtObjs: []runtime.Object{
-				func() *v1beta1.CustomResourceDefinition {
+				func() *apiextensionsv1.CustomResourceDefinition {
 					newCRD := crd("c1", "v2", "g1")
 					// condition order: established, name accepted
-					newCRD.Status.Conditions[0].Status = v1beta1.ConditionFalse
-					newCRD.Status.Conditions[1].Status = v1beta1.ConditionTrue
+					newCRD.Status.Conditions[0].Status = apiextensionsv1.ConditionFalse
+					newCRD.Status.Conditions[1].Status = apiextensionsv1.ConditionTrue
 					return newCRD
 				}(),
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
+				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
-					Version: "v1beta1",
+					Version: "v1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
