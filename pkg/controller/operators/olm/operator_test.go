@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"math"
 	"math/big"
 	"reflect"
@@ -60,6 +59,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 )
 
@@ -486,7 +486,7 @@ func keyPairToTLSSecret(name, namespace string, kp *certs.KeyPair) *corev1.Secre
 }
 
 func signedServingPair(notAfter time.Time, ca *certs.KeyPair, hosts []string) *certs.KeyPair {
-	servingPair, err := certs.CreateSignedServingPair(notAfter, Organization, ca, hosts)
+	servingPair, err := certs.CreateSignedServingPair(notAfter, install.Organization, ca, hosts)
 	if err != nil {
 		panic(err)
 	}
@@ -595,7 +595,7 @@ func installStrategy(deploymentName string, permissions []v1alpha1.StrategyDeplo
 func apiServiceInstallStrategy(deploymentName string, cahash string, permissions []v1alpha1.StrategyDeploymentPermissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	strategy := installStrategy(deploymentName, permissions, clusterPermissions)
 
-	strategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Annotations = map[string]string{OLMCAHashAnnotationKey: cahash}
+	strategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Annotations = map[string]string{install.OLMCAHashAnnotationKey: cahash}
 
 	strategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Volumes = []corev1.Volume{{
 		Name: "apiservice-cert",
@@ -804,7 +804,7 @@ func generateCA(notAfter time.Time, organization string) (*certs.KeyPair, error)
 	caDetails := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			Organization: []string{organization},
+			Organization: []string{install.Organization},
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
@@ -867,13 +867,13 @@ func TestTransitionCSV(t *testing.T) {
 	}
 
 	// Generate valid and expired CA fixtures
-	validCA, err := generateCA(time.Now().Add(10*365*24*time.Hour), Organization)
+	validCA, err := generateCA(time.Now().Add(10*365*24*time.Hour), install.Organization)
 	require.NoError(t, err)
 	validCAPEM, _, err := validCA.ToPEM()
 	require.NoError(t, err)
 	validCAHash := certs.PEMSHA256(validCAPEM)
 
-	expiredCA, err := generateCA(time.Now(), Organization)
+	expiredCA, err := generateCA(time.Now(), install.Organization)
 	require.NoError(t, err)
 	expiredCAPEM, _, err := expiredCA.ToPEM()
 	require.NoError(t, err)
@@ -1201,14 +1201,14 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-							OLMCAHashAnnotationKey: validCAHash,
+							install.OLMCAHashAnnotationKey: validCAHash,
 						})),
 						addDepSpecHashLabel(ownerLabelFromCSV("csv1", namespace), withTemplateAnnotations(apiServiceInstallStrategy("a1", validCAHash, nil, nil), addAnnotations(defaultTemplateAnnotations, map[string]string{
-							OLMCAHashAnnotationKey: validCAHash,
+							install.OLMCAHashAnnotationKey: validCAHash,
 						}))),
 					),
 					withAnnotations(keyPairToTLSSecret("a1-service-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"a1-service.ns", "a1-service.ns.svc"})), map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					}),
 					service("a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
@@ -1423,10 +1423,10 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					})),
 					withAnnotations(keyPairToTLSSecret("a1-service-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"a1-service.ns", "a1-service.ns.svc"})), map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					}),
 					service("a1-service", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
@@ -1492,10 +1492,10 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: "a-pretty-bad-hash",
+						install.OLMCAHashAnnotationKey: "a-pretty-bad-hash",
 					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					}),
 					service("v1-a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
@@ -1561,10 +1561,10 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
-						OLMCAHashAnnotationKey: "also-a-pretty-bad-hash",
+						install.OLMCAHashAnnotationKey: "also-a-pretty-bad-hash",
 					}),
 					service("v1-a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
@@ -1630,10 +1630,10 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: "a-pretty-bad-hash",
+						install.OLMCAHashAnnotationKey: "a-pretty-bad-hash",
 					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
-						OLMCAHashAnnotationKey: "also-a-pretty-bad-hash",
+						install.OLMCAHashAnnotationKey: "also-a-pretty-bad-hash",
 					}),
 					service("v1-a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
@@ -1699,10 +1699,10 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					}),
 					service("v1-a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
@@ -1768,10 +1768,10 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					})),
 					withAnnotations(tlsSecret("v1.a1-cert", namespace, []byte("bad-cert"), []byte("bad-key")), map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
+						install.OLMCAHashAnnotationKey: validCAHash,
 					}),
 					service("v1-a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
@@ -1837,10 +1837,10 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: expiredCAHash,
+						install.OLMCAHashAnnotationKey: expiredCAHash,
 					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
-						OLMCAHashAnnotationKey: expiredCAHash,
+						install.OLMCAHashAnnotationKey: expiredCAHash,
 					}),
 					service("v1-a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
@@ -1906,10 +1906,10 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: expiredCAHash,
+						install.OLMCAHashAnnotationKey: expiredCAHash,
 					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
-						OLMCAHashAnnotationKey: expiredCAHash,
+						install.OLMCAHashAnnotationKey: expiredCAHash,
 					}),
 					service("v1-a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),

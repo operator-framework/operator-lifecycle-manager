@@ -40,6 +40,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                schema_api_apis_operators_v1alpha1_InstallMode(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SpecDescriptor":             schema_api_apis_operators_v1alpha1_SpecDescriptor(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StatusDescriptor":           schema_api_apis_operators_v1alpha1_StatusDescriptor(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.WebhookDescription":         schema_api_apis_operators_v1alpha1_WebhookDescription(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion":                            schema_operator_lifecycle_manager_pkg_lib_version_OperatorVersion(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink":               schema_package_server_apis_operators_v1_AppLink(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription":        schema_package_server_apis_operators_v1_CSVDescription(ref),
@@ -670,6 +671,122 @@ func schema_api_apis_operators_v1alpha1_StatusDescriptor(ref common.ReferenceCal
 				Required: []string{"path"},
 			},
 		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_WebhookDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "WebhookDescription provides details to OLM about required webhooks",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"deploymentName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"containerPort": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"rules": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "set",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/api/admissionregistration/v1.RuleWithOperations"),
+									},
+								},
+							},
+						},
+					},
+					"failurePolicy": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"matchPolicy": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"objectSelector": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+					"sideEffects": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"timeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"admissionReviewVersions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "set",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"reinvocationPolicy": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"webhookPath": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"name", "type", "sideEffects", "admissionReviewVersions"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/admissionregistration/v1.RuleWithOperations", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
 	}
 }
 

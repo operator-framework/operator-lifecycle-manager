@@ -133,6 +133,14 @@ func (c *ClusterServiceVersion) IsCopied() bool {
 	return false
 }
 
+func (c *ClusterServiceVersion) HasCertResources() bool {
+	// Return early if there are no owned APIServices
+	if len(c.Spec.APIServiceDefinitions.Owned)+len(c.Spec.WebhookDefinitions) == 0 {
+		return false
+	}
+	return true
+}
+
 func (c *ClusterServiceVersion) IsUncopiable() bool {
 	if c.Status.Phase == CSVPhaseNone {
 		return true

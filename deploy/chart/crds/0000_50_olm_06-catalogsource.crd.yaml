@@ -168,10 +168,10 @@ spec:
               format: date-time
             message:
               description: A human readable message indicating details about why the
-                ClusterServiceVersion is in this condition.
+                CatalogSource is in this condition.
               type: string
             reason:
-              description: Reason is the reason the Subscription was transitioned
+              description: Reason is the reason the CatalogSource was transitioned
                 to its current state.
               type: string
             registryService:
