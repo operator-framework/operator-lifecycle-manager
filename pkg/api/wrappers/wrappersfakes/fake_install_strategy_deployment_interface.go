@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	v1 "k8s.io/api/apps/v1"
 	v1b "k8s.io/api/core/v1"
@@ -115,6 +117,26 @@ type FakeInstallStrategyDeploymentInterface struct {
 	findAnyDeploymentsMatchingNamesReturnsOnCall map[int]struct {
 		result1 []*v1.Deployment
 		result2 error
+	}
+	GetOpClientStub        func() operatorclient.ClientInterface
+	getOpClientMutex       sync.RWMutex
+	getOpClientArgsForCall []struct {
+	}
+	getOpClientReturns struct {
+		result1 operatorclient.ClientInterface
+	}
+	getOpClientReturnsOnCall map[int]struct {
+		result1 operatorclient.ClientInterface
+	}
+	GetOpListerStub        func() operatorlister.OperatorLister
+	getOpListerMutex       sync.RWMutex
+	getOpListerArgsForCall []struct {
+	}
+	getOpListerReturns struct {
+		result1 operatorlister.OperatorLister
+	}
+	getOpListerReturnsOnCall map[int]struct {
+		result1 operatorlister.OperatorLister
 	}
 	GetServiceAccountByNameStub        func(string) (*v1b.ServiceAccount, error)
 	getServiceAccountByNameMutex       sync.RWMutex
@@ -640,6 +662,110 @@ func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNa
 	}{result1, result2}
 }
 
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpClient() operatorclient.ClientInterface {
+	fake.getOpClientMutex.Lock()
+	ret, specificReturn := fake.getOpClientReturnsOnCall[len(fake.getOpClientArgsForCall)]
+	fake.getOpClientArgsForCall = append(fake.getOpClientArgsForCall, struct {
+	}{})
+	fake.recordInvocation("GetOpClient", []interface{}{})
+	fake.getOpClientMutex.Unlock()
+	if fake.GetOpClientStub != nil {
+		return fake.GetOpClientStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.getOpClientReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpClientCallCount() int {
+	fake.getOpClientMutex.RLock()
+	defer fake.getOpClientMutex.RUnlock()
+	return len(fake.getOpClientArgsForCall)
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpClientCalls(stub func() operatorclient.ClientInterface) {
+	fake.getOpClientMutex.Lock()
+	defer fake.getOpClientMutex.Unlock()
+	fake.GetOpClientStub = stub
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpClientReturns(result1 operatorclient.ClientInterface) {
+	fake.getOpClientMutex.Lock()
+	defer fake.getOpClientMutex.Unlock()
+	fake.GetOpClientStub = nil
+	fake.getOpClientReturns = struct {
+		result1 operatorclient.ClientInterface
+	}{result1}
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpClientReturnsOnCall(i int, result1 operatorclient.ClientInterface) {
+	fake.getOpClientMutex.Lock()
+	defer fake.getOpClientMutex.Unlock()
+	fake.GetOpClientStub = nil
+	if fake.getOpClientReturnsOnCall == nil {
+		fake.getOpClientReturnsOnCall = make(map[int]struct {
+			result1 operatorclient.ClientInterface
+		})
+	}
+	fake.getOpClientReturnsOnCall[i] = struct {
+		result1 operatorclient.ClientInterface
+	}{result1}
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpLister() operatorlister.OperatorLister {
+	fake.getOpListerMutex.Lock()
+	ret, specificReturn := fake.getOpListerReturnsOnCall[len(fake.getOpListerArgsForCall)]
+	fake.getOpListerArgsForCall = append(fake.getOpListerArgsForCall, struct {
+	}{})
+	fake.recordInvocation("GetOpLister", []interface{}{})
+	fake.getOpListerMutex.Unlock()
+	if fake.GetOpListerStub != nil {
+		return fake.GetOpListerStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.getOpListerReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpListerCallCount() int {
+	fake.getOpListerMutex.RLock()
+	defer fake.getOpListerMutex.RUnlock()
+	return len(fake.getOpListerArgsForCall)
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpListerCalls(stub func() operatorlister.OperatorLister) {
+	fake.getOpListerMutex.Lock()
+	defer fake.getOpListerMutex.Unlock()
+	fake.GetOpListerStub = stub
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpListerReturns(result1 operatorlister.OperatorLister) {
+	fake.getOpListerMutex.Lock()
+	defer fake.getOpListerMutex.Unlock()
+	fake.GetOpListerStub = nil
+	fake.getOpListerReturns = struct {
+		result1 operatorlister.OperatorLister
+	}{result1}
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) GetOpListerReturnsOnCall(i int, result1 operatorlister.OperatorLister) {
+	fake.getOpListerMutex.Lock()
+	defer fake.getOpListerMutex.Unlock()
+	fake.GetOpListerStub = nil
+	if fake.getOpListerReturnsOnCall == nil {
+		fake.getOpListerReturnsOnCall = make(map[int]struct {
+			result1 operatorlister.OperatorLister
+		})
+	}
+	fake.getOpListerReturnsOnCall[i] = struct {
+		result1 operatorlister.OperatorLister
+	}{result1}
+}
+
 func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByName(arg1 string) (*v1b.ServiceAccount, error) {
 	fake.getServiceAccountByNameMutex.Lock()
 	ret, specificReturn := fake.getServiceAccountByNameReturnsOnCall[len(fake.getServiceAccountByNameArgsForCall)]
@@ -722,6 +848,10 @@ func (fake *FakeInstallStrategyDeploymentInterface) Invocations() map[string][][
 	defer fake.findAnyDeploymentsMatchingLabelsMutex.RUnlock()
 	fake.findAnyDeploymentsMatchingNamesMutex.RLock()
 	defer fake.findAnyDeploymentsMatchingNamesMutex.RUnlock()
+	fake.getOpClientMutex.RLock()
+	defer fake.getOpClientMutex.RUnlock()
+	fake.getOpListerMutex.RLock()
+	defer fake.getOpListerMutex.RUnlock()
 	fake.getServiceAccountByNameMutex.RLock()
 	defer fake.getServiceAccountByNameMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

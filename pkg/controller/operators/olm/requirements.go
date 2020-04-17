@@ -174,7 +174,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 		}
 
 		// Check if API is available
-		if !a.isAPIServiceAvailable(apiService) {
+		if !install.IsAPIServiceAvailable(apiService) {
 			status.Status = "NotPresent"
 			met = false
 		} else {

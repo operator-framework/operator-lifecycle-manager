@@ -128,7 +128,7 @@ spec:
                             description: 'Selects a field of the pod: supports metadata.name,
                               metadata.namespace, metadata.labels, metadata.annotations,
                               spec.nodeName, spec.serviceAccountName, status.hostIP,
-                              status.podIP.'
+                              status.podIP, status.podIPs.'
                             type: object
                             required:
                             - fieldPath
@@ -370,7 +370,7 @@ spec:
                           to SubPath but environment variable references $(VAR_NAME)
                           are expanded using the container's environment. Defaults
                           to "" (volume's root). SubPathExpr and SubPath are mutually
-                          exclusive. This field is beta in 1.15.
+                          exclusive.
                         type: string
                 volumes:
                   description: List of Volumes to set in the podSpec.
