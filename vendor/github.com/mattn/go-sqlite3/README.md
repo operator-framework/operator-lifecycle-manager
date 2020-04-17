@@ -10,23 +10,27 @@ go-sqlite3
 
 sqlite3 driver conforming to the built-in database/sql interface
 
-Supported Golang version:
-- 1.9.x
-- 1.10.x
+Supported Golang version: See .travis.yml
 
 [This package follows the official Golang Release Policy.](https://golang.org/doc/devel/release.html#policy)
 
 ### Overview
 
+- [go-sqlite3](#go-sqlite3)
+- [Description](#description)
+    - [Overview](#overview)
 - [Installation](#installation)
 - [API Reference](#api-reference)
 - [Connection String](#connection-string)
+  - [DSN Examples](#dsn-examples)
 - [Features](#features)
+    - [Usage](#usage)
+    - [Feature / Extension List](#feature--extension-list)
 - [Compilation](#compilation)
   - [Android](#android)
-  - [ARM](#arm)
-  - [Cross Compile](#cross-compile)
-  - [Google Cloud Platform](#google-cloud-platform)
+- [ARM](#arm)
+- [Cross Compile](#cross-compile)
+- [Google Cloud Platform](#google-cloud-platform)
   - [Linux](#linux)
     - [Alpine](#alpine)
     - [Fedora](#fedora)
@@ -36,11 +40,22 @@ Supported Golang version:
   - [Errors](#errors)
 - [User Authentication](#user-authentication)
   - [Compile](#compile)
-  - [Usage](#usage)
+  - [Usage](#usage-1)
+    - [Create protected database](#create-protected-database)
+    - [Password Encoding](#password-encoding)
+      - [Available Encoders](#available-encoders)
+    - [Restrictions](#restrictions)
+    - [Support](#support)
+    - [User Management](#user-management)
+      - [SQL](#sql)
+        - [Examples](#examples)
+      - [*SQLiteConn](#sqliteconn)
+    - [Attached database](#attached-database)
 - [Extensions](#extensions)
   - [Spatialite](#spatialite)
 - [FAQ](#faq)
 - [License](#license)
+- [Author](#author)
 
 # Installation
 
@@ -151,6 +166,7 @@ go build --tags "icu json1 fts5 secure_delete"
 |  International Components for Unicode | sqlite_icu | This option causes the International Components for Unicode or "ICU" extension to SQLite to be added to the build |
 | Introspect PRAGMAS | sqlite_introspect | This option adds some extra PRAGMA statements. <ul><li>PRAGMA function_list</li><li>PRAGMA module_list</li><li>PRAGMA pragma_list</li></ul> |
 | JSON SQL Functions | sqlite_json | When this option is defined in the amalgamation, the JSON SQL functions are added to the build automatically |
+| Pre Update Hook | sqlite_preupdate_hook | Registers a callback function that is invoked prior to each INSERT, UPDATE, and DELETE operation on a database table. |
 | Secure Delete | sqlite_secure_delete | This compile-time option changes the default setting of the secure_delete pragma.<br><br>When this option is not used, secure_delete defaults to off. When this option is present, secure_delete defaults to on.<br><br>The secure_delete setting causes deleted content to be overwritten with zeros. There is a small performance penalty since additional I/O must occur.<br><br>On the other hand, secure_delete can prevent fragments of sensitive information from lingering in unused parts of the database file after it has been deleted. See the documentation on the secure_delete pragma for additional information |
 | Secure Delete (FAST) | sqlite_secure_delete_fast | For more information see [PRAGMA secure_delete](https://www.sqlite.org/pragma.html#pragma_secure_delete) |
 | Tracing / Debug | sqlite_trace | Activate trace functions |
@@ -249,7 +265,7 @@ Required dependency
 brew install sqlite3
 ```
 
-For OSX there is an additional package install which is required if you whish to build the `icu` extension.
+For OSX there is an additional package install which is required if you wish to build the `icu` extension.
 
 This additional package can be installed with `homebrew`.
 
@@ -282,7 +298,7 @@ To compile this package on Windows OS you must have the `gcc` compiler installed
 3) Open a terminal for the TDM-GCC toolchain, can be found in the Windows Start menu.
 4) Navigate to your project folder and run the `go build ...` command for this package.
 
-For example the TDM-GCC Toolchain can be found [here](ttps://sourceforge.net/projects/tdm-gcc/).
+For example the TDM-GCC Toolchain can be found [here](https://sourceforge.net/projects/tdm-gcc/).
 
 ## Errors
 
@@ -458,15 +474,19 @@ For an example see [shaxbee/go-spatialite](https://github.com/shaxbee/go-spatial
 
     Why is it racy if I use a `sql.Open("sqlite3", ":memory:")` database?
 
-    Each connection to :memory: opens a brand new in-memory sql database, so if
+    Each connection to `":memory:"` opens a brand new in-memory sql database, so if
     the stdlib's sql engine happens to open another connection and you've only
-    specified ":memory:", that connection will see a brand new database. A
-    workaround is to use "file::memory:?mode=memory&cache=shared". Every
-    connection to this string will point to the same in-memory database. 
+    specified `":memory:"`, that connection will see a brand new database. A
+    workaround is to use `"file::memory:?cache=shared"` (or `"file:foobar?mode=memory&cache=shared"`). Every
+    connection to this string will point to the same in-memory database.
+    
+    Note that if the last database connection in the pool closes, the in-memory database is deleted. Make sure the [max idle connection limit](https://golang.org/pkg/database/sql/#DB.SetMaxIdleConns) is > 0, and the [connection lifetime](https://golang.org/pkg/database/sql/#DB.SetConnMaxLifetime) is infinite.
     
     For more information see
     * [#204](https://github.com/mattn/go-sqlite3/issues/204)
     * [#511](https://github.com/mattn/go-sqlite3/issues/511)
+    * https://www.sqlite.org/sharedcache.html#shared_cache_and_in_memory_databases
+    * https://www.sqlite.org/inmemorydb.html#sharedmemdb
 
 - Reading from database with large amount of goroutines fails on OSX.
 
@@ -481,11 +501,11 @@ For an example see [shaxbee/go-spatialite](https://github.com/shaxbee/go-spatial
 
     You need to implement the feature or call the sqlite3 cli.
 
-    More infomation see [#305](https://github.com/mattn/go-sqlite3/issues/305)
+    More information see [#305](https://github.com/mattn/go-sqlite3/issues/305)
 
 - Error: `database is locked`
 
-    When you get an database is locked. Please use the following options.
+    When you get a database is locked. Please use the following options.
 
     Add to DSN: `cache=shared`
 
@@ -497,7 +517,7 @@ For an example see [shaxbee/go-spatialite](https://github.com/shaxbee/go-spatial
     Second please set the database connections of the SQL package to 1.
     
     ```go
-    db.SetMaxOpenConn(1)
+    db.SetMaxOpenConns(1)
     ```
 
     More information see [#209](https://github.com/mattn/go-sqlite3/issues/209)

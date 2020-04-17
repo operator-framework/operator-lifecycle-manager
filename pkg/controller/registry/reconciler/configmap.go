@@ -1,7 +1,8 @@
-//go:generate counterfeiter -o ../../../fakes/fake_reconciler.go . RegistryReconciler
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../../fakes/fake_reconciler.go . RegistryReconciler
 package reconciler
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -348,12 +349,12 @@ func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDec
 			return nil
 		}
 		for _, p := range currentPods {
-			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0)); err != nil {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
 			}
 		}
 	}
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Create(pod)
+	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Create(context.TODO(), pod, metav1.CreateOptions{})
 	if err == nil {
 		return nil
 	}

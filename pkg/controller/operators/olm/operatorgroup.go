@@ -1,6 +1,7 @@
 package olm
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -78,7 +79,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			}
 			if csv.Status.Reason == v1alpha1.CSVReasonComponentFailedNoRetry {
 				csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonDetectedClusterChange, "Cluster resources changed state", a.now())
-				_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
+				_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(context.TODO(), csv, metav1.UpdateOptions{})
 				if err != nil {
 					return err
 				}
@@ -108,7 +109,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			LastUpdated: a.now(),
 		}
 
-		if _, err = a.client.OperatorsV1().OperatorGroups(op.GetNamespace()).UpdateStatus(op); err != nil && !k8serrors.IsNotFound(err) {
+		if _, err = a.client.OperatorsV1().OperatorGroups(op.GetNamespace()).UpdateStatus(context.TODO(), op, metav1.UpdateOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 			logger.WithError(err).Warn("operatorgroup update failed")
 			return err
 		}
@@ -190,7 +191,7 @@ func (a *Operator) operatorGroupDeleted(obj interface{}) {
 		return
 	}
 	for _, clusterRole := range clusterRoles {
-		err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Delete(clusterRole.GetName(), &metav1.DeleteOptions{})
+		err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Delete(context.TODO(), clusterRole.GetName(), metav1.DeleteOptions{})
 		if err != nil {
 			logger.WithError(err).Error("failed to delete ClusterRole during garbage collection")
 		}
@@ -220,7 +221,7 @@ func (a *Operator) annotateCSVs(group *v1.OperatorGroup, targetNamespaces []stri
 		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, group) {
 			a.setOperatorGroupAnnotations(&csv.ObjectMeta, group, true)
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
-			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil && !k8serrors.IsNotFound(err) {
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(context.TODO(), csv, metav1.UpdateOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 				logger.WithError(err).Warnf("error adding operatorgroup annotations")
 				updateErrs = append(updateErrs, err)
 				continue
@@ -313,7 +314,7 @@ func (a *Operator) pruneProvidedAPIs(group *v1.OperatorGroup, groupProvidedAPIs 
 		annotations[v1.OperatorGroupProvidedAPIsAnnotationKey] = intersection.String()
 		group.SetAnnotations(annotations)
 		logger.Debug("removing provided apis from annotation to match cluster state")
-		if _, err := a.client.OperatorsV1().OperatorGroups(group.GetNamespace()).Update(group); err != nil && !k8serrors.IsNotFound(err) {
+		if _, err := a.client.OperatorsV1().OperatorGroups(group.GetNamespace()).Update(context.TODO(), group, metav1.UpdateOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 			logger.WithError(err).Warn("could not update provided api annotations")
 		}
 	}
@@ -321,7 +322,7 @@ func (a *Operator) pruneProvidedAPIs(group *v1.OperatorGroup, groupProvidedAPIs 
 }
 
 // ensureProvidedAPIClusterRole ensures that a clusterrole exists (admin, edit, or view) for a single provided API Type
-func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup, csv *v1alpha1.ClusterServiceVersion, namePrefix, suffix string, verbs []string, group, resource string, resourceNames []string, api ownerutil.Owner, key opregistry.APIKey) error {
+func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs []string, group, resource string, resourceNames []string, api ownerutil.Owner, key opregistry.APIKey) error {
 	aggregationLabel, err := aggregationLabelFromAPIKey(key, suffix)
 	if err != nil {
 		return err
@@ -342,7 +343,7 @@ func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup,
 
 	existingCR, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
 	if existingCR == nil {
-		existingCR, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
+		existingCR, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
 		if err == nil {
 			return nil
 		}
@@ -364,7 +365,7 @@ func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup,
 }
 
 // ensureClusterRolesForCSV ensures that ClusterRoles for writing and reading provided APIs exist for each operator
-func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1.OperatorGroup) error {
+func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion) error {
 	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
 		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(owned.Name)
 		if err != nil {
@@ -379,11 +380,11 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion,
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 		key := registry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
 		for suffix, verbs := range VerbsForSuffix {
-			if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, suffix, verbs, group, plural, nil, crd, key); err != nil {
+			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, group, plural, nil, crd, key); err != nil {
 				return err
 			}
 		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}, crd, key); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}, crd, key); err != nil {
 			return err
 		}
 	}
@@ -396,7 +397,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion,
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 		key := registry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
 		for suffix, verbs := range VerbsForSuffix {
-			if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key); err != nil {
+			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key); err != nil {
 				return err
 			}
 		}
@@ -719,7 +720,7 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 			fetchedCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
 			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			logger.Debug("updating target CSV")
-			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(fetchedCSV); err != nil {
+			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
 				logger.WithError(err).Error("update target CSV failed")
 				return nil, err
 			}
@@ -735,7 +736,7 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 			// Must use fetchedCSV because UpdateStatus(...) checks resource UID.
 			fetchedCSV.Status = newCSV.Status
 			fetchedCSV.Status.LastUpdateTime = a.now()
-			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(fetchedCSV); err != nil {
+			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
 				logger.WithError(err).Error("status update for target CSV failed")
 				return nil, err
 			}
@@ -749,7 +750,7 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 		newCSV.SetLabels(utillabels.AddLabel(newCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
 
 		logger.Debug("copying CSV to target")
-		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(newCSV)
+		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), newCSV, metav1.CreateOptions{})
 		if err != nil {
 			a.logger.Errorf("Create for new CSV failed: %v", err)
 			return nil, err
@@ -757,7 +758,7 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 		createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
 		createdCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
 		createdCSV.Status.LastUpdateTime = a.now()
-		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(createdCSV); err != nil {
+		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(context.TODO(), createdCSV, metav1.UpdateOptions{}); err != nil {
 			a.logger.Errorf("Status update for CSV failed: %v", err)
 			return nil, err
 		}
@@ -782,7 +783,9 @@ func (a *Operator) pruneFromNamespace(operatorGroupName, namespace string) error
 	for _, csv := range fetchedCSVs {
 		if csv.IsCopied() && csv.GetAnnotations()[v1.OperatorGroupAnnotationKey] == operatorGroupName {
 			a.logger.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), namespace)
-			a.csvGCQueueSet.Requeue(csv.GetNamespace(), csv.GetName())
+			if err := a.csvGCQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -930,7 +933,7 @@ func (a *Operator) ensureOpGroupClusterRole(op *v1.OperatorGroup, suffix string,
 
 	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
 	if existingRole == nil {
-		existingRole, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
+		existingRole, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
 		if err == nil {
 			return nil
 		}

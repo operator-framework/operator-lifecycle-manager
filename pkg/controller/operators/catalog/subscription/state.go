@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -299,7 +300,7 @@ func (c *catalogHealthState) UpdateHealth(now *metav1.Time, client clientv1alpha
 	out.Status.SetCondition(cond)
 	out.Status.CatalogHealth = catalogHealth
 
-	updated, err := client.UpdateStatus(out)
+	updated, err := client.UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
 	if err != nil {
 		// Error occurred, transition to self
 		return c, err
@@ -405,7 +406,7 @@ func (i *installPlanReferencedState) InstallPlanNotFound(now *metav1.Time, clien
 
 	// Update the Subscription
 	out.Status.LastUpdated = *now
-	updated, err := client.UpdateStatus(out)
+	updated, err := client.UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
 	if err != nil {
 		return i, err
 	}
@@ -486,7 +487,7 @@ func (i *installPlanReferencedState) CheckInstallPlanStatus(now *metav1.Time, cl
 
 	// Update the Subscription
 	out.Status.LastUpdated = *now
-	updated, err := client.UpdateStatus(out)
+	updated, err := client.UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
 	if err != nil {
 		return i, err
 	}

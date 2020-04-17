@@ -9,8 +9,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // Authentication specifies cluster-wide settings for authentication (like OAuth and
 // webhook token authenticators). The canonical name of an instance is `cluster`.
 type Authentication struct {
-	metav1.TypeMeta `json:",inline"`
-	// Standard object's metadata.
+	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// spec holds user settable values for configuration
@@ -51,6 +50,12 @@ type AuthenticationSpec struct {
 	// The namespace for these secrets is openshift-config.
 	// +optional
 	WebhookTokenAuthenticators []WebhookTokenAuthenticator `json:"webhookTokenAuthenticators,omitempty"`
+
+	// serviceAccountIssuer is the identifier of the bound service account token
+	// issuer.
+	// The default is auth.openshift.io.
+	// +optional
+	ServiceAccountIssuer string `json:"serviceAccountIssuer"`
 }
 
 type AuthenticationStatus struct {
@@ -77,7 +82,6 @@ type AuthenticationStatus struct {
 
 type AuthenticationList struct {
 	metav1.TypeMeta `json:",inline"`
-	// Standard object's metadata.
 	metav1.ListMeta `json:"metadata"`
 
 	Items []Authentication `json:"items"`

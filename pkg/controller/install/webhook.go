@@ -1,16 +1,17 @@
 package install
 
 import (
+	"context"
 	"fmt"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 
 	log "github.com/sirupsen/logrus"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 func ValidWebhookRules(rules []admissionregistrationv1.RuleWithOperations) error {
@@ -19,18 +20,18 @@ func ValidWebhookRules(rules []admissionregistrationv1.RuleWithOperations) error
 
 		// protect OLM resources
 		if contains(apiGroupMap, "*") {
-			return fmt.Errorf("Webhook rules cannot include all groups")
+			return fmt.Errorf("webhook rules cannot include all groups")
 		}
 
 		if contains(apiGroupMap, "operators.coreos.com") {
-			return fmt.Errorf("Webhook rules cannot include the OLM group")
+			return fmt.Errorf("webhook rules cannot include the OLM group")
 		}
 
 		// protect Admission Webhook resources
 		if contains(apiGroupMap, "admissionregistration.k8s.io") {
 			resourceGroupMap := listToMap(rule.Resources)
 			if contains(resourceGroupMap, "*") || contains(resourceGroupMap, "MutatingWebhookConfiguration") || contains(resourceGroupMap, "ValidatingWebhookConfiguration") {
-				return fmt.Errorf("Webhook rules cannot include MutatingWebhookConfiguration or ValidatingWebhookConfiguration resources")
+				return fmt.Errorf("webhook rules cannot include MutatingWebhookConfiguration or ValidatingWebhookConfiguration resources")
 			}
 		}
 	}
@@ -53,16 +54,19 @@ func contains(m map[string]struct{}, tar string) bool {
 func (i *StrategyDeploymentInstaller) createOrUpdateWebhook(caPEM []byte, desc v1alpha1.WebhookDescription) error {
 	operatorGroups, err := i.strategyClient.GetOpLister().OperatorsV1().OperatorGroupLister().OperatorGroups(i.owner.GetNamespace()).List(labels.Everything())
 	if err != nil || len(operatorGroups) != 1 {
-		return fmt.Errorf("Error retrieving OperatorGroup info")
+		return fmt.Errorf("error retrieving OperatorGroup info")
 	}
 	ogNamespacelabelSelector := operatorGroups[0].NamespaceLabelSelector()
 
 	switch desc.Type {
 	case v1alpha1.ValidatingAdmissionWebhook:
-		i.createOrUpdateValidatingWebhook(ogNamespacelabelSelector, caPEM, desc)
+		if err := i.createOrUpdateValidatingWebhook(ogNamespacelabelSelector, caPEM, desc); err != nil {
+			return err
+		}
 	case v1alpha1.MutatingAdmissionWebhook:
-		i.createOrUpdateMutatingWebhook(ogNamespacelabelSelector, caPEM, desc)
-
+		if err := i.createOrUpdateMutatingWebhook(ogNamespacelabelSelector, caPEM, desc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -71,7 +75,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 	webhooks := []admissionregistrationv1.MutatingWebhook{
 		desc.GetMutatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
 	}
-	existingHook, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(desc.Name, metav1.GetOptions{})
+	existingHook, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.TODO(), desc.Name, metav1.GetOptions{})
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain
 		if ownerutil.Adoptable(i.owner, existingHook.GetOwnerReferences()) {
@@ -82,7 +86,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 		existingHook.Webhooks = webhooks
 
 		// Attempt an update
-		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Update(existingHook); err != nil {
+		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Update(context.TODO(), existingHook, metav1.UpdateOptions{}); err != nil {
 			log.Warnf("could not update MutatingWebhookConfiguration %s", existingHook.GetName())
 			return err
 		}
@@ -95,7 +99,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 		}
 		// Add an owner
 		ownerutil.AddNonBlockingOwner(&hook, i.owner)
-		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Create(&hook); err != nil {
+		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.TODO(), &hook,  metav1.CreateOptions{}); err != nil {
 			log.Errorf("Webhooks: Error creating mutating MutatingVebhookConfiguration: %v", err)
 			return err
 		}
@@ -110,7 +114,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 	webhooks := []admissionregistrationv1.ValidatingWebhook{
 		desc.GetValidatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
 	}
-	existingHook, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(desc.Name, metav1.GetOptions{})
+	existingHook, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), desc.Name, metav1.GetOptions{})
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain
 		if ownerutil.Adoptable(i.owner, existingHook.GetOwnerReferences()) {
@@ -121,7 +125,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 		existingHook.Webhooks = webhooks
 
 		// Attempt an update
-		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(existingHook); err != nil {
+		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(context.TODO(), existingHook, metav1.UpdateOptions{}); err != nil {
 			log.Warnf("could not update ValidatingWebhookConfiguration %s", existingHook.GetName())
 			return err
 		}
@@ -136,7 +140,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 
 		// Add an owner
 		ownerutil.AddNonBlockingOwner(&hook, i.owner)
-		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(&hook); err != nil {
+		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.TODO(), &hook, metav1.CreateOptions{}); err != nil {
 			log.Errorf("Webhooks: Error create creating ValidationVebhookConfiguration: %v", err)
 			return err
 		}

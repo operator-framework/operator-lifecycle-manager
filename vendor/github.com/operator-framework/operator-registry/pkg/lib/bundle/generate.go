@@ -76,6 +76,45 @@ func GenerateFunc(directory, outputDir, packageName, channels, channelDefault st
 		return err
 	}
 
+	// Channels and packageName are required fields where as default channel is automatically filled if unspecified
+	// and that either of the required field is missing. We are interpreting the bundle information through
+	// bundle directory embedded in the package folder.
+	if channels == "" || packageName == "" {
+		var notProvided []string
+		if channels == "" {
+			notProvided = append(notProvided, "channels")
+		}
+		if packageName == "" {
+			notProvided = append(notProvided, "package name")
+		}
+		log.Infof("Bundle %s information not provided, inferring from parent package directory",
+			strings.Join(notProvided, " and "))
+
+		i, err := NewBundleDirInterperter(directory)
+		if err != nil {
+			return fmt.Errorf("please manually input channels and packageName, "+
+				"error interpreting bundle from directory %s, %v", directory, err)
+		}
+
+		if channels == "" {
+			channels = strings.Join(i.GetBundleChannels(), ",")
+			if channels == "" {
+				return fmt.Errorf("error interpreting channels, please manually input channels instead")
+			}
+			log.Infof("Inferred channels: %s", channels)
+		}
+
+		if packageName == "" {
+			packageName = i.GetPackageName()
+			log.Infof("Inferred package name: %s", packageName)
+		}
+
+		if channelDefault == "" {
+			channelDefault = i.GetDefaultChannel()
+			log.Infof("Inferred default channel: %s", channelDefault)
+		}
+	}
+
 	log.Info("Building annotations.yaml")
 
 	// Generate annotations.yaml
@@ -367,7 +406,7 @@ func WriteFile(fileName, directory string, content []byte) error {
 	return nil
 }
 
-// copy the contents of a flat manifest dir into an output dir
+// copy the contents of a potentially nested manifest dir into an output dir.
 func copyManifestDir(from, to string, overwrite bool) error {
 	fromFiles, err := ioutil.ReadDir(from)
 	if err != nil {
@@ -375,7 +414,9 @@ func copyManifestDir(from, to string, overwrite bool) error {
 	}
 
 	if _, err := os.Stat(to); os.IsNotExist(err) {
-		os.MkdirAll(to, os.ModePerm)
+		if err = os.MkdirAll(to, os.ModePerm); err != nil {
+			return err
+		}
 	}
 
 	for _, fromFile := range fromFiles {
@@ -393,6 +434,11 @@ func copyManifestDir(from, to string, overwrite bool) error {
 		if err != nil {
 			return err
 		}
+		defer func() {
+			if err := contents.Close(); err != nil {
+				log.Fatal(err)
+			}
+		}()
 
 		toFilePath := filepath.Join(to, fromFile.Name())
 		_, err = os.Stat(toFilePath)
@@ -406,8 +452,13 @@ func copyManifestDir(from, to string, overwrite bool) error {
 		if err != nil {
 			return err
 		}
+		defer func() {
+			if err := toFile.Close(); err != nil {
+				log.Fatal(err)
+			}
+		}()
 
-		_, err = io.Copy(contents, toFile)
+		_, err = io.Copy(toFile, contents)
 		if err != nil {
 			return err
 		}

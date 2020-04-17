@@ -12,7 +12,7 @@ import (
 )
 
 // OperatorLister is a union of versioned informer listers
-//go:generate counterfeiter . OperatorLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorLister
 type OperatorLister interface {
 	AppsV1() AppsV1Lister
 	CoreV1() CoreV1Lister
@@ -24,14 +24,14 @@ type OperatorLister interface {
 	OperatorsV1() OperatorsV1Lister
 }
 
-//go:generate counterfeiter . AppsV1Lister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . AppsV1Lister
 type AppsV1Lister interface {
 	DeploymentLister() appsv1.DeploymentLister
 
 	RegisterDeploymentLister(namespace string, lister appsv1.DeploymentLister)
 }
 
-//go:generate counterfeiter . CoreV1Lister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . CoreV1Lister
 type CoreV1Lister interface {
 	RegisterSecretLister(namespace string, lister corev1.SecretLister)
 	RegisterServiceLister(namespace string, lister corev1.ServiceLister)
@@ -48,7 +48,7 @@ type CoreV1Lister interface {
 	ConfigMapLister() corev1.ConfigMapLister
 }
 
-//go:generate counterfeiter . RbacV1Lister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . RbacV1Lister
 type RbacV1Lister interface {
 	RegisterClusterRoleLister(lister rbacv1.ClusterRoleLister)
 	RegisterClusterRoleBindingLister(lister rbacv1.ClusterRoleBindingLister)
@@ -61,7 +61,7 @@ type RbacV1Lister interface {
 	RoleBindingLister() rbacv1.RoleBindingLister
 }
 
-//go:generate counterfeiter . APIRegistrationV1Lister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . APIRegistrationV1Lister
 type APIRegistrationV1Lister interface {
 	RegisterAPIServiceLister(lister aregv1.APIServiceLister)
 
@@ -74,7 +74,7 @@ type APIExtensionsV1Lister interface {
 	CustomResourceDefinitionLister() aextv1.CustomResourceDefinitionLister
 }
 
-//go:generate counterfeiter . OperatorsV1alpha1Lister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorsV1alpha1Lister
 type OperatorsV1alpha1Lister interface {
 	RegisterClusterServiceVersionLister(namespace string, lister v1alpha1.ClusterServiceVersionLister)
 	RegisterCatalogSourceLister(namespace string, lister v1alpha1.CatalogSourceLister)
@@ -87,7 +87,7 @@ type OperatorsV1alpha1Lister interface {
 	InstallPlanLister() v1alpha1.InstallPlanLister
 }
 
-//go:generate counterfeiter . OperatorsV1Lister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorsV1Lister
 type OperatorsV1Lister interface {
 	RegisterOperatorGroupLister(namespace string, lister v1.OperatorGroupLister)
 

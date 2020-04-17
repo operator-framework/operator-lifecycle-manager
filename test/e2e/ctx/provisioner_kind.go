@@ -78,6 +78,7 @@ func Provision(ctx *TestContext) (func(), error) {
 		name,
 		cluster.CreateWithWaitForReady(5*time.Minute),
 		cluster.CreateWithKubeconfigPath(kubeconfigPath),
+		cluster.CreateWithNodeImage("kindest/node:v1.18.0"),
 	); err != nil {
 		return nil, fmt.Errorf("failed to create kind cluster: %s", err.Error())
 	}

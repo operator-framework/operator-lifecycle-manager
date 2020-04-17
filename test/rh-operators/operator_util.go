@@ -1,6 +1,7 @@
 package rh_operators
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -16,7 +17,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	av1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -52,7 +52,7 @@ type operator struct {
 
 // ListRHOperators lists the PackageManifest of all Red Hat Operators on the existing cluster.
 func ListRHOperators(crc psVersioned.Interface) ([]pv1.PackageManifest, error) {
-	plist, err := crc.OperatorsV1().PackageManifests("default").List(metav1.ListOptions{
+	plist, err := crc.OperatorsV1().PackageManifests("default").List(context.TODO(), metav1.ListOptions{
 		LabelSelector: "catalog=redhat-operators",
 	})
 	if err != nil {
@@ -120,7 +120,7 @@ func packagemanifestSupportsInstallMode(pm pv1.PackageManifest, installModes ...
 
 // GetAllNamespace gets all namespaces and return a list of names.
 func GetAllNamespace(c operatorclient.ClientInterface) (nsList []string, err error) {
-	list, err := c.KubernetesInterface().CoreV1().Namespaces().List(metav1.ListOptions{})
+	list, err := c.KubernetesInterface().CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -135,19 +135,19 @@ func GetAllNamespace(c operatorclient.ClientInterface) (nsList []string, err err
 // If regular way of uninstalling an operator has failed, this strategy cleans up all Subscriptions and OperatorGroups
 // within the namespace and then deletes the namespace itself.
 func CleanupOperatorNamespace(t *testing.T, o *operator) {
-	err := o.operatorClient.OperatorsV1alpha1().Subscriptions(o.namespace).DeleteCollection(immediateDeleteOption,
+	err := o.operatorClient.OperatorsV1alpha1().Subscriptions(o.namespace).DeleteCollection(context.TODO(), *immediateDeleteOption,
 		metav1.ListOptions{})
 	if err != nil {
 		t.Logf("failed to clean all Subscriptions in %s, %v", o.namespace, err)
 	}
 
-	err = o.operatorClient.OperatorsV1().OperatorGroups(o.namespace).DeleteCollection(immediateDeleteOption,
+	err = o.operatorClient.OperatorsV1().OperatorGroups(o.namespace).DeleteCollection(context.TODO(), *immediateDeleteOption,
 		metav1.ListOptions{})
 	if err != nil {
 		t.Logf("failed to clean up all OperatorGroups in %s, %v", o.namespace, err)
 	}
 
-	err = o.coreClient.KubernetesInterface().CoreV1().Namespaces().Delete(o.namespace, immediateDeleteOption)
+	err = o.coreClient.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), o.namespace, *immediateDeleteOption)
 	if err != nil {
 		t.Logf("failed to delete Namespace %s, %v", o.namespace, err)
 	}
@@ -162,7 +162,7 @@ func CleanupOperatorCSVs(t *testing.T, o *operator) {
 	}
 
 	for _, ns := range targetNamespaces {
-		err = o.operatorClient.OperatorsV1alpha1().ClusterServiceVersions(ns).Delete(o.csv, immediateDeleteOption)
+		err = o.operatorClient.OperatorsV1alpha1().ClusterServiceVersions(ns).Delete(context.TODO(), o.csv, *immediateDeleteOption)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			t.Logf("error deleting CSV: %s from ns:%s, %v", o.csv, ns, err)
 		}
@@ -178,27 +178,27 @@ func CleanupAll(t *testing.T, c operatorclient.ClientInterface, vc versioned.Int
 
 // CleanupAllCSVs deletes All CSVs other than the packageServer.
 func CleanupAllCSVs(t *testing.T, c operatorclient.ClientInterface, vc versioned.Interface) {
-	nsList, err := c.KubernetesInterface().CoreV1().Namespaces().List(metav1.ListOptions{})
+	nsList, err := c.KubernetesInterface().CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		t.Logf("failed to list all Namespaces, CleanupAllCSVs failed")
 		return
 	}
 	for _, ns := range nsList.Items {
 		if ns.Name == "openshift-operator-lifecycle-manager" {
-			csvList, err := vc.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).List(metav1.ListOptions{})
+			csvList, err := vc.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).List(context.TODO(), metav1.ListOptions{})
 			if err != nil {
 				t.Logf("error listing CSVs in Namespace: %s, %v", ns.Name, err)
 			}
 			for _, csv := range csvList.Items {
 				if csv.Name != "packageserver" {
-					err = vc.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Delete(csv.Name, immediateDeleteOption)
+					err = vc.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Delete(context.TODO(), csv.Name, *immediateDeleteOption)
 					if err != nil {
 						t.Logf("error deleting %s in Namespace: %s, %v", csv.Name, ns.Name, err)
 					}
 				}
 			}
 		} else {
-			err = vc.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).DeleteCollection(immediateDeleteOption,
+			err = vc.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).DeleteCollection(context.TODO(), *immediateDeleteOption,
 				metav1.ListOptions{})
 			if err != nil {
 				t.Logf("error deleting CSVs in Namespace: %s, %v", ns.Name, err)
@@ -215,7 +215,7 @@ func CleanupAllTestNamespace(t *testing.T, c operatorclient.ClientInterface) {
 	}
 	for _, ns := range nsList {
 		if strings.HasPrefix(ns, "test-") {
-			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(ns, immediateDeleteOption)
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns, *immediateDeleteOption)
 			if err != nil {
 				t.Logf("error deleting namespace, %v", err)
 			}
@@ -230,7 +230,7 @@ func CleanupAllSubscriptions(t *testing.T, c operatorclient.ClientInterface, vc 
 		t.Logf("error getting namespaces, %v", err)
 	}
 	for _, ns := range nsList {
-		err = vc.OperatorsV1alpha1().Subscriptions(ns).DeleteCollection(immediateDeleteOption, metav1.ListOptions{})
+		err = vc.OperatorsV1alpha1().Subscriptions(ns).DeleteCollection(context.TODO(), *immediateDeleteOption, metav1.ListOptions{})
 		if err != nil {
 			t.Logf("error deleting all Subscriptions from Namespace: %s, %v", ns, err)
 		}
@@ -381,7 +381,7 @@ func (o *operator) Unsubscribe(orphan bool) error {
 
 // removeSubscription deletes the subscription.
 func (o *operator) removeSubscription() error {
-	return o.operatorClient.OperatorsV1alpha1().Subscriptions(o.namespace).Delete(o.subscription, &av1.DeleteOptions{})
+	return o.operatorClient.OperatorsV1alpha1().Subscriptions(o.namespace).Delete(context.TODO(), o.subscription, metav1.DeleteOptions{})
 }
 
 // removeAllCSVs removes CSVs from all target Namespaces.
@@ -392,8 +392,8 @@ func (o *operator) removeAllCSVs() error {
 	}
 
 	for _, namespace := range targetNamespaces {
-		err := o.operatorClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(o.csv,
-			&metav1.DeleteOptions{})
+		err := o.operatorClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(context.TODO(), o.csv,
+			metav1.DeleteOptions{})
 		if err != nil {
 			return fmt.Errorf("error deleting CSV: %s from ns:%s, %v", o.csv, namespace, err)
 		}
@@ -403,18 +403,18 @@ func (o *operator) removeAllCSVs() error {
 
 // removeOperatorGroup deletes the OperatorGroup.
 func (o *operator) removeOperatorGroup() error {
-	return o.operatorClient.OperatorsV1().OperatorGroups(o.namespace).Delete(o.operatorGroup, &metav1.DeleteOptions{})
+	return o.operatorClient.OperatorsV1().OperatorGroups(o.namespace).Delete(context.TODO(), o.operatorGroup, metav1.DeleteOptions{})
 }
 
 // removeNamespace deletes the Namespace.
 func (o *operator) removeNamespace() error {
-	return o.coreClient.KubernetesInterface().CoreV1().Namespaces().Delete(o.namespace, &metav1.DeleteOptions{})
+	return o.coreClient.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), o.namespace, metav1.DeleteOptions{})
 }
 
 // GetRHOperatorManifest gets the package manifest of a rh-operator and fills default info into operator struct.
 // It return error if the package is not found.
 func (o *operator) loadOperatorManifest(crc psVersioned.Interface) error {
-	pm, err := crc.OperatorsV1().PackageManifests("default").Get(o.name, metav1.GetOptions{})
+	pm, err := crc.OperatorsV1().PackageManifests("default").Get(context.TODO(), o.name, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("error retriving operator %s, %v", o.name, err)
 	}
@@ -439,11 +439,11 @@ func (o *operator) loadOperatorManifest(crc psVersioned.Interface) error {
 
 // createNamespace creates a test namespace with a generated name that starts with "test-" and returns the name.
 func (o *operator) createNamespace() (string, error) {
-	ns, err := o.coreClient.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+	ns, err := o.coreClient.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-",
 		},
-	})
+	}, metav1.CreateOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -453,13 +453,13 @@ func (o *operator) createNamespace() (string, error) {
 // createOperatorGroup create a test OperatorGroup with a target namespace and a generated name that starts with "og
 // -" and returns the name.
 func (o *operator) createOperatorGroup() (string, error) {
-	og, err := o.operatorClient.OperatorsV1().OperatorGroups(o.namespace).Create(&v1.OperatorGroup{
+	og, err := o.operatorClient.OperatorsV1().OperatorGroups(o.namespace).Create(context.TODO(), &v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("og-%s-", o.name),
 			Namespace:    o.namespace,
 		},
 		Spec: v1.OperatorGroupSpec{TargetNamespaces: o.targetNamespaces},
-	})
+	}, metav1.CreateOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -468,7 +468,7 @@ func (o *operator) createOperatorGroup() (string, error) {
 
 // createSubscription create a test Subscription with a generated name that starts with "sub-" and returns the name.
 func (o *operator) createSubscription() (string, error) {
-	sub, err := o.operatorClient.OperatorsV1alpha1().Subscriptions(o.namespace).Create(&v1alpha1.Subscription{
+	sub, err := o.operatorClient.OperatorsV1alpha1().Subscriptions(o.namespace).Create(context.TODO(), &v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("sub-%s-", o.name),
 			Namespace:    o.namespace,
@@ -480,7 +480,7 @@ func (o *operator) createSubscription() (string, error) {
 			Channel:                o.channel,
 			StartingCSV:            o.csv,
 		},
-	})
+	}, metav1.CreateOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -557,7 +557,7 @@ func (o *operator) listTargetNamespaces() (nsList []string, err error) {
 
 // getInstallPlanMessage gets the latest message from install plan else return error.
 func (o *operator) getInstallPlanMessage() (string, error) {
-	sub, err := o.operatorClient.OperatorsV1alpha1().Subscriptions(o.namespace).Get(o.subscription, metav1.GetOptions{})
+	sub, err := o.operatorClient.OperatorsV1alpha1().Subscriptions(o.namespace).Get(context.TODO(), o.subscription, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -566,7 +566,7 @@ func (o *operator) getInstallPlanMessage() (string, error) {
 	}
 
 	installPlan := sub.Status.InstallPlanRef.Name
-	ip, err := o.operatorClient.OperatorsV1alpha1().InstallPlans(o.namespace).Get(installPlan, metav1.GetOptions{})
+	ip, err := o.operatorClient.OperatorsV1alpha1().InstallPlans(o.namespace).Get(context.TODO(), installPlan, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -610,7 +610,7 @@ func (o *operator) WaitForCSV(checker csvConditionChecker) (fetchedCSV *v1alpha1
 
 		for _, namespace := range targetNamespaces {
 
-			fetchedCSV, err = o.operatorClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.csv,
+			fetchedCSV, err = o.operatorClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), o.csv,
 				metav1.GetOptions{})
 			if err != nil {
 				if k8serrors.IsNotFound(err) {
@@ -628,9 +628,9 @@ func (o *operator) WaitForCSV(checker csvConditionChecker) (fetchedCSV *v1alpha1
 }
 
 // WaitToDeleteNamespace waits until namespace is deleted based on terminationDuration of an operator.
-func (o *operator) WaitToDeleteNamespace(namespace string) error {
+func (o *operator) WaitToDeleteNamespace() error {
 	err := wait.Poll(pollInterval, o.terminationDuration, func() (bool, error) {
-		_, err := o.coreClient.KubernetesInterface().CoreV1().Namespaces().Get(o.namespace, metav1.GetOptions{})
+		_, err := o.coreClient.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), o.namespace, metav1.GetOptions{})
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				return true, nil

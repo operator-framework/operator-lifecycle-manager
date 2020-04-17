@@ -75,8 +75,9 @@ type RichReference struct {
 // +genclient
 // +genclient:nonNamespaced
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
 // +kubebuilder:storageversion
+// +kubebuilder:resource:categories=olm,scope=Cluster
+// +kubebuilder:subresource:status
 
 // Operator represents a cluster operator.
 type Operator struct {

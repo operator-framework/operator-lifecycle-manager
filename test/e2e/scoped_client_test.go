@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -116,16 +117,16 @@ var _ = Describe("Scoped Client", func() {
 		require.NotNil(GinkgoT(), kubeclientGot)
 		require.NotNil(GinkgoT(), crclientGot)
 
-		_, errGot = kubeclientGot.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(genName("does-not-exist-"), metav1.GetOptions{})
+		_, errGot = kubeclientGot.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
 		require.Error(GinkgoT(), errGot)
 		tt.assertFunc(errGot)
 
-		_, errGot = crclientGot.OperatorsV1alpha1().CatalogSources(namespace).Get(genName("does-not-exist-"), metav1.GetOptions{})
+		_, errGot = crclientGot.OperatorsV1alpha1().CatalogSources(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
 		require.Error(GinkgoT(), errGot)
 		tt.assertFunc(errGot)
 
 		gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "ConfigMap"}
-		_, errGot = dynamicClientGot.Resource(gvr).Namespace(namespace).Get(genName("does-not-exist-"), metav1.GetOptions{})
+		_, errGot = dynamicClientGot.Resource(gvr).Namespace(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
 		require.Error(GinkgoT(), errGot)
 		tt.assertFunc(errGot)
 	}, tableEntries...)
@@ -134,7 +135,7 @@ var _ = Describe("Scoped Client", func() {
 func waitForServiceAccountSecretAvailable(t GinkgoTInterface, client operatorclient.ClientInterface, namespace, name string) *corev1.ServiceAccount {
 	var sa *corev1.ServiceAccount
 	err := wait.Poll(5*time.Second, time.Minute, func() (bool, error) {
-		sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(name, metav1.GetOptions{})
+		sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}

@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -578,7 +579,7 @@ func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *v1alpha1.ClusterServic
 
 	// create test namespace
 	if namespace != metav1.NamespaceAll {
-		_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+		_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, metav1.CreateOptions{})
 		if err != nil {
 			return nil, err
 		}

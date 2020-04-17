@@ -1,6 +1,7 @@
 package operatorstatus
 
 import (
+	"context"
 	"errors"
 	"reflect"
 
@@ -30,7 +31,7 @@ type Writer struct {
 // EnsureExists ensures that the cluster operator resource exists with a default
 // status that reflects expecting status.
 func (w *Writer) EnsureExists(name string) (existing *configv1.ClusterOperator, err error) {
-	existing, err = w.client.ClusterOperators().Get(name, metav1.GetOptions{})
+	existing, err = w.client.ClusterOperators().Get(context.TODO(), name, metav1.GetOptions{})
 	if err == nil {
 		return
 	}
@@ -44,7 +45,7 @@ func (w *Writer) EnsureExists(name string) (existing *configv1.ClusterOperator, 
 			Name: name,
 		},
 	}
-	existing, err = w.client.ClusterOperators().Create(co)
+	existing, err = w.client.ClusterOperators().Create(context.TODO(), co, metav1.CreateOptions{})
 	return
 }
 
@@ -60,7 +61,7 @@ func (w *Writer) UpdateStatus(existing *configv1.ClusterOperator, newStatus *con
 	}
 
 	existing.Status = *newStatus
-	if _, err := w.client.ClusterOperators().UpdateStatus(existing); err != nil {
+	if _, err := w.client.ClusterOperators().UpdateStatus(context.TODO(), existing, metav1.UpdateOptions{}); err != nil {
 		return err
 	}
 

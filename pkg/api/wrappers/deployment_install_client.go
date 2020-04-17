@@ -1,7 +1,8 @@
-//go:generate counterfeiter deployment_install_client.go InstallStrategyDeploymentInterface
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 deployment_install_client.go InstallStrategyDeploymentInterface
 package wrappers
 
 import (
+	"context"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -56,11 +57,11 @@ func (c *InstallStrategyDeploymentClientForNamespace) GetOpLister() operatorlist
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateRole(role *rbacv1.Role) (*rbacv1.Role, error) {
-	return c.opClient.KubernetesInterface().RbacV1().Roles(c.Namespace).Create(role)
+	return c.opClient.KubernetesInterface().RbacV1().Roles(c.Namespace).Create(context.TODO(), role, metav1.CreateOptions{})
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateRoleBinding(roleBinding *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error) {
-	return c.opClient.KubernetesInterface().RbacV1().RoleBindings(c.Namespace).Create(roleBinding)
+	return c.opClient.KubernetesInterface().RbacV1().RoleBindings(c.Namespace).Create(context.TODO(), roleBinding, metav1.CreateOptions{})
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error) {
@@ -118,7 +119,7 @@ func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(d
 		}
 		return created, err
 	}
-	return c.opClient.KubernetesInterface().AppsV1().Deployments(deployment.GetNamespace()).Update(deployment)
+	return c.opClient.KubernetesInterface().AppsV1().Deployments(deployment.GetNamespace()).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error) {

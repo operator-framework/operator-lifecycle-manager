@@ -1,10 +1,11 @@
 package catalog
 
 import (
+	"context"
 	"errors"
 
-	"github.com/sirupsen/logrus"
 
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -45,7 +46,7 @@ func (o *Operator) triggerInstallPlanRetry(obj interface{}) (syncError error) {
 	update := func(ip *v1alpha1.InstallPlan) error {
 		out := ip.DeepCopy()
 		out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
-		_, err := o.client.OperatorsV1alpha1().InstallPlans(ip.GetNamespace()).UpdateStatus(out)
+		_, err := o.client.OperatorsV1alpha1().InstallPlans(ip.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
 
 		return err
 	}

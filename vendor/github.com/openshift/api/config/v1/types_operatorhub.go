@@ -37,6 +37,7 @@ type OperatorHubStatus struct {
 // the state of the default hub sources for OperatorHub on the cluster from
 // enabled to disabled and vice versa.
 // +kubebuilder:subresource:status
+// +genclient
 // +genclient:nonNamespaced
 type OperatorHub struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -70,7 +71,7 @@ type HubSource struct {
 // HubSourceStatus is used to reflect the current state of applying the
 // configuration to a default source
 type HubSourceStatus struct {
-	HubSource `json:"",omitempty`
+	HubSource `json:",omitempty"`
 	// status indicates success or failure in applying the configuration
 	Status string `json:"status,omitempty"`
 	// message provides more information regarding failures

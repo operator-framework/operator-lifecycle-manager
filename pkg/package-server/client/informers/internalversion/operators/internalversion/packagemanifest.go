@@ -19,6 +19,7 @@ limitations under the License.
 package internalversion
 
 import (
+	"context"
 	time "time"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
@@ -61,13 +62,13 @@ func NewFilteredPackageManifestInformer(client clientsetinternalversion.Interfac
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.Operators().PackageManifests(namespace).List(options)
+				return client.Operators().PackageManifests(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.Operators().PackageManifests(namespace).Watch(options)
+				return client.Operators().PackageManifests(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&operators.PackageManifest{},

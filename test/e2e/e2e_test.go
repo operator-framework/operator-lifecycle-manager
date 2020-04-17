@@ -1,12 +1,14 @@
 package e2e
 
 import (
+	"context"
 	"flag"
 	"os"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,6 +42,7 @@ var (
 )
 
 func TestEndToEnd(t *testing.T) {
+	config.GinkgoConfig.FlakeAttempts = 3
 	RegisterFailHandler(Fail)
 	SetDefaultEventuallyTimeout(1 * time.Minute)
 	SetDefaultEventuallyPollingInterval(1 * time.Second)
@@ -64,17 +67,17 @@ var _ = BeforeSuite(func() {
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 
-	groups, err := ctx.Ctx().OperatorClient().OperatorsV1().OperatorGroups(testNamespace).List(metav1.ListOptions{})
+	groups, err := ctx.Ctx().OperatorClient().OperatorsV1().OperatorGroups(testNamespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
 	if len(groups.Items) == 0 {
-		_, err = ctx.Ctx().OperatorClient().OperatorsV1().OperatorGroups(testNamespace).Create(&v1.OperatorGroup{
+		_, err = ctx.Ctx().OperatorClient().OperatorsV1().OperatorGroups(testNamespace).Create(context.TODO(), &v1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "opgroup",
 				Namespace: testNamespace,
 			},
-		})
+		}, metav1.CreateOptions{})
 		if err != nil {
 			panic(err)
 		}

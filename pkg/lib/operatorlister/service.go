@@ -58,23 +58,6 @@ func (usl *UnionServiceLister) Services(namespace string) corev1.ServiceNamespac
 	return &NullServiceNamespaceLister{}
 }
 
-func (usl *UnionServiceLister) GetPodServices(pod *v1.Pod) ([]*v1.Service, error) {
-	usl.serviceLock.RLock()
-	defer usl.serviceLock.RUnlock()
-
-	// Check for specific namespace listers
-	if sl, ok := usl.serviceListers[pod.GetNamespace()]; ok {
-		return sl.GetPodServices(pod)
-	}
-
-	// Check for any namespace-all listers
-	if sl, ok := usl.serviceListers[metav1.NamespaceAll]; ok {
-		return sl.GetPodServices(pod)
-	}
-
-	return nil, fmt.Errorf("could not find service lister registered for namspace %s", pod.GetNamespace())
-}
-
 func (usl *UnionServiceLister) RegisterServiceLister(namespace string, lister corev1.ServiceLister) {
 	usl.serviceLock.Lock()
 	defer usl.serviceLock.Unlock()

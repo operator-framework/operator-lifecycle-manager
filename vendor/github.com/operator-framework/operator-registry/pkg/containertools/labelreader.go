@@ -17,7 +17,7 @@ type ImageLabelReader struct {
 	Cmd    CommandRunner
 }
 
-func NewLabelReader(containerTool string, logger *logrus.Entry) LabelReader {
+func NewLabelReader(containerTool ContainerTool, logger *logrus.Entry) LabelReader {
 	cmd := NewCommandRunner(containerTool, logger)
 
 	return ImageLabelReader{

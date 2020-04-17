@@ -330,6 +330,11 @@ func (r StepResource) String() string {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
+// +kubebuilder:resource:shortName=ip,categories=olm
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="CSV",type=string,JSONPath=`.spec.clusterServiceVersionNames[0]`,description="The first CSV in the list of clusterServiceVersionNames"
+// +kubebuilder:printcolumn:name="Approval",type=string,JSONPath=`.spec.approval`,description="The approval mode"
+// +kubebuilder:printcolumn:name="Approved",type=boolean,JSONPath=`.spec.approved`
 
 // InstallPlan defines the installation of a set of operators.
 type InstallPlan struct {

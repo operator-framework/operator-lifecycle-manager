@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var subscriptionsResource = schema.GroupVersionResource{Group: "operators.coreos
 var subscriptionsKind = schema.GroupVersionKind{Group: "operators.coreos.com", Version: "", Kind: "Subscription"}
 
 // Get takes name of the subscription, and returns the corresponding subscription object, and an error if there is any.
-func (c *FakeSubscriptions) Get(name string, options v1.GetOptions) (result *operators.Subscription, err error) {
+func (c *FakeSubscriptions) Get(ctx context.Context, name string, options v1.GetOptions) (result *operators.Subscription, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(subscriptionsResource, c.ns, name), &operators.Subscription{})
 
@@ -50,7 +52,7 @@ func (c *FakeSubscriptions) Get(name string, options v1.GetOptions) (result *ope
 }
 
 // List takes label and field selectors, and returns the list of Subscriptions that match those selectors.
-func (c *FakeSubscriptions) List(opts v1.ListOptions) (result *operators.SubscriptionList, err error) {
+func (c *FakeSubscriptions) List(ctx context.Context, opts v1.ListOptions) (result *operators.SubscriptionList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(subscriptionsResource, subscriptionsKind, c.ns, opts), &operators.SubscriptionList{})
 
@@ -72,14 +74,14 @@ func (c *FakeSubscriptions) List(opts v1.ListOptions) (result *operators.Subscri
 }
 
 // Watch returns a watch.Interface that watches the requested subscriptions.
-func (c *FakeSubscriptions) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeSubscriptions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(subscriptionsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a subscription and creates it.  Returns the server's representation of the subscription, and an error, if there is any.
-func (c *FakeSubscriptions) Create(subscription *operators.Subscription) (result *operators.Subscription, err error) {
+func (c *FakeSubscriptions) Create(ctx context.Context, subscription *operators.Subscription, opts v1.CreateOptions) (result *operators.Subscription, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(subscriptionsResource, c.ns, subscription), &operators.Subscription{})
 
@@ -90,7 +92,7 @@ func (c *FakeSubscriptions) Create(subscription *operators.Subscription) (result
 }
 
 // Update takes the representation of a subscription and updates it. Returns the server's representation of the subscription, and an error, if there is any.
-func (c *FakeSubscriptions) Update(subscription *operators.Subscription) (result *operators.Subscription, err error) {
+func (c *FakeSubscriptions) Update(ctx context.Context, subscription *operators.Subscription, opts v1.UpdateOptions) (result *operators.Subscription, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(subscriptionsResource, c.ns, subscription), &operators.Subscription{})
 
@@ -102,7 +104,7 @@ func (c *FakeSubscriptions) Update(subscription *operators.Subscription) (result
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSubscriptions) UpdateStatus(subscription *operators.Subscription) (*operators.Subscription, error) {
+func (c *FakeSubscriptions) UpdateStatus(ctx context.Context, subscription *operators.Subscription, opts v1.UpdateOptions) (*operators.Subscription, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(subscriptionsResource, "status", c.ns, subscription), &operators.Subscription{})
 
@@ -113,7 +115,7 @@ func (c *FakeSubscriptions) UpdateStatus(subscription *operators.Subscription) (
 }
 
 // Delete takes name of the subscription and deletes it. Returns an error if one occurs.
-func (c *FakeSubscriptions) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeSubscriptions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(subscriptionsResource, c.ns, name), &operators.Subscription{})
 
@@ -121,15 +123,15 @@ func (c *FakeSubscriptions) Delete(name string, options *v1.DeleteOptions) error
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeSubscriptions) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(subscriptionsResource, c.ns, listOptions)
+func (c *FakeSubscriptions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(subscriptionsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &operators.SubscriptionList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched subscription.
-func (c *FakeSubscriptions) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.Subscription, err error) {
+func (c *FakeSubscriptions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.Subscription, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(subscriptionsResource, c.ns, name, pt, data, subresources...), &operators.Subscription{})
 

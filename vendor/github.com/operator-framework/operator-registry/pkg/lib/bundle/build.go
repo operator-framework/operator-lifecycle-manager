@@ -50,7 +50,8 @@ func ExecuteCommand(cmd *exec.Cmd) error {
 // @channels: The list of channels that bundle image belongs to
 // @channelDefault: The default channel for the bundle image
 // @overwrite: Boolean flag to enable overwriting annotations.yaml locally if existed
-func BuildFunc(directory, outputDir, imageTag, imageBuilder, packageName, channels, channelDefault string, overwrite bool) error {
+func BuildFunc(directory, outputDir, imageTag, imageBuilder, packageName, channels, channelDefault string,
+	overwrite bool) error {
 	_, err := os.Stat(directory)
 	if os.IsNotExist(err) {
 		return err

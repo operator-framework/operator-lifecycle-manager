@@ -28,8 +28,8 @@ var _ = Describe("Operator", func() {
 
 	BeforeEach(func() {
 		// Toggle v2alpha1 feature-gate
-		toggleCVO()
-		togglev2alpha1()
+		toggleCVO(0)
+		togglev2alpha1(true)
 
 		// Setup common utilities
 		listOpts = metav1.ListOptions{}
@@ -39,8 +39,8 @@ var _ = Describe("Operator", func() {
 	})
 
 	AfterEach(func() {
-		toggleCVO()
-		togglev2alpha1()
+		toggleCVO(1)
+		togglev2alpha1(false)
 	})
 
 	// Ensures that an Operator resource can select its components by label and surface them correctly in its status.
@@ -59,17 +59,18 @@ var _ = Describe("Operator", func() {
 	// 11. Delete ns-a
 	// 12. Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 	It("should surface components in its status", func() {
+		Skip("this feature is not enabled by default. this test should not be skipped when it is.")
 		o := &operatorsv2alpha1.Operator{}
 		o.SetName(genName("o-"))
-		o, err := operatorClient.Create(o)
+		o, err := operatorClient.Create(context.TODO(), o, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		defer func() {
-			Expect(operatorClient.Delete(o.GetName(), deleteOpts)).To(Succeed())
+			Expect(operatorClient.Delete(context.TODO(), o.GetName(), *deleteOpts)).To(Succeed())
 		}()
 
 		By("eventually having a status that contains its component label selector")
-		w, err := operatorClient.Watch(listOpts)
+		w, err := operatorClient.Watch(context.TODO(), listOpts)
 		Expect(err).ToNot(HaveOccurred())
 		defer w.Stop()
 
@@ -99,16 +100,16 @@ var _ = Describe("Operator", func() {
 		nsB.SetName(genName("ns-b-"))
 
 		for _, ns := range []*corev1.Namespace{nsA, nsB} {
-			_, err := kubeClient.CoreV1().Namespaces().Create(ns)
+			_, err := kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			defer func(name string) {
-				kubeClient.CoreV1().Namespaces().Delete(name, deleteOpts)
+				kubeClient.CoreV1().Namespaces().Delete(context.TODO(), name, *deleteOpts)
 			}(ns.GetName())
 		}
 
 		// Label ns-a with o's component label
 		nsA.SetLabels(map[string]string{expectedKey: ""})
-		_, err = kubeClient.CoreV1().Namespaces().Update(nsA)
+		_, err = kubeClient.CoreV1().Namespaces().Update(context.TODO(), nsA, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// Ensure o's status.components.refs field eventually contains a reference to ns-a
@@ -124,19 +125,19 @@ var _ = Describe("Operator", func() {
 		saB.SetNamespace(nsB.Name)
 
 		for _, sa := range []*corev1.ServiceAccount{saA, saB} {
-			_, err := kubeClient.CoreV1().ServiceAccounts(sa.GetNamespace()).Create(sa)
+			_, err := kubeClient.CoreV1().ServiceAccounts(sa.GetNamespace()).Create(context.TODO(), sa, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			defer func(namespace, name string) {
-				kubeClient.CoreV1().ServiceAccounts(namespace).Delete(name, deleteOpts)
+				kubeClient.CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), name, *deleteOpts)
 			}(sa.GetNamespace(), sa.GetName())
 		}
 
 		// Label sa-a and sa-b with o's component label
 		saA.SetLabels(map[string]string{expectedKey: ""})
-		_, err = kubeClient.CoreV1().ServiceAccounts(saA.GetNamespace()).Update(saA)
+		_, err = kubeClient.CoreV1().ServiceAccounts(saA.GetNamespace()).Update(context.TODO(), saA, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		saB.SetLabels(map[string]string{expectedKey: ""})
-		_, err = kubeClient.CoreV1().ServiceAccounts(saB.GetNamespace()).Update(saB)
+		_, err = kubeClient.CoreV1().ServiceAccounts(saB.GetNamespace()).Update(context.TODO(), saB, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// Ensure o's status.components.refs field eventually contains references to sa-a and sa-b
@@ -146,7 +147,7 @@ var _ = Describe("Operator", func() {
 
 		// Remove the component label from sa-b
 		saB.SetLabels(nil)
-		_, err = kubeClient.CoreV1().ServiceAccounts(saB.GetNamespace()).Update(saB)
+		_, err = kubeClient.CoreV1().ServiceAccounts(saB.GetNamespace()).Update(context.TODO(), saB, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// Ensure the reference to sa-b is eventually removed from o's status.components.refs field
@@ -154,7 +155,7 @@ var _ = Describe("Operator", func() {
 		componentRefEventuallyExists(w, false, saB.GetName())
 
 		// Delete ns-a
-		Expect(kubeClient.CoreV1().Namespaces().Delete(nsA.GetName(), deleteOpts)).To(Succeed())
+		Expect(kubeClient.CoreV1().Namespaces().Delete(context.TODO(), nsA.GetName(), *deleteOpts)).To(Succeed())
 
 		// Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 		By("removing a component's reference when it no longer exists")

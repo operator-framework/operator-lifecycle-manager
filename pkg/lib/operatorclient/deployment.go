@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -21,19 +22,19 @@ const (
 // GetDeployment returns the Deployment object for the given namespace and name.
 func (c *Client) GetDeployment(namespace, name string) (*appsv1.Deployment, error) {
 	klog.V(4).Infof("[GET Deployment]: %s:%s", namespace, name)
-	return c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
+	return c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 // CreateDeployment creates the Deployment object.
 func (c *Client) CreateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, error) {
 	klog.V(4).Infof("[CREATE Deployment]: %s:%s", dep.Namespace, dep.Name)
-	return c.AppsV1().Deployments(dep.Namespace).Create(dep)
+	return c.AppsV1().Deployments(dep.Namespace).Create(context.TODO(), dep, metav1.CreateOptions{})
 }
 
 // DeleteDeployment deletes the Deployment object.
 func (c *Client) DeleteDeployment(namespace, name string, options *metav1.DeleteOptions) error {
 	klog.V(4).Infof("[DELETE Deployment]: %s:%s", namespace, name)
-	return c.AppsV1().Deployments(namespace).Delete(name, options)
+	return c.AppsV1().Deployments(namespace).Delete(context.TODO(), name, *options)
 }
 
 // UpdateDeployment updates a Deployment object by performing a 2-way patch between the existing
@@ -52,7 +53,7 @@ func (c *Client) PatchDeployment(original, modified *appsv1.Deployment) (*appsv1
 	namespace, name := modified.Namespace, modified.Name
 	klog.V(4).Infof("[PATCH Deployment]: %s:%s", namespace, name)
 
-	current, err := c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
+	current, err := c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -67,7 +68,7 @@ func (c *Client) PatchDeployment(original, modified *appsv1.Deployment) (*appsv1
 	if err != nil {
 		return nil, false, err
 	}
-	updated, err := c.AppsV1().Deployments(namespace).Patch(name, types.StrategicMergePatchType, patchBytes)
+	updated, err := c.AppsV1().Deployments(namespace).Patch(context.TODO(), name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -109,7 +110,7 @@ func (c *Client) RollingPatchDeployment(original, modified *appsv1.Deployment) (
 func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*appsv1.Deployment, bool, error) {
 	klog.V(4).Infof("[ROLLING PATCH Deployment]: %s:%s", namespace, name)
 
-	current, err := c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
+	current, err := c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -141,7 +142,7 @@ func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f Patc
 	if err != nil {
 		return nil, false, err
 	}
-	updated, err := c.AppsV1().Deployments(namespace).Patch(name, types.StrategicMergePatchType, patchBytes)
+	updated, err := c.AppsV1().Deployments(namespace).Patch(context.TODO(), name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -199,5 +200,5 @@ func (c *Client) ListDeploymentsWithLabels(namespace string, labels labels.Set) 
 	klog.V(4).Infof("[LIST Deployments] in %s, labels: %v", namespace, labels)
 
 	opts := metav1.ListOptions{LabelSelector: labels.String()}
-	return c.AppsV1().Deployments(namespace).List(opts)
+	return c.AppsV1().Deployments(namespace).List(context.TODO(), opts)
 }

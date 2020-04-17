@@ -683,7 +683,7 @@ func (c *SQLiteConn) RegisterAggregator(name string, impl interface{}, pure bool
 		ai.stepArgConverters = append(ai.stepArgConverters, conv)
 	}
 	if step.IsVariadic() {
-		conv, err := callbackArg(t.In(start + stepNArgs).Elem())
+		conv, err := callbackArg(step.In(start + stepNArgs).Elem())
 		if err != nil {
 			return err
 		}
@@ -740,6 +740,8 @@ func (c *SQLiteConn) RegisterAggregator(name string, impl interface{}, pure bool
 
 // AutoCommit return which currently auto commit or not.
 func (c *SQLiteConn) AutoCommit() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return int(C.sqlite3_get_autocommit(c.db)) != 0
 }
 
@@ -998,7 +1000,7 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 	deferForeignKeys := -1
 	foreignKeys := -1
 	ignoreCheckConstraints := -1
-	journalMode := "DELETE"
+	var journalMode string
 	lockingMode := "NORMAL"
 	queryOnly := -1
 	recursiveTriggers := -1
@@ -1230,7 +1232,7 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 		if _, ok := params["_locking"]; ok {
 			pkey = "_locking"
 		}
-		if val := params.Get("_locking"); val != "" {
+		if val := params.Get(pkey); val != "" {
 			switch strings.ToUpper(val) {
 			case "NORMAL", "EXCLUSIVE":
 				lockingMode = strings.ToUpper(val)
@@ -1340,6 +1342,9 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 		mutex|C.SQLITE_OPEN_READWRITE|C.SQLITE_OPEN_CREATE,
 		nil)
 	if rv != 0 {
+		if db != nil {
+			C.sqlite3_close_v2(db)
+		}
 		return nil, Error{Code: ErrNo(rv)}
 	}
 	if db == nil {
@@ -1376,7 +1381,7 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 	//  - Activate User Authentication
 	//		Check if the user wants to activate User Authentication.
 	//		If so then first create a temporary AuthConn to the database
-	//		This is possible because we are already succesfully authenticated.
+	//		This is possible because we are already successfully authenticated.
 	//
 	//	- Check if `sqlite_user`` table exists
 	//		YES				=> Add the provided user from DSN as Admin User and
@@ -1387,7 +1392,7 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 	// Create connection to SQLite
 	conn := &SQLiteConn{db: db, loc: loc, txlock: txlock}
 
-	// Password Cipher has to be registerd before authentication
+	// Password Cipher has to be registered before authentication
 	if len(authCrypt) > 0 {
 		switch strings.ToUpper(authCrypt) {
 		case "SHA1":
@@ -1517,10 +1522,10 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 		// Before going any further, we need to check that the user
 		// has provided an username and password within the DSN.
 		// We are not allowed to continue.
-		if len(authUser) < 0 {
+		if len(authUser) == 0 {
 			return nil, fmt.Errorf("Missing '_auth_user' while user authentication was requested with '_auth'")
 		}
-		if len(authPass) < 0 {
+		if len(authPass) == 0 {
 			return nil, fmt.Errorf("Missing '_auth_pass' while user authentication was requested with '_auth'")
 		}
 
@@ -1566,10 +1571,11 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 	}
 
 	// Journal Mode
-	// Because default Journal Mode is DELETE this PRAGMA can always be executed.
-	if err := exec(fmt.Sprintf("PRAGMA journal_mode = %s;", journalMode)); err != nil {
-		C.sqlite3_close_v2(db)
-		return nil, err
+	if journalMode != "" {
+		if err := exec(fmt.Sprintf("PRAGMA journal_mode = %s;", journalMode)); err != nil {
+			C.sqlite3_close_v2(db)
+			return nil, err
+		}
 	}
 
 	// Locking Mode
@@ -1674,7 +1680,7 @@ func (c *SQLiteConn) prepare(ctx context.Context, query string) (driver.Stmt, er
 	defer C.free(unsafe.Pointer(pquery))
 	var s *C.sqlite3_stmt
 	var tail *C.char
-	rv := C._sqlite3_prepare_v2_internal(c.db, pquery, -1, &s, &tail)
+	rv := C._sqlite3_prepare_v2_internal(c.db, pquery, C.int(-1), &s, &tail)
 	if rv != C.SQLITE_OK {
 		return nil, c.lastError()
 	}
@@ -1718,7 +1724,7 @@ func (c *SQLiteConn) GetFilename(schemaName string) string {
 // GetLimit returns the current value of a run-time limit.
 // See: sqlite3_limit, http://www.sqlite.org/c3ref/limit.html
 func (c *SQLiteConn) GetLimit(id int) int {
-	return int(C._sqlite3_limit(c.db, C.int(id), -1))
+	return int(C._sqlite3_limit(c.db, C.int(id), C.int(-1)))
 }
 
 // SetLimit changes the value of a run-time limits.
@@ -1862,7 +1868,7 @@ func (s *SQLiteStmt) query(ctx context.Context, args []namedValue) (driver.Rows,
 	return rows, nil
 }
 
-// LastInsertId teturn last inserted ID.
+// LastInsertId return last inserted ID.
 func (r *SQLiteResult) LastInsertId() (int64, error) {
 	return r.id, nil
 }
@@ -2024,16 +2030,11 @@ func (rc *SQLiteRows) Next(dest []driver.Value) error {
 		case C.SQLITE_BLOB:
 			p := C.sqlite3_column_blob(rc.s.s, C.int(i))
 			if p == nil {
-				dest[i] = nil
+				dest[i] = []byte{}
 				continue
 			}
-			n := int(C.sqlite3_column_bytes(rc.s.s, C.int(i)))
-			switch dest[i].(type) {
-			default:
-				slice := make([]byte, n)
-				copy(slice[:], (*[1 << 30]byte)(p)[0:n])
-				dest[i] = slice
-			}
+			n := C.sqlite3_column_bytes(rc.s.s, C.int(i))
+			dest[i] = C.GoBytes(p, n)
 		case C.SQLITE_NULL:
 			dest[i] = nil
 		case C.SQLITE_TEXT:
@@ -2062,9 +2063,8 @@ func (rc *SQLiteRows) Next(dest []driver.Value) error {
 				}
 				dest[i] = t
 			default:
-				dest[i] = []byte(s)
+				dest[i] = s
 			}
-
 		}
 	}
 	return nil
