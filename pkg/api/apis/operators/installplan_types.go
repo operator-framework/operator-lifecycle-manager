@@ -354,6 +354,10 @@ type StepResource struct {
 	Kind                   string
 	Name                   string
 	Manifest               string
+	// BundleSecret is a one-off flag for handling secrets from a user bundle versus from the catalog source.
+	// This field is handled internally by OLM and should not be exposed by the API. 
+	// Longer term StepResources will be refactored.
+	BundleSecret           bool
 }
 
 func (r StepResource) String() string {

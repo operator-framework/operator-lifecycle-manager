@@ -20,6 +20,10 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
+const (
+	secretKind = "Secret"
+)
+
 var (
 	scheme = runtime.NewScheme()
 )
@@ -69,6 +73,13 @@ func NewStepResourceFromObject(obj runtime.Object, catalogSourceName, catalogSou
 		Manifest:               manifest.String(),
 		CatalogSource:          catalogSourceName,
 		CatalogSourceNamespace: catalogSourceNamespace,
+	}
+
+	// Treat secret objects with a special case
+	// OLM copies secrets as well as supports creating new ones from the bundle
+	// This boolean determines whether its a user-created secret
+	if obj.GetObjectKind().GroupVersionKind().Kind == secretKind {
+		resource.BundleSecret = true
 	}
 
 	return resource, nil
@@ -124,6 +135,7 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 		if unst.GetObjectKind().GroupVersionKind().Kind == v1alpha1.ClusterServiceVersionKind {
 			continue
 		}
+
 		step, err := NewStepResourceFromObject(unst, catalogSourceName, catalogSourceNamespace)
 		if err != nil {
 			return nil, err

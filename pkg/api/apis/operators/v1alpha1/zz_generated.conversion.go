@@ -1654,6 +1654,7 @@ func autoConvert_v1alpha1_StepResource_To_operators_StepResource(in *StepResourc
 	out.Kind = in.Kind
 	out.Name = in.Name
 	out.Manifest = in.Manifest
+	out.BundleSecret = in.BundleSecret
 	return nil
 }
 
@@ -1670,6 +1671,7 @@ func autoConvert_operators_StepResource_To_v1alpha1_StepResource(in *operators.S
 	out.Kind = in.Kind
 	out.Name = in.Name
 	out.Manifest = in.Manifest
+	out.BundleSecret = in.BundleSecret
 	return nil
 }
 
