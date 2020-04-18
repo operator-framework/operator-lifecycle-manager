@@ -111,7 +111,7 @@ func (o *StepEnsurer) EnsureSecret(operatorNamespace, planNamespace, name string
 
 // EnsureBundleSecret creates user-specified secrets from the bundle. Called when StepResource.Secret is true
 func (o *StepEnsurer) EnsureBundleSecret(namespace string, secret *corev1.Secret) (status v1alpha1.StepStatus, err error) {
-	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().Secrets(namespace).Create(secret)
+	_, createErr := o.kubeClient.KubernetesInterface().CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 	if createErr == nil {
 		status = v1alpha1.StepStatusCreated
 		return
