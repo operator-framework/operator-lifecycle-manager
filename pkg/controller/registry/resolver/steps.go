@@ -22,6 +22,7 @@ import (
 
 const (
 	secretKind = "Secret"
+	BundleSecretKind = "BundleSecret"
 )
 
 var (
@@ -75,11 +76,10 @@ func NewStepResourceFromObject(obj runtime.Object, catalogSourceName, catalogSou
 		CatalogSourceNamespace: catalogSourceNamespace,
 	}
 
-	// Treat secret objects with a special case
-	// OLM copies secrets as well as supports creating new ones from the bundle
-	// This boolean determines whether its a user-created secret
+	// BundleSecret is a synthetic kind that OLM uses to distinguish between secrets included in the bundle and
+	// pull secrets included in the installplan
 	if obj.GetObjectKind().GroupVersionKind().Kind == secretKind {
-		resource.BundleSecret = true
+		resource.Kind = BundleSecretKind
 	}
 
 	return resource, nil
