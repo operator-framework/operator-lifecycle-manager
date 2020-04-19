@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/lib/version"
 
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	. "github.com/onsi/ginkgo"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"

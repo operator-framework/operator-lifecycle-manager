@@ -18,8 +18,8 @@ import (
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	listersrbacv1 "k8s.io/client-go/listers/rbac/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
-	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/reference"
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 )
 

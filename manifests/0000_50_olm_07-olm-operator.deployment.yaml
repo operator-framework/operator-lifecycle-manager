@@ -24,15 +24,15 @@ spec:
           command:
           - /bin/olm
           args:
-          - --namespace
+          - -namespace
           - $(OPERATOR_NAMESPACE)
-          - --writeStatusName
+          - -writeStatusName
           - operator-lifecycle-manager
-          - --writePackageServerStatusName
+          - -writePackageServerStatusName
           - operator-lifecycle-manager-packageserver
-          - --tls-cert
+          - -tls-cert
           - /var/run/secrets/serving-cert/tls.crt
-          - --tls-key
+          - -tls-key
           - /var/run/secrets/serving-cert/tls.key
           image: quay.io/operator-framework/olm@sha256:f6ce23402d5309872855a47116ada409155b15d3ef7f74940eb1bdca6ebbded3
           imagePullPolicy: IfNotPresent

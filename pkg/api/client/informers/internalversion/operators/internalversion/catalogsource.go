@@ -22,7 +22,7 @@ import (
 	"context"
 	time "time"
 
-	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	operators "github.com/operator-framework/api/pkg/operators"
 	clientsetinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/internalversion"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/internalversion/internalinterfaces"
 	internalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/internalversion"

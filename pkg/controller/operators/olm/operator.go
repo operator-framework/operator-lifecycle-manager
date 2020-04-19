@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -29,7 +29,7 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
@@ -1430,7 +1430,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		if out.HasCertResources() {
+		if out.HasCAResources() {
 			now := metav1.Now()
 			expiration := now.Add(install.DefaultCertValidFor)
 			rotateAt := expiration.Add(-1 * install.DefaultCertMinFresh)

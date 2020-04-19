@@ -9,11 +9,11 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/onsi/ginkgo/extensions/table"
-	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	opver "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+	opver "github.com/operator-framework/api/pkg/lib/version"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -23,7 +23,7 @@ import (
 	"errors"
 
 	. "github.com/onsi/ginkgo"
-	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/stretchr/testify/assert"
