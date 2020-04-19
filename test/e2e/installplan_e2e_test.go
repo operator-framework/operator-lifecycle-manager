@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -64,7 +65,7 @@ var _ = Describe("Install Plan", func() {
 		c := newKubeClient(GinkgoT())
 		crc := newCRClient(GinkgoT())
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 
 		dependentCatalogName := genName("mock-ocs-dependent-")
@@ -260,7 +261,7 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient(GinkgoT())
 			crc := newCRClient(GinkgoT())
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
 
 			// Create the catalog source
@@ -294,7 +295,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
-			installPlanName := subscription.Status.Install.Name
+			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
 			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
@@ -385,7 +386,7 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient(GinkgoT())
 			crc := newCRClient(GinkgoT())
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
 
 			// Create the catalog source
@@ -405,7 +406,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
-			installPlanName := subscription.Status.Install.Name
+			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or failed before checking resource presence
 			completeOrFailedFunc := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed)
@@ -441,11 +442,11 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), 0, len(expectedSteps), "Actual resource steps do not match expected")
 
 			// Update the subscription resource to point to the beta CSV
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
+			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err)
 
 			// Delete orphaned csv
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(mainStableCSV.GetName(), &metav1.DeleteOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainStableCSV.GetName(), metav1.DeleteOptions{}))
 
 			// existing cleanup should remove this
 			createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
@@ -454,7 +455,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
-			installPlanName = subscription.Status.Install.Name
+			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
@@ -849,7 +850,7 @@ var _ = Describe("Install Plan", func() {
 				require.NotNil(GinkgoT(), subscription)
 
 				subscription.Spec.Channel = betaChannel
-				subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(subscription)
+				subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), subscription, metav1.UpdateOptions{})
 
 				return err
 			})
@@ -997,7 +998,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
-			installPlanName := subscription.Status.Install.Name
+			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or failed before checking resource presence
 			completeOrFailedFunc := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed)
@@ -1032,11 +1033,11 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Update the subscription resource to point to the beta CSV
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
+			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err)
 
 			// Delete orphaned csv
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(mainStableCSV.GetName(), &metav1.DeleteOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainStableCSV.GetName(), metav1.DeleteOptions{}))
 
 			// existing cleanup should remove this
 			createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
@@ -1045,7 +1046,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
-			installPlanName = subscription.Status.Install.Name
+			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
@@ -1086,11 +1087,11 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Update the subscription resource to point to the beta CSV
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
+			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err)
 
 			// Delete orphaned csv
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(mainBetaCSV.GetName(), &metav1.DeleteOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainBetaCSV.GetName(), metav1.DeleteOptions{}))
 
 			// existing cleanup should remove this
 			createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, deltaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
@@ -1099,7 +1100,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
-			installPlanName = subscription.Status.Install.Name
+			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
@@ -1137,7 +1138,7 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient(GinkgoT())
 			crc := newCRClient(GinkgoT())
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
 
 			// Build initial catalog
@@ -1313,7 +1314,7 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient(GinkgoT())
 			crc := newCRClient(GinkgoT())
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
 
 			// Build initial catalog
@@ -1453,7 +1454,7 @@ var _ = Describe("Install Plan", func() {
 				},
 			}
 
-			oldSecrets, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).List(metav1.ListOptions{})
+			oldSecrets, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).List(context.TODO(), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err, "error listing secrets")
 
 			// Create the catalog sources
@@ -1487,7 +1488,7 @@ var _ = Describe("Install Plan", func() {
 			_, err = awaitCSV(GinkgoT(), crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
-			newSecrets, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).List(metav1.ListOptions{})
+			newSecrets, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).List(context.TODO(), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err, "error listing secrets")
 
 			// Assert that the number of secrets is not increased from updating service account as part of the install plan,
@@ -1498,7 +1499,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Wait for ServiceAccount to not have access anymore
 			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-				res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&authorizationv1.SubjectAccessReview{
+				res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
 					Spec: authorizationv1.SubjectAccessReviewSpec{
 						User: "system:serviceaccount:" + testNamespace + ":" + serviceAccountName,
 						ResourceAttributes: &authorizationv1.ResourceAttributes{
@@ -1508,7 +1509,7 @@ var _ = Describe("Install Plan", func() {
 							Verb:     rbac.VerbAll,
 						},
 					},
-				})
+				}, metav1.CreateOptions{})
 				if err != nil {
 					return false, err
 				}
@@ -1527,7 +1528,7 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient(GinkgoT())
 			crc := newCRClient(GinkgoT())
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
 
 			// Build initial catalog
@@ -1665,7 +1666,7 @@ var _ = Describe("Install Plan", func() {
 				StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 				StrategySpec: modifiedDetails,
 			}
-			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(csv)
+			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(context.TODO(), csv, metav1.UpdateOptions{})
 			require.NoError(GinkgoT(), err)
 
 			// Wait for csv to update
@@ -1792,7 +1793,7 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient(GinkgoT())
 			crc := newCRClient(GinkgoT())
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
 
 			mainCatalogName := genName("mock-ocs-main-update-")
@@ -1847,7 +1848,7 @@ var _ = Describe("Install Plan", func() {
 			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{updatedCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV}, mainManifests)
 
 			// Update the subscription resource
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
+			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err)
 
 			// existing cleanup should remove this
@@ -1869,7 +1870,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
-			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), len(fetchedCRD.Spec.Versions), len(updatedCRD.Spec.Versions), "The CRD versions counts don't match")
 
@@ -1898,7 +1899,7 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient(GinkgoT())
 			crc := newCRClient(GinkgoT())
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
 
 			mainPackageName := genName("nginx-update2-")
@@ -2030,7 +2031,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
-			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), len(fetchedCRD.Spec.Versions), len(mainCRD.Spec.Versions), "The CRD versions counts don't match")
 
@@ -2124,7 +2125,7 @@ var _ = Describe("Install Plan", func() {
 		c := newKubeClient(GinkgoT())
 		crc := newCRClient(GinkgoT())
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 
 		// Create CatalogSource
@@ -2144,7 +2145,7 @@ var _ = Describe("Install Plan", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		installPlanName := subscription.Status.Install.Name
+		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Attempt to get InstallPlan
 		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
@@ -2210,14 +2211,14 @@ var _ = Describe("Install Plan", func() {
 		require.Equal(GinkgoT(), 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
 
 		// the test from here out verifies created RBAC is removed after CSV deletion
-		createdClusterRoles, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+		createdClusterRoles, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 		createdClusterRoleNames := map[string]struct{}{}
 		for _, role := range createdClusterRoles.Items {
 			createdClusterRoleNames[role.GetName()] = struct{}{}
 			GinkgoT().Logf("Monitoring cluster role %v", role.GetName())
 		}
 
-		createdClusterRoleBindings, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+		createdClusterRoleBindings, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 		createdClusterRoleBindingNames := map[string]struct{}{}
 		for _, binding := range createdClusterRoleBindings.Items {
 			createdClusterRoleBindingNames[binding.GetName()] = struct{}{}
@@ -2228,11 +2229,11 @@ var _ = Describe("Install Plan", func() {
 		createdServiceAccountNames := map[string]struct{}{serviceAccountName: {}}
 		GinkgoT().Logf("Monitoring service account %v", serviceAccountName)
 
-		crWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoles().Watch(metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+		crWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoles().Watch(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 		require.NoError(GinkgoT(), err)
-		crbWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Watch(metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+		crbWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Watch(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 		require.NoError(GinkgoT(), err)
-		saWatcher, err := c.KubernetesInterface().CoreV1().ServiceAccounts(testNamespace).Watch(metav1.ListOptions{})
+		saWatcher, err := c.KubernetesInterface().CoreV1().ServiceAccounts(testNamespace).Watch(context.TODO(), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 
 		done := make(chan struct{})
@@ -2295,7 +2296,7 @@ var _ = Describe("Install Plan", func() {
 			}
 		}()
 		GinkgoT().Logf("Deleting CSV '%v' in namespace %v", stableCSVName, testNamespace)
-		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		select {
 		case <-done:
 			break
@@ -2433,16 +2434,16 @@ var _ = Describe("Install Plan", func() {
 		c := newKubeClient(GinkgoT())
 		crc := newCRClient(GinkgoT())
 
-		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("ns-"),
 			},
-		})
+		}, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(ns.GetName(), deleteOpts))
+			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
 		}()
 
 		catsrc := &operatorsv1alpha1.CatalogSource{
@@ -2456,7 +2457,7 @@ var _ = Describe("Install Plan", func() {
 				SourceType: operatorsv1alpha1.SourceTypeGrpc,
 			},
 		}
-		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(catsrc)
+		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the CatalogSource to be ready
@@ -2526,16 +2527,16 @@ var _ = Describe("Install Plan", func() {
 		crc := newCRClient(GinkgoT())
 
 		// Create a namespace an OperatorGroup
-		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(ns)
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(ns.GetName(), deleteOpts))
+			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
 		}()
 
 		og := &operatorsv1.OperatorGroup{}
 		og.SetName("og")
-		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(og)
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		mainPackageName := genName("nginx-")
@@ -2556,7 +2557,7 @@ var _ = Describe("Install Plan", func() {
 		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 
 		dependentCatalogName := genName("mock-ocs-dependent-")
@@ -2609,7 +2610,7 @@ var _ = Describe("Install Plan", func() {
 				}
 				addressSource.SetName(genName("alt-dep-"))
 
-				_, err := crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Create(addressSource)
+				_, err := crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Create(context.TODO(), addressSource, metav1.CreateOptions{})
 				require.NoError(GinkgoT(), err)
 
 				// Attempt to get the catalog source before creating install plan
@@ -2651,11 +2652,11 @@ var _ = Describe("Install Plan", func() {
 
 		// Make sure to clean up the installed CRD
 		defer func() {
-			require.NoError(GinkgoT(), c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(dependentCRD.GetName(), deleteOpts))
+			require.NoError(GinkgoT(), c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), *deleteOpts))
 		}()
 
 		// ensure there is only one installplan
-		ips, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).List(metav1.ListOptions{})
+		ips, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).List(context.TODO(), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), 1, len(ips.Items), "If this test fails it should be taken seriously and not treated as a flake. \n%v", ips.Items)
 	})
@@ -2666,7 +2667,7 @@ type checkInstallPlanFunc func(fip *operatorsv1alpha1.InstallPlan) bool
 
 func validateCRDVersions(t GinkgoTInterface, c operatorclient.ClientInterface, name string, expectedVersions map[string]struct{}) {
 	// Retrieve CRD information
-	crd, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
+	crd, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), name, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	require.Equal(t, len(expectedVersions), len(crd.Spec.Versions), "number of CRD versions don't not match installed")
@@ -2698,18 +2699,18 @@ func buildInstallPlanCleanupFunc(crc versioned.Interface, namespace string, inst
 		deleteOptions := &metav1.DeleteOptions{}
 		for _, step := range installPlan.Status.Plan {
 			if step.Resource.Kind == operatorsv1alpha1.ClusterServiceVersionKind {
-				if err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(step.Resource.Name, deleteOptions); err != nil {
+				if err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(context.TODO(), step.Resource.Name, *deleteOptions); err != nil {
 					fmt.Println(err)
 				}
 			}
 		}
 
-		if err := crc.OperatorsV1alpha1().InstallPlans(namespace).Delete(installPlan.GetName(), deleteOptions); err != nil {
+		if err := crc.OperatorsV1alpha1().InstallPlans(namespace).Delete(context.TODO(), installPlan.GetName(), *deleteOptions); err != nil {
 			fmt.Println(err)
 		}
 
 		err := waitForDelete(func() error {
-			_, err := crc.OperatorsV1alpha1().InstallPlans(namespace).Get(installPlan.GetName(), metav1.GetOptions{})
+			_, err := crc.OperatorsV1alpha1().InstallPlans(namespace).Get(context.TODO(), installPlan.GetName(), metav1.GetOptions{})
 			return err
 		})
 
@@ -2728,7 +2729,7 @@ func fetchInstallPlanWithNamespace(t GinkgoTInterface, c versioned.Interface, na
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(namespace).Get(name, metav1.GetOptions{})
+		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil || fetchedInstallPlan == nil {
 			return false, err
 		}
@@ -2744,7 +2745,7 @@ func waitForInstallPlan(t GinkgoTInterface, c versioned.Interface, name string, 
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(namespace).Get(name, metav1.GetOptions{})
+		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return false, err
 		}

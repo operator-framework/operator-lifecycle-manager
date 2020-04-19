@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/blang/semver"
@@ -41,7 +42,7 @@ var _ = Describe("User defined service account", func() {
 		_, cleanupOG := newOperatorGroupWithServiceAccount(GinkgoT(), crclient, namespace, ogName, saName)
 		defer cleanupOG()
 
-		permissions := deploymentPermissions(GinkgoT())
+		permissions := deploymentPermissions()
 		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), kubeclient, crclient, "scoped", namespace, permissions)
 		defer catsrcCleanup()
 
@@ -98,7 +99,7 @@ var _ = Describe("User defined service account", func() {
 		_, cleanupOG := newOperatorGroupWithServiceAccount(GinkgoT(), crclient, namespace, ogName, saName)
 		defer cleanupOG()
 
-		permissions := deploymentPermissions(GinkgoT())
+		permissions := deploymentPermissions()
 		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), kubeclient, crclient, "scoped", namespace, permissions)
 		defer catsrcCleanup()
 
@@ -152,7 +153,7 @@ var _ = Describe("User defined service account", func() {
 		_, cleanupOG := newOperatorGroupWithServiceAccount(GinkgoT(), crclient, namespace, ogName, saName)
 		defer cleanupOG()
 
-		permissions := deploymentPermissions(GinkgoT())
+		permissions := deploymentPermissions()
 		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), kubeclient, crclient, "scoped", namespace, permissions)
 		defer catsrcCleanup()
 
@@ -170,7 +171,7 @@ var _ = Describe("User defined service account", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		// We expect the InstallPlan to be in status: Failed.
-		ipNameOld := subscription.Status.Install.Name
+		ipNameOld := subscription.Status.InstallPlanRef.Name
 		ipPhaseCheckerFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed)
 		ipGotOld, err := fetchInstallPlanWithNamespace(GinkgoT(), crclient, ipNameOld, namespace, ipPhaseCheckerFunc)
 		require.NoError(GinkgoT(), err)
@@ -194,12 +195,12 @@ func newNamespace(t GinkgoTInterface, client operatorclient.ClientInterface, nam
 		},
 	}
 
-	ns, err := client.KubernetesInterface().CoreV1().Namespaces().Create(request)
+	ns, err := client.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), request, metav1.CreateOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, ns)
 
 	cleanup = func() {
-		err := client.KubernetesInterface().CoreV1().Namespaces().Delete(ns.GetName(), &metav1.DeleteOptions{})
+		err := client.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}
 
@@ -214,12 +215,12 @@ func newServiceAccount(t GinkgoTInterface, client operatorclient.ClientInterface
 		},
 	}
 
-	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Create(request)
+	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Create(context.TODO(), request, metav1.CreateOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, sa)
 
 	cleanup = func() {
-		err := client.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Delete(sa.GetName(), &metav1.DeleteOptions{})
+		err := client.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Delete(context.TODO(), sa.GetName(), metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}
 
@@ -240,12 +241,12 @@ func newOperatorGroupWithServiceAccount(t GinkgoTInterface, client versioned.Int
 		},
 	}
 
-	og, err := client.OperatorsV1().OperatorGroups(namespace).Create(request)
+	og, err := client.OperatorsV1().OperatorGroups(namespace).Create(context.TODO(), request, metav1.CreateOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, og)
 
 	cleanup = func() {
-		err := client.OperatorsV1().OperatorGroups(og.GetNamespace()).Delete(og.GetName(), &metav1.DeleteOptions{})
+		err := client.OperatorsV1().OperatorGroups(og.GetNamespace()).Delete(context.TODO(), og.GetName(), metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}
 
@@ -392,7 +393,7 @@ func mustHaveCondition(t GinkgoTInterface, ip *v1alpha1.InstallPlan, conditionTy
 	return
 }
 
-func deploymentPermissions(t GinkgoTInterface) []v1alpha1.StrategyDeploymentPermissions {
+func deploymentPermissions() []v1alpha1.StrategyDeploymentPermissions {
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa-")
 	permissions := []v1alpha1.StrategyDeploymentPermissions{
@@ -425,7 +426,7 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 		},
 	}
 
-	role, err := client.KubernetesInterface().RbacV1().Roles(namespace).Create(role)
+	role, err := client.KubernetesInterface().RbacV1().Roles(namespace).Create(context.TODO(), role, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	clusterrole := &rbacv1.ClusterRole{
@@ -441,7 +442,7 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 		},
 	}
 
-	clusterrole, err = client.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterrole)
+	clusterrole, err = client.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterrole, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	binding := &rbacv1.RoleBinding{
@@ -484,23 +485,23 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 		},
 	}
 
-	binding, err = client.KubernetesInterface().RbacV1().RoleBindings(namespace).Create(binding)
+	binding, err = client.KubernetesInterface().RbacV1().RoleBindings(namespace).Create(context.TODO(), binding, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	clusterbinding, err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(clusterbinding)
+	clusterbinding, err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(context.TODO(), clusterbinding, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	cleanup = func() {
-		err := client.KubernetesInterface().RbacV1().Roles(role.GetNamespace()).Delete(role.GetName(), &metav1.DeleteOptions{})
+		err := client.KubernetesInterface().RbacV1().Roles(role.GetNamespace()).Delete(context.TODO(), role.GetName(), metav1.DeleteOptions{})
 		require.NoError(t, err)
 
-		err = client.KubernetesInterface().RbacV1().RoleBindings(binding.GetNamespace()).Delete(binding.GetName(), &metav1.DeleteOptions{})
+		err = client.KubernetesInterface().RbacV1().RoleBindings(binding.GetNamespace()).Delete(context.TODO(), binding.GetName(), metav1.DeleteOptions{})
 		require.NoError(t, err)
 
-		err = client.KubernetesInterface().RbacV1().ClusterRoles().Delete(clusterrole.GetName(), &metav1.DeleteOptions{})
+		err = client.KubernetesInterface().RbacV1().ClusterRoles().Delete(context.TODO(), clusterrole.GetName(), metav1.DeleteOptions{})
 		require.NoError(t, err)
 
-		err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Delete(clusterbinding.GetName(), &metav1.DeleteOptions{})
+		err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Delete(context.TODO(), clusterbinding.GetName(), metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}
 

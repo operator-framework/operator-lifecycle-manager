@@ -15,14 +15,14 @@ import (
 type BundleExporter struct {
 	image         string
 	directory     string
-	containerTool string
+	containerTool containertools.ContainerTool
 }
 
 func NewSQLExporterForBundle(image, directory, containerTool string) *BundleExporter {
 	return &BundleExporter{
 		image:         image,
 		directory:     directory,
-		containerTool: containerTool,
+		containerTool: containertools.NewContainerTool(containerTool, containertools.NoneTool),
 	}
 }
 

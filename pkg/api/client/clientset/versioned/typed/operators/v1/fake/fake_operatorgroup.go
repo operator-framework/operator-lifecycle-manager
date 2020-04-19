@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var operatorgroupsResource = schema.GroupVersionResource{Group: "operators.coreo
 var operatorgroupsKind = schema.GroupVersionKind{Group: "operators.coreos.com", Version: "v1", Kind: "OperatorGroup"}
 
 // Get takes name of the operatorGroup, and returns the corresponding operatorGroup object, and an error if there is any.
-func (c *FakeOperatorGroups) Get(name string, options v1.GetOptions) (result *operatorsv1.OperatorGroup, err error) {
+func (c *FakeOperatorGroups) Get(ctx context.Context, name string, options v1.GetOptions) (result *operatorsv1.OperatorGroup, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(operatorgroupsResource, c.ns, name), &operatorsv1.OperatorGroup{})
 
@@ -50,7 +52,7 @@ func (c *FakeOperatorGroups) Get(name string, options v1.GetOptions) (result *op
 }
 
 // List takes label and field selectors, and returns the list of OperatorGroups that match those selectors.
-func (c *FakeOperatorGroups) List(opts v1.ListOptions) (result *operatorsv1.OperatorGroupList, err error) {
+func (c *FakeOperatorGroups) List(ctx context.Context, opts v1.ListOptions) (result *operatorsv1.OperatorGroupList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(operatorgroupsResource, operatorgroupsKind, c.ns, opts), &operatorsv1.OperatorGroupList{})
 
@@ -72,14 +74,14 @@ func (c *FakeOperatorGroups) List(opts v1.ListOptions) (result *operatorsv1.Oper
 }
 
 // Watch returns a watch.Interface that watches the requested operatorGroups.
-func (c *FakeOperatorGroups) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeOperatorGroups) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(operatorgroupsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a operatorGroup and creates it.  Returns the server's representation of the operatorGroup, and an error, if there is any.
-func (c *FakeOperatorGroups) Create(operatorGroup *operatorsv1.OperatorGroup) (result *operatorsv1.OperatorGroup, err error) {
+func (c *FakeOperatorGroups) Create(ctx context.Context, operatorGroup *operatorsv1.OperatorGroup, opts v1.CreateOptions) (result *operatorsv1.OperatorGroup, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(operatorgroupsResource, c.ns, operatorGroup), &operatorsv1.OperatorGroup{})
 
@@ -90,7 +92,7 @@ func (c *FakeOperatorGroups) Create(operatorGroup *operatorsv1.OperatorGroup) (r
 }
 
 // Update takes the representation of a operatorGroup and updates it. Returns the server's representation of the operatorGroup, and an error, if there is any.
-func (c *FakeOperatorGroups) Update(operatorGroup *operatorsv1.OperatorGroup) (result *operatorsv1.OperatorGroup, err error) {
+func (c *FakeOperatorGroups) Update(ctx context.Context, operatorGroup *operatorsv1.OperatorGroup, opts v1.UpdateOptions) (result *operatorsv1.OperatorGroup, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(operatorgroupsResource, c.ns, operatorGroup), &operatorsv1.OperatorGroup{})
 
@@ -102,7 +104,7 @@ func (c *FakeOperatorGroups) Update(operatorGroup *operatorsv1.OperatorGroup) (r
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOperatorGroups) UpdateStatus(operatorGroup *operatorsv1.OperatorGroup) (*operatorsv1.OperatorGroup, error) {
+func (c *FakeOperatorGroups) UpdateStatus(ctx context.Context, operatorGroup *operatorsv1.OperatorGroup, opts v1.UpdateOptions) (*operatorsv1.OperatorGroup, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(operatorgroupsResource, "status", c.ns, operatorGroup), &operatorsv1.OperatorGroup{})
 
@@ -113,7 +115,7 @@ func (c *FakeOperatorGroups) UpdateStatus(operatorGroup *operatorsv1.OperatorGro
 }
 
 // Delete takes name of the operatorGroup and deletes it. Returns an error if one occurs.
-func (c *FakeOperatorGroups) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeOperatorGroups) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(operatorgroupsResource, c.ns, name), &operatorsv1.OperatorGroup{})
 
@@ -121,15 +123,15 @@ func (c *FakeOperatorGroups) Delete(name string, options *v1.DeleteOptions) erro
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeOperatorGroups) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(operatorgroupsResource, c.ns, listOptions)
+func (c *FakeOperatorGroups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(operatorgroupsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &operatorsv1.OperatorGroupList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched operatorGroup.
-func (c *FakeOperatorGroups) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operatorsv1.OperatorGroup, err error) {
+func (c *FakeOperatorGroups) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operatorsv1.OperatorGroup, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(operatorgroupsResource, c.ns, name, pt, data, subresources...), &operatorsv1.OperatorGroup{})
 

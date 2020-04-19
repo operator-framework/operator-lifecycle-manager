@@ -98,6 +98,19 @@ type FakeInterface struct {
 		result1 bool
 		result2 error
 	}
+	ListBundlesStub        func(context.Context) (*client.BundleIterator, error)
+	listBundlesMutex       sync.RWMutex
+	listBundlesArgsForCall []struct {
+		arg1 context.Context
+	}
+	listBundlesReturns struct {
+		result1 *client.BundleIterator
+		result2 error
+	}
+	listBundlesReturnsOnCall map[int]struct {
+		result1 *client.BundleIterator
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -481,6 +494,69 @@ func (fake *FakeInterface) HealthCheckReturnsOnCall(i int, result1 bool, result2
 	}{result1, result2}
 }
 
+func (fake *FakeInterface) ListBundles(arg1 context.Context) (*client.BundleIterator, error) {
+	fake.listBundlesMutex.Lock()
+	ret, specificReturn := fake.listBundlesReturnsOnCall[len(fake.listBundlesArgsForCall)]
+	fake.listBundlesArgsForCall = append(fake.listBundlesArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	fake.recordInvocation("ListBundles", []interface{}{arg1})
+	fake.listBundlesMutex.Unlock()
+	if fake.ListBundlesStub != nil {
+		return fake.ListBundlesStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.listBundlesReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeInterface) ListBundlesCallCount() int {
+	fake.listBundlesMutex.RLock()
+	defer fake.listBundlesMutex.RUnlock()
+	return len(fake.listBundlesArgsForCall)
+}
+
+func (fake *FakeInterface) ListBundlesCalls(stub func(context.Context) (*client.BundleIterator, error)) {
+	fake.listBundlesMutex.Lock()
+	defer fake.listBundlesMutex.Unlock()
+	fake.ListBundlesStub = stub
+}
+
+func (fake *FakeInterface) ListBundlesArgsForCall(i int) context.Context {
+	fake.listBundlesMutex.RLock()
+	defer fake.listBundlesMutex.RUnlock()
+	argsForCall := fake.listBundlesArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeInterface) ListBundlesReturns(result1 *client.BundleIterator, result2 error) {
+	fake.listBundlesMutex.Lock()
+	defer fake.listBundlesMutex.Unlock()
+	fake.ListBundlesStub = nil
+	fake.listBundlesReturns = struct {
+		result1 *client.BundleIterator
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeInterface) ListBundlesReturnsOnCall(i int, result1 *client.BundleIterator, result2 error) {
+	fake.listBundlesMutex.Lock()
+	defer fake.listBundlesMutex.Unlock()
+	fake.ListBundlesStub = nil
+	if fake.listBundlesReturnsOnCall == nil {
+		fake.listBundlesReturnsOnCall = make(map[int]struct {
+			result1 *client.BundleIterator
+			result2 error
+		})
+	}
+	fake.listBundlesReturnsOnCall[i] = struct {
+		result1 *client.BundleIterator
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeInterface) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -496,6 +572,8 @@ func (fake *FakeInterface) Invocations() map[string][][]interface{} {
 	defer fake.getReplacementBundleInPackageChannelMutex.RUnlock()
 	fake.healthCheckMutex.RLock()
 	defer fake.healthCheckMutex.RUnlock()
+	fake.listBundlesMutex.RLock()
+	defer fake.listBundlesMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

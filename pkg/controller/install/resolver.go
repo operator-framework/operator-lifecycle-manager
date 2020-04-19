@@ -1,6 +1,6 @@
-//go:generate counterfeiter -o ../../fakes/fake_strategy.go resolver.go Strategy
-//go:generate counterfeiter -o ../../fakes/fake_strategy_installer.go resolver.go StrategyInstaller
-//go:generate counterfeiter -o ../../fakes/fake_strategy_resolver.go resolver.go StrategyResolverInterface
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/fake_strategy.go resolver.go Strategy
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/fake_strategy_installer.go resolver.go StrategyInstaller
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/fake_strategy_resolver.go resolver.go StrategyResolverInterface
 package install
 
 import (

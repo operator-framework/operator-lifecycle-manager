@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
@@ -72,7 +73,7 @@ func (b *builder) NewCRDStep(manifest string, client clientset.Interface, status
 		case v1alpha1.StepStatusCreated:
 			return v1alpha1.StepStatusCreated, nil
 		case v1alpha1.StepStatusWaitingForAPI:
-			crd, err := client.ApiextensionsV1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
+			crd, err := client.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
 				if k8serrors.IsNotFound(err) {
 					return v1alpha1.StepStatusNotPresent, nil
@@ -102,9 +103,9 @@ func (b *builder) NewCRDStep(manifest string, client clientset.Interface, status
 				return v1alpha1.StepStatusUnknown, err
 			}
 
-			_, err = client.ApiextensionsV1().CustomResourceDefinitions().Create(crd)
+			_, err = client.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(err) {
-				currentCRD, _ := client.ApiextensionsV1().CustomResourceDefinitions().Get(crd.GetName(), metav1.GetOptions{})
+				currentCRD, _ := client.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
 				// Compare 2 CRDs to see if it needs to be updatetd
 				if crdlib.NotEqual(currentCRD, crd) {
 					// Verify CRD ownership, only attempt to update if
@@ -133,14 +134,14 @@ func (b *builder) NewCRDStep(manifest string, client clientset.Interface, status
 					storeVersions := removeDeprecatedV1StoredVersions(currentCRD, crd)
 					if storeVersions != nil {
 						currentCRD.Status.StoredVersions = storeVersions
-						resultCRD, err := client.ApiextensionsV1().CustomResourceDefinitions().UpdateStatus(currentCRD)
+						resultCRD, err := client.ApiextensionsV1().CustomResourceDefinitions().UpdateStatus(context.TODO(), currentCRD, metav1.UpdateOptions{})
 						if err != nil {
 							return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD's status: %s", name)
 						}
 						crd.SetResourceVersion(resultCRD.GetResourceVersion())
 					}
 					// Update CRD to new version
-					_, err = client.ApiextensionsV1().CustomResourceDefinitions().Update(crd)
+					_, err = client.ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
 					if err != nil {
 						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD: %s", name)
 					}

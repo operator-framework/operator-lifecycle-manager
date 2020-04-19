@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -71,7 +72,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 	webhooks := []admissionregistrationv1.MutatingWebhook{
 		desc.GetMutatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
 	}
-	existingHook, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(desc.Name, metav1.GetOptions{})
+	existingHook, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.TODO(), desc.Name, metav1.GetOptions{})
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain
 		if ownerutil.Adoptable(i.owner, existingHook.GetOwnerReferences()) {
@@ -82,7 +83,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 		existingHook.Webhooks = webhooks
 
 		// Attempt an update
-		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Update(existingHook); err != nil {
+		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Update(context.TODO(), existingHook, metav1.UpdateOptions{}); err != nil {
 			log.Warnf("could not update MutatingWebhookConfiguration %s", existingHook.GetName())
 			return err
 		}
@@ -95,7 +96,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 		}
 		// Add an owner
 		ownerutil.AddNonBlockingOwner(&hook, i.owner)
-		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Create(&hook); err != nil {
+		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.TODO(), &hook, metav1.CreateOptions{}); err != nil {
 			log.Errorf("Webhooks: Error creating mutating MutatingVebhookConfiguration: %v", err)
 			return err
 		}
@@ -110,7 +111,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 	webhooks := []admissionregistrationv1.ValidatingWebhook{
 		desc.GetValidatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
 	}
-	existingHook, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(desc.Name, metav1.GetOptions{})
+	existingHook, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), desc.Name, metav1.GetOptions{})
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain
 		if ownerutil.Adoptable(i.owner, existingHook.GetOwnerReferences()) {
@@ -121,7 +122,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 		existingHook.Webhooks = webhooks
 
 		// Attempt an update
-		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(existingHook); err != nil {
+		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(context.TODO(), existingHook, metav1.UpdateOptions{}); err != nil {
 			log.Warnf("could not update ValidatingWebhookConfiguration %s", existingHook.GetName())
 			return err
 		}
@@ -136,7 +137,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 
 		// Add an owner
 		ownerutil.AddNonBlockingOwner(&hook, i.owner)
-		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(&hook); err != nil {
+		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.TODO(), &hook, metav1.CreateOptions{}); err != nil {
 			log.Errorf("Webhooks: Error create creating ValidationVebhookConfiguration: %v", err)
 			return err
 		}

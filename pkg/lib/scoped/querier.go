@@ -1,13 +1,15 @@
 package scoped
 
 import (
+	"context"
 	"fmt"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 )
 
 // NewUserDefinedServiceAccountQuerier returns a new instance of UserDefinedServiceAccountQuerier.
@@ -47,7 +49,7 @@ func (f *UserDefinedServiceAccountQuerier) NamespaceQuerier(namespace string) Se
 // - If more than one operator group are managing this namespace then an error is thrown.
 func QueryServiceAccountFromNamespace(logger *logrus.Entry, crclient versioned.Interface, namespace string) (reference *corev1.ObjectReference, err error) {
 	// TODO: use a lister instead of a noncached client here.
-	list, err := crclient.OperatorsV1().OperatorGroups(namespace).List(metav1.ListOptions{})
+	list, err := crclient.OperatorsV1().OperatorGroups(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return
 	}

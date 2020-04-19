@@ -1,8 +1,9 @@
-//go:generate counterfeiter -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
-//go:generate counterfeiter -o ../../../fakes/fake_resolver.go . Resolver
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../../fakes/fake_resolver.go . Resolver
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -188,7 +189,7 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoToSubscriptions(subs []*v1alpha1.S
 }
 
 func (r *OperatorsV1alpha1Resolver) listSubscriptions(namespace string) (subs []*v1alpha1.Subscription, err error) {
-	list, err := r.client.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+	list, err := r.client.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return
 	}

@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -898,7 +899,7 @@ var _ = Describe("CSV", func() {
 		version := "v1alpha1"
 		mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
 		mockKinds := []string{"fez", "fedora"}
-		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{mockGroupVersionKind{depName, mockGroupVersion, mockKinds, 5443}})
+		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSV for the package-server
@@ -961,7 +962,7 @@ var _ = Describe("CSV", func() {
 		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			watcher, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch(metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
+			watcher, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch(context.TODO(), metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
 			require.NoError(GinkgoT(), err)
 
 			deleted := make(chan struct{})
@@ -1029,7 +1030,7 @@ var _ = Describe("CSV", func() {
 		now := metav1.Now()
 		fetchedCSV.Status.CertsLastUpdated = &now
 		fetchedCSV.Status.CertsRotateAt = &now
-		fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
+		fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
@@ -1087,7 +1088,7 @@ var _ = Describe("CSV", func() {
 		version := "v1alpha1"
 		mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
 		mockKinds := []string{"fedora"}
-		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{mockGroupVersionKind{depName, mockGroupVersion, mockKinds, 5443}})
+		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSVs for the hat-server
@@ -1289,15 +1290,15 @@ var _ = Describe("CSV", func() {
 		secondNamespaceName := genName(testNamespace + "-")
 		matchingLabel := map[string]string{"inGroup": secondNamespaceName}
 
-		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   secondNamespaceName,
 				Labels: matchingLabel,
 			},
-		})
+		}, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(secondNamespaceName, &metav1.DeleteOptions{})
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), secondNamespaceName, metav1.DeleteOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
@@ -1313,10 +1314,10 @@ var _ = Describe("CSV", func() {
 				},
 			},
 		}
-		_, err = crc.OperatorsV1().OperatorGroups(secondNamespaceName).Create(&operatorGroup)
+		_, err = crc.OperatorsV1().OperatorGroups(secondNamespaceName).Create(context.TODO(), &operatorGroup, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			err = crc.OperatorsV1().OperatorGroups(secondNamespaceName).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
+			err = crc.OperatorsV1().OperatorGroups(secondNamespaceName).Delete(context.TODO(), operatorGroup.Name, metav1.DeleteOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
@@ -1325,7 +1326,7 @@ var _ = Describe("CSV", func() {
 		}
 		GinkgoT().Log("Waiting on new operator group to have correct status")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-			fetched, fetchErr := crc.OperatorsV1().OperatorGroups(secondNamespaceName).Get(operatorGroup.Name, metav1.GetOptions{})
+			fetched, fetchErr := crc.OperatorsV1().OperatorGroups(secondNamespaceName).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
 			if fetchErr != nil {
 				return false, fetchErr
 			}
@@ -1342,7 +1343,7 @@ var _ = Describe("CSV", func() {
 		version := "v1alpha1"
 		mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
 		mockKinds := []string{"fedora"}
-		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{mockGroupVersionKind{depName, mockGroupVersion, mockKinds, 5443}})
+		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSVs for the hat-server
@@ -1505,7 +1506,7 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		watcher, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch(metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
+		watcher, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch(context.TODO(), metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
 		require.NoError(GinkgoT(), err)
 
 		deleted := make(chan struct{})
@@ -2228,7 +2229,7 @@ var _ = Describe("CSV", func() {
 		fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
 
 		// Update CSV directly
-		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(fetchedCSV)
+		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// wait for deployment spec to be updated
@@ -2668,11 +2669,11 @@ var _ = Describe("CSV", func() {
 		fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
 
 		// Update the current csv with the new csv
-		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(fetchedCSV)
+		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Wait for new deployment to exist
-		err = waitForDeployment(GinkgoT(), c, strategyNew.DeploymentSpecs[0].Name)
+		err = waitForDeployment(c, strategyNew.DeploymentSpecs[0].Name)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for updated CSV to succeed
@@ -2863,7 +2864,7 @@ var _ = Describe("CSV", func() {
 		}
 
 		// Get events from test namespace for CSV
-		eventsList, err := c.KubernetesInterface().CoreV1().Events(testNamespace).List(listOptions)
+		eventsList, err := c.KubernetesInterface().CoreV1().Events(testNamespace).List(context.TODO(), listOptions)
 		require.NoError(GinkgoT(), err)
 		latestEvent := findLastEvent(eventsList)
 		require.Equal(GinkgoT(), string(latestEvent.Reason), "InstallSucceeded")
@@ -2888,7 +2889,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Check event
-		eventsList, err = c.KubernetesInterface().CoreV1().Events(testNamespace).List(listOptions)
+		eventsList, err = c.KubernetesInterface().CoreV1().Events(testNamespace).List(context.TODO(), listOptions)
 		require.NoError(GinkgoT(), err)
 		latestEvent = findLastEvent(eventsList)
 		require.Equal(GinkgoT(), string(latestEvent.Reason), "RequirementsNotMet")
@@ -2902,7 +2903,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Check event
-		eventsList, err = c.KubernetesInterface().CoreV1().Events(testNamespace).List(listOptions)
+		eventsList, err = c.KubernetesInterface().CoreV1().Events(testNamespace).List(context.TODO(), listOptions)
 		require.NoError(GinkgoT(), err)
 		latestEvent = findLastEvent(eventsList)
 		require.Equal(GinkgoT(), string(latestEvent.Reason), "InstallSucceeded")
@@ -3034,7 +3035,7 @@ var _ = Describe("CSV", func() {
 		version := "v1alpha1"
 		mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
 		mockKinds := []string{"fedora"}
-		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{mockGroupVersionKind{depName, mockGroupVersion, mockKinds, 5443}})
+		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSVs for the hat-server
@@ -3094,7 +3095,7 @@ var _ = Describe("CSV", func() {
 		csv.SetName("csv-hat-1")
 		csv.SetNamespace(testNamespace)
 
-		createLegacyAPIResources(GinkgoT(), &csv, owned[0])
+		createLegacyAPIResources(&csv, owned[0])
 
 		// Create the APIService CSV
 		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
@@ -3104,7 +3105,7 @@ var _ = Describe("CSV", func() {
 		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		checkLegacyAPIResources(GinkgoT(), owned[0], true)
+		checkLegacyAPIResources(owned[0], true)
 	})
 
 	It("API service resource not migrated if not adoptable", func() {
@@ -3118,7 +3119,7 @@ var _ = Describe("CSV", func() {
 		version := "v1alpha1"
 		mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
 		mockKinds := []string{"fedora"}
-		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{mockGroupVersionKind{depName, mockGroupVersion, mockKinds, 5443}})
+		depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSVs for the hat-server
@@ -3178,7 +3179,7 @@ var _ = Describe("CSV", func() {
 		csv.SetName("csv-hat-1")
 		csv.SetNamespace(testNamespace)
 
-		createLegacyAPIResources(GinkgoT(), nil, owned[0])
+		createLegacyAPIResources( nil, owned[0])
 
 		// Create the APIService CSV
 		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
@@ -3188,10 +3189,10 @@ var _ = Describe("CSV", func() {
 		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		checkLegacyAPIResources(GinkgoT(), owned[0], false)
+		checkLegacyAPIResources(owned[0], false)
 
 		// Cleanup the resources created for this test that were not cleaned up.
-		deleteLegacyAPIResources(GinkgoT(), owned[0])
+		deleteLegacyAPIResources(owned[0])
 	})
 
 	It("multiple API services on a single pod", func() {
@@ -3217,13 +3218,13 @@ var _ = Describe("CSV", func() {
 
 		// Create the deployment spec with the two APIServices.
 		mockGroupVersionKinds := []mockGroupVersionKind{
-			mockGroupVersionKind{
+			{
 				depName,
 				apiService1GroupVersion,
 				apiService1Kinds,
 				5443,
 			},
-			mockGroupVersionKind{
+			{
 				depName,
 				apiService2GroupVersion,
 				apiService2Kinds,
@@ -3244,7 +3245,7 @@ var _ = Describe("CSV", func() {
 
 		// Update the owned APIServices two include the two APIServices.
 		owned := []v1alpha1.APIServiceDescription{
-			v1alpha1.APIServiceDescription{
+			{
 				Name:           apiService1Name,
 				Group:          apiService1Group,
 				Version:        version,
@@ -3254,7 +3255,7 @@ var _ = Describe("CSV", func() {
 				DisplayName:    apiService1Kinds[0],
 				Description:    fmt.Sprintf("A %s", apiService1Kinds[0]),
 			},
-			v1alpha1.APIServiceDescription{
+			{
 				Name:           apiService2Name,
 				Group:          apiService2Group,
 				Version:        version,
@@ -3326,7 +3327,7 @@ var _ = Describe("CSV", func() {
 		defer nsCleanupFunc()
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{}, false)
-		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		depName := genName("dep-")
 
@@ -3383,7 +3384,7 @@ var _ = Describe("CSV", func() {
 		_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhook.Name, metav1.GetOptions{})
+		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhook.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		expected := &metav1.LabelSelector{
@@ -3405,7 +3406,7 @@ var _ = Describe("CSV", func() {
 
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{"test-go-"}, false)
-		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		depName := genName("dep-")
 
@@ -3462,7 +3463,7 @@ var _ = Describe("CSV", func() {
 		_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhook.Name, metav1.GetOptions{})
+		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhook.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		expected := &metav1.LabelSelector{
@@ -3489,10 +3490,10 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(namespace)
+		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			err := c.KubernetesInterface().CoreV1().Namespaces().Delete(namespace.GetName(), &metav1.DeleteOptions{})
+			err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), namespace.GetName(), metav1.DeleteOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
@@ -3501,7 +3502,7 @@ var _ = Describe("CSV", func() {
 		}
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, ogSelector, []string{}, false)
-		og, err = crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err = crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		depName := genName("dep-")
 
@@ -3558,7 +3559,7 @@ var _ = Describe("CSV", func() {
 		_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhook.Name, metav1.GetOptions{})
+		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhook.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		require.Equal(GinkgoT(), ogSelector, actualWebhook.Webhooks[0].NamespaceSelector)
@@ -3573,7 +3574,7 @@ var _ = Describe("CSV", func() {
 		defer nsCleanupFunc()
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{namespace.Name}, false)
-		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		depName := genName("dep-")
 
@@ -3651,7 +3652,7 @@ var _ = Describe("CSV", func() {
 		defer nsCleanupFunc()
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{namespace.Name}, false)
-		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		depName := genName("dep-")
 
@@ -3729,7 +3730,7 @@ var _ = Describe("CSV", func() {
 		defer nsCleanupFunc()
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{namespace.Name}, false)
-		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		depName := genName("dep-")
@@ -3808,7 +3809,7 @@ var _ = Describe("CSV", func() {
 		defer nsCleanupFunc()
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{namespace.Name}, false)
-		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		depName := genName("dep-")
 
@@ -3887,7 +3888,7 @@ var _ = Describe("CSV", func() {
 		defer nsCleanupFunc()
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{namespace.Name}, false)
-		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		depName := genName("dep-")
 
@@ -3956,7 +3957,7 @@ var _ = Describe("CSV", func() {
 		_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		_, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhook.Name, metav1.GetOptions{})
+		_, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhook.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		csvUpgrade := v1alpha1.ClusterServiceVersion{
@@ -4022,7 +4023,7 @@ var _ = Describe("CSV", func() {
 		_, err = fetchCSV(GinkgoT(), crc, csvUpgrade.Name, namespace.Name, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		_, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhookUpgrade.Name, metav1.GetOptions{})
+		_, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhookUpgrade.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Make sure old resources are cleaned up.
@@ -4030,7 +4031,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 
 		err = waitForNotFound(GinkgoT(), func() error {
-			_, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhook.Name, metav1.GetOptions{})
+			_, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhook.Name, metav1.GetOptions{})
 			return err
 		})
 		require.NoError(GinkgoT(), err)
@@ -4045,7 +4046,7 @@ var _ = Describe("CSV", func() {
 		defer nsCleanupFunc()
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{"test-go-"}, false)
-		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
+		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		depName := genName("dep-")
 
@@ -4102,13 +4103,13 @@ var _ = Describe("CSV", func() {
 		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhook.Name, metav1.GetOptions{})
+		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhook.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		oldWebhookCABundle := actualWebhook.Webhooks[0].ClientConfig.CABundle
 
 		// Get the deployment
-		dep, err := c.KubernetesInterface().AppsV1().Deployments(namespace.Name).Get(depName, metav1.GetOptions{})
+		dep, err := c.KubernetesInterface().AppsV1().Deployments(namespace.Name).Get(context.TODO(), depName, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err, "error getting expected Deployment")
 
 		//Store the ca sha annotation
@@ -4119,7 +4120,7 @@ var _ = Describe("CSV", func() {
 		now := metav1.Now()
 		fetchedCSV.Status.CertsLastUpdated = &now
 		fetchedCSV.Status.CertsRotateAt = &now
-		fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.Name).UpdateStatus(fetchedCSV)
+		fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.Name).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 		_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
 			// Should create deployment
@@ -4140,7 +4141,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err, "failed to rotate cert")
 
 		// get new webhook
-		actualWebhook, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhook.Name, metav1.GetOptions{})
+		actualWebhook, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhook.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		newWebhookCABundle := actualWebhook.Webhooks[0].ClientConfig.CABundle
@@ -4173,7 +4174,7 @@ func findLastEvent(events *corev1.EventList) (event corev1.Event) {
 
 func buildCSVCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
 	return func() {
-		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(csv.GetName(), &metav1.DeleteOptions{}))
+		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{}))
 		if deleteCRDs {
 			for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
 				buildCRDCleanupFunc(c, crd.Name)()
@@ -4187,7 +4188,7 @@ func buildCSVCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, c
 		}
 
 		require.NoError(t, waitForDelete(func() error {
-			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
+			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), csv.GetName(), metav1.GetOptions{})
 			return err
 		}))
 	}
@@ -4196,7 +4197,7 @@ func buildCSVCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, c
 func createCSV(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs, cleanupAPIServices bool) (cleanupFunc, error) {
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
-	_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(&csv)
+	_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), &csv, metav1.CreateOptions{})
 	require.NoError(t, err)
 	return buildCSVCleanupFunc(t, c, crc, csv, namespace, cleanupCRDs, cleanupAPIServices), nil
 
@@ -4204,13 +4205,13 @@ func createCSV(t GinkgoTInterface, c operatorclient.ClientInterface, crc version
 
 func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) cleanupFunc {
 	return func() {
-		err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crdName, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
+		err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.TODO(), crdName, *metav1.NewDeleteOptions(immediateDeleteGracePeriod))
 		if err != nil {
 			fmt.Println(err)
 		}
 
 		waitForDelete(func() error {
-			_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			return err
 		})
 	}
@@ -4218,13 +4219,13 @@ func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) clean
 
 func buildAPIServiceCleanupFunc(c operatorclient.ClientInterface, apiServiceName string) cleanupFunc {
 	return func() {
-		err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Delete(apiServiceName, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
+		err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Delete(context.TODO(), apiServiceName, *metav1.NewDeleteOptions(immediateDeleteGracePeriod))
 		if err != nil {
 			fmt.Println(err)
 		}
 
 		waitForDelete(func() error {
-			_, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(apiServiceName, metav1.GetOptions{})
+			_, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(context.TODO(), apiServiceName, metav1.GetOptions{})
 			return err
 		})
 	}
@@ -4242,7 +4243,7 @@ func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourc
 	if err := scheme.Convert(&crd, out, nil); err != nil {
 		return nil, err
 	}
-	_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(out)
+	_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -4370,7 +4371,7 @@ func fetchCSV(t GinkgoTInterface, c versioned.Interface, name, namespace string,
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
+		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -4389,7 +4390,7 @@ func awaitCSV(t GinkgoTInterface, c versioned.Interface, namespace, name string,
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
+		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				return false, nil
@@ -4406,7 +4407,7 @@ func awaitCSV(t GinkgoTInterface, c versioned.Interface, namespace, name string,
 	return fetched, err
 }
 
-func waitForDeployment(t GinkgoTInterface, c operatorclient.ClientInterface, name string) error {
+func waitForDeployment(c operatorclient.ClientInterface, name string) error {
 	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		_, err := c.GetDeployment(testNamespace, name)
 		if err != nil {
@@ -4439,7 +4440,7 @@ func waitForCSVToDelete(t GinkgoTInterface, c versioned.Interface, name string) 
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(name, metav1.GetOptions{})
+		fetched, err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
 		}
@@ -4470,7 +4471,7 @@ func waitForNotFound(t GinkgoTInterface, getFunction func() error) error {
 	return err
 }
 
-func deleteLegacyAPIResources(t GinkgoTInterface, desc v1alpha1.APIServiceDescription) {
+func deleteLegacyAPIResources(desc v1alpha1.APIServiceDescription) {
 	c := newKubeClient(GinkgoT())
 
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
@@ -4494,7 +4495,7 @@ func deleteLegacyAPIResources(t GinkgoTInterface, desc v1alpha1.APIServiceDescri
 	require.NoError(GinkgoT(), err)
 }
 
-func createLegacyAPIResources(t GinkgoTInterface, csv *v1alpha1.ClusterServiceVersion, desc v1alpha1.APIServiceDescription) {
+func createLegacyAPIResources(csv *v1alpha1.ClusterServiceVersion, desc v1alpha1.APIServiceDescription) {
 	c := newKubeClient(GinkgoT())
 
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
@@ -4508,7 +4509,7 @@ func createLegacyAPIResources(t GinkgoTInterface, csv *v1alpha1.ClusterServiceVe
 		require.NoError(GinkgoT(), err)
 	}
 
-	service.Spec.Ports = []corev1.ServicePort{corev1.ServicePort{Port: 433, TargetPort: intstr.FromInt(443)}}
+	service.Spec.Ports = []corev1.ServicePort{{Port: 433, TargetPort: intstr.FromInt(443)}}
 	_, err := c.CreateService(&service)
 	require.NoError(GinkgoT(), err)
 
@@ -4581,7 +4582,7 @@ func createLegacyAPIResources(t GinkgoTInterface, csv *v1alpha1.ClusterServiceVe
 	require.NoError(GinkgoT(), err)
 }
 
-func checkLegacyAPIResources(t GinkgoTInterface, desc v1alpha1.APIServiceDescription, expectedIsNotFound bool) {
+func checkLegacyAPIResources(desc v1alpha1.APIServiceDescription, expectedIsNotFound bool) {
 	c := newKubeClient(GinkgoT())
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 

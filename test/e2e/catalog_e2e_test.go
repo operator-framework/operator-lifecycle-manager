@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -22,7 +23,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -96,7 +96,7 @@ var _ = Describe("Catalog", func() {
 
 		// Determine which namespace is global. Should be `openshift-marketplace` for OCP 4.2+.
 		// Locally it is `olm`
-		namespaces, _ := c.KubernetesInterface().CoreV1().Namespaces().List(metav1.ListOptions{})
+		namespaces, _ := c.KubernetesInterface().CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		for _, ns := range namespaces.Items {
 			if ns.GetName() == "openshift-marketplace" {
 				globalNS = "openshift-marketplace"
@@ -161,7 +161,7 @@ var _ = Describe("Catalog", func() {
 		require.NoError(GinkgoT(), err)
 
 		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(fetchedInstallPlan)
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), fetchedInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		_, err = awaitCSV(GinkgoT(), crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
@@ -250,11 +250,11 @@ var _ = Describe("Catalog", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Get initial configmap
-		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Check pod created
-		initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+		initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), 1, len(initialPods.Items))
 
@@ -262,7 +262,7 @@ var _ = Describe("Catalog", func() {
 		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
 
 		// Get updated configmap
-		updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+		updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		fetchedUpdatedCatalog, err := fetchCatalogSource(GinkgoT(), crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
@@ -305,7 +305,7 @@ var _ = Describe("Catalog", func() {
 		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 
-		ipList, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+		ipList, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
 		ipCount := 0
 		for _, ip := range ipList.Items {
 			if ownerutil.IsOwnedBy(&ip, subscription) {
@@ -369,11 +369,11 @@ var _ = Describe("Catalog", func() {
 		fetchedInitialCatalog, err := fetchCatalogSource(GinkgoT(), crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 		// Get initial configmap
-		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Check pod created
-		initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+		initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), 1, len(initialPods.Items))
 
@@ -475,9 +475,9 @@ var _ = Describe("Catalog", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Replicate catalog pods with no OwnerReferences
-		mainCopy := replicateCatalogPod(GinkgoT(), c, crc, mainSource)
+		mainCopy := replicateCatalogPod(GinkgoT(), c, mainSource)
 		mainCopy = awaitPod(GinkgoT(), c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
-		replacementCopy := replicateCatalogPod(GinkgoT(), c, crc, replacementSource)
+		replacementCopy := replicateCatalogPod(GinkgoT(), c, replacementSource)
 		replacementCopy = awaitPod(GinkgoT(), c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
 
 		addressSourceName := genName("address-catalog-")
@@ -498,17 +498,17 @@ var _ = Describe("Catalog", func() {
 			},
 		}
 
-		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(addressSource)
+		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.TODO(), addressSource, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(addressSourceName, &metav1.DeleteOptions{})
+			err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), addressSourceName, metav1.DeleteOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
 		// Delete CatalogSources
-		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(mainSourceName, &metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), mainSourceName, metav1.DeleteOptions{})
 		require.NoError(GinkgoT(), err)
-		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(replacementSourceName, &metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), replacementSourceName, metav1.DeleteOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Create Subscription
@@ -523,10 +523,10 @@ var _ = Describe("Catalog", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Update the catalog's address to point at the other registry pod's cluster ip
-		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(addressSourceName, metav1.GetOptions{})
+		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(context.TODO(), addressSourceName, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 		addressSource.Spec.Address = net.JoinHostPort(replacementCopy.Status.PodIP, "50051")
-		_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(addressSource)
+		_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(context.TODO(), addressSource, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the replacement CSV to be installed
@@ -595,7 +595,7 @@ var _ = Describe("Catalog", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Delete the registry pod
-		err = c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(name, &metav1.DeleteOptions{})
+		err = c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Wait for a new registry pod to be created
@@ -646,10 +646,10 @@ var _ = Describe("Catalog", func() {
 		}
 
 		crc := newCRClient(GinkgoT())
-		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(source)
+		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(source.GetName(), &metav1.DeleteOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
 		}()
 
 		// Wait for a new registry pod to be created
@@ -680,7 +680,7 @@ var _ = Describe("Catalog", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Delete the registry pod
-		require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(name, &metav1.DeleteOptions{}))
+		require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(context.TODO(), name, metav1.DeleteOptions{}))
 
 		// Wait for a new registry pod to be created
 		notUID := func(pods *corev1.PodList) bool {
@@ -806,10 +806,10 @@ var _ = Describe("Catalog", func() {
 			},
 		}
 
-		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(source)
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(source.GetName(), &metav1.DeleteOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
 		}()
 
 		// wait for new catalog source pod to be created
@@ -870,11 +870,11 @@ var _ = Describe("Catalog", func() {
 		}
 
 		// update catalog source with annotation (to kick resync)
-		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(source.GetName(), metav1.GetOptions{})
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err, "error awaiting registry pod")
 		source.Annotations = make(map[string]string)
 		source.Annotations["testKey"] = "testValue"
-		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(source)
+		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err, "error awaiting registry pod")
 
 		time.Sleep(11 * time.Second)
@@ -894,10 +894,10 @@ var _ = Describe("Catalog", func() {
 				}
 			}
 			// update catalog source with annotation (to kick resync)
-			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(source.GetName(), metav1.GetOptions{})
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
 			require.NoError(GinkgoT(), err, "error getting catalog source pod")
 			source.Annotations["testKey"] = genName("newValue")
-			_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(source)
+			_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
 			require.NoError(GinkgoT(), err, "error updating catalog source pod with test annotation")
 			return false
 		}
@@ -908,10 +908,10 @@ var _ = Describe("Catalog", func() {
 		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of registry pods found")
 
 		// update catalog source with annotation (to kick resync)
-		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(source.GetName(), metav1.GetOptions{})
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err, "error awaiting registry pod")
 		source.Annotations["testKey"] = "newValue"
-		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(source)
+		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err, "error awaiting registry pod")
 
 		subChecker := func(sub *v1alpha1.Subscription) bool {
@@ -993,8 +993,8 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	return err
 }
 
-func replicateCatalogPod(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, catalog *v1alpha1.CatalogSource) *corev1.Pod {
-	initialPods, err := c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).List(metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalog.GetName()})
+func replicateCatalogPod(t GinkgoTInterface, c operatorclient.ClientInterface, catalog *v1alpha1.CatalogSource) *corev1.Pod {
+	initialPods, err := c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalog.GetName()})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(initialPods.Items))
 
@@ -1007,7 +1007,7 @@ func replicateCatalogPod(t GinkgoTInterface, c operatorclient.ClientInterface, c
 		Spec: pod.Spec,
 	}
 
-	copied, err = c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).Create(copied)
+	copied, err = c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).Create(context.TODO(), copied, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	return copied

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
@@ -286,7 +287,7 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	config.configClient = configfake.NewSimpleClientset()
 
 	for _, ns := range config.namespaces {
-		_, err := config.operatorClient.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+		_, err := config.operatorClient.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}, metav1.CreateOptions{})
 		// Ignore already-exists errors
 		if err != nil && !k8serrors.IsAlreadyExists(err) {
 			return nil, err
@@ -3006,7 +3007,7 @@ func TestTransitionCSV(t *testing.T) {
 
 			// get csvs in the cluster
 			outCSVMap := map[string]*v1alpha1.ClusterServiceVersion{}
-			outCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{})
+			outCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{})
 			require.NoError(t, err)
 			for _, csv := range outCSVs.Items {
 				outCSVMap[csv.GetName()] = csv.DeepCopy()
@@ -3105,7 +3106,7 @@ func TestUpdates(t *testing.T) {
 		dep.Status.Replicas = 1
 		dep.Status.UpdatedReplicas = 1
 		dep.Status.AvailableReplicas = 1
-		_, err = client.KubernetesInterface().AppsV1().Deployments(namespace).UpdateStatus(dep)
+		_, err = client.KubernetesInterface().AppsV1().Deployments(namespace).UpdateStatus(context.TODO(), dep, metav1.UpdateOptions{})
 		require.NoError(t, err)
 	}
 
@@ -3247,7 +3248,7 @@ func TestUpdates(t *testing.T) {
 			fetchLatestCSVs := func(csvsToSync map[string]*v1alpha1.ClusterServiceVersion, deleted map[string]struct{}) (out map[string]*v1alpha1.ClusterServiceVersion) {
 				out = map[string]*v1alpha1.ClusterServiceVersion{}
 				for name := range csvsToSync {
-					fetched, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
+					fetched, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 					if _, ok := deleted[name]; !ok {
 						require.NoError(t, err)
 						out[name] = fetched
@@ -3282,7 +3283,7 @@ func TestUpdates(t *testing.T) {
 			// Create input CSV set
 			csvsToSync := map[string]*v1alpha1.ClusterServiceVersion{}
 			for _, csv := range tt.in {
-				_, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(csv)
+				_, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), csv, metav1.CreateOptions{})
 				require.NoError(t, err)
 				csvsToSync[csv.GetName()] = csv
 			}
@@ -3313,7 +3314,7 @@ func TestUpdates(t *testing.T) {
 					for other.Status.Phase != phase {
 						fmt.Printf("waiting for %s to be %s\n", name, phase)
 						_ = op.syncClusterServiceVersion(other)
-						other, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
+						other, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 						require.NoError(t, err)
 					}
 					csvsToSync[name] = other
@@ -4116,7 +4117,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				dep.Status.Replicas = 1
 				dep.Status.UpdatedReplicas = 1
 				dep.Status.AvailableReplicas = 1
-				_, err = client.KubernetesInterface().AppsV1().Deployments(tt.initial.operatorGroup.GetNamespace()).UpdateStatus(dep)
+				_, err = client.KubernetesInterface().AppsV1().Deployments(tt.initial.operatorGroup.GetNamespace()).UpdateStatus(context.TODO(), dep, metav1.UpdateOptions{})
 				require.NoError(t, err)
 			}
 
@@ -4145,7 +4146,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			// Sync csvs enough to get them back to succeeded state
 			for i := 0; i < 16; i++ {
-				opGroupCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(metav1.ListOptions{})
+				opGroupCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(context.TODO(), metav1.ListOptions{})
 				require.NoError(t, err)
 
 				for i, obj := range opGroupCSVs.Items {
@@ -4186,7 +4187,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				}
 			}
 
-			operatorGroup, err := op.client.OperatorsV1().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
+			operatorGroup, err := op.client.OperatorsV1().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(context.TODO(), tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			sort.Strings(tt.expectedStatus.Namespaces)
 			sort.Strings(operatorGroup.Status.Namespaces)
@@ -4226,8 +4227,7 @@ func RequireObjectsInCache(t *testing.T, lister operatorlister.OperatorLister, n
 		}
 		if doCompare {
 			if !reflect.DeepEqual(object, fetched) {
-				diff.ObjectDiff(object, fetched)
-				return fmt.Errorf("expected object didn't match %v", object)
+				return fmt.Errorf("expected object didn't match %v: %s", object, cmp.Diff(object, fetched))
 			}
 		}
 	}
@@ -4250,14 +4250,14 @@ func RequireObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInter
 		case *rbacv1.RoleBinding:
 			fetched, err = opClient.GetRoleBinding(namespace, o.GetName())
 		case *v1alpha1.ClusterServiceVersion:
-			fetched, err = client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
+			fetched, err = client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), o.GetName(), metav1.GetOptions{})
 			// This protects against small timing issues in sync tests
 			// We generally don't care about the conditions (state history in this case, unlike many kube resources)
 			// and this will still check that the final state is correct
 			object.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
 			fetched.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
 		case *v1.OperatorGroup:
-			fetched, err = client.OperatorsV1().OperatorGroups(namespace).Get(o.GetName(), metav1.GetOptions{})
+			fetched, err = client.OperatorsV1().OperatorGroups(namespace).Get(context.TODO(), o.GetName(), metav1.GetOptions{})
 		default:
 			require.Failf(t, "couldn't find expected object", "%#v", object)
 		}

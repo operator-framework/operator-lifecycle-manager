@@ -130,6 +130,21 @@ type FakeRegistryClient struct {
 		result1 *api.Package
 		result2 error
 	}
+	ListBundlesStub        func(context.Context, *api.ListBundlesRequest, ...grpc.CallOption) (api.Registry_ListBundlesClient, error)
+	listBundlesMutex       sync.RWMutex
+	listBundlesArgsForCall []struct {
+		arg1 context.Context
+		arg2 *api.ListBundlesRequest
+		arg3 []grpc.CallOption
+	}
+	listBundlesReturns struct {
+		result1 api.Registry_ListBundlesClient
+		result2 error
+	}
+	listBundlesReturnsOnCall map[int]struct {
+		result1 api.Registry_ListBundlesClient
+		result2 error
+	}
 	ListPackagesStub        func(context.Context, *api.ListPackageRequest, ...grpc.CallOption) (api.Registry_ListPackagesClient, error)
 	listPackagesMutex       sync.RWMutex
 	listPackagesArgsForCall []struct {
@@ -669,6 +684,71 @@ func (fake *FakeRegistryClient) GetPackageReturnsOnCall(i int, result1 *api.Pack
 	}{result1, result2}
 }
 
+func (fake *FakeRegistryClient) ListBundles(arg1 context.Context, arg2 *api.ListBundlesRequest, arg3 ...grpc.CallOption) (api.Registry_ListBundlesClient, error) {
+	fake.listBundlesMutex.Lock()
+	ret, specificReturn := fake.listBundlesReturnsOnCall[len(fake.listBundlesArgsForCall)]
+	fake.listBundlesArgsForCall = append(fake.listBundlesArgsForCall, struct {
+		arg1 context.Context
+		arg2 *api.ListBundlesRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("ListBundles", []interface{}{arg1, arg2, arg3})
+	fake.listBundlesMutex.Unlock()
+	if fake.ListBundlesStub != nil {
+		return fake.ListBundlesStub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.listBundlesReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRegistryClient) ListBundlesCallCount() int {
+	fake.listBundlesMutex.RLock()
+	defer fake.listBundlesMutex.RUnlock()
+	return len(fake.listBundlesArgsForCall)
+}
+
+func (fake *FakeRegistryClient) ListBundlesCalls(stub func(context.Context, *api.ListBundlesRequest, ...grpc.CallOption) (api.Registry_ListBundlesClient, error)) {
+	fake.listBundlesMutex.Lock()
+	defer fake.listBundlesMutex.Unlock()
+	fake.ListBundlesStub = stub
+}
+
+func (fake *FakeRegistryClient) ListBundlesArgsForCall(i int) (context.Context, *api.ListBundlesRequest, []grpc.CallOption) {
+	fake.listBundlesMutex.RLock()
+	defer fake.listBundlesMutex.RUnlock()
+	argsForCall := fake.listBundlesArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeRegistryClient) ListBundlesReturns(result1 api.Registry_ListBundlesClient, result2 error) {
+	fake.listBundlesMutex.Lock()
+	defer fake.listBundlesMutex.Unlock()
+	fake.ListBundlesStub = nil
+	fake.listBundlesReturns = struct {
+		result1 api.Registry_ListBundlesClient
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) ListBundlesReturnsOnCall(i int, result1 api.Registry_ListBundlesClient, result2 error) {
+	fake.listBundlesMutex.Lock()
+	defer fake.listBundlesMutex.Unlock()
+	fake.ListBundlesStub = nil
+	if fake.listBundlesReturnsOnCall == nil {
+		fake.listBundlesReturnsOnCall = make(map[int]struct {
+			result1 api.Registry_ListBundlesClient
+			result2 error
+		})
+	}
+	fake.listBundlesReturnsOnCall[i] = struct {
+		result1 api.Registry_ListBundlesClient
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeRegistryClient) ListPackages(arg1 context.Context, arg2 *api.ListPackageRequest, arg3 ...grpc.CallOption) (api.Registry_ListPackagesClient, error) {
 	fake.listPackagesMutex.Lock()
 	ret, specificReturn := fake.listPackagesReturnsOnCall[len(fake.listPackagesArgsForCall)]
@@ -753,6 +833,8 @@ func (fake *FakeRegistryClient) Invocations() map[string][][]interface{} {
 	defer fake.getLatestChannelEntriesThatProvideMutex.RUnlock()
 	fake.getPackageMutex.RLock()
 	defer fake.getPackageMutex.RUnlock()
+	fake.listBundlesMutex.RLock()
+	defer fake.listBundlesMutex.RUnlock()
 	fake.listPackagesMutex.RLock()
 	defer fake.listPackagesMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

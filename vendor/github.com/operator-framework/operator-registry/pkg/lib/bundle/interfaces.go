@@ -23,7 +23,7 @@ type BundleImageValidator interface {
 // NewImageValidator is a constructor that returns an ImageValidator
 func NewImageValidator(containerTool string, logger *logrus.Entry) BundleImageValidator {
 	return imageValidator{
-		imageReader: containertools.NewImageReader(containerTool, logger),
+		imageReader: containertools.NewImageReader(containertools.NewContainerTool(containerTool, containertools.NoneTool), logger),
 		logger:      logger,
 	}
 }

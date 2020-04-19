@@ -19,6 +19,7 @@ limitations under the License.
 package internalversion
 
 import (
+	"context"
 	"time"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
@@ -37,15 +38,15 @@ type OperatorGroupsGetter interface {
 
 // OperatorGroupInterface has methods to work with OperatorGroup resources.
 type OperatorGroupInterface interface {
-	Create(*operators.OperatorGroup) (*operators.OperatorGroup, error)
-	Update(*operators.OperatorGroup) (*operators.OperatorGroup, error)
-	UpdateStatus(*operators.OperatorGroup) (*operators.OperatorGroup, error)
-	Delete(name string, options *v1.DeleteOptions) error
-	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
-	Get(name string, options v1.GetOptions) (*operators.OperatorGroup, error)
-	List(opts v1.ListOptions) (*operators.OperatorGroupList, error)
-	Watch(opts v1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.OperatorGroup, err error)
+	Create(ctx context.Context, operatorGroup *operators.OperatorGroup, opts v1.CreateOptions) (*operators.OperatorGroup, error)
+	Update(ctx context.Context, operatorGroup *operators.OperatorGroup, opts v1.UpdateOptions) (*operators.OperatorGroup, error)
+	UpdateStatus(ctx context.Context, operatorGroup *operators.OperatorGroup, opts v1.UpdateOptions) (*operators.OperatorGroup, error)
+	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*operators.OperatorGroup, error)
+	List(ctx context.Context, opts v1.ListOptions) (*operators.OperatorGroupList, error)
+	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.OperatorGroup, err error)
 	OperatorGroupExpansion
 }
 
@@ -64,20 +65,20 @@ func newOperatorGroups(c *OperatorsClient, namespace string) *operatorGroups {
 }
 
 // Get takes name of the operatorGroup, and returns the corresponding operatorGroup object, and an error if there is any.
-func (c *operatorGroups) Get(name string, options v1.GetOptions) (result *operators.OperatorGroup, err error) {
+func (c *operatorGroups) Get(ctx context.Context, name string, options v1.GetOptions) (result *operators.OperatorGroup, err error) {
 	result = &operators.OperatorGroup{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("operatorgroups").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of OperatorGroups that match those selectors.
-func (c *operatorGroups) List(opts v1.ListOptions) (result *operators.OperatorGroupList, err error) {
+func (c *operatorGroups) List(ctx context.Context, opts v1.ListOptions) (result *operators.OperatorGroupList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -88,13 +89,13 @@ func (c *operatorGroups) List(opts v1.ListOptions) (result *operators.OperatorGr
 		Resource("operatorgroups").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested operatorGroups.
-func (c *operatorGroups) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *operatorGroups) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -105,87 +106,90 @@ func (c *operatorGroups) Watch(opts v1.ListOptions) (watch.Interface, error) {
 		Resource("operatorgroups").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a operatorGroup and creates it.  Returns the server's representation of the operatorGroup, and an error, if there is any.
-func (c *operatorGroups) Create(operatorGroup *operators.OperatorGroup) (result *operators.OperatorGroup, err error) {
+func (c *operatorGroups) Create(ctx context.Context, operatorGroup *operators.OperatorGroup, opts v1.CreateOptions) (result *operators.OperatorGroup, err error) {
 	result = &operators.OperatorGroup{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("operatorgroups").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(operatorGroup).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a operatorGroup and updates it. Returns the server's representation of the operatorGroup, and an error, if there is any.
-func (c *operatorGroups) Update(operatorGroup *operators.OperatorGroup) (result *operators.OperatorGroup, err error) {
+func (c *operatorGroups) Update(ctx context.Context, operatorGroup *operators.OperatorGroup, opts v1.UpdateOptions) (result *operators.OperatorGroup, err error) {
 	result = &operators.OperatorGroup{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("operatorgroups").
 		Name(operatorGroup.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(operatorGroup).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *operatorGroups) UpdateStatus(operatorGroup *operators.OperatorGroup) (result *operators.OperatorGroup, err error) {
+func (c *operatorGroups) UpdateStatus(ctx context.Context, operatorGroup *operators.OperatorGroup, opts v1.UpdateOptions) (result *operators.OperatorGroup, err error) {
 	result = &operators.OperatorGroup{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("operatorgroups").
 		Name(operatorGroup.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(operatorGroup).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the operatorGroup and deletes it. Returns an error if one occurs.
-func (c *operatorGroups) Delete(name string, options *v1.DeleteOptions) error {
+func (c *operatorGroups) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("operatorgroups").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *operatorGroups) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+func (c *operatorGroups) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("operatorgroups").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched operatorGroup.
-func (c *operatorGroups) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.OperatorGroup, err error) {
+func (c *operatorGroups) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.OperatorGroup, err error) {
 	result = &operators.OperatorGroup{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("operatorgroups").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

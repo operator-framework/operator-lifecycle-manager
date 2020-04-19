@@ -1,6 +1,7 @@
 package olm
 
 import (
+	"context"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
@@ -272,7 +273,7 @@ func (a *Operator) getCaBundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, err
 	for _, desc := range csv.Spec.WebhookDefinitions {
 		webhookName := desc.Name
 		if desc.Type == "ValidatingAdmissionWebhook" {
-			webhook, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(webhookName, metav1.GetOptions{})
+			webhook, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhookName, metav1.GetOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
 			}
@@ -280,7 +281,7 @@ func (a *Operator) getCaBundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, err
 				return webhook.Webhooks[0].ClientConfig.CABundle, nil
 			}
 		} else {
-			webhook, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(webhookName, metav1.GetOptions{})
+			webhook, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.TODO(), webhookName, metav1.GetOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
 			}

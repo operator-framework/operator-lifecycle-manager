@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -481,23 +482,23 @@ func TestCleanupOwnerReferences(t *testing.T) {
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.csvs, csvs.Items)
 
-			clusterRoles, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(listOpts)
+			clusterRoles, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.TODO(), listOpts)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.clusterRoles, clusterRoles.Items)
 
-			clusterRoleBindings, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(listOpts)
+			clusterRoleBindings, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.TODO(), listOpts)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.clusterRoleBindings, clusterRoleBindings.Items)
 
-			roles, err := c.KubernetesInterface().RbacV1().Roles(metav1.NamespaceAll).List(listOpts)
+			roles, err := c.KubernetesInterface().RbacV1().Roles(metav1.NamespaceAll).List(context.TODO(), listOpts)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.roles, roles.Items)
 
-			roleBindings, err := c.KubernetesInterface().RbacV1().RoleBindings(metav1.NamespaceAll).List(listOpts)
+			roleBindings, err := c.KubernetesInterface().RbacV1().RoleBindings(metav1.NamespaceAll).List(context.TODO(), listOpts)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.roleBindings, roleBindings.Items)
 
-			apiService, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(listOpts)
+			apiService, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(context.TODO(), listOpts)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.apiServices, apiService.Items)
 		})
@@ -593,7 +594,7 @@ func TestCheckAPIServiceLabels(t *testing.T) {
 			c := operatorclient.NewClient(k8sClient, apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset(tt.fields.apiServices...))
 			require.Equal(t, tt.expected.err, ensureAPIServiceLabels(c.ApiregistrationV1Interface()))
 
-			apiService, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(listOpts)
+			apiService, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(context.TODO(), listOpts)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.apiServices, apiService.Items)
 		})

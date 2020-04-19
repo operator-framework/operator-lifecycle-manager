@@ -416,7 +416,9 @@ func (o *Operator) requeueOwners(obj metav1.Object) {
 
 		if queueSet != nil {
 			logger.WithField("ref", owner).Trace("requeuing owner")
-			queueSet.Requeue(namespace, owner.Name)
+			if err := queueSet.Requeue(namespace, owner.Name); err != nil {
+				logger.Warn(err.Error())
+			}
 		}
 	}
 }
@@ -534,7 +536,7 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 	}
 
 	if wasOwned := ownerutil.EnsureOwner(configMap, in); !wasOwned {
-		configMap, err = o.opClient.KubernetesInterface().CoreV1().ConfigMaps(configMap.GetNamespace()).Update(configMap)
+		configMap, err = o.opClient.KubernetesInterface().CoreV1().ConfigMaps(configMap.GetNamespace()).Update(context.TODO(), configMap, metav1.UpdateOptions{})
 		if err != nil {
 			syncError = fmt.Errorf("unable to write owner onto catalog source configmap - %v", err)
 			out.SetError(v1alpha1.CatalogSourceConfigMapError, syncError)
@@ -716,7 +718,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	}
 
 	updateStatusFunc := func(catsrc *v1alpha1.CatalogSource) error {
-		latest, err := o.client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Get(catsrc.GetName(), metav1.GetOptions{})
+		latest, err := o.client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Get(context.TODO(), catsrc.GetName(), metav1.GetOptions{})
 		if err != nil {
 			logger.Errorf("error getting catalogsource - %v", err)
 			return err
@@ -725,7 +727,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		out := latest.DeepCopy()
 		out.Status = catsrc.Status
 
-		if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
+		if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
 			logger.Errorf("error while setting catalogsource status condition - %v", err)
 			return err
 		}
@@ -744,6 +746,10 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	in.SetError("", nil)
 
 	out, syncError := syncFunc(in, chain)
+
+	if out == nil {
+		return
+	}
 
 	if equalFunc(&catsrc.Status, &out.Status) {
 		return
@@ -902,7 +908,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 		return sub, false, nil
 	}
 
-	ip, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).Get(ipName, metav1.GetOptions{})
+	ip, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).Get(context.TODO(), ipName, metav1.GetOptions{})
 	if err != nil {
 		logger.WithField("installplan", ipName).Warn("unable to get installplan from cache")
 		return nil, false, err
@@ -921,7 +927,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	out.Status.CurrentCSV = out.Spec.StartingCSV
 	out.Status.LastUpdated = o.now()
 
-	updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(out)
+	updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -934,7 +940,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		return sub, false, nil
 	}
 
-	csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV, metav1.GetOptions{})
+	csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(context.TODO(), sub.Status.CurrentCSV, metav1.GetOptions{})
 	out := sub.DeepCopy()
 	if err != nil {
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
@@ -944,9 +950,9 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		if err := querier.Queryable(); err != nil {
 			return nil, false, err
 		}
-		bundle, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
-		if bundle != nil {
-			o.logger.Tracef("replacement %s bundle found for current bundle %s", bundle.CsvName, sub.Status.CurrentCSV)
+		b, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
+		if b != nil {
+			o.logger.Tracef("replacement %s bundle found for current bundle %s", b.CsvName, sub.Status.CurrentCSV)
 			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
 		} else {
 			out.Status.State = v1alpha1.SubscriptionStateAtLatest
@@ -962,7 +968,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	out.Status.LastUpdated = o.now()
 
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
-	updatedSub, err := o.client.OperatorsV1alpha1().Subscriptions(out.GetNamespace()).UpdateStatus(out)
+	updatedSub, err := o.client.OperatorsV1alpha1().Subscriptions(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
 	if err != nil {
 		logger.WithError(err).Info("error updating subscription status")
 		return nil, false, fmt.Errorf("error updating Subscription status: " + err.Error())
@@ -995,13 +1001,13 @@ func (o *Operator) updateSubscriptionStatus(namespace string, gen int, subs []*v
 
 			update := func() error {
 				// Update the status of the latest revision
-				latest, err := o.client.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Get(s.GetName(), getOpts)
+				latest, err := o.client.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Get(context.TODO(), s.GetName(), getOpts)
 				if err != nil {
 					return err
 				}
 
 				latest.Status = s.Status
-				_, err = o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(latest)
+				_, err = o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(context.TODO(), latest, metav1.UpdateOptions{})
 
 				return err
 			}
@@ -1079,7 +1085,7 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 		ownerutil.AddNonBlockingOwner(ip, sub)
 	}
 
-	res, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).Create(ip)
+	res, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).Create(context.TODO(), ip, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1090,7 +1096,7 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 		CatalogSources: catalogSources,
 		BundleLookups:  bundleLookups,
 	}
-	res, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(res)
+	res, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(context.TODO(), res, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1174,7 +1180,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 		if !reflect.DeepEqual(plan.Status, out.Status) {
 			logger.Warnf("status not equal, updating...")
-			if _, err := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(out); err != nil {
+			if _, err := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
 				syncError = fmt.Errorf("failed to update installplan bundle lookups: %v", err)
 			}
 
@@ -1195,23 +1201,23 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	}
 
 	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
-	reference, err := querier()
+	ref, err := querier()
 	if err != nil {
 		syncError = fmt.Errorf("attenuated service account query failed - %v", err)
 		return
 	}
 
-	if reference != nil {
+	if ref != nil {
 		out := plan.DeepCopy()
-		out.Status.AttenuatedServiceAccountRef = reference
+		out.Status.AttenuatedServiceAccountRef = ref
 
 		if !reflect.DeepEqual(plan, out) {
-			if _, updateErr := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(out); err != nil {
+			if _, updateErr := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); updateErr != nil {
 				syncError = fmt.Errorf("failed to attach attenuated ServiceAccount to status - %v", updateErr)
 				return
 			}
 
-			logger.WithField("attenuated-sa", reference.Name).Info("successfully attached attenuated ServiceAccount to status")
+			logger.WithField("attenuated-sa", ref.Name).Info("successfully attached attenuated ServiceAccount to status")
 			return
 		}
 	}
@@ -1241,7 +1247,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	}()
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(outInstallPlan); err != nil {
+	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), outInstallPlan, metav1.UpdateOptions{}); err != nil {
 		logger = logger.WithField("updateError", err.Error())
 		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
@@ -1360,7 +1366,7 @@ func validateV1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiexte
 
 func validateExistingCRs(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, newCRD *apiextensions.CustomResourceDefinition) error {
 	// make dynamic client
-	crList, err := dynamicClient.Resource(gvr).List(metav1.ListOptions{})
+	crList, err := dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("error listing resources in GroupVersionResource %#v: %s", gvr, err)
 	}
@@ -1773,7 +1779,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 // getExistingApiOwners creates a map of CRD names to existing owner CSVs in the given namespace
 func (o *Operator) getExistingApiOwners(namespace string) (map[string][]string, error) {
 	// Get a list of CSVs in the namespace
-	csvList, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{})
+	csvList, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{})
 
 	if err != nil {
 		return nil, err
@@ -1798,7 +1804,7 @@ func (o *Operator) getUpdatedOwnerReferences(refs []metav1.OwnerReference, names
 
 	for i, owner := range refs {
 		if owner.Kind == v1alpha1.ClusterServiceVersionKind {
-			csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(owner.Name, metav1.GetOptions{})
+			csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), owner.Name, metav1.GetOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -1810,7 +1816,7 @@ func (o *Operator) getUpdatedOwnerReferences(refs []metav1.OwnerReference, names
 }
 
 func (o *Operator) listSubscriptions(namespace string) (subs []*v1alpha1.Subscription, err error) {
-	list, err := o.client.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+	list, err := o.client.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return
 	}
@@ -1824,7 +1830,7 @@ func (o *Operator) listSubscriptions(namespace string) (subs []*v1alpha1.Subscri
 }
 
 func (o *Operator) listInstallPlans(namespace string) (ips []*v1alpha1.InstallPlan, err error) {
-	list, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).List(metav1.ListOptions{})
+	list, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return
 	}

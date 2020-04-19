@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -68,7 +69,7 @@ var _ = Describe("Package Manifest", func() {
 		// Wait for package-server to be ready
 		err := wait.Poll(pollInterval, 1*time.Minute, func() (bool, error) {
 			GinkgoT().Logf("Polling package-server...")
-			_, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+			_, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(context.TODO(), metav1.ListOptions{})
 			if err == nil {
 				return true, nil
 			}
@@ -96,7 +97,7 @@ var _ = Describe("Package Manifest", func() {
 		require.Equal(GinkgoT(), "supported", pm.GetLabels()["operatorframework.io/os.linux"])
 
 		// Get a PackageManifestList and ensure it has the correct items
-		pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+		pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(context.TODO(), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err, "could not access package manifests list meta")
 		require.NotNil(GinkgoT(), pmList.ListMeta, "package manifest list metadata empty")
 		require.NotNil(GinkgoT(), pmList.Items)
@@ -134,16 +135,16 @@ var _ = Describe("Package Manifest", func() {
 			"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": "",
 		}
 
-		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(source)
+		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(source.GetName(), &metav1.DeleteOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
 		}()
 
 		// Wait for package-server to be ready
 		err = wait.Poll(pollInterval, 1*time.Minute, func() (bool, error) {
 			GinkgoT().Logf("Polling package-server...")
-			_, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+			_, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(context.TODO(), metav1.ListOptions{})
 			if err == nil {
 				return true, nil
 			}
@@ -183,7 +184,7 @@ func fetchPackageManifest(t GinkgoTInterface, pmc pmversioned.Interface, namespa
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("Polling...")
-		fetched, err = pmc.OperatorsV1().PackageManifests(namespace).Get(name, metav1.GetOptions{})
+		fetched, err = pmc.OperatorsV1().PackageManifests(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil && !errors.IsNotFound(err) {
 			return true, err
 		}

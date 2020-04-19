@@ -3,7 +3,6 @@ package e2e
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -109,7 +108,7 @@ func awaitPods(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, 
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(namespace).List(metav1.ListOptions{
+		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: selector,
 		})
 
@@ -132,7 +131,7 @@ func awaitPodsWithInterval(t GinkgoTInterface, c operatorclient.ClientInterface,
 	var err error
 
 	err = wait.Poll(interval, duration, func() (bool, error) {
-		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(namespace).List(metav1.ListOptions{
+		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: selector,
 		})
 
@@ -211,7 +210,7 @@ func podReady(pod *corev1.Pod) bool {
 func awaitPod(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, name string, checkPod podCheckFunc) *corev1.Pod {
 	var pod *corev1.Pod
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		p, err := c.KubernetesInterface().CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+		p, err := c.KubernetesInterface().CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -294,7 +293,7 @@ func waitForEmptyList(checkList func() (int, error)) error {
 
 func waitForGVR(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, name, namespace string) error {
 	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(name, metav1.GetOptions{})
+		_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -350,7 +349,7 @@ func fetchCatalogSource(t GinkgoTInterface, crc versioned.Interface, name, names
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Get(name, metav1.GetOptions{})
+		fetched, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil || fetched == nil {
 			fmt.Println(err)
 			return false, err
@@ -382,41 +381,41 @@ func cleanupOLM(t GinkgoTInterface, namespace string) {
 
 	// Cleanup non persistent OLM CRs
 	t.Log("cleaning up any remaining non persistent resources...")
-	deleteOptions := &metav1.DeleteOptions{GracePeriodSeconds: &immediate}
+	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: &immediate}
 	listOptions := metav1.ListOptions{}
-	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector}))
-	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(deleteOptions, listOptions))
-	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(deleteOptions, listOptions))
-	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector}))
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector}))
+	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(context.TODO(), deleteOptions, listOptions))
+	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(context.TODO(), deleteOptions, listOptions))
+	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector}))
 
 	// error: the server does not allow this method on the requested resource
 	// Cleanup non persistent configmaps
-	require.NoError(t, c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{}))
+	require.NoError(t, c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{}))
 
 	var err error
 	err = waitForEmptyList(func() (int, error) {
-		res, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
+		res, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
 		t.Logf("%d %s remaining", len(res.Items), "csvs")
 		return len(res.Items), err
 	})
 	require.NoError(t, err)
 
 	err = waitForEmptyList(func() (int, error) {
-		res, err := crc.OperatorsV1alpha1().InstallPlans(namespace).List(metav1.ListOptions{})
+		res, err := crc.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), metav1.ListOptions{})
 		t.Logf("%d %s remaining", len(res.Items), "installplans")
 		return len(res.Items), err
 	})
 	require.NoError(t, err)
 
 	err = waitForEmptyList(func() (int, error) {
-		res, err := crc.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+		res, err := crc.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
 		t.Logf("%d %s remaining", len(res.Items), "subs")
 		return len(res.Items), err
 	})
 	require.NoError(t, err)
 
 	err = waitForEmptyList(func() (int, error) {
-		res, err := crc.OperatorsV1alpha1().CatalogSources(namespace).List(metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector})
+		res, err := crc.OperatorsV1alpha1().CatalogSources(namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector})
 		t.Logf("%d %s remaining", len(res.Items), "catalogs")
 		return len(res.Items), err
 	})
@@ -426,21 +425,21 @@ func cleanupOLM(t GinkgoTInterface, namespace string) {
 func buildCatalogSourceCleanupFunc(t GinkgoTInterface, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
 	return func() {
 		t.Logf("Deleting catalog source %s...", catalogSource.GetName())
-		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(catalogSource.GetName(), &metav1.DeleteOptions{}))
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{}))
 	}
 }
 
 func buildConfigMapCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string, configMap *corev1.ConfigMap) cleanupFunc {
 	return func() {
 		t.Logf("Deleting config map %s...", configMap.GetName())
-		require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(configMap.GetName(), &metav1.DeleteOptions{}))
+		require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(context.TODO(), configMap.GetName(), metav1.DeleteOptions{}))
 	}
 }
 
 func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string, serviceAccount *corev1.ServiceAccount) cleanupFunc {
 	return func() {
 		t.Logf("Deleting service account %s...", serviceAccount.GetName())
-		require.NoError(t, c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(serviceAccount.GetName(), &metav1.DeleteOptions{}))
+		require.NoError(t, c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccount.GetName(), metav1.DeleteOptions{}))
 	}
 }
 
@@ -465,7 +464,7 @@ func createInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInte
 	catalogSource.SetNamespace(namespace)
 
 	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(catalogSource)
+	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
 	if err != nil && !errors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
@@ -517,7 +516,7 @@ func createConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientIn
 		catalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 	}
 
-	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(catalogConfigMap)
+	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), catalogConfigMap, metav1.CreateOptions{})
 	if err != nil && !errors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
@@ -526,14 +525,12 @@ func createConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientIn
 
 func serializeCRD(t GinkgoTInterface, crd apiextensions.CustomResourceDefinition) string {
 	scheme := runtime.NewScheme()
-	extScheme.AddToScheme(scheme)
-	k8sscheme.AddToScheme(scheme)
-	err := v1beta1.AddToScheme(scheme)
-	require.NoError(t, err)
+	require.NoError(t, extScheme.AddToScheme(scheme))
+	require.NoError(t, k8sscheme.AddToScheme(scheme))
+	require.NoError(t, v1beta1.AddToScheme(scheme))
 
 	out := &v1beta1.CustomResourceDefinition{}
-	err = scheme.Convert(&crd, out, nil)
-	require.NoError(t, err)
+	require.NoError(t, scheme.Convert(&crd, out, nil))
 	out.TypeMeta = metav1.TypeMeta{
 		Kind:       "CustomResourceDefinition",
 		APIVersion: "apiextensions.k8s.io/v1beta1",
@@ -544,17 +541,8 @@ func serializeCRD(t GinkgoTInterface, crd apiextensions.CustomResourceDefinition
 
 	// create an object manifest
 	var manifest bytes.Buffer
-	err = serializer.Encode(out, &manifest)
-	require.NoError(t, err)
+	require.NoError(t, serializer.Encode(out, &manifest))
 	return manifest.String()
-}
-
-func serializeObject(obj interface{}) string {
-	bytes, err := json.Marshal(obj)
-	if err != nil {
-		return ""
-	}
-	return string(bytes)
 }
 
 func createCR(c operatorclient.ClientInterface, item *unstructured.Unstructured, apiGroup, version, namespace, resourceKind, resourceName string) (cleanupFunc, error) {

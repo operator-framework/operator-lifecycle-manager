@@ -650,11 +650,11 @@ func TestExecutePlan(t *testing.T) {
 				case *corev1.ConfigMap:
 					fetched, err = op.opClient.GetConfigMap(namespace, o.GetName())
 				case *apiextensionsv1beta1.CustomResourceDefinition:
-					fetched, err = op.opClient.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(o.GetName(), getOpts)
+					fetched, err = op.opClient.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), o.GetName(), getOpts)
 				case *apiextensionsv1.CustomResourceDefinition:
-					fetched, err = op.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(o.GetName(), getOpts)
+					fetched, err = op.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), o.GetName(), getOpts)
 				case *v1alpha1.ClusterServiceVersion:
-					fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), getOpts)
+					fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), o.GetName(), getOpts)
 				case *unstructured.Unstructured:
 					// Get the resource from the GVK
 					gvk := o.GroupVersionKind()
@@ -669,11 +669,11 @@ func TestExecutePlan(t *testing.T) {
 					}
 
 					if r.Namespaced {
-						fetched, err = op.dynamicClient.Resource(gvr).Namespace(namespace).Get(o.GetName(), getOpts)
+						fetched, err = op.dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), o.GetName(), getOpts)
 						break
 					}
 
-					fetched, err = op.dynamicClient.Resource(gvr).Get(o.GetName(), getOpts)
+					fetched, err = op.dynamicClient.Resource(gvr).Get(context.TODO(), o.GetName(), getOpts)
 				default:
 					require.Failf(t, "couldn't find expected object", "%#v", obj)
 				}
@@ -1043,7 +1043,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			}
 
 			// Get updated catalog and check status
-			updated, err := op.client.OperatorsV1alpha1().CatalogSources(tt.catalogSource.GetNamespace()).Get(tt.catalogSource.GetName(), metav1.GetOptions{})
+			updated, err := op.client.OperatorsV1alpha1().CatalogSources(tt.catalogSource.GetNamespace()).Get(context.TODO(), tt.catalogSource.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.NotEmpty(t, updated)
 
@@ -1052,7 +1052,7 @@ func TestSyncCatalogSources(t *testing.T) {
 				require.Equal(t, *tt.expectedStatus, updated.Status)
 
 				if tt.catalogSource.Spec.ConfigMap != "" {
-					configMap, err := op.opClient.KubernetesInterface().CoreV1().ConfigMaps(tt.catalogSource.GetNamespace()).Get(tt.catalogSource.Spec.ConfigMap, metav1.GetOptions{})
+					configMap, err := op.opClient.KubernetesInterface().CoreV1().ConfigMaps(tt.catalogSource.GetNamespace()).Get(context.TODO(), tt.catalogSource.Spec.ConfigMap, metav1.GetOptions{})
 					require.NoError(t, err)
 					require.True(t, ownerutil.EnsureOwner(configMap, updated))
 				}
@@ -1062,7 +1062,7 @@ func TestSyncCatalogSources(t *testing.T) {
 				switch o.(type) {
 				case *corev1.Pod:
 					t.Log("verifying pod")
-					pods, err := op.opClient.KubernetesInterface().CoreV1().Pods(tt.catalogSource.Namespace).List(metav1.ListOptions{})
+					pods, err := op.opClient.KubernetesInterface().CoreV1().Pods(tt.catalogSource.Namespace).List(context.TODO(), metav1.ListOptions{})
 					require.NoError(t, err)
 					require.Len(t, pods.Items, 1)
 
@@ -1239,7 +1239,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	dynamicClientFake := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme())
 
 	// Create operator namespace
-	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1249,7 +1249,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	var sharedInformers []cache.SharedIndexInformer
 	for _, ns := range namespaces {
 		if ns != namespace {
-			_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+			_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}, metav1.CreateOptions{})
 			if err != nil {
 				return nil, err
 			}

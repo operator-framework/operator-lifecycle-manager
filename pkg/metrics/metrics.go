@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"context"
+
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -21,7 +23,6 @@ const (
 	PACKAGE_LABEL   = "package"
 )
 
-// TODO(alecmerdler): Can we use this to emit Kubernetes events?
 type MetricsProvider interface {
 	HandleMetrics() error
 }
@@ -52,7 +53,7 @@ func NewMetricsInstallPlan(client versioned.Interface) MetricsProvider {
 }
 
 func (m *metricsInstallPlan) HandleMetrics() error {
-	cList, err := m.client.OperatorsV1alpha1().InstallPlans(metav1.NamespaceAll).List(metav1.ListOptions{})
+	cList, err := m.client.OperatorsV1alpha1().InstallPlans(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -69,7 +70,7 @@ func NewMetricsSubscription(client versioned.Interface) MetricsProvider {
 }
 
 func (m *metricsSubscription) HandleMetrics() error {
-	cList, err := m.client.OperatorsV1alpha1().Subscriptions(metav1.NamespaceAll).List(metav1.ListOptions{})
+	cList, err := m.client.OperatorsV1alpha1().Subscriptions(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -87,7 +88,7 @@ func NewMetricsCatalogSource(client versioned.Interface) MetricsProvider {
 }
 
 func (m *metricsCatalogSource) HandleMetrics() error {
-	cList, err := m.client.OperatorsV1alpha1().CatalogSources(metav1.NamespaceAll).List(metav1.ListOptions{})
+	cList, err := m.client.OperatorsV1alpha1().CatalogSources(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}

@@ -19,6 +19,7 @@ limitations under the License.
 package internalversion
 
 import (
+	"context"
 	"time"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
@@ -37,15 +38,15 @@ type ClusterServiceVersionsGetter interface {
 
 // ClusterServiceVersionInterface has methods to work with ClusterServiceVersion resources.
 type ClusterServiceVersionInterface interface {
-	Create(*operators.ClusterServiceVersion) (*operators.ClusterServiceVersion, error)
-	Update(*operators.ClusterServiceVersion) (*operators.ClusterServiceVersion, error)
-	UpdateStatus(*operators.ClusterServiceVersion) (*operators.ClusterServiceVersion, error)
-	Delete(name string, options *v1.DeleteOptions) error
-	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
-	Get(name string, options v1.GetOptions) (*operators.ClusterServiceVersion, error)
-	List(opts v1.ListOptions) (*operators.ClusterServiceVersionList, error)
-	Watch(opts v1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.ClusterServiceVersion, err error)
+	Create(ctx context.Context, clusterServiceVersion *operators.ClusterServiceVersion, opts v1.CreateOptions) (*operators.ClusterServiceVersion, error)
+	Update(ctx context.Context, clusterServiceVersion *operators.ClusterServiceVersion, opts v1.UpdateOptions) (*operators.ClusterServiceVersion, error)
+	UpdateStatus(ctx context.Context, clusterServiceVersion *operators.ClusterServiceVersion, opts v1.UpdateOptions) (*operators.ClusterServiceVersion, error)
+	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*operators.ClusterServiceVersion, error)
+	List(ctx context.Context, opts v1.ListOptions) (*operators.ClusterServiceVersionList, error)
+	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.ClusterServiceVersion, err error)
 	ClusterServiceVersionExpansion
 }
 
@@ -64,20 +65,20 @@ func newClusterServiceVersions(c *OperatorsClient, namespace string) *clusterSer
 }
 
 // Get takes name of the clusterServiceVersion, and returns the corresponding clusterServiceVersion object, and an error if there is any.
-func (c *clusterServiceVersions) Get(name string, options v1.GetOptions) (result *operators.ClusterServiceVersion, err error) {
+func (c *clusterServiceVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *operators.ClusterServiceVersion, err error) {
 	result = &operators.ClusterServiceVersion{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("clusterserviceversions").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of ClusterServiceVersions that match those selectors.
-func (c *clusterServiceVersions) List(opts v1.ListOptions) (result *operators.ClusterServiceVersionList, err error) {
+func (c *clusterServiceVersions) List(ctx context.Context, opts v1.ListOptions) (result *operators.ClusterServiceVersionList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -88,13 +89,13 @@ func (c *clusterServiceVersions) List(opts v1.ListOptions) (result *operators.Cl
 		Resource("clusterserviceversions").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested clusterServiceVersions.
-func (c *clusterServiceVersions) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *clusterServiceVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -105,87 +106,90 @@ func (c *clusterServiceVersions) Watch(opts v1.ListOptions) (watch.Interface, er
 		Resource("clusterserviceversions").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a clusterServiceVersion and creates it.  Returns the server's representation of the clusterServiceVersion, and an error, if there is any.
-func (c *clusterServiceVersions) Create(clusterServiceVersion *operators.ClusterServiceVersion) (result *operators.ClusterServiceVersion, err error) {
+func (c *clusterServiceVersions) Create(ctx context.Context, clusterServiceVersion *operators.ClusterServiceVersion, opts v1.CreateOptions) (result *operators.ClusterServiceVersion, err error) {
 	result = &operators.ClusterServiceVersion{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("clusterserviceversions").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(clusterServiceVersion).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a clusterServiceVersion and updates it. Returns the server's representation of the clusterServiceVersion, and an error, if there is any.
-func (c *clusterServiceVersions) Update(clusterServiceVersion *operators.ClusterServiceVersion) (result *operators.ClusterServiceVersion, err error) {
+func (c *clusterServiceVersions) Update(ctx context.Context, clusterServiceVersion *operators.ClusterServiceVersion, opts v1.UpdateOptions) (result *operators.ClusterServiceVersion, err error) {
 	result = &operators.ClusterServiceVersion{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("clusterserviceversions").
 		Name(clusterServiceVersion.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(clusterServiceVersion).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *clusterServiceVersions) UpdateStatus(clusterServiceVersion *operators.ClusterServiceVersion) (result *operators.ClusterServiceVersion, err error) {
+func (c *clusterServiceVersions) UpdateStatus(ctx context.Context, clusterServiceVersion *operators.ClusterServiceVersion, opts v1.UpdateOptions) (result *operators.ClusterServiceVersion, err error) {
 	result = &operators.ClusterServiceVersion{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("clusterserviceversions").
 		Name(clusterServiceVersion.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(clusterServiceVersion).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the clusterServiceVersion and deletes it. Returns an error if one occurs.
-func (c *clusterServiceVersions) Delete(name string, options *v1.DeleteOptions) error {
+func (c *clusterServiceVersions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("clusterserviceversions").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *clusterServiceVersions) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+func (c *clusterServiceVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("clusterserviceversions").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched clusterServiceVersion.
-func (c *clusterServiceVersions) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.ClusterServiceVersion, err error) {
+func (c *clusterServiceVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.ClusterServiceVersion, err error) {
 	result = &operators.ClusterServiceVersion{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("clusterserviceversions").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

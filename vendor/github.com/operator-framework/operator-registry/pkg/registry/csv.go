@@ -2,12 +2,24 @@ package registry
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 
 	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/operator-framework/api/pkg/operators"
 )
 
 const (
+	// Name of the CSV's kind
+	clusterServiceVersionKind = "ClusterServiceVersion"
+
 	// Name of the section under which the list of owned and required list of
 	// CRD(s) is specified inside an operator manifest.
 	customResourceDefinitions = "customresourcedefinitions"
@@ -51,6 +63,50 @@ type ClusterServiceVersion struct {
 	// ClusterServiceVersion object. Since we are
 	// not interested in the content of spec we are not parsing it.
 	Spec json.RawMessage `json:"spec"`
+}
+
+// ReadCSVFromBundleDirectory tries to parse every YAML file in the directory and see if they are CSV.
+// According to the strict one CSV rule for every bundle, we return the first file that is considered a CSV type.
+func ReadCSVFromBundleDirectory(bundleDir string) (*ClusterServiceVersion, error) {
+	dirContent, err := ioutil.ReadDir(bundleDir)
+	if err != nil {
+		return nil, fmt.Errorf("error reading bundle directory %s, %v", bundleDir, err)
+	}
+
+	files := []string{}
+	for _, f := range dirContent {
+		if !f.IsDir() {
+			files = append(files, f.Name())
+		}
+	}
+
+	for _, file := range files {
+		yamlReader, err := os.Open(path.Join(bundleDir, file))
+		if err != nil {
+			continue
+		}
+
+		unstructuredCSV := unstructured.Unstructured{}
+		csv := ClusterServiceVersion{}
+
+		decoder := yaml.NewYAMLOrJSONDecoder(yamlReader, 30)
+		if err = decoder.Decode(&unstructuredCSV); err != nil {
+			continue
+		}
+
+		if unstructuredCSV.GetKind() != operators.ClusterServiceVersionKind {
+			continue
+		}
+
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredCSV.UnstructuredContent(),
+			&csv); err != nil {
+			return nil, err
+		}
+
+		return &csv, nil
+	}
+	return nil, fmt.Errorf("no ClusterServiceVersion object found in %s", bundleDir)
+
 }
 
 // GetReplaces returns the name of the older ClusterServiceVersion object that

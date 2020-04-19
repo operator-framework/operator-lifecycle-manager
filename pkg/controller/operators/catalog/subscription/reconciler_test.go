@@ -515,7 +515,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 
 			// Ensure the client's view of the subscription matches the typestate's
 			sub := out.(SubscriptionState).Subscription()
-			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(sub.GetName(), metav1.GetOptions{})
+			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(context.TODO(), sub.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, sub, clusterSub)
 		})
@@ -1608,7 +1608,7 @@ func TestInstallPlanReconcile(t *testing.T) {
 
 			// Ensure the client's view of the subscription matches the typestate's
 			sub := out.(SubscriptionState).Subscription()
-			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(sub.GetName(), metav1.GetOptions{})
+			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(context.TODO(), sub.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, sub, clusterSub)
 		})

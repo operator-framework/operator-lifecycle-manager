@@ -1,6 +1,7 @@
 package operatorstatus
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -82,10 +83,10 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 		}
 
 		// create the cluster operator in an initial state if it does not exist
-		existing, err := configClient.ClusterOperators().Get(name, metav1.GetOptions{})
+		existing, err := configClient.ClusterOperators().Get(context.TODO(), name, metav1.GetOptions{})
 		if k8serrors.IsNotFound(err) {
 			log.Info("Existing operator status not found, creating")
-			created, createErr := configClient.ClusterOperators().Create(&configv1.ClusterOperator{
+			created, createErr := configClient.ClusterOperators().Create(context.TODO(), &configv1.ClusterOperator{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: name,
 				},
@@ -114,7 +115,7 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 						},
 					},
 				},
-			})
+			}, metav1.CreateOptions{})
 			if createErr != nil {
 				log.Errorf("Failed to create cluster operator: %v\n", createErr)
 				return
@@ -215,7 +216,7 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 
 		// update the status
 		if !reflect.DeepEqual(previousStatus, &existing.Status) {
-			if _, err := configClient.ClusterOperators().UpdateStatus(existing); err != nil {
+			if _, err := configClient.ClusterOperators().UpdateStatus(context.TODO(), existing, metav1.UpdateOptions{}); err != nil {
 				log.Errorf("Unable to update cluster operator status: %v", err)
 			}
 		}
@@ -268,7 +269,7 @@ func relatedObjects(name string, opClient operatorclient.ClientInterface, crClie
 
 	switch name {
 	case clusterOperatorOLM:
-		csvList, err := crClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{})
+		csvList, err := crClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -285,12 +286,12 @@ func relatedObjects(name string, opClient operatorclient.ClientInterface, crClie
 			})
 		}
 	case clusterOperatorCatalogSource:
-		subList, err := crClient.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+		subList, err := crClient.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return nil, err
 		}
 
-		installPlanList, err := crClient.OperatorsV1alpha1().InstallPlans(namespace).List(metav1.ListOptions{})
+		installPlanList, err := crClient.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return nil, err
 		}

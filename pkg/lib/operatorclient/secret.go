@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -11,17 +12,17 @@ import (
 
 // CreateSecret creates the Secret.
 func (c *Client) CreateSecret(ig *v1.Secret) (*v1.Secret, error) {
-	return c.CoreV1().Secrets(ig.GetNamespace()).Create(ig)
+	return c.CoreV1().Secrets(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
 }
 
 // GetSecret returns the existing Secret.
 func (c *Client) GetSecret(namespace, name string) (*v1.Secret, error) {
-	return c.CoreV1().Secrets(namespace).Get(name, metav1.GetOptions{})
+	return c.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 // DeleteSecret deletes the Secret.
 func (c *Client) DeleteSecret(namespace, name string, options *metav1.DeleteOptions) error {
-	return c.CoreV1().Secrets(namespace).Delete(name, options)
+	return c.CoreV1().Secrets(namespace).Delete(context.TODO(), name, *options)
 }
 
 // UpdateSecret will update the given Secret resource.
@@ -35,5 +36,5 @@ func (c *Client) UpdateSecret(secret *v1.Secret) (*v1.Secret, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error creating patch for Secret: %v", err)
 	}
-	return c.CoreV1().Secrets(secret.GetNamespace()).Patch(secret.GetName(), types.StrategicMergePatchType, patchBytes)
+	return c.CoreV1().Secrets(secret.GetNamespace()).Patch(context.TODO(), secret.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 }

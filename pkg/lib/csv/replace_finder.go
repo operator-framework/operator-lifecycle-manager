@@ -1,10 +1,13 @@
 package csv
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"context"
+
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 )
 
 // NewReplaceFinder returns an instance of ReplaceFinder
@@ -61,7 +64,7 @@ func (r *replace) IsReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clus
 	}
 
 	// using the client instead of a lister; missing an object because of a cache sync can cause upgrades to fail
-	previous, err := r.client.OperatorsV1alpha1().ClusterServiceVersions(in.GetNamespace()).Get(in.Spec.Replaces, metav1.GetOptions{})
+	previous, err := r.client.OperatorsV1alpha1().ClusterServiceVersions(in.GetNamespace()).Get(context.TODO(), in.Spec.Replaces, metav1.GetOptions{})
 	if err != nil {
 		r.logger.WithField("replacing", in.Spec.Replaces).WithError(err).Debugf("unable to get previous csv")
 		return nil

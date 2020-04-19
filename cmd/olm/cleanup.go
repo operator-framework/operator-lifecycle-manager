@@ -1,9 +1,8 @@
 package main
 
 import (
+	"context"
 	"time"
-
-	"k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
 	"github.com/sirupsen/logrus"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -14,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	apiregv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	"k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -88,53 +88,53 @@ func waitForDelete(checkResource checkResourceFunc, deleteResource deleteResourc
 
 func checkClusterServiceVersion(crc versioned.Interface, name string) checkResourceFunc {
 	return func() error {
-		_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(*namespace).Get(name, metav1.GetOptions{})
+		_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(*namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		return err
 	}
 }
 
 func deleteClusterServiceVersion(crc versioned.Interface, name string) deleteResourceFunc {
 	return func() error {
-		return crc.OperatorsV1alpha1().ClusterServiceVersions(*namespace).Delete(name, metav1.NewDeleteOptions(0))
+		return crc.OperatorsV1alpha1().ClusterServiceVersions(*namespace).Delete(context.TODO(), name, *metav1.NewDeleteOptions(0))
 	}
 }
 
 func checkSubscription(crc versioned.Interface, name string) checkResourceFunc {
 	return func() error {
-		_, err := crc.OperatorsV1alpha1().Subscriptions(*namespace).Get(name, metav1.GetOptions{})
+		_, err := crc.OperatorsV1alpha1().Subscriptions(*namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		return err
 	}
 }
 
 func deleteSubscription(crc versioned.Interface, name string) deleteResourceFunc {
 	return func() error {
-		return crc.OperatorsV1alpha1().Subscriptions(*namespace).Delete(name, metav1.NewDeleteOptions(0))
+		return crc.OperatorsV1alpha1().Subscriptions(*namespace).Delete(context.TODO(), name, *metav1.NewDeleteOptions(0))
 	}
 }
 
 func checkConfigMap(c operatorclient.ClientInterface, name string) checkResourceFunc {
 	return func() error {
-		_, err := c.KubernetesInterface().CoreV1().ConfigMaps(*namespace).Get(name, metav1.GetOptions{})
+		_, err := c.KubernetesInterface().CoreV1().ConfigMaps(*namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		return err
 	}
 }
 
 func deleteConfigMap(c operatorclient.ClientInterface, name string) deleteResourceFunc {
 	return func() error {
-		return c.KubernetesInterface().CoreV1().ConfigMaps(*namespace).Delete(name, metav1.NewDeleteOptions(0))
+		return c.KubernetesInterface().CoreV1().ConfigMaps(*namespace).Delete(context.TODO(), name, *metav1.NewDeleteOptions(0))
 	}
 }
 
 func checkCatalogSource(crc versioned.Interface, name string) checkResourceFunc {
 	return func() error {
-		_, err := crc.OperatorsV1alpha1().CatalogSources(*namespace).Get(name, metav1.GetOptions{})
+		_, err := crc.OperatorsV1alpha1().CatalogSources(*namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		return err
 	}
 }
 
 func deleteCatalogSource(crc versioned.Interface, name string) deleteResourceFunc {
 	return func() error {
-		return crc.OperatorsV1alpha1().CatalogSources(*namespace).Delete(name, metav1.NewDeleteOptions(0))
+		return crc.OperatorsV1alpha1().CatalogSources(*namespace).Delete(context.TODO(), name, *metav1.NewDeleteOptions(0))
 	}
 }
 
@@ -145,7 +145,7 @@ func deleteCatalogSource(crc versioned.Interface, name string) deleteResourceFun
 // OwnerReference, and in cases where OLM is updated, they must be removed to prevent erroneous deletion of OLM's self-hosted components.
 func cleanupOwnerReferences(c operatorclient.ClientInterface, crc versioned.Interface) error {
 	listOpts := metav1.ListOptions{}
-	csvs, err := crc.OperatorsV1alpha1().ClusterServiceVersions(metav1.NamespaceAll).List(listOpts)
+	csvs, err := crc.OperatorsV1alpha1().ClusterServiceVersions(metav1.NamespaceAll).List(context.TODO(), listOpts)
 	if err != nil {
 		return err
 	}
@@ -162,26 +162,26 @@ func cleanupOwnerReferences(c operatorclient.ClientInterface, crc versioned.Inte
 		objs = append(objs, &obj)
 	}
 
-	clusterRoles, _ := c.KubernetesInterface().RbacV1().ClusterRoles().List(listOpts)
+	clusterRoles, _ := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.TODO(), listOpts)
 	for _, obj := range clusterRoles.Items {
 		objs = append(objs, &obj)
 	}
 
-	clusterRoleBindings, _ := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(listOpts)
+	clusterRoleBindings, _ := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.TODO(), listOpts)
 	for _, obj := range clusterRoleBindings.Items {
 		objs = append(objs, &obj)
 	}
 
-	roles, _ := c.KubernetesInterface().RbacV1().Roles(metav1.NamespaceAll).List(listOpts)
+	roles, _ := c.KubernetesInterface().RbacV1().Roles(metav1.NamespaceAll).List(context.TODO(), listOpts)
 	for _, obj := range roles.Items {
 		objs = append(objs, &obj)
 	}
-	roleBindings, _ := c.KubernetesInterface().RbacV1().RoleBindings(metav1.NamespaceAll).List(listOpts)
+	roleBindings, _ := c.KubernetesInterface().RbacV1().RoleBindings(metav1.NamespaceAll).List(context.TODO(), listOpts)
 	for _, obj := range roleBindings.Items {
 		objs = append(objs, &obj)
 	}
 
-	apiServices, _ := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(listOpts)
+	apiServices, _ := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(context.TODO(), listOpts)
 	for _, obj := range apiServices.Items {
 		objs = append(objs, &obj)
 	}
@@ -198,32 +198,32 @@ func cleanupOwnerReferences(c operatorclient.ClientInterface, crc versioned.Inte
 		switch v := obj.(type) {
 		case *v1alpha1.ClusterServiceVersion:
 			update = func() error {
-				_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(v.GetNamespace()).Update(v)
+				_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(v.GetNamespace()).Update(context.TODO(), v, metav1.UpdateOptions{})
 				return err
 			}
 		case *rbacv1.ClusterRole:
 			update = func() error {
-				_, err = c.KubernetesInterface().RbacV1().ClusterRoles().Update(v)
+				_, err = c.KubernetesInterface().RbacV1().ClusterRoles().Update(context.TODO(), v, metav1.UpdateOptions{})
 				return err
 			}
 		case *rbacv1.ClusterRoleBinding:
 			update = func() error {
-				_, err = c.KubernetesInterface().RbacV1().ClusterRoleBindings().Update(v)
+				_, err = c.KubernetesInterface().RbacV1().ClusterRoleBindings().Update(context.TODO(), v, metav1.UpdateOptions{})
 				return err
 			}
 		case *rbacv1.Role:
 			update = func() error {
-				_, err = c.KubernetesInterface().RbacV1().Roles(v.GetNamespace()).Update(v)
+				_, err = c.KubernetesInterface().RbacV1().Roles(v.GetNamespace()).Update(context.TODO(), v, metav1.UpdateOptions{})
 				return err
 			}
 		case *rbacv1.RoleBinding:
 			update = func() error {
-				_, err = c.KubernetesInterface().RbacV1().RoleBindings(v.GetNamespace()).Update(v)
+				_, err = c.KubernetesInterface().RbacV1().RoleBindings(v.GetNamespace()).Update(context.TODO(), v, metav1.UpdateOptions{})
 				return err
 			}
 		case *apiregv1.APIService:
 			update = func() error {
-				_, err = c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Update(v)
+				_, err = c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Update(context.TODO(), v, metav1.UpdateOptions{})
 				return err
 			}
 		}
@@ -263,7 +263,7 @@ func crossNamespaceOwnerReferenceRemoval(kind string, uidNamespaces map[types.UI
 // ensureAPIServiceLabels checks the labels of existing APIService objects to ensure ownership is set correctly.
 // If the APIService label does not correspond to the expected packageserver owner the APIService labels are updated
 func ensureAPIServiceLabels(c clientset.Interface) error {
-	apiService, err := c.ApiregistrationV1().APIServices().Get(olm.PackageserverName, metav1.GetOptions{})
+	apiService, err := c.ApiregistrationV1().APIServices().Get(context.TODO(), olm.PackageserverName, metav1.GetOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		logrus.WithField("apiService", "packageserver").Debugf("get error: %s", err)
 		return err
@@ -280,7 +280,7 @@ func ensureAPIServiceLabels(c clientset.Interface) error {
 	if apiService.Labels[ownerutil.OwnerKey] != ownerutil.OwnerPackageServer {
 		apiService.Labels[ownerutil.OwnerKey] = ownerutil.OwnerPackageServer
 		update := func() error {
-			_, err := c.ApiregistrationV1().APIServices().Update(apiService)
+			_, err := c.ApiregistrationV1().APIServices().Update(context.TODO(), apiService, metav1.UpdateOptions{})
 			return err
 		}
 		if err := retry.RetryOnConflict(retry.DefaultBackoff, update); err != nil {

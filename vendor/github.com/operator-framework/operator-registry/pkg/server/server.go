@@ -31,6 +31,20 @@ func (s *RegistryServer) ListPackages(req *api.ListPackageRequest, stream api.Re
 	return nil
 }
 
+func (s *RegistryServer) ListBundles(req *api.ListBundlesRequest, stream api.Registry_ListBundlesServer) error {
+	bundles, err := s.store.ListBundles(stream.Context())
+	if err != nil {
+		return err
+	}
+	for _, b := range bundles {
+		if err := stream.Send(b); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *RegistryServer) GetPackage(ctx context.Context, req *api.GetPackageRequest) (*api.Package, error) {
 	packageManifest, err := s.store.GetPackage(ctx, req.GetName())
 	if err != nil {

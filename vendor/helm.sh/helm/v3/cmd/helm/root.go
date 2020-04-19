@@ -17,6 +17,7 @@ limitations under the License.
 package main // import "helm.sh/helm/v3/cmd/helm"
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -24,34 +25,11 @@ import (
 	"github.com/spf13/cobra"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"helm.sh/helm/v3/internal/completion"
 	"helm.sh/helm/v3/internal/experimental/registry"
 	"helm.sh/helm/v3/pkg/action"
-)
-
-const (
-	contextCompFunc = `
-__helm_get_contexts()
-{
-    __helm_debug "${FUNCNAME[0]}: c is $c words[c] is ${words[c]}"
-    local template out
-    template="{{ range .contexts  }}{{ .name }} {{ end }}"
-    if out=$(kubectl config -o template --template="${template}" view 2>/dev/null); then
-        COMPREPLY=( $( compgen -W "${out[*]}" -- "$cur" ) )
-    fi
-}
-`
-)
-
-var (
-	// Mapping of global flags that can have dynamic completion and the
-	// completion function to be used.
-	bashCompletionFlags = map[string]string{
-		// Cannot convert the kube-context flag to Go completion yet because
-		// an incomplete kube-context will make actionConfig.Init() fail at the very start
-		"kube-context": "__helm_get_contexts",
-	}
 )
 
 var globalUsage = `The Kubernetes package manager
@@ -65,16 +43,17 @@ Common actions for Helm:
 
 Environment variables:
 
-+------------------+-----------------------------------------------------------------------------+
-| Name             | Description                                                                 |
-+------------------+-----------------------------------------------------------------------------+
-| $XDG_CACHE_HOME  | set an alternative location for storing cached files.                       |
-| $XDG_CONFIG_HOME | set an alternative location for storing Helm configuration.                 |
-| $XDG_DATA_HOME   | set an alternative location for storing Helm data.                          |
-| $HELM_DRIVER     | set the backend storage driver. Values are: configmap, secret, memory       |
-| $HELM_NO_PLUGINS | disable plugins. Set HELM_NO_PLUGINS=1 to disable plugins.                  |
-| $KUBECONFIG      | set an alternative Kubernetes configuration file (default "~/.kube/config") |
-+------------------+-----------------------------------------------------------------------------+
++------------------+--------------------------------------------------------------------------------------------------------+
+| Name                                  | Description                                                                       |
++------------------+--------------------------------------------------------------------------------------------------------+
+| $XDG_CACHE_HOME                       | set an alternative location for storing cached files.                             |
+| $XDG_CONFIG_HOME                      | set an alternative location for storing Helm configuration.                       |
+| $XDG_DATA_HOME                        | set an alternative location for storing Helm data.                                |
+| $HELM_DRIVER                          | set the backend storage driver. Values are: configmap, secret, memory, postgres   |
+| $HELM_DRIVER_SQL_CONNECTION_STRING    | set the connection string the SQL storage driver should use.                      |
+| $HELM_NO_PLUGINS                      | disable plugins. Set HELM_NO_PLUGINS=1 to disable plugins.                        |
+| $KUBECONFIG                           | set an alternative Kubernetes configuration file (default "~/.kube/config")       |
++------------------+--------------------------------------------------------------------------------------------------------+
 
 Helm stores configuration based on the XDG base directory specification, so
 
@@ -99,14 +78,14 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 		Short:                  "The Helm package manager for Kubernetes.",
 		Long:                   globalUsage,
 		SilenceUsage:           true,
-		BashCompletionFunction: fmt.Sprintf("%s%s", contextCompFunc, completion.GetBashCustomFunction()),
+		BashCompletionFunction: completion.GetBashCustomFunction(),
 	}
 	flags := cmd.PersistentFlags()
 
 	settings.AddFlags(flags)
 
-	flag := flags.Lookup("namespace")
 	// Setup shell completion for the namespace flag
+	flag := flags.Lookup("namespace")
 	completion.RegisterFlagCompletionFunc(flag, func(cmd *cobra.Command, args []string, toComplete string) ([]string, completion.BashCompDirective) {
 		if client, err := actionConfig.KubernetesClientSet(); err == nil {
 			// Choose a long enough timeout that the user notices somethings is not working
@@ -115,7 +94,7 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 			completion.CompDebugln(fmt.Sprintf("About to call kube client for namespaces with timeout of: %d", to))
 
 			nsNames := []string{}
-			if namespaces, err := client.CoreV1().Namespaces().List(metav1.ListOptions{TimeoutSeconds: &to}); err == nil {
+			if namespaces, err := client.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{TimeoutSeconds: &to}); err == nil {
 				for _, ns := range namespaces.Items {
 					if strings.HasPrefix(ns.Name, toComplete) {
 						nsNames = append(nsNames, ns.Name)
@@ -125,6 +104,29 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 			}
 		}
 		return nil, completion.BashCompDirectiveDefault
+	})
+
+	// Setup shell completion for the kube-context flag
+	flag = flags.Lookup("kube-context")
+	completion.RegisterFlagCompletionFunc(flag, func(cmd *cobra.Command, args []string, toComplete string) ([]string, completion.BashCompDirective) {
+		completion.CompDebugln("About to get the different kube-contexts")
+
+		loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+		if len(settings.KubeConfig) > 0 {
+			loadingRules = &clientcmd.ClientConfigLoadingRules{ExplicitPath: settings.KubeConfig}
+		}
+		if config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			loadingRules,
+			&clientcmd.ConfigOverrides{}).RawConfig(); err == nil {
+			ctxs := []string{}
+			for name := range config.Contexts {
+				if strings.HasPrefix(name, toComplete) {
+					ctxs = append(ctxs, name)
+				}
+			}
+			return ctxs, completion.BashCompDirectiveNoFileComp
+		}
+		return nil, completion.BashCompDirectiveNoFileComp
 	})
 
 	// We can safely ignore any errors that flags.Parse encounters since
@@ -170,19 +172,6 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 		// Setup the special hidden __complete command to allow for dynamic auto-completion
 		completion.NewCompleteCmd(settings, out),
 	)
-
-	// Add annotation to flags for which we can generate completion choices
-	for name, completion := range bashCompletionFlags {
-		if cmd.Flag(name) != nil {
-			if cmd.Flag(name).Annotations == nil {
-				cmd.Flag(name).Annotations = map[string][]string{}
-			}
-			cmd.Flag(name).Annotations[cobra.BashCompCustom] = append(
-				cmd.Flag(name).Annotations[cobra.BashCompCustom],
-				completion,
-			)
-		}
-	}
 
 	// Add *experimental* subcommands
 	registryClient, err := registry.NewClient(

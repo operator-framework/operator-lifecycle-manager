@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/golang-migrate/migrate/v4/source/file" // indirect import required by golang-migrate package
 	"github.com/sirupsen/logrus"
@@ -47,8 +48,8 @@ func (m *SQLLiteMigrator) Migrate(ctx context.Context) error {
 		return err
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil {
-			logrus.WithError(err).Debugf("couldn't rollback - this is expected if the transaction committed")
+		if err := tx.Rollback(); err != nil && !strings.Contains(err.Error(), "transaction has already been committed") {
+			logrus.WithError(err).Warnf("couldn't rollback")
 		}
 	}()
 

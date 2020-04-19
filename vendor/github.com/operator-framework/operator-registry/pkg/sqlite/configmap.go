@@ -127,7 +127,7 @@ func (c *ConfigMapLoader) Populate() error {
 			continue
 		}
 
-		bundle := registry.NewBundle(csv.GetName(), "", "", &unstructured.Unstructured{Object: csvUnst})
+		bundle := registry.NewBundle(csv.GetName(), "", nil, &unstructured.Unstructured{Object: csvUnst})
 		ownedCRDs, _, err := csv.GetCustomResourceDefintions()
 		if err != nil {
 			errs = append(errs, err)
@@ -152,7 +152,8 @@ func (c *ConfigMapLoader) Populate() error {
 		}
 
 		if err := c.store.AddOperatorBundle(bundle); err != nil {
-			errs = append(errs, fmt.Errorf("error adding operator bundle %s: %s", bundle.Name, err))
+			version, _ := bundle.Version()
+			errs = append(errs, fmt.Errorf("error adding operator bundle %s/%s/%s: %s", csv.GetName(), version, bundle.BundleImage, err))
 		}
 	}
 

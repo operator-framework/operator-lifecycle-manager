@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"fmt"
 
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -11,17 +12,17 @@ import (
 
 // CreateRoleBinding creates the roleBinding.
 func (c *Client) CreateClusterRoleBinding(ig *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error) {
-	return c.RbacV1().ClusterRoleBindings().Create(ig)
+	return c.RbacV1().ClusterRoleBindings().Create(context.TODO(), ig, metav1.CreateOptions{})
 }
 
 // GetRoleBinding returns the existing roleBinding.
 func (c *Client) GetClusterRoleBinding(name string) (*rbacv1.ClusterRoleBinding, error) {
-	return c.RbacV1().ClusterRoleBindings().Get(name, metav1.GetOptions{})
+	return c.RbacV1().ClusterRoleBindings().Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 // DeleteRoleBinding deletes the roleBinding.
 func (c *Client) DeleteClusterRoleBinding(name string, options *metav1.DeleteOptions) error {
-	return c.RbacV1().ClusterRoleBindings().Delete(name, options)
+	return c.RbacV1().ClusterRoleBindings().Delete(context.TODO(), name, *options)
 }
 
 // UpdateRoleBinding will update the given RoleBinding resource.
@@ -35,5 +36,5 @@ func (c *Client) UpdateClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) (*rbac
 	if err != nil {
 		return nil, fmt.Errorf("error creating patch for RoleBinding: %v", err)
 	}
-	return c.RbacV1().ClusterRoleBindings().Patch(crb.GetName(), types.StrategicMergePatchType, patchBytes)
+	return c.RbacV1().ClusterRoleBindings().Patch(context.TODO(), crb.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 }
