@@ -90,8 +90,6 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		return nil, err
 	}
 
-	fmt.Println(solvedInstallables)
-
 	// get the set of bundle installables from the result solved installables
 	operatorInstallables := make([]BundleInstallable, 0)
 	for _, installable := range solvedInstallables {
@@ -128,27 +126,13 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 
 	virtualInstallable := NewVirtualPackageInstallable(pkg)
 
-	fmt.Println("getting initial set of bundles for virtual package")
-
 	// TODO: pass the filter into the cache to use startingcsv/latestcsv as limiters
 	bundles, err := namespacedCache.GetPackageChannelFromCatalog(pkg, filter.channel, filter.catalog)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println(bundles)
-	for _, bundle := range bundles {
-		fmt.Println(bundle.name)
-		fmt.Println(bundle.bundle.ChannelName)
-	}
-
 	weightedBundles := s.getWeightedBundles(bundles, namespacedCache)
-
-	fmt.Println("just weighted the bundles")
-	for _, weightedBundle := range weightedBundles {
-		fmt.Println(weightedBundle.operator.name)
-		fmt.Println(weightedBundle.operator.bundle.ChannelName)
-	}
 
 	virtDependencies := make(map[sat.Identifier]struct{}, 0)
 	// add installable for each bundle version of the package

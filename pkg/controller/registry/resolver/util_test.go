@@ -45,7 +45,7 @@ func NewGenerationFromOperators(ops ...OperatorSurface) *NamespaceGeneration {
 	return g
 }
 
-func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey) *Operator {
+func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey, dependencies []VersionDependency) *Operator {
 	providedAPISet := EmptyAPISet()
 	requiredAPISet := EmptyAPISet()
 	providedCRDAPISet := EmptyAPISet()
@@ -84,7 +84,8 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 			StartingCSV: startingCSV,
 			Catalog:     CatalogKey{src, src + "-namespace"},
 		},
-		bundle: b,
+		bundle:              b,
+		versionDependencies: dependencies,
 	}
 }
 
