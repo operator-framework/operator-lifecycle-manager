@@ -7,8 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 )
 
@@ -47,23 +46,6 @@ func TestSync(t *testing.T) {
 				err: nil,
 			},
 		},
-		{
-			description: "internalversion/OK",
-			fields: fields{
-				syncer: &subscriptionSyncer{
-					logger: logrus.New(),
-				},
-			},
-			args: args{
-				event: kubestate.NewResourceEvent(
-					kubestate.ResourceAdded,
-					&operators.Subscription{},
-				),
-			},
-			want: want{
-				err: nil,
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -71,7 +53,7 @@ func TestSync(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			require.Equal(t, tt.fields.syncer.Sync(ctx, tt.args.event), tt.want.err)
+			require.Equal(t, tt.want.err, tt.fields.syncer.Sync(ctx, tt.args.event))
 		})
 	}
 

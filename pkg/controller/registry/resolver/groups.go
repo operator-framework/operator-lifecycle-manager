@@ -1,10 +1,10 @@
-//go:generate counterfeiter -o ../../../fakes/fake_api_intersection_reconciler.go . APIIntersectionReconciler
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../../fakes/fake_api_intersection_reconciler.go . APIIntersectionReconciler
 package resolver
 
 import (
 	"strings"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	v1 "github.com/operator-framework/api/pkg/operators/v1"
 )
 
 type NamespaceSet map[string]struct{}

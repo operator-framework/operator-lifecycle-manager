@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"google.golang.org/grpc"
@@ -16,6 +17,7 @@ type Interface interface {
 	GetBundleInPackageChannel(ctx context.Context, packageName, channelName string) (*api.Bundle, error)
 	GetReplacementBundleInPackageChannel(ctx context.Context, currentName, packageName, channelName string) (*api.Bundle, error)
 	GetBundleThatProvides(ctx context.Context, group, version, kind string) (*api.Bundle, error)
+	ListBundles(ctx context.Context) (*BundleIterator, error)
 	HealthCheck(ctx context.Context, reconnectTimeout time.Duration) (bool, error)
 	Close() error
 }
@@ -27,6 +29,37 @@ type Client struct {
 }
 
 var _ Interface = &Client{}
+
+type BundleStream interface {
+	Recv() (*api.Bundle, error)
+}
+
+type BundleIterator struct {
+	stream BundleStream
+	error  error
+}
+
+func NewBundleIterator(stream BundleStream) *BundleIterator {
+	return &BundleIterator{stream: stream}
+}
+
+func (it *BundleIterator) Next() *api.Bundle {
+	if it.error != nil {
+		return nil
+	}
+	next, err := it.stream.Recv()
+	if err == io.EOF {
+		return nil
+	}
+	if err != nil {
+		it.error = err
+	}
+	return next
+}
+
+func (it *BundleIterator) Error() error {
+	return it.error
+}
 
 func (c *Client) GetBundle(ctx context.Context, packageName, channelName, csvName string) (*api.Bundle, error) {
 	return c.Registry.GetBundle(ctx, &api.GetBundleRequest{PkgName: packageName, ChannelName: channelName, CsvName: csvName})
@@ -42,6 +75,14 @@ func (c *Client) GetReplacementBundleInPackageChannel(ctx context.Context, curre
 
 func (c *Client) GetBundleThatProvides(ctx context.Context, group, version, kind string) (*api.Bundle, error) {
 	return c.Registry.GetDefaultBundleThatProvides(ctx, &api.GetDefaultProviderRequest{Group: group, Version: version, Kind: kind})
+}
+
+func (c *Client) ListBundles(ctx context.Context) (*BundleIterator, error) {
+	stream, err := c.Registry.ListBundles(ctx, &api.ListBundlesRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return NewBundleIterator(stream), nil
 }
 
 func (c *Client) Close() error {

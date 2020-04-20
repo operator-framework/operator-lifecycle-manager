@@ -1,6 +1,7 @@
 package bundle
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 
@@ -17,8 +18,8 @@ import (
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	listersrbacv1 "k8s.io/client-go/listers/rbac/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
-	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/reference"
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 )
 
@@ -332,7 +333,7 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 
 	cm, err = c.cmLister.ConfigMaps(fresh.GetNamespace()).Get(fresh.GetName())
 	if apierrors.IsNotFound(err) {
-		cm, err = c.client.CoreV1().ConfigMaps(fresh.GetNamespace()).Create(fresh)
+		cm, err = c.client.CoreV1().ConfigMaps(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 	}
 
 	return
@@ -343,7 +344,7 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 	job, err = c.jobLister.Jobs(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(fresh)
+			job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 		}
 
 		return
@@ -354,7 +355,7 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 	}
 
 	// TODO: Decide when to fail-out instead of deleting the job
-	err = c.client.BatchV1().Jobs(job.GetNamespace()).Delete(job.GetName(), &metav1.DeleteOptions{})
+	err = c.client.BatchV1().Jobs(job.GetNamespace()).Delete(context.TODO(), job.GetName(), metav1.DeleteOptions{})
 	job = nil
 	return
 }
@@ -388,7 +389,7 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 	role, err = c.roleLister.Roles(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			role, err = c.client.RbacV1().Roles(fresh.GetNamespace()).Create(fresh)
+			role, err = c.client.RbacV1().Roles(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 		}
 
 		return
@@ -402,7 +403,7 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 	}
 	role.Rules = append(role.Rules, rule)
 
-	role, err = c.client.RbacV1().Roles(role.GetNamespace()).Update(role)
+	role, err = c.client.RbacV1().Roles(role.GetNamespace()).Update(context.TODO(), role, metav1.UpdateOptions{})
 
 	return
 }
@@ -430,7 +431,7 @@ func (c *ConfigMapUnpacker) ensureRoleBinding(cmRef *corev1.ObjectReference) (ro
 	roleBinding, err = c.rbLister.RoleBindings(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			roleBinding, err = c.client.RbacV1().RoleBindings(fresh.GetNamespace()).Create(fresh)
+			roleBinding, err = c.client.RbacV1().RoleBindings(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 		}
 
 		return
@@ -441,7 +442,7 @@ func (c *ConfigMapUnpacker) ensureRoleBinding(cmRef *corev1.ObjectReference) (ro
 	}
 
 	// TODO: Decide when to fail-out instead of deleting the rbac
-	err = c.client.RbacV1().RoleBindings(roleBinding.GetNamespace()).Delete(roleBinding.GetName(), &metav1.DeleteOptions{})
+	err = c.client.RbacV1().RoleBindings(roleBinding.GetNamespace()).Delete(context.TODO(), roleBinding.GetName(), metav1.DeleteOptions{})
 	roleBinding = nil
 
 	return

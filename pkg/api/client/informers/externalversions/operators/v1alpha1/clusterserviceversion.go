@@ -19,9 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	time "time"
 
-	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
@@ -61,13 +62,13 @@ func NewFilteredClusterServiceVersionInformer(client versioned.Interface, namesp
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(options)
+				return client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Watch(options)
+				return client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&operatorsv1alpha1.ClusterServiceVersion{},

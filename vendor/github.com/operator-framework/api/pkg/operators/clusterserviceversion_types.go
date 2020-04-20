@@ -77,7 +77,7 @@ type StatusDescriptor struct {
 	DisplayName  string
 	Description  string
 	XDescriptors []string
-	Value        *json.RawMessage
+	Value        json.RawMessage
 }
 
 // SpecDescriptor describes a field in a spec block of a CRD so that OLM can consume it
@@ -86,7 +86,7 @@ type SpecDescriptor struct {
 	DisplayName  string
 	Description  string
 	XDescriptors []string
-	Value        *json.RawMessage
+	Value        json.RawMessage
 }
 
 // ActionDescriptor describes a declarative action that can be performed on a custom resource instance
@@ -95,7 +95,7 @@ type ActionDescriptor struct {
 	DisplayName  string
 	Description  string
 	XDescriptors []string
-	Value        *json.RawMessage
+	Value        json.RawMessage
 }
 
 // CRDDescription provides details to OLM about the CRDs

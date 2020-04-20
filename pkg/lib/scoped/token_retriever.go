@@ -1,6 +1,7 @@
 package scoped
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -24,7 +25,7 @@ func (r *BearerTokenRetriever) Retrieve(reference *corev1.ObjectReference) (toke
 		logFieldName: logFieldValue,
 	})
 
-	sa, err := r.kubeclient.KubernetesInterface().CoreV1().ServiceAccounts(reference.Namespace).Get(reference.Name, metav1.GetOptions{})
+	sa, err := r.kubeclient.KubernetesInterface().CoreV1().ServiceAccounts(reference.Namespace).Get(context.TODO(), reference.Name, metav1.GetOptions{})
 	if err != nil {
 		return
 	}
@@ -51,7 +52,7 @@ func (r *BearerTokenRetriever) Retrieve(reference *corev1.ObjectReference) (toke
 func getAPISecret(logger *logrus.Entry, kubeclient operatorclient.ClientInterface, sa *corev1.ServiceAccount) (APISecret *corev1.Secret, err error) {
 	for _, ref := range sa.Secrets {
 		// corev1.ObjectReference only has Name populated.
-		secret, getErr := kubeclient.KubernetesInterface().CoreV1().Secrets(sa.GetNamespace()).Get(ref.Name, metav1.GetOptions{})
+		secret, getErr := kubeclient.KubernetesInterface().CoreV1().Secrets(sa.GetNamespace()).Get(context.TODO(), ref.Name, metav1.GetOptions{})
 		if getErr != nil {
 			if k8serrors.IsNotFound(getErr) {
 				logger.Warnf("skipping secret %s - %v", ref.Name, getErr)

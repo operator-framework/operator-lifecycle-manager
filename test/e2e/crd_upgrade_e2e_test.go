@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
@@ -43,20 +44,20 @@ var _ = Describe("CRD APIVersion upgrades", func() {
 		}
 
 		// create v1beta1 CRD on server
-		oldcrd, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(oldv1beta1CRD)
+		oldcrd, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.TODO(), oldv1beta1CRD, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		By("created CRD")
 
 		// poll for CRD to be ready (using the v1 client)
 		Eventually(func() (bool, error) {
-			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(oldcrd.GetName(), metav1.GetOptions{})
+			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), oldcrd.GetName(), metav1.GetOptions{})
 			if err != nil || fetchedCRD == nil {
 				return false, err
 			}
 			return checkCRD(fetchedCRD), nil
 		}, 5*time.Minute, 10*time.Second).Should(Equal(true))
 
-		oldCRDConvertedToV1, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(oldcrd.GetName(), metav1.GetOptions{})
+		oldCRDConvertedToV1, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), oldcrd.GetName(), metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// confirm the v1 crd as is as expected

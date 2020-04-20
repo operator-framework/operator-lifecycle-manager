@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
-	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	crfake "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	crinformers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 )
@@ -740,25 +740,25 @@ func TestConfigMapUnpacker(t *testing.T) {
 
 			opts := metav1.GetOptions{}
 			for _, job := range tt.expected.jobs {
-				stored, err := client.BatchV1().Jobs(job.GetNamespace()).Get(job.GetName(), opts)
+				stored, err := client.BatchV1().Jobs(job.GetNamespace()).Get(context.TODO(), job.GetName(), opts)
 				require.NoError(t, err)
 				require.Equal(t, job, stored)
 			}
 
 			for _, cm := range tt.expected.configMaps {
-				stored, err := client.CoreV1().ConfigMaps(cm.GetNamespace()).Get(cm.GetName(), opts)
+				stored, err := client.CoreV1().ConfigMaps(cm.GetNamespace()).Get(context.TODO(), cm.GetName(), opts)
 				require.NoError(t, err)
 				require.Equal(t, cm, stored)
 			}
 
 			for _, role := range tt.expected.roles {
-				stored, err := client.RbacV1().Roles(role.GetNamespace()).Get(role.GetName(), opts)
+				stored, err := client.RbacV1().Roles(role.GetNamespace()).Get(context.TODO(), role.GetName(), opts)
 				require.NoError(t, err)
 				require.Equal(t, role, stored)
 			}
 
 			for _, rb := range tt.expected.roleBindings {
-				stored, err := client.RbacV1().RoleBindings(rb.GetNamespace()).Get(rb.GetName(), opts)
+				stored, err := client.RbacV1().RoleBindings(rb.GetNamespace()).Get(context.TODO(), rb.GetName(), opts)
 				require.NoError(t, err)
 				require.Equal(t, rb, stored)
 			}

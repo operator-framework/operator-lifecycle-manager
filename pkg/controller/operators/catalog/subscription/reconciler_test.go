@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	versionedfake "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	registryreconciler "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
@@ -515,7 +515,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 
 			// Ensure the client's view of the subscription matches the typestate's
 			sub := out.(SubscriptionState).Subscription()
-			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(sub.GetName(), metav1.GetOptions{})
+			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(context.TODO(), sub.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, sub, clusterSub)
 		})
@@ -1608,7 +1608,7 @@ func TestInstallPlanReconcile(t *testing.T) {
 
 			// Ensure the client's view of the subscription matches the typestate's
 			sub := out.(SubscriptionState).Subscription()
-			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(sub.GetName(), metav1.GetOptions{})
+			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(context.TODO(), sub.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, sub, clusterSub)
 		})

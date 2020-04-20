@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"fmt"
 
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -11,17 +12,17 @@ import (
 
 // CreateClusterRole creates the ClusterRole.
 func (c *Client) CreateClusterRole(r *rbacv1.ClusterRole) (*rbacv1.ClusterRole, error) {
-	return c.RbacV1().ClusterRoles().Create(r)
+	return c.RbacV1().ClusterRoles().Create(context.TODO(), r, metav1.CreateOptions{})
 }
 
 // GetClusterRole returns the existing ClusterRole.
 func (c *Client) GetClusterRole(name string) (*rbacv1.ClusterRole, error) {
-	return c.RbacV1().ClusterRoles().Get(name, metav1.GetOptions{})
+	return c.RbacV1().ClusterRoles().Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 // DeleteClusterRole deletes the ClusterRole
 func (c *Client) DeleteClusterRole(name string, options *metav1.DeleteOptions) error {
-	return c.RbacV1().ClusterRoles().Delete(name, options)
+	return c.RbacV1().ClusterRoles().Delete(context.TODO(), name, *options)
 }
 
 // UpdateClusterRole will update the given ClusterRole.
@@ -35,5 +36,5 @@ func (c *Client) UpdateClusterRole(crb *rbacv1.ClusterRole) (*rbacv1.ClusterRole
 	if err != nil {
 		return nil, fmt.Errorf("error creating patch for Role: %v", err)
 	}
-	return c.RbacV1().ClusterRoles().Patch(crb.GetName(), types.StrategicMergePatchType, patchBytes)
+	return c.RbacV1().ClusterRoles().Patch(context.TODO(), crb.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 }

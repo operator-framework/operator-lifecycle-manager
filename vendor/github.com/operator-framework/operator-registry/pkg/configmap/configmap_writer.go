@@ -1,6 +1,7 @@
 package configmap
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -94,7 +95,7 @@ func validateConfigmapAnnotations(annotations map[string]string) error {
 func (c *ConfigMapWriter) Populate(maxDataSizeLimit uint64) error {
 	subDirs := []string{"manifests/", "metadata/"}
 
-	configMapPopulate, err := c.clientset.CoreV1().ConfigMaps(c.namespace).Get(c.configMapName, metav1.GetOptions{})
+	configMapPopulate, err := c.clientset.CoreV1().ConfigMaps(c.namespace).Get(context.TODO(), c.configMapName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -158,7 +159,7 @@ func (c *ConfigMapWriter) Populate(maxDataSizeLimit uint64) error {
 		annotations[ConfigMapImageAnnotationKey] = sourceImage
 	}
 
-	_, err = c.clientset.CoreV1().ConfigMaps(c.namespace).Update(configMapPopulate)
+	_, err = c.clientset.CoreV1().ConfigMaps(c.namespace).Update(context.TODO(), configMapPopulate, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -172,11 +173,11 @@ func (c *ConfigMapWriter) Populate(maxDataSizeLimit uint64) error {
 // for locality.
 func LaunchBundleImage(kubeclient kubernetes.Interface, bundleImage, initImage, namespace string) (*corev1.ConfigMap, *batchv1.Job, error) {
 	// create configmap for bundle image data to write to (will be returned)
-	newConfigMap, err := kubeclient.CoreV1().ConfigMaps(namespace).Create(&corev1.ConfigMap{
+	newConfigMap, err := kubeclient.CoreV1().ConfigMaps(namespace).Create(context.TODO(), &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "bundle-image-",
 		},
-	})
+	}, metav1.CreateOptions{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -237,9 +238,9 @@ func LaunchBundleImage(kubeclient kubernetes.Interface, bundleImage, initImage, 
 			},
 		},
 	}
-	launchedJob, err := kubeclient.BatchV1().Jobs(namespace).Create(&launchJob)
+	launchedJob, err := kubeclient.BatchV1().Jobs(namespace).Create(context.TODO(), &launchJob, metav1.CreateOptions{})
 	if err != nil {
-		err := kubeclient.CoreV1().ConfigMaps(namespace).Delete(newConfigMap.GetName(), &metav1.DeleteOptions{})
+		err := kubeclient.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), newConfigMap.GetName(), metav1.DeleteOptions{})
 		if err != nil {
 			// already in an error, so just report it
 			logrus.Errorf("failed to remove configmap: %v", err)

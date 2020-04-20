@@ -24,7 +24,7 @@ type IndexDockerfileGenerator struct {
 }
 
 // NewDockerfileGenerator is a constructor that returns a DockerfileGenerator
-func NewDockerfileGenerator(containerTool string, logger *logrus.Entry) DockerfileGenerator {
+func NewDockerfileGenerator(logger *logrus.Entry) DockerfileGenerator {
 	return &IndexDockerfileGenerator{
 		Logger: logger,
 	}

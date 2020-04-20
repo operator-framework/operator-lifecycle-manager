@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	"github.com/operator-framework/api/pkg/operators/v1"
 )
 
 func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []string) *v1.OperatorGroup {

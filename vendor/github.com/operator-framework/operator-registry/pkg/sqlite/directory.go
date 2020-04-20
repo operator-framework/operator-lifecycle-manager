@@ -122,7 +122,8 @@ func (d *DirectoryLoader) LoadBundleWalkFunc(path string, f os.FileInfo, err err
 	}
 
 	if err := d.store.AddOperatorBundle(bundle); err != nil {
-		errs = append(errs, fmt.Errorf("error adding operator bundle %s: %s", bundle.Name, err))
+		version, _ := bundle.Version()
+		errs = append(errs, fmt.Errorf("error adding operator bundle %s/%s/%s: %s", csv.GetName(), version, bundle.BundleImage, err))
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -177,14 +178,16 @@ func (d *DirectoryLoader) LoadPackagesWalkFunc(path string, f os.FileInfo, err e
 // loadBundle takes the directory that a CSV is in and assumes the rest of the objects in that directory
 // are part of the bundle.
 func loadBundle(csvName string, dir string) (*registry.Bundle, error) {
-	log := logrus.WithFields(logrus.Fields{"dir": dir, "load": "bundle"})
+	log := logrus.WithFields(logrus.Fields{"dir": dir, "load": "bundle", "name": csvName})
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
 	var errs []error
-	bundle := &registry.Bundle{}
+	bundle := &registry.Bundle{
+		Name: csvName,
+	}
 	for _, f := range files {
 		log = log.WithField("file", f.Name())
 		if f.IsDir() {

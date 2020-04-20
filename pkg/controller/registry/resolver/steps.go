@@ -16,12 +16,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
 	secretKind = "Secret"
+	BundleSecretKind = "BundleSecret"
 )
 
 var (
@@ -75,11 +76,10 @@ func NewStepResourceFromObject(obj runtime.Object, catalogSourceName, catalogSou
 		CatalogSourceNamespace: catalogSourceNamespace,
 	}
 
-	// Treat secret objects with a special case
-	// OLM copies secrets as well as supports creating new ones from the bundle
-	// This boolean determines whether its a user-created secret
+	// BundleSecret is a synthetic kind that OLM uses to distinguish between secrets included in the bundle and
+	// pull secrets included in the installplan
 	if obj.GetObjectKind().GroupVersionKind().Kind == secretKind {
-		resource.BundleSecret = true
+		resource.Kind = BundleSecretKind
 	}
 
 	return resource, nil

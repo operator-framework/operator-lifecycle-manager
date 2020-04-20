@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 
@@ -23,13 +24,13 @@ const (
 )
 
 func openshiftRegistryAuth(client operatorclient.ClientInterface, namespace string) (string, error) {
-	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(BuilderServiceAccount, metav1.GetOptions{})
+	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), BuilderServiceAccount, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 
 	secretName := sa.ImagePullSecrets[0].Name
-	secret, err := client.KubernetesInterface().CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
+	secret, err := client.KubernetesInterface().CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -80,7 +81,7 @@ func createSkopeoPod(client operatorclient.ClientInterface, args []string, names
 		},
 	}
 
-	_, err := client.KubernetesInterface().CoreV1().Pods(namespace).Create(pod)
+	_, err := client.KubernetesInterface().CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,7 @@ func createSkopeoPod(client operatorclient.ClientInterface, args []string, names
 }
 
 func deleteSkopeoPod(client operatorclient.ClientInterface, namespace string) error {
-	err := client.KubernetesInterface().CoreV1().Pods(namespace).Delete(skopeo, &metav1.DeleteOptions{})
+	err := client.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), skopeo, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}

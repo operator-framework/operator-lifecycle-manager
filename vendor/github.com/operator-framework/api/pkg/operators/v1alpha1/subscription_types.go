@@ -186,6 +186,10 @@ type SubscriptionStatus struct {
 	// +optional
 	Reason ConditionReason `json:"reason,omitempty"`
 
+	// InstallPlanGeneration is the current generation of the installplan
+	// +optional
+	InstallPlanGeneration int `json:"installPlanGeneration,omitempty"`
+
 	// InstallPlanRef is a reference to the latest InstallPlan that contains the Subscription's current CSV.
 	// +optional
 	InstallPlanRef *corev1.ObjectReference `json:"installPlanRef,omitempty"`
@@ -276,6 +280,11 @@ func (s SubscriptionCatalogHealth) Equals(health SubscriptionCatalogHealth) bool
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
+// +kubebuilder:resource:shortName={sub, subs},categories=olm
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Package",type=string,JSONPath=`.spec.name`,description="The package subscribed to"
+// +kubebuilder:printcolumn:name="Source",type=string,JSONPath=`.spec.source`,description="The catalog source for the specified package"
+// +kubebuilder:printcolumn:name="Channel",type=string,JSONPath=`.spec.channel`,description="The channel of updates to subscribe to"
 
 // Subscription keeps operators up to date by tracking changes to Catalogs.
 type Subscription struct {

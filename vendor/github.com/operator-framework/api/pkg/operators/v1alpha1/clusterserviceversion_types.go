@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
+
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -77,31 +80,31 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 // StatusDescriptor describes a field in a status block of a CRD so that OLM can consume it
 // +k8s:openapi-gen=true
 type StatusDescriptor struct {
-	Path         string           `json:"path"`
-	DisplayName  string           `json:"displayName,omitempty"`
-	Description  string           `json:"description,omitempty"`
-	XDescriptors []string         `json:"x-descriptors,omitempty"`
-	Value        *json.RawMessage `json:"value,omitempty"`
+	Path         string          `json:"path"`
+	DisplayName  string          `json:"displayName,omitempty"`
+	Description  string          `json:"description,omitempty"`
+	XDescriptors []string        `json:"x-descriptors,omitempty"`
+	Value        json.RawMessage `json:"value,omitempty"`
 }
 
 // SpecDescriptor describes a field in a spec block of a CRD so that OLM can consume it
 // +k8s:openapi-gen=true
 type SpecDescriptor struct {
-	Path         string           `json:"path"`
-	DisplayName  string           `json:"displayName,omitempty"`
-	Description  string           `json:"description,omitempty"`
-	XDescriptors []string         `json:"x-descriptors,omitempty"`
-	Value        *json.RawMessage `json:"value,omitempty"`
+	Path         string          `json:"path"`
+	DisplayName  string          `json:"displayName,omitempty"`
+	Description  string          `json:"description,omitempty"`
+	XDescriptors []string        `json:"x-descriptors,omitempty"`
+	Value        json.RawMessage `json:"value,omitempty"`
 }
 
 // ActionDescriptor describes a declarative action that can be performed on a custom resource instance
 // +k8s:openapi-gen=true
 type ActionDescriptor struct {
-	Path         string           `json:"path"`
-	DisplayName  string           `json:"displayName,omitempty"`
-	Description  string           `json:"description,omitempty"`
-	XDescriptors []string         `json:"x-descriptors,omitempty"`
-	Value        *json.RawMessage `json:"value,omitempty"`
+	Path         string          `json:"path"`
+	DisplayName  string          `json:"displayName,omitempty"`
+	Description  string          `json:"description,omitempty"`
+	XDescriptors []string        `json:"x-descriptors,omitempty"`
+	Value        json.RawMessage `json:"value,omitempty"`
 }
 
 // CRDDescription provides details to OLM about the CRDs
@@ -148,6 +151,87 @@ func (d APIServiceDescription) GetName() string {
 	return fmt.Sprintf("%s.%s", d.Version, d.Group)
 }
 
+// WebhookAdmissionType is the type of admission webhooks supported by OLM
+type WebhookAdmissionType string
+
+const (
+	// ValidatingAdmissionWebhook is for validating admission webhooks
+	ValidatingAdmissionWebhook WebhookAdmissionType = "ValidatingAdmissionWebhook"
+	// MutatingAdmissionWebhook is for mutating admission webhooks
+	MutatingAdmissionWebhook WebhookAdmissionType = "MutatingAdmissionWebhook"
+)
+
+// WebhookDescription provides details to OLM about required webhooks
+// +k8s:openapi-gen=true
+type WebhookDescription struct {
+	Name                    string                                          `json:"name"`
+	Type                    WebhookAdmissionType                            `json:"type"`
+	DeploymentName          string                                          `json:"deploymentName,omitempty"`
+	ContainerPort           int32                                           `json:"containerPort,omitempty"`
+	Rules                   []admissionregistrationv1.RuleWithOperations    `json:"rules,omitempty"`
+	FailurePolicy           *admissionregistrationv1.FailurePolicyType      `json:"failurePolicy,omitempty"`
+	MatchPolicy             *admissionregistrationv1.MatchPolicyType        `json:"matchPolicy,omitempty"`
+	ObjectSelector          *metav1.LabelSelector                           `json:"objectSelector,omitempty"`
+	SideEffects             *admissionregistrationv1.SideEffectClass        `json:"sideEffects"`
+	TimeoutSeconds          *int32                                          `json:"timeoutSeconds,omitempty"`
+	AdmissionReviewVersions []string                                        `json:"admissionReviewVersions"`
+	ReinvocationPolicy      *admissionregistrationv1.ReinvocationPolicyType `json:"reinvocationPolicy,omitempty"`
+	WebhookPath             *string                                         `json:"webhookPath,omitempty"`
+}
+
+// GetValidatingWebhook returns a ValidatingWebhook generated from the WebhookDescription
+func (w *WebhookDescription) GetValidatingWebhook(namespace string, namespaceSelector *metav1.LabelSelector, caBundle []byte) admissionregistrationv1.ValidatingWebhook {
+	return admissionregistrationv1.ValidatingWebhook{
+		Name:                    w.Name,
+		Rules:                   w.Rules,
+		FailurePolicy:           w.FailurePolicy,
+		MatchPolicy:             w.MatchPolicy,
+		NamespaceSelector:       namespaceSelector,
+		ObjectSelector:          w.ObjectSelector,
+		SideEffects:             w.SideEffects,
+		TimeoutSeconds:          w.TimeoutSeconds,
+		AdmissionReviewVersions: w.AdmissionReviewVersions,
+		ClientConfig: admissionregistrationv1.WebhookClientConfig{
+			Service: &admissionregistrationv1.ServiceReference{
+				Name:      w.DomainName() + "-service",
+				Namespace: namespace,
+				Path:      w.WebhookPath,
+			},
+			CABundle: caBundle,
+		},
+	}
+}
+
+// GetMutatingWebhook returns a MutatingWebhook generated from the WebhookDescription
+func (w *WebhookDescription) GetMutatingWebhook(namespace string, namespaceSelector *metav1.LabelSelector, caBundle []byte) admissionregistrationv1.MutatingWebhook {
+	return admissionregistrationv1.MutatingWebhook{
+		Name:                    w.Name,
+		Rules:                   w.Rules,
+		FailurePolicy:           w.FailurePolicy,
+		MatchPolicy:             w.MatchPolicy,
+		NamespaceSelector:       namespaceSelector,
+		ObjectSelector:          w.ObjectSelector,
+		SideEffects:             w.SideEffects,
+		TimeoutSeconds:          w.TimeoutSeconds,
+		AdmissionReviewVersions: w.AdmissionReviewVersions,
+		ClientConfig: admissionregistrationv1.WebhookClientConfig{
+			Service: &admissionregistrationv1.ServiceReference{
+				Name:      w.DomainName() + "-service",
+				Namespace: namespace,
+				Path:      w.WebhookPath,
+			},
+			CABundle: caBundle,
+		},
+		ReinvocationPolicy: w.ReinvocationPolicy,
+	}
+}
+
+// DomainName returns the result of replacing all periods in the given Webhook name with hyphens
+func (w *WebhookDescription) DomainName() string {
+	// Replace all '.'s with "-"s to convert to a DNS-1035 label
+	return strings.Replace(w.DeploymentName, ".", "-", -1)
+}
+
 // CustomResourceDefinitions declares all of the CRDs managed or required by
 // an operator being ran by ClusterServiceVersion.
 //
@@ -174,6 +258,7 @@ type ClusterServiceVersionSpec struct {
 	Maturity                  string                    `json:"maturity,omitempty"`
 	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
 	APIServiceDefinitions     APIServiceDefinitions     `json:"apiservicedefinitions,omitempty"`
+	WebhookDefinitions        []WebhookDescription      `json:"webhookdefinitions,omitempty"`
 	NativeAPIs                []metav1.GroupVersionKind `json:"nativeAPIs,omitempty"`
 	MinKubeVersion            string                    `json:"minKubeVersion,omitempty"`
 	DisplayName               string                    `json:"displayName"`
@@ -280,7 +365,17 @@ const (
 	CSVReasonInterOperatorGroupOwnerConflict             ConditionReason = "InterOperatorGroupOwnerConflict"
 	CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs ConditionReason = "CannotModifyStaticOperatorGroupProvidedAPIs"
 	CSVReasonDetectedClusterChange                       ConditionReason = "DetectedClusterChange"
+	CSVReasonUnsupportedWebhookRules                     ConditionReason = "UnsupportedWebhookRules"
 )
+
+// HasCaResources returns true if the CSV has owned APIServices or Webhooks.
+func (c *ClusterServiceVersion) HasCAResources() bool {
+	// Return early if there are no owned APIServices
+	if len(c.Spec.APIServiceDefinitions.Owned)+len(c.Spec.WebhookDefinitions) == 0 {
+		return false
+	}
+	return true
+}
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
 type ClusterServiceVersionCondition struct {
@@ -390,6 +485,13 @@ type ClusterServiceVersionStatus struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
+// +kubebuilder:storageversion
+// +kubebuilder:resource:shortName={csv, csvs},categories=olm
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Display",type=string,JSONPath=`.spec.displayName`,description="The name of the CSV"
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.version`,description="The version of the CSV"
+// +kubebuilder:printcolumn:name="Replaces",type=string,JSONPath=`.spec.replaces`,description="The name of a CSV that this one replaces"
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 
 // ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.
 type ClusterServiceVersion struct {

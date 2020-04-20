@@ -1,8 +1,8 @@
-//go:generate counterfeiter -o ../../../fakes/fake_reconciler_factory.go . RegistryReconcilerFactory
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../../fakes/fake_reconciler_factory.go . RegistryReconcilerFactory
 package reconciler
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	v1 "k8s.io/api/core/v1"

@@ -28,6 +28,7 @@ type InstallPlanSpec struct {
 	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
 	Approval                   Approval `json:"approval"`
 	Approved                   bool     `json:"approved"`
+	Generation                 int      `json:"generation,omitempty"`
 }
 
 // InstallPlanPhase is the current status of a InstallPlan as a whole.
@@ -251,6 +252,8 @@ type BundleLookup struct {
 	// Path refers to the location of a bundle to pull.
 	// It's typically an image reference.
 	Path string `json:"path"`
+	// Identifier is the catalog-unique name of the operator (the name of the CSV for bundles that contain CSVs)
+	Identifier string `json:"identifier"`
 	// Replaces is the name of the bundle to replace with the one found at Path.
 	Replaces string `json:"replaces"`
 	// CatalogSourceRef is a reference to the CatalogSource the bundle path was resolved from.
@@ -305,39 +308,6 @@ func (b *BundleLookup) SetCondition(cond BundleLookupCondition) BundleLookupCond
 	return cond
 }
 
-// ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps
-// matches those in the InstallPlanStatus.
-func (s *InstallPlanStatus) CSVManifestsMatch(steps []*Step) bool {
-	if s.Plan == nil && steps == nil {
-		return true
-	}
-	if s.Plan == nil || steps == nil {
-		return false
-	}
-
-	manifests := make(map[string]struct{})
-	for _, step := range s.Plan {
-		resource := step.Resource
-		if resource.Kind != ClusterServiceVersionKind {
-			continue
-		}
-		manifests[resource.Manifest] = struct{}{}
-	}
-
-	for _, step := range steps {
-		resource := step.Resource
-		if resource.Kind != ClusterServiceVersionKind {
-			continue
-		}
-		if _, ok := manifests[resource.Manifest]; !ok {
-			return false
-		}
-		delete(manifests, resource.Manifest)
-	}
-
-	return len(manifests) == 0
-}
-
 func (s *Step) String() string {
 	return fmt.Sprintf("%s: %s (%s)", s.Resolving, s.Resource, s.Status)
 }
@@ -360,6 +330,11 @@ func (r StepResource) String() string {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
+// +kubebuilder:resource:shortName=ip,categories=olm
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="CSV",type=string,JSONPath=`.spec.clusterServiceVersionNames[0]`,description="The first CSV in the list of clusterServiceVersionNames"
+// +kubebuilder:printcolumn:name="Approval",type=string,JSONPath=`.spec.approval`,description="The approval mode"
+// +kubebuilder:printcolumn:name="Approved",type=boolean,JSONPath=`.spec.approved`
 
 // InstallPlan defines the installation of a set of operators.
 type InstallPlan struct {

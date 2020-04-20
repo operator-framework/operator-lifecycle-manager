@@ -1,6 +1,7 @@
 package operatorclient
 
 import (
+	"context"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,17 +12,17 @@ import (
 
 // CreateAPIService creates the APIService.
 func (c *Client) CreateAPIService(ig *apiregistrationv1.APIService) (*apiregistrationv1.APIService, error) {
-	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Create(ig)
+	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Create(context.TODO(), ig, metav1.CreateOptions{})
 }
 
 // GetAPIService returns the existing APIService.
 func (c *Client) GetAPIService(name string) (*apiregistrationv1.APIService, error) {
-	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(name, metav1.GetOptions{})
+	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(context.TODO(), name, metav1.GetOptions{})
 }
 
 // DeleteAPIService deletes the APIService.
 func (c *Client) DeleteAPIService(name string, options *metav1.DeleteOptions) error {
-	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Delete(name, options)
+	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Delete(context.TODO(), name, *options)
 }
 
 // UpdateAPIService will update the given APIService resource.
@@ -35,5 +36,5 @@ func (c *Client) UpdateAPIService(apiService *apiregistrationv1.APIService) (*ap
 	if err != nil {
 		return nil, fmt.Errorf("error creating patch for APIService: %v", err)
 	}
-	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Patch(apiService.GetName(), types.StrategicMergePatchType, patchBytes)
+	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Patch(context.TODO(), apiService.GetName(), types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 }

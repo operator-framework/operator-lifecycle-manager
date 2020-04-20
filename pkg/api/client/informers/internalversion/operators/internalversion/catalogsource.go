@@ -19,9 +19,10 @@ limitations under the License.
 package internalversion
 
 import (
+	"context"
 	time "time"
 
-	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	operators "github.com/operator-framework/api/pkg/operators"
 	clientsetinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/internalversion"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/internalversion/internalinterfaces"
 	internalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/internalversion"
@@ -61,13 +62,13 @@ func NewFilteredCatalogSourceInformer(client clientsetinternalversion.Interface,
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.Operators().CatalogSources(namespace).List(options)
+				return client.Operators().CatalogSources(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.Operators().CatalogSources(namespace).Watch(options)
+				return client.Operators().CatalogSources(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&operators.CatalogSource{},
