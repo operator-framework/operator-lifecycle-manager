@@ -557,7 +557,7 @@ func TestNamespaceResolver(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 			kClientFake := k8sfake.NewSimpleClientset()
 
-			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake)
+			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake, "", false)
 			steps, lookups, subs, err := resolver.ResolveSteps(namespace, tt.querier)
 			require.Equal(t, tt.out.err, err)
 			t.Logf("%#v", steps)
@@ -628,7 +628,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake)
+			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake, "", false)
 			querier := NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{catalog: tt.bundlesInCatalog})
 			steps, _, subs, err := resolver.ResolveSteps(namespace, querier)
 			require.Equal(t, tt.out.err, err)
