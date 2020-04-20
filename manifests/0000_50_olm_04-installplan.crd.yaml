@@ -67,7 +67,6 @@ spec:
           - approval
           - approved
           - clusterServiceVersionNames
-          - generation
           properties:
             approval:
               description: Approval is the user approval policy for an InstallPlan.
@@ -301,4 +300,3 @@ spec:
                     description: StepStatus is the current status of a particular
                       resource an in InstallPlan
                     type: string
-
