@@ -222,6 +222,8 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 			snapshot.logger.Warnf("failed to construct operator from bundle, continuing: %s", err.Error())
 			continue
 		}
+		o.providedAPIs = o.ProvidedAPIs().StripPlural()
+		o.requiredAPIs = o.RequiredAPIs().StripPlural()
 		operators = append(operators, *o)
 	}
 	if err := it.Error(); err != nil {
