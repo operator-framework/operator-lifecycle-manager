@@ -33,6 +33,7 @@ const (
 	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
 	defaultUtilImage            = "quay.io/operator-framework/olm:latest"
 	defaultOperatorName         = ""
+	resolverV2EnableEnvVarName  = "RESOLVER_V2_ENABLE"
 )
 
 // config flags defined globally so that they appear on the test binary as well
@@ -68,6 +69,9 @@ var (
 
 	profiling = flag.Bool(
 		"profiling", false, "serve profiling data (on port 8080)")
+
+	resolverV2Enable = flag.Bool(
+		resolverV2EnableEnvVarName, false, "using resolver V2")
 )
 
 func init() {
@@ -100,6 +104,11 @@ func main() {
 	if catalogNamespaceEnvVarValue := os.Getenv(catalogNamespaceEnvVarName); catalogNamespaceEnvVarValue != "" {
 		logger.Infof("%s environment variable is set. Updating Global Catalog Namespace to %s", catalogNamespaceEnvVarName, catalogNamespaceEnvVarValue)
 		*catalogNamespace = catalogNamespaceEnvVarValue
+	}
+
+	if resolverV2EnableEnvVarValue := os.Getenv(resolverV2EnableEnvVarName); resolverV2EnableEnvVarValue != "" {
+		logger.Infof("%s environment variable is set. Updating resolverV2Enable to be true", resolverV2EnableEnvVarName)
+		*resolverV2Enable = true
 	}
 
 	var useTLS bool
@@ -172,7 +181,7 @@ func main() {
 	}
 
 	// Create a new instance of the operator.
-	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *utilImage, *catalogNamespace)
+	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *utilImage, *catalogNamespace, *resolverV2Enable)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

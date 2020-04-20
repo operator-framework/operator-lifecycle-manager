@@ -120,7 +120,7 @@ func TestNamespaceResolver(t *testing.T) {
 				},
 				lookups: []v1alpha1.BundleLookup{
 					{
-						Path: "quay.io/test/bundle@sha256:abcd",
+						Path:       "quay.io/test/bundle@sha256:abcd",
 						Identifier: "b.v1",
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
@@ -234,9 +234,9 @@ func TestNamespaceResolver(t *testing.T) {
 				steps: [][]*v1alpha1.Step{},
 				lookups: []v1alpha1.BundleLookup{
 					{
-						Path:     "quay.io/test/bundle@sha256:abcd",
+						Path:       "quay.io/test/bundle@sha256:abcd",
 						Identifier: "a.v2",
-						Replaces: "a.v1",
+						Replaces:   "a.v1",
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
 							Name:      catalog.Name,
@@ -442,7 +442,7 @@ func TestNamespaceResolver(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 			kClientFake := k8sfake.NewSimpleClientset()
 
-			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake)
+			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake, "", false)
 			steps, lookups, subs, err := resolver.ResolveSteps(namespace, tt.querier)
 			require.Equal(t, tt.out.err, err)
 			t.Logf("%#v", steps)
@@ -517,7 +517,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake)
+			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake, "", false)
 			querier := NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{catalog: tt.bundlesInCatalog})
 			steps, _, subs, err := resolver.ResolveSteps(namespace, querier)
 			require.Equal(t, tt.out.err, err)
