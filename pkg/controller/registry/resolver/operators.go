@@ -303,9 +303,20 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 	}
 
 	// Extract dependencies info
-	depList := []VersionDependency{}
+	var depList []VersionDependency
 	for _, v := range bundle.GetDependencies() {
-		if v.GetType() == registry.PackageType {
+		switch v.GetType() {
+		case registry.GVKType:
+			gvkDep := registry.GVKDependency{}
+			err := json.Unmarshal([]byte(v.GetValue()), &gvkDep)
+			// Ignore if can't parse JSON string
+			if err != nil {
+				continue
+			}
+			// Add to requiredAPIs list
+			// Set Plural to be empty string
+			required[registry.APIKey{Group: gvkDep.Group, Kind: gvkDep.Kind, Version: gvkDep.Version}] = struct{}{}
+		case registry.PackageType:
 			pkgDep := registry.PackageDependency{}
 			err := json.Unmarshal([]byte(v.GetValue()), &pkgDep)
 			if err != nil {
