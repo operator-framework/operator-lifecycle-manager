@@ -302,13 +302,43 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 		return op, nil
 	}
 
+	// Extract dependencies info
+	depList := []VersionDependency{}
+	for _, v := range bundle.GetDependencies() {
+		if v.GetType() == registry.PackageType {
+			pkgDep := registry.PackageDependency{}
+			err := json.Unmarshal([]byte(v.GetValue()), &pkgDep)
+			if err != nil {
+				continue
+			}
+			// Ignore package dependency if it is not valid (missing PackageName or
+			// invalid semver version).
+			// TODO: Support semver range. This requires code change on `VersionDependency`
+			// and probably the cache func as well.
+			ver, err := semver.ParseTolerant(pkgDep.Version)
+			if err != nil {
+				continue
+			}
+			if pkgDep.PackageName == "" {
+				continue
+			}
+
+			vd := VersionDependency{
+				Package: pkgDep.PackageName,
+				Version: ver,
+			}
+			depList = append(depList, vd)
+		}
+	}
+
 	return &Operator{
-		name:         bundle.CsvName,
-		version:      version,
-		providedAPIs: provided,
-		requiredAPIs: required,
-		bundle:       bundle,
-		sourceInfo:   sourceInfo,
+		name:                bundle.CsvName,
+		version:             version,
+		providedAPIs:        provided,
+		requiredAPIs:        required,
+		bundle:              bundle,
+		sourceInfo:          sourceInfo,
+		versionDependencies: depList,
 	}, nil
 }
 
