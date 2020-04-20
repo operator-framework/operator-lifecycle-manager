@@ -14,6 +14,7 @@ import (
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
+	registry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 type BundleStreamStub struct {
@@ -286,4 +287,37 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		})
 	}
 
+}
+
+func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
+	rcp := RegistryClientProviderStub{}
+	key := CatalogKey{Namespace: "testnamespace", Name: "testname"}
+	rcp[key] = &RegistryClientStub{
+		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
+			Bundles: []*api.Bundle{{
+				CsvName: fmt.Sprintf("%s/%s", key.Namespace, key.Name),
+				ProvidedApis: []*api.GroupVersionKind{{
+					Group:   "g",
+					Version: "v1",
+					Kind:    "K",
+					Plural:  "ks",
+				}},
+				RequiredApis: []*api.GroupVersionKind{{
+					Group:   "g2",
+					Version: "v2",
+					Kind:    "K2",
+					Plural:  "ks2",
+				}},
+			}},
+		}),
+	}
+
+	c := NewOperatorCache(rcp)
+
+	nc := c.Namespaced("testnamespace")
+	result, err := nc.GetRequiredAPIFromAllCatalogs(registry.APIKey{Group: "g", Version: "v1", Kind: "K"})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, "K.v1.g", result[0].providedAPIs.String())
+	assert.Equal(t, "K2.v2.g2", result[0].requiredAPIs.String())
 }
