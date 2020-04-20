@@ -45,8 +45,8 @@ var _ = Describe("Operator", func() {
 	})
 
 	AfterEach(func() {
-		toggleCVO()
 		togglev2alpha1()
+		toggleCVO()
 	})
 
 	// Ensures that an Operator resource can select its components by label and surface them correctly in its status.
@@ -67,8 +67,11 @@ var _ = Describe("Operator", func() {
 	It("should surface components in its status", func() {
 		o := &operatorsv2alpha1.Operator{}
 		o.SetName(genName("o-"))
-		o, err := operatorClient.Create(clientCtx, o, createOpts)
-		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() error {
+			_, err := operatorClient.Create(clientCtx, o, createOpts)
+			return err
+		}).Should(Succeed())
 
 		defer func() {
 			Expect(operatorClient.Delete(clientCtx, o.GetName(), deleteOpts)).To(Succeed())
