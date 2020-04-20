@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/coreos/go-semver/semver"
+	"github.com/sirupsen/logrus"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
@@ -73,115 +72,8 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 
 func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
 	ownedAPIServiceDescs []v1alpha1.APIServiceDescription, requiredAPIServiceDescs []v1alpha1.APIServiceDescription,
-	requiredNativeAPIs []metav1.GroupVersionKind) (met bool, statuses []v1alpha1.RequirementStatus) {
+	requiredNativeAPIs []metav1.GroupVersionKind) (met bool, statuses []v1alpha1.RequirementStatus, err error) {
 	met = true
-
-	// Check for CRDs
-	for _, r := range crdDescs {
-		status := v1alpha1.RequirementStatus{
-			Group:   "apiextensions.k8s.io",
-			Version: "v1",
-			Kind:    "CustomResourceDefinition",
-			Name:    r.Name,
-		}
-
-		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
-		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(r.Name)
-		if err != nil {
-			status.Status = v1alpha1.RequirementStatusReasonNotPresent
-			status.Message = "CRD is not present"
-			a.logger.Debugf("Setting 'met' to false, %v with status %v, with err: %v", r.Name, status, err)
-			met = false
-			statuses = append(statuses, status)
-			continue
-		}
-
-		served := false
-		for _, version := range crd.Spec.Versions {
-			if version.Name == r.Version {
-				if version.Served {
-					served = true
-				}
-				break
-			}
-		}
-
-		if !served {
-			status.Status = v1alpha1.RequirementStatusReasonNotPresent
-			status.Message = "CRD version not served"
-			a.logger.Debugf("Setting 'met' to false, %v with status %v, CRD version %v not found", r.Name, status, r.Version)
-			met = false
-			statuses = append(statuses, status)
-			continue
-		}
-
-		// Check if CRD has successfully registered with k8s API
-		established := false
-		namesAccepted := false
-		for _, cdt := range crd.Status.Conditions {
-			switch cdt.Type {
-			case apiextensionsv1.Established:
-				if cdt.Status == apiextensionsv1.ConditionTrue {
-					established = true
-				}
-			case apiextensionsv1.NamesAccepted:
-				if cdt.Status == apiextensionsv1.ConditionTrue {
-					namesAccepted = true
-				}
-			}
-		}
-
-		if established && namesAccepted {
-			status.Status = v1alpha1.RequirementStatusReasonPresent
-			status.Message = "CRD is present and Established condition is true"
-			status.UUID = string(crd.GetUID())
-			statuses = append(statuses, status)
-		} else {
-			status.Status = v1alpha1.RequirementStatusReasonNotAvailable
-			status.Message = "CRD is present but the Established condition is False (not available)"
-			met = false
-			a.logger.Debugf("Setting 'met' to false, %v with status %v, established=%v, namesAccepted=%v", r.Name, status, established, namesAccepted)
-			statuses = append(statuses, status)
-		}
-	}
-
-	// Check for required API services
-	for _, r := range requiredAPIServiceDescs {
-		name := fmt.Sprintf("%s.%s", r.Version, r.Group)
-		status := v1alpha1.RequirementStatus{
-			Group:   "apiregistration.k8s.io",
-			Version: "v1",
-			Kind:    "APIService",
-			Name:    name,
-		}
-
-		// Check if GVK exists
-		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
-			status.Status = "NotPresent"
-			met = false
-			statuses = append(statuses, status)
-			continue
-		}
-
-		// Check if APIService is registered
-		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(name)
-		if err != nil {
-			status.Status = "NotPresent"
-			met = false
-			statuses = append(statuses, status)
-			continue
-		}
-
-		// Check if API is available
-		if !install.IsAPIServiceAvailable(apiService) {
-			status.Status = "NotPresent"
-			met = false
-		} else {
-			status.Status = "Present"
-			status.UUID = string(apiService.GetUID())
-		}
-		statuses = append(statuses, status)
-	}
 
 	// Check owned API services
 	for _, r := range ownedAPIServiceDescs {
@@ -210,26 +102,117 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 		}
 	}
 
-	for _, r := range requiredNativeAPIs {
-		name := fmt.Sprintf("%s.%s", r.Version, r.Group)
-		status := v1alpha1.RequirementStatus{
-			Group:   r.Group,
-			Version: r.Version,
-			Kind:    r.Kind,
-			Name:    name,
+	// Checking the existence of CRDs, required APIServices, and NativeAPIs by their GVKs.
+	var requiredResourceGVKNs []v1alpha1.RequirementStatus
+	for _, r := range crdDescs {
+		g := strings.SplitN(r.Name, ".", 2)
+		if len(g) != 2 {
+			met = false
+			err = fmt.Errorf("CRD name %s is not in the form of `pural.group`", r.Name)
+			return
 		}
 
-		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
+		requiredResourceGVKNs = append(requiredResourceGVKNs, v1alpha1.RequirementStatus{
+			Group:   g[1],
+			Version: r.Version,
+			Kind:    r.Kind,
+			Name:    r.Name,
+		})
+	}
+
+	for _, gvk := range requiredAPIServiceDescs {
+		requiredResourceGVKNs = append(requiredResourceGVKNs, v1alpha1.RequirementStatus{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+			Kind:    gvk.Kind,
+			Name:    fmt.Sprintf("%s.%s", gvk.Version, gvk.Group),
+		})
+	}
+
+	// Required CRD and APIService may both come in from either description types.
+	// We check by name if a resource is APIService and if it is available.
+	for _, status := range requiredResourceGVKNs {
+		// Check if the GVK of this resource is registered
+		if err := a.isGVKRegistered(status.Group, status.Version, status.Kind); err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
-			status.Message = "Native API does not exist"
+			status.Message = "resource does not exist"
 			met = false
 			statuses = append(statuses, status)
 			continue
+		}
+
+		// Check if this is an APIService
+		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(status.Name)
+		if err == nil {
+			// Check if API is available
+			if !install.IsAPIServiceAvailable(apiService) {
+				status.Status = "NotPresent"
+				met = false
+				statuses = append(statuses, status)
+			} else {
+				status.Status = "Present"
+				status.UUID = string(apiService.GetUID())
+				statuses = append(statuses, status)
+			}
+			continue
+		}
+
+		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(status.Name)
+		if err == nil {
+			// Check if CRD has successfully registered with k8s API
+			established := false
+			namesAccepted := false
+			for _, cdt := range crd.Status.Conditions {
+				switch cdt.Type {
+				case apiextensionsv1.Established:
+					if cdt.Status == apiextensionsv1.ConditionTrue {
+						established = true
+					}
+				case apiextensionsv1.NamesAccepted:
+					if cdt.Status == apiextensionsv1.ConditionTrue {
+						namesAccepted = true
+					}
+				}
+			}
+
+			if established && namesAccepted {
+				status.Status = v1alpha1.RequirementStatusReasonPresent
+				status.Message = "CRD is present and Established condition is true"
+				status.UUID = string(crd.GetUID())
+				statuses = append(statuses, status)
+			} else {
+				status.Status = v1alpha1.RequirementStatusReasonNotAvailable
+				status.Message = "CRD is present but the Established condition is False (not available)"
+				met = false
+				a.logger.Debugf("Setting 'met' to false, %v with status %v, established=%v, namesAccepted=%v",
+					status.Name, status, established, namesAccepted)
+				statuses = append(statuses, status)
+			}
+			continue
+		}
+
+		status.Status = v1alpha1.RequirementStatusReasonPresent
+		status.Message = "resource exists"
+		statuses = append(statuses, status)
+	}
+
+	for _, gvk := range requiredNativeAPIs {
+		status := v1alpha1.RequirementStatus{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+			Kind:    gvk.Kind,
+			Name:    fmt.Sprintf("%s.%s", gvk.Version, gvk.Group),
+		}
+
+		if err := a.isGVKRegistered(status.Group, status.Version, status.Kind); err != nil {
+			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+			status.Message = "resource does not exist"
+			met = false
+			statuses = append(statuses, status)
 		} else {
 			status.Status = v1alpha1.RequirementStatusReasonPresent
-			status.Message = "Native API exists"
+			status.Message = "resource exists"
 			statuses = append(statuses, status)
-			continue
 		}
 	}
 
@@ -355,7 +338,11 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 		allReqStatuses = append(allReqStatuses, minKubeStatus...)
 	}
 
-	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
+	reqMet, reqStatuses, err := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(),
+		csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
+	if err != nil {
+		return false, nil, err
+	}
 	allReqStatuses = append(allReqStatuses, reqStatuses...)
 
 	rbacLister := a.lister.RbacV1()

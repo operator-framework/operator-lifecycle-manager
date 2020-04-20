@@ -2871,13 +2871,14 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
+		// notServedStatus stating what is specified in CSV not getting served.
 		notServedStatus := v1alpha1.RequirementStatus{
-			Group:   "apiextensions.k8s.io",
-			Version: "v1",
-			Kind:    "CustomResourceDefinition",
+			Group:   "cluster.com",
+			Version: "apiextensions.k8s.io/v1alpha1",
+			Kind:    crdPlural,
 			Name:    crdName,
 			Status:  v1alpha1.RequirementStatusReasonNotPresent,
-			Message: "CRD version not served",
+			Message: "resource does not exist",
 		}
 		csvCheckPhaseAndRequirementStatus := func(csv *v1alpha1.ClusterServiceVersion) bool {
 			if csv.Status.Phase == v1alpha1.CSVPhasePending {

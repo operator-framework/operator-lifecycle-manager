@@ -410,14 +410,14 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 						},
 					},
 				},
-				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
+				{"g1", "v1", "c1", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonPresent,
 				},
-				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c2.g2"}: {
+				{"g2", "v1", "c2", "c2.g2"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1",
 					Kind:    "CustomResourceDefinition",
@@ -451,7 +451,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
+				{"g1", "v2", "c1", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1",
 					Kind:    "CustomResourceDefinition",
@@ -485,7 +485,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
+				{"g1", "version-not-found", "c1", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1",
 					Kind:    "CustomResourceDefinition",
@@ -525,9 +525,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
+				{"g1", "v2", "c1", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
-					Version: "v1",
+					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
@@ -565,9 +565,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1", "CustomResourceDefinition", "c1.g1"}: {
+				{"g1", "v2", "c1", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
-					Version: "v1",
+					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,

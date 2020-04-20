@@ -761,10 +761,10 @@ func apiService(group, version, serviceName, serviceNamespace, deploymentName st
 	return apiService
 }
 
-func crd(name, version, group string) *apiextensionsv1.CustomResourceDefinition {
+func crd(kind, version, group string) *apiextensionsv1.CustomResourceDefinition {
 	return &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name + "." + group,
+			Name: kind + "." + group,
 		},
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: group,
@@ -776,7 +776,7 @@ func crd(name, version, group string) *apiextensionsv1.CustomResourceDefinition 
 				},
 			},
 			Names: apiextensionsv1.CustomResourceDefinitionNames{
-				Kind: name,
+				Kind: kind,
 			},
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
@@ -3383,9 +3383,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 			Message: "CSV minKubeVersion (0.0.0) less than server version (" + serverVersion + ")",
 		},
 		{
-			Group:   "apiextensions.k8s.io",
+			Group:   "fake.api.group",
 			Version: "v1",
-			Kind:    "CustomResourceDefinition",
+			Kind:    "c1",
 			Name:    crd.GetName(),
 			Status:  v1alpha1.RequirementStatusReasonPresent,
 			Message: "CRD is present and Established condition is true",

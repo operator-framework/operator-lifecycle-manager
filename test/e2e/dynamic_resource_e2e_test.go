@@ -96,11 +96,11 @@ var _ = Describe("Dynamic Resource", func() {
 			Resource: "prometheusrules",
 		}
 
-		err = waitForGVR(dynamicClient, gvr, "my-prometheusrule", ns.GetName())
+		err = waitForGVR(dynamicClient, gvr, "prometheusrules.monitoring.coreos.com", ns.GetName())
 		require.NoError(GinkgoT(), err)
 
 		gvr.Resource = "servicemonitors"
-		err = waitForGVR(dynamicClient, gvr, "my-servicemonitor", ns.GetName())
+		err = waitForGVR(dynamicClient, gvr, "servicemonitors.monitoring.coreos.com", ns.GetName())
 		require.NoError(GinkgoT(), err)
 	})
 })
