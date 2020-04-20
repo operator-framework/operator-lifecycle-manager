@@ -676,7 +676,8 @@ const (
 
 func toggleCVO() {
 	c := ctx.Ctx().KubeClient().KubernetesInterface().AppsV1().Deployments(cvoNamespace)
-	scale, err := c.GetScale(cvoDeploymentName, metav1.GetOptions{})
+	clientCtx := context.Background()
+	scale, err := c.GetScale(clientCtx, cvoDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// CVO is not enabled
@@ -693,7 +694,7 @@ func toggleCVO() {
 	}
 
 	Eventually(func() error {
-		_, err := c.UpdateScale(cvoDeploymentName, scale)
+		_, err := c.UpdateScale(clientCtx, cvoDeploymentName, scale, metav1.UpdateOptions{})
 		return err
 	}).Should(Succeed())
 }
@@ -761,12 +762,13 @@ func toggleFeatureGates(deployment *appsv1.Deployment, toToggle ...featuregate.F
 		containers[containerIndex].Args = append(containers[containerIndex].Args, gateArg)
 	}
 
-	w, err := c.Watch(metav1.ListOptions{})
+	clientCtx := context.Background()
+	w, err := c.Watch(clientCtx, metav1.ListOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	timeout := 1 * time.Minute
 	Eventually(func() error {
-		_, err := c.Update(deployment)
+		_, err := c.Update(clientCtx, deployment, metav1.UpdateOptions{})
 		return err
 	}, timeout).Should(Succeed())
 

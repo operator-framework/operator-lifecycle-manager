@@ -47,19 +47,19 @@ func Manager(ctx context.Context) (ctrl.Manager, error) {
 			return nil, err
 		}
 
-		crd, err := client.CustomResourceDefinitions().Create(crds.Operator())
+		crd, err := client.CustomResourceDefinitions().Create(ctx, crds.Operator(), metav1.CreateOptions{})
 		if err != nil {
 			if !apierrors.IsAlreadyExists(err) {
 				return nil, err
 			}
 
 			// Already exists, try to update
-			if crd, err = client.CustomResourceDefinitions().Get(crds.Operator().GetName(), metav1.GetOptions{}); err != nil {
+			if crd, err = client.CustomResourceDefinitions().Get(ctx, crds.Operator().GetName(), metav1.GetOptions{}); err != nil {
 				return nil, err
 			}
 
 			crd.Spec = crds.Operator().Spec
-			if _, err = client.CustomResourceDefinitions().Update(crd); err != nil {
+			if _, err = client.CustomResourceDefinitions().Update(ctx, crd, metav1.UpdateOptions{}); err != nil {
 				return nil, err
 			}
 		}

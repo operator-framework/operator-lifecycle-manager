@@ -20,7 +20,10 @@ import (
 // Describes test specs for the Operator resource.
 var _ = Describe("Operator", func() {
 	var (
-		deleteOpts     *metav1.DeleteOptions
+		clientCtx      context.Context
+		createOpts     metav1.CreateOptions
+		updateOpts     metav1.UpdateOptions
+		deleteOpts     metav1.DeleteOptions
 		listOpts       metav1.ListOptions
 		operatorClient client.OperatorInterface
 		kubeClient     kubernetes.Interface
@@ -32,8 +35,11 @@ var _ = Describe("Operator", func() {
 		togglev2alpha1()
 
 		// Setup common utilities
+		clientCtx = context.Background()
+		createOpts = metav1.CreateOptions{}
+		updateOpts = metav1.UpdateOptions{}
+		deleteOpts = metav1.DeleteOptions{}
 		listOpts = metav1.ListOptions{}
-		deleteOpts = &metav1.DeleteOptions{}
 		operatorClient = ctx.Ctx().OperatorClient().OperatorsV2alpha1().Operators()
 		kubeClient = ctx.Ctx().KubeClient().KubernetesInterface()
 	})
@@ -61,19 +67,19 @@ var _ = Describe("Operator", func() {
 	It("should surface components in its status", func() {
 		o := &operatorsv2alpha1.Operator{}
 		o.SetName(genName("o-"))
-		o, err := operatorClient.Create(o)
+		o, err := operatorClient.Create(clientCtx, o, createOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		defer func() {
-			Expect(operatorClient.Delete(o.GetName(), deleteOpts)).To(Succeed())
+			Expect(operatorClient.Delete(clientCtx, o.GetName(), deleteOpts)).To(Succeed())
 		}()
 
 		By("eventually having a status that contains its component label selector")
-		w, err := operatorClient.Watch(listOpts)
+		w, err := operatorClient.Watch(clientCtx, listOpts)
 		Expect(err).ToNot(HaveOccurred())
 		defer w.Stop()
 
-		deadline, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		deadline, cancel := context.WithTimeout(clientCtx, 1*time.Minute)
 		defer cancel()
 
 		expectedKey := "operators.coreos.com/" + o.GetName()
@@ -99,16 +105,16 @@ var _ = Describe("Operator", func() {
 		nsB.SetName(genName("ns-b-"))
 
 		for _, ns := range []*corev1.Namespace{nsA, nsB} {
-			_, err := kubeClient.CoreV1().Namespaces().Create(ns)
+			_, err := kubeClient.CoreV1().Namespaces().Create(clientCtx, ns, createOpts)
 			Expect(err).ToNot(HaveOccurred())
 			defer func(name string) {
-				kubeClient.CoreV1().Namespaces().Delete(name, deleteOpts)
+				kubeClient.CoreV1().Namespaces().Delete(clientCtx, name, deleteOpts)
 			}(ns.GetName())
 		}
 
 		// Label ns-a with o's component label
 		nsA.SetLabels(map[string]string{expectedKey: ""})
-		_, err = kubeClient.CoreV1().Namespaces().Update(nsA)
+		_, err = kubeClient.CoreV1().Namespaces().Update(clientCtx, nsA, updateOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Ensure o's status.components.refs field eventually contains a reference to ns-a
@@ -124,19 +130,19 @@ var _ = Describe("Operator", func() {
 		saB.SetNamespace(nsB.Name)
 
 		for _, sa := range []*corev1.ServiceAccount{saA, saB} {
-			_, err := kubeClient.CoreV1().ServiceAccounts(sa.GetNamespace()).Create(sa)
+			_, err := kubeClient.CoreV1().ServiceAccounts(sa.GetNamespace()).Create(clientCtx, sa, createOpts)
 			Expect(err).ToNot(HaveOccurred())
 			defer func(namespace, name string) {
-				kubeClient.CoreV1().ServiceAccounts(namespace).Delete(name, deleteOpts)
+				kubeClient.CoreV1().ServiceAccounts(namespace).Delete(clientCtx, name, deleteOpts)
 			}(sa.GetNamespace(), sa.GetName())
 		}
 
 		// Label sa-a and sa-b with o's component label
 		saA.SetLabels(map[string]string{expectedKey: ""})
-		_, err = kubeClient.CoreV1().ServiceAccounts(saA.GetNamespace()).Update(saA)
+		_, err = kubeClient.CoreV1().ServiceAccounts(saA.GetNamespace()).Update(clientCtx, saA, updateOpts)
 		Expect(err).ToNot(HaveOccurred())
 		saB.SetLabels(map[string]string{expectedKey: ""})
-		_, err = kubeClient.CoreV1().ServiceAccounts(saB.GetNamespace()).Update(saB)
+		_, err = kubeClient.CoreV1().ServiceAccounts(saB.GetNamespace()).Update(clientCtx, saB, updateOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Ensure o's status.components.refs field eventually contains references to sa-a and sa-b
@@ -146,7 +152,7 @@ var _ = Describe("Operator", func() {
 
 		// Remove the component label from sa-b
 		saB.SetLabels(nil)
-		_, err = kubeClient.CoreV1().ServiceAccounts(saB.GetNamespace()).Update(saB)
+		_, err = kubeClient.CoreV1().ServiceAccounts(saB.GetNamespace()).Update(clientCtx, saB, updateOpts)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Ensure the reference to sa-b is eventually removed from o's status.components.refs field
@@ -154,7 +160,7 @@ var _ = Describe("Operator", func() {
 		componentRefEventuallyExists(w, false, saB.GetName())
 
 		// Delete ns-a
-		Expect(kubeClient.CoreV1().Namespaces().Delete(nsA.GetName(), deleteOpts)).To(Succeed())
+		Expect(kubeClient.CoreV1().Namespaces().Delete(clientCtx, nsA.GetName(), deleteOpts)).To(Succeed())
 
 		// Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 		By("removing a component's reference when it no longer exists")
