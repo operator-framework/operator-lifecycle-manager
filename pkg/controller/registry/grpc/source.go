@@ -190,18 +190,19 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(globalNamespace, localNamespace string) map[resolver.CatalogKey]client.Interface {
+func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]client.Interface {
 	refs := map[resolver.CatalogKey]client.Interface{}
 	s.sourcesLock.RLock()
 	defer s.sourcesLock.RUnlock()
 	for key, source := range s.sources {
-		if !(key.Namespace == globalNamespace || key.Namespace == localNamespace) {
-			continue
-		}
 		if source.LastConnect.IsZero() {
 			continue
 		}
-		refs[key] = client.NewClientFromConn(source.Conn)
+		for _, namespace := range namespaces {
+			if key.Namespace == namespace {
+				refs[key] = client.NewClientFromConn(source.Conn)
+			}
+		}
 	}
 
 	// TODO : remove unhealthy
