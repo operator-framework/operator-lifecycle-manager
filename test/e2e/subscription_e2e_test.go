@@ -1353,6 +1353,10 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 	require.NotNil(t, subscription)
 
 	csv, err := fetchCSV(t, crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	if err != nil {
+		// TODO: If OLM doesn't have the subscription in its cache when it initially creates the deployment, the CSV will hang on "Installing" until it reaches the five-minute timeout, then succeed on a retry. It should be possible to skip the wait and retry immediately, but in the meantime, giving this test a little extra patience should mitigate flakes.
+		csv, err = fetchCSV(t, crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	}
 	require.NoError(t, err)
 
 	proxyEnv := proxyEnvVarFunc(t, config)
