@@ -6,6 +6,8 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -38,13 +40,42 @@ func ProvidedAPIsIndexFunc(obj interface{}) ([]string, error) {
 }
 
 // CRDProviderNames returns the names of CSVs that own the given CRD
-func CRDProviderNames(indexers map[string]cache.Indexer, crd *apiextensionsv1.CustomResourceDefinition) (map[string]struct{}, error) {
+func V1CRDProviderNames(indexers map[string]cache.Indexer, crd *apiextensionsv1.CustomResourceDefinition) (map[string]struct{}, error) {
 	csvSet := map[string]struct{}{}
 	crdSpec := map[string]struct{}{}
 	for _, v := range crd.Spec.Versions {
 		crdSpec[fmt.Sprintf("%s/%s/%s", crd.Spec.Group, v.Name, crd.Spec.Names.Kind)] = struct{}{}
 	}
 
+	for _, indexer := range indexers {
+		for key := range crdSpec {
+			csvs, err := indexer.ByIndex(ProvidedAPIsIndexFuncKey, key)
+			if err != nil {
+				return nil, err
+			}
+			for _, item := range csvs {
+				csv, ok := item.(*v1alpha1.ClusterServiceVersion)
+				if !ok {
+					continue
+				}
+				// Add to set
+				csvSet[csv.GetName()] = struct{}{}
+			}
+		}
+	}
+	return csvSet, nil
+}
+
+// CRDProviderNames returns the names of CSVs that own the given CRD
+func V1Beta1CRDProviderNames(indexers map[string]cache.Indexer, crd *apiextensionsv1beta1.CustomResourceDefinition) (map[string]struct{}, error) {
+	csvSet := map[string]struct{}{}
+	crdSpec := map[string]struct{}{}
+	for _, v := range crd.Spec.Versions {
+		crdSpec[fmt.Sprintf("%s/%s/%s", crd.Spec.Group, v.Name, crd.Spec.Names.Kind)] = struct{}{}
+	}
+	if crd.Spec.Version != "" {
+		crdSpec[fmt.Sprintf("%s/%s/%s", crd.Spec.Group, crd.Spec.Version, crd.Spec.Names.Kind)] = struct{}{}
+	}
 	for _, indexer := range indexers {
 		for key := range crdSpec {
 			csvs, err := indexer.ByIndex(ProvidedAPIsIndexFuncKey, key)

@@ -487,9 +487,9 @@ var _ = Describe("Install Plan", func() {
 			newCRD          *apiextensions.CustomResourceDefinition
 		}
 
-		var min float64 = 2.1
-		var max float64 = 256.1
-		var newMax float64 = 50.1
+		var min float64 = 2
+		var max float64 = 256
+		var newMax float64 = 50
 		// generated outside of the test table so that the same naming can be used for both old and new CSVs
 		mainCRDPlural := "testcrd"
 
@@ -527,7 +527,6 @@ var _ = Describe("Install Plan", func() {
 							},
 						},
 					}
-
 					return &oldCRD
 				}(),
 				newCRD: func() *apiextensions.CustomResourceDefinition {
@@ -537,46 +536,27 @@ var _ = Describe("Install Plan", func() {
 						{
 							Name:    "v1alpha1",
 							Served:  true,
-							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-									Type: "object",
-									Properties: map[string]apiextensions.JSONSchemaProps{
-										"spec": {
-											Type:        "object",
-											Description: "Spec of a test object.",
-											Properties: map[string]apiextensions.JSONSchemaProps{
-												"scalar": {
-													Type:        "number",
-													Description: "Scalar value that should have a min and max.",
-													Minimum:     &min,
-													Maximum:     &max,
-												},
-											},
-										},
-									},
-								},
-							},
+							Storage: false,
 						},
 						{
 							Name:    "v1alpha2",
 							Served:  true,
-							Storage: false,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-									Type: "object",
+							Storage: true,
+						},
+					}
+					newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Type: "object",
+							Properties: map[string]apiextensions.JSONSchemaProps{
+								"spec": {
+									Type:        "object",
+									Description: "Spec of a test object.",
 									Properties: map[string]apiextensions.JSONSchemaProps{
-										"spec": {
-											Type:        "object",
-											Description: "Spec of a test object.",
-											Properties: map[string]apiextensions.JSONSchemaProps{
-												"scalar": {
-													Type:        "number",
-													Description: "Scalar value that should have a min and max.",
-													Minimum:     &min,
-													Maximum:     &max,
-												},
-											},
+										"scalar": {
+											Type:        "number",
+											Description: "Scalar value that should have a min and max.",
+											Minimum:     &min,
+											Maximum:     &max,
 										},
 									},
 								},
@@ -607,22 +587,22 @@ var _ = Describe("Install Plan", func() {
 						{
 							Name:    "v1alpha1",
 							Served:  true,
-							Storage: false,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-									Type: "object",
+							Storage: true,
+						},
+					}
+					newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Type: "object",
+							Properties: map[string]apiextensions.JSONSchemaProps{
+								"spec": {
+									Type:        "object",
+									Description: "Spec of a test object.",
 									Properties: map[string]apiextensions.JSONSchemaProps{
-										"spec": {
-											Type:        "object",
-											Description: "Spec of a test object.",
-											Properties: map[string]apiextensions.JSONSchemaProps{
-												"scalar": {
-													Type:        "number",
-													Description: "Scalar value that should have a min and max.",
-													Minimum:     &min,
-													Maximum:     &newMax,
-												},
-											},
+										"scalar": {
+											Type:        "number",
+											Description: "Scalar value that should have a min and max.",
+											Minimum:     &min,
+											Maximum:     &newMax,
 										},
 									},
 								},
@@ -2315,8 +2295,8 @@ var _ = Describe("Install Plan", func() {
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
-		var min float64 = 2.1
-		var max float64 = 256.1
+		var min float64 = 2
+		var max float64 = 256
 
 		// Create CRD with offending property
 		crd := apiextensions.CustomResourceDefinition{
@@ -2326,32 +2306,6 @@ var _ = Describe("Install Plan", func() {
 			Spec: apiextensions.CustomResourceDefinitionSpec{
 				Group:   "cluster.com",
 				Version: "v1alpha1",
-				Versions: []apiextensions.CustomResourceDefinitionVersion{
-					{
-						Name:    "v1alpha1",
-						Served:  true,
-						Storage: true,
-						Schema: &apiextensions.CustomResourceValidation{
-							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-								Type: "object",
-								Properties: map[string]apiextensions.JSONSchemaProps{
-									"spec": {
-										Type:        "object",
-										Description: "Spec of a test object.",
-										Properties: map[string]apiextensions.JSONSchemaProps{
-											"scalar": {
-												Type:        "number",
-												Description: "Scalar value that should have a min and max.",
-												Minimum:     &min,
-												Maximum:     &max,
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
 				Validation: &apiextensions.CustomResourceValidation{
 					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 						Type: "object",

@@ -232,7 +232,7 @@ func TestEnsureV1CRDVersions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		err := EnsureCRDVersions(&tt.oldCRD, &tt.newCRD)
+		err := EnsureV1CRDVersions(&tt.oldCRD, &tt.newCRD)
 		if tt.expectedFailure {
 			require.Error(t, err)
 		}

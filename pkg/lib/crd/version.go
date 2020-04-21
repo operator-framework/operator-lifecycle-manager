@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -23,6 +25,10 @@ var supportedCRDVersions = map[string]struct{}{
 
 // Version takes a CRD manifest and determines whether it is v1 or v1beta1 type based on the APIVersion.
 func Version(manifest *string) (string, error) {
+	if manifest == nil {
+		return "", fmt.Errorf("empty CRD manifest")
+	}
+
 	dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(*manifest), 10)
 	unst := &unstructured.Unstructured{}
 	if err := dec.Decode(unst); err != nil {
@@ -30,17 +36,22 @@ func Version(manifest *string) (string, error) {
 	}
 
 	v := unst.GetObjectKind().GroupVersionKind().Version
+	// some e2e test fixtures do not provide an version in their typemeta
+	// assume these are v1beta types
+	if v == "" {
+		v = V1Beta1Version
+	}
 	if _, ok := supportedCRDVersions[v]; !ok {
-		return "", fmt.Errorf("could not determine CRD version from manifest")
+		return "", fmt.Errorf("CRD APIVersion from manifest not supported: %s", v)
 	}
 
 	return v, nil
 }
 
-// NotEqual determines whether two CRDs are equal based on the versions and validations of both.
-// NotEqual looks at the range of the old CRD versions to ensure index out of bounds errors do not occur.
+// V1NotEqual determines whether two v1 CRDs are equal based on the versions and validations of both.
+// V1NotEqual looks at the range of the old CRD versions to ensure index out of bounds errors do not occur.
 // If true, then we know we need to update the CRD on cluster.
-func NotEqual(currentCRD *apiextensionsv1.CustomResourceDefinition, oldCRD *apiextensionsv1.CustomResourceDefinition) bool {
+func V1NotEqual(currentCRD *apiextensionsv1.CustomResourceDefinition, oldCRD *apiextensionsv1.CustomResourceDefinition) bool {
 	var equalVersions bool
 	var equalValidation bool
 	var oldRange = len(oldCRD.Spec.Versions) - 1
@@ -55,10 +66,16 @@ func NotEqual(currentCRD *apiextensionsv1.CustomResourceDefinition, oldCRD *apie
 			return true
 		}
 		equalValidation = reflect.DeepEqual(currentCRD.Spec.Versions[i].Schema, oldCRD.Spec.Versions[i].Schema)
-		if equalValidation == false {
+		if !equalValidation {
 			return true
 		}
 	}
 
 	return false
+}
+
+func V1Beta1NotEqual(currentCRD *apiextensionsv1beta1.CustomResourceDefinition, oldCRD *apiextensionsv1beta1.CustomResourceDefinition) bool {
+	return !(reflect.DeepEqual(oldCRD.Spec.Version, currentCRD.Spec.Version) &&
+		reflect.DeepEqual(oldCRD.Spec.Versions, currentCRD.Spec.Versions) &&
+		reflect.DeepEqual(oldCRD.Spec.Validation, currentCRD.Spec.Validation))
 }
