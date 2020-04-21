@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 
+	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -32,7 +33,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
@@ -1212,10 +1212,6 @@ var _ = Describe("Subscription", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		csv, err := fetchCSV(GinkgoT(), crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
-		if err != nil {
-			// TODO: If OLM doesn't have the subscription in its cache when it initially creates the deployment, the CSV will hang on "Installing" until it reaches the five-minute timeout, then succeed on a retry. It should be possible to skip the wait and retry immediately, but in the meantime, giving this test a little extra patience should mitigate flakes.
-			csv, err = fetchCSV(GinkgoT(), crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
-		}
 		require.NoError(GinkgoT(), err)
 
 		proxyEnv := proxyEnvVarFunc(GinkgoT(), config)
