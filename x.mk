@@ -28,7 +28,12 @@ bin/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 
 .PHONY: e2e-local
 e2e-local: bin/e2e-local.test bin/e2e-local.image.tar
-	$(GINKGO) -p -randomizeAllSpecs $(if $(TEST),-focus "$(TEST)") -v -timeout 70m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=e2e-local.image.tar
+	$(GINKGO) $(if $(FOCUS),-focus "$(FOCUS)" )-nodes $(or $(NODES),1) -randomizeAllSpecs -v -timeout 70m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=e2e-local.image.tar
+
+.PHONY: e2e-ci
+e2e-ci: NODES=$(or $(E2E_CI_NODES),1)
+e2e-ci: FOCUS=$(shell $(GINKGO) -seed $(or $(E2E_CI_SEED),0) -randomizeAllSpecs -noColor -failOnPending -succinct -v -dryRun bin/e2e-local.test | grep -C4 '^-' | awk 'function trimmed(){return gensub(/^\s*(\S.*\S)\s*$$/,"\\1","g")} NR%5==1{printf "%s ",trimmed()} NR%5==2{print trimmed()}' | sed -e 's/[^ a-zA-Z0-9]/./g' | awk "NR%$(or $(E2E_CI_JOBS),1)==$(or $(E2E_CI_JOB),0){printf \"%s|\",\$$0}" | sed -e 's/|$$//' )
+e2e-ci: e2e-local
 
 # Phony prerequisite for targets that rely on the go build cache to
 # determine staleness.

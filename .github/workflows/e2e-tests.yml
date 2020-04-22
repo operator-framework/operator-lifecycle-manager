@@ -6,7 +6,25 @@ on:
   pull_request:
 jobs:
   run-e2e-tests:
+    strategy:
+      matrix:
+        job_index: [0, 1, 2, 3, 4, 5, 6, 7]
+      fail-fast: false
     runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      E2E_CI_NODES: 2
+      E2E_CI_SEED: ${{ github.run_id }}
+      E2E_CI_JOBS: 8
+      E2E_CI_JOB: ${{ matrix.job_index }}
+      JUNIT_DIRECTORY: ${{ github.workspace }}/.junit-${{ matrix.job_index }}
     steps:
       - uses: actions/checkout@v2
-      - run: make -f x.mk e2e-local
+      - run: make -f x.mk e2e-ci
+  merge-test-results:
+    runs-on: ubuntu-latest
+    needs: run-e2e-tests
+    steps:
+      - run: |
+          sudo apt-get install -y golang
+          go run ./test/e2e/reportmerger/main.go ${{ github.workspace }}/.junit-*/* | tee ${{ github.workspace }}/junit.xml
