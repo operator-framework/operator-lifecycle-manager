@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -23,13 +25,13 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
-	. "github.com/onsi/ginkgo"
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("CSV", func() {
@@ -2691,59 +2693,14 @@ var _ = Describe("CSV", func() {
 		err = waitForDeploymentToDelete(GinkgoT(), c, strategy.DeploymentSpecs[0].Name)
 		require.NoError(GinkgoT(), err)
 	})
-	It("create requirements events", func() {
-		GinkgoT().Skip()
+
+	It("emits CSV requirement events", func() {
 		defer cleaner.NotifyTestComplete(GinkgoT(), true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := ctx.Ctx().KubeClient()
+		crc := ctx.Ctx().OperatorClient()
 
-		sa := corev1.ServiceAccount{}
-		sa.SetName(genName("sa-"))
-		sa.SetNamespace(testNamespace)
-		_, err := c.CreateServiceAccount(&sa)
-		require.NoError(GinkgoT(), err, "could not create ServiceAccount")
-
-		permissions := []v1alpha1.StrategyDeploymentPermissions{
-			{
-				ServiceAccountName: sa.GetName(),
-				Rules: []rbacv1.PolicyRule{
-					{
-						Verbs:     []string{"create"},
-						APIGroups: []string{""},
-						Resources: []string{"deployment"},
-					},
-					{
-						Verbs:     []string{"delete"},
-						APIGroups: []string{""},
-						Resources: []string{"deployment"},
-					},
-				},
-			},
-		}
-
-		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
-			{
-				ServiceAccountName: sa.GetName(),
-				Rules: []rbacv1.PolicyRule{
-					{
-						Verbs:     []string{"get"},
-						APIGroups: []string{""},
-						Resources: []string{"deployment"},
-					},
-				},
-			},
-		}
-
-		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("csv"),
-			},
+		csv := &v1alpha1.ClusterServiceVersion{
 			Spec: v1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
 				InstallModes: []v1alpha1.InstallMode{
@@ -2764,150 +2721,65 @@ var _ = Describe("CSV", func() {
 						Supported: true,
 					},
 				},
-				InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
-				// Cheating a little; this is an APIservice that will exist for the e2e tests
+				InstallStrategy: newNginxInstallStrategy(genName("dep-"), nil, nil),
 				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+					// Require an API that we know won't exist under our domain
 					Required: []v1alpha1.APIServiceDescription{
 						{
-							Group:       "packages.operators.coreos.com",
-							Version:     "v1",
-							Kind:        "PackageManifest",
-							DisplayName: "Package Manifest",
-							Description: "An apiservice that exists",
+							Group:   "bad.packages.operators.coreos.com",
+							Version: "v1",
+							Kind:    "PackageManifest",
 						},
 					},
 				},
 			},
 		}
+		csv.SetNamespace(testNamespace)
+		csv.SetName(genName("csv-"))
 
-		// Create Role/Cluster Roles and RoleBindings
-		role := rbacv1.Role{
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"create"},
-					APIGroups: []string{""},
-					Resources: []string{"deployment"},
-				},
-				{
-					Verbs:     []string{"delete"},
-					APIGroups: []string{""},
-					Resources: []string{"deployment"},
-				},
-			},
-		}
-		role.SetName("test-role")
-		role.SetNamespace(testNamespace)
-		_, err = c.CreateRole(&role)
-		require.NoError(GinkgoT(), err, "could not create Role")
-
-		roleBinding := rbacv1.RoleBinding{
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					APIGroup:  "",
-					Name:      sa.GetName(),
-					Namespace: sa.GetNamespace(),
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "Role",
-				Name:     role.GetName(),
-			},
-		}
-		roleBinding.SetName(genName("dep-"))
-		roleBinding.SetNamespace(testNamespace)
-		_, err = c.CreateRoleBinding(&roleBinding)
-		require.NoError(GinkgoT(), err, "could not create RoleBinding")
-
-		clusterRole := rbacv1.ClusterRole{
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"get"},
-					APIGroups: []string{""},
-					Resources: []string{"deployment"},
-				},
-			},
-		}
-		clusterRole.SetName(genName("dep-"))
-		_, err = c.CreateClusterRole(&clusterRole)
-		require.NoError(GinkgoT(), err, "could not create ClusterRole")
-
-		clusterRoleBinding := rbacv1.ClusterRoleBinding{
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					APIGroup:  "",
-					Name:      sa.GetName(),
-					Namespace: sa.GetNamespace(),
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "ClusterRole",
-				Name:     clusterRole.GetName(),
-			},
-		}
-		clusterRoleBinding.SetName(genName("dep-"))
-		_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
-		require.NoError(GinkgoT(), err, "could not create ClusterRoleBinding")
-
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
-		require.NoError(GinkgoT(), err)
-		defer cleanupCSV()
-
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-
-		listOptions := metav1.ListOptions{
+		clientCtx := context.Background()
+		listOpts := metav1.ListOptions{
 			FieldSelector: "involvedObject.kind=ClusterServiceVersion",
 		}
+		events, err := c.KubernetesInterface().CoreV1().Events(csv.GetNamespace()).List(clientCtx, listOpts)
+		Expect(err).ToNot(HaveOccurred())
 
-		// Get events from test namespace for CSV
-		eventsList, err := c.KubernetesInterface().CoreV1().Events(testNamespace).List(context.TODO(), listOptions)
-		require.NoError(GinkgoT(), err)
-		latestEvent := findLastEvent(eventsList)
-		require.Equal(GinkgoT(), string(latestEvent.Reason), "InstallSucceeded")
+		// Watch latest events from test namespace for CSV
+		listOpts.ResourceVersion = events.ResourceVersion
+		w, err := c.KubernetesInterface().CoreV1().Events(testNamespace).Watch(context.Background(), listOpts)
+		Expect(err).ToNot(HaveOccurred())
+		defer w.Stop()
 
-		// Edit role
-		updatedRole := rbacv1.Role{
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"create"},
-					APIGroups: []string{""},
-					Resources: []string{"deployment"},
-				},
-			},
+		cleanupCSV, err := createCSV(GinkgoT(), c, crc, *csv, csv.GetNamespace(), false, false)
+		Expect(err).ToNot(HaveOccurred())
+		defer cleanupCSV()
+
+		csv, err = fetchCSV(GinkgoT(), crc, csv.GetName(), csv.GetNamespace(), csvPendingChecker)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("emitting when requirements are not met")
+		nextReason := func() string {
+			e := <-w.ResultChan()
+			if e.Object == nil {
+				return ""
+			}
+
+			return e.Object.(*corev1.Event).Reason
 		}
-		updatedRole.SetName("test-role")
-		updatedRole.SetNamespace(testNamespace)
-		_, err = c.UpdateRole(&updatedRole)
-		require.NoError(GinkgoT(), err)
+		Eventually(nextReason).Should(Equal("RequirementsNotMet"))
 
-		// Check CSV status
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
-		require.NoError(GinkgoT(), err)
+		// Update the CSV to require an API that we know exists
+		csv.Spec.APIServiceDefinitions.Required[0].Group = "packages.operators.coreos.com"
+		updateOpts := metav1.UpdateOptions{}
+		Eventually(func() error {
+			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(clientCtx, csv, updateOpts)
+			return err
+		}).Should(Succeed())
 
-		// Check event
-		eventsList, err = c.KubernetesInterface().CoreV1().Events(testNamespace).List(context.TODO(), listOptions)
-		require.NoError(GinkgoT(), err)
-		latestEvent = findLastEvent(eventsList)
-		require.Equal(GinkgoT(), string(latestEvent.Reason), "RequirementsNotMet")
-
-		// Reverse the updated role
-		_, err = c.UpdateRole(&role)
-		require.NoError(GinkgoT(), err)
-
-		// Check CSV status
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-
-		// Check event
-		eventsList, err = c.KubernetesInterface().CoreV1().Events(testNamespace).List(context.TODO(), listOptions)
-		require.NoError(GinkgoT(), err)
-		latestEvent = findLastEvent(eventsList)
-		require.Equal(GinkgoT(), string(latestEvent.Reason), "InstallSucceeded")
+		By("emitting when requirements are met")
+		Eventually(nextReason).Should(Equal("AllRequirementsMet"))
 	})
+
 	// TODO: test behavior when replaces field doesn't point to existing CSV
 	It("status invalid CSV", func() {
 
@@ -3179,7 +3051,7 @@ var _ = Describe("CSV", func() {
 		csv.SetName("csv-hat-1")
 		csv.SetNamespace(testNamespace)
 
-		createLegacyAPIResources( nil, owned[0])
+		createLegacyAPIResources(nil, owned[0])
 
 		// Create the APIService CSV
 		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
@@ -3402,8 +3274,6 @@ var _ = Describe("CSV", func() {
 
 		namespace, nsCleanupFunc := newNamespace(GinkgoT(), c, genName("csc-test-"))
 		defer nsCleanupFunc()
-
-
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{"test-go-"}, false)
 		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
@@ -4610,4 +4480,3 @@ func checkLegacyAPIResources(desc v1alpha1.APIServiceDescription, expectedIsNotF
 	_, err = c.GetRoleBinding("kube-system", apiServiceName+"-auth-reader")
 	require.Equal(GinkgoT(), expectedIsNotFound, errors.IsNotFound(err))
 }
-

@@ -4,12 +4,16 @@ package e2e
 
 import (
 	"context"
+	"fmt"
+	"regexp"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
 
-	. "github.com/onsi/ginkgo"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
@@ -39,64 +43,49 @@ var _ = Describe("Metrics", func() {
 		}
 
 		cleanupCSV, err := createCSV(GinkgoT(), c, crc, failingCSV, testNamespace, false, false)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ToNot(HaveOccurred())
 		defer cleanupCSV()
 
 		_, err = fetchCSV(GinkgoT(), crc, failingCSV.Name, testNamespace, csvFailedChecker)
-		require.NoError(GinkgoT(), err)
-
-		rawOutput, err := getMetricsFromPod(GinkgoT(), c, getOLMPodName(GinkgoT(), c), operatorNamespace, "8081")
-		if err != nil {
-			GinkgoT().Fatalf("Metrics test failed: %v\n", err)
-		}
+		Expect(err).ToNot(HaveOccurred())
 
 		// Verify metrics have been emitted for packageserver csv
-		require.Contains(GinkgoT(), rawOutput, "csv_abnormal")
-		require.Contains(GinkgoT(), rawOutput, "name=\""+failingCSV.Name+"\"")
-		require.Contains(GinkgoT(), rawOutput, "phase=\"Failed\"")
-		require.Contains(GinkgoT(), rawOutput, "reason=\"UnsupportedOperatorGroup\"")
-		require.Contains(GinkgoT(), rawOutput, "version=\"0.0.0\"")
-
-		require.Contains(GinkgoT(), rawOutput, "csv_succeeded")
-		log.Info(rawOutput)
+		Expect(getMetricsFromPod(c, getOLMPod(c), "8081")).To(And(
+			ContainSubstring("csv_abnormal"),
+			ContainSubstring(fmt.Sprintf("name=\"%s\"", failingCSV.Name)),
+			ContainSubstring("phase=\"Failed\""),
+			ContainSubstring("reason=\"UnsupportedOperatorGroup\""),
+			ContainSubstring("version=\"0.0.0\""),
+			ContainSubstring("csv_succeeded"),
+		))
 	})
 })
 
-func getOLMPodName(t GinkgoTInterface, client operatorclient.ClientInterface) string {
+func getOLMPod(client operatorclient.ClientInterface) *corev1.Pod {
 	listOptions := metav1.ListOptions{LabelSelector: "app=olm-operator"}
-	podList, err := client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(context.TODO(), listOptions)
-	if err != nil {
-		log.Infof("Error %v\n", err)
-		t.Fatalf("Listing pods failed: %v\n", err)
-	}
-	if len(podList.Items) != 1 {
-		t.Fatalf("Expected 1 olm-operator pod, got %v", len(podList.Items))
-	}
+	var podList *corev1.PodList
+	Eventually(func() (err error) {
+		podList, err = client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(context.TODO(), listOptions)
+		return
+	}).Should(Succeed(), "Failed to list OLM pods")
+	Expect(len(podList.Items)).To(Equal(1))
 
-	podName := podList.Items[0].GetName()
-	log.Infof("Looking at pod %v in namespace %v", podName, operatorNamespace)
-	return podName
-
+	return &podList.Items[0]
 }
 
-func getMetricsFromPod(t GinkgoTInterface, client operatorclient.ClientInterface, podName string, namespace string, port string) (string, error) {
-	olmPod, err := client.KubernetesInterface().CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-	if len(olmPod.Spec.Containers) != 1 {
-		t.Fatalf("Expected only 1 container in olm-operator pod, got %v", len(olmPod.Spec.Containers))
-	}
+func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod, port string) string {
+	By(fmt.Sprintf("querying pod %s/%s", pod.GetNamespace(), pod.GetName()))
 
-	var foundCert bool
-	var foundKey bool
 	// assuming -tls-cert and -tls-key aren't used anywhere else as a parameter value
-	for _, param := range olmPod.Spec.Containers[0].Args {
-		if param == "-tls-cert" {
-			foundCert = true
-		} else if param == "-tls-key" {
-			foundKey = true
-		}
+	var foundCert, foundKey bool
+	for _, arg := range pod.Spec.Containers[0].Args {
+		matched, err := regexp.MatchString(`^-?-tls-cert`, arg)
+		Expect(err).ToNot(HaveOccurred())
+		foundCert = foundCert || matched
+
+		matched, err = regexp.MatchString(`^-?-tls-key`, arg)
+		Expect(err).ToNot(HaveOccurred())
+		foundKey = foundKey || matched
 	}
 
 	var scheme string
@@ -107,15 +96,17 @@ func getMetricsFromPod(t GinkgoTInterface, client operatorclient.ClientInterface
 	}
 	log.Infof("Retrieving metrics using scheme %v\n", scheme)
 
-	rawOutput, err := client.KubernetesInterface().CoreV1().RESTClient().Get().
-		Namespace(namespace).
-		Resource("pods").
-		SubResource("proxy").
-		Name(net.JoinSchemeNamePort(scheme, podName, port)).
-		Suffix("metrics").
-		Do(context.TODO()).Raw()
-	if err != nil {
-		return "", err
-	}
-	return string(rawOutput), nil
+	var raw []byte
+	Eventually(func() (err error) {
+		raw, err = client.KubernetesInterface().CoreV1().RESTClient().Get().
+			Namespace(pod.GetNamespace()).
+			Resource("pods").
+			SubResource("proxy").
+			Name(net.JoinSchemeNamePort(scheme, pod.GetName(), port)).
+			Suffix("metrics").
+			Do(context.Background()).Raw()
+		return
+	}).Should(Succeed())
+
+	return string(raw)
 }
