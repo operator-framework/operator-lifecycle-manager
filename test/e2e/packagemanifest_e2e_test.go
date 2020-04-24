@@ -118,3 +118,61 @@ func TestPackageManifestLoading(t *testing.T) {
 	require.NotNil(t, pmList.ListMeta, "package manifest list metadata empty")
 	require.NotNil(t, pmList.Items)
 }
+
+func TestPkgManifestsFromCatsrc(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	sourceName := genName("catalog-")
+	packageName := "etcd-test"
+	displayName := "etcd test catalog"
+	image := "quay.io/olmtest/catsrc-update-test:related"
+	crc := newCRClient(t)
+	pmc := newPMClient(t)
+
+	catalogSource := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sourceName,
+			Namespace: testNamespace,
+			Labels:    map[string]string{"olm.catalogSource": sourceName},
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType:  v1alpha1.SourceTypeGrpc,
+			Image:       image,
+			DisplayName: displayName,
+		},
+	}
+
+	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Create(catalogSource)
+	require.NoError(t, err, "error creating Catalog Sources")
+	require.NotNil(t, catalogSource)
+
+	pm, err := fetchPackageManifest(t, pmc, testNamespace, packageName, packageManifestHasStatus)
+	require.NoError(t, err, "error getting package manifest")
+	require.NotNil(t, pm)
+	require.Equal(t, packageName, pm.GetName())
+	require.Equal(t, displayName, pm.Status.CatalogSourceDisplayName)
+
+	catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(catalogSource.GetName(), metav1.GetOptions{})
+	require.NoError(t, err, "error getting catalogSource")
+
+	displayName = "updated Name"
+	catalogSource.Spec.DisplayName = displayName
+	catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(catalogSource)
+	require.NoError(t, err, "error updating catalogSource")
+	require.Equal(t, displayName, catalogSource.Spec.DisplayName)
+
+	// waiting for the update to complete
+	err = wait.Poll(pollInterval, 1*time.Minute, func() (bool, error) {
+		t.Logf("Polling package-server...")
+		pm, err := fetchPackageManifest(t, pmc, testNamespace, packageName, packageManifestHasStatus)
+		if err != nil {
+			return false, err
+		}
+		return pm.Status.CatalogSourceDisplayName == displayName, nil
+	})
+	require.NoError(t, err, "error package manifest Status.CatalogSourceDisplayName is not updated to catsrc Spec.DisplayName")
+}
