@@ -2,11 +2,7 @@ package crd
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
-
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -35,12 +31,7 @@ func Version(manifest *string) (string, error) {
 		return "", err
 	}
 
-	v := unst.GetObjectKind().GroupVersionKind().Version
-	// some e2e test fixtures do not provide an version in their typemeta
-	// assume these are v1beta types
-	if v == "" {
-		v = V1Beta1Version
-	}
+	v := unst.GroupVersionKind().Version
 	if _, ok := supportedCRDVersions[v]; !ok {
 		return "", fmt.Errorf("CRD APIVersion from manifest not supported: %s", v)
 	}
@@ -48,34 +39,3 @@ func Version(manifest *string) (string, error) {
 	return v, nil
 }
 
-// V1NotEqual determines whether two v1 CRDs are equal based on the versions and validations of both.
-// V1NotEqual looks at the range of the old CRD versions to ensure index out of bounds errors do not occur.
-// If true, then we know we need to update the CRD on cluster.
-func V1NotEqual(currentCRD *apiextensionsv1.CustomResourceDefinition, oldCRD *apiextensionsv1.CustomResourceDefinition) bool {
-	var equalVersions bool
-	var equalValidation bool
-	var oldRange = len(oldCRD.Spec.Versions) - 1
-
-	equalVersions = reflect.DeepEqual(currentCRD.Spec.Versions, oldCRD.Spec.Versions)
-	if !equalVersions {
-		return true
-	}
-
-	for i := range currentCRD.Spec.Versions {
-		if i > oldRange {
-			return true
-		}
-		equalValidation = reflect.DeepEqual(currentCRD.Spec.Versions[i].Schema, oldCRD.Spec.Versions[i].Schema)
-		if !equalValidation {
-			return true
-		}
-	}
-
-	return false
-}
-
-func V1Beta1NotEqual(currentCRD *apiextensionsv1beta1.CustomResourceDefinition, oldCRD *apiextensionsv1beta1.CustomResourceDefinition) bool {
-	return !(reflect.DeepEqual(oldCRD.Spec.Version, currentCRD.Spec.Version) &&
-		reflect.DeepEqual(oldCRD.Spec.Versions, currentCRD.Spec.Versions) &&
-		reflect.DeepEqual(oldCRD.Spec.Validation, currentCRD.Spec.Validation))
-}

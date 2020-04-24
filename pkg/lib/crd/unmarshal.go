@@ -34,11 +34,6 @@ func UnmarshalV1(manifest string) (*apiextensionsv1.CustomResourceDefinition, er
 		return nil, fmt.Errorf("v1 crd unmarshaling failed: %s", err)
 	}
 
-	// set CRD type meta
-	// for purposes of fake client for unit tests to pass
-	crd.TypeMeta.Kind = Kind
-	crd.TypeMeta.APIVersion = Group + V1Version
-
 	return crd, nil
 }
 
@@ -50,11 +45,6 @@ func UnmarshalV1Beta1(manifest string) (*apiextensionsv1beta1.CustomResourceDefi
 	if err := decoder.Decode(crd); err != nil {
 		return nil, fmt.Errorf("v1beta1 crd unmarshaling failed: %s", err)
 	}
-
-	// set CRD type meta
-	// for purposes of fake client for unit tests to pass
-	crd.TypeMeta.Kind = Kind
-	crd.TypeMeta.APIVersion = Group + V1Beta1Version
 
 	return crd, nil
 }

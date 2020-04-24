@@ -120,46 +120,30 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(createError) {
 				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				// Compare 2 CRDs to see if it needs to be updated
-				logger.Debugf("\n current crd: %#v \n new crd: %#v \n", currentCRD, crd)
-				if crdlib.V1NotEqual(currentCRD, crd) {
-					// Verify CRD ownership, only attempt to update if
-					// CRD has only one owner
-					// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
-					matchedCSV, err := index.V1CRDProviderNames(b.csvToProvidedAPIs, crd)
-					if err != nil {
-						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
-					}
-					crd.SetResourceVersion(currentCRD.GetResourceVersion())
-					if len(matchedCSV) == 1 {
-						logger.Debugf("Found one owner for CRD %v", crd)
-					} else if len(matchedCSV) > 1 {
-						logger.Debugf("Found multiple owners for CRD %v", crd)
+				b.logger.Debugf("\n current crd: %#v \n new crd: %#v \n", currentCRD, crd)
+				// Verify CRD ownership, only attempt to update if
+				// CRD has only one owner
+				// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
+				matchedCSV, err := index.V1CRDProviderNames(b.csvToProvidedAPIs, crd)
+				if err != nil {
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
+				}
+				crd.SetResourceVersion(currentCRD.GetResourceVersion())
+				if len(matchedCSV) == 1 {
+					logger.Debugf("Found one owner for CRD %v", crd)
+				} else if len(matchedCSV) > 1 {
+					logger.Debugf("Found multiple owners for CRD %v", crd)
 
-						err := EnsureV1CRDVersions(currentCRD, crd)
-						if err != nil {
-							return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error missing existing CRD version(s) in new CRD: %s", step.Resource.Name)
-						}
+					if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
+					}
+				}
 
-						if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-							return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
-						}
-					}
-					// Remove deprecated version in CRD storedVersions
-					storeVersions := removeDeprecatedV1StoredVersions(currentCRD, crd)
-					if storeVersions != nil {
-						currentCRD.Status.StoredVersions = storeVersions
-						resultCRD, err := client.CustomResourceDefinitions().UpdateStatus(context.TODO(), currentCRD, metav1.UpdateOptions{})
-						if err != nil {
-							return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD's status: %s", step.Resource.Name)
-						}
-						crd.SetResourceVersion(resultCRD.GetResourceVersion())
-					}
-					// Update CRD to new version
-					_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
-					if err != nil {
-						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
-					}
+				// TODO ensure stored version compatibility
+				// Update CRD to new version
+				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
+				if err != nil {
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
 				}
 				// If it already existed, mark the step as Present.
 				// they were equal - mark CRD as present
@@ -217,47 +201,30 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(createError) {
 				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				// Compare 2 CRDs to see if it needs to be updated
-				logger.Debugf("\n current crd: %#v \n new crd: %#v \n", currentCRD, crd)
-				if crdlib.V1Beta1NotEqual(currentCRD, crd) {
-					b.logger.Debugf("not equal")
-					// Verify CRD ownership, only attempt to update if
-					// CRD has only one owner
-					// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
-					matchedCSV, err := index.V1Beta1CRDProviderNames(b.csvToProvidedAPIs, crd)
-					if err != nil {
-						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
-					}
-					crd.SetResourceVersion(currentCRD.GetResourceVersion())
-					if len(matchedCSV) == 1 {
-						logger.Debugf("Found one owner for CRD %v", crd)
-					} else if len(matchedCSV) > 1 {
-						logger.Debugf("Found multiple owners for CRD %v", crd)
+				b.logger.Debugf("\n current crd: %#v \n new crd: %#v \n", currentCRD, crd)
+				// Verify CRD ownership, only attempt to update if
+				// CRD has only one owner
+				// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
+				matchedCSV, err := index.V1Beta1CRDProviderNames(b.csvToProvidedAPIs, crd)
+				if err != nil {
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
+				}
+				crd.SetResourceVersion(currentCRD.GetResourceVersion())
+				if len(matchedCSV) == 1 {
+					logger.Debugf("Found one owner for CRD %v", crd)
+				} else if len(matchedCSV) > 1 {
+					logger.Debugf("Found multiple owners for CRD %v", crd)
 
-						err := EnsureV1Beta1CRDVersions(currentCRD, crd)
-						if err != nil {
-							return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error missing existing CRD version(s) in new CRD: %s", step.Resource.Name)
-						}
+					if err = validateV1Beta1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
+					}
+				}
+				// TODO ensure stored version compatibility
 
-						if err = validateV1Beta1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-							return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
-						}
-					}
-					// Remove deprecated version in CRD storedVersions
-					storeVersions := removeDeprecatedV1Beta1StoredVersions(currentCRD, crd)
-					if storeVersions != nil {
-						currentCRD.Status.StoredVersions = storeVersions
-						resultCRD, err := client.CustomResourceDefinitions().UpdateStatus(context.TODO(), currentCRD, metav1.UpdateOptions{})
-						if err != nil {
-							return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD's status: %s", step.Resource.Name)
-						}
-						crd.SetResourceVersion(resultCRD.GetResourceVersion())
-					}
-					// Update CRD to new version
-					_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
-					if err != nil {
-						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
-					}
+				// Update CRD to new version
+				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
+				if err != nil {
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
 				}
 				// If it already existed, mark the step as Present.
 				// they were equal - mark CRD as present

@@ -1306,65 +1306,6 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
-func GetCRDV1VersionsMap(crd *apiextensionsv1.CustomResourceDefinition) map[string]struct{} {
-	versionsMap := map[string]struct{}{}
-
-	for _, version := range crd.Spec.Versions {
-		versionsMap[version.Name] = struct{}{}
-	}
-	return versionsMap
-}
-
-// Ensure all existing served versions are present in new CRD
-func GetCRDV1Beta1VersionsMap(crd *apiextensionsv1beta1.CustomResourceDefinition) map[string]struct{} {
-	versionsMap := map[string]struct{}{}
-
-	for _, version := range crd.Spec.Versions {
-		versionsMap[version.Name] = struct{}{}
-	}
-	if crd.Spec.Version != "" {
-		versionsMap[crd.Spec.Version] = struct{}{}
-	}
-
-	return versionsMap
-}
-
-// Ensure all existing served versions are present in new CRD
-func EnsureV1CRDVersions(oldCRD *apiextensionsv1.CustomResourceDefinition, newCRD *apiextensionsv1.CustomResourceDefinition) error {
-	newCRDVersions := GetCRDV1VersionsMap(newCRD)
-
-	for _, oldVersion := range oldCRD.Spec.Versions {
-		if oldVersion.Served {
-			_, ok := newCRDVersions[oldVersion.Name]
-			if !ok {
-				return fmt.Errorf("New CRD (%s) must contain existing served versions (%s)", oldCRD.Name, oldVersion.Name)
-			}
-		}
-	}
-	return nil
-}
-
-// Ensure all existing served versions are present in new CRD
-func EnsureV1Beta1CRDVersions(oldCRD *apiextensionsv1beta1.CustomResourceDefinition, newCRD *apiextensionsv1beta1.CustomResourceDefinition) error {
-	newCRDVersions := GetCRDV1Beta1VersionsMap(newCRD)
-
-	for _, oldVersion := range oldCRD.Spec.Versions {
-		if oldVersion.Served {
-			_, ok := newCRDVersions[oldVersion.Name]
-			if !ok {
-				return fmt.Errorf("New CRD (%s) must contain existing served versions (%s)", oldCRD.Name, oldVersion.Name)
-			}
-		}
-	}
-	if oldCRD.Spec.Version != "" {
-		_, ok := newCRDVersions[oldCRD.Spec.Version]
-		if !ok {
-			return fmt.Errorf("New CRD (%s) must contain existing version (%s)", oldCRD.Name, oldCRD.Spec.Version)
-		}
-	}
-	return nil
-}
-
 // Validate all existing served versions against new CRD's validation (if changed)
 func validateV1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiextensionsv1.CustomResourceDefinition, newCRD *apiextensionsv1.CustomResourceDefinition) error {
 	logrus.Debugf("Comparing %#v to %#v", oldCRD.Spec.Versions, newCRD.Spec.Versions)
@@ -1403,10 +1344,8 @@ func validateV1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiexte
 // Validate all existing served versions against new CRD's validation (if changed)
 func validateV1Beta1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiextensionsv1beta1.CustomResourceDefinition, newCRD *apiextensionsv1beta1.CustomResourceDefinition) error {
 	logrus.Debugf("Comparing %#v to %#v", oldCRD.Spec.Validation, newCRD.Spec.Validation)
-	// If validation schema is unchanged, return right away
-	if reflect.DeepEqual(oldCRD.Spec.Validation, newCRD.Spec.Validation) {
-		return nil
-	}
+
+	// TODO return early of all versions are equal
 	convertedCRD := &apiextensions.CustomResourceDefinition{}
 	if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(newCRD, convertedCRD, nil); err != nil {
 		return err
@@ -1449,55 +1388,6 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gvr schema.GroupVersio
 		}
 	}
 	return nil
-}
-
-// Attempt to remove stored versions that have been deprecated before allowing
-// those versions to be removed from the new CRD.
-// The function may not always succeed as storedVersions requires at least one
-// version. If there is only stored version, it won't be removed until a new
-// stored version is added.
-func removeDeprecatedV1StoredVersions(oldCRD *apiextensionsv1.CustomResourceDefinition, newCRD *apiextensionsv1.CustomResourceDefinition) []string {
-	// StoredVersions requires to have at least one version.
-	if len(oldCRD.Status.StoredVersions) <= 1 {
-		return nil
-	}
-
-	newStoredVersions := []string{}
-	newCRDVersions := GetCRDV1VersionsMap(newCRD)
-	for _, v := range oldCRD.Status.StoredVersions {
-		_, ok := newCRDVersions[v]
-		if ok {
-			newStoredVersions = append(newStoredVersions, v)
-		}
-	}
-
-	if len(newStoredVersions) < 1 {
-		return nil
-	} else {
-		return newStoredVersions
-	}
-}
-
-func removeDeprecatedV1Beta1StoredVersions(oldCRD *apiextensionsv1beta1.CustomResourceDefinition, newCRD *apiextensionsv1beta1.CustomResourceDefinition) []string {
-	// StoredVersions requires to have at least one version.
-	if len(oldCRD.Status.StoredVersions) <= 1 {
-		return nil
-	}
-
-	newStoredVersions := []string{}
-	newCRDVersions := GetCRDV1Beta1VersionsMap(newCRD)
-	for _, v := range oldCRD.Status.StoredVersions {
-		_, ok := newCRDVersions[v]
-		if ok {
-			newStoredVersions = append(newStoredVersions, v)
-		}
-	}
-
-	if len(newStoredVersions) < 1 {
-		return nil
-	} else {
-		return newStoredVersions
-	}
 }
 
 // ExecutePlan applies a planned InstallPlan to a namespace.

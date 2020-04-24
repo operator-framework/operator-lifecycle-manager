@@ -613,7 +613,7 @@ var _ = Describe("Install Plan", func() {
 				}(),
 			}),
 			table.Entry("missing existing versions in new CRD", schemaPayload{name: "missing existing versions in new CRD",
-				expectedPhase: operatorsv1alpha1.InstallPlanPhaseFailed,
+				expectedPhase: operatorsv1alpha1.InstallPlanPhaseComplete,
 				oldCRD: func() *apiextensions.CustomResourceDefinition {
 					oldCRD := newCRD(mainCRDPlural + "c")
 					oldCRD.Spec.Version = ""
@@ -919,6 +919,11 @@ var _ = Describe("Install Plan", func() {
 							Served:  true,
 							Storage: false,
 						},
+						{
+							Name:    "v1alpha1",
+							Served:  false,
+							Storage: false,
+						},
 					}
 					return &newCRD
 				}(),
@@ -1096,6 +1101,7 @@ var _ = Describe("Install Plan", func() {
 			expectedVersions = map[string]struct{}{
 				"v1alpha2": {},
 				"v1beta1":  {},
+				"v1alpha1": {},
 			}
 
 			validateCRDVersions(GinkgoT(), c, tt.oldCRD.GetName(), expectedVersions)
