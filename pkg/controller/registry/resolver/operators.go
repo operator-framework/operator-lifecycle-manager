@@ -356,6 +356,10 @@ func (o *Operator) Replaces() string {
 	return o.replaces
 }
 
+func (o *Operator) SetReplaces(replacing string) {
+	o.replaces = replacing
+}
+
 func (o *Operator) Package() string {
 	return o.bundle.PackageName
 }

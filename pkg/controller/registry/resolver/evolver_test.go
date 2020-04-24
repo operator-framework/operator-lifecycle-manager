@@ -411,6 +411,46 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					"original"),
 			),
 		},
+		{
+			name: "OwnershipTransfer",
+			fields: fields{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
+					CatalogKey{"catsrc", "catsrc-namespace"}: {
+						bundle("depender.v2", "depender", "channel", "depender.v1",
+							APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+						bundle("original.v2", "o", "c", "original", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+					},
+				}),
+				gen: NewGenerationFromOperators(
+					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+					NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+				),
+			},
+			args: args{},
+			wantGen: NewGenerationFromOperators(
+				NewFakeOperatorSurface("original.v2", "o", "c", "original", "catsrc", "", nil, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v2", "depender", "channel", "depender.v1", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+			),
+		},
+		{
+			name: "PicksOlderProvider",
+			fields: fields{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
+					CatalogKey{"catsrc", "catsrc-namespace"}: {
+						bundle("original", "o", "c", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}},  EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+						bundle("original.v2", "o", "c", "original", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+					},
+				}),
+				gen: NewGenerationFromOperators(
+					NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+				),
+			},
+			args: args{},
+			wantGen: NewGenerationFromOperators(
+				NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "",  []opregistry.APIKey{{"g", "v", "k", "ks"}},nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil,[]opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+			),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
