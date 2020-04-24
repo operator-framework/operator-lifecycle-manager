@@ -410,6 +410,55 @@ func TestNamespaceResolver(t *testing.T) {
 			},
 		},
 		{
+			// This test verifies that ownership of an api can be migrated between two operators
+			name: "OwnedAPITransfer",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				existingSub(namespace, "b.v1", "b", "alpha", catalog),
+				existingOperator(namespace, "b.v1", "b", "alpha", "", nil, Requires1, nil, nil),
+			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil),
+					bundle("b.v2", "b", "alpha", "b.v1", Provides1, nil, nil, nil),
+				},
+			}),
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides1, nil, nil, nil), namespace, "", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+					updatedSub(namespace, "b.v2", "b", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "PicksOlderProvider",
+			clusterState: []runtime.Object{
+				newSub(namespace, "b", "alpha", catalog),
+			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+					bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil),
+					bundle("b.v1", "b", "alpha", "", nil, Requires1, nil, nil),
+				},
+			}),
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v1", "b", "alpha", "", nil, Requires1, nil, nil), namespace, "", catalog),
+					subSteps(namespace, "a.v1", "a", "alpha", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "b.v1", "b", "alpha", catalog),
+				},
+			},
+		},
+		{
 			name: "InstalledSub/UpdateInHead/SkipRange",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
