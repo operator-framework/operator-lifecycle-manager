@@ -44,7 +44,9 @@ Install OLM on a Kubernetes or OpenShift cluster by following the [installation 
 
 For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started).
 
-### User Interface
+**NOTE:** OLM is installed by default in OpenShift 4.0 and above.
+
+## User Interface (Running the console Locally)
 
 Use the OpenShift admin console (compatible with upstream Kubernetes) to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
 
@@ -55,6 +57,18 @@ $ make run-console-local
 ```
 
 Then visit `http://localhost:9000` to view the console.
+
+## End-to-end example
+
+For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started). Also, see [Getting Started on OperatorHub.io](https://operatorhub.io/getting-started).
+
+## Contributing your Operator
+
+Have an awesome Operator you want to share? Checkout the [publishing docs](https://operatorhub.io/contribute) to learn about contributing to [OperatorHub.io](https://operatorhub.io/).
+
+## Subscribe to a Package and Channel
+
+Cloud Services can be installed from the catalog by subscribing to a channel in the corresponding package.
 
 **Subscription detail view:**
 ![screenshot_20180628_165240](https://user-images.githubusercontent.com/11700385/42060125-c3cde42c-7af3-11e8-87ec-e5910a554902.png)
@@ -143,6 +157,10 @@ To explore any operator samples using the OLM, see the [https://operatorhub.io/]
 
 See the [proposal docs][proposals_docs] and issues for ongoing or planned work.
 
+## Reporting bugs
+
+See [reporting bugs][bug_guide] for details about reporting any issues.
+
 ## License
 
 Operator Lifecycle Manager is under Apache 2.0 license. See the [LICENSE][license_file] file for details.
@@ -158,3 +176,4 @@ Operator Lifecycle Manager is under Apache 2.0 license. See the [LICENSE][licens
 [kubectl_tool]:https://kubernetes.io/docs/tasks/tools/install-kubectl/
 [proposals_docs]: ./doc/contributors/design-proposals
 [license_file]:./LICENSE
+[bug_guide]:./doc/dev/reporting_bugs.md
