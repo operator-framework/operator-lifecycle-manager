@@ -2,7 +2,7 @@
 
 OLM deployment resources are templated so that they can be easily configured for different deployment environments.
 
-Check out the latest [releases on github](https://github.com/operator-framework/operator-lifecycle-manager/releases) for release-specific install instructions.
+# Installation Options
 
 ## Manual installation 
 
@@ -12,19 +12,26 @@ kubectl create -f deploy/upstream/quickstart/crds.yaml
 kubectl create -f deploy/upstream/quickstart/olm.yaml
 ```
 
-## OpenShift
+## Install a Release
 
-OLM is installed by default in OpenShift 4.0 and above.
+Check out the latest [releases on github](https://github.com/operator-framework/operator-lifecycle-manager/releases) for release-specific install instructions.
 
 ## Run locally with minikube
 
 This command starts minikube, builds the OLM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for OLM.
 
-```
-make run-local
+```bash
+# To install and run locally
+$ make run-local
 ```
 
 You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
+
+**NOTE** It is recommended for development purposes and will use the source locally
+
+## OpenShift
+
+**IMPORTANT:** OLM is installed by default in OpenShift 4.0 and above.
 
 ## Customizing OLM installation 
 
@@ -120,3 +127,9 @@ spec:
   source: operatorhubio-catalog
   sourceNamespace: olm
 ```
+
+# Uninstall
+
+Run the command `make uninstall`.
+
+**NOTE** Valid just for local/manual installs. 
