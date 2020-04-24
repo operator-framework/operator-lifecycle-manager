@@ -416,18 +416,18 @@ func TestNamespaceResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
 				existingSub(namespace, "b.v1", "b", "alpha", catalog),
-				existingOperator(namespace, "b.v1", "b", "alpha", "", Provides2, Requires1, nil, nil),
+				existingOperator(namespace, "b.v1", "b", "alpha", "", nil, Requires1, nil, nil),
 			},
 			querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 				catalog: {
 					bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil),
-					bundle("b.v2", "b", "alpha", "b.v1", Provides1.Union(Provides2), nil, nil, nil),
+					bundle("b.v2", "b", "alpha", "b.v1", Provides1, nil, nil, nil),
 				},
 			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
 					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil), namespace, "", catalog),
-					bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides1.Union(Provides2), nil, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides1, nil, nil, nil), namespace, "", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
