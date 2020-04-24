@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
-	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -26,9 +24,11 @@ import (
 	operatorslisters "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	registrygrpc "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	pkglisters "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/listers/operators/internalversion"
+	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 const (
@@ -189,9 +189,17 @@ func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) 
 		Namespace: source.GetNamespace(),
 		Name:      source.GetName(),
 	}
+
 	if sourceMeta := p.sources.GetMeta(key); sourceMeta != nil && sourceMeta.Address == address {
-		// If the address hasn't changed, don't bother creating a new source
-		logger.Debug("catalog address unchanged, skipping source creation")
+		logger.Infof("updating PackageManifest based on CatalogSource changes: %v", key)
+		timeout, cancel := context.WithTimeout(context.Background(), cacheTimeout)
+		defer cancel()
+		var client *registryClient
+		client, syncError = p.registryClient(key)
+		if syncError != nil {
+			return
+		}
+		syncError = p.refreshCache(timeout, client)
 		return
 	}
 
