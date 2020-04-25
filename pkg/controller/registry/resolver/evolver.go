@@ -68,10 +68,14 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 			return errors.Wrap(err, "error parsing bundle")
 		}
 		o.SetReplaces(op.Identifier())
+
+		// Remove the old operator and the APIs it provides before adding the new operator to the generation.
+		e.gen.RemoveOperator(op)
+
+		// Add the new operator and the APIs it provides to the generation.
 		if err := e.gen.AddOperator(o); err != nil {
 			return errors.Wrap(err, "error calculating generation changes due to new bundle")
 		}
-		e.gen.RemoveOperator(op)
 	}
 	return nil
 }
