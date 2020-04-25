@@ -51,8 +51,13 @@ func (e *NamespaceGenerationEvolver) Evolve(add map[OperatorSourceInfo]struct{})
 }
 
 func (e *NamespaceGenerationEvolver) checkForUpdates() error {
+	// maps the old operator identifier to the new operator
+	updates := EmptyOperatorSet()
+
 	// take a snapshot of the current generation so that we don't update the same operator twice in one resolution
-	for _, op := range e.gen.Operators().Snapshot() {
+	snapshot := e.gen.Operators().Snapshot()
+
+	for _, op := range snapshot {
 		// only check for updates if we have sourceinfo
 		if op.SourceInfo() == &ExistingOperator {
 			continue
@@ -68,11 +73,21 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 			return errors.Wrap(err, "error parsing bundle")
 		}
 		o.SetReplaces(op.Identifier())
-		if err := e.gen.AddOperator(o); err != nil {
+		updates[op.Identifier()] = o
+	}
+
+	// remove any operators we found updates for
+	for old := range updates {
+		e.gen.RemoveOperator(e.gen.Operators().Snapshot()[old])
+	}
+
+	// add the new operators we found
+	for _, new := range updates {
+		if err := e.gen.AddOperator(new); err != nil {
 			return errors.Wrap(err, "error calculating generation changes due to new bundle")
 		}
-		e.gen.RemoveOperator(op)
 	}
+
 	return nil
 }
 

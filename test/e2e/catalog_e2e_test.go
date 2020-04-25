@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/blang/semver"
@@ -935,6 +936,115 @@ var _ = Describe("Catalog", func() {
 		if !reflect.DeepEqual(v, version.OperatorVersion{Version: busyboxVersion}) {
 			GinkgoT().Errorf("latest version of operator not installed: catalog souce update failed")
 		}
+	})
+	It("Dependency has correct replaces field", func() {
+		// Create a CatalogSource that contains the busybox v1 and busybox-dependency v1 images
+		// Create a Subscription for busybox v1, which has a dependency on busybox-dependency v1.
+		// Wait for the busybox and busybox2 Subscriptions to succeed
+		// Wait for the CSVs to succeed
+		// Update the catalog to point to an image that contains the busybox v2 and busybox-dependency v2 images.
+		// Wait for the new Subscriptions to succeed and check if they include the new CSVs
+		// Wait for the CSVs to succeed and confirm that the have the correct Spec.Replaces fields.
+		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+
+		sourceName := genName("catalog-")
+		packageName := "busybox"
+		channelName := "alpha"
+
+		catSrcImage := "quay.io/olmtest/busybox-dependencies-index"
+
+		// Create gRPC CatalogSource
+		source := &v1alpha1.CatalogSource{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.CatalogSourceKind,
+				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourceName,
+				Namespace: testNamespace,
+			},
+			Spec: v1alpha1.CatalogSourceSpec{
+				SourceType: v1alpha1.SourceTypeGrpc,
+				Image:      catSrcImage + ":1.0.0",
+			},
+		}
+
+		crc := newCRClient(GinkgoT())
+		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
+		}()
+
+		// Create a Subscription for busybox
+		subscriptionName := genName("sub-")
+		cleanupSubscription := createSubscriptionForCatalog(GinkgoT(), crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+		defer cleanupSubscription()
+
+		// Wait for the Subscription to succeed
+		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), subscription)
+		require.Equal(GinkgoT(), subscription.Status.InstalledCSV, "busybox.v1.0.0")
+
+		// Confirm that a subscription was created for busybox-dependency
+		subscriptionList, err := crc.OperatorsV1alpha1().Subscriptions(source.GetNamespace()).List(context.TODO(), metav1.ListOptions{})
+		require.NoError(GinkgoT(), err)
+		dependencySubscriptionName := ""
+		for _, sub := range subscriptionList.Items {
+			if strings.HasPrefix(sub.GetName(), "busybox-dependency") {
+				dependencySubscriptionName = sub.GetName()
+			}
+		}
+
+		require.NotEmpty(GinkgoT(), dependencySubscriptionName)
+		// Wait for the Subscription to succeed
+		subscription, err = fetchSubscription(GinkgoT(), crc, testNamespace, dependencySubscriptionName, subscriptionStateAtLatestChecker)
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), subscription)
+		require.Equal(GinkgoT(), subscription.Status.InstalledCSV, "busybox-dependency.v1.0.0")
+
+		// Update the catalog image
+		err = wait.PollImmediate(pollInterval, pollDuration, func() (bool, error) {
+			existingSource, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), sourceName, metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
+			existingSource.Spec.Image = catSrcImage + ":2.0.0"
+
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), existingSource, metav1.UpdateOptions{})
+			if err == nil {
+				return true, nil
+			}
+			return false, nil
+		})
+		require.NoError(GinkgoT(), err)
+
+		// Wait for the busybox v2 Subscription to succeed
+		subChecker := func(sub *v1alpha1.Subscription) bool {
+			return sub.Status.InstalledCSV == "busybox.v2.0.0"
+		}
+		subscription, err = fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subChecker)
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), subscription)
+
+		// Wait for busybox v2 csv to succeed and check the replaces field
+		csv, err := fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+		require.Equal(GinkgoT(), "busybox.v1.0.0", csv.Spec.Replaces)
+
+		// Wait for the busybox-dependency v2 Subscription to succeed
+		subChecker = func(sub *v1alpha1.Subscription) bool {
+			return sub.Status.InstalledCSV == "busybox-dependency.v2.0.0"
+		}
+		subscription, err = fetchSubscription(GinkgoT(), crc, testNamespace, dependencySubscriptionName, subChecker)
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), subscription)
+
+		// Wait for busybox-dependency v2 csv to succeed and check the replaces field
+		csv, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+		require.Equal(GinkgoT(), "busybox-dependency.v1.0.0", csv.Spec.Replaces)
 	})
 })
 
