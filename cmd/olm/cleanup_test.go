@@ -478,7 +478,7 @@ func TestCleanupOwnerReferences(t *testing.T) {
 			require.Equal(t, tt.expected.err, cleanupOwnerReferences(c, crc))
 
 			listOpts := metav1.ListOptions{}
-			csvs, err := crc.OperatorsV1alpha1().ClusterServiceVersions(metav1.NamespaceAll).List(listOpts)
+			csvs, err := crc.OperatorsV1alpha1().ClusterServiceVersions(metav1.NamespaceAll).List(context.TODO(), listOpts)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.csvs, csvs.Items)
 
