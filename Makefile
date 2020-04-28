@@ -45,6 +45,10 @@ test: clean cover.out
 unit: kubebuilder
 	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -count=1 ./pkg/...
 
+.PHONY: lint
+lint:
+	go run $(MOD_FLAGS) github.com/golangci/golangci-lint/cmd/golangci-lint run
+
 # Ensure kubebuilder is installed before continuing
 KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://book.kubebuilder.io/quick-start.html
 kubebuilder:

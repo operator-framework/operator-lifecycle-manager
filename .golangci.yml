@@ -1,0 +1,16 @@
+run:
+  # For now, treat lint issues as warnings:
+  issues-exit-code: 0
+  timeout: 5m
+  skip-dirs-use-default: true
+  modules-download-mode: vendor
+linters:
+  disable-all: true
+  enable:
+  - govet
+  - errcheck
+  - scopelint
+  - staticcheck
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

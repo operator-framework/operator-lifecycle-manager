@@ -12,6 +12,7 @@ require (
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.4
 	github.com/golang/mock v1.3.1
+	github.com/golangci/golangci-lint v1.25.1
 	github.com/google/go-cmp v0.4.0
 	github.com/irifrance/gini v1.0.1
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2

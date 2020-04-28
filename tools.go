@@ -5,6 +5,7 @@ package tools
 import (
 	_ "github.com/go-bindata/go-bindata/v3/go-bindata/"
 	_ "github.com/golang/mock/mockgen"
+	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/maxbrunsfeld/counterfeiter/v6"
 	_ "github.com/mikefarah/yq/v2"
 	_ "github.com/onsi/ginkgo/ginkgo"
@@ -14,3 +15,4 @@ import (
 	_ "k8s.io/kube-openapi/cmd/openapi-gen"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )
+
