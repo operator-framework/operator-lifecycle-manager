@@ -223,7 +223,7 @@ var _ = Describe("Dependant garbage collection", func() {
 			_, err = kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.TODO(), dependent, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "dependent could not be created")
 
-			propagation = "Foreground"
+			propagation = metav1.DeletePropagationForeground
 			options = metav1.DeleteOptions{PropagationPolicy: &propagation}
 		})
 
@@ -235,10 +235,10 @@ var _ = Describe("Dependant garbage collection", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// wait for deletion of ownerA
-				Eventually(func() error {
+				Eventually(func() bool {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), ownerA.GetName(), metav1.GetOptions{})
-					return err
-				}).ShouldNot(HaveOccurred())
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
 
 			})
 
@@ -259,20 +259,20 @@ var _ = Describe("Dependant garbage collection", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// wait for deletion of ownerA
-				Eventually(func() error {
+				Eventually(func() bool {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), ownerA.GetName(), metav1.GetOptions{})
-					return err
-				}).ShouldNot(HaveOccurred())
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
 
 				// delete ownerB in the foreground (to ensure any "blocking" dependents are deleted before ownerB)
 				err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), fetchedB.GetName(), options)
 				Expect(err).NotTo(HaveOccurred())
 
 				// wait for deletion of ownerB
-				Eventually(func() error {
+				Eventually(func() bool {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), ownerB.GetName(), metav1.GetOptions{})
-					return err
-				}).ShouldNot(HaveOccurred())
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
 			})
 
 			It("should have deleted the dependent since both the owners were deleted", func() {
