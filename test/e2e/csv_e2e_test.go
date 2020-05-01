@@ -3336,8 +3336,11 @@ var _ = Describe("CSV", func() {
 		actualWebhook, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhook.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
+		ogLabel, err := getOGLabelKey(og)
+		require.NoError(GinkgoT(), err)
+
 		expected := &metav1.LabelSelector{
-			MatchLabels:      map[string]string{"olm.operatorgroup/" + namespace.Name + "." + og.GetName(): ""},
+			MatchLabels:      map[string]string{ogLabel: ""},
 			MatchExpressions: []metav1.LabelSelectorRequirement(nil),
 		}
 

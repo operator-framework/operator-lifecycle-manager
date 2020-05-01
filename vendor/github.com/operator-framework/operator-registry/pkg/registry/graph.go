@@ -37,3 +37,15 @@ func (p *Package) HasChannel(channel string) bool {
 	_, found := p.Channels[channel]
 	return found
 }
+
+func (p *Package) HasCsv(csv string) bool {
+	for _, channelGraph := range p.Channels {
+		for node := range channelGraph.Nodes {
+			if node.CsvName == csv {
+				return true
+			}
+		}
+	}
+
+	return false
+}

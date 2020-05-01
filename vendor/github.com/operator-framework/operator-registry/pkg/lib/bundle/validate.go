@@ -22,7 +22,6 @@ import (
 
 	y "github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 type Meta struct {
@@ -57,8 +56,8 @@ func (i imageValidator) PullBundleImage(imageTag, directory string) error {
 // Outputs:
 // error: ValidattionError which contains a list of errors
 func (i imageValidator) ValidateBundleFormat(directory string) error {
-	var manifestsFound, metadataFound bool
-	var annotationsDir, manifestsDir string
+	var manifestsFound, metadataFound, annotationsFound, dependenciesFound bool
+	var metadataDir, manifestsDir string
 	var validationErrors []error
 
 	items, err := ioutil.ReadDir(directory)
@@ -76,7 +75,7 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 			case strings.TrimSuffix(MetadataDir, "/"):
 				i.logger.Debug("Found metadata directory")
 				metadataFound = true
-				annotationsDir = filepath.Join(directory, MetadataDir)
+				metadataDir = filepath.Join(directory, MetadataDir)
 			}
 		}
 	}
@@ -99,16 +98,62 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 		validationErrors = append(validationErrors, err)
 	}
 
-	// Validate annotations.yaml
-	annotationsFile, err := ioutil.ReadFile(filepath.Join(annotationsDir, AnnotationsFile))
+	// Validate annotations file
+	files, err := ioutil.ReadDir(metadataDir)
 	if err != nil {
-		fmtErr := fmt.Errorf("Unable to read annotations.yaml file: %s", err.Error())
-		validationErrors = append(validationErrors, fmtErr)
+		validationErrors = append(validationErrors, err)
+	}
+
+	// Look for the metadata and manifests sub-directories to find the annotations file
+	fileAnnotations := &AnnotationMetadata{}
+	dependenciesFile := &registry.DependenciesFile{}
+	for _, f := range files {
+		if !annotationsFound {
+			err = registry.DecodeFile(filepath.Join(metadataDir, f.Name()), fileAnnotations)
+			if err == nil && fileAnnotations.Annotations != nil {
+				annotationsFound = true
+				continue
+			}
+		}
+
+		if !dependenciesFound {
+			err = parseDependenciesFile(filepath.Join(metadataDir, f.Name()), dependenciesFile)
+			if err == nil && len(dependenciesFile.Dependencies) > 0 {
+				dependenciesFound = true
+			}
+		}
+	}
+
+	if !annotationsFound {
+		validationErrors = append(validationErrors, fmt.Errorf("Could not find annotations file"))
+	} else {
+		i.logger.Info("Found annotations file")
+		errs := validateAnnotations(mediaType, fileAnnotations)
+		if errs != nil {
+			validationErrors = append(validationErrors, errs...)
+		}
+	}
+
+	if !dependenciesFound {
+		i.logger.Info("Could not find dependencies file")
+	} else {
+		i.logger.Info("Found dependencies file")
+		errs := validateDependencies(dependenciesFile)
+		if errs != nil {
+			validationErrors = append(validationErrors, errs...)
+		}
+	}
+
+	if len(validationErrors) > 0 {
 		return NewValidationError(validationErrors)
 	}
 
-	var fileAnnotations AnnotationMetadata
+	return nil
+}
 
+// Validate the annotations file
+func validateAnnotations(mediaType string, fileAnnotations *AnnotationMetadata) []error {
+	var validationErrors []error
 	annotations := map[string]string{
 		MediatypeLabel:      mediaType,
 		ManifestsLabel:      ManifestsDir,
@@ -118,18 +163,9 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 		ChannelDefaultLabel: "",
 	}
 
-	i.logger.Debug("Validating annotations.yaml")
-
-	err = yaml.Unmarshal(annotationsFile, &fileAnnotations)
-	if err != nil {
-		validationErrors = append(validationErrors, fmt.Errorf("Unable to parse annotations.yaml file"))
-	}
-
 	for label, item := range annotations {
 		val, ok := fileAnnotations.Annotations[label]
-		if ok {
-			i.logger.Debugf(`Found annotation "%s" with value "%s"`, label, val)
-		} else {
+		if !ok {
 			aErr := fmt.Errorf("Missing annotation %q", label)
 			validationErrors = append(validationErrors, aErr)
 		}
@@ -160,16 +196,37 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 		}
 	}
 
-	_, err = ValidateChannelDefault(annotations[ChannelsLabel], annotations[ChannelDefaultLabel])
+	_, err := ValidateChannelDefault(annotations[ChannelsLabel], annotations[ChannelDefaultLabel])
 	if err != nil {
 		validationErrors = append(validationErrors, err)
 	}
+	return validationErrors
+}
 
-	if len(validationErrors) > 0 {
-		return NewValidationError(validationErrors)
+// Validate the dependencies file
+func validateDependencies(dependenciesFile *registry.DependenciesFile) []error {
+	var validationErrors []error
+
+	// Validate dependencies if exists
+	for _, d := range dependenciesFile.Dependencies {
+		dep := d.GetTypeValue()
+		errs := []error{}
+		if dep != nil {
+			switch dp := dep.(type) {
+			case registry.GVKDependency:
+				errs = dp.Validate()
+			case registry.PackageDependency:
+				errs = dp.Validate()
+			default:
+				errs = append(errs, fmt.Errorf("Unsupported dependency type %s", d.GetType()))
+			}
+		} else {
+			errs = append(errs, fmt.Errorf("Unsupported dependency type %s", d.GetType()))
+		}
+		validationErrors = append(validationErrors, errs...)
 	}
 
-	return nil
+	return validationErrors
 }
 
 // ValidateBundleContent confirms that the CSV and CRD files inside the bundle
@@ -285,6 +342,32 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 	if len(validationErrors) > 0 {
 		return NewValidationError(validationErrors)
 	}
+
+	return nil
+}
+
+func parseDependenciesFile(path string, depFile *registry.DependenciesFile) error {
+	deps := registry.Dependencies{}
+	err := registry.DecodeFile(path, &deps)
+
+	if err != nil || len(deps.RawMessage) == 0 {
+		return fmt.Errorf("Unable to decode the dependencies file %s", path)
+	}
+
+	depList := []registry.Dependency{}
+	for _, v := range deps.RawMessage {
+		jsonStr, _ := json.Marshal(v)
+		dep := registry.Dependency{}
+		err := json.Unmarshal(jsonStr, &dep)
+		if err != nil {
+			return err
+		}
+
+		dep.Value = string(jsonStr)
+		depList = append(depList, dep)
+	}
+
+	depFile.Dependencies = depList
 
 	return nil
 }

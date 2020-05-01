@@ -18,6 +18,9 @@ type Registry interface {
 	// If the referenced image does not exist in the registry, an error is returned.
 	Unpack(ctx context.Context, ref Reference, dir string) error
 
+	// Labels gets the labels for an image that is already stored.
+	Labels(ctx context.Context, ref Reference) (map[string]string, error)
+
 	// Destroy cleans up any on-disk resources used to track images
 	Destroy() error
 
@@ -26,3 +29,4 @@ type Registry interface {
 	// If it exists, it's used as the base image.
 	// Pack(ctx context.Context, ref Reference, from io.Reader) (next string, err error)
 }
+

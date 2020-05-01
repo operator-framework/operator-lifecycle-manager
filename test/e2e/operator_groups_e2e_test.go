@@ -2086,7 +2086,7 @@ var _ = Describe("Operator Group", func() {
 				TargetNamespaces: []string{},
 			},
 		}
-		_, err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Create(context.TODO(), operatorGroup, metav1.CreateOptions{})
+		operatorGroup, err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Create(context.TODO(), operatorGroup, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Cleanup OperatorGroup
@@ -2096,7 +2096,8 @@ var _ = Describe("Operator Group", func() {
 		}()
 
 		// Create the OperatorGroup Label
-		ogLabel := fmt.Sprintf("olm.operatorgroup/%s.%s", testNamespaceA, operatorGroup.GetName())
+		ogLabel, err := getOGLabelKey(operatorGroup)
+		require.NoError(GinkgoT(), err)
 
 		// Create list options
 		listOptions := metav1.ListOptions{
@@ -2186,11 +2187,12 @@ var _ = Describe("Operator Group", func() {
 				TargetNamespaces: testNamespaces,
 			},
 		}
-		_, err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Create(context.TODO(), operatorGroup, metav1.CreateOptions{})
+		operatorGroup, err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Create(context.TODO(), operatorGroup, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Create the OperatorGroup Label
-		ogLabel := fmt.Sprintf("olm.operatorgroup/%s.%s", testNamespaceA, operatorGroup.GetName())
+		ogLabel, err := getOGLabelKey(operatorGroup)
+		require.NoError(GinkgoT(), err)
 
 		// Create list options
 		listOptions := metav1.ListOptions{
@@ -2324,4 +2326,12 @@ func containsNamespace(namespaces []corev1.Namespace, namespaceName string) bool
 		}
 	}
 	return false
+}
+
+func getOGLabelKey(og *v1.OperatorGroup) (string, error) {
+	ogUID := string(og.GetUID())
+	if ogUID == "" {
+		return "", fmt.Errorf("OperatorGroup UID is empty string")
+	}
+	return fmt.Sprintf("olm.operatorgroup.uid/%s", og.GetUID()), nil
 }

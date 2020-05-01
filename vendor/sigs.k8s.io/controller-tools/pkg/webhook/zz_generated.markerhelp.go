@@ -44,6 +44,10 @@ func (Config) Help() *markers.DefinitionHelp {
 				Summary: "defines how the \"rules\" list is used to match incoming requests. Allowed values are \"Exact\" (match only if it exactly matches the specified rule) or \"Equivalent\" (match a request if it modifies a resource listed in rules, even via another API group or version).",
 				Details: "",
 			},
+			"SideEffects": markers.DetailedHelp{
+				Summary: "specify whether calling the webhook will have side effects. This has an impact on dry runs and `kubectl diff`: if the sideEffect is \"Unknown\" (the default) or \"Some\", then the API server will not call the webhook on a dry-run request and fails instead. If the value is \"None\", then the webhook has no side effects and the API server will call it on dry-run. If the value is \"NoneOnDryRun\", then the webhook is responsible for inspecting the \"dryRun\" property of the AdmissionReview sent in the request, and avoiding side effects if that value is \"true.\"",
+				Details: "",
+			},
 			"Groups": markers.DetailedHelp{
 				Summary: "specifies the API groups that this webhook receives requests for.",
 				Details: "",
