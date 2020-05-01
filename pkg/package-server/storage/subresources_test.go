@@ -2,10 +2,11 @@ package storage
 
 import (
 	"context"
-	"k8s.io/apimachinery/pkg/labels"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/stretchr/testify/require"
 
