@@ -182,7 +182,12 @@ func (c *catalogHealthReconciler) health(now *metav1.Time, catalog *v1alpha1.Cat
 // healthy returns true if the given catalog is healthy, false otherwise, and any error encountered
 // while checking the catalog's registry server.
 func (c *catalogHealthReconciler) healthy(catalog *v1alpha1.CatalogSource) (bool, error) {
-	return c.registryReconcilerFactory.ReconcilerForSource(catalog).CheckRegistryServer(catalog)
+	rec := c.registryReconcilerFactory.ReconcilerForSource(catalog)
+	if rec == nil {
+		return false, fmt.Errorf("could not get reconciler for catalog: %#v", catalog)
+	}
+
+	return rec.CheckRegistryServer(catalog)
 }
 
 // installPlanReconciler reconciles InstallPlan status for Subscriptions.
