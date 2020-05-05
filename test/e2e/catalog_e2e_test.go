@@ -7,30 +7,38 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"reflect"
 	"strings"
 	"time"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/require"
+	"github.com/operator-framework/api/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/operator-framework/api/pkg/lib/version"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Catalog", func() {
+var _ = Describe("Catalog represents a store of bundles which OLM can use to install Operators", func() {
+	var (
+		c   operatorclient.ClientInterface
+		crc versioned.Interface
+	)
+	BeforeEach(func() {
+
+		c = newKubeClient()
+		crc = newCRClient()
+	})
+
 	AfterEach(func() {
 		TearDown(testNamespace)
 	})
@@ -53,45 +61,43 @@ var _ = Describe("Catalog", func() {
 		crd := newCRD(genName("ins"))
 		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
-		c := newKubeClient()
-		crc := newCRClient()
-
 		catalogSourceName := genName("mock-ocs-")
 		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
 
 		// ensure the mock catalog exists and has been synced by the catalog operator
 		catalogSource, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// get catalog operator deployment
 		deployment, err := getOperatorDeployment(c, operatorNamespace, labels.Set{"app": "catalog-operator"})
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), deployment, "Could not find catalog operator deployment")
-		GinkgoT( // rescale catalog operator
-		).Log("Rescaling catalog operator...")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(deployment).ToNot(BeNil(), "Could not find catalog operator deployment")
+
+		// rescale catalog operator
+		By("Rescaling catalog operator...")
 		err = rescaleDeployment(c, deployment)
-		require.NoError(GinkgoT(), err, "Could not rescale catalog operator")
-		GinkgoT().Log("Catalog operator rescaled")
-		GinkgoT( // check for last synced update to catalogsource
-		).Log("Checking for catalogsource lastSync updates")
+		Expect(err).ShouldNot(HaveOccurred(), "Could not rescale catalog operator")
+		By("Catalog operator rescaled")
+
+		// check for last synced update to catalogsource
+		By("Checking for catalogsource lastSync updates")
 		_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, operatorNamespace, func(cs *v1alpha1.CatalogSource) bool {
 			before := catalogSource.Status.GRPCConnectionState
 			after := cs.Status.GRPCConnectionState
 			if after != nil && after.LastConnectTime.After(before.LastConnectTime.Time) {
-				GinkgoT().Logf("lastSync updated: %s -> %s", before.LastConnectTime, after.LastConnectTime)
+				ctx.Ctx().Logf("lastSync updated: %s -> %s", before.LastConnectTime, after.LastConnectTime)
 				return true
 			}
 			return false
 		})
-		require.NoError(GinkgoT(), err, "Catalog source changed after rescale")
-		GinkgoT().Logf("Catalog source sucessfully loaded after rescale")
+		Expect(err).ShouldNot(HaveOccurred(), "Catalog source changed after rescale")
+		By("Catalog source successfully loaded after rescale")
 	})
+
 	It("global update triggers subscription sync", func() {
 
 		globalNS := operatorNamespace
-		c := newKubeClient()
-		crc := newCRClient()
 
 		// Determine which namespace is global. Should be `openshift-marketplace` for OCP 4.2+.
 		// Locally it is `olm`
@@ -131,7 +137,7 @@ var _ = Describe("Catalog", func() {
 
 		// Attempt to get the catalog source before creating install plan
 		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionSpec := &v1alpha1.SubscriptionSpec{
 			CatalogSource:          mainCatalogName,
@@ -147,20 +153,20 @@ var _ = Describe("Catalog", func() {
 		createSubscriptionForCatalogWithSpec(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionSpec)
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ToNot(BeNil())
 
 		installPlanName := subscription.Status.Install.Name
 		requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval)
 		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, requiresApprovalChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		fetchedInstallPlan.Spec.Approved = true
 		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), fetchedInstallPlan, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		_, err = awaitCSV(GinkgoT(), crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update manifest
 		mainManifests = []registry.PackageManifest{
@@ -178,18 +184,18 @@ var _ = Describe("Catalog", func() {
 
 		// Get updated catalogsource
 		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
 
 		// Ensure the timing
 		catalogConnState := fetchedUpdatedCatalog.Status.GRPCConnectionState
 		subUpdatedTime := subscription.Status.LastUpdated
-		timeLapse := subUpdatedTime.Sub(catalogConnState.LastConnectTime.Time).Seconds()
-		require.True(GinkgoT(), timeLapse < 60)
+		Expect(subUpdatedTime.Time).Should(BeTemporally("<", catalogConnState.LastConnectTime.Add(60*time.Second)))
 	})
+
 	It("config map update triggers registry pod rollout", func() {
 
 		mainPackageName := genName("nginx-")
@@ -203,9 +209,6 @@ var _ = Describe("Catalog", func() {
 		dependentCRD := newCRD(genName("ins-"))
 		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
-
-		c := newKubeClient()
-		crc := newCRClient()
 
 		mainCatalogName := genName("mock-ocs-main-")
 
@@ -235,63 +238,63 @@ var _ = Describe("Catalog", func() {
 
 		// Attempt to get the catalog source before creating install plan
 		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Get initial configmap
 		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Check pod created
 		initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), 1, len(initialPods.Items))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(initialPods.Items).To(HaveLen(1))
 
 		// Update catalog configmap
 		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
 
 		// Get updated configmap
 		updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
 			before := fetchedInitialCatalog.Status.ConfigMapResource
 			after := catalog.Status.ConfigMapResource
 			if after != nil && before.LastUpdateTime.Before(&after.LastUpdateTime) &&
 				after.ResourceVersion != before.ResourceVersion {
-				fmt.Println("catalog updated")
+				ctx.Ctx().Logf("catalog updated")
 				return true
 			}
-			fmt.Println("waiting for catalog pod to be available")
+			ctx.Ctx().Logf("waiting for catalog pod to be available")
 			return false
 		})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
-		require.NotEqual(GinkgoT(), updatedConfigMap.ResourceVersion, configMap.ResourceVersion)
-		require.NotEqual(GinkgoT(), fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion, fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion)
-		require.Equal(GinkgoT(), updatedConfigMap.GetResourceVersion(), fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion)
+		Expect(configMap.ResourceVersion).ShouldNot(Equal(updatedConfigMap.ResourceVersion))
+		Expect(fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion).ShouldNot(Equal(fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion))
+		Expect(fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion).Should(Equal(updatedConfigMap.GetResourceVersion()))
 
 		// Await 1 CatalogSource registry pod matching the updated labels
 		singlePod := podCount(1)
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName, "olm.configMapResourceVersion": updatedConfigMap.GetResourceVersion()})
 		podList, err := awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), 1, len(podList.Items), "expected pod list not of length 1")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(podList.Items).To(HaveLen(1), "expected pod list not of length 1")
 
 		// Await 1 CatalogSource registry pod matching the updated labels
 		selector = labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName})
 		podList, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), 1, len(podList.Items), "expected pod list not of length 1")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(podList.Items).To(HaveLen(1), "expected pod list not of length 1")
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
 		createSubscriptionForCatalog(crc, testNamespace, subscriptionName, fetchedUpdatedCatalog.GetName(), mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
 		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		ipList, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
 		ipCount := 0
@@ -300,8 +303,9 @@ var _ = Describe("Catalog", func() {
 				ipCount += 1
 			}
 		}
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
+
 	It("config map replace triggers registry pod rollout", func() {
 
 		mainPackageName := genName("nginx-")
@@ -316,9 +320,6 @@ var _ = Describe("Catalog", func() {
 		dependentCRD := newCRD(genName("ins-"))
 		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
-
-		c := newKubeClient()
-		crc := newCRClient()
 
 		mainCatalogName := genName("mock-ocs-main-")
 
@@ -348,15 +349,15 @@ var _ = Describe("Catalog", func() {
 
 		// Attempt to get the catalog source before creating install plan
 		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 		// Get initial configmap
 		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Check pod created
 		initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), 1, len(initialPods.Items))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(initialPods.Items).To(HaveLen(1))
 
 		// delete the first catalog
 		cleanupSource()
@@ -369,11 +370,12 @@ var _ = Describe("Catalog", func() {
 		createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ToNot(BeNil())
 		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
+
 	It("gRPC address catalog source", func() {
 
 		// Create an internal (configmap) CatalogSource with stable and dependency csv
@@ -400,9 +402,6 @@ var _ = Describe("Catalog", func() {
 		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
-
-		c := newKubeClient()
-		crc := newCRClient()
 
 		mainSourceName := genName("mock-ocs-main-")
 		replacementSourceName := genName("mock-ocs-main-with-replacement-")
@@ -444,14 +443,14 @@ var _ = Describe("Catalog", func() {
 
 		// Wait for ConfigMap CatalogSources to be ready
 		mainSource, err := fetchCatalogSourceOnStatus(crc, mainSourceName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 		replacementSource, err := fetchCatalogSourceOnStatus(crc, replacementSourceName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Replicate catalog pods with no OwnerReferences
-		mainCopy := replicateCatalogPod(GinkgoT(), c, mainSource)
+		mainCopy := replicateCatalogPod(c, mainSource)
 		mainCopy = awaitPod(GinkgoT(), c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
-		replacementCopy := replicateCatalogPod(GinkgoT(), c, replacementSource)
+		replacementCopy := replicateCatalogPod(c, replacementSource)
 		replacementCopy = awaitPod(GinkgoT(), c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
 
 		addressSourceName := genName("address-catalog-")
@@ -473,17 +472,17 @@ var _ = Describe("Catalog", func() {
 		}
 
 		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.TODO(), addressSource, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 		defer func() {
 			err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), addressSourceName, metav1.DeleteOptions{})
-			require.NoError(GinkgoT(), err)
+			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
 		// Delete CatalogSources
 		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), mainSourceName, metav1.DeleteOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), replacementSourceName, metav1.DeleteOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
@@ -491,21 +490,21 @@ var _ = Describe("Catalog", func() {
 		defer cleanupSubscription()
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
 		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update the catalog's address to point at the other registry pod's cluster ip
 		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(context.TODO(), addressSourceName, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 		addressSource.Spec.Address = net.JoinHostPort(replacementCopy.Status.PodIP, "50051")
 		_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(context.TODO(), addressSource, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Wait for the replacement CSV to be installed
 		_, err = awaitCSV(GinkgoT(), crc, testNamespace, replacementCSV.GetName(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 
 	It("delete internal registry pod triggers recreation", func() {
@@ -532,8 +531,6 @@ var _ = Describe("Catalog", func() {
 			},
 		}
 
-		c := newKubeClient()
-		crc := newCRClient()
 		_, cleanupSource := createInternalCatalogSource(c, crc, sourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
 
@@ -541,9 +538,9 @@ var _ = Describe("Catalog", func() {
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": sourceName})
 		singlePod := podCount(1)
 		registryPods, err := awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
-		require.NoError(GinkgoT(), err, "error awaiting registry pod")
-		require.NotNil(GinkgoT(), registryPods, "nil registry pods")
-		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of registry pods found")
+		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
+		Expect(registryPods).ToNot(BeNil(), "nil registry pods")
+		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
 
 		// Store the UID for later comparison
 		uid := registryPods.Items[0].GetUID()
@@ -568,9 +565,9 @@ var _ = Describe("Catalog", func() {
 			return len(pods.Items) > 0
 		}
 		registryPods, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
-		require.NoError(GinkgoT(), err, "error waiting for replacement registry pod")
-		require.NotNil(GinkgoT(), registryPods, "nil replacement registry pods")
-		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
+		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
+		Expect(registryPods).ToNot(BeNil(), "nil replacement registry pods")
+		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
 	})
 
 	It("delete gRPC registry pod triggers recreation", func() {
@@ -596,18 +593,16 @@ var _ = Describe("Catalog", func() {
 			},
 		}
 
-		crc := newCRClient()
 		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// Wait for a new registry pod to be created
-		c := newKubeClient()
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
 		singlePod := podCount(1)
 		registryPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
-		require.NoError(GinkgoT(), err, "error awaiting registry pod")
-		require.NotNil(GinkgoT(), registryPods, "nil registry pods")
-		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of registry pods found")
+		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
+		Expect(registryPods).ToNot(BeNil(), "nil registry pods")
+		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
 
 		// Store the UID for later comparison
 		uid := registryPods.Items[0].GetUID()
@@ -632,9 +627,9 @@ var _ = Describe("Catalog", func() {
 			return len(pods.Items) > 0
 		}
 		registryPods, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
-		require.NoError(GinkgoT(), err, "error waiting for replacement registry pod")
-		require.NotNil(GinkgoT(), registryPods, "nil replacement registry pods")
-		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
+		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
+		Expect(registryPods).ShouldNot(BeNil(), "nil replacement registry pods")
+		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
 	})
 
 	It("image update", func() {
@@ -651,36 +646,26 @@ var _ = Describe("Catalog", func() {
 
 		// create internal registry for purposes of pushing/pulling IF running e2e test locally
 		// registry is insecure and for purposes of this test only
-		c := newKubeClient()
-		crc := newCRClient()
 
 		local, err := Local(c)
-		if err != nil {
-			GinkgoT().Fatalf("cannot determine if test running locally or on CI: %s", err)
-		}
+		Expect(err).NotTo(HaveOccurred(), "cannot determine if test running locally or on CI: %s", err)
 
 		var registryURL string
 		var registryAuth string
 		if local {
 			registryURL, err = createDockerRegistry(c, testNamespace)
-			if err != nil {
-				GinkgoT().Fatalf("error creating container registry: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "error creating container registry: %s", err)
 			defer deleteDockerRegistry(c, testNamespace)
 
 			// ensure registry pod is ready before attempting port-forwarding
 			_ = awaitPod(GinkgoT(), c, testNamespace, registryName, podReady)
 
 			err = registryPortForward(testNamespace)
-			if err != nil {
-				GinkgoT().Fatalf("port-forwarding local registry: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "port-forwarding local registry: %s", err)
 		} else {
 			registryURL = openshiftregistryFQDN
 			registryAuth, err = openshiftRegistryAuth(c, testNamespace)
-			if err != nil {
-				GinkgoT().Fatalf("error getting openshift registry authentication: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "error getting openshift registry authentication: %s", err)
 		}
 
 		// testImage is the name of the image used throughout the test - the image overwritten by skopeo
@@ -692,15 +677,11 @@ var _ = Describe("Catalog", func() {
 		// create skopeo pod to actually do the work of copying (on openshift) or exec out to local skopeo
 		if local {
 			_, err := skopeoLocalCopy(testImage, tag, catsrcImage, "old")
-			if err != nil {
-				GinkgoT().Fatalf("error copying old registry file: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "error copying old registry file: %s", err)
 		} else {
 			skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "old", registryAuth)
 			err = createSkopeoPod(c, skopeoArgs, testNamespace)
-			if err != nil {
-				GinkgoT().Fatalf("error creating skopeo pod: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "error creating skopeo pod: %s", err)
 
 			// wait for skopeo pod to exit successfully
 			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
@@ -708,9 +689,7 @@ var _ = Describe("Catalog", func() {
 			})
 
 			err = deleteSkopeoPod(c, testNamespace)
-			if err != nil {
-				GinkgoT().Fatalf("error deleting skopeo pod: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "error deleting skopeo pod: %s", err)
 		}
 
 		// 2. setup catalog source
@@ -746,9 +725,10 @@ var _ = Describe("Catalog", func() {
 		}
 
 		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
+			err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
 		// wait for new catalog source pod to be created
@@ -756,9 +736,9 @@ var _ = Describe("Catalog", func() {
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
 		singlePod := podCount(1)
 		registryPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
-		require.NoError(GinkgoT(), err, "error awaiting registry pod")
-		require.NotNil(GinkgoT(), registryPods, "nil registry pods")
-		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of registry pods found")
+		Expect(err).ToNot(HaveOccurred(), "error awaiting registry pod")
+		Expect(registryPods).ShouldNot(BeNil(), "nil registry pods")
+		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
 
 		// Create a Subscription for package
 		subscriptionName := genName("sub-")
@@ -767,12 +747,12 @@ var _ = Describe("Catalog", func() {
 
 		// Wait for the Subscription to succeed
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
 
 		// Wait for csv to succeed
 		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		registryCheckFunc := func(podList *corev1.PodList) bool {
 			if len(podList.Items) > 1 {
@@ -787,15 +767,11 @@ var _ = Describe("Catalog", func() {
 		// Make another skopeo pod to do the work of copying the image
 		if local {
 			_, err := skopeoLocalCopy(testImage, tag, catsrcImage, "new")
-			if err != nil {
-				GinkgoT().Fatalf("error copying new registry file: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "error copying new registry file: %s", err)
 		} else {
 			skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "new", registryAuth)
 			err = createSkopeoPod(c, skopeoArgs, testNamespace)
-			if err != nil {
-				GinkgoT().Fatalf("error creating skopeo pod: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "error creating skopeo pod: %s", err)
 
 			// wait for skopeo pod to exit successfully
 			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
@@ -803,30 +779,28 @@ var _ = Describe("Catalog", func() {
 			})
 
 			err = deleteSkopeoPod(c, testNamespace)
-			if err != nil {
-				GinkgoT().Fatalf("error deleting skopeo pod: %s", err)
-			}
+			Expect(err).NotTo(HaveOccurred(), "error deleting skopeo pod: %s", err)
 		}
 
 		// update catalog source with annotation (to kick resync)
 		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
-		require.NoError(GinkgoT(), err, "error awaiting registry pod")
+		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 		source.Annotations = make(map[string]string)
 		source.Annotations["testKey"] = "testValue"
 		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err, "error awaiting registry pod")
+		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 
 		time.Sleep(11 * time.Second)
 
 		// ensure new registry pod container image is as we expect
 		podCheckFunc := func(podList *corev1.PodList) bool {
-			fmt.Printf("pod list length %d\n", len(podList.Items))
+			ctx.Ctx().Logf("pod list length %d\n", len(podList.Items))
 			for _, pod := range podList.Items {
-				fmt.Printf("pod list name %v\n", pod.Name)
+				ctx.Ctx().Logf("pod list name %v\n", pod.Name)
 			}
 
 			for _, pod := range podList.Items {
-				fmt.Printf("old image id %s\n new image id %s\n", registryPod.Items[0].Status.ContainerStatuses[0].ImageID,
+				ctx.Ctx().Logf("old image id %s\n new image id %s\n", registryPod.Items[0].Status.ContainerStatuses[0].ImageID,
 					pod.Status.ContainerStatuses[0].ImageID)
 				if pod.Status.ContainerStatuses[0].ImageID != registryPod.Items[0].Status.ContainerStatuses[0].ImageID {
 					return true
@@ -834,36 +808,36 @@ var _ = Describe("Catalog", func() {
 			}
 			// update catalog source with annotation (to kick resync)
 			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
-			require.NoError(GinkgoT(), err, "error getting catalog source pod")
+			Expect(err).ShouldNot(HaveOccurred(), "error getting catalog source pod")
 			source.Annotations["testKey"] = genName("newValue")
 			_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
-			require.NoError(GinkgoT(), err, "error updating catalog source pod with test annotation")
+			Expect(err).ShouldNot(HaveOccurred(), "error updating catalog source pod with test annotation")
 			return false
 		}
 		// await new catalog source and ensure old one was deleted
 		registryPods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
-		require.NoError(GinkgoT(), err, "error awaiting registry pod")
-		require.NotNil(GinkgoT(), registryPods, "nil registry pods")
-		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of registry pods found")
+		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
+		Expect(registryPods).ShouldNot(BeNil(), "nil registry pods")
+		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
 
 		// update catalog source with annotation (to kick resync)
 		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
-		require.NoError(GinkgoT(), err, "error awaiting registry pod")
+		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 		source.Annotations["testKey"] = "newValue"
 		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err, "error awaiting registry pod")
+		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 
 		subChecker := func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox.v2.0.0"
 		}
 		// Wait for the Subscription to succeed
 		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
 
 		// Wait for csv to succeed
 		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		// check version of running csv to ensure the latest version (0.9.2) was installed onto the cluster
 		v := csv.Spec.Version
@@ -872,10 +846,10 @@ var _ = Describe("Catalog", func() {
 			Minor: 0,
 			Patch: 0,
 		}
-		if !reflect.DeepEqual(v, version.OperatorVersion{Version: busyboxVersion}) {
-			GinkgoT().Errorf("latest version of operator not installed: catalog souce update failed")
-		}
+
+		Expect(v).Should(Equal(version.OperatorVersion{Version: busyboxVersion}), "latest version of operator not installed: catalog source update failed")
 	})
+
 	It("Dependency has correct replaces field", func() {
 		// Create a CatalogSource that contains the busybox v1 and busybox-dependency v1 images
 		// Create a Subscription for busybox v1, which has a dependency on busybox-dependency v1.
@@ -907,11 +881,11 @@ var _ = Describe("Catalog", func() {
 			},
 		}
 
-		crc := newCRClient()
 		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
+			err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
 		// Create a Subscription for busybox
@@ -921,29 +895,29 @@ var _ = Describe("Catalog", func() {
 
 		// Wait for the Subscription to succeed
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
-		require.Equal(GinkgoT(), subscription.Status.InstalledCSV, "busybox.v1.0.0")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
+		Expect(subscription.Status.InstalledCSV).To(Equal("busybox.v1.0.0"))
 
 		// Confirm that a subscription was created for busybox-dependency
 		subscriptionList, err := crc.OperatorsV1alpha1().Subscriptions(source.GetNamespace()).List(context.TODO(), metav1.ListOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ShouldNot(HaveOccurred())
 		dependencySubscriptionName := ""
 		for _, sub := range subscriptionList.Items {
 			if strings.HasPrefix(sub.GetName(), "busybox-dependency") {
 				dependencySubscriptionName = sub.GetName()
 			}
 		}
+		Expect(dependencySubscriptionName).ToNot(BeEmpty())
 
-		require.NotEmpty(GinkgoT(), dependencySubscriptionName)
 		// Wait for the Subscription to succeed
 		subscription, err = fetchSubscription(crc, testNamespace, dependencySubscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
-		require.Equal(GinkgoT(), subscription.Status.InstalledCSV, "busybox-dependency.v1.0.0")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
+		Expect(subscription.Status.InstalledCSV).To(Equal("busybox-dependency.v1.0.0"))
 
 		// Update the catalog image
-		err = wait.PollImmediate(pollInterval, pollDuration, func() (bool, error) {
+		Eventually(func() (bool, error) {
 			existingSource, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), sourceName, metav1.GetOptions{})
 			if err != nil {
 				return false, err
@@ -955,34 +929,33 @@ var _ = Describe("Catalog", func() {
 				return true, nil
 			}
 			return false, nil
-		})
-		require.NoError(GinkgoT(), err)
+		}).Should(BeTrue())
 
 		// Wait for the busybox v2 Subscription to succeed
 		subChecker := func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox.v2.0.0"
 		}
 		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
 
 		// Wait for busybox v2 csv to succeed and check the replaces field
 		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), "busybox.v1.0.0", csv.Spec.Replaces)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(csv.Spec.Replaces).To(Equal("busybox.v1.0.0"))
 
 		// Wait for the busybox-dependency v2 Subscription to succeed
 		subChecker = func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox-dependency.v2.0.0"
 		}
 		subscription, err = fetchSubscription(crc, testNamespace, dependencySubscriptionName, subChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(subscription).ShouldNot(BeNil())
 
 		// Wait for busybox-dependency v2 csv to succeed and check the replaces field
 		csv, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), "busybox-dependency.v1.0.0", csv.Spec.Replaces)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(csv.Spec.Replaces).To(Equal("busybox-dependency.v1.0.0"))
 	})
 	It("registry polls on the correct interval", func() {
 		// Create a catalog source with polling enabled
@@ -1075,6 +1048,7 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	var replicas int32 = 0
 	deployment.Spec.Replicas = &replicas
 	deployment, updated, err := c.UpdateDeployment(deployment)
+
 	if err != nil || updated == false || deployment == nil {
 		return fmt.Errorf("Failed to scale down deployment")
 	}
@@ -1092,10 +1066,7 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	}
 
 	// wait for deployment to scale down
-	err = wait.Poll(pollInterval, pollDuration, waitForScaleup)
-	if err != nil {
-		return err
-	}
+	Eventually(waitForScaleup, 5*time.Minute, 1*time.Second).Should(BeTrue())
 
 	// scale up
 	replicas = 1
@@ -1106,15 +1077,15 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	}
 
 	// wait for deployment to scale up
-	err = wait.Poll(pollInterval, pollDuration, waitForScaleup)
+	Eventually(waitForScaleup, 5*time.Minute, 1*time.Second).Should(BeTrue())
 
 	return err
 }
 
-func replicateCatalogPod(t GinkgoTInterface, c operatorclient.ClientInterface, catalog *v1alpha1.CatalogSource) *corev1.Pod {
+func replicateCatalogPod(c operatorclient.ClientInterface, catalog *v1alpha1.CatalogSource) *corev1.Pod {
 	initialPods, err := c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalog.GetName()})
-	require.NoError(t, err)
-	require.Equal(t, 1, len(initialPods.Items))
+	Expect(err).ToNot(HaveOccurred())
+	Expect(initialPods.Items).To(HaveLen(1))
 
 	pod := initialPods.Items[0]
 	copied := &corev1.Pod{
@@ -1126,7 +1097,7 @@ func replicateCatalogPod(t GinkgoTInterface, c operatorclient.ClientInterface, c
 	}
 
 	copied, err = c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).Create(context.TODO(), copied, metav1.CreateOptions{})
-	require.NoError(t, err)
+	Expect(err).ToNot(HaveOccurred())
 
 	return copied
 }
