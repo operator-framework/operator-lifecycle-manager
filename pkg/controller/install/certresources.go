@@ -103,7 +103,7 @@ type webhookDescriptionWithCAPEM struct {
 }
 
 func (i *webhookDescriptionWithCAPEM) getName() string {
-	return i.webhookDescription.Name
+	return i.webhookDescription.GenerateName
 }
 
 func (i *webhookDescriptionWithCAPEM) setCAPEM(caPEM []byte) {

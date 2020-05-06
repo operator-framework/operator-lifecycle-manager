@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
@@ -185,4 +186,16 @@ func validateInstallModes(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Er
 		errs = append(errs, errors.ErrInvalidCSV("none of InstallModeTypes are supported", csv.GetName()))
 	}
 	return errs
+}
+
+func bundleCSVToCSV(bcsv *registry.ClusterServiceVersion) (*v1alpha1.ClusterServiceVersion, errors.Error) {
+	spec := v1alpha1.ClusterServiceVersionSpec{}
+	if err := json.Unmarshal(bcsv.Spec, &spec); err != nil {
+		return nil, errors.ErrInvalidParse(fmt.Sprintf("converting bundle CSV %q", bcsv.GetName()), err)
+	}
+	return &v1alpha1.ClusterServiceVersion{
+		TypeMeta:   bcsv.TypeMeta,
+		ObjectMeta: bcsv.ObjectMeta,
+		Spec:       spec,
+	}, errors.Error{}
 }

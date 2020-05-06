@@ -10,9 +10,11 @@ import (
 	v1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v "github.com/operator-framework/api/pkg/validation"
 	"github.com/operator-framework/operator-registry/pkg/containertools"
+	validation "github.com/operator-framework/operator-registry/pkg/lib/validation"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiValidation "k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -22,6 +24,11 @@ import (
 
 	y "github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	v1CRDapiVersion      = "apiextensions.k8s.io/v1"
+	v1beta1CRDapiVersion = "apiextensions.k8s.io/v1beta1"
 )
 
 type Meta struct {
@@ -135,7 +142,7 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 	}
 
 	if !dependenciesFound {
-		i.logger.Info("Could not find dependencies file")
+		i.logger.Info("Could not find optional dependencies file")
 	} else {
 		i.logger.Info("Found dependencies file")
 		errs := validateDependencies(dependenciesFile)
@@ -306,18 +313,37 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 				}
 			}
 		} else if gvk.Kind == CRDKind {
-			crd := &v1beta1.CustomResourceDefinition{}
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(k8sFile.Object, crd)
-			if err != nil {
-				validationErrors = append(validationErrors, err)
-				continue
-			}
-
-			results := crdValidator.Validate(crd)
-			if len(results) > 0 {
-				for _, err := range results[0].Errors {
+			switch gv := gvk.GroupVersion().String(); gv {
+			case v1CRDapiVersion:
+				crd := &apiextensionsv1.CustomResourceDefinition{}
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(k8sFile.Object, crd)
+				if err != nil {
 					validationErrors = append(validationErrors, err)
+					continue
 				}
+
+				results := crdValidator.Validate(crd)
+				if len(results) > 0 {
+					for _, err := range results[0].Errors {
+						validationErrors = append(validationErrors, err)
+					}
+				}
+			case v1beta1CRDapiVersion:
+				crd := &apiextensionsv1beta1.CustomResourceDefinition{}
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(k8sFile.Object, crd)
+				if err != nil {
+					validationErrors = append(validationErrors, err)
+					continue
+				}
+
+				results := crdValidator.Validate(crd)
+				if len(results) > 0 {
+					for _, err := range results[0].Errors {
+						validationErrors = append(validationErrors, err)
+					}
+				}
+			default:
+				validationErrors = append(validationErrors, fmt.Errorf("Unsupported api version of CRD: %s", gv))
 			}
 		} else {
 			err := validateKubectlable(data)
@@ -330,7 +356,7 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 	// Validate the bundle object
 	if len(unstObjs) > 0 {
 		bundle := registry.NewBundle(csvName, "", nil, unstObjs...)
-		bundleValidator := v.BundleValidator
+		bundleValidator := validation.BundleValidator
 		results := bundleValidator.Validate(bundle)
 		if len(results) > 0 {
 			for _, err := range results[0].Errors {

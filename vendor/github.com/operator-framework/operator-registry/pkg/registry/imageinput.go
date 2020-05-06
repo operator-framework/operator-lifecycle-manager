@@ -61,7 +61,7 @@ func NewImageInput(to image.Reference, from string) (*ImageInput, error) {
 	}
 
 	if !dependenciesFound {
-		log.Info("Could not find dependencies file")
+		log.Info("Could not find optional dependencies file")
 	}
 
 	imageInput := &ImageInput{
