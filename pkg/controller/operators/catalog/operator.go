@@ -1372,11 +1372,11 @@ func validateV1Beta1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *ap
 }
 
 func validateExistingCRs(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, newCRD *apiextensions.CustomResourceDefinition) error {
-	// make dynamic client
-	crList, err := dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
+	crList, err := listExistingCRs(dynamicClient, gvr)
 	if err != nil {
-		return fmt.Errorf("error listing resources in GroupVersionResource %#v: %s", gvr, err)
+		return err
 	}
+
 	for _, cr := range crList.Items {
 		validator, _, err := validation.NewSchemaValidator(newCRD.Spec.Validation)
 		if err != nil {
@@ -1390,6 +1390,24 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gvr schema.GroupVersio
 	return nil
 }
 
+func listExistingCRs(client dynamic.Interface, gvr schema.GroupVersionResource) (*unstructured.UnstructuredList, error) {
+	crList, err := client.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error listing resources in GroupVersionResource %#v: %s", gvr, err)
+	}
+	return crList, nil
+}
+
+func writeExistingCRs(client dynamic.Interface, gvr schema.GroupVersionResource, crList *unstructured.UnstructuredList) error {
+	list := *crList
+	for _, cr := range list.Items {
+		_, err := client.Resource(gvr).Update(context.TODO(), cr.DeepCopy(), metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("writing custom resource %s to backend", gvr.String())
+		}
+	}
+	return nil
+}
 // ExecutePlan applies a planned InstallPlan to a namespace.
 func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	if plan.Status.Phase != v1alpha1.InstallPlanPhaseInstalling {

@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 
@@ -133,13 +134,41 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 					logger.Debugf("Found one owner for CRD %v", crd)
 				} else if len(matchedCSV) > 1 {
 					logger.Debugf("Found multiple owners for CRD %v", crd)
-
 					if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
 						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
 					}
 				}
 
-				// TODO ensure stored version compatibility
+				// (optional) run migration to new stored version to ensure no data loss during CRD upgrade
+				if crdlib.RunStorageMigration(currentCRD, crd) {
+					// add new storage version to current CRD
+					currentCRD.Status.StoredVersions = append(currentCRD.Status.StoredVersions, crdlib.GetNewStorageVersion(crd))
+					_, err := client.CustomResourceDefinitions().UpdateStatus(context.TODO(), currentCRD, metav1.UpdateOptions{})
+					if err != nil {
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD status: %s", step.Resource.Name)
+					}
+					// list all CRs corresponding to the CRD at the new storage version
+					gvr := schema.GroupVersionResource{Group: currentCRD.Spec.Group, Version: crdlib.GetNewStorageVersion(crd), Resource: currentCRD.Spec.Names.Plural}
+					b.logger.Infof("updating %s", gvr.String())
+					crList, err := listExistingCRs(b.dynamicClient, gvr)
+					if err != nil {
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "listing CRs from gvr: %s", step.Resource.Name, gvr.String())
+					}
+					// write the CRs back to the backend - this forces the backend to update the CRs to the new version in storage
+					err = writeExistingCRs(b.dynamicClient, gvr, crList)
+					if err != nil {
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "writing CRs from gvr: %s", step.Resource.Name, gvr.String())
+					}
+
+					// remove old storage version from CRD
+					deprecated := crdlib.GetDeprecatedStorageVersion(currentCRD, crd)
+					currentCRD.Status.StoredVersions = crdlib.RemoveStorageVersion(currentCRD.Status.StoredVersions, deprecated)
+					_, err = client.CustomResourceDefinitions().UpdateStatus(context.TODO(), currentCRD, metav1.UpdateOptions{})
+					if err != nil {
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error updating CRD status after storage migration: %s", step.Resource.Name)
+					}
+				}
+				
 				// Update CRD to new version
 				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
 				if err != nil {
