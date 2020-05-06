@@ -17,8 +17,8 @@ const (
 
 	OperatorGroupKind = "OperatorGroup"
 
-	OperatorGroupLabelPrefix   = "olm.operatorgroup/"
-	OperatorGroupLabelTemplate = OperatorGroupLabelPrefix + "%s.%s"
+	OperatorGroupLabelPrefix   = "olm.operatorgroup.uid/"
+	OperatorGroupLabelTemplate = OperatorGroupLabelPrefix + "%s"
 )
 
 // OperatorGroupSpec is the spec for an OperatorGroup resource.
@@ -108,35 +108,36 @@ func (o *OperatorGroup) HasServiceAccountSynced() bool {
 	return false
 }
 
-// GetLabel returns a label that is applied to Namespaces to signify that the
-// namespace is a part of the OperatorGroup using selectors.
-func (o *OperatorGroup) GetLabel() string {
-	key, _ := o.OGLabelKeyAndValue()
-	return key
-}
-
 // OGLabelKeyAndValue returns a key and value that should be applied to namespaces listed in the OperatorGroup.
-func (o *OperatorGroup) OGLabelKeyAndValue() (string, string) {
-	return fmt.Sprintf(OperatorGroupLabelTemplate, o.GetNamespace(), o.GetName()), ""
+// If the UID is not set an error is returned.
+func (o *OperatorGroup) OGLabelKeyAndValue() (string, string, error) {
+	if string(o.GetUID()) == "" {
+		return "", "", fmt.Errorf("Missing UID")
+	}
+	return fmt.Sprintf(OperatorGroupLabelTemplate, o.GetUID()), "", nil
 }
 
 // NamespaceLabelSelector provides a selector that can be used to filter namespaces that belong to the OperatorGroup.
-func (o *OperatorGroup) NamespaceLabelSelector() *metav1.LabelSelector {
+func (o *OperatorGroup) NamespaceLabelSelector() (*metav1.LabelSelector, error) {
 	if len(o.Spec.TargetNamespaces) == 0 {
 		// If no target namespaces are set, check if a selector exists.
 		if o.Spec.Selector != nil {
-			return o.Spec.Selector
+			return o.Spec.Selector, nil
 		}
 		// No selector exists, return nil which should be used to select EVERYTHING.
-		return nil
+		return nil, nil
 	}
 	// Return a label that should be present on all namespaces defined in the OperatorGroup.Spec.TargetNamespaces field.
-	ogKey, ogValue := o.OGLabelKeyAndValue()
+	ogKey, ogValue, err := o.OGLabelKeyAndValue()
+	if err != nil {
+		return nil, err
+	}
+
 	return &metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			ogKey: ogValue,
 		},
-	}
+	}, nil
 }
 
 // IsOperatorGroupLabel returns true if the label is an OperatorGroup label.

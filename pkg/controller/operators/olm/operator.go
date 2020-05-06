@@ -776,7 +776,10 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 			if namespace.Labels == nil {
 				namespace.Labels = make(map[string]string, 1)
 			}
-			ogLabelKey, ogLabelValue := group.OGLabelKeyAndValue()
+			ogLabelKey, ogLabelValue, err := group.OGLabelKeyAndValue()
+			if err != nil {
+				return err
+			}
 			namespace.Labels[ogLabelKey] = ogLabelValue
 		}
 	}

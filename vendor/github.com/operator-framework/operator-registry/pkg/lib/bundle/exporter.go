@@ -1,6 +1,9 @@
 package bundle
 
 import (
+	"context"
+	"github.com/operator-framework/operator-registry/pkg/image"
+	"github.com/operator-framework/operator-registry/pkg/image/execregistry"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -9,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/operator-framework/operator-registry/pkg/containertools"
+	"github.com/operator-framework/operator-registry/pkg/image/containerdregistry"
 )
 
 // BundleExporter exports the manifests of a bundle image into a directory
@@ -18,11 +22,11 @@ type BundleExporter struct {
 	containerTool containertools.ContainerTool
 }
 
-func NewSQLExporterForBundle(image, directory, containerTool string) *BundleExporter {
+func NewSQLExporterForBundle(image, directory string, containerTool containertools.ContainerTool) *BundleExporter {
 	return &BundleExporter{
 		image:         image,
 		directory:     directory,
-		containerTool: containertools.NewContainerTool(containerTool, containertools.NoneTool),
+		containerTool: containerTool,
 	}
 }
 
@@ -36,13 +40,33 @@ func (i *BundleExporter) Export() error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Pull the image and get the manifests
-	reader := containertools.NewImageReader(i.containerTool, log)
+	var reg image.Registry
+	var rerr error
+	switch i.containerTool {
+	case containertools.NoneTool:
+		reg, rerr = containerdregistry.NewRegistry(containerdregistry.WithLog(log))
+	case containertools.PodmanTool:
+		fallthrough
+	case containertools.DockerTool:
+		reg, rerr = execregistry.NewRegistry(i.containerTool, log)
+	}
+	if rerr != nil {
+		return rerr
+	}
+	defer func() {
+		if err := reg.Destroy(); err != nil {
+			log.WithError(err).Warn("error destroying local cache")
+		}
+	}()
 
-	err = reader.GetImageData(i.image, tmpDir)
-	if err != nil {
+	if err := reg.Pull(context.TODO(), image.SimpleReference(i.image)); err != nil {
 		return err
 	}
+
+	if err := reg.Unpack(context.TODO(), image.SimpleReference(i.image), tmpDir); err != nil {
+		return err
+	}
+
 	if err := os.MkdirAll(i.directory, 0777); err != nil {
 		return err
 	}

@@ -1,9 +1,12 @@
 package registry
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/blang/semver"
 )
 
 var (
@@ -154,6 +157,41 @@ type PackageDependency struct {
 	Version string `json:"version" yaml:"version"`
 }
 
+// Validate will validate GVK dependency type and return error(s)
+func (gd *GVKDependency) Validate() []error {
+	errs := []error{}
+	if gd.Group == "" {
+		errs = append(errs, fmt.Errorf("API Group is empty"))
+	}
+	if gd.Version == "" {
+		errs = append(errs, fmt.Errorf("API Version is empty"))
+	}
+	if gd.Kind == "" {
+		errs = append(errs, fmt.Errorf("API Kind is empty"))
+	}
+	return errs
+}
+
+// Validate will validate package dependency type and return error(s)
+func (pd *PackageDependency) Validate() []error {
+	errs := []error{}
+	if pd.PackageName == "" {
+		errs = append(errs, fmt.Errorf("Package name is empty"))
+	}
+	if pd.Version == "" {
+		errs = append(errs, fmt.Errorf("Package version is empty"))
+	} else {
+		_, err := semver.Parse(pd.Version)
+		if err != nil {
+			_, err := semver.ParseRange(pd.Version)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("Invalid semver format version"))
+			}
+		}
+	}
+	return errs
+}
+
 // GetDependencies returns the list of dependency
 func (d *DependenciesFile) GetDependencies() []*Dependency {
 	var dependencies []*Dependency
@@ -167,6 +205,38 @@ func (d *DependenciesFile) GetDependencies() []*Dependency {
 func (e *Dependency) GetType() string {
 	if e.Type != "" {
 		return e.Type
+	}
+	return ""
+}
+
+// GetTypeValue returns the dependency object that is converted
+// from value string
+func (e *Dependency) GetTypeValue() interface{} {
+	if e.Type != "" {
+		switch e.GetType() {
+		case GVKType:
+			dep := GVKDependency{}
+			err := json.Unmarshal([]byte(e.GetValue()), &dep)
+			if err != nil {
+				return nil
+			}
+			return dep
+		case PackageType:
+			dep := PackageDependency{}
+			err := json.Unmarshal([]byte(e.GetValue()), &dep)
+			if err != nil {
+				return nil
+			}
+			return dep
+		}
+	}
+	return nil
+}
+
+// GetValue returns the value content of dependency
+func (e *Dependency) GetValue() string {
+	if e.Value != "" {
+		return e.Value
 	}
 	return ""
 }

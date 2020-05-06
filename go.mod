@@ -22,8 +22,8 @@ require (
 	github.com/onsi/gomega v1.9.0
 	github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
-	github.com/operator-framework/api v0.3.1
-	github.com/operator-framework/operator-registry v1.11.0
+	github.com/operator-framework/api v0.3.2
+	github.com/operator-framework/operator-registry v1.12.1
 	github.com/otiai10/copy v1.0.2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.2.1
@@ -36,19 +36,18 @@ require (
 	google.golang.org/grpc v1.27.0
 	gopkg.in/yaml.v2 v2.2.8
 	helm.sh/helm/v3 v3.1.2
-	k8s.io/api v0.18.0
-	k8s.io/apiextensions-apiserver v0.18.0
-	k8s.io/apimachinery v0.18.0
-	k8s.io/apiserver v0.18.0
-	k8s.io/client-go v0.18.0
-	k8s.io/code-generator v0.18.0
-	k8s.io/component-base v0.18.0
+	k8s.io/api v0.18.2
+	k8s.io/apiextensions-apiserver v0.18.2
+	k8s.io/apimachinery v0.18.2
+	k8s.io/apiserver v0.18.2
+	k8s.io/client-go v0.18.2
+	k8s.io/code-generator v0.18.2
+	k8s.io/component-base v0.18.2
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.18.0
 	k8s.io/kube-openapi v0.0.0-20200121204235-bf4fb3bd569c
-	rsc.io/letsencrypt v0.0.3 // indirect
-	sigs.k8s.io/controller-runtime v0.5.2
-	sigs.k8s.io/controller-tools v0.2.8
+	sigs.k8s.io/controller-runtime v0.6.0
+	sigs.k8s.io/controller-tools v0.3.0
 	sigs.k8s.io/kind v0.7.0
 )
 
@@ -58,7 +57,6 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20200331152225-585af27e34fd // release-4.5
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0 // release-4.5
 
-	github.com/operator-framework/api => github.com/operator-framework/api v0.3.1
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	google.golang.org/grpc => google.golang.org/grpc v1.26.0 // https://github.com/etcd-io/etcd/issues/11563
 

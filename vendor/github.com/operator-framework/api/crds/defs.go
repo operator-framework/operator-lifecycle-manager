@@ -8,11 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/install"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -33,22 +29,15 @@ func (c crdFile) mustUnmarshal() *apiextensionsv1.CustomResourceDefinition {
 		panic(fmt.Errorf("unable to read crd file %s: %s", path, err))
 	}
 
-	u := &unstructured.Unstructured{}
+	crd := &apiextensionsv1.CustomResourceDefinition{}
 	reader := bytes.NewReader(data)
 	decoder := yaml.NewYAMLOrJSONDecoder(reader, 30)
-	if err = decoder.Decode(u); err != nil {
-		panic(fmt.Errorf("crd unmarshaling failed: %s", err))
+	if err = decoder.Decode(crd); err != nil {
+		panic(fmt.Errorf("failed to unmarshal to crd:  %s", err))
 	}
 
-	// Step through unversioned type to support v1beta1 -> v1
-	unversioned := &apiextensions.CustomResourceDefinition{}
-	if err = scheme.Convert(u, unversioned, nil); err != nil {
-		panic(fmt.Errorf("failed to convert crd: %s\nto v1: %s", u, err))
-	}
-
-	crd := &apiextensionsv1.CustomResourceDefinition{}
-	if err = scheme.Convert(unversioned, crd, nil); err != nil {
-		panic(fmt.Errorf("failed to convert crd: %s\nto v1: %s", u, err))
+	if gvk := crd.GroupVersionKind(); gvk != supportedGVK {
+		panic(fmt.Errorf("%s not supported", gvk))
 	}
 
 	return crd
@@ -59,14 +48,9 @@ var (
 
 	// loaded stores previously unmarshaled CustomResourceDefinitions indexed by their file descriptor.
 	loaded = map[crdFile]*apiextensionsv1.CustomResourceDefinition{}
-	// scheme provides conversions between type versions.
-	scheme = runtime.NewScheme()
+	// supportedGVK is the version of CustomResourceDefinition supported for unmarshaling.
+	supportedGVK = apiextensionsv1.SchemeGroupVersion.WithKind("CustomResourceDefinition")
 )
-
-func init() {
-	// Add conversions between CRD versions
-	install.Install(scheme)
-}
 
 // getCRD lazily loads and returns the CustomResourceDefinition unmarshaled from a file.
 func getCRD(file crdFile) *apiextensionsv1.CustomResourceDefinition {

@@ -56,7 +56,10 @@ func (i *StrategyDeploymentInstaller) createOrUpdateWebhook(caPEM []byte, desc v
 	if err != nil || len(operatorGroups) != 1 {
 		return fmt.Errorf("Error retrieving OperatorGroup info")
 	}
-	ogNamespacelabelSelector := operatorGroups[0].NamespaceLabelSelector()
+	ogNamespacelabelSelector, err := operatorGroups[0].NamespaceLabelSelector()
+	if err != nil {
+		return err
+	}
 
 	switch desc.Type {
 	case v1alpha1.ValidatingAdmissionWebhook:
