@@ -179,14 +179,14 @@ var _ = Describe("Subscription", func() {
 		defer subscriptionCleanup()
 
 		// Wait for csv to install
-		firstCSV, err := awaitCSV(GinkgoT(), crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+		firstCSV, err := awaitCSV(crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update catalog with a new csv in the channel with a skip range
 		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{updatedCSV}, updatedManifests)
 
 		// Wait for csv to update
-		finalCSV, err := awaitCSV(GinkgoT(), crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
+		finalCSV, err := awaitCSV(crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Ensure we set the replacement field based on the registry data
@@ -341,7 +341,7 @@ var _ = Describe("Subscription", func() {
 		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the subscription to begin upgrading to csvB
@@ -357,7 +357,7 @@ var _ = Describe("Subscription", func() {
 		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), upgradeInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Ensure that 2 installplans were created
@@ -409,7 +409,7 @@ var _ = Describe("Subscription", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		// Wait for csvA to be installed
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Set up async watches that will fail the test if csvB doesn't get created in between csvA and csvC
@@ -418,7 +418,7 @@ var _ = Describe("Subscription", func() {
 			defer GinkgoRecover()
 			wg.Add(1)
 			defer wg.Done()
-			_, err := awaitCSV(GinkgoT(), crc, testNamespace, csvB.GetName(), csvReplacingChecker)
+			_, err := awaitCSV(crc, testNamespace, csvB.GetName(), csvReplacingChecker)
 			require.NoError(GinkgoT(), err)
 		}(GinkgoT())
 		// Update the catalog to include multiple updates
@@ -438,14 +438,17 @@ var _ = Describe("Subscription", func() {
 		wg.Wait()
 
 		// Wait for csvC to be installed
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvC.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, csvC.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should eventually GC the CSVs
-		err = waitForCSVToDelete(GinkgoT(), crc, csvA.Name)
-		require.NoError(GinkgoT(), err)
-		err = waitForCSVToDelete(GinkgoT(), crc, csvB.Name)
-		require.NoError(GinkgoT(), err)
+		Eventually(func() bool {
+			return csvExists(crc, csvA.Name)
+		}).Should(BeFalse())
+
+		Eventually(func() bool {
+			return csvExists(crc, csvB.Name)
+		}).Should(BeFalse())
 
 		// TODO: check installplans, subscription status, etc
 	})
@@ -490,7 +493,7 @@ var _ = Describe("Subscription", func() {
 		createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvB.GetName(), v1alpha1.ApprovalAutomatic)
 
 		// Wait for csvB to be installed
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -546,7 +549,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for csvA to be installed
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the subscription to begin upgrading to csvB
@@ -564,7 +567,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for csvB to be installed
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
 
