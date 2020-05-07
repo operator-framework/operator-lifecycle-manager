@@ -10,12 +10,14 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
@@ -255,10 +257,8 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 	return true, nil
 }
 
-// updateDeploymentSpecsWithApiServiceData transforms an install strategy to include information about apiservices
-// it is used in generating hashes for deployment specs to know when something in the spec has changed,
-// but duplicates a lot of installAPIServiceRequirements and should be refactored.
-func (a *Operator) getCaBundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, error) {
+// getCABundle returns the CA associated with a deployment
+func (a *Operator) getCABundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, error) {
 	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
 		apiServiceName := desc.GetName()
 		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
@@ -271,22 +271,27 @@ func (a *Operator) getCaBundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, err
 	}
 
 	for _, desc := range csv.Spec.WebhookDefinitions {
-		webhookName := desc.Name
-		if desc.Type == "ValidatingAdmissionWebhook" {
-			webhook, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), webhookName, metav1.GetOptions{})
+		webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+		webhookLabels[install.WebhookDescKey] = desc.GenerateName
+		webhookSelector := labels.SelectorFromSet(webhookLabels).String()
+		if desc.Type == v1alpha1.MutatingAdmissionWebhook {
+			existingWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
 			if err != nil {
-				return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
+				return nil, fmt.Errorf("could not retrieve generated MutatingWebhookConfiguration: %v", err)
 			}
-			if len(webhook.Webhooks[0].ClientConfig.CABundle) > 0 {
-				return webhook.Webhooks[0].ClientConfig.CABundle, nil
+
+			if len(existingWebhooks.Items) > 0 {
+				return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
 			}
-		} else {
-			webhook, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.TODO(), webhookName, metav1.GetOptions{})
+
+		} else if desc.Type == v1alpha1.ValidatingAdmissionWebhook {
+			existingWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
 			if err != nil {
-				return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
+				return nil, fmt.Errorf("could not retrieve generated ValidatingWebhookConfiguration: %v", err)
 			}
-			if len(webhook.Webhooks[0].ClientConfig.CABundle) > 0 {
-				return webhook.Webhooks[0].ClientConfig.CABundle, nil
+
+			if len(existingWebhooks.Items) > 0 {
+				return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
 			}
 		}
 	}
@@ -313,7 +318,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		depSpecs[sddSpec.Name] = sddSpec.Spec
 	}
 
-	caBundle, err := a.getCaBundle(csv)
+	caBundle, err := a.getCABundle(csv)
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve caBundle: %v", err)
 	}
@@ -400,7 +405,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 
 		depSpec, ok := depSpecs[desc.DeploymentName]
 		if !ok {
-			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIServices %s", desc.DeploymentName, desc.Name)
+			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for WebhookDescription %s", desc.DeploymentName, desc.GenerateName)
 		}
 
 		if depSpec.Template.Spec.ServiceAccountName == "" {

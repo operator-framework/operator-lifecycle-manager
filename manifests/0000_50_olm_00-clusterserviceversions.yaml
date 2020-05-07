@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.2.8
+    controller-gen.kubebuilder.io/version: v0.3.0
   creationTimestamp: null
   name: clusterserviceversions.operators.coreos.com
 spec:
@@ -2893,19 +2893,12 @@ spec:
                                                           inlines the contents of
                                                           the GMSA credential spec
                                                           named by the GMSACredentialSpecName
-                                                          field. This field is alpha-level
-                                                          and is only honored by servers
-                                                          that enable the WindowsGMSA
-                                                          feature flag.
+                                                          field.
                                                         type: string
                                                       gmsaCredentialSpecName:
                                                         description: GMSACredentialSpecName
                                                           is the name of the GMSA
                                                           credential spec to use.
-                                                          This field is alpha-level
-                                                          and is only honored by servers
-                                                          that enable the WindowsGMSA
-                                                          feature flag.
                                                         type: string
                                                       runAsUserName:
                                                         description: The UserName
@@ -2917,10 +2910,7 @@ spec:
                                                           If set in both SecurityContext
                                                           and PodSecurityContext,
                                                           the value specified in SecurityContext
-                                                          takes precedence. This field
-                                                          is beta-level and may be
-                                                          disabled with the WindowsRunAsUserName
-                                                          feature flag.
+                                                          takes precedence.
                                                         type: string
                                               startupProbe:
                                                 description: 'StartupProbe indicates
@@ -2935,7 +2925,7 @@ spec:
                                                   when it might take a long time to
                                                   load data or warm a cache, than
                                                   during steady-state operation. This
-                                                  cannot be updated. This is an alpha
+                                                  cannot be updated. This is a beta
                                                   feature enabled by the StartupProbe
                                                   feature flag. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
                                                 type: object
@@ -3150,8 +3140,7 @@ spec:
                                               volumeDevices:
                                                 description: volumeDevices is the
                                                   list of block devices to be used
-                                                  by the container. This is a beta
-                                                  feature.
+                                                  by the container.
                                                 type: array
                                                 items:
                                                   description: volumeDevice describes
@@ -4405,19 +4394,12 @@ spec:
                                                           inlines the contents of
                                                           the GMSA credential spec
                                                           named by the GMSACredentialSpecName
-                                                          field. This field is alpha-level
-                                                          and is only honored by servers
-                                                          that enable the WindowsGMSA
-                                                          feature flag.
+                                                          field.
                                                         type: string
                                                       gmsaCredentialSpecName:
                                                         description: GMSACredentialSpecName
                                                           is the name of the GMSA
                                                           credential spec to use.
-                                                          This field is alpha-level
-                                                          and is only honored by servers
-                                                          that enable the WindowsGMSA
-                                                          feature flag.
                                                         type: string
                                                       runAsUserName:
                                                         description: The UserName
@@ -4429,10 +4411,7 @@ spec:
                                                           If set in both SecurityContext
                                                           and PodSecurityContext,
                                                           the value specified in SecurityContext
-                                                          takes precedence. This field
-                                                          is beta-level and may be
-                                                          disabled with the WindowsRunAsUserName
-                                                          feature flag.
+                                                          takes precedence.
                                                         type: string
                                               startupProbe:
                                                 description: Probes are not allowed
@@ -4661,8 +4640,7 @@ spec:
                                               volumeDevices:
                                                 description: volumeDevices is the
                                                   list of block devices to be used
-                                                  by the container. This is a beta
-                                                  feature.
+                                                  by the container.
                                                 type: array
                                                 items:
                                                   description: volumeDevice describes
@@ -5943,19 +5921,12 @@ spec:
                                                           inlines the contents of
                                                           the GMSA credential spec
                                                           named by the GMSACredentialSpecName
-                                                          field. This field is alpha-level
-                                                          and is only honored by servers
-                                                          that enable the WindowsGMSA
-                                                          feature flag.
+                                                          field.
                                                         type: string
                                                       gmsaCredentialSpecName:
                                                         description: GMSACredentialSpecName
                                                           is the name of the GMSA
                                                           credential spec to use.
-                                                          This field is alpha-level
-                                                          and is only honored by servers
-                                                          that enable the WindowsGMSA
-                                                          feature flag.
                                                         type: string
                                                       runAsUserName:
                                                         description: The UserName
@@ -5967,10 +5938,7 @@ spec:
                                                           If set in both SecurityContext
                                                           and PodSecurityContext,
                                                           the value specified in SecurityContext
-                                                          takes precedence. This field
-                                                          is beta-level and may be
-                                                          disabled with the WindowsRunAsUserName
-                                                          feature flag.
+                                                          takes precedence.
                                                         type: string
                                               startupProbe:
                                                 description: 'StartupProbe indicates
@@ -5985,7 +5953,7 @@ spec:
                                                   when it might take a long time to
                                                   load data or warm a cache, than
                                                   during steady-state operation. This
-                                                  cannot be updated. This is an alpha
+                                                  cannot be updated. This is a beta
                                                   feature enabled by the StartupProbe
                                                   feature flag. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
                                                 type: object
@@ -6200,8 +6168,7 @@ spec:
                                               volumeDevices:
                                                 description: volumeDevices is the
                                                   list of block devices to be used
-                                                  by the container. This is a beta
-                                                  feature.
+                                                  by the container.
                                                 type: array
                                                 items:
                                                   description: volumeDevice describes
@@ -6429,6 +6396,19 @@ spec:
                                                 volume."
                                               type: integer
                                               format: int64
+                                            fsGroupChangePolicy:
+                                              description: 'fsGroupChangePolicy defines
+                                                behavior of changing ownership and
+                                                permission of the volume before being
+                                                exposed inside Pod. This field will
+                                                only apply to volume types which support
+                                                fsGroup based ownership(and permissions).
+                                                It will have no effect on ephemeral
+                                                volume types such as: secret, configmaps
+                                                and emptydir. Valid values are "OnRootMismatch"
+                                                and "Always". If not specified defaults
+                                                to "Always".'
+                                              type: string
                                             runAsGroup:
                                               description: The GID to run the entrypoint
                                                 of the container process. Uses runtime
@@ -6540,18 +6520,12 @@ spec:
                                                     (https://github.com/kubernetes-sigs/windows-gmsa)
                                                     inlines the contents of the GMSA
                                                     credential spec named by the GMSACredentialSpecName
-                                                    field. This field is alpha-level
-                                                    and is only honored by servers
-                                                    that enable the WindowsGMSA feature
-                                                    flag.
+                                                    field.
                                                   type: string
                                                 gmsaCredentialSpecName:
                                                   description: GMSACredentialSpecName
                                                     is the name of the GMSA credential
-                                                    spec to use. This field is alpha-level
-                                                    and is only honored by servers
-                                                    that enable the WindowsGMSA feature
-                                                    flag.
+                                                    spec to use.
                                                   type: string
                                                 runAsUserName:
                                                   description: The UserName in Windows
@@ -6562,10 +6536,7 @@ spec:
                                                     PodSecurityContext. If set in
                                                     both SecurityContext and PodSecurityContext,
                                                     the value specified in SecurityContext
-                                                    takes precedence. This field is
-                                                    beta-level and may be disabled
-                                                    with the WindowsRunAsUserName
-                                                    feature flag.
+                                                    takes precedence.
                                                   type: string
                                         serviceAccount:
                                           description: 'DeprecatedServiceAccount is
@@ -6671,10 +6642,9 @@ spec:
                                             how a group of pods ought to spread across
                                             topology domains. Scheduler will schedule
                                             pods in a way which abides by the constraints.
-                                            This field is alpha-level and is only
-                                            honored by clusters that enables the EvenPodsSpread
-                                            feature. All topologySpreadConstraints
-                                            are ANDed.
+                                            This field is only honored by clusters
+                                            that enable the EvenPodsSpread feature.
+                                            All topologySpreadConstraints are ANDed.
                                           type: array
                                           items:
                                             description: TopologySpreadConstraint
@@ -8717,7 +8687,7 @@ spec:
                   type: object
                   required:
                   - admissionReviewVersions
-                  - name
+                  - generateName
                   - sideEffects
                   - type
                   properties:
@@ -8732,10 +8702,10 @@ spec:
                       type: string
                     failurePolicy:
                       type: string
+                    generateName:
+                      type: string
                     matchPolicy:
                       description: MatchPolicyType specifies the type of match policy
-                      type: string
-                    name:
                       type: string
                     objectSelector:
                       description: A label selector is a label query over a set of
@@ -8851,6 +8821,9 @@ spec:
                       description: WebhookAdmissionType is the type of admission webhooks
                         supported by OLM
                       type: string
+                      enum:
+                      - ValidatingAdmissionWebhook
+                      - MutatingAdmissionWebhook
                     webhookPath:
                       type: string
           status:

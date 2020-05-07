@@ -618,7 +618,7 @@ func schema_api_pkg_operators_v1alpha1_WebhookDescription(ref common.ReferenceCa
 				Description: "WebhookDescription provides details to OLM about required webhooks",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"name": {
+					"generateName": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
@@ -709,7 +709,7 @@ func schema_api_pkg_operators_v1alpha1_WebhookDescription(ref common.ReferenceCa
 						},
 					},
 				},
-				Required: []string{"name", "type", "sideEffects", "admissionReviewVersions"},
+				Required: []string{"generateName", "type", "sideEffects", "admissionReviewVersions"},
 			},
 		},
 		Dependencies: []string{

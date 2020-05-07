@@ -4,13 +4,21 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
+const (
+	v1beta1CRDVersion = "v1beta1"
+	v1CRDVersion = "v1"
+	CRDKind = "CustomResourceDefinition"
+)
 // Scheme is the default instance of runtime.Scheme to which types in the Kubernetes API are already registered.
 var Scheme = runtime.NewScheme()
 
@@ -22,9 +30,8 @@ func DefaultYAMLDecoder() runtime.Decoder {
 }
 
 func init() {
-	if err := v1beta1.AddToScheme(Scheme); err != nil {
-		panic(err)
-	}
+	utilruntime.Must(apiextensionsv1beta1.AddToScheme(Scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(Scheme))
 }
 
 type Bundle struct {
@@ -34,7 +41,8 @@ type Bundle struct {
 	Channels     []string
 	BundleImage  string
 	csv          *ClusterServiceVersion
-	crds         []*v1beta1.CustomResourceDefinition
+	v1beta1crds  []*apiextensionsv1beta1.CustomResourceDefinition
+	v1crds       []*apiextensionsv1.CustomResourceDefinition
 	Dependencies []*Dependency
 	cacheStale   bool
 }
@@ -104,11 +112,18 @@ func (b *Bundle) Skips() ([]string, error) {
 	return b.csv.GetSkips()
 }
 
-func (b *Bundle) CustomResourceDefinitions() ([]*v1beta1.CustomResourceDefinition, error) {
+func (b *Bundle) CustomResourceDefinitions() ([]runtime.Object, error) {
 	if err := b.cache(); err != nil {
 		return nil, err
 	}
-	return b.crds, nil
+	var crds []runtime.Object
+	for _, crd := range b.v1crds {
+		crds = append(crds, crd)
+	}
+	for _, crd := range b.v1beta1crds {
+		crds = append(crds, crd)
+	}
+	return crds, nil
 }
 
 func (b *Bundle) ProvidedAPIs() (map[APIKey]struct{}, error) {
@@ -117,12 +132,22 @@ func (b *Bundle) ProvidedAPIs() (map[APIKey]struct{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, crd := range crds {
-		for _, v := range crd.Spec.Versions {
-			provided[APIKey{Group: crd.Spec.Group, Version: v.Name, Kind: crd.Spec.Names.Kind, Plural: crd.Spec.Names.Plural}] = struct{}{}
-		}
-		if crd.Spec.Version != "" {
-			provided[APIKey{Group: crd.Spec.Group, Version: crd.Spec.Version, Kind: crd.Spec.Names.Kind, Plural: crd.Spec.Names.Plural}] = struct{}{}
+
+	for _, c := range crds {
+		switch crd := c.(type) {
+		case *apiextensionsv1.CustomResourceDefinition:
+			for _, v := range crd.Spec.Versions {
+				provided[APIKey{Group: crd.Spec.Group, Version: v.Name, Kind: crd.Spec.Names.Kind, Plural: crd.Spec.Names.Plural}] = struct{}{}
+			}
+		case *apiextensionsv1beta1.CustomResourceDefinition:
+			for _, v := range crd.Spec.Versions {
+				provided[APIKey{Group: crd.Spec.Group, Version: v.Name, Kind: crd.Spec.Names.Kind, Plural: crd.Spec.Names.Plural}] = struct{}{}
+			}
+			if crd.Spec.Version != "" {
+				provided[APIKey{Group: crd.Spec.Group, Version: crd.Spec.Version, Kind: crd.Spec.Names.Kind, Plural: crd.Spec.Names.Plural}] = struct{}{}
+			}
+		default:
+			return nil, fmt.Errorf("unknown api version in crd: %#v", crd)
 		}
 	}
 
@@ -209,7 +234,7 @@ func (b *Bundle) Serialize() (csvName, bundleImage string, csvBytes []byte, bund
 		}
 		bundleBytes = append(bundleBytes, objBytes...)
 
-		if obj.GetObjectKind().GroupVersionKind().Kind == "ClusterServiceVersion" {
+		if obj.GroupVersionKind().Kind == "ClusterServiceVersion" {
 			csvName = obj.GetName()
 			csvBytes, err = runtime.Encode(unstructured.UnstructuredJSONScheme, obj)
 			if err != nil {
@@ -252,7 +277,7 @@ func (b *Bundle) cache() error {
 		return nil
 	}
 	for _, o := range b.Objects {
-		if o.GetObjectKind().GroupVersionKind().Kind == "ClusterServiceVersion" {
+		if o.GroupVersionKind().Kind == "ClusterServiceVersion" {
 			csv := &ClusterServiceVersion{}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(o.UnstructuredContent(), csv); err != nil {
 				return err
@@ -262,12 +287,8 @@ func (b *Bundle) cache() error {
 		}
 	}
 
-	if b.crds == nil {
-		b.crds = []*v1beta1.CustomResourceDefinition{}
-	}
 	for _, o := range b.Objects {
-		if o.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" {
-			crd := &v1beta1.CustomResourceDefinition{}
+		if o.GroupVersionKind().Kind == CRDKind {
 			// Marshal Unstructured and Decode as CustomResourceDefinition. FromUnstructured has issues
 			// converting JSON numbers to float64 for CRD minimum/maximum validation.
 			cb, err := o.MarshalJSON()
@@ -275,10 +296,20 @@ func (b *Bundle) cache() error {
 				return err
 			}
 			dec := serializer.NewCodecFactory(Scheme).UniversalDeserializer()
-			if _, _, err = dec.Decode(cb, nil, crd); err != nil {
-				return fmt.Errorf("error decoding CRD: %v", err)
+			switch o.GroupVersionKind().Version {
+			case v1CRDVersion:
+				crd := &apiextensionsv1.CustomResourceDefinition{}
+				if _, _, err = dec.Decode(cb, nil, crd); err != nil {
+					return fmt.Errorf("error decoding v1 CRD: %v", err)
+				}
+				b.v1crds = append(b.v1crds, crd)
+			case v1beta1CRDVersion:
+				crd := &apiextensionsv1beta1.CustomResourceDefinition{}
+				if _, _, err = dec.Decode(cb, nil, crd); err != nil {
+					return fmt.Errorf("error decoding v1beta1 CRD: %v", err)
+				}
+				b.v1beta1crds = append(b.v1beta1crds, crd)
 			}
-			b.crds = append(b.crds, crd)
 		}
 	}
 

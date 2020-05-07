@@ -196,7 +196,8 @@ func (pd *PackageDependency) Validate() []error {
 func (d *DependenciesFile) GetDependencies() []*Dependency {
 	var dependencies []*Dependency
 	for _, item := range d.Dependencies {
-		dependencies = append(dependencies, &item)
+		dep := item
+		dependencies = append(dependencies, &dep)
 	}
 	return dependencies
 }
