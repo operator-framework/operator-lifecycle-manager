@@ -3,11 +3,15 @@ package e2e
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
+	"path"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/config"
+	"github.com/onsi/ginkgo/reporters"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -44,7 +48,13 @@ func TestEndToEnd(t *testing.T) {
 	RegisterFailHandler(Fail)
 	SetDefaultEventuallyTimeout(1 * time.Minute)
 	SetDefaultEventuallyPollingInterval(1 * time.Second)
-	RunSpecs(t, "End-to-end")
+
+	if junitDir := os.Getenv("JUNIT_DIRECTORY"); junitDir != "" {
+		junitReporter := reporters.NewJUnitReporter(path.Join(junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
+		RunSpecsWithDefaultAndCustomReporters(t, "End-to-end", []Reporter{junitReporter})
+	} else {
+		RunSpecs(t, "End-to-end")
+	}
 }
 
 var deprovision func() = func() {}
