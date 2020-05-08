@@ -1719,7 +1719,6 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 }
 
 func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, installer install.StrategyInstaller, strategy install.Strategy, requeuePhase v1alpha1.ClusterServiceVersionPhase, requeueConditionReason v1alpha1.ConditionReason) error {
-	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv)
 	strategyInstalled, strategyErr := installer.CheckInstalled(strategy)
 	now := a.now()
 
@@ -1727,7 +1726,10 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		a.logger.WithError(strategyErr).Debug("operator not installed")
 	}
 
-	if strategyInstalled && apiServicesInstalled {
+	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv)
+	webhooksInstalled, webhookErr := a.areWebhooksAvailable(csv)
+
+	if strategyInstalled && apiServicesInstalled && webhooksInstalled {
 		// if there's no error, we're successfully running
 		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors", now, a.recorder)
 		return nil
@@ -1751,6 +1753,16 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		}
 
 		return fmt.Errorf("APIServices not installed")
+	}
+
+	if !webhooksInstalled || webhookErr != nil {
+		msg := "Webhooks not installed"
+		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf(msg), now, a.recorder)
+		if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+			a.logger.Warn(err.Error())
+		}
+
+		return fmt.Errorf(msg)
 	}
 
 	if strategyErr != nil {

@@ -486,3 +486,87 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 	}
 	return strategyDetailsDeployment, nil
 }
+
+func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) error {
+	webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+	webhookLabels = ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+	webhookSelector := labels.SelectorFromSet(webhookLabels).String()
+
+	csvWebhookGenerateNames := make(map[string]struct{}, len(csv.Spec.WebhookDefinitions))
+	for _, webhook := range csv.Spec.WebhookDefinitions {
+		csvWebhookGenerateNames[webhook.GenerateName] = struct{}{}
+	}
+
+	// Delete unknown ValidatingWebhooksConfigurations owned by the CSV
+	validatingWebhookConfigurationList, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
+	if err != nil {
+		return err
+	}
+	for _, webhook := range validatingWebhookConfigurationList.Items {
+		webhookGenerateNameLabel, ok := webhook.GetLabels()[install.WebhookDescKey]
+		if !ok {
+			return fmt.Errorf("ValidatingWebhookConfiguration %s does not have WebhookDesc key", webhook.Name)
+		}
+		if _, ok := csvWebhookGenerateNames[webhookGenerateNameLabel]; !ok {
+			err = a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
+			if err != nil && k8serrors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+
+	// Delete unknown MutatingWebhooksConfigurations owned by the CSV
+	mutatingWebhookConfigurationList, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
+	if err != nil {
+		return err
+	}
+	for _, webhook := range mutatingWebhookConfigurationList.Items {
+		webhookGenerateNameLabel, ok := webhook.GetLabels()[install.WebhookDescKey]
+		if !ok {
+			return fmt.Errorf("MutatingWebhookConfiguration %s does not have WebhookDesc key", webhook.Name)
+		}
+		if _, ok := csvWebhookGenerateNames[webhookGenerateNameLabel]; !ok {
+			err = a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
+			if err != nil && k8serrors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion) (bool, error) {
+	err := a.cleanUpRemovedWebhooks(csv)
+	if err != nil {
+		return false, err
+	}
+	for _, desc := range csv.Spec.WebhookDefinitions {
+		// Create Webhook Label Selector
+		webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+		webhookLabels[install.WebhookDescKey] = desc.GenerateName
+		webhookLabels[install.WebhookHashKey] = install.HashWebhookDesc(desc)
+		webhookSelector := labels.SelectorFromSet(webhookLabels).String()
+
+		webhookCount := 0
+		switch desc.Type {
+		case v1alpha1.ValidatingAdmissionWebhook:
+			webhookList, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
+			if err != nil {
+				return false, err
+			}
+			webhookCount = len(webhookList.Items)
+		case v1alpha1.MutatingAdmissionWebhook:
+			webhookList, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
+			if err != nil {
+				return false, err
+			}
+			webhookCount = len(webhookList.Items)
+		}
+		if webhookCount == 0 {
+			a.logger.Info("Expected Webhook does not exist")
+			return false, nil
+		}
+	}
+	return true, nil
+}
