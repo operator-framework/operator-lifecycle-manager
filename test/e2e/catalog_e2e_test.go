@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -939,6 +940,116 @@ func TestCatalogImageUpdate(t *testing.T) {
 	if !reflect.DeepEqual(v, version.OperatorVersion{Version: busyboxVersion}) {
 		t.Errorf("latest version of operator not installed: catalog souce update failed")
 	}
+}
+
+func TestDependencySkipRange(t *testing.T) {
+	// Create a CatalogSource that contains the busybox v1 and busybox-dependency v1 images
+	// Create a Subscription for busybox v1, which has a dependency on busybox-dependency v1.
+	// Wait for the busybox and busybox2 Subscriptions to succeed
+	// Wait for the CSVs to succeed
+	// Update the catalog to point to an image that contains the busybox v2 and busybox-dependency v2 images.
+	// Wait for the new Subscriptions to succeed and check if they include the new CSVs
+	// Wait for the CSVs to succeed and confirm that the have the correct Spec.Replaces fields.
+	defer cleaner.NotifyTestComplete(t, true)
+
+	sourceName := genName("catalog-")
+	packageName := "busybox"
+	channelName := "alpha"
+
+	catSrcImage := "quay.io/olmtest/busybox-dependencies-index"
+
+	// Create gRPC CatalogSource
+	source := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sourceName,
+			Namespace: testNamespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: v1alpha1.SourceTypeGrpc,
+			Image:      catSrcImage + ":1.0.0",
+		},
+	}
+
+	crc := newCRClient(t)
+	source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(source)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(source.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Create a Subscription for busybox
+	subscriptionName := genName("sub-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+	defer cleanupSubscription()
+
+	// Wait for the Subscription to succeed
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+	require.Equal(t, subscription.Status.InstalledCSV, "busybox.v1.0.0")
+
+	// Confirm that a subscription was created for busybox-dependency
+	subscriptionList, err := crc.OperatorsV1alpha1().Subscriptions(source.GetNamespace()).List(metav1.ListOptions{})
+	require.NoError(t, err)
+	dependencySubscriptionName := ""
+	for _, sub := range subscriptionList.Items {
+		if strings.HasPrefix(sub.GetName(), "busybox-dependency") {
+			dependencySubscriptionName = sub.GetName()
+		}
+	}
+
+	require.NotEmpty(t, dependencySubscriptionName)
+	// Wait for the Subscription to succeed
+	subscription, err = fetchSubscription(t, crc, testNamespace, dependencySubscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+	require.Equal(t, subscription.Status.InstalledCSV, "busybox-dependency.v1.0.0")
+
+	// Update the catalog image
+	err = wait.PollImmediate(pollInterval, pollDuration, func() (bool, error) {
+		existingSource, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(sourceName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		existingSource.Spec.Image = catSrcImage + ":2.0.0"
+
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(existingSource)
+		if err == nil {
+			return true, nil
+		}
+		return false, nil
+	})
+	require.NoError(t, err)
+
+	// Wait for the busybox v2 Subscription to succeed
+	subChecker := func(sub *v1alpha1.Subscription) bool {
+		return sub.Status.InstalledCSV == "busybox.v2.0.0"
+	}
+	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Wait for busybox v2 csv to succeed and check the replaces field
+	csv, err := fetchCSV(t, crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+	require.NoError(t, err)
+	require.Equal(t, "busybox.v1.0.0", csv.Spec.Replaces)
+
+	// Wait for the busybox-dependency v2 Subscription to succeed
+	subChecker = func(sub *v1alpha1.Subscription) bool {
+		return sub.Status.InstalledCSV == "busybox-dependency.v2.0.0"
+	}
+	subscription, err = fetchSubscription(t, crc, testNamespace, dependencySubscriptionName, subChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Wait for busybox-dependency v2 csv to succeed and check the replaces field
+	csv, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+	require.NoError(t, err)
+	require.Equal(t, "busybox-dependency.v1.0.0", csv.Spec.Replaces)
 }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
