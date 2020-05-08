@@ -97,7 +97,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
-			actualWebhook, err := getWebhookWithGenName(c, webhook)
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
 			Expect(err).Should(BeNil())
 
 			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(ogSelector))
@@ -136,7 +136,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
-			actualWebhook, err := getWebhookWithGenName(c, webhook)
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
 			Expect(err).Should(BeNil())
 
 			ogLabel, err := getOGLabelKey(og)
@@ -147,6 +147,34 @@ var _ = Describe("CSVs with a Webhook", func() {
 				MatchExpressions: []metav1.LabelSelectorRequirement(nil),
 			}
 			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(expected))
+
+			// Ensure that changes to the WebhookDescription within the CSV trigger an update to on cluster resources
+			changedGenerateName := webhookName + "-changed"
+			Eventually(func() error {
+				existingCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.Name).Get(context.TODO(), csv.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				existingCSV.Spec.WebhookDefinitions[0].GenerateName = changedGenerateName
+
+				existingCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.Name).Update(context.TODO(), existingCSV, metav1.UpdateOptions{})
+				return err
+			}, time.Minute, 5*time.Second).Should(Succeed())
+			Eventually(func() bool {
+				// Previous Webhook should be deleted
+				_, err = getWebhookWithGenerateName(c, webhookName)
+				if err != nil && err.Error() != "NotFound" {
+					return false
+				}
+
+				// Current Webhook should exist
+				_, err = getWebhookWithGenerateName(c, changedGenerateName)
+				if err != nil {
+					return false
+				}
+
+				return true
+			}, time.Minute, 5*time.Second).Should(BeTrue())
 		})
 		It("Fails to install a CSV if multiple Webhooks share the same name", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
@@ -325,7 +353,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
-			_, err = getWebhookWithGenName(c, webhook)
+			_, err = getWebhookWithGenerateName(c, webhook.GenerateName)
 			Expect(err).Should(BeNil())
 
 			// Update the CSV so it it replaces the existing CSV
@@ -340,7 +368,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err = fetchCSV(GinkgoT(), crc, csv.GetName(), namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
-			_, err = getWebhookWithGenName(c, webhook)
+			_, err = getWebhookWithGenerateName(c, webhook.GenerateName)
 			Expect(err).Should(BeNil())
 
 			// Make sure old resources are cleaned up.
@@ -373,7 +401,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
-			actualWebhook, err := getWebhookWithGenName(c, webhook)
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
 			Expect(err).Should(BeNil())
 
 			oldWebhookCABundle := actualWebhook.Webhooks[0].ClientConfig.CABundle
@@ -411,7 +439,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			Expect(err).Should(BeNil())
 
 			// get new webhook
-			actualWebhook, err = getWebhookWithGenName(c, webhook)
+			actualWebhook, err = getWebhookWithGenerateName(c, webhook.GenerateName)
 			Expect(err).Should(BeNil())
 
 			newWebhookCABundle := actualWebhook.Webhooks[0].ClientConfig.CABundle
@@ -449,7 +477,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			_, err = fetchCSV(GinkgoT(), crc, csv.Name, namespace.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
-			actualWebhook, err := getWebhookWithGenName(c, webhook)
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
 			Expect(err).Should(BeNil())
 
 			expected := &metav1.LabelSelector{
@@ -515,8 +543,8 @@ var _ = Describe("CSVs with a Webhook", func() {
 	})
 })
 
-func getWebhookWithGenName(c operatorclient.ClientInterface, desc v1alpha1.WebhookDescription) (*admissionregistrationv1.ValidatingWebhookConfiguration, error) {
-	webhookSelector := labels.SelectorFromSet(map[string]string{install.WebhookDescKey: desc.GenerateName}).String()
+func getWebhookWithGenerateName(c operatorclient.ClientInterface, generateName string) (*admissionregistrationv1.ValidatingWebhookConfiguration, error) {
+	webhookSelector := labels.SelectorFromSet(map[string]string{install.WebhookDescKey: generateName}).String()
 	existingWebhooks, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
 	if err != nil {
 		return nil, err
@@ -525,7 +553,7 @@ func getWebhookWithGenName(c operatorclient.ClientInterface, desc v1alpha1.Webho
 	if len(existingWebhooks.Items) > 0 {
 		return &existingWebhooks.Items[0], nil
 	}
-	return nil, fmt.Errorf("Could not find Webhook")
+	return nil, fmt.Errorf("NotFound")
 }
 
 func createCSVWithWebhook(namespace string, webhookDesc v1alpha1.WebhookDescription) v1alpha1.ClusterServiceVersion {

@@ -3,14 +3,17 @@ package install
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 
 	log "github.com/sirupsen/logrus"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 func ValidWebhookRules(rules []admissionregistrationv1.RuleWithOperations) error {
@@ -105,6 +108,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 		webhook.Webhooks = []admissionregistrationv1.MutatingWebhook{
 			desc.GetMutatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
 		}
+		addWebhookLabels(&webhook, desc)
 
 		// Attempt an update
 		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Update(context.TODO(), &webhook, metav1.UpdateOptions{}); err != nil {
@@ -151,6 +155,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 		webhook.Webhooks = []admissionregistrationv1.ValidatingWebhook{
 			desc.GetValidatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
 		}
+		addWebhookLabels(&webhook, desc)
 
 		// Attempt an update
 		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(context.TODO(), &webhook, metav1.UpdateOptions{}); err != nil {
@@ -162,7 +167,8 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 	return nil
 }
 
-const WebhookDescKey = "webhookDescriptionGenerateName"
+const WebhookDescKey = "olm.webhook-description-generate-name"
+const WebhookHashKey = "olm.webhook-description-hash"
 
 // addWebhookLabels adds webhook labels to an object
 func addWebhookLabels(object metav1.Object, webhookDesc v1alpha1.WebhookDescription) error {
@@ -171,7 +177,15 @@ func addWebhookLabels(object metav1.Object, webhookDesc v1alpha1.WebhookDescript
 		labels = map[string]string{}
 	}
 	labels[WebhookDescKey] = webhookDesc.GenerateName
+	labels[WebhookHashKey] = HashWebhookDesc(webhookDesc)
 	object.SetLabels(labels)
 
 	return nil
+}
+
+// HashWebhookDesc calculates a hash given a webhookDescription
+func HashWebhookDesc(webhookDesc v1alpha1.WebhookDescription) string {
+	hasher := fnv.New32a()
+	hashutil.DeepHashObject(hasher, &webhookDesc)
+	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
 }
