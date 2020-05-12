@@ -31,10 +31,29 @@ var _ = Describe("CSVs with a Webhook", func() {
 	var crc versioned.Interface
 	var namespace *corev1.Namespace
 	var nsCleanupFunc cleanupFunc
+	var nsLabels map[string]string
 	BeforeEach(func() {
 		c = newKubeClient(GinkgoT())
 		crc = newCRClient(GinkgoT())
-		namespace, nsCleanupFunc = newNamespace(GinkgoT(), c, genName("webhook-test-"))
+		nsLabels = map[string]string{
+			"foo": "bar",
+		}
+		namespace = &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   genName("webhook-test-"),
+				Labels: nsLabels,
+			},
+		}
+
+		var err error
+		namespace, err = c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
+		Expect(err).Should(BeNil())
+		Expect(namespace).ShouldNot(BeNil())
+
+		nsCleanupFunc = func() {
+			err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), namespace.GetName(), metav1.DeleteOptions{})
+			Expect(err).Should(BeNil())
+		}
 	})
 	AfterEach(func() {
 		if nsCleanupFunc != nil {
@@ -42,32 +61,12 @@ var _ = Describe("CSVs with a Webhook", func() {
 		}
 	})
 	When("Installed in an OperatorGroup that defines a selector", func() {
-		var nsLabels map[string]string
 		var cleanupCSV cleanupFunc
 		var ogSelector *metav1.LabelSelector
 		BeforeEach(func() {
-			nsLabels = map[string]string{
-				"foo": "bar",
-			}
 			ogSelector = &metav1.LabelSelector{
 				MatchLabels: nsLabels,
 			}
-			// Add a label to the namespace
-			Eventually(func() error {
-				var err error
-				namespace, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), namespace.Name, metav1.GetOptions{})
-				if err != nil {
-					return err
-				}
-
-				if namespace.GetLabels() == nil {
-					namespace.SetLabels(map[string]string{})
-				}
-				namespace.Labels["foo"] = "bar"
-
-				c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), namespace, metav1.UpdateOptions{})
-				return err
-			}, time.Minute, 5*time.Second).Should(Succeed())
 
 			og := newOperatorGroup(namespace.Name, genName("selector-og-"), nil, ogSelector, nil, false)
 			_, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
