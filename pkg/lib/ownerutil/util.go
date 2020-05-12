@@ -314,6 +314,18 @@ func InferGroupVersionKind(obj runtime.Object) error {
 			Version: "v1",
 			Kind:    "ServiceAccount",
 		})
+	case *corev1.ConfigMap:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "",
+			Version: "v1",
+			Kind:    "ConfigMap",
+		})
+	case *corev1.Secret:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "",
+			Version: "v1",
+			Kind:    "Secret",
+		})
 	case *rbac.ClusterRole:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
 			Group:   "rbac.authorization.k8s.io",

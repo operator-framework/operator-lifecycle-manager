@@ -1509,6 +1509,23 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
+
+				// add ownerrefs on the secret that point to the CSV in the bundle
+				if step.Resolving != "" {
+					owner := &v1alpha1.ClusterServiceVersion{}
+					owner.SetNamespace(plan.GetNamespace())
+					owner.SetName(step.Resolving)
+					ownerutil.AddNonBlockingOwner(&s, owner)
+				}
+
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error generating ownerrefs for secret %s", s.GetName())
+				}
+				s.SetOwnerReferences(updated)
+				s.SetNamespace(namespace)
+
 				status, err := ensurer.EnsureBundleSecret(plan.Namespace, &s)
 				if err != nil {
 					return err
@@ -1631,6 +1648,14 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
 
+				// add ownerrefs on the service that point to the CSV in the bundle
+				if step.Resolving != "" {
+					owner := &v1alpha1.ClusterServiceVersion{}
+					owner.SetNamespace(plan.GetNamespace())
+					owner.SetName(step.Resolving)
+					ownerutil.AddNonBlockingOwner(&s, owner)
+				}
+
 				// Update UIDs on all CSV OwnerReferences
 				updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
 				if err != nil {
@@ -1651,6 +1676,14 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &cfg)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+				}
+
+				// add ownerrefs on the configmap that point to the CSV in the bundle
+				if step.Resolving != "" {
+					owner := &v1alpha1.ClusterServiceVersion{}
+					owner.SetNamespace(plan.GetNamespace())
+					owner.SetName(step.Resolving)
+					ownerutil.AddNonBlockingOwner(&cfg, owner)
 				}
 
 				// Update UIDs on all CSV OwnerReferences
