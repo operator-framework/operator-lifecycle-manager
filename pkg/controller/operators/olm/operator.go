@@ -702,13 +702,14 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 			a.requeueOwnerCSVs(metaObj)
 		} else {
 			switch metaObj.(type) {
-			case *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding:
+			case *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding, *admissionregistrationv1.MutatingWebhookConfiguration, *admissionregistrationv1.ValidatingWebhookConfiguration:
 				resourceEvent := kubestate.NewResourceEvent(
 					kubestate.ResourceUpdated,
 					metaObj,
 				)
-				syncError = a.objGCQueueSet.RequeueEvent(ns, resourceEvent)
-				logger.Debugf("syncObject - requeued update event for %v, res=%v", resourceEvent, syncError)
+				if syncError = a.objGCQueueSet.RequeueEvent("", resourceEvent); syncError != nil {
+					logger.WithError(syncError).Warnf("failed to requeue gc event: %v", resourceEvent)
+				}
 				return
 			}
 		}
@@ -950,8 +951,9 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		logger.WithError(err).Warn("cannot list cluster role bindings")
 	}
 	for _, crb := range crbs {
-		syncError := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, crb))
-		logger.Debugf("handleCSVdeletion - requeued update event for %v, res=%v", crb, syncError)
+		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, crb)); err != nil {
+			logger.WithError(err).Warnf("failed to requeue gc event: %v", crb)
+		}
 	}
 
 	crs, err := a.lister.RbacV1().ClusterRoleLister().List(ownerSelector)
@@ -959,8 +961,9 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		logger.WithError(err).Warn("cannot list cluster roles")
 	}
 	for _, cr := range crs {
-		syncError := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, cr))
-		logger.Debugf("handleCSVdeletion - requeued update event for %v, res=%v", cr, syncError)
+		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, cr)); err != nil {
+			logger.WithError(err).Warnf("failed to requeue gc event: %v", cr)
+		}
 	}
 
 	webhookSelector := labels.SelectorFromSet(ownerutil.OwnerLabel(clusterServiceVersion, v1alpha1.ClusterServiceVersionKind)).String()
@@ -969,8 +972,10 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		logger.WithError(err).Warn("cannot list MutatingWebhookConfigurations")
 	}
 	for _, webhook := range mWebhooks.Items {
-		syncError := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, &webhook))
-		logger.Debugf("handleCSVdeletion - requeued update event for %v, res=%v", webhook, syncError)
+		w := webhook
+		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, &w)); err != nil {
+			logger.WithError(err).Warnf("failed to requeue gc event: %v", webhook)
+		}
 	}
 
 	vWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
@@ -978,8 +983,10 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		logger.WithError(err).Warn("cannot list ValidatingWebhookConfigurations")
 	}
 	for _, webhook := range vWebhooks.Items {
-		syncError := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, &webhook))
-		logger.Debugf("handleCSVdeletion - requeued update event for %v, res=%v", webhook, syncError)
+		w := webhook
+		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, &w)); err != nil {
+			logger.WithError(err).Warnf("failed to requeue gc event: %v", webhook)
+		}
 	}
 }
 
