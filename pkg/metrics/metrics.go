@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -168,7 +169,18 @@ var (
 		},
 		[]string{NAMESPACE_LABEL, NAME_LABEL, VERSION_LABEL, PHASE_LABEL, REASON_LABEL},
 	)
+
+	// subscriptionSyncCounters keeps a record of the promethues counters emitted by
+	// Subscription objects. The key of a record is the Subscription name, while the value
+	//  is struct containing label values used in the counter
+	subscriptionSyncCounters = make(map[string]subscriptionSyncLabelValues)
 )
+
+type subscriptionSyncLabelValues struct {
+	installedCSV string
+	pkg          string
+	channel      string
+}
 
 func RegisterOLM() {
 	prometheus.MustRegister(csvCount)
@@ -215,5 +227,45 @@ func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha
 	} else {
 		csvSucceededGauge.Set(0)
 		csvAbnormal.WithLabelValues(newCSV.Namespace, newCSV.Name, newCSV.Spec.Version.String(), string(newCSV.Status.Phase), string(newCSV.Status.Reason)).Set(1)
+	}
+}
+
+func EmitSubMetric(sub *olmv1alpha1.Subscription) {
+	if sub.Spec == nil {
+		return
+	}
+	SubscriptionSyncCount.WithLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package).Inc()
+	if _, present := subscriptionSyncCounters[sub.GetName()]; !present {
+		subscriptionSyncCounters[sub.GetName()] = subscriptionSyncLabelValues{
+			installedCSV: sub.Status.InstalledCSV,
+			pkg:          sub.Spec.Package,
+			channel:      sub.Spec.Channel,
+		}
+	}
+}
+
+func DeleteSubsMetric(sub *olmv1alpha1.Subscription) {
+	if sub.Spec == nil {
+		return
+	}
+	SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package)
+}
+
+func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
+	if sub.Spec == nil {
+		return
+	}
+	counterValues := subscriptionSyncCounters[sub.GetName()]
+
+	if sub.Spec.Channel != counterValues.channel ||
+		sub.Spec.Package != counterValues.pkg ||
+		sub.Status.InstalledCSV != counterValues.installedCSV {
+
+		// Delete metric will label values of old Subscription first
+		SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), counterValues.installedCSV, counterValues.channel, counterValues.pkg)
+
+		counterValues.installedCSV = sub.Status.InstalledCSV
+		counterValues.pkg = sub.Spec.Package
+		counterValues.channel = sub.Spec.Channel
 	}
 }
