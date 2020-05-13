@@ -764,6 +764,8 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
 
+	metrics.DeleteCSVMetric(clusterServiceVersion)
+
 	defer func(csv v1alpha1.ClusterServiceVersion) {
 		if clusterServiceVersion.IsCopied() {
 			logger.Debug("deleted csv is copied. skipping operatorgroup requeue")
