@@ -44,7 +44,6 @@ var _ = Describe("Metrics", func() {
 
 		cleanupCSV, err := createCSV(GinkgoT(), c, crc, failingCSV, testNamespace, false, false)
 		Expect(err).ToNot(HaveOccurred())
-		defer cleanupCSV()
 
 		_, err = fetchCSV(GinkgoT(), crc, failingCSV.Name, testNamespace, csvFailedChecker)
 		Expect(err).ToNot(HaveOccurred())
@@ -57,6 +56,14 @@ var _ = Describe("Metrics", func() {
 			ContainSubstring("reason=\"UnsupportedOperatorGroup\""),
 			ContainSubstring("version=\"0.0.0\""),
 			ContainSubstring("csv_succeeded"),
+		))
+
+		cleanupCSV()
+
+		// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
+		Expect(getMetricsFromPod(c, getOLMPod(c), "8081")).ToNot(And(
+			ContainSubstring("csv_abnormal{name=\"%s\"", failingCSV.Name),
+			ContainSubstring("csv_succeeded{name=\"%s\"", failingCSV.Name),
 		))
 	})
 })
