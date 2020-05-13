@@ -24,7 +24,7 @@ var _ = Describe("Package Manifest", func() {
 
 		// as long as it has a package name we consider the status non-empty
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		// create a simple catalogsource
 		packageName := genName("nginx")
@@ -48,8 +48,8 @@ var _ = Describe("Package Manifest", func() {
 		csv.SetLabels(map[string]string{"projected": "label"})
 		csv.Spec.NativeAPIs = []metav1.GroupVersionKind{{Group: "kubenative.io", Version: "v1", Kind: "Native"}}
 		csvJSON, _ := json.Marshal(csv)
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		pmc := newPMClient(GinkgoT())
 
 		expectedStatus := packagev1.PackageManifestStatus{
@@ -81,7 +81,7 @@ var _ = Describe("Package Manifest", func() {
 		require.NoError(GinkgoT(), err)
 		defer cleanupCatalogSource()
 
-		_, err = fetchCatalogSource(GinkgoT(), crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		pm, err := fetchPackageManifest(GinkgoT(), pmc, testNamespace, packageName, packageManifestHasStatus)
@@ -104,13 +104,13 @@ var _ = Describe("Package Manifest", func() {
 	})
 	It("loading relatedImages", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		sourceName := genName("catalog-")
 		packageName := "etcd-test"
 		image := "quay.io/olmtest/catsrc-update-test:related"
 
-		crc := newCRClient(GinkgoT())
+		crc := newCRClient()
 		pmc := newPMClient(GinkgoT())
 
 		source := &v1alpha1.CatalogSource{
@@ -152,7 +152,7 @@ var _ = Describe("Package Manifest", func() {
 		})
 		require.NoError(GinkgoT(), err, "package-server not available")
 
-		_, err = fetchCatalogSource(GinkgoT(), crc, source.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		pm, err := fetchPackageManifest(GinkgoT(), pmc, testNamespace, packageName, packageManifestHasStatus)

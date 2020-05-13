@@ -35,7 +35,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 	})
 
 	AfterEach(func() {
-		cleaner.NotifyTestComplete(GinkgoT(), true)
+		cleaner.NotifyTestComplete(true)
 	})
 
 	Context("Given a ClusterRole owned by a CustomResourceDefinition", func() {

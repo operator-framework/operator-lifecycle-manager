@@ -42,10 +42,10 @@ var _ = Describe("Subscription", func() {
 	//      A. If package is not installed, creating a subscription should install latest version
 	It("creation if not installed", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -54,7 +54,7 @@ var _ = Describe("Subscription", func() {
 		cleanup := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
 		defer cleanup()
 
-		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -67,10 +67,10 @@ var _ = Describe("Subscription", func() {
 	//         version
 	It("creation using existing CSV", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -83,7 +83,7 @@ var _ = Describe("Subscription", func() {
 		subscriptionCleanup := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
@@ -91,7 +91,7 @@ var _ = Describe("Subscription", func() {
 	})
 	It("skip range", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
@@ -121,8 +121,8 @@ var _ = Describe("Subscription", func() {
 		updatedCSV := newCSV(updatedPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661832"), []apiextensions.CustomResourceDefinition{crd}, nil, mainNamedStrategy)
 		updatedCSV.SetAnnotations(map[string]string{resolver.SkipPackageAnnotationKey: ">=0.1.0-1556661347 <0.1.0-1556661832"})
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -153,12 +153,12 @@ var _ = Describe("Subscription", func() {
 		_, cleanupMainCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanupMainCatalogSource()
 		// Attempt to get the catalog source before creating subscription
-		_, err := fetchCatalogSource(GinkgoT(), crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create a subscription
 		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		// Wait for csv to install
@@ -179,10 +179,10 @@ var _ = Describe("Subscription", func() {
 	// If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 	It("creation manual approval", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -191,7 +191,7 @@ var _ = Describe("Subscription", func() {
 		subscriptionCleanup := createSubscription(GinkgoT(), crc, testNamespace, "manual-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
+		subscription, err := fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -206,7 +206,7 @@ var _ = Describe("Subscription", func() {
 		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), installPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		subscription, err = fetchSubscription(GinkgoT(), crc, testNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
+		subscription, err = fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -216,7 +216,7 @@ var _ = Describe("Subscription", func() {
 
 	It("with starting CSV", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
@@ -258,21 +258,21 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create the CatalogSource
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
 		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSource(GinkgoT(), crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
-		cleanupSubscription := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalManual)
+		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalManual)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -333,7 +333,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the subscription to begin upgrading to csvB
-		subscription, err = fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
+		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), subscription.Status.InstallPlanRef.Name, "expected new installplan for upgraded csv")
 
@@ -356,7 +356,7 @@ var _ = Describe("Subscription", func() {
 
 	It("updates multiple intermediates", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
@@ -399,21 +399,21 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create the CatalogSource with just one version
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
 		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSource(GinkgoT(), crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
-		cleanupSubscription := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalAutomatic)
+		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalAutomatic)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -463,7 +463,7 @@ var _ = Describe("Subscription", func() {
 	It("updates existing install plan", func() {
 
 		Skip("ToDo: This test was skipped before ginkgo conversion")
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		// Create CSV
 		packageName := genName("nginx-")
@@ -485,25 +485,25 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create the CatalogSource with just one version
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
 		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogSourceName, testNamespace, manifests, nil, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSource(GinkgoT(), crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create a subscription to just get an InstallPlan for csvB
 		subscriptionName := genName("sub-nginx-")
-		createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvB.GetName(), v1alpha1.ApprovalAutomatic)
+		createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvB.GetName(), v1alpha1.ApprovalAutomatic)
 
 		// Wait for csvB to be installed
 		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		subscription, err := fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 
 		// Delete this subscription
@@ -536,10 +536,10 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName = genName("sub-nginx-")
-		cleanupSubscription := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalManual)
+		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalManual)
 		defer cleanupSubscription()
 
-		subscription, err = fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -560,7 +560,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the subscription to begin upgrading to csvB
-		subscription, err = fetchSubscription(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
+		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Fetch existing csvB installPlan
@@ -587,14 +587,14 @@ var _ = Describe("Subscription", func() {
 		)
 
 		BeforeEach(func() {
-			c = newKubeClient(GinkgoT())
-			crc = newCRClient(GinkgoT())
+			c = newKubeClient()
+			crc = newCRClient()
 			getOpts = metav1.GetOptions{}
 			deleteOpts = &metav1.DeleteOptions{}
 		})
 
 		AfterEach(func() {
-			defer cleaner.NotifyTestComplete(GinkgoT(), true)
+			defer cleaner.NotifyTestComplete(true)
 			err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -615,11 +615,11 @@ var _ = Describe("Subscription", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				missingName := "missing"
-				cleanup := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, testSubscriptionName, missingName, testPackageName, betaChannel, "", v1alpha1.ApprovalAutomatic)
+				cleanup := createSubscriptionForCatalog(crc, testNamespace, testSubscriptionName, missingName, testPackageName, betaChannel, "", v1alpha1.ApprovalAutomatic)
 				defer cleanup()
 
 				By("detecting its absence")
-				sub, err := fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", testNamespace, missingName)))
+				sub, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", testNamespace, missingName)))
 				Expect(err).NotTo(HaveOccurred())
 				Expect(sub).ToNot(BeNil())
 
@@ -630,11 +630,11 @@ var _ = Describe("Subscription", func() {
 
 				// Wait for SubscriptionCatalogSourcesUnhealthy to be false
 				By("detecting a new existing target")
-				_, err = fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy"))
+				_, err = fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy"))
 				Expect(err).NotTo(HaveOccurred())
 
 				// Wait for success
-				_, err = fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+				_, err = fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
@@ -664,7 +664,6 @@ var _ = Describe("Subscription", func() {
 
 					subName := genName("sub-")
 					cleanup := createSubscriptionForCatalog(
-						GinkgoT(),
 						crc,
 						cs.GetNamespace(),
 						subName,
@@ -678,7 +677,6 @@ var _ = Describe("Subscription", func() {
 
 					var sub *v1alpha1.Subscription
 					sub, err = fetchSubscription(
-						GinkgoT(),
 						crc,
 						cs.GetNamespace(),
 						subName,
@@ -725,7 +723,6 @@ var _ = Describe("Subscription", func() {
 
 					subName := genName("sub-")
 					cleanup := createSubscriptionForCatalog(
-						GinkgoT(),
 						crc,
 						cs.GetNamespace(),
 						subName,
@@ -739,7 +736,6 @@ var _ = Describe("Subscription", func() {
 
 					var sub *v1alpha1.Subscription
 					sub, err = fetchSubscription(
-						GinkgoT(),
 						crc,
 						cs.GetNamespace(),
 						subName,
@@ -780,7 +776,6 @@ var _ = Describe("Subscription", func() {
 
 					subName := genName("sub-")
 					cleanup := createSubscriptionForCatalog(
-						GinkgoT(),
 						crc,
 						cs.GetNamespace(),
 						subName,
@@ -794,7 +789,6 @@ var _ = Describe("Subscription", func() {
 
 					var sub *v1alpha1.Subscription
 					sub, err = fetchSubscription(
-						GinkgoT(),
 						crc,
 						cs.GetNamespace(),
 						subName,
@@ -835,7 +829,6 @@ var _ = Describe("Subscription", func() {
 
 					subName := genName("sub-")
 					cleanup := createSubscriptionForCatalog(
-						GinkgoT(),
 						crc,
 						cs.GetNamespace(),
 						subName,
@@ -849,7 +842,6 @@ var _ = Describe("Subscription", func() {
 
 					var sub *v1alpha1.Subscription
 					sub, err = fetchSubscription(
-						GinkgoT(),
 						crc,
 						cs.GetNamespace(),
 						subName,
@@ -895,10 +887,10 @@ var _ = Describe("Subscription", func() {
 	// 21. Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
 	It("install plan status", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create namespace ns
 		ns := &corev1.Namespace{
@@ -930,7 +922,7 @@ var _ = Describe("Subscription", func() {
 		catalogName := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalogName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSource(GinkgoT(), crc, catalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalogName, ns.GetName(), catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create OperatorGroup, og, in ns selecting its own namespace
@@ -943,10 +935,10 @@ var _ = Describe("Subscription", func() {
 
 		// Create Subscription to a package of cs in ns, sub
 		subName := genName("sub-")
-		defer createSubscriptionForCatalog(GinkgoT(), crc, ns.GetName(), subName, catalogName, pkgName, channelName, pkgName, v1alpha1.ApprovalAutomatic)()
+		defer createSubscriptionForCatalog(crc, ns.GetName(), subName, catalogName, pkgName, channelName, pkgName, v1alpha1.ApprovalAutomatic)()
 
 		// Wait for the package from sub to install successfully with no remaining InstallPlan status conditions
-		sub, err := fetchSubscription(GinkgoT(), crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		sub, err := fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			for _, cond := range s.Status.Conditions {
 				switch cond.Type {
 				case v1alpha1.SubscriptionInstallPlanMissing, v1alpha1.SubscriptionInstallPlanPending, v1alpha1.SubscriptionInstallPlanFailed:
@@ -979,7 +971,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason InstallPlanNotYetReconciled
-		sub, err = fetchSubscription(GinkgoT(), crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == v1alpha1.InstallPlanNotYetReconciled
 		})
@@ -993,7 +985,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason RequiresApproval
-		sub, err = fetchSubscription(GinkgoT(), crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanPhaseRequiresApproval)
 		})
@@ -1007,7 +999,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
-		sub, err = fetchSubscription(GinkgoT(), crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanPhaseInstalling)
 		})
@@ -1022,7 +1014,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallPlanFailed
-		sub, err = fetchSubscription(GinkgoT(), crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanFailed)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == v1alpha1.InstallPlanFailed
 		})
@@ -1040,7 +1032,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallComponentFailed
-		sub, err = fetchSubscription(GinkgoT(), crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanFailed)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanReasonComponentFailed)
 		})
@@ -1050,7 +1042,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Delete(context.TODO(), ref.Name, metav1.DeleteOptions{}))
 
 		// Wait for sub to have status condition SubscriptionInstallPlanMissing true
-		sub, err = fetchSubscription(GinkgoT(), crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			return s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanMissing).Status == corev1.ConditionTrue
 		})
 		require.NoError(GinkgoT(), err)
@@ -1072,7 +1064,7 @@ var _ = Describe("Subscription", func() {
 
 	It("creation with pod config", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		newConfigClient := func(t GinkgoTInterface) configv1client.ConfigV1Interface {
 			client, err := configv1client.NewForConfig(ctx.Ctx().RESTConfig())
@@ -1119,8 +1111,8 @@ var _ = Describe("Subscription", func() {
 			return proxyEnv
 		}
 
-		kubeClient := newKubeClient(GinkgoT())
-		crClient := newCRClient(GinkgoT())
+		kubeClient := newKubeClient()
+		crClient := newCRClient()
 		config := newConfigClient(GinkgoT())
 
 		// Create a ConfigMap that is mounted to the operator via the subscription
@@ -1199,7 +1191,7 @@ var _ = Describe("Subscription", func() {
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err = fetchCatalogSource(GinkgoT(), crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("podconfig-sub-")
@@ -1207,7 +1199,7 @@ var _ = Describe("Subscription", func() {
 		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -1227,10 +1219,10 @@ var _ = Describe("Subscription", func() {
 
 	It("creation with dependencies", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		kubeClient := newKubeClient(GinkgoT())
-		crClient := newCRClient(GinkgoT())
+		kubeClient := newKubeClient()
+		crClient := newCRClient()
 
 		permissions := deploymentPermissions()
 
@@ -1238,7 +1230,7 @@ var _ = Describe("Subscription", func() {
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSource(GinkgoT(), crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create duplicates of the CatalogSource
@@ -1247,7 +1239,7 @@ var _ = Describe("Subscription", func() {
 			defer duplicateCatSrcCleanup()
 
 			// Ensure that the catalog source is resolved before we create a subscription.
-			_, err = fetchCatalogSource(GinkgoT(), crClient, duplicateCatsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crClient, duplicateCatsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
 		}
 
@@ -1256,7 +1248,7 @@ var _ = Describe("Subscription", func() {
 		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -1516,7 +1508,7 @@ func initCatalog(t GinkgoTInterface, c operatorclient.ClientInterface, crc versi
 		return err
 	}
 
-	fetched, err := fetchCatalogSource(t, crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceRegistryPodSynced)
+	fetched, err := fetchCatalogSourceOnStatus(crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 	require.NotNil(t, fetched)
 
@@ -1577,12 +1569,12 @@ func subscriptionHasCondition(condType v1alpha1.SubscriptionConditionType, statu
 	}
 }
 
-func fetchSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, name string, checker subscriptionStateChecker) (*v1alpha1.Subscription, error) {
+func fetchSubscription(crc versioned.Interface, namespace, name string, checker subscriptionStateChecker) (*v1alpha1.Subscription, error) {
 	var fetchedSubscription *v1alpha1.Subscription
 	var err error
 
 	log := func(s string) {
-		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+		ctx.Ctx().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 	}
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -1600,7 +1592,7 @@ func fetchSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, n
 	return fetchedSubscription, err
 }
 
-func buildSubscriptionCleanupFunc(t GinkgoTInterface, crc versioned.Interface, subscription *v1alpha1.Subscription) cleanupFunc {
+func buildSubscriptionCleanupFunc(crc versioned.Interface, subscription *v1alpha1.Subscription) cleanupFunc {
 	return func() {
 
 		if installPlanRef := subscription.Status.InstallPlanRef; installPlanRef != nil {
@@ -1609,12 +1601,12 @@ func buildSubscriptionCleanupFunc(t GinkgoTInterface, crc versioned.Interface, s
 			if err == nil {
 				buildInstallPlanCleanupFunc(crc, subscription.GetNamespace(), installPlan)()
 			} else {
-				t.Logf("Could not get installplan %s while building subscription %s's cleanup function", installPlan.GetName(), subscription.GetName())
+				ctx.Ctx().Logf("Could not get installplan %s while building subscription %s's cleanup function", installPlan.GetName(), subscription.GetName())
 			}
 		}
 
 		err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(context.TODO(), subscription.GetName(), metav1.DeleteOptions{})
-		require.NoError(t, err)
+		Expect(err).NotTo(HaveOccurred())
 	}
 }
 
@@ -1639,10 +1631,10 @@ func createSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, 
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.TODO(), subscription, metav1.CreateOptions{})
 	require.NoError(t, err)
-	return buildSubscriptionCleanupFunc(t, crc, subscription)
+	return buildSubscriptionCleanupFunc(crc, subscription)
 }
 
-func createSubscriptionForCatalog(t GinkgoTInterface, crc versioned.Interface, namespace, name, catalog, packageName, channel, startingCSV string, approval v1alpha1.Approval) cleanupFunc {
+func createSubscriptionForCatalog(crc versioned.Interface, namespace, name, catalog, packageName, channel, startingCSV string, approval v1alpha1.Approval) cleanupFunc {
 	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.SubscriptionKind,
@@ -1663,8 +1655,8 @@ func createSubscriptionForCatalog(t GinkgoTInterface, crc versioned.Interface, n
 	}
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.TODO(), subscription, metav1.CreateOptions{})
-	require.NoError(t, err)
-	return buildSubscriptionCleanupFunc(t, crc, subscription)
+	Expect(err).NotTo(HaveOccurred())
+	return buildSubscriptionCleanupFunc(crc, subscription)
 }
 
 func createSubscriptionForCatalogWithSpec(t GinkgoTInterface, crc versioned.Interface, namespace, name string, spec *v1alpha1.SubscriptionSpec) cleanupFunc {
@@ -1682,7 +1674,7 @@ func createSubscriptionForCatalogWithSpec(t GinkgoTInterface, crc versioned.Inte
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.TODO(), subscription, metav1.CreateOptions{})
 	require.NoError(t, err)
-	return buildSubscriptionCleanupFunc(t, crc, subscription)
+	return buildSubscriptionCleanupFunc(crc, subscription)
 }
 
 func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration, resources corev1.ResourceRequirements) {
@@ -1800,7 +1792,7 @@ func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclie
 }
 
 func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, catalogSourceName, namespace string, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion, packages []registry.PackageManifest) {
-	fetchedInitialCatalog, err := fetchCatalogSource(t, crc, catalogSourceName, namespace, catalogSourceRegistryPodSynced)
+	fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, namespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	// Get initial configmap
@@ -1832,7 +1824,7 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	require.NoError(t, err)
 
 	// wait for catalog to update
-	_, err = fetchCatalogSource(t, crc, catalogSourceName, namespace, func(catalog *v1alpha1.CatalogSource) bool {
+	_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, namespace, func(catalog *v1alpha1.CatalogSource) bool {
 		before := fetchedInitialCatalog.Status.ConfigMapResource
 		after := catalog.Status.ConfigMapResource
 		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion {

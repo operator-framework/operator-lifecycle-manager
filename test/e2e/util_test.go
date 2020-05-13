@@ -79,25 +79,25 @@ func newNamespaceCleaner(namespace string) *namespaceCleaner {
 }
 
 // notifyOnFailure checks if a test has failed or cleanup is true before cleaning a namespace
-func (c *namespaceCleaner) NotifyTestComplete(t GinkgoTInterface, cleanup bool) {
-	if t.Failed() {
+func (c *namespaceCleaner) NotifyTestComplete(cleanup bool) {
+	if CurrentGinkgoTestDescription().Failed {
 		c.skipCleanupOLM = true
 	}
 
 	if c.skipCleanupOLM || !cleanup {
-		t.Log("skipping cleanup")
+		ctx.Ctx().Logf("skipping cleanup")
 		return
 	}
 
-	cleanupOLM(t, c.namespace)
+	cleanupOLM(c.namespace)
 }
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
-func newKubeClient(t GinkgoTInterface) operatorclient.ClientInterface {
+func newKubeClient() operatorclient.ClientInterface {
 	return ctx.Ctx().KubeClient()
 }
 
-func newCRClient(t GinkgoTInterface) versioned.Interface {
+func newCRClient() versioned.Interface {
 	return ctx.Ctx().OperatorClient()
 }
 
@@ -351,7 +351,7 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	return false
 }
 
-func fetchCatalogSource(t GinkgoTInterface, crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
+func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
 	var fetched *v1alpha1.CatalogSource
 	var err error
 
@@ -381,57 +381,66 @@ func createFieldNotEqualSelector(field string, names ...string) string {
 	return builder.String()
 }
 
-func cleanupOLM(t GinkgoTInterface, namespace string) {
+func cleanupOLM(namespace string) {
 	var immediate int64 = 0
-	crc := newCRClient(t)
-	c := newKubeClient(t)
+	crc := newCRClient()
+	c := newKubeClient()
 
 	// Cleanup non persistent OLM CRs
-	t.Log("cleaning up any remaining non persistent resources...")
+	ctx.Ctx().Logf("cleaning up any remaining non persistent resources...")
 	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: &immediate}
 	listOptions := metav1.ListOptions{}
-	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector}))
-	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(context.TODO(), deleteOptions, listOptions))
-	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(context.TODO(), deleteOptions, listOptions))
-	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector}))
+
+	err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(context.TODO(), deleteOptions, listOptions)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(context.TODO(), deleteOptions, listOptions)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector})
+	Expect(err).NotTo(HaveOccurred())
 
 	// error: the server does not allow this method on the requested resource
 	// Cleanup non persistent configmaps
-	require.NoError(t, c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{}))
+	err = c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{})
+	Expect(err).NotTo(HaveOccurred())
 
-	var err error
+	//var err error
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
-		t.Logf("%d %s remaining", len(res.Items), "csvs")
+		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "csvs")
 		return len(res.Items), err
 	})
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), metav1.ListOptions{})
-		t.Logf("%d %s remaining", len(res.Items), "installplans")
+		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "installplans")
 		return len(res.Items), err
 	})
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
-		t.Logf("%d %s remaining", len(res.Items), "subs")
+		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "subs")
 		return len(res.Items), err
 	})
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().CatalogSources(namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector})
-		t.Logf("%d %s remaining", len(res.Items), "catalogs")
+		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "catalogs")
 		return len(res.Items), err
 	})
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 }
 
 func buildCatalogSourceCleanupFunc(t GinkgoTInterface, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
 	return func() {
-		t.Logf("Deleting catalog source %s...", catalogSource.GetName())
+		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
 		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{}))
 	}
 }

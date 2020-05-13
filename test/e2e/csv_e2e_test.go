@@ -36,10 +36,10 @@ import (
 var _ = Describe("CSV", func() {
 	It("create with unmet requirements mini kube version", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		depName := genName("dep-")
 		csv := v1alpha1.ClusterServiceVersion{
@@ -88,10 +88,10 @@ var _ = Describe("CSV", func() {
 	// TODO: same test but missing serviceaccount instead
 	It("create with unmet requirements CRD", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		depName := genName("dep-")
 		csv := v1alpha1.ClusterServiceVersion{
@@ -150,10 +150,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("create with unmet permissions CRD", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		saName := genName("dep-")
 		permissions := []v1alpha1.StrategyDeploymentPermissions{
@@ -260,10 +260,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("create with unmet requirements API service", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		depName := genName("dep-")
 		csv := v1alpha1.ClusterServiceVersion{
@@ -322,10 +322,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("create with unmet permissions API service", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		saName := genName("dep-")
 		permissions := []v1alpha1.StrategyDeploymentPermissions{
@@ -412,10 +412,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("create with unmet requirements native API", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		depName := genName("dep-")
 		csv := v1alpha1.ClusterServiceVersion{
@@ -465,10 +465,10 @@ var _ = Describe("CSV", func() {
 	// TODO: same test but create serviceaccount instead
 	It("create requirements met CRD", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		sa := corev1.ServiceAccount{}
 		sa.SetName(genName("sa-"))
@@ -727,10 +727,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("create requirements met API service", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		sa := corev1.ServiceAccount{}
 		sa.SetName(genName("sa-"))
@@ -890,10 +890,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("create with owned API service", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		depName := genName("hat-server")
 		mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
@@ -1079,10 +1079,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("update with owned API service", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		depName := genName("hat-server")
 		mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
@@ -1282,10 +1282,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("create same CSV with owned API service multi namespace", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create new namespace in a new operator group
 		secondNamespaceName := genName(testNamespace + "-")
@@ -1487,9 +1487,9 @@ var _ = Describe("CSV", func() {
 	})
 	It("orphaned API service clean up", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
+		c := newKubeClient()
 
 		mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
 		version := "v1alpha1"
@@ -1553,10 +1553,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("update same deployment name", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create dependency first (CRD)
 		crdPlural := genName("ins")
@@ -1737,10 +1737,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("update different deployment name", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create dependency first (CRD)
 		crdPlural := genName("ins2")
@@ -1919,10 +1919,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("update multiple intermediates", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create dependency first (CRD)
 		crdPlural := genName("ins3")
@@ -2107,10 +2107,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("update in place", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create dependency first (CRD)
 		crdPlural := genName("ins")
@@ -2261,10 +2261,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("update multiple version CRD", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create initial CRD which has 2 versions: v1alpha1 & v1alpha2
 		crdPlural := genName("ins4")
@@ -2542,10 +2542,10 @@ var _ = Describe("CSV", func() {
 	})
 	It("update modify deployment name", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create dependency first (CRD)
 		crdPlural := genName("ins2")
@@ -2694,7 +2694,7 @@ var _ = Describe("CSV", func() {
 	})
 
 	It("emits CSV requirement events", func() {
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
 		c := ctx.Ctx().KubeClient()
 		crc := ctx.Ctx().OperatorClient()
@@ -2782,10 +2782,10 @@ var _ = Describe("CSV", func() {
 	// TODO: test behavior when replaces field doesn't point to existing CSV
 	It("status invalid CSV", func() {
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create CRD
 		crdPlural := genName("ins")
@@ -2896,10 +2896,10 @@ var _ = Describe("CSV", func() {
 	})
 
 	It("api service resource migrated if adoptable", func() {
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		depName := genName("hat-server")
 		mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
@@ -2980,10 +2980,10 @@ var _ = Describe("CSV", func() {
 	})
 
 	It("API service resource not migrated if not adoptable", func() {
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		depName := genName("hat-server")
 		mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
@@ -3067,10 +3067,10 @@ var _ = Describe("CSV", func() {
 	})
 
 	It("multiple API services on a single pod", func() {
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		defer cleaner.NotifyTestComplete(true)
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		// Create the deployment that both APIServices will be deployed to.
 		depName := genName("hat-server")
@@ -3512,7 +3512,7 @@ func waitForNotFound(t GinkgoTInterface, getFunction func() error) error {
 }
 
 func deleteLegacyAPIResources(desc v1alpha1.APIServiceDescription) {
-	c := newKubeClient(GinkgoT())
+	c := newKubeClient()
 
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 
@@ -3536,7 +3536,7 @@ func deleteLegacyAPIResources(desc v1alpha1.APIServiceDescription) {
 }
 
 func createLegacyAPIResources(csv *v1alpha1.ClusterServiceVersion, desc v1alpha1.APIServiceDescription) {
-	c := newKubeClient(GinkgoT())
+	c := newKubeClient()
 
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 
@@ -3623,7 +3623,7 @@ func createLegacyAPIResources(csv *v1alpha1.ClusterServiceVersion, desc v1alpha1
 }
 
 func checkLegacyAPIResources(desc v1alpha1.APIServiceDescription, expectedIsNotFound bool) {
-	c := newKubeClient(GinkgoT())
+	c := newKubeClient()
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 
 	// Attempt to create the legacy service

@@ -23,8 +23,8 @@ var _ = Describe("Metrics", func() {
 
 		// TestMetrics tests the metrics endpoint of the OLM pod.
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
+		c := newKubeClient()
+		crc := newCRClient()
 
 		failingCSV := v1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
