@@ -189,22 +189,26 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(globalNamespace, localNamespace string) map[resolver.CatalogKey]client.Interface {
-	refs := map[resolver.CatalogKey]client.Interface{}
+func (s *SourceStore) AsClients(namespaces ...string) (map[resolver.CatalogKey]client.Interface, map[resolver.CatalogKey]*client.Client) {
+	refsInterface := map[resolver.CatalogKey]client.Interface{}
+	refsClient := map[resolver.CatalogKey]*client.Client{}
 	s.sourcesLock.RLock()
 	for key, source := range s.sources {
 		if !(key.Namespace == globalNamespace || key.Namespace == localNamespace) {
 			continue
 		}
-		if source.LastConnect.IsZero() {
-			continue
+		for _, namespace := range namespaces {
+			if key.Namespace == namespace {
+				refsInterface[key] = client.NewClientFromConn(source.Conn)
+				refsClient[key] = client.NewClientFromConn(source.Conn)
+			}
 		}
 		refs[key] = NewClient(source.Conn)
 	}
 	s.sourcesLock.RUnlock()
 
 	// TODO : remove unhealthy
-	return refs
+	return refsInterface, refsClient
 }
 
 // TODO: move to operator-registry
