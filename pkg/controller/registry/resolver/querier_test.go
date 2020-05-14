@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes"
-	"github.com/operator-framework/api/pkg/lib/version"
 )
 
 func TestNewNamespaceSourceQuerier(t *testing.T) {
@@ -207,7 +207,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
 			}
-			bundle, key, err := q.FindProvider(tt.args.api, tt.args.catalogKey)
+			bundle, key, err := q.FindProvider(tt.args.api, tt.args.catalogKey, "")
 			require.Equal(t, tt.out.err, err)
 			require.Equal(t, tt.out.bundle, bundle)
 			require.Equal(t, tt.out.key, key)
