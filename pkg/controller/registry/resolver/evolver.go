@@ -137,7 +137,7 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 		}
 
 		// attempt to find a bundle that provides that api
-		if bundle, key, err := e.querier.FindProvider(*api, initialSource); err == nil {
+		if bundle, key, err := e.querier.FindProvider(*api, initialSource.Catalog, initialSource.Package); err == nil {
 			// add a bundle that provides the api to the generation
 			o, err := NewOperatorFromBundle(bundle, "", "", *key)
 			if err != nil {
