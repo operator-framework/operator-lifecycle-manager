@@ -22,6 +22,8 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 			Owned:    descriptionsForAPIServices(csv.Spec.APIServiceDefinitions.Owned),
 			Required: descriptionsForAPIServices(csv.Spec.APIServiceDefinitions.Required),
 		},
+		Keywords: csv.Spec.Keywords,
+		Maturity: csv.Spec.Maturity,
 	}
 
 	icons := make([]Icon, len(csv.Spec.Icon))
@@ -34,6 +36,22 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 
 	if len(icons) > 0 {
 		desc.Icon = icons
+	}
+
+	desc.Links = make([]AppLink, len(csv.Spec.Links))
+	for i, link := range csv.Spec.Links {
+		desc.Links[i] = AppLink{
+			Name: link.Name,
+			URL:  link.URL,
+		}
+	}
+
+	desc.Maintainers = make([]Maintainer, len(csv.Spec.Maintainers))
+	for i, maintainer := range csv.Spec.Maintainers {
+		desc.Maintainers[i] = Maintainer{
+			Name:  maintainer.Name,
+			Email: maintainer.Email,
+		}
 	}
 
 	return desc

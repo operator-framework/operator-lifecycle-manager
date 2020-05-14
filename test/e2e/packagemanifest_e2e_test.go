@@ -67,6 +67,20 @@ func TestPackageManifestLoading(t *testing.T) {
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 	csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 	csv.SetLabels(map[string]string{"projected": "label"})
+	csv.Spec.Keywords = []string{"foo", "bar"}
+	csv.Spec.Links = []v1alpha1.AppLink{
+		{
+			Name: "foo",
+			URL:  "example.com",
+		},
+	}
+	csv.Spec.Maintainers = []v1alpha1.Maintainer{
+		{
+			Name:  "foo",
+			Email: "example@gmail.com",
+		},
+	}
+	csv.Spec.Maturity = "foo"
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	pmc := newPMClient(t)
@@ -111,6 +125,10 @@ func TestPackageManifestLoading(t *testing.T) {
 	require.Equal(t, "label", pm.GetLabels()["projected"])
 	require.Equal(t, "supported", pm.GetLabels()["operatorframework.io/arch.amd64"])
 	require.Equal(t, "supported", pm.GetLabels()["operatorframework.io/os.linux"])
+	require.Equal(t, []string{"foo", "bar"}, pm.Status.Channels[0].CurrentCSVDesc.Keywords)
+	require.Equal(t, "foo", pm.Status.Channels[0].CurrentCSVDesc.Maturity)
+	require.Equal(t, []packagev1.AppLink{{Name: "foo", URL: "example.com"}}, pm.Status.Channels[0].CurrentCSVDesc.Links)
+	require.Equal(t, []packagev1.Maintainer{{Name: "foo", Email: "example@gmail.com"}}, pm.Status.Channels[0].CurrentCSVDesc.Maintainers)
 
 	// Get a PackageManifestList and ensure it has the correct items
 	pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
