@@ -1,4 +1,5 @@
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/api.RegistryClient
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_registry_interface.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
 package resolver
 
 import (
