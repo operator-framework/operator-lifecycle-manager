@@ -313,8 +313,12 @@ func withReplaces(operator *Operator, replaces string) *Operator {
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
 func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
 	sources := map[CatalogKey]client.Interface{}
+	clients := map[CatalogKey]*client.Client{}
 	for catKey, bundles := range bundlesByCatalog {
 		source := &fakes.FakeInterface{}
+		client := &client.Client{
+			Registry: &fakes.FakeRegistryClient{},
+		}
 		source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 			for _, b := range bundles {
 				apis := b.GetProvidedApis()
@@ -356,16 +360,77 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *Namesp
 					return b, nil
 				}
 			}
+
 			return nil, fmt.Errorf("no bundle found")
 		}
+		clients[catKey] = client
 		sources[catKey] = source
 	}
-	return NewNamespaceSourceQuerier(sources)
+	return NewNamespaceSourceQuerier(sources, clients)
+}
+
+// SortBundleInPackageChannel will sort into map of package-channel key and list
+// sorted (oldest to latest version) of bundles as value
+func SortBundleInPackageChannel(bundles []*api.Bundle) map[string][]*api.Bundle {
+	sorted := map[string][]*api.Bundle{}
+	var initialReplaces string
+	for _, v := range bundles {
+		pkgChanKey := v.PackageName + "/" + v.ChannelName
+		b, ok := sorted[pkgChanKey]
+		if ok {
+			b = append(b, v)
+			sorted[pkgChanKey] = b
+		} else {
+			blist := []*api.Bundle{}
+			blist = append(blist, v)
+			sorted[pkgChanKey] = blist
+		}
+	}
+
+	for k, v := range sorted {
+		resorted := []*api.Bundle{}
+		bundleMap := make(map[string]*api.Bundle)
+		// Find the first (oldest) bundle in upgrade graph
+		for _, bundle := range v {
+			csv, err := V1alpha1CSVFromBundle(bundle)
+			if err != nil {
+				continue
+			}
+
+			if replaces := csv.Spec.Replaces; replaces == "" {
+				initialReplaces = bundle.CsvName
+				resorted = append(resorted, bundle)
+			} else {
+				bundleMap[replaces] = bundle
+			}
+		}
+		resorted = SortBundleInChannel(initialReplaces, bundleMap, resorted)
+		sorted[k] = resorted
+	}
+	return sorted
+}
+
+// SortBundleInChannel recursively sorts a list of bundles to form a update graph
+// of a specific channel. The first item in the returned list is the start
+// (oldest version) of the upgrade graph and the last item is the head
+// (latest version) of a channel
+func SortBundleInChannel(replaces string, replacedBundle map[string]*api.Bundle, updated []*api.Bundle) []*api.Bundle {
+	bundle, ok := replacedBundle[replaces]
+	if ok {
+		csv, err := V1alpha1CSVFromBundle(bundle)
+		if err != nil {
+			return updated
+		}
+		updated = append(updated, bundle)
+		return SortBundleInChannel(csv.Spec.Replaces, replacedBundle, updated)
+	}
+	return updated
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
 func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
 	sources := map[CatalogKey]client.Interface{}
+	clients := map[CatalogKey]*client.Client{}
 	source := &fakes.FakeInterface{}
 	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")
@@ -380,5 +445,5 @@ func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *api.Bundle
 		return bundle, nil
 	}
 	sources[catKey] = source
-	return NewNamespaceSourceQuerier(sources)
+	return NewNamespaceSourceQuerier(sources, clients)
 }

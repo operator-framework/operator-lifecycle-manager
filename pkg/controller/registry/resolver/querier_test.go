@@ -23,8 +23,16 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 	nonEmptySources := map[CatalogKey]client.Interface{
 		CatalogKey{"test", "ns"}: &fakes.FakeInterface{},
 	}
+
+	emptyClients := map[CatalogKey]*client.Client{}
+	nonEmptyClients := map[CatalogKey]*client.Client{
+		CatalogKey{"test", "ns"}: &client.Client{
+			Registry: &fakes.FakeRegistryClient{},
+		},
+	}
 	type args struct {
 		sources map[CatalogKey]client.Interface
+		clients map[CatalogKey]*client.Client
 	}
 	tests := []struct {
 		name string
@@ -35,27 +43,30 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 			name: "nil",
 			args: args{
 				sources: nil,
+				clients: nil,
 			},
-			want: &NamespaceSourceQuerier{sources: nil},
+			want: &NamespaceSourceQuerier{sources: nil, clients: nil},
 		},
 		{
 			name: "empty",
 			args: args{
 				sources: emptySources,
+				clients: emptyClients,
 			},
-			want: &NamespaceSourceQuerier{sources: emptySources},
+			want: &NamespaceSourceQuerier{sources: emptySources, clients: emptyClients},
 		},
 		{
 			name: "nonEmpty",
 			args: args{
 				sources: nonEmptySources,
+				clients: nonEmptyClients,
 			},
-			want: &NamespaceSourceQuerier{sources: nonEmptySources},
+			want: &NamespaceSourceQuerier{sources: nonEmptySources, clients: nonEmptyClients},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, NewNamespaceSourceQuerier(tt.args.sources), tt.want)
+			require.Equal(t, NewNamespaceSourceQuerier(tt.args.sources, tt.args.clients), tt.want)
 		})
 	}
 }
@@ -63,6 +74,7 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 	type fields struct {
 		sources map[CatalogKey]client.Interface
+		clients map[CatalogKey]*client.Client
 	}
 	tests := []struct {
 		name   string
@@ -73,6 +85,7 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 			name: "nil",
 			fields: fields{
 				sources: nil,
+				clients: nil,
 			},
 			error: fmt.Errorf("no catalog sources available"),
 		},
@@ -80,6 +93,7 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 			name: "empty",
 			fields: fields{
 				sources: map[CatalogKey]client.Interface{},
+				clients: map[CatalogKey]*client.Client{},
 			},
 			error: fmt.Errorf("no catalog sources available"),
 		},
@@ -88,6 +102,11 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 			fields: fields{
 				sources: map[CatalogKey]client.Interface{
 					CatalogKey{"test", "ns"}: &fakes.FakeInterface{},
+				},
+				clients: map[CatalogKey]*client.Client{
+					CatalogKey{"test", "ns"}: &client.Client{
+						Registry: &fakes.FakeRegistryClient{},
+					},
 				},
 			},
 			error: nil,
@@ -218,6 +237,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 	initialSource := fakes.FakeInterface{}
 	otherSource := fakes.FakeInterface{}
+	clients := map[CatalogKey]*client.Client{}
 	initalBundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
 	startingBundle := &api.Bundle{CsvName: "starting-test", PackageName: "testPkg", ChannelName: "testChannel"}
 	otherBundle := &api.Bundle{CsvName: "other", PackageName: "otherPkg", ChannelName: "otherChannel"}
@@ -248,6 +268,7 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 
 	type fields struct {
 		sources map[CatalogKey]client.Interface
+		clients map[CatalogKey]*client.Client
 	}
 	type args struct {
 		pkgName       string
@@ -268,37 +289,37 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 	}{
 		{
 			name:   "Initial/Found",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{"test", "testChannel", "", CatalogKey{"initial", "ns"}},
 			out:    out{bundle: initalBundle, key: &initialKey, err: nil},
 		},
 		{
 			name:   "Initial/CatalogNotFound",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{"test", "testChannel", "", CatalogKey{"absent", "found"}},
 			out:    out{bundle: nil, key: nil, err: fmt.Errorf("CatalogSource {absent found} not found")},
 		},
 		{
 			name:   "Initial/StartingCSVFound",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{"test", "testChannel", "starting-test", CatalogKey{"initial", "ns"}},
 			out:    out{bundle: startingBundle, key: &initialKey, err: nil},
 		},
 		{
 			name:   "Initial/StartingCSVNotFound",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{"test", "testChannel", "non-existent", CatalogKey{"initial", "ns"}},
 			out:    out{bundle: nil, key: nil, err: fmt.Errorf("not found")},
 		},
 		{
 			name:   "Other/Found",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{"other", "testChannel", "", CatalogKey{"", ""}},
 			out:    out{bundle: otherBundle, key: &otherKey, err: nil},
 		},
 		{
 			name:   "NotFound",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{"nope", "not", "", CatalogKey{"", ""}},
 			out:    out{bundle: nil, err: fmt.Errorf("nope/not not found in any available CatalogSource")},
 		},
@@ -307,6 +328,7 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
+				clients: tt.fields.clients,
 			}
 			var got *api.Bundle
 			var key *CatalogKey
@@ -330,6 +352,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 	replacementSource := fakes.FakeInterface{}
 	replacementAndLatestSource := fakes.FakeInterface{}
 	replacementAndNoAnnotationLatestSource := fakes.FakeInterface{}
+	clients := map[CatalogKey]*client.Client{}
 
 	latestVersion := semver.MustParse("1.0.0-1556661308")
 	csv := v1alpha1.ClusterServiceVersion{
@@ -417,6 +440,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 
 	type fields struct {
 		sources map[CatalogKey]client.Interface
+		clients map[CatalogKey]*client.Client
 	}
 	type args struct {
 		currentVersion *semver.Version
@@ -438,43 +462,43 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 	}{
 		{
 			name:   "FindsLatestInPrimaryCatalog",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{&startVersion, "testPkg", "testChannel", "test.v1", initialKey},
 			out:    out{bundle: latestBundle, key: &initialKey, err: nil},
 		},
 		{
 			name:   "FindsLatestInSecondaryCatalog",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{&startVersion, "testPkg", "testChannel", "test.v1", otherKey},
 			out:    out{bundle: latestBundle, key: &otherKey, err: nil},
 		},
 		{
 			name:   "PrefersLatestToReplaced/SameCatalog",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{&startVersion, "testPkg", "testChannel", "test.v1", replacementAndLatestKey},
 			out:    out{bundle: latestBundle, key: &replacementAndLatestKey, err: nil},
 		},
 		{
 			name:   "PrefersLatestToReplaced/OtherCatalog",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{&startVersion, "testPkg", "testChannel", "test.v1", initialKey},
 			out:    out{bundle: latestBundle, key: &initialKey, err: nil},
 		},
 		{
 			name:   "IgnoresLatestWithoutAnnotation",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{&startVersion, "testPkg", "testChannel", "test.v1", replacementAndNoAnnotationLatestKey},
 			out:    out{bundle: nextBundle, key: &replacementAndNoAnnotationLatestKey, err: nil},
 		},
 		{
 			name:   "IgnoresLatestNotInRange",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{&notInRange, "testPkg", "testChannel", "test.v1", replacementAndLatestKey},
 			out:    out{bundle: nextBundle, key: &replacementAndLatestKey, err: nil},
 		},
 		{
 			name:   "IgnoresLatestAtLatest",
-			fields: fields{sources: sources},
+			fields: fields{sources: sources, clients: clients},
 			args:   args{&latestVersion, "testPkg", "testChannel", "test.v1", otherKey},
 			out:    out{bundle: nil, key: nil, err: nil},
 		},
@@ -483,6 +507,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
+				clients: tt.fields.clients,
 			}
 			var got *api.Bundle
 			var key *CatalogKey
