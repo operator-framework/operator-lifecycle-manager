@@ -46,6 +46,20 @@ var _ = Describe("Package Manifest", func() {
 		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 		csv.SetLabels(map[string]string{"projected": "label"})
+		csv.Spec.Keywords = []string{"foo", "bar"}
+		csv.Spec.Links = []v1alpha1.AppLink{
+			{
+				Name: "foo",
+				URL:  "example.com",
+			},
+		}
+		csv.Spec.Maintainers = []v1alpha1.Maintainer{
+			{
+				Name:  "foo",
+				Email: "example@gmail.com",
+			},
+		}
+		csv.Spec.Maturity = "foo"
 		csv.Spec.NativeAPIs = []metav1.GroupVersionKind{{Group: "kubenative.io", Version: "v1", Kind: "Native"}}
 		csvJSON, _ := json.Marshal(csv)
 		c := newKubeClient()
@@ -95,6 +109,10 @@ var _ = Describe("Package Manifest", func() {
 		require.Equal(GinkgoT(), "label", pm.GetLabels()["projected"])
 		require.Equal(GinkgoT(), "supported", pm.GetLabels()["operatorframework.io/arch.amd64"])
 		require.Equal(GinkgoT(), "supported", pm.GetLabels()["operatorframework.io/os.linux"])
+		require.Equal(GinkgoT(), []string{"foo", "bar"}, pm.Status.Channels[0].CurrentCSVDesc.Keywords)
+		require.Equal(GinkgoT(), "foo", pm.Status.Channels[0].CurrentCSVDesc.Maturity)
+		require.Equal(GinkgoT(), []packagev1.AppLink{{Name: "foo", URL: "example.com"}}, pm.Status.Channels[0].CurrentCSVDesc.Links)
+		require.Equal(GinkgoT(), []packagev1.Maintainer{{Name: "foo", Email: "example@gmail.com"}}, pm.Status.Channels[0].CurrentCSVDesc.Maintainers)
 
 		// Get a PackageManifestList and ensure it has the correct items
 		pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(context.TODO(), metav1.ListOptions{})

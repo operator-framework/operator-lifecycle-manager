@@ -99,6 +99,13 @@ type CSVDescription struct {
 	Provider AppLink `json:"provider,omitempty"`
 	// +listType=map
 	Annotations map[string]string `json:"annotations,omitempty"`
+	// +listType=set
+	Keywords []string `json:"keywords,omitempty"`
+	// +listType=set
+	Links []AppLink `json:"links,omitempty"`
+	// +listType=set
+	Maintainers []Maintainer `json:"maintainers,omitempty"`
+	Maturity    string       `json:"maturity,omitempty"`
 
 	// LongDescription is the CSV's description
 	LongDescription string `json:"description,omitempty"`
@@ -122,6 +129,12 @@ type CSVDescription struct {
 type AppLink struct {
 	Name string `json:"name,omitempty"`
 	URL  string `json:"url,omitempty"`
+}
+
+// Maintainer defines a project maintainer
+type Maintainer struct {
+	Name  string `json:"name,omitempty"`
+	Email string `json:"email,omitempty"`
 }
 
 // Icon defines a base64 encoded icon and media type
