@@ -15,6 +15,7 @@ import (
 
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes"
 )
 
@@ -24,15 +25,17 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 		CatalogKey{"test", "ns"}: &fakes.FakeInterface{},
 	}
 
-	emptyClients := map[CatalogKey]*client.Client{}
-	nonEmptyClients := map[CatalogKey]*client.Client{
-		CatalogKey{"test", "ns"}: &client.Client{
-			Registry: &fakes.FakeRegistryClient{},
+	emptyClients := map[CatalogKey]registry.RegistryClientInterface{}
+	nonEmptyClients := map[CatalogKey]registry.RegistryClientInterface{
+		CatalogKey{"test", "ns"}: &registry.OLMRegistryClient{
+			Client: &client.Client{
+				Registry: &fakes.FakeRegistryClient{},
+			},
 		},
 	}
 	type args struct {
 		sources map[CatalogKey]client.Interface
-		clients map[CatalogKey]*client.Client
+		clients map[CatalogKey]registry.RegistryClientInterface
 	}
 	tests := []struct {
 		name string
@@ -74,7 +77,7 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 	type fields struct {
 		sources map[CatalogKey]client.Interface
-		clients map[CatalogKey]*client.Client
+		clients map[CatalogKey]registry.RegistryClientInterface
 	}
 	tests := []struct {
 		name   string
@@ -93,7 +96,7 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 			name: "empty",
 			fields: fields{
 				sources: map[CatalogKey]client.Interface{},
-				clients: map[CatalogKey]*client.Client{},
+				clients: map[CatalogKey]registry.RegistryClientInterface{},
 			},
 			error: fmt.Errorf("no catalog sources available"),
 		},
@@ -103,9 +106,11 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 				sources: map[CatalogKey]client.Interface{
 					CatalogKey{"test", "ns"}: &fakes.FakeInterface{},
 				},
-				clients: map[CatalogKey]*client.Client{
-					CatalogKey{"test", "ns"}: &client.Client{
-						Registry: &fakes.FakeRegistryClient{},
+				clients: map[CatalogKey]registry.RegistryClientInterface{
+					CatalogKey{"test", "ns"}: &registry.OLMRegistryClient{
+						Client: &client.Client{
+							Registry: &fakes.FakeRegistryClient{},
+						},
 					},
 				},
 			},
@@ -130,7 +135,12 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		CatalogKey{"test", "ns"}:  &fakeSource,
 		CatalogKey{"test2", "ns"}: &fakeSource2,
 	}
-
+	client1 := fakes.FakeRegistryClientInterface{}
+	client2 := fakes.FakeRegistryClientInterface{}
+	clients := map[CatalogKey]registry.RegistryClientInterface{
+		CatalogKey{"test", "ns"}:  &client1,
+		CatalogKey{"test2", "ns"}: &client2,
+	}
 	bundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
 	bundle2 := &api.Bundle{CsvName: "test2", PackageName: "testPkg2", ChannelName: "testChannel2"}
 	fakeSource.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*api.Bundle, error) {
@@ -145,9 +155,22 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		}
 		return bundle2, nil
 	}
+	client1.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind, pkgName string) (*api.Bundle, error) {
+		if group != "group" || version != "version" || kind != "kind" {
+			return nil, fmt.Errorf("Not Found")
+		}
+		return bundle, nil
+	}
+	client2.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind, pkgName string) (*api.Bundle, error) {
+		if group != "group2" || version != "version2" || kind != "kind2" {
+			return nil, fmt.Errorf("Not Found")
+		}
+		return bundle2, nil
+	}
 
 	type fields struct {
 		sources map[CatalogKey]client.Interface
+		clients map[CatalogKey]registry.RegistryClientInterface
 	}
 	type args struct {
 		api        opregistry.APIKey
@@ -167,6 +190,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		{
 			fields: fields{
 				sources: sources,
+				clients: clients,
 			},
 			args: args{
 				api:        opregistry.APIKey{"group", "version", "kind", "plural"},
@@ -181,6 +205,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		{
 			fields: fields{
 				sources: nil,
+				clients: nil,
 			},
 			args: args{
 				api:        opregistry.APIKey{"group", "version", "kind", "plural"},
@@ -195,6 +220,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		{
 			fields: fields{
 				sources: sources,
+				clients: clients,
 			},
 			args: args{
 				api:        opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
@@ -209,6 +235,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		{
 			fields: fields{
 				sources: sources,
+				clients: clients,
 			},
 			args: args{
 				api:        opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
@@ -225,6 +252,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
+				clients: tt.fields.clients,
 			}
 			bundle, key, err := q.FindProvider(tt.args.api, tt.args.catalogKey, "")
 			require.Equal(t, tt.out.err, err)
@@ -237,7 +265,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 	initialSource := fakes.FakeInterface{}
 	otherSource := fakes.FakeInterface{}
-	clients := map[CatalogKey]*client.Client{}
+	clients := map[CatalogKey]registry.RegistryClientInterface{}
 	initalBundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
 	startingBundle := &api.Bundle{CsvName: "starting-test", PackageName: "testPkg", ChannelName: "testChannel"}
 	otherBundle := &api.Bundle{CsvName: "other", PackageName: "otherPkg", ChannelName: "otherChannel"}
@@ -268,7 +296,7 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 
 	type fields struct {
 		sources map[CatalogKey]client.Interface
-		clients map[CatalogKey]*client.Client
+		clients map[CatalogKey]registry.RegistryClientInterface
 	}
 	type args struct {
 		pkgName       string
@@ -352,7 +380,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 	replacementSource := fakes.FakeInterface{}
 	replacementAndLatestSource := fakes.FakeInterface{}
 	replacementAndNoAnnotationLatestSource := fakes.FakeInterface{}
-	clients := map[CatalogKey]*client.Client{}
+	clients := map[CatalogKey]registry.RegistryClientInterface{}
 
 	latestVersion := semver.MustParse("1.0.0-1556661308")
 	csv := v1alpha1.ClusterServiceVersion{
@@ -440,7 +468,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 
 	type fields struct {
 		sources map[CatalogKey]client.Interface
-		clients map[CatalogKey]*client.Client
+		clients map[CatalogKey]registry.RegistryClientInterface
 	}
 	type args struct {
 		currentVersion *semver.Version
