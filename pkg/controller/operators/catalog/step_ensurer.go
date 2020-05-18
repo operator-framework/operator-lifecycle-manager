@@ -3,7 +3,6 @@ package catalog
 import (
 	"context"
 	"fmt"
-
 	errorwrap "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -19,19 +18,20 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
-func newStepEnsurer(kubeClient operatorclient.ClientInterface, crClient versioned.Interface, dynamicClient dynamic.Interface) *StepEnsurer {
+func newStepEnsurer(kubeClient operatorclient.ClientInterface, crClient versioned.Interface, dynamicClient dynamic.Interface,
+	) *StepEnsurer {
 	return &StepEnsurer{
-		kubeClient:    kubeClient,
-		crClient:      crClient,
-		dynamicClient: dynamicClient,
+		kubeClient:     kubeClient,
+		crClient:       crClient,
+		dynamicClient:  dynamicClient,
 	}
 }
 
 // StepEnsurer ensures that resource(s) specified in install plan exist in cluster.
 type StepEnsurer struct {
-	kubeClient    operatorclient.ClientInterface
-	crClient      versioned.Interface
-	dynamicClient dynamic.Interface
+	kubeClient     operatorclient.ClientInterface
+	crClient       versioned.Interface
+	dynamicClient  dynamic.Interface
 }
 
 // EnsureClusterServiceVersion writes the specified ClusterServiceVersion

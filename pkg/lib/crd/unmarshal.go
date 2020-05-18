@@ -11,11 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
-const (
-	Kind  = "CustomResourceDefinition"
-	Group = "apiextensions.k8s.io/"
-)
-
 var (
 	scheme = runtime.NewScheme()
 )

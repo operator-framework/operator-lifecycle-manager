@@ -323,6 +323,8 @@ github.com/kisielk/errcheck
 github.com/kisielk/errcheck/internal/errcheck
 # github.com/konsorten/go-windows-terminal-sequences v1.0.2
 github.com/konsorten/go-windows-terminal-sequences
+# github.com/kubernetes-sigs/kube-storage-version-migrator v0.0.2
+github.com/kubernetes-sigs/kube-storage-version-migrator/pkg/apis/migration/v1alpha1
 # github.com/lann/builder v0.0.0-20180802200727-47ae307949d0
 github.com/lann/builder
 # github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0

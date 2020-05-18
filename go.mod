@@ -14,6 +14,7 @@ require (
 	github.com/golang/mock v1.3.1
 	github.com/google/go-cmp v0.4.0
 	github.com/irifrance/gini v1.0.1
+	github.com/kubernetes-sigs/kube-storage-version-migrator v0.0.2
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 	github.com/mikefarah/yq/v2 v2.4.1
 	github.com/mitchellh/hashstructure v1.0.0

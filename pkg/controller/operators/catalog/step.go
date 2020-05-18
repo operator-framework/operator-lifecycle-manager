@@ -3,23 +3,26 @@ package catalog
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/cache"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/migration"
 
+	migratorv1alpha1 "github.com/kubernetes-sigs/kube-storage-version-migrator/pkg/apis/migration/v1alpha1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	crdlib "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/crd"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	errorwrap "github.com/pkg/errors"
 	logger "github.com/sirupsen/logrus"
+
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsv1client "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apiextensionsv1beta1client "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
-
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/cache"
 )
+
 
 // Stepper manages cluster interactions based on the step.
 type Stepper interface {
@@ -139,7 +142,28 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 					}
 				}
 
-				// TODO ensure stored version compatibility
+				// Check to see if storage migration is needed to run for existing CRs related to the new CRD
+				if crdlib.RunStorageMigration(currentCRD, crd) {
+					// get gvr that needs to be updated
+					gvr := migratorv1alpha1.GroupVersionResource{
+						Group:    currentCRD.Spec.Group,
+						Version:  crdlib.GetNewStorageVersion(crd),
+						Resource: currentCRD.Spec.Names.Plural,
+					}
+
+					// Create a storage migrator CR and have that operator asynchronously update CRs on the cluster
+					m, err := migration.CreateStorageObject(gvr)
+					if err != nil {
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error creating storage version migration object for CRD: %s", step.Resource.Name)
+					}
+					m, err = migration.Create(b.dynamicClient, m)
+					if err != nil {
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error creating migration on cluster for CRD: %s", step.Resource.Name)
+					}
+
+					// TODO how to track the status of the CR and where to place that information
+
+				}
 				// Update CRD to new version
 				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
 				if err != nil {
@@ -239,3 +263,4 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 		return v1alpha1.StepStatusUnknown, nil
 	}
 }
+
