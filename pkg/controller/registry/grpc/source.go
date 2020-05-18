@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
@@ -189,9 +190,9 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(namespaces ...string) (map[resolver.CatalogKey]client.Interface, map[resolver.CatalogKey]*client.Client) {
+func (s *SourceStore) AsClients(namespaces ...string) (map[resolver.CatalogKey]client.Interface, map[resolver.CatalogKey]registry.RegistryClientInterface) {
 	refsInterface := map[resolver.CatalogKey]client.Interface{}
-	refsClient := map[resolver.CatalogKey]*client.Client{}
+	refsClient := map[resolver.CatalogKey]registry.RegistryClientInterface{}
 	s.sourcesLock.RLock()
 	for key, source := range s.sources {
 		if !(key.Namespace == globalNamespace || key.Namespace == localNamespace) {
@@ -200,7 +201,7 @@ func (s *SourceStore) AsClients(namespaces ...string) (map[resolver.CatalogKey]c
 		for _, namespace := range namespaces {
 			if key.Namespace == namespace {
 				refsInterface[key] = client.NewClientFromConn(source.Conn)
-				refsClient[key] = client.NewClientFromConn(source.Conn)
+				refsClient[key] = registry.NewRegistryClient(client.NewClientFromConn(source.Conn))
 			}
 		}
 		refs[key] = NewClient(source.Conn)
