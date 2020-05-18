@@ -5,7 +5,6 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/blang/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +14,8 @@ import (
 	registryapi "github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 const SkipPackageAnnotationKey = "olm.skipRange"
@@ -36,43 +37,12 @@ type SourceQuerier interface {
 
 type NamespaceSourceQuerier struct {
 	sources map[CatalogKey]client.Interface
-	clients map[CatalogKey]*client.Client
+	clients map[CatalogKey]registry.RegistryClientInterface
 }
 
 var _ SourceQuerier = &NamespaceSourceQuerier{}
 
-type ChannelEntryStream interface {
-	Recv() (*api.ChannelEntry, error)
-}
-
-type ChannelEntryIterator struct {
-	stream ChannelEntryStream
-	error  error
-}
-
-func NewChannelEntryIterator(stream ChannelEntryStream) *ChannelEntryIterator {
-	return &ChannelEntryIterator{stream: stream}
-}
-
-func (ceit *ChannelEntryIterator) Next() *registryapi.ChannelEntry {
-	if ceit.error != nil {
-		return nil
-	}
-	next, err := ceit.stream.Recv()
-	if err == io.EOF {
-		return nil
-	}
-	if err != nil {
-		ceit.error = err
-	}
-	return next
-}
-
-func (ceit *ChannelEntryIterator) Error() error {
-	return ceit.error
-}
-
-func NewNamespaceSourceQuerier(sources map[CatalogKey]client.Interface, clients map[CatalogKey]*client.Client) *NamespaceSourceQuerier {
+func NewNamespaceSourceQuerier(sources map[CatalogKey]client.Interface, clients map[CatalogKey]registry.RegistryClientInterface) *NamespaceSourceQuerier {
 	return &NamespaceSourceQuerier{
 		sources: sources,
 		clients: clients,
@@ -90,19 +60,19 @@ func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSour
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		client, ok := q.clients[initialSource]
 		if ok {
-			if bundle, err := FindBundleThatProvides(context.TODO(), client, api.Group, api.Version, api.Kind, pkgName); err == nil {
+			if bundle, err := client.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, pkgName); err == nil {
 				return bundle, &initialSource, nil
 			}
-			if bundle, err := FindBundleThatProvides(context.TODO(), client, api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
+			if bundle, err := client.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
 				return bundle, &initialSource, nil
 			}
 		}
 	}
 	for key, client := range q.clients {
-		if bundle, err := FindBundleThatProvides(context.TODO(), client, api.Group, api.Version, api.Kind, pkgName); err == nil {
+		if bundle, err := client.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, pkgName); err == nil {
 			return bundle, &key, nil
 		}
-		if bundle, err := FindBundleThatProvides(context.TODO(), client, api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
+		if bundle, err := client.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
 			return bundle, &key, nil
 		}
 	}
@@ -226,52 +196,4 @@ func (q *NamespaceSourceQuerier) findChannelHead(currentVersion *semver.Version,
 		return latest, nil
 	}
 	return nil, nil
-}
-
-// GetLatestChannelEntriesThatProvide uses registry client to get a list of
-// latest channel entries that provide the requested API (via an iterator)
-func GetLatestChannelEntriesThatProvide(ctx context.Context, c *client.Client, group, version, kind string) (*ChannelEntryIterator, error) {
-	stream, err := c.Registry.GetLatestChannelEntriesThatProvide(ctx, &registryapi.GetLatestProvidersRequest{Group: group, Version: version, Kind: kind})
-	if err != nil {
-		return nil, err
-	}
-	return NewChannelEntryIterator(stream), nil
-}
-
-// FilterChannelEntries filters out a channel entries that provide the requested
-// API and come from the same package with original operator and returns the
-// first entry on the list
-func FilterChannelEntries(it *ChannelEntryIterator, pkgName string) *opregistry.ChannelEntry {
-	var entry *opregistry.ChannelEntry
-	for e := it.Next(); e != nil; e = it.Next() {
-		if e.PackageName != pkgName {
-			entry = &opregistry.ChannelEntry{
-				PackageName: e.PackageName,
-				ChannelName: e.ChannelName,
-				BundleName:  e.BundleName,
-				Replaces:    e.Replaces,
-			}
-			break
-		}
-	}
-	return entry
-}
-
-// FindBundleThatProvides returns a bundle that provides the request API and
-// doesn't belong to the provided package
-func FindBundleThatProvides(ctx context.Context, client *client.Client, group, version, kind, pkgName string) (*api.Bundle, error) {
-	it, err := GetLatestChannelEntriesThatProvide(ctx, client, group, version, kind)
-	if err != nil {
-		return nil, err
-	}
-
-	entry := FilterChannelEntries(it, pkgName)
-	if entry != nil {
-		return nil, fmt.Errorf("Unable to find a channel entry which doesn't belong to package %s", pkgName)
-	}
-	bundle, err := client.Registry.GetBundle(ctx, &registryapi.GetBundleRequest{PkgName: entry.PackageName, ChannelName: entry.ChannelName, CsvName: entry.BundleName})
-	if err != nil {
-		return nil, err
-	}
-	return bundle, nil
 }

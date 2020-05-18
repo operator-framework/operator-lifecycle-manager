@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes"
 )
 
@@ -313,12 +314,10 @@ func withReplaces(operator *Operator, replaces string) *Operator {
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
 func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
 	sources := map[CatalogKey]client.Interface{}
-	clients := map[CatalogKey]*client.Client{}
+	clients := map[CatalogKey]registry.RegistryClientInterface{}
 	for catKey, bundles := range bundlesByCatalog {
 		source := &fakes.FakeInterface{}
-		client := &client.Client{
-			Registry: &fakes.FakeRegistryClient{},
-		}
+		client := &fakes.FakeRegistryClientInterface{}
 		source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 			for _, b := range bundles {
 				apis := b.GetProvidedApis()
@@ -363,6 +362,32 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *Namesp
 
 			return nil, fmt.Errorf("no bundle found")
 		}
+
+		client.FindBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind, pkgName string) (*api.Bundle, error) {
+			bundles, ok := bundlesByCatalog[catKey]
+			if !ok {
+				return nil, fmt.Errorf("API (%s/%s/%s) not provided by a package in %s CatalogSource", groupOrName, version, kind, catKey)
+			}
+			sortedBundles := SortBundleInPackageChannel(bundles)
+			for k, v := range sortedBundles {
+				pkgname := getPkgName(k)
+				if pkgname == pkgName {
+					continue
+				}
+
+				for i := len(v) - 1; i >= 0; i-- {
+					b := v[i]
+					apis := b.GetProvidedApis()
+					for _, api := range apis {
+						if api.Version == version && api.Kind == kind && strings.Contains(groupOrName, api.Group) && strings.Contains(groupOrName, api.Plural) {
+							return b, nil
+						}
+					}
+				}
+			}
+			return nil, fmt.Errorf("no bundle found")
+		}
+
 		clients[catKey] = client
 		sources[catKey] = source
 	}
@@ -389,11 +414,13 @@ func SortBundleInPackageChannel(bundles []*api.Bundle) map[string][]*api.Bundle 
 
 	for k, v := range sorted {
 		resorted := []*api.Bundle{}
-		bundleMap := make(map[string]*api.Bundle)
+		bundleMap := map[string]*api.Bundle{}
 		// Find the first (oldest) bundle in upgrade graph
 		for _, bundle := range v {
 			csv, err := V1alpha1CSVFromBundle(bundle)
 			if err != nil {
+				initialReplaces = bundle.CsvName
+				resorted = append(resorted, bundle)
 				continue
 			}
 
@@ -404,33 +431,35 @@ func SortBundleInPackageChannel(bundles []*api.Bundle) map[string][]*api.Bundle 
 				bundleMap[replaces] = bundle
 			}
 		}
-		resorted = SortBundleInChannel(initialReplaces, bundleMap, resorted)
+		resorted = sortBundleInChannel(initialReplaces, bundleMap, resorted)
 		sorted[k] = resorted
 	}
 	return sorted
 }
 
-// SortBundleInChannel recursively sorts a list of bundles to form a update graph
+// sortBundleInChannel recursively sorts a list of bundles to form a update graph
 // of a specific channel. The first item in the returned list is the start
 // (oldest version) of the upgrade graph and the last item is the head
 // (latest version) of a channel
-func SortBundleInChannel(replaces string, replacedBundle map[string]*api.Bundle, updated []*api.Bundle) []*api.Bundle {
+func sortBundleInChannel(replaces string, replacedBundle map[string]*api.Bundle, updated []*api.Bundle) []*api.Bundle {
 	bundle, ok := replacedBundle[replaces]
 	if ok {
-		csv, err := V1alpha1CSVFromBundle(bundle)
-		if err != nil {
-			return updated
-		}
 		updated = append(updated, bundle)
-		return SortBundleInChannel(csv.Spec.Replaces, replacedBundle, updated)
+		return sortBundleInChannel(bundle.CsvName, replacedBundle, updated)
 	}
 	return updated
+}
+
+// getPkgName splits the package/channel string and return package name
+func getPkgName(pkgChan string) string {
+	s := strings.Split(pkgChan, "/")
+	return s[0]
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
 func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
 	sources := map[CatalogKey]client.Interface{}
-	clients := map[CatalogKey]*client.Client{}
+	clients := map[CatalogKey]registry.RegistryClientInterface{}
 	source := &fakes.FakeInterface{}
 	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")
