@@ -11,8 +11,6 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
-var _ RegistryClientInterface = &OLMRegistryClient{}
-
 type ChannelEntryStream interface {
 	Recv() (*registryapi.ChannelEntry, error)
 }
@@ -57,6 +55,8 @@ func NewRegistryClient(client *client.Client) *OLMRegistryClient {
 	return &OLMRegistryClient{Client: client}
 }
 
+var _ RegistryClientInterface = &OLMRegistryClient{}
+
 // GetLatestChannelEntriesThatProvide uses registry client to get a list of
 // latest channel entries that provide the requested API (via an iterator)
 func (rc *OLMRegistryClient) GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (*ChannelEntryIterator, error) {
@@ -74,9 +74,8 @@ func (rc *OLMRegistryClient) FindBundleThatProvides(ctx context.Context, group, 
 	if err != nil {
 		return nil, err
 	}
-
-	entry := FilterChannelEntries(it, pkgName)
-	if entry != nil {
+	entry := rc.filterChannelEntries(it, pkgName)
+	if entry == nil {
 		return nil, fmt.Errorf("Unable to find a channel entry which doesn't belong to package %s", pkgName)
 	}
 	bundle, err := rc.Client.Registry.GetBundle(ctx, &registryapi.GetBundleRequest{PkgName: entry.PackageName, ChannelName: entry.ChannelName, CsvName: entry.BundleName})
@@ -89,7 +88,7 @@ func (rc *OLMRegistryClient) FindBundleThatProvides(ctx context.Context, group, 
 // FilterChannelEntries filters out a channel entries that provide the requested
 // API and come from the same package with original operator and returns the
 // first entry on the list
-func FilterChannelEntries(it *ChannelEntryIterator, pkgName string) *opregistry.ChannelEntry {
+func (rc *OLMRegistryClient) filterChannelEntries(it *ChannelEntryIterator, pkgName string) *opregistry.ChannelEntry {
 	var entry *opregistry.ChannelEntry
 	for e := it.Next(); e != nil; e = it.Next() {
 		if e.PackageName != pkgName {

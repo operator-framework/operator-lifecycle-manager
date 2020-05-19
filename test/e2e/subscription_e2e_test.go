@@ -1253,6 +1253,141 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		require.Len(GinkgoT(), installPlan.Status.CatalogSources, 1)
 	})
+
+	It("creation with multiple dependencies", func() {
+
+		defer cleaner.NotifyTestComplete(true)
+
+		kubeClient := newKubeClient()
+		crClient := newCRClient()
+
+		permissions := deploymentPermissions()
+
+		crdPlural := genName("ins")
+		crdName := crdPlural + ".cluster.com"
+		crdPlural2 := genName("ins")
+		crdName2 := crdPlural2 + ".cluster.com"
+
+		crd := apiextensions.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName,
+			},
+			Spec: apiextensions.CustomResourceDefinitionSpec{
+				Group:   "cluster.com",
+				Version: "v1alpha1",
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+				Scope: "Namespaced",
+			},
+		}
+
+		crd2 := apiextensions.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName2,
+			},
+			Spec: apiextensions.CustomResourceDefinitionSpec{
+				Group:   "cluster.com",
+				Version: "v1alpha1",
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural2,
+					Singular: crdPlural2,
+					Kind:     crdPlural2,
+					ListKind: "list" + crdPlural2,
+				},
+				Scope: "Namespaced",
+			},
+		}
+
+		// Create CSV
+		packageName1 := genName("apackage")
+		packageName2 := genName("bpackage")
+
+		namedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
+		depNamedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
+		depNamedStrategy2 := newNginxInstallStrategy((genName("dep")), permissions, nil)
+		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd, crd2}, namedStrategy)
+		csvABC := newCSV("nginx-a-bc", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, namedStrategy)
+		csvB := newCSV("nginx-b-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
+		csvC := newCSV("nginx-c-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, depNamedStrategy2)
+
+		// Create PackageManifests
+		manifests := []registry.PackageManifest{
+			{
+				PackageName: packageName1,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: csvA.GetName()},
+					{Name: alphaChannel, CurrentCSVName: csvABC.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+			{
+				PackageName: packageName2,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: csvB.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		manifests2 := []registry.PackageManifest{
+			{
+				PackageName: packageName2,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: csvC.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		catalogSourceName := genName("catsrc")
+		catsrc, cleanup := createInternalCatalogSource(kubeClient, crClient, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvABC, csvB})
+		defer cleanup()
+
+		// Ensure that the catalog source is resolved before we create a subscription.
+		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		require.NoError(GinkgoT(), err)
+
+		subscriptionSpec := &v1alpha1.SubscriptionSpec{
+			CatalogSource:          catsrc.GetName(),
+			CatalogSourceNamespace: catsrc.GetNamespace(),
+			Package:                packageName1,
+			Channel:                stableChannel,
+			StartingCSV:            csvA.GetName(),
+			InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+		}
+
+		catalogSourceName2 := genName("catsrc")
+		catsrc2, cleanup2 := createInternalCatalogSource(kubeClient, crClient, catalogSourceName2, testNamespace, manifests2, []apiextensions.CustomResourceDefinition{crd2}, []v1alpha1.ClusterServiceVersion{csvC})
+		defer cleanup2()
+
+		// Ensure that the catalog source is resolved before we create a subscription.
+		_, err = fetchCatalogSourceOnStatus(crClient, catsrc2.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		require.NoError(GinkgoT(), err)
+
+		// Create a subscription that has a dependency
+		subscriptionName := genName("sub-")
+		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
+		defer cleanupSubscription()
+
+		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), subscription)
+
+		// Check that a single catalog source was used to resolve the InstallPlan
+		_, err = fetchInstallPlan(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+		require.NoError(GinkgoT(), err)
+		// Fetch CSVs
+		_, err = fetchCSV(GinkgoT(), crClient, csvB.Name, testNamespace, csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+		_, err = fetchCSV(GinkgoT(), crClient, csvC.Name, testNamespace, csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+		_, err = fetchCSV(GinkgoT(), crClient, csvA.Name, testNamespace, csvSucceededChecker)
+		require.NoError(GinkgoT(), err)
+	})
 })
 
 const (
