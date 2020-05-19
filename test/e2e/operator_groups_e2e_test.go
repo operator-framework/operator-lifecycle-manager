@@ -293,7 +293,10 @@ var _ = Describe("Operator Group", func() {
 		}()
 
 		for _, informer := range []cache.SharedIndexInformer{roleInformer.Informer(), roleBindingInformer.Informer(), clusterRoleInformer.Informer(), clusterRoleBindingInformer.Informer()} {
-			go informer.Run(stopCh)
+			go func() {
+				defer GinkgoRecover()
+				informer.Run(stopCh)
+			}()
 
 			synced := func() (bool, error) {
 				return informer.HasSynced(), nil
@@ -911,15 +914,15 @@ var _ = Describe("Operator Group", func() {
 		}
 
 		catalog := genName("catalog-")
-		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsA, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, nsA, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
 		_, err := fetchCatalogSourceOnStatus(crc, catalog, nsA, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
-		_, cleanupCatalogSource = createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
+		_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsB, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
-		_, cleanupCatalogSource = createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsD, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
+		_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catalog, nsD, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsD, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
@@ -1181,11 +1184,11 @@ var _ = Describe("Operator Group", func() {
 
 		// Create catalog in namespaceB and namespaceC
 		catalog := genName("catalog-")
-		_, cleanupCatalogSource := createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
 		_, err := fetchCatalogSourceOnStatus(crc, catalog, nsB, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
-		_, cleanupCatalogSource = createInternalCatalogSource(GinkgoT(), c, crc, catalog, nsC, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+		_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catalog, nsC, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsC, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
