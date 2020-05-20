@@ -191,9 +191,8 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(namespaces ...string) (map[resolver.CatalogKey]client.Interface, map[resolver.CatalogKey]registry.RegistryClientInterface) {
-	refsInterface := map[resolver.CatalogKey]client.Interface{}
-	refsClient := map[resolver.CatalogKey]registry.RegistryClientInterface{}
+func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]registry.RegistryClientInterface {
+	refs := map[resolver.CatalogKey]registry.RegistryClientInterface{}
 	s.sourcesLock.RLock()
 	defer s.sourcesLock.RUnlock()
 	for key, source := range s.sources {
@@ -202,12 +201,11 @@ func (s *SourceStore) AsClients(namespaces ...string) (map[resolver.CatalogKey]c
 		}
 		for _, namespace := range namespaces {
 			if key.Namespace == namespace {
-				refsInterface[key] = client.NewClientFromConn(source.Conn)
-				refsClient[key] = registry.NewRegistryClient(client.NewClientFromConn(source.Conn))
+				refs[key] = registry.NewRegistryClient(client.NewClientFromConn(source.Conn))
 			}
 		}
 	}
 
 	// TODO : remove unhealthy
-	return refsInterface, refsClient
+	return refs
 }
