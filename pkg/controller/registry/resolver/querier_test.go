@@ -20,9 +20,9 @@ import (
 )
 
 func TestNewNamespaceSourceQuerier(t *testing.T) {
-	emptySources := map[CatalogKey]registry.RegistryClientInterface{}
-	nonEmptySources := map[CatalogKey]registry.RegistryClientInterface{
-		CatalogKey{"test", "ns"}: &registry.RegistryClient{
+	emptySources := map[CatalogKey]registry.ClientInterface{}
+	nonEmptySources := map[CatalogKey]registry.ClientInterface{
+		CatalogKey{"test", "ns"}: &registry.Client{
 			Client: &client.Client{
 				Registry: &fakes.FakeRegistryClient{},
 			},
@@ -30,7 +30,7 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 	}
 
 	type args struct {
-		sources map[CatalogKey]registry.RegistryClientInterface
+		sources map[CatalogKey]registry.ClientInterface
 	}
 	tests := []struct {
 		name string
@@ -68,7 +68,7 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 
 func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 	type fields struct {
-		sources map[CatalogKey]registry.RegistryClientInterface
+		sources map[CatalogKey]registry.ClientInterface
 	}
 	tests := []struct {
 		name   string
@@ -85,15 +85,15 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 		{
 			name: "empty",
 			fields: fields{
-				sources: map[CatalogKey]registry.RegistryClientInterface{},
+				sources: map[CatalogKey]registry.ClientInterface{},
 			},
 			error: fmt.Errorf("no catalog sources available"),
 		},
 		{
 			name: "nonEmpty",
 			fields: fields{
-				sources: map[CatalogKey]registry.RegistryClientInterface{
-					CatalogKey{"test", "ns"}: &registry.RegistryClient{
+				sources: map[CatalogKey]registry.ClientInterface{
+					CatalogKey{"test", "ns"}: &registry.Client{
 						Client: &client.Client{
 							Registry: &fakes.FakeRegistryClient{},
 						},
@@ -115,9 +115,9 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 }
 
 func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
-	fakeSource := fakes.FakeRegistryClientInterface{}
-	fakeSource2 := fakes.FakeRegistryClientInterface{}
-	sources := map[CatalogKey]registry.RegistryClientInterface{
+	fakeSource := fakes.FakeClientInterface{}
+	fakeSource2 := fakes.FakeClientInterface{}
+	sources := map[CatalogKey]registry.ClientInterface{
 		CatalogKey{"test", "ns"}:  &fakeSource,
 		CatalogKey{"test2", "ns"}: &fakeSource2,
 	}
@@ -149,7 +149,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 	}
 
 	type fields struct {
-		sources map[CatalogKey]registry.RegistryClientInterface
+		sources map[CatalogKey]registry.ClientInterface
 	}
 	type args struct {
 		api        opregistry.APIKey
@@ -237,8 +237,8 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 }
 
 func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
-	initialSource := fakes.FakeRegistryClientInterface{}
-	otherSource := fakes.FakeRegistryClientInterface{}
+	initialSource := fakes.FakeClientInterface{}
+	otherSource := fakes.FakeClientInterface{}
 	initalBundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
 	startingBundle := &api.Bundle{CsvName: "starting-test", PackageName: "testPkg", ChannelName: "testChannel"}
 	otherBundle := &api.Bundle{CsvName: "other", PackageName: "otherPkg", ChannelName: "otherChannel"}
@@ -262,13 +262,13 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 	}
 	initialKey := CatalogKey{"initial", "ns"}
 	otherKey := CatalogKey{"other", "other"}
-	sources := map[CatalogKey]registry.RegistryClientInterface{
+	sources := map[CatalogKey]registry.ClientInterface{
 		initialKey: &initialSource,
 		otherKey:   &otherSource,
 	}
 
 	type fields struct {
-		sources map[CatalogKey]registry.RegistryClientInterface
+		sources map[CatalogKey]registry.ClientInterface
 	}
 	type args struct {
 		pkgName       string
@@ -346,11 +346,11 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 
 func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 	// TODO: clean up this test setup
-	initialSource := fakes.FakeRegistryClientInterface{}
-	otherSource := fakes.FakeRegistryClientInterface{}
-	replacementSource := fakes.FakeRegistryClientInterface{}
-	replacementAndLatestSource := fakes.FakeRegistryClientInterface{}
-	replacementAndNoAnnotationLatestSource := fakes.FakeRegistryClientInterface{}
+	initialSource := fakes.FakeClientInterface{}
+	otherSource := fakes.FakeClientInterface{}
+	replacementSource := fakes.FakeClientInterface{}
+	replacementAndLatestSource := fakes.FakeClientInterface{}
+	replacementAndNoAnnotationLatestSource := fakes.FakeClientInterface{}
 
 	latestVersion := semver.MustParse("1.0.0-1556661308")
 	csv := v1alpha1.ClusterServiceVersion{
@@ -425,7 +425,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 	replacementAndLatestKey := CatalogKey{"replat", "ns"}
 	replacementAndNoAnnotationLatestKey := CatalogKey{"replatbad", "ns"}
 
-	sources := map[CatalogKey]registry.RegistryClientInterface{
+	sources := map[CatalogKey]registry.ClientInterface{
 		initialKey:                          &initialSource,
 		otherKey:                            &otherSource,
 		replacementKey:                      &replacementSource,
@@ -437,7 +437,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 	notInRange := semver.MustParse("1.0.0-1556661347")
 
 	type fields struct {
-		sources map[CatalogKey]registry.RegistryClientInterface
+		sources map[CatalogKey]registry.ClientInterface
 	}
 	type args struct {
 		currentVersion *semver.Version
