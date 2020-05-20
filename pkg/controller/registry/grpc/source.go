@@ -11,9 +11,6 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
-	"github.com/operator-framework/operator-registry/pkg/client"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -190,8 +187,8 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]registry.RegistryClientInterface {
-	refs := map[resolver.CatalogKey]registry.RegistryClientInterface{}
+func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]registry.ClientInterface {
+	refs := map[resolver.CatalogKey]registry.ClientInterface{}
 	s.sourcesLock.RLock()
 	for key, source := range s.sources {
 		if !(key.Namespace == globalNamespace || key.Namespace == localNamespace) {
@@ -199,7 +196,7 @@ func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]re
 		}
 		for _, namespace := range namespaces {
 			if key.Namespace == namespace {
-				refs[key] = registry.NewRegistryClient(client.NewClientFromConn(source.Conn))
+				refs[key] = registry.NewClientFromConn(source.Conn)
 			}
 		}
 		refs[key] = NewClient(source.Conn)

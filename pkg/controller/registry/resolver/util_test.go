@@ -301,9 +301,9 @@ func TestBundleStub(t *testing.T) {
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
 func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
-	sources := map[CatalogKey]registry.RegistryClientInterface{}
+	sources := map[CatalogKey]registry.ClientInterface{}
 	for catKey, bundles := range bundlesByCatalog {
-		source := &fakes.FakeRegistryClientInterface{}
+		source := &fakes.FakeClientInterface{}
 		source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 			for _, b := range bundles {
 				apis, err := b.ProvidedAPIs()
@@ -437,8 +437,8 @@ func getPkgName(pkgChan string) string {
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
 func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
-	sources := map[CatalogKey]registry.RegistryClientInterface{}
-	source := &fakes.FakeRegistryClientInterface{}
+	sources := map[CatalogKey]registry.ClientInterface{}
+	source := &fakes.FakeClientInterface{}
 	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")
 	}

@@ -28,7 +28,7 @@ type SourceRef struct {
 }
 
 type SourceQuerier interface {
-	FindProvider(api opregistry.APIKey, initialSource CatalogKey, pkgName string) (*api.Bundle, *CatalogKey, error)
+	FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*api.Bundle, *CatalogKey, error)
 	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
 	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
 	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
@@ -36,12 +36,12 @@ type SourceQuerier interface {
 }
 
 type NamespaceSourceQuerier struct {
-	sources map[CatalogKey]registry.RegistryClientInterface
+	sources map[CatalogKey]registry.ClientInterface
 }
 
 var _ SourceQuerier = &NamespaceSourceQuerier{}
 
-func NewNamespaceSourceQuerier(sources map[CatalogKey]registry.RegistryClientInterface) *NamespaceSourceQuerier {
+func NewNamespaceSourceQuerier(sources map[CatalogKey]registry.ClientInterface) *NamespaceSourceQuerier {
 	return &NamespaceSourceQuerier{
 		sources: sources,
 	}
@@ -54,23 +54,23 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 	return nil
 }
 
-func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey, pkgName string) (*registryapi.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*registryapi.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if ok {
-			if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, pkgName); err == nil {
+			if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, excludedPkgName); err == nil {
 				return bundle, &initialSource, nil
 			}
-			if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
+			if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, excludedPkgName); err == nil {
 				return bundle, &initialSource, nil
 			}
 		}
 	}
 	for key, source := range q.sources {
-		if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, pkgName); err == nil {
+		if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, excludedPkgName); err == nil {
 			return bundle, &key, nil
 		}
-		if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
+		if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, excludedPkgName); err == nil {
 			return bundle, &key, nil
 		}
 	}
