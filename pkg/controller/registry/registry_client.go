@@ -16,6 +16,7 @@ type ChannelEntryStream interface {
 }
 
 type RegistryClientInterface interface {
+	client.Interface
 	FindBundleThatProvides(ctx context.Context, group, version, kind, pkgName string) (*registryapi.Bundle, error)
 	GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (*ChannelEntryIterator, error)
 }
@@ -47,19 +48,21 @@ func (ceit *ChannelEntryIterator) Error() error {
 	return ceit.error
 }
 
-type OLMRegistryClient struct {
+type RegistryClient struct {
+	client.Interface
 	Client *client.Client
 }
 
-func NewRegistryClient(client *client.Client) *OLMRegistryClient {
-	return &OLMRegistryClient{Client: client}
+func NewRegistryClient(client *client.Client) *RegistryClient {
+	return &RegistryClient{client, client}
 }
 
-var _ RegistryClientInterface = &OLMRegistryClient{}
+var _ RegistryClientInterface = &RegistryClient{}
+var _ client.Interface = &RegistryClient{}
 
 // GetLatestChannelEntriesThatProvide uses registry client to get a list of
 // latest channel entries that provide the requested API (via an iterator)
-func (rc *OLMRegistryClient) GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (*ChannelEntryIterator, error) {
+func (rc *RegistryClient) GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (*ChannelEntryIterator, error) {
 	stream, err := rc.Client.Registry.GetLatestChannelEntriesThatProvide(ctx, &registryapi.GetLatestProvidersRequest{Group: group, Version: version, Kind: kind})
 	if err != nil {
 		return nil, err
@@ -69,7 +72,7 @@ func (rc *OLMRegistryClient) GetLatestChannelEntriesThatProvide(ctx context.Cont
 
 // FindBundleThatProvides returns a bundle that provides the request API and
 // doesn't belong to the provided package
-func (rc *OLMRegistryClient) FindBundleThatProvides(ctx context.Context, group, version, kind, pkgName string) (*registryapi.Bundle, error) {
+func (rc *RegistryClient) FindBundleThatProvides(ctx context.Context, group, version, kind, pkgName string) (*registryapi.Bundle, error) {
 	it, err := rc.GetLatestChannelEntriesThatProvide(ctx, group, version, kind)
 	if err != nil {
 		return nil, err
@@ -88,18 +91,22 @@ func (rc *OLMRegistryClient) FindBundleThatProvides(ctx context.Context, group, 
 // FilterChannelEntries filters out a channel entries that provide the requested
 // API and come from the same package with original operator and returns the
 // first entry on the list
-func (rc *OLMRegistryClient) filterChannelEntries(it *ChannelEntryIterator, pkgName string) *opregistry.ChannelEntry {
-	var entry *opregistry.ChannelEntry
+func (rc *RegistryClient) filterChannelEntries(it *ChannelEntryIterator, pkgName string) *opregistry.ChannelEntry {
+	var entries []*opregistry.ChannelEntry
 	for e := it.Next(); e != nil; e = it.Next() {
 		if e.PackageName != pkgName {
-			entry = &opregistry.ChannelEntry{
+			entry := &opregistry.ChannelEntry{
 				PackageName: e.PackageName,
 				ChannelName: e.ChannelName,
 				BundleName:  e.BundleName,
 				Replaces:    e.Replaces,
 			}
-			break
+			entries = append(entries, entry)
 		}
 	}
-	return entry
+
+	if entries != nil {
+		return entries[0]
+	}
+	return nil
 }
