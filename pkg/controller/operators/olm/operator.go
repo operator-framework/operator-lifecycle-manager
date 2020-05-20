@@ -1773,7 +1773,11 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	}
 
 	if strategyErr != nil {
-		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now, a.recorder)
+		if install.ReasonForError(strategyErr) == install.StrategyErrDeploymentUpdated {
+			csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseInstallReady, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now, a.recorder)
+		} else {
+			csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now, a.recorder)
+		}
 		if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
 			a.logger.Warn(err.Error())
 		}

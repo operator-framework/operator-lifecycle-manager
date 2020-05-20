@@ -2245,6 +2245,35 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
+			name: "SingleCSVInstallingToInstallReady",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+				crds:       []runtime.Object{},
+				objs: []runtime.Object{
+					withLabels(
+						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+						map[string]string{install.DeploymentSpecHashLabelKey: "BadHash"},
+					),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseInstallReady, reason: "InstallWaiting"},
+				},
+			},
+		},
+		{
 			name: "SingleCSVSucceededToSucceeded/UnmanagedDeploymentInNamespace",
 			initial: initial{
 				csvs: []runtime.Object{
