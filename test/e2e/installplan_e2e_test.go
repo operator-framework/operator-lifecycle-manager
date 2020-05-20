@@ -575,7 +575,6 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
 		dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
-		dependentPackageBeta := fmt.Sprintf("%s-beta", dependentPackageName)
 
 		stableChannel := "stable"
 		betaChannel := "beta"
@@ -594,7 +593,6 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 				PackageName: dependentPackageName,
 				Channels: []registry.PackageChannel{
 					{Name: stableChannel, CurrentCSVName: dependentPackageStable},
-					{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
 				},
 				DefaultChannelName: stableChannel,
 			},
@@ -615,7 +613,6 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
 		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
 		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
-		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 
 		c := newKubeClient(t)
 		crc := newCRClient(t)
@@ -625,7 +622,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create the catalog source
 		mainCatalogSourceName := genName("mock-ocs-main-" + strings.ToLower(t.Name()) + "-")
-		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{dependentStableCSV, mainStableCSV, mainBetaCSV})
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
 		_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
