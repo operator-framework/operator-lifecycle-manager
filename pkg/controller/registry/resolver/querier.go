@@ -36,16 +36,14 @@ type SourceQuerier interface {
 }
 
 type NamespaceSourceQuerier struct {
-	sources map[CatalogKey]client.Interface
-	clients map[CatalogKey]registry.RegistryClientInterface
+	sources map[CatalogKey]registry.RegistryClientInterface
 }
 
 var _ SourceQuerier = &NamespaceSourceQuerier{}
 
-func NewNamespaceSourceQuerier(sources map[CatalogKey]client.Interface, clients map[CatalogKey]registry.RegistryClientInterface) *NamespaceSourceQuerier {
+func NewNamespaceSourceQuerier(sources map[CatalogKey]registry.RegistryClientInterface) *NamespaceSourceQuerier {
 	return &NamespaceSourceQuerier{
 		sources: sources,
-		clients: clients,
 	}
 }
 
@@ -58,21 +56,21 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 
 func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey, pkgName string) (*registryapi.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
-		client, ok := q.clients[initialSource]
+		source, ok := q.sources[initialSource]
 		if ok {
-			if bundle, err := client.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, pkgName); err == nil {
+			if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, pkgName); err == nil {
 				return bundle, &initialSource, nil
 			}
-			if bundle, err := client.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
+			if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
 				return bundle, &initialSource, nil
 			}
 		}
 	}
-	for key, client := range q.clients {
-		if bundle, err := client.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, pkgName); err == nil {
+	for key, source := range q.sources {
+		if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, pkgName); err == nil {
 			return bundle, &key, nil
 		}
-		if bundle, err := client.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
+		if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, pkgName); err == nil {
 			return bundle, &key, nil
 		}
 	}

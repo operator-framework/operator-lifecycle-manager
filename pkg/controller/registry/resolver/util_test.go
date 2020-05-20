@@ -9,7 +9,6 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -301,12 +300,10 @@ func TestBundleStub(t *testing.T) {
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) *NamespaceSourceQuerier {
-	sources := map[CatalogKey]client.Interface{}
-	clients := map[CatalogKey]registry.RegistryClientInterface{}
+func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
+	sources := map[CatalogKey]registry.RegistryClientInterface{}
 	for catKey, bundles := range bundlesByCatalog {
-		source := &fakes.FakeInterface{}
-		client := &fakes.FakeRegistryClientInterface{}
+		source := &fakes.FakeRegistryClientInterface{}
 		source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 			for _, b := range bundles {
 				apis, err := b.ProvidedAPIs()
@@ -354,7 +351,7 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) 
 			return nil, fmt.Errorf("no bundle found")
 		}
 
-		client.FindBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind, pkgName string) (*api.Bundle, error) {
+		source.FindBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind, pkgName string) (*api.Bundle, error) {
 			bundles, ok := bundlesByCatalog[catKey]
 			if !ok {
 				return nil, fmt.Errorf("API (%s/%s/%s) not provided by a package in %s CatalogSource", groupOrName, version, kind, catKey)
@@ -379,10 +376,9 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) 
 			return nil, fmt.Errorf("no bundle found")
 		}
 
-		clients[catKey] = client
 		sources[catKey] = source
 	}
-	return NewNamespaceSourceQuerier(sources, clients)
+	return NewNamespaceSourceQuerier(sources)
 }
 
 // SortBundleInPackageChannel will sort into map of package-channel key and list
@@ -392,15 +388,7 @@ func SortBundleInPackageChannel(bundles []*api.Bundle) map[string][]*api.Bundle 
 	var initialReplaces string
 	for _, v := range bundles {
 		pkgChanKey := v.PackageName + "/" + v.ChannelName
-		b, ok := sorted[pkgChanKey]
-		if ok {
-			b = append(b, v)
-			sorted[pkgChanKey] = b
-		} else {
-			blist := []*api.Bundle{}
-			blist = append(blist, v)
-			sorted[pkgChanKey] = blist
-		}
+		sorted[pkgChanKey] = append(sorted[pkgChanKey], v)
 	}
 
 	for k, v := range sorted {
@@ -448,11 +436,10 @@ func getPkgName(pkgChan string) string {
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *opregistry.Bundle) *NamespaceSourceQuerier {
-	sources := map[CatalogKey]client.Interface{}
-	clients := map[CatalogKey]registry.RegistryClientInterface{}
-	source := &fakes.FakeInterface{}
-	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*opregistry.Bundle, error) {
+func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
+	sources := map[CatalogKey]registry.RegistryClientInterface{}
+	source := &fakes.FakeRegistryClientInterface{}
+	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")
 	}
 	source.GetBundleInPackageChannelStub = func(ctx context.Context, packageName, channelName string) (*opregistry.Bundle, error) {
@@ -465,5 +452,5 @@ func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *opregistry
 		return bundle, nil
 	}
 	sources[catKey] = source
-	return NewNamespaceSourceQuerier(sources, clients)
+	return NewNamespaceSourceQuerier(sources)
 }
