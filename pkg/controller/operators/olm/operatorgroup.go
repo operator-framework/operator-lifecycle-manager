@@ -100,7 +100,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 
 	if namespacesChanged(targetNamespaces, op.Status.Namespaces) {
 		logger.Debug("OperatorGroup namespaces change detected")
-		outOfSyncNamespaces := namespacesAddedOrRemoved(op.Spec.TargetNamespaces, op.Status.Namespaces)
+		outOfSyncNamespaces := namespacesAddedOrRemoved(op.Status.Namespaces, targetNamespaces)
 
 		// Update operatorgroup target namespace selection
 		logger.WithField("targets", targetNamespaces).Debug("namespace change detected")
