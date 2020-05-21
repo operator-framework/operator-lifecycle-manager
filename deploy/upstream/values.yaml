@@ -9,21 +9,21 @@ writePackageServerStatusName: ""
 olm:
   replicaCount: 1
   image:
-    ref: quay.io/operator-framework/olm@sha256:788915592f42882559a63c39e14ef211f64c93f31983ea67136533c7983f2896
+    ref: quay.io/operator-framework/olm@sha256:2c389d2e380c842cbf542820ad4493249164302ddf0e699b0a37105d234e67ee
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/operator-framework/olm@sha256:788915592f42882559a63c39e14ef211f64c93f31983ea67136533c7983f2896
+    ref: quay.io/operator-framework/olm@sha256:2c389d2e380c842cbf542820ad4493249164302ddf0e699b0a37105d234e67ee
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
 package:
   replicaCount: 2
   image:
-    ref: quay.io/operator-framework/olm@sha256:788915592f42882559a63c39e14ef211f64c93f31983ea67136533c7983f2896
+    ref: quay.io/operator-framework/olm@sha256:2c389d2e380c842cbf542820ad4493249164302ddf0e699b0a37105d234e67ee
     pullPolicy: Always
   service:
     internalPort: 5443
