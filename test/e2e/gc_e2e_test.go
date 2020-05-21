@@ -3,11 +3,11 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/operator-framework/operator-lifecycle-manager/test/e2e/dsl"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -16,11 +16,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
-	. "github.com/operator-framework/operator-lifecycle-manager/test/e2e/dsl"
 )
 
 var _ = Describe("Garbage collection for dependent resources", func() {
@@ -284,4 +284,285 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 	})
 
+	When("a bundle with configmap and secret objects is installed", func() {
+		const (
+			packageName   = "busybox"
+			channelName   = "alpha"
+			subName       = "test-subscription"
+			secretName    = "mysecret"
+			configmapName = "special-config"
+		)
+
+		BeforeEach(func() {
+			const (
+				sourceName = "test-catalog"
+				imageName  = "quay.io/olmtest/single-bundle-index:objects"
+			)
+			// create catalog source
+			source := &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceName,
+					Namespace: testNamespace,
+					Labels:    map[string]string{"olm.catalogSource": sourceName},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      imageName,
+				},
+			}
+
+			source, err := operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred(), "could not create catalog source")
+
+			// Create a Subscription for package
+			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+
+			// Wait for the Subscription to succeed
+			Eventually(func() error {
+				_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+				return err
+			}).Should(BeNil())
+
+			// confirm extra bundle objects (secret and configmap) are installed
+			Eventually(func() error {
+				_, err := kubeClient.GetSecret(testNamespace, secretName)
+				return err
+			}).Should(Succeed(), "expected no error getting secret object associated with CSV")
+
+			Eventually(func() error {
+				_, err := kubeClient.GetConfigMap(testNamespace, configmapName)
+				return err
+			}).Should(Succeed(), "expected no error getting configmap object associated with CSV")
+		})
+
+		When("the CSV is deleted", func() {
+			const csvName = "busybox.v2.0.0"
+
+			BeforeEach(func() {
+				// Delete subscription first
+				err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(context.TODO(), subName, metav1.DeleteOptions{})
+				Expect(err).To(BeNil())
+
+				// wait for deletion
+				Eventually(func() bool {
+					_, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subName, metav1.GetOptions{})
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
+
+				// Delete CSV
+				err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), csvName, metav1.DeleteOptions{})
+				Expect(err).To(BeNil())
+
+				// wait for deletion
+				Eventually(func() bool {
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
+			})
+
+			It("OLM should delete the associated configmap and secret", func() {
+				// confirm extra bundle objects (secret and configmap) are no longer installed on the cluster
+				Eventually(func() bool {
+					_, err := kubeClient.GetSecret(testNamespace, secretName)
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
+
+				Eventually(func() bool {
+					_, err := kubeClient.GetConfigMap(testNamespace, configmapName)
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
+				ctx.Ctx().Logf("dependent successfully garbage collected after csv owner was deleted")
+			})
+		})
+	})
+
+	When("a bundle with a configmap is installed", func() {
+		const (
+			subName       = "test-subscription"
+			configmapName = "special-config"
+		)
+
+		BeforeEach(func() {
+			const (
+				packageName = "busybox"
+				channelName = "alpha"
+				sourceName  = "test-catalog"
+				imageName   = "quay.io/olmtest/single-bundle-index:objects-upgrade-samename"
+			)
+			// create catalog source
+			source := &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceName,
+					Namespace: testNamespace,
+					Labels:    map[string]string{"olm.catalogSource": sourceName},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      imageName,
+				},
+			}
+
+			source, err := operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred(), "could not create catalog source")
+
+			// Create a Subscription for package
+			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+
+			// Wait for the Subscription to succeed
+			Eventually(func() error {
+				_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+				return err
+			}).Should(BeNil())
+
+			Eventually(func() error {
+				_, err := kubeClient.GetConfigMap(testNamespace, configmapName)
+				return err
+			}).Should(Succeed(), "expected no error getting configmap object associated with CSV")
+		})
+
+		When("the subscription is updated to a later CSV with a configmap with the same name but new data", func() {
+			const (
+				upgradeChannelName = "beta"
+				newCSVname         = "busybox.v3.0.0"
+			)
+
+			BeforeEach(func() {
+				// update subscription first
+				sub, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred(), "could not get subscription")
+
+				// update channel on sub
+				sub.Spec.Channel = upgradeChannelName
+				_, err = operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), sub, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred(), "could not update subscription")
+
+				// Wait for the Subscription to succeed
+				Eventually(func() error {
+					_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+					return err
+				}).Should(BeNil())
+
+				// Ensure the new csv is installed
+				Eventually(func() error {
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), newCSVname, metav1.GetOptions{})
+					return err
+				}).Should(BeNil())
+			})
+
+			It("OLM should have upgraded associated configmap in place", func() {
+				Eventually(func() bool {
+					cfg, err := kubeClient.GetConfigMap(testNamespace, configmapName)
+					if err != nil {
+						return false
+					}
+					// check data in configmap to ensure it is the new data (configmap was updated in the newer bundle)
+					// new value in the configmap is "updated-very-much"
+					data := cfg.Data["special.how"]
+					return data == "updated-very-much"
+				}).Should(BeTrue())
+				ctx.Ctx().Logf("dependent successfully updated after csv owner was updated")
+			})
+		})
+	})
+
+	When("a bundle with a new configmap is installed", func() {
+		const (
+			subName       = "test-subscription"
+			configmapName = "special-config"
+		)
+
+		BeforeEach(func() {
+			const (
+				packageName = "busybox"
+				channelName = "alpha"
+				sourceName  = "test-catalog"
+				imageName   = "quay.io/olmtest/single-bundle-index:objects-upgrade-diffname"
+			)
+			// create catalog source
+			source := &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceName,
+					Namespace: testNamespace,
+					Labels:    map[string]string{"olm.catalogSource": sourceName},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      imageName,
+				},
+			}
+
+			source, err := operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred(), "could not create catalog source")
+
+			// Create a Subscription for package
+			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+
+			// Wait for the Subscription to succeed
+			Eventually(func() error {
+				_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+				return err
+			}).Should(BeNil())
+
+			Eventually(func() error {
+				_, err := kubeClient.GetConfigMap(testNamespace, configmapName)
+				return err
+			}).Should(Succeed(), "expected no error getting configmap object associated with CSV")
+		})
+
+		When("the subscription is updated to a later CSV with a configmap with a new name", func() {
+			const (
+				upgradeChannelName    = "beta"
+				upgradedConfigMapName = "not-special-config"
+				newCSVname            = "busybox.v3.0.0"
+			)
+
+			BeforeEach(func() {
+				// update subscription first
+				sub, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred(), "could not get subscription")
+
+				// update channel on sub
+				sub.Spec.Channel = upgradeChannelName
+				_, err = operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), sub, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred(), "could not update subscription")
+
+				// Wait for the Subscription to succeed
+				Eventually(func() error {
+					_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+					return err
+				}).Should(BeNil())
+
+				// Ensure the new csv is installed
+				Eventually(func() error {
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), newCSVname, metav1.GetOptions{})
+					return err
+				}).Should(BeNil())
+			})
+
+			It("should have removed the old configmap and put the new configmap in place", func() {
+				Eventually(func() bool {
+					_, err := kubeClient.GetConfigMap(testNamespace, configmapName)
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
+
+				Eventually(func() error {
+					_, err := kubeClient.GetConfigMap(testNamespace, upgradedConfigMapName)
+					return err
+				}).Should(BeNil())
+				ctx.Ctx().Logf("dependent successfully updated after csv owner was updated")
+			})
+		})
+	})
 })
