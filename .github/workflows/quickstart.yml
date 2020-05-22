@@ -1,0 +1,23 @@
+name: release-checks
+on:
+  pull_request:
+    paths:
+    - 'deploy/upstream/quickstart/**'
+jobs:
+  install-quickstart:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: |
+        curl -sLo kind "$(curl -sL https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r '[.assets[] | select(.name == "kind-linux-amd64")] | first | .browser_download_url')"
+        chmod +x kind
+        sudo mv kind /bin/
+        curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /bin/
+        kind create cluster
+        kind export kubeconfig
+        kubectl apply -f deploy/upstream/quickstart/crds.yaml
+        kubectl wait --timeout=5m --for=condition=Established crd $(kubectl get crd --output=jsonpath='{.items[*].metadata.name}')
+        kubectl apply -f deploy/upstream/quickstart/olm.yaml
+        kubectl wait --timeout=5m --for=condition=Available -n olm deploy olm-operator catalog-operator packageserver
