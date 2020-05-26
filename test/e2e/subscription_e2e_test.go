@@ -1254,7 +1254,37 @@ var _ = Describe("Subscription", func() {
 		require.Len(GinkgoT(), installPlan.Status.CatalogSources, 1)
 	})
 
-	It("creation with multiple dependencies", func() {
+	// CatSrc:
+	//
+	// Package A (apackage)
+	// Default Channel: Stable
+	// Channel Stable:
+	// Operator A (Requires: CRD 1, CRD 2 )
+	// Channel Alpha:
+	// Operator ABC (Provides: CRD 1, CRD 2 )
+	// Package B (apackage)
+	// Default Channel: Stable
+	// Channel Stable:
+	// Operator B (Provides: CRD)
+	// CatSrc2:
+	//
+	// Package B (bpackage)
+	// Default Channel: Stable
+	// Channel Stable:
+	// Operator C (Provides: CRD 2)
+	// Then create a subscription:
+	//
+	// CatalogSource: CatSrc
+	// Package: Package A,
+	// Channel: Stable,
+	// StartingCSV: CSV A
+	//
+	// Check installed:
+	//
+	// CSV A, CSV B, CSV C
+	//
+	// CSV A required B and C but didn't get them from Package A
+	It("creation with dependencies required and provided in different versions of an operator in the same package", func() {
 
 		defer cleaner.NotifyTestComplete(true)
 
@@ -1309,12 +1339,18 @@ var _ = Describe("Subscription", func() {
 		namedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
 		depNamedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
 		depNamedStrategy2 := newNginxInstallStrategy((genName("dep")), permissions, nil)
+		// csvA requires CRD1 and CRD2
 		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd, crd2}, namedStrategy)
+		// csvABC provides CRD1 and CRD2 in the same catalogsource with csvA (apackage)
+		// also in the same package with csvA but different channel
 		csvABC := newCSV("nginx-a-bc", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, namedStrategy)
+		// csvB provides CRD1 in the same catalogsource with csvA (apackage)
 		csvB := newCSV("nginx-b-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
+		// csvC provides CRD2 in the different catalogsource with csvA (apackage)
 		csvC := newCSV("nginx-c-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, depNamedStrategy2)
 
-		// Create PackageManifests
+		// Create PackageManifests 1
+		// Contain csvA, ABC and B
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: packageName1,
@@ -1333,6 +1369,8 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 
+		// Create PackageManifests 2
+		// Contain csvC
 		manifests2 := []registry.PackageManifest{
 			{
 				PackageName: packageName2,
@@ -1380,13 +1418,16 @@ var _ = Describe("Subscription", func() {
 		// Check that a single catalog source was used to resolve the InstallPlan
 		_, err = fetchInstallPlan(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 		require.NoError(GinkgoT(), err)
-		// Fetch CSVs
+		// Fetch CSVs A, B and C
 		_, err = fetchCSV(GinkgoT(), crClient, csvB.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		_, err = fetchCSV(GinkgoT(), crClient, csvC.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		_, err = fetchCSV(GinkgoT(), crClient, csvA.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
+		// Ensure csvABC is not installed
+		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvABC.Name, metav1.GetOptions{})
+		require.Error(GinkgoT(), err)
 	})
 })
 
