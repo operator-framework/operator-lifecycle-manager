@@ -4,30 +4,18 @@ package fakes
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/client"
+	"google.golang.org/grpc"
 )
 
-type FakeInterface struct {
-	CloseStub        func() error
-	closeMutex       sync.RWMutex
-	closeArgsForCall []struct {
-	}
-	closeReturns struct {
-		result1 error
-	}
-	closeReturnsOnCall map[int]struct {
-		result1 error
-	}
-	GetBundleStub        func(context.Context, string, string, string) (*api.Bundle, error)
+type FakeRegistryClient struct {
+	GetBundleStub        func(context.Context, *api.GetBundleRequest, ...grpc.CallOption) (*api.Bundle, error)
 	getBundleMutex       sync.RWMutex
 	getBundleArgsForCall []struct {
 		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
+		arg2 *api.GetBundleRequest
+		arg3 []grpc.CallOption
 	}
 	getBundleReturns struct {
 		result1 *api.Bundle
@@ -37,149 +25,157 @@ type FakeInterface struct {
 		result1 *api.Bundle
 		result2 error
 	}
-	GetBundleInPackageChannelStub        func(context.Context, string, string) (*api.Bundle, error)
-	getBundleInPackageChannelMutex       sync.RWMutex
-	getBundleInPackageChannelArgsForCall []struct {
+	GetBundleForChannelStub        func(context.Context, *api.GetBundleInChannelRequest, ...grpc.CallOption) (*api.Bundle, error)
+	getBundleForChannelMutex       sync.RWMutex
+	getBundleForChannelArgsForCall []struct {
 		arg1 context.Context
-		arg2 string
-		arg3 string
+		arg2 *api.GetBundleInChannelRequest
+		arg3 []grpc.CallOption
 	}
-	getBundleInPackageChannelReturns struct {
+	getBundleForChannelReturns struct {
 		result1 *api.Bundle
 		result2 error
 	}
-	getBundleInPackageChannelReturnsOnCall map[int]struct {
+	getBundleForChannelReturnsOnCall map[int]struct {
 		result1 *api.Bundle
 		result2 error
 	}
-	GetBundleThatProvidesStub        func(context.Context, string, string, string) (*api.Bundle, error)
-	getBundleThatProvidesMutex       sync.RWMutex
-	getBundleThatProvidesArgsForCall []struct {
+	GetBundleThatReplacesStub        func(context.Context, *api.GetReplacementRequest, ...grpc.CallOption) (*api.Bundle, error)
+	getBundleThatReplacesMutex       sync.RWMutex
+	getBundleThatReplacesArgsForCall []struct {
 		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
+		arg2 *api.GetReplacementRequest
+		arg3 []grpc.CallOption
 	}
-	getBundleThatProvidesReturns struct {
+	getBundleThatReplacesReturns struct {
 		result1 *api.Bundle
 		result2 error
 	}
-	getBundleThatProvidesReturnsOnCall map[int]struct {
+	getBundleThatReplacesReturnsOnCall map[int]struct {
 		result1 *api.Bundle
 		result2 error
 	}
-	GetReplacementBundleInPackageChannelStub        func(context.Context, string, string, string) (*api.Bundle, error)
-	getReplacementBundleInPackageChannelMutex       sync.RWMutex
-	getReplacementBundleInPackageChannelArgsForCall []struct {
+	GetChannelEntriesThatProvideStub        func(context.Context, *api.GetAllProvidersRequest, ...grpc.CallOption) (api.Registry_GetChannelEntriesThatProvideClient, error)
+	getChannelEntriesThatProvideMutex       sync.RWMutex
+	getChannelEntriesThatProvideArgsForCall []struct {
 		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
+		arg2 *api.GetAllProvidersRequest
+		arg3 []grpc.CallOption
 	}
-	getReplacementBundleInPackageChannelReturns struct {
-		result1 *api.Bundle
+	getChannelEntriesThatProvideReturns struct {
+		result1 api.Registry_GetChannelEntriesThatProvideClient
 		result2 error
 	}
-	getReplacementBundleInPackageChannelReturnsOnCall map[int]struct {
-		result1 *api.Bundle
+	getChannelEntriesThatProvideReturnsOnCall map[int]struct {
+		result1 api.Registry_GetChannelEntriesThatProvideClient
 		result2 error
 	}
-	HealthCheckStub        func(context.Context, time.Duration) (bool, error)
-	healthCheckMutex       sync.RWMutex
-	healthCheckArgsForCall []struct {
+	GetChannelEntriesThatReplaceStub        func(context.Context, *api.GetAllReplacementsRequest, ...grpc.CallOption) (api.Registry_GetChannelEntriesThatReplaceClient, error)
+	getChannelEntriesThatReplaceMutex       sync.RWMutex
+	getChannelEntriesThatReplaceArgsForCall []struct {
 		arg1 context.Context
-		arg2 time.Duration
+		arg2 *api.GetAllReplacementsRequest
+		arg3 []grpc.CallOption
 	}
-	healthCheckReturns struct {
-		result1 bool
+	getChannelEntriesThatReplaceReturns struct {
+		result1 api.Registry_GetChannelEntriesThatReplaceClient
 		result2 error
 	}
-	healthCheckReturnsOnCall map[int]struct {
-		result1 bool
+	getChannelEntriesThatReplaceReturnsOnCall map[int]struct {
+		result1 api.Registry_GetChannelEntriesThatReplaceClient
 		result2 error
 	}
-	ListBundlesStub        func(context.Context) (*client.BundleIterator, error)
+	GetDefaultBundleThatProvidesStub        func(context.Context, *api.GetDefaultProviderRequest, ...grpc.CallOption) (*api.Bundle, error)
+	getDefaultBundleThatProvidesMutex       sync.RWMutex
+	getDefaultBundleThatProvidesArgsForCall []struct {
+		arg1 context.Context
+		arg2 *api.GetDefaultProviderRequest
+		arg3 []grpc.CallOption
+	}
+	getDefaultBundleThatProvidesReturns struct {
+		result1 *api.Bundle
+		result2 error
+	}
+	getDefaultBundleThatProvidesReturnsOnCall map[int]struct {
+		result1 *api.Bundle
+		result2 error
+	}
+	GetLatestChannelEntriesThatProvideStub        func(context.Context, *api.GetLatestProvidersRequest, ...grpc.CallOption) (api.Registry_GetLatestChannelEntriesThatProvideClient, error)
+	getLatestChannelEntriesThatProvideMutex       sync.RWMutex
+	getLatestChannelEntriesThatProvideArgsForCall []struct {
+		arg1 context.Context
+		arg2 *api.GetLatestProvidersRequest
+		arg3 []grpc.CallOption
+	}
+	getLatestChannelEntriesThatProvideReturns struct {
+		result1 api.Registry_GetLatestChannelEntriesThatProvideClient
+		result2 error
+	}
+	getLatestChannelEntriesThatProvideReturnsOnCall map[int]struct {
+		result1 api.Registry_GetLatestChannelEntriesThatProvideClient
+		result2 error
+	}
+	GetPackageStub        func(context.Context, *api.GetPackageRequest, ...grpc.CallOption) (*api.Package, error)
+	getPackageMutex       sync.RWMutex
+	getPackageArgsForCall []struct {
+		arg1 context.Context
+		arg2 *api.GetPackageRequest
+		arg3 []grpc.CallOption
+	}
+	getPackageReturns struct {
+		result1 *api.Package
+		result2 error
+	}
+	getPackageReturnsOnCall map[int]struct {
+		result1 *api.Package
+		result2 error
+	}
+	ListBundlesStub        func(context.Context, *api.ListBundlesRequest, ...grpc.CallOption) (api.Registry_ListBundlesClient, error)
 	listBundlesMutex       sync.RWMutex
 	listBundlesArgsForCall []struct {
 		arg1 context.Context
+		arg2 *api.ListBundlesRequest
+		arg3 []grpc.CallOption
 	}
 	listBundlesReturns struct {
-		result1 *client.BundleIterator
+		result1 api.Registry_ListBundlesClient
 		result2 error
 	}
 	listBundlesReturnsOnCall map[int]struct {
-		result1 *client.BundleIterator
+		result1 api.Registry_ListBundlesClient
+		result2 error
+	}
+	ListPackagesStub        func(context.Context, *api.ListPackageRequest, ...grpc.CallOption) (api.Registry_ListPackagesClient, error)
+	listPackagesMutex       sync.RWMutex
+	listPackagesArgsForCall []struct {
+		arg1 context.Context
+		arg2 *api.ListPackageRequest
+		arg3 []grpc.CallOption
+	}
+	listPackagesReturns struct {
+		result1 api.Registry_ListPackagesClient
+		result2 error
+	}
+	listPackagesReturnsOnCall map[int]struct {
+		result1 api.Registry_ListPackagesClient
 		result2 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeInterface) Close() error {
-	fake.closeMutex.Lock()
-	ret, specificReturn := fake.closeReturnsOnCall[len(fake.closeArgsForCall)]
-	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
-	}{})
-	fake.recordInvocation("Close", []interface{}{})
-	fake.closeMutex.Unlock()
-	if fake.CloseStub != nil {
-		return fake.CloseStub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	fakeReturns := fake.closeReturns
-	return fakeReturns.result1
-}
-
-func (fake *FakeInterface) CloseCallCount() int {
-	fake.closeMutex.RLock()
-	defer fake.closeMutex.RUnlock()
-	return len(fake.closeArgsForCall)
-}
-
-func (fake *FakeInterface) CloseCalls(stub func() error) {
-	fake.closeMutex.Lock()
-	defer fake.closeMutex.Unlock()
-	fake.CloseStub = stub
-}
-
-func (fake *FakeInterface) CloseReturns(result1 error) {
-	fake.closeMutex.Lock()
-	defer fake.closeMutex.Unlock()
-	fake.CloseStub = nil
-	fake.closeReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeInterface) CloseReturnsOnCall(i int, result1 error) {
-	fake.closeMutex.Lock()
-	defer fake.closeMutex.Unlock()
-	fake.CloseStub = nil
-	if fake.closeReturnsOnCall == nil {
-		fake.closeReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.closeReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeInterface) GetBundle(arg1 context.Context, arg2 string, arg3 string, arg4 string) (*api.Bundle, error) {
+func (fake *FakeRegistryClient) GetBundle(arg1 context.Context, arg2 *api.GetBundleRequest, arg3 ...grpc.CallOption) (*api.Bundle, error) {
 	fake.getBundleMutex.Lock()
 	ret, specificReturn := fake.getBundleReturnsOnCall[len(fake.getBundleArgsForCall)]
 	fake.getBundleArgsForCall = append(fake.getBundleArgsForCall, struct {
 		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}{arg1, arg2, arg3, arg4})
-	fake.recordInvocation("GetBundle", []interface{}{arg1, arg2, arg3, arg4})
+		arg2 *api.GetBundleRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetBundle", []interface{}{arg1, arg2, arg3})
 	fake.getBundleMutex.Unlock()
 	if fake.GetBundleStub != nil {
-		return fake.GetBundleStub(arg1, arg2, arg3, arg4)
+		return fake.GetBundleStub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -188,26 +184,26 @@ func (fake *FakeInterface) GetBundle(arg1 context.Context, arg2 string, arg3 str
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeInterface) GetBundleCallCount() int {
+func (fake *FakeRegistryClient) GetBundleCallCount() int {
 	fake.getBundleMutex.RLock()
 	defer fake.getBundleMutex.RUnlock()
 	return len(fake.getBundleArgsForCall)
 }
 
-func (fake *FakeInterface) GetBundleCalls(stub func(context.Context, string, string, string) (*api.Bundle, error)) {
+func (fake *FakeRegistryClient) GetBundleCalls(stub func(context.Context, *api.GetBundleRequest, ...grpc.CallOption) (*api.Bundle, error)) {
 	fake.getBundleMutex.Lock()
 	defer fake.getBundleMutex.Unlock()
 	fake.GetBundleStub = stub
 }
 
-func (fake *FakeInterface) GetBundleArgsForCall(i int) (context.Context, string, string, string) {
+func (fake *FakeRegistryClient) GetBundleArgsForCall(i int) (context.Context, *api.GetBundleRequest, []grpc.CallOption) {
 	fake.getBundleMutex.RLock()
 	defer fake.getBundleMutex.RUnlock()
 	argsForCall := fake.getBundleArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeInterface) GetBundleReturns(result1 *api.Bundle, result2 error) {
+func (fake *FakeRegistryClient) GetBundleReturns(result1 *api.Bundle, result2 error) {
 	fake.getBundleMutex.Lock()
 	defer fake.getBundleMutex.Unlock()
 	fake.GetBundleStub = nil
@@ -217,7 +213,7 @@ func (fake *FakeInterface) GetBundleReturns(result1 *api.Bundle, result2 error) 
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) GetBundleReturnsOnCall(i int, result1 *api.Bundle, result2 error) {
+func (fake *FakeRegistryClient) GetBundleReturnsOnCall(i int, result1 *api.Bundle, result2 error) {
 	fake.getBundleMutex.Lock()
 	defer fake.getBundleMutex.Unlock()
 	fake.GetBundleStub = nil
@@ -233,277 +229,473 @@ func (fake *FakeInterface) GetBundleReturnsOnCall(i int, result1 *api.Bundle, re
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) GetBundleInPackageChannel(arg1 context.Context, arg2 string, arg3 string) (*api.Bundle, error) {
-	fake.getBundleInPackageChannelMutex.Lock()
-	ret, specificReturn := fake.getBundleInPackageChannelReturnsOnCall[len(fake.getBundleInPackageChannelArgsForCall)]
-	fake.getBundleInPackageChannelArgsForCall = append(fake.getBundleInPackageChannelArgsForCall, struct {
+func (fake *FakeRegistryClient) GetBundleForChannel(arg1 context.Context, arg2 *api.GetBundleInChannelRequest, arg3 ...grpc.CallOption) (*api.Bundle, error) {
+	fake.getBundleForChannelMutex.Lock()
+	ret, specificReturn := fake.getBundleForChannelReturnsOnCall[len(fake.getBundleForChannelArgsForCall)]
+	fake.getBundleForChannelArgsForCall = append(fake.getBundleForChannelArgsForCall, struct {
 		arg1 context.Context
-		arg2 string
-		arg3 string
+		arg2 *api.GetBundleInChannelRequest
+		arg3 []grpc.CallOption
 	}{arg1, arg2, arg3})
-	fake.recordInvocation("GetBundleInPackageChannel", []interface{}{arg1, arg2, arg3})
-	fake.getBundleInPackageChannelMutex.Unlock()
-	if fake.GetBundleInPackageChannelStub != nil {
-		return fake.GetBundleInPackageChannelStub(arg1, arg2, arg3)
+	fake.recordInvocation("GetBundleForChannel", []interface{}{arg1, arg2, arg3})
+	fake.getBundleForChannelMutex.Unlock()
+	if fake.GetBundleForChannelStub != nil {
+		return fake.GetBundleForChannelStub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundleInPackageChannelReturns
+	fakeReturns := fake.getBundleForChannelReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeInterface) GetBundleInPackageChannelCallCount() int {
-	fake.getBundleInPackageChannelMutex.RLock()
-	defer fake.getBundleInPackageChannelMutex.RUnlock()
-	return len(fake.getBundleInPackageChannelArgsForCall)
+func (fake *FakeRegistryClient) GetBundleForChannelCallCount() int {
+	fake.getBundleForChannelMutex.RLock()
+	defer fake.getBundleForChannelMutex.RUnlock()
+	return len(fake.getBundleForChannelArgsForCall)
 }
 
-func (fake *FakeInterface) GetBundleInPackageChannelCalls(stub func(context.Context, string, string) (*api.Bundle, error)) {
-	fake.getBundleInPackageChannelMutex.Lock()
-	defer fake.getBundleInPackageChannelMutex.Unlock()
-	fake.GetBundleInPackageChannelStub = stub
+func (fake *FakeRegistryClient) GetBundleForChannelCalls(stub func(context.Context, *api.GetBundleInChannelRequest, ...grpc.CallOption) (*api.Bundle, error)) {
+	fake.getBundleForChannelMutex.Lock()
+	defer fake.getBundleForChannelMutex.Unlock()
+	fake.GetBundleForChannelStub = stub
 }
 
-func (fake *FakeInterface) GetBundleInPackageChannelArgsForCall(i int) (context.Context, string, string) {
-	fake.getBundleInPackageChannelMutex.RLock()
-	defer fake.getBundleInPackageChannelMutex.RUnlock()
-	argsForCall := fake.getBundleInPackageChannelArgsForCall[i]
+func (fake *FakeRegistryClient) GetBundleForChannelArgsForCall(i int) (context.Context, *api.GetBundleInChannelRequest, []grpc.CallOption) {
+	fake.getBundleForChannelMutex.RLock()
+	defer fake.getBundleForChannelMutex.RUnlock()
+	argsForCall := fake.getBundleForChannelArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeInterface) GetBundleInPackageChannelReturns(result1 *api.Bundle, result2 error) {
-	fake.getBundleInPackageChannelMutex.Lock()
-	defer fake.getBundleInPackageChannelMutex.Unlock()
-	fake.GetBundleInPackageChannelStub = nil
-	fake.getBundleInPackageChannelReturns = struct {
+func (fake *FakeRegistryClient) GetBundleForChannelReturns(result1 *api.Bundle, result2 error) {
+	fake.getBundleForChannelMutex.Lock()
+	defer fake.getBundleForChannelMutex.Unlock()
+	fake.GetBundleForChannelStub = nil
+	fake.getBundleForChannelReturns = struct {
 		result1 *api.Bundle
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) GetBundleInPackageChannelReturnsOnCall(i int, result1 *api.Bundle, result2 error) {
-	fake.getBundleInPackageChannelMutex.Lock()
-	defer fake.getBundleInPackageChannelMutex.Unlock()
-	fake.GetBundleInPackageChannelStub = nil
-	if fake.getBundleInPackageChannelReturnsOnCall == nil {
-		fake.getBundleInPackageChannelReturnsOnCall = make(map[int]struct {
+func (fake *FakeRegistryClient) GetBundleForChannelReturnsOnCall(i int, result1 *api.Bundle, result2 error) {
+	fake.getBundleForChannelMutex.Lock()
+	defer fake.getBundleForChannelMutex.Unlock()
+	fake.GetBundleForChannelStub = nil
+	if fake.getBundleForChannelReturnsOnCall == nil {
+		fake.getBundleForChannelReturnsOnCall = make(map[int]struct {
 			result1 *api.Bundle
 			result2 error
 		})
 	}
-	fake.getBundleInPackageChannelReturnsOnCall[i] = struct {
+	fake.getBundleForChannelReturnsOnCall[i] = struct {
 		result1 *api.Bundle
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) GetBundleThatProvides(arg1 context.Context, arg2 string, arg3 string, arg4 string) (*api.Bundle, error) {
-	fake.getBundleThatProvidesMutex.Lock()
-	ret, specificReturn := fake.getBundleThatProvidesReturnsOnCall[len(fake.getBundleThatProvidesArgsForCall)]
-	fake.getBundleThatProvidesArgsForCall = append(fake.getBundleThatProvidesArgsForCall, struct {
+func (fake *FakeRegistryClient) GetBundleThatReplaces(arg1 context.Context, arg2 *api.GetReplacementRequest, arg3 ...grpc.CallOption) (*api.Bundle, error) {
+	fake.getBundleThatReplacesMutex.Lock()
+	ret, specificReturn := fake.getBundleThatReplacesReturnsOnCall[len(fake.getBundleThatReplacesArgsForCall)]
+	fake.getBundleThatReplacesArgsForCall = append(fake.getBundleThatReplacesArgsForCall, struct {
 		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}{arg1, arg2, arg3, arg4})
-	fake.recordInvocation("GetBundleThatProvides", []interface{}{arg1, arg2, arg3, arg4})
-	fake.getBundleThatProvidesMutex.Unlock()
-	if fake.GetBundleThatProvidesStub != nil {
-		return fake.GetBundleThatProvidesStub(arg1, arg2, arg3, arg4)
+		arg2 *api.GetReplacementRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetBundleThatReplaces", []interface{}{arg1, arg2, arg3})
+	fake.getBundleThatReplacesMutex.Unlock()
+	if fake.GetBundleThatReplacesStub != nil {
+		return fake.GetBundleThatReplacesStub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundleThatProvidesReturns
+	fakeReturns := fake.getBundleThatReplacesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeInterface) GetBundleThatProvidesCallCount() int {
-	fake.getBundleThatProvidesMutex.RLock()
-	defer fake.getBundleThatProvidesMutex.RUnlock()
-	return len(fake.getBundleThatProvidesArgsForCall)
+func (fake *FakeRegistryClient) GetBundleThatReplacesCallCount() int {
+	fake.getBundleThatReplacesMutex.RLock()
+	defer fake.getBundleThatReplacesMutex.RUnlock()
+	return len(fake.getBundleThatReplacesArgsForCall)
 }
 
-func (fake *FakeInterface) GetBundleThatProvidesCalls(stub func(context.Context, string, string, string) (*api.Bundle, error)) {
-	fake.getBundleThatProvidesMutex.Lock()
-	defer fake.getBundleThatProvidesMutex.Unlock()
-	fake.GetBundleThatProvidesStub = stub
+func (fake *FakeRegistryClient) GetBundleThatReplacesCalls(stub func(context.Context, *api.GetReplacementRequest, ...grpc.CallOption) (*api.Bundle, error)) {
+	fake.getBundleThatReplacesMutex.Lock()
+	defer fake.getBundleThatReplacesMutex.Unlock()
+	fake.GetBundleThatReplacesStub = stub
 }
 
-func (fake *FakeInterface) GetBundleThatProvidesArgsForCall(i int) (context.Context, string, string, string) {
-	fake.getBundleThatProvidesMutex.RLock()
-	defer fake.getBundleThatProvidesMutex.RUnlock()
-	argsForCall := fake.getBundleThatProvidesArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+func (fake *FakeRegistryClient) GetBundleThatReplacesArgsForCall(i int) (context.Context, *api.GetReplacementRequest, []grpc.CallOption) {
+	fake.getBundleThatReplacesMutex.RLock()
+	defer fake.getBundleThatReplacesMutex.RUnlock()
+	argsForCall := fake.getBundleThatReplacesArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeInterface) GetBundleThatProvidesReturns(result1 *api.Bundle, result2 error) {
-	fake.getBundleThatProvidesMutex.Lock()
-	defer fake.getBundleThatProvidesMutex.Unlock()
-	fake.GetBundleThatProvidesStub = nil
-	fake.getBundleThatProvidesReturns = struct {
+func (fake *FakeRegistryClient) GetBundleThatReplacesReturns(result1 *api.Bundle, result2 error) {
+	fake.getBundleThatReplacesMutex.Lock()
+	defer fake.getBundleThatReplacesMutex.Unlock()
+	fake.GetBundleThatReplacesStub = nil
+	fake.getBundleThatReplacesReturns = struct {
 		result1 *api.Bundle
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) GetBundleThatProvidesReturnsOnCall(i int, result1 *api.Bundle, result2 error) {
-	fake.getBundleThatProvidesMutex.Lock()
-	defer fake.getBundleThatProvidesMutex.Unlock()
-	fake.GetBundleThatProvidesStub = nil
-	if fake.getBundleThatProvidesReturnsOnCall == nil {
-		fake.getBundleThatProvidesReturnsOnCall = make(map[int]struct {
+func (fake *FakeRegistryClient) GetBundleThatReplacesReturnsOnCall(i int, result1 *api.Bundle, result2 error) {
+	fake.getBundleThatReplacesMutex.Lock()
+	defer fake.getBundleThatReplacesMutex.Unlock()
+	fake.GetBundleThatReplacesStub = nil
+	if fake.getBundleThatReplacesReturnsOnCall == nil {
+		fake.getBundleThatReplacesReturnsOnCall = make(map[int]struct {
 			result1 *api.Bundle
 			result2 error
 		})
 	}
-	fake.getBundleThatProvidesReturnsOnCall[i] = struct {
+	fake.getBundleThatReplacesReturnsOnCall[i] = struct {
 		result1 *api.Bundle
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) GetReplacementBundleInPackageChannel(arg1 context.Context, arg2 string, arg3 string, arg4 string) (*api.Bundle, error) {
-	fake.getReplacementBundleInPackageChannelMutex.Lock()
-	ret, specificReturn := fake.getReplacementBundleInPackageChannelReturnsOnCall[len(fake.getReplacementBundleInPackageChannelArgsForCall)]
-	fake.getReplacementBundleInPackageChannelArgsForCall = append(fake.getReplacementBundleInPackageChannelArgsForCall, struct {
+func (fake *FakeRegistryClient) GetChannelEntriesThatProvide(arg1 context.Context, arg2 *api.GetAllProvidersRequest, arg3 ...grpc.CallOption) (api.Registry_GetChannelEntriesThatProvideClient, error) {
+	fake.getChannelEntriesThatProvideMutex.Lock()
+	ret, specificReturn := fake.getChannelEntriesThatProvideReturnsOnCall[len(fake.getChannelEntriesThatProvideArgsForCall)]
+	fake.getChannelEntriesThatProvideArgsForCall = append(fake.getChannelEntriesThatProvideArgsForCall, struct {
 		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}{arg1, arg2, arg3, arg4})
-	fake.recordInvocation("GetReplacementBundleInPackageChannel", []interface{}{arg1, arg2, arg3, arg4})
-	fake.getReplacementBundleInPackageChannelMutex.Unlock()
-	if fake.GetReplacementBundleInPackageChannelStub != nil {
-		return fake.GetReplacementBundleInPackageChannelStub(arg1, arg2, arg3, arg4)
+		arg2 *api.GetAllProvidersRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetChannelEntriesThatProvide", []interface{}{arg1, arg2, arg3})
+	fake.getChannelEntriesThatProvideMutex.Unlock()
+	if fake.GetChannelEntriesThatProvideStub != nil {
+		return fake.GetChannelEntriesThatProvideStub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getReplacementBundleInPackageChannelReturns
+	fakeReturns := fake.getChannelEntriesThatProvideReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeInterface) GetReplacementBundleInPackageChannelCallCount() int {
-	fake.getReplacementBundleInPackageChannelMutex.RLock()
-	defer fake.getReplacementBundleInPackageChannelMutex.RUnlock()
-	return len(fake.getReplacementBundleInPackageChannelArgsForCall)
+func (fake *FakeRegistryClient) GetChannelEntriesThatProvideCallCount() int {
+	fake.getChannelEntriesThatProvideMutex.RLock()
+	defer fake.getChannelEntriesThatProvideMutex.RUnlock()
+	return len(fake.getChannelEntriesThatProvideArgsForCall)
 }
 
-func (fake *FakeInterface) GetReplacementBundleInPackageChannelCalls(stub func(context.Context, string, string, string) (*api.Bundle, error)) {
-	fake.getReplacementBundleInPackageChannelMutex.Lock()
-	defer fake.getReplacementBundleInPackageChannelMutex.Unlock()
-	fake.GetReplacementBundleInPackageChannelStub = stub
+func (fake *FakeRegistryClient) GetChannelEntriesThatProvideCalls(stub func(context.Context, *api.GetAllProvidersRequest, ...grpc.CallOption) (api.Registry_GetChannelEntriesThatProvideClient, error)) {
+	fake.getChannelEntriesThatProvideMutex.Lock()
+	defer fake.getChannelEntriesThatProvideMutex.Unlock()
+	fake.GetChannelEntriesThatProvideStub = stub
 }
 
-func (fake *FakeInterface) GetReplacementBundleInPackageChannelArgsForCall(i int) (context.Context, string, string, string) {
-	fake.getReplacementBundleInPackageChannelMutex.RLock()
-	defer fake.getReplacementBundleInPackageChannelMutex.RUnlock()
-	argsForCall := fake.getReplacementBundleInPackageChannelArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+func (fake *FakeRegistryClient) GetChannelEntriesThatProvideArgsForCall(i int) (context.Context, *api.GetAllProvidersRequest, []grpc.CallOption) {
+	fake.getChannelEntriesThatProvideMutex.RLock()
+	defer fake.getChannelEntriesThatProvideMutex.RUnlock()
+	argsForCall := fake.getChannelEntriesThatProvideArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeInterface) GetReplacementBundleInPackageChannelReturns(result1 *api.Bundle, result2 error) {
-	fake.getReplacementBundleInPackageChannelMutex.Lock()
-	defer fake.getReplacementBundleInPackageChannelMutex.Unlock()
-	fake.GetReplacementBundleInPackageChannelStub = nil
-	fake.getReplacementBundleInPackageChannelReturns = struct {
+func (fake *FakeRegistryClient) GetChannelEntriesThatProvideReturns(result1 api.Registry_GetChannelEntriesThatProvideClient, result2 error) {
+	fake.getChannelEntriesThatProvideMutex.Lock()
+	defer fake.getChannelEntriesThatProvideMutex.Unlock()
+	fake.GetChannelEntriesThatProvideStub = nil
+	fake.getChannelEntriesThatProvideReturns = struct {
+		result1 api.Registry_GetChannelEntriesThatProvideClient
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) GetChannelEntriesThatProvideReturnsOnCall(i int, result1 api.Registry_GetChannelEntriesThatProvideClient, result2 error) {
+	fake.getChannelEntriesThatProvideMutex.Lock()
+	defer fake.getChannelEntriesThatProvideMutex.Unlock()
+	fake.GetChannelEntriesThatProvideStub = nil
+	if fake.getChannelEntriesThatProvideReturnsOnCall == nil {
+		fake.getChannelEntriesThatProvideReturnsOnCall = make(map[int]struct {
+			result1 api.Registry_GetChannelEntriesThatProvideClient
+			result2 error
+		})
+	}
+	fake.getChannelEntriesThatProvideReturnsOnCall[i] = struct {
+		result1 api.Registry_GetChannelEntriesThatProvideClient
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) GetChannelEntriesThatReplace(arg1 context.Context, arg2 *api.GetAllReplacementsRequest, arg3 ...grpc.CallOption) (api.Registry_GetChannelEntriesThatReplaceClient, error) {
+	fake.getChannelEntriesThatReplaceMutex.Lock()
+	ret, specificReturn := fake.getChannelEntriesThatReplaceReturnsOnCall[len(fake.getChannelEntriesThatReplaceArgsForCall)]
+	fake.getChannelEntriesThatReplaceArgsForCall = append(fake.getChannelEntriesThatReplaceArgsForCall, struct {
+		arg1 context.Context
+		arg2 *api.GetAllReplacementsRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetChannelEntriesThatReplace", []interface{}{arg1, arg2, arg3})
+	fake.getChannelEntriesThatReplaceMutex.Unlock()
+	if fake.GetChannelEntriesThatReplaceStub != nil {
+		return fake.GetChannelEntriesThatReplaceStub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.getChannelEntriesThatReplaceReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRegistryClient) GetChannelEntriesThatReplaceCallCount() int {
+	fake.getChannelEntriesThatReplaceMutex.RLock()
+	defer fake.getChannelEntriesThatReplaceMutex.RUnlock()
+	return len(fake.getChannelEntriesThatReplaceArgsForCall)
+}
+
+func (fake *FakeRegistryClient) GetChannelEntriesThatReplaceCalls(stub func(context.Context, *api.GetAllReplacementsRequest, ...grpc.CallOption) (api.Registry_GetChannelEntriesThatReplaceClient, error)) {
+	fake.getChannelEntriesThatReplaceMutex.Lock()
+	defer fake.getChannelEntriesThatReplaceMutex.Unlock()
+	fake.GetChannelEntriesThatReplaceStub = stub
+}
+
+func (fake *FakeRegistryClient) GetChannelEntriesThatReplaceArgsForCall(i int) (context.Context, *api.GetAllReplacementsRequest, []grpc.CallOption) {
+	fake.getChannelEntriesThatReplaceMutex.RLock()
+	defer fake.getChannelEntriesThatReplaceMutex.RUnlock()
+	argsForCall := fake.getChannelEntriesThatReplaceArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeRegistryClient) GetChannelEntriesThatReplaceReturns(result1 api.Registry_GetChannelEntriesThatReplaceClient, result2 error) {
+	fake.getChannelEntriesThatReplaceMutex.Lock()
+	defer fake.getChannelEntriesThatReplaceMutex.Unlock()
+	fake.GetChannelEntriesThatReplaceStub = nil
+	fake.getChannelEntriesThatReplaceReturns = struct {
+		result1 api.Registry_GetChannelEntriesThatReplaceClient
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) GetChannelEntriesThatReplaceReturnsOnCall(i int, result1 api.Registry_GetChannelEntriesThatReplaceClient, result2 error) {
+	fake.getChannelEntriesThatReplaceMutex.Lock()
+	defer fake.getChannelEntriesThatReplaceMutex.Unlock()
+	fake.GetChannelEntriesThatReplaceStub = nil
+	if fake.getChannelEntriesThatReplaceReturnsOnCall == nil {
+		fake.getChannelEntriesThatReplaceReturnsOnCall = make(map[int]struct {
+			result1 api.Registry_GetChannelEntriesThatReplaceClient
+			result2 error
+		})
+	}
+	fake.getChannelEntriesThatReplaceReturnsOnCall[i] = struct {
+		result1 api.Registry_GetChannelEntriesThatReplaceClient
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) GetDefaultBundleThatProvides(arg1 context.Context, arg2 *api.GetDefaultProviderRequest, arg3 ...grpc.CallOption) (*api.Bundle, error) {
+	fake.getDefaultBundleThatProvidesMutex.Lock()
+	ret, specificReturn := fake.getDefaultBundleThatProvidesReturnsOnCall[len(fake.getDefaultBundleThatProvidesArgsForCall)]
+	fake.getDefaultBundleThatProvidesArgsForCall = append(fake.getDefaultBundleThatProvidesArgsForCall, struct {
+		arg1 context.Context
+		arg2 *api.GetDefaultProviderRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetDefaultBundleThatProvides", []interface{}{arg1, arg2, arg3})
+	fake.getDefaultBundleThatProvidesMutex.Unlock()
+	if fake.GetDefaultBundleThatProvidesStub != nil {
+		return fake.GetDefaultBundleThatProvidesStub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.getDefaultBundleThatProvidesReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRegistryClient) GetDefaultBundleThatProvidesCallCount() int {
+	fake.getDefaultBundleThatProvidesMutex.RLock()
+	defer fake.getDefaultBundleThatProvidesMutex.RUnlock()
+	return len(fake.getDefaultBundleThatProvidesArgsForCall)
+}
+
+func (fake *FakeRegistryClient) GetDefaultBundleThatProvidesCalls(stub func(context.Context, *api.GetDefaultProviderRequest, ...grpc.CallOption) (*api.Bundle, error)) {
+	fake.getDefaultBundleThatProvidesMutex.Lock()
+	defer fake.getDefaultBundleThatProvidesMutex.Unlock()
+	fake.GetDefaultBundleThatProvidesStub = stub
+}
+
+func (fake *FakeRegistryClient) GetDefaultBundleThatProvidesArgsForCall(i int) (context.Context, *api.GetDefaultProviderRequest, []grpc.CallOption) {
+	fake.getDefaultBundleThatProvidesMutex.RLock()
+	defer fake.getDefaultBundleThatProvidesMutex.RUnlock()
+	argsForCall := fake.getDefaultBundleThatProvidesArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeRegistryClient) GetDefaultBundleThatProvidesReturns(result1 *api.Bundle, result2 error) {
+	fake.getDefaultBundleThatProvidesMutex.Lock()
+	defer fake.getDefaultBundleThatProvidesMutex.Unlock()
+	fake.GetDefaultBundleThatProvidesStub = nil
+	fake.getDefaultBundleThatProvidesReturns = struct {
 		result1 *api.Bundle
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) GetReplacementBundleInPackageChannelReturnsOnCall(i int, result1 *api.Bundle, result2 error) {
-	fake.getReplacementBundleInPackageChannelMutex.Lock()
-	defer fake.getReplacementBundleInPackageChannelMutex.Unlock()
-	fake.GetReplacementBundleInPackageChannelStub = nil
-	if fake.getReplacementBundleInPackageChannelReturnsOnCall == nil {
-		fake.getReplacementBundleInPackageChannelReturnsOnCall = make(map[int]struct {
+func (fake *FakeRegistryClient) GetDefaultBundleThatProvidesReturnsOnCall(i int, result1 *api.Bundle, result2 error) {
+	fake.getDefaultBundleThatProvidesMutex.Lock()
+	defer fake.getDefaultBundleThatProvidesMutex.Unlock()
+	fake.GetDefaultBundleThatProvidesStub = nil
+	if fake.getDefaultBundleThatProvidesReturnsOnCall == nil {
+		fake.getDefaultBundleThatProvidesReturnsOnCall = make(map[int]struct {
 			result1 *api.Bundle
 			result2 error
 		})
 	}
-	fake.getReplacementBundleInPackageChannelReturnsOnCall[i] = struct {
+	fake.getDefaultBundleThatProvidesReturnsOnCall[i] = struct {
 		result1 *api.Bundle
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) HealthCheck(arg1 context.Context, arg2 time.Duration) (bool, error) {
-	fake.healthCheckMutex.Lock()
-	ret, specificReturn := fake.healthCheckReturnsOnCall[len(fake.healthCheckArgsForCall)]
-	fake.healthCheckArgsForCall = append(fake.healthCheckArgsForCall, struct {
+func (fake *FakeRegistryClient) GetLatestChannelEntriesThatProvide(arg1 context.Context, arg2 *api.GetLatestProvidersRequest, arg3 ...grpc.CallOption) (api.Registry_GetLatestChannelEntriesThatProvideClient, error) {
+	fake.getLatestChannelEntriesThatProvideMutex.Lock()
+	ret, specificReturn := fake.getLatestChannelEntriesThatProvideReturnsOnCall[len(fake.getLatestChannelEntriesThatProvideArgsForCall)]
+	fake.getLatestChannelEntriesThatProvideArgsForCall = append(fake.getLatestChannelEntriesThatProvideArgsForCall, struct {
 		arg1 context.Context
-		arg2 time.Duration
-	}{arg1, arg2})
-	fake.recordInvocation("HealthCheck", []interface{}{arg1, arg2})
-	fake.healthCheckMutex.Unlock()
-	if fake.HealthCheckStub != nil {
-		return fake.HealthCheckStub(arg1, arg2)
+		arg2 *api.GetLatestProvidersRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetLatestChannelEntriesThatProvide", []interface{}{arg1, arg2, arg3})
+	fake.getLatestChannelEntriesThatProvideMutex.Unlock()
+	if fake.GetLatestChannelEntriesThatProvideStub != nil {
+		return fake.GetLatestChannelEntriesThatProvideStub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.healthCheckReturns
+	fakeReturns := fake.getLatestChannelEntriesThatProvideReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeInterface) HealthCheckCallCount() int {
-	fake.healthCheckMutex.RLock()
-	defer fake.healthCheckMutex.RUnlock()
-	return len(fake.healthCheckArgsForCall)
+func (fake *FakeRegistryClient) GetLatestChannelEntriesThatProvideCallCount() int {
+	fake.getLatestChannelEntriesThatProvideMutex.RLock()
+	defer fake.getLatestChannelEntriesThatProvideMutex.RUnlock()
+	return len(fake.getLatestChannelEntriesThatProvideArgsForCall)
 }
 
-func (fake *FakeInterface) HealthCheckCalls(stub func(context.Context, time.Duration) (bool, error)) {
-	fake.healthCheckMutex.Lock()
-	defer fake.healthCheckMutex.Unlock()
-	fake.HealthCheckStub = stub
+func (fake *FakeRegistryClient) GetLatestChannelEntriesThatProvideCalls(stub func(context.Context, *api.GetLatestProvidersRequest, ...grpc.CallOption) (api.Registry_GetLatestChannelEntriesThatProvideClient, error)) {
+	fake.getLatestChannelEntriesThatProvideMutex.Lock()
+	defer fake.getLatestChannelEntriesThatProvideMutex.Unlock()
+	fake.GetLatestChannelEntriesThatProvideStub = stub
 }
 
-func (fake *FakeInterface) HealthCheckArgsForCall(i int) (context.Context, time.Duration) {
-	fake.healthCheckMutex.RLock()
-	defer fake.healthCheckMutex.RUnlock()
-	argsForCall := fake.healthCheckArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+func (fake *FakeRegistryClient) GetLatestChannelEntriesThatProvideArgsForCall(i int) (context.Context, *api.GetLatestProvidersRequest, []grpc.CallOption) {
+	fake.getLatestChannelEntriesThatProvideMutex.RLock()
+	defer fake.getLatestChannelEntriesThatProvideMutex.RUnlock()
+	argsForCall := fake.getLatestChannelEntriesThatProvideArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeInterface) HealthCheckReturns(result1 bool, result2 error) {
-	fake.healthCheckMutex.Lock()
-	defer fake.healthCheckMutex.Unlock()
-	fake.HealthCheckStub = nil
-	fake.healthCheckReturns = struct {
-		result1 bool
+func (fake *FakeRegistryClient) GetLatestChannelEntriesThatProvideReturns(result1 api.Registry_GetLatestChannelEntriesThatProvideClient, result2 error) {
+	fake.getLatestChannelEntriesThatProvideMutex.Lock()
+	defer fake.getLatestChannelEntriesThatProvideMutex.Unlock()
+	fake.GetLatestChannelEntriesThatProvideStub = nil
+	fake.getLatestChannelEntriesThatProvideReturns = struct {
+		result1 api.Registry_GetLatestChannelEntriesThatProvideClient
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) HealthCheckReturnsOnCall(i int, result1 bool, result2 error) {
-	fake.healthCheckMutex.Lock()
-	defer fake.healthCheckMutex.Unlock()
-	fake.HealthCheckStub = nil
-	if fake.healthCheckReturnsOnCall == nil {
-		fake.healthCheckReturnsOnCall = make(map[int]struct {
-			result1 bool
+func (fake *FakeRegistryClient) GetLatestChannelEntriesThatProvideReturnsOnCall(i int, result1 api.Registry_GetLatestChannelEntriesThatProvideClient, result2 error) {
+	fake.getLatestChannelEntriesThatProvideMutex.Lock()
+	defer fake.getLatestChannelEntriesThatProvideMutex.Unlock()
+	fake.GetLatestChannelEntriesThatProvideStub = nil
+	if fake.getLatestChannelEntriesThatProvideReturnsOnCall == nil {
+		fake.getLatestChannelEntriesThatProvideReturnsOnCall = make(map[int]struct {
+			result1 api.Registry_GetLatestChannelEntriesThatProvideClient
 			result2 error
 		})
 	}
-	fake.healthCheckReturnsOnCall[i] = struct {
-		result1 bool
+	fake.getLatestChannelEntriesThatProvideReturnsOnCall[i] = struct {
+		result1 api.Registry_GetLatestChannelEntriesThatProvideClient
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) ListBundles(arg1 context.Context) (*client.BundleIterator, error) {
+func (fake *FakeRegistryClient) GetPackage(arg1 context.Context, arg2 *api.GetPackageRequest, arg3 ...grpc.CallOption) (*api.Package, error) {
+	fake.getPackageMutex.Lock()
+	ret, specificReturn := fake.getPackageReturnsOnCall[len(fake.getPackageArgsForCall)]
+	fake.getPackageArgsForCall = append(fake.getPackageArgsForCall, struct {
+		arg1 context.Context
+		arg2 *api.GetPackageRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("GetPackage", []interface{}{arg1, arg2, arg3})
+	fake.getPackageMutex.Unlock()
+	if fake.GetPackageStub != nil {
+		return fake.GetPackageStub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.getPackageReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRegistryClient) GetPackageCallCount() int {
+	fake.getPackageMutex.RLock()
+	defer fake.getPackageMutex.RUnlock()
+	return len(fake.getPackageArgsForCall)
+}
+
+func (fake *FakeRegistryClient) GetPackageCalls(stub func(context.Context, *api.GetPackageRequest, ...grpc.CallOption) (*api.Package, error)) {
+	fake.getPackageMutex.Lock()
+	defer fake.getPackageMutex.Unlock()
+	fake.GetPackageStub = stub
+}
+
+func (fake *FakeRegistryClient) GetPackageArgsForCall(i int) (context.Context, *api.GetPackageRequest, []grpc.CallOption) {
+	fake.getPackageMutex.RLock()
+	defer fake.getPackageMutex.RUnlock()
+	argsForCall := fake.getPackageArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeRegistryClient) GetPackageReturns(result1 *api.Package, result2 error) {
+	fake.getPackageMutex.Lock()
+	defer fake.getPackageMutex.Unlock()
+	fake.GetPackageStub = nil
+	fake.getPackageReturns = struct {
+		result1 *api.Package
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) GetPackageReturnsOnCall(i int, result1 *api.Package, result2 error) {
+	fake.getPackageMutex.Lock()
+	defer fake.getPackageMutex.Unlock()
+	fake.GetPackageStub = nil
+	if fake.getPackageReturnsOnCall == nil {
+		fake.getPackageReturnsOnCall = make(map[int]struct {
+			result1 *api.Package
+			result2 error
+		})
+	}
+	fake.getPackageReturnsOnCall[i] = struct {
+		result1 *api.Package
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) ListBundles(arg1 context.Context, arg2 *api.ListBundlesRequest, arg3 ...grpc.CallOption) (api.Registry_ListBundlesClient, error) {
 	fake.listBundlesMutex.Lock()
 	ret, specificReturn := fake.listBundlesReturnsOnCall[len(fake.listBundlesArgsForCall)]
 	fake.listBundlesArgsForCall = append(fake.listBundlesArgsForCall, struct {
 		arg1 context.Context
-	}{arg1})
-	fake.recordInvocation("ListBundles", []interface{}{arg1})
+		arg2 *api.ListBundlesRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("ListBundles", []interface{}{arg1, arg2, arg3})
 	fake.listBundlesMutex.Unlock()
 	if fake.ListBundlesStub != nil {
-		return fake.ListBundlesStub(arg1)
+		return fake.ListBundlesStub(arg1, arg2, arg3...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -512,68 +704,139 @@ func (fake *FakeInterface) ListBundles(arg1 context.Context) (*client.BundleIter
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeInterface) ListBundlesCallCount() int {
+func (fake *FakeRegistryClient) ListBundlesCallCount() int {
 	fake.listBundlesMutex.RLock()
 	defer fake.listBundlesMutex.RUnlock()
 	return len(fake.listBundlesArgsForCall)
 }
 
-func (fake *FakeInterface) ListBundlesCalls(stub func(context.Context) (*client.BundleIterator, error)) {
+func (fake *FakeRegistryClient) ListBundlesCalls(stub func(context.Context, *api.ListBundlesRequest, ...grpc.CallOption) (api.Registry_ListBundlesClient, error)) {
 	fake.listBundlesMutex.Lock()
 	defer fake.listBundlesMutex.Unlock()
 	fake.ListBundlesStub = stub
 }
 
-func (fake *FakeInterface) ListBundlesArgsForCall(i int) context.Context {
+func (fake *FakeRegistryClient) ListBundlesArgsForCall(i int) (context.Context, *api.ListBundlesRequest, []grpc.CallOption) {
 	fake.listBundlesMutex.RLock()
 	defer fake.listBundlesMutex.RUnlock()
 	argsForCall := fake.listBundlesArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeInterface) ListBundlesReturns(result1 *client.BundleIterator, result2 error) {
+func (fake *FakeRegistryClient) ListBundlesReturns(result1 api.Registry_ListBundlesClient, result2 error) {
 	fake.listBundlesMutex.Lock()
 	defer fake.listBundlesMutex.Unlock()
 	fake.ListBundlesStub = nil
 	fake.listBundlesReturns = struct {
-		result1 *client.BundleIterator
+		result1 api.Registry_ListBundlesClient
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) ListBundlesReturnsOnCall(i int, result1 *client.BundleIterator, result2 error) {
+func (fake *FakeRegistryClient) ListBundlesReturnsOnCall(i int, result1 api.Registry_ListBundlesClient, result2 error) {
 	fake.listBundlesMutex.Lock()
 	defer fake.listBundlesMutex.Unlock()
 	fake.ListBundlesStub = nil
 	if fake.listBundlesReturnsOnCall == nil {
 		fake.listBundlesReturnsOnCall = make(map[int]struct {
-			result1 *client.BundleIterator
+			result1 api.Registry_ListBundlesClient
 			result2 error
 		})
 	}
 	fake.listBundlesReturnsOnCall[i] = struct {
-		result1 *client.BundleIterator
+		result1 api.Registry_ListBundlesClient
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInterface) Invocations() map[string][][]interface{} {
+func (fake *FakeRegistryClient) ListPackages(arg1 context.Context, arg2 *api.ListPackageRequest, arg3 ...grpc.CallOption) (api.Registry_ListPackagesClient, error) {
+	fake.listPackagesMutex.Lock()
+	ret, specificReturn := fake.listPackagesReturnsOnCall[len(fake.listPackagesArgsForCall)]
+	fake.listPackagesArgsForCall = append(fake.listPackagesArgsForCall, struct {
+		arg1 context.Context
+		arg2 *api.ListPackageRequest
+		arg3 []grpc.CallOption
+	}{arg1, arg2, arg3})
+	fake.recordInvocation("ListPackages", []interface{}{arg1, arg2, arg3})
+	fake.listPackagesMutex.Unlock()
+	if fake.ListPackagesStub != nil {
+		return fake.ListPackagesStub(arg1, arg2, arg3...)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.listPackagesReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRegistryClient) ListPackagesCallCount() int {
+	fake.listPackagesMutex.RLock()
+	defer fake.listPackagesMutex.RUnlock()
+	return len(fake.listPackagesArgsForCall)
+}
+
+func (fake *FakeRegistryClient) ListPackagesCalls(stub func(context.Context, *api.ListPackageRequest, ...grpc.CallOption) (api.Registry_ListPackagesClient, error)) {
+	fake.listPackagesMutex.Lock()
+	defer fake.listPackagesMutex.Unlock()
+	fake.ListPackagesStub = stub
+}
+
+func (fake *FakeRegistryClient) ListPackagesArgsForCall(i int) (context.Context, *api.ListPackageRequest, []grpc.CallOption) {
+	fake.listPackagesMutex.RLock()
+	defer fake.listPackagesMutex.RUnlock()
+	argsForCall := fake.listPackagesArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeRegistryClient) ListPackagesReturns(result1 api.Registry_ListPackagesClient, result2 error) {
+	fake.listPackagesMutex.Lock()
+	defer fake.listPackagesMutex.Unlock()
+	fake.ListPackagesStub = nil
+	fake.listPackagesReturns = struct {
+		result1 api.Registry_ListPackagesClient
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) ListPackagesReturnsOnCall(i int, result1 api.Registry_ListPackagesClient, result2 error) {
+	fake.listPackagesMutex.Lock()
+	defer fake.listPackagesMutex.Unlock()
+	fake.ListPackagesStub = nil
+	if fake.listPackagesReturnsOnCall == nil {
+		fake.listPackagesReturnsOnCall = make(map[int]struct {
+			result1 api.Registry_ListPackagesClient
+			result2 error
+		})
+	}
+	fake.listPackagesReturnsOnCall[i] = struct {
+		result1 api.Registry_ListPackagesClient
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRegistryClient) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.closeMutex.RLock()
-	defer fake.closeMutex.RUnlock()
 	fake.getBundleMutex.RLock()
 	defer fake.getBundleMutex.RUnlock()
-	fake.getBundleInPackageChannelMutex.RLock()
-	defer fake.getBundleInPackageChannelMutex.RUnlock()
-	fake.getBundleThatProvidesMutex.RLock()
-	defer fake.getBundleThatProvidesMutex.RUnlock()
-	fake.getReplacementBundleInPackageChannelMutex.RLock()
-	defer fake.getReplacementBundleInPackageChannelMutex.RUnlock()
-	fake.healthCheckMutex.RLock()
-	defer fake.healthCheckMutex.RUnlock()
+	fake.getBundleForChannelMutex.RLock()
+	defer fake.getBundleForChannelMutex.RUnlock()
+	fake.getBundleThatReplacesMutex.RLock()
+	defer fake.getBundleThatReplacesMutex.RUnlock()
+	fake.getChannelEntriesThatProvideMutex.RLock()
+	defer fake.getChannelEntriesThatProvideMutex.RUnlock()
+	fake.getChannelEntriesThatReplaceMutex.RLock()
+	defer fake.getChannelEntriesThatReplaceMutex.RUnlock()
+	fake.getDefaultBundleThatProvidesMutex.RLock()
+	defer fake.getDefaultBundleThatProvidesMutex.RUnlock()
+	fake.getLatestChannelEntriesThatProvideMutex.RLock()
+	defer fake.getLatestChannelEntriesThatProvideMutex.RUnlock()
+	fake.getPackageMutex.RLock()
+	defer fake.getPackageMutex.RUnlock()
 	fake.listBundlesMutex.RLock()
 	defer fake.listBundlesMutex.RUnlock()
+	fake.listPackagesMutex.RLock()
+	defer fake.listPackagesMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
@@ -581,7 +844,7 @@ func (fake *FakeInterface) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeInterface) recordInvocation(key string, args []interface{}) {
+func (fake *FakeRegistryClient) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -593,4 +856,4 @@ func (fake *FakeInterface) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ client.Interface = new(FakeInterface)
+var _ api.RegistryClient = new(FakeRegistryClient)

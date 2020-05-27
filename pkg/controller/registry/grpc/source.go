@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
-	"github.com/operator-framework/operator-registry/pkg/client"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -190,8 +190,8 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]client.Interface {
-	refs := map[resolver.CatalogKey]client.Interface{}
+func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]registry.ClientInterface {
+	refs := map[resolver.CatalogKey]registry.ClientInterface{}
 	s.sourcesLock.RLock()
 	defer s.sourcesLock.RUnlock()
 	for key, source := range s.sources {
@@ -200,7 +200,7 @@ func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]cl
 		}
 		for _, namespace := range namespaces {
 			if key.Namespace == namespace {
-				refs[key] = client.NewClientFromConn(source.Conn)
+				refs[key] = registry.NewClientFromConn(source.Conn)
 			}
 		}
 	}
