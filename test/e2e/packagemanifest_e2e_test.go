@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -145,12 +146,13 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 	Context("Given a CatalogSource created using gRPC catalog source type", func() {
 		var (
-			packageName   string
-			catalogSource *v1alpha1.CatalogSource
+			packageName, displayName string
+			catalogSource            *v1alpha1.CatalogSource
 		)
 		BeforeEach(func() {
 			sourceName := genName("catalog-")
 			packageName = "etcd-test"
+			displayName = "etcd test catalog"
 			image := "quay.io/olmtest/catsrc-update-test:related"
 
 			catalogSource = &v1alpha1.CatalogSource{
@@ -164,8 +166,9 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 					Labels:    map[string]string{"olm.catalogSource": sourceName},
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
-					SourceType: v1alpha1.SourceTypeGrpc,
-					Image:      image,
+					SourceType:  v1alpha1.SourceTypeGrpc,
+					Image:       image,
+					DisplayName: displayName,
 				},
 			}
 
@@ -195,6 +198,36 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 				"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2",
 			}), "Expected images to exist in the related images list\n")
 		})
+
+		When("the display name for catalog source is updated", func() {
+
+			BeforeEach(func() {
+
+				pm, err := fetchPackageManifest(pmc, testNamespace, packageName, packageManifestHasStatus)
+				Expect(err).NotTo(HaveOccurred(), "error getting package manifest")
+				Expect(pm).ShouldNot(BeNil())
+				Expect(pm.GetName()).Should(Equal(packageName))
+				Expect(pm.Status.CatalogSourceDisplayName).Should(Equal(displayName))
+
+				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(context.TODO(), catalogSource.GetName(), metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred(), "error getting catalogSource")
+
+				displayName = "updated Name"
+				catalogSource.Spec.DisplayName = displayName
+				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(context.TODO(), catalogSource, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred(), "error updating catalogSource")
+				Expect(catalogSource.Spec.DisplayName).Should(Equal(displayName))
+			})
+			It("should successfully update the CatalogSource field", func() {
+
+				Eventually(func() string {
+					pm, err := fetchPackageManifest(pmc, testNamespace, packageName,
+						packageManifestHasStatus)
+					Expect(err).NotTo(HaveOccurred(), "error getting package manifest after updating catsrc")
+					return pm.Status.CatalogSourceDisplayName
+				}).Should(Equal(displayName))
+			})
+		})
 	})
 })
 
@@ -203,7 +236,6 @@ type packageManifestCheckFunc func(*packagev1.PackageManifest) bool
 func packageManifestHasStatus(pm *packagev1.PackageManifest) bool {
 	// as long as it has a package name we consider the status non-empty
 	return pm != nil && pm.Status.PackageName != ""
-
 }
 
 func fetchPackageManifest(pmc pmversioned.Interface, namespace, name string, check packageManifestCheckFunc) (*packagev1.PackageManifest, error) {
