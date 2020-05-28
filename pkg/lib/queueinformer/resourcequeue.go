@@ -39,6 +39,11 @@ func (r *ResourceQueueSet) RequeueEvent(namespace string, resourceEvent kubestat
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
+	if queue, ok := r.queueSet[metav1.NamespaceAll]; len(r.queueSet) == 1 && ok {
+		queue.AddRateLimited(resourceEvent)
+		return nil
+	}
+
 	if queue, ok := r.queueSet[namespace]; ok {
 		queue.AddRateLimited(resourceEvent)
 		return nil
