@@ -139,7 +139,16 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 					}
 				}
 
-				// TODO ensure stored version compatibility
+				// check to see if stored versions changed and whether the upgrade could cause potential data loss
+				safe, err := crdlib.SafeStorageVersionUpgrade(currentCRD, crd)
+				if !safe {
+					b.logger.Errorf("risk of data loss updating %s: %s", step.Resource.Name, err)
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "risk of data loss updating %s", step.Resource.Name)
+				}
+				if err != nil {
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "checking CRD for potential data loss updating %s", step.Resource.Name)
+				}
+
 				// Update CRD to new version
 				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
 				if err != nil {
@@ -219,7 +228,16 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
 					}
 				}
-				// TODO ensure stored version compatibility
+
+				// check to see if stored versions changed and whether the upgrade could cause potential data loss
+				safe, err := crdlib.SafeStorageVersionUpgrade(currentCRD, crd)
+				if !safe {
+					b.logger.Errorf("risk of data loss updating %s: %s", step.Resource.Name, err)
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "risk of data loss updating %s", step.Resource.Name)
+				}
+				if err != nil {
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "checking CRD for potential data loss updating %s", step.Resource.Name)
+				}
 
 				// Update CRD to new version
 				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})

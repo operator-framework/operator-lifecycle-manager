@@ -1,25 +1,24 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"github.com/blang/semver"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-const (
-	crdName       = "test"
-	crdNamePlural = "tests"
-	crdGroup      = "test.k8s.io"
+	"time"
 )
 
 var _ = Describe("CRD Versions", func() {
+	AfterEach(func() { cleaner.NotifyTestComplete(true) }, float64(10))
+
 	It("creates v1beta1 crds with a v1beta1 schema successfully", func() {
 		By("This test proves that OLM is able to handle v1beta1 CRDs successfully. Creating v1 CRDs has more " +
 			"restrictions around the schema. v1beta1 validation schemas are not necessarily valid in v1. " +
@@ -63,7 +62,7 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -101,6 +100,7 @@ var _ = Describe("CRD Versions", func() {
 		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
 	})
+
 	It("creates v1 CRDs with a v1 schema successfully", func() {
 		By("v1 crds with a valid openapiv3 schema should be created successfully by OLM")
 		c := newKubeClient()
@@ -173,15 +173,332 @@ var _ = Describe("CRD Versions", func() {
 		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
 	})
-	AfterEach(func() { cleaner.NotifyTestComplete(true) }, float64(10))
-})
 
-func checkCRD(v1crd *apiextensionsv1.CustomResourceDefinition) bool {
-	for _, condition := range v1crd.Status.Conditions {
-		if condition.Type == apiextensionsv1.Established {
-			return true
+	It("blocks a CRD upgrade that could cause data loss", func() {
+		By("checking the storage versions in the existing CRD status and the spec of the new CRD")
+
+		c := newKubeClient()
+		crc := newCRClient()
+
+		mainPackageName := genName("nginx-update2-")
+		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+		stableChannel := "stable"
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+
+		crdPlural := genName("ins-v1beta1-")
+		crdName := crdPlural + ".cluster.com"
+		oldCRD := apiextensions.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName,
+			},
+			Spec: apiextensions.CustomResourceDefinitionSpec{
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha2",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+					{
+						Name:    "v2alpha1",
+						Served:  true,
+						Storage: false,
+					},
+				},
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+				Scope: "Namespaced",
+			},
 		}
-	}
 
-	return false
-}
+		alphaChannel := "alpha"
+		mainPackageAlpha := fmt.Sprintf("%s-alpha", mainPackageName)
+		newCRD := apiextensions.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName,
+			},
+			Spec: apiextensions.CustomResourceDefinitionSpec{
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha3",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+					{
+						Name:    "v2alpha2",
+						Served:  true,
+						Storage: false,
+					},
+				},
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+			},
+		}
+
+		oldCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{oldCRD}, nil, mainNamedStrategy)
+		newCSV := newCSV(mainPackageAlpha, testNamespace, mainPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{newCRD}, nil, mainNamedStrategy)
+		mainCatalogName := genName("mock-ocs-main-update2-")
+		mainManifests := []registry.PackageManifest{
+			{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: mainPackageStable},
+					{Name: alphaChannel, CurrentCSVName: mainPackageAlpha},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		// Create the catalog sources
+		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{oldCRD, newCRD}, []operatorsv1alpha1.ClusterServiceVersion{oldCSV, newCSV})
+		defer cleanupMainCatalogSource()
+
+		// Attempt to get the catalog source before creating install plan
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred())
+
+		subscriptionName := genName("sub-nginx-update2-")
+		subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		defer subscriptionCleanup()
+
+		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(subscription).ToNot(BeNil())
+		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
+		Expect(oldCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
+
+		installPlanName := subscription.Status.InstallPlanRef.Name
+
+		// Wait for InstallPlan to be status: Complete before checking resource presence
+		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		Expect(err).ToNot(HaveOccurred())
+		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
+
+		// old CRD has been installed onto the cluster - now upgrade the subscription to point to the channel with the new CRD
+		// installing the new CSV should fail with a warning about data loss, since a storage version is missing in the new CRD
+		sub, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred(), "could not get subscription")
+
+		// update channel on sub
+		sub.Spec.Channel = alphaChannel
+		_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), sub, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred(), "could not update subscription")
+
+		// fetch new subscription
+		s, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(s).ToNot(BeNil())
+		Expect(s.Status.InstallPlanRef).ToNot(Equal(nil))
+
+		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version
+		Eventually(func() bool {
+			ip, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), s.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred(), "could not get installplan")
+
+			Expect(ip.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseFailed))
+			Expect(ip.Status.Conditions[len(ip.Status.Conditions)-1].Message).To(ContainSubstring("risk of data loss"))
+			return true
+		}).Should(BeTrue())
+	})
+
+	// Create a CRD on cluster with v1alpha1 (storage)
+	// Update that CRD with v1alpha2 (storage), v1alpha1 (served)
+	// Now the CRD should have two versions in status.storedVersions
+	// Now make a catalog with a CRD with just v1alpha2 (storage)
+	// That should fail because v1alpha1 is still in status.storedVersions - risk of data loss
+	// Update the CRD status to remove the v1alpha1
+	// Now the installplan should succeed
+
+	It("allows a CRD upgrade that could have caused data loss", func() {
+		By("manually editing the storage versions in the existing CRD status")
+
+		c := newKubeClient()
+		crc := newCRClient()
+
+		crdPlural := genName("ins-v1-")
+		crdName := crdPlural + ".cluster.com"
+		crdGroup := "cluster.com"
+
+		oldCRD := &apiextensionsv1beta1.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName,
+			},
+			Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+				Group: crdGroup,
+				Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+				},
+				Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+				Scope: "Namespaced",
+			},
+		}
+		_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.TODO(), oldCRD, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred(), "error creating old CRD")
+
+		// wrap CRD update in a poll because of the object has been modified related errors
+		Eventually(func() error {
+			oldCRD, err = c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), oldCRD.GetName(), metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred(), "error getting old CRD")
+			GinkgoT().Logf("old crd status stored versions: %#v", oldCRD.Status.StoredVersions)
+
+			// set v1alpha1 to no longer served
+			oldCRD.Spec.Versions[0].Storage = false
+			// update CRD on-cluster with a new version
+			oldCRD.Spec.Versions = append(oldCRD.Spec.Versions, apiextensionsv1beta1.CustomResourceDefinitionVersion{
+				Name:    "v1alpha2",
+				Served:  true,
+				Storage: true,
+			})
+
+			updatedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(context.TODO(), oldCRD, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+			GinkgoT().Logf("updated crd status stored versions: %#v", updatedCRD.Status.StoredVersions) // both v1alpha1 and v1alpha2 should be in the status
+			return nil
+		}).Should(BeNil())
+
+		// create CSV and catalog with just the catalog CRD
+		catalogCRD := apiextensions.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName,
+			},
+			Spec: apiextensions.CustomResourceDefinitionSpec{
+				Group: crdGroup,
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha2",
+						Served:  true,
+						Storage: true,
+					},
+				},
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+				Scope: "Namespaced",
+			},
+		}
+
+		mainPackageName := genName("nginx-update2-")
+		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+		stableChannel := "stable"
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+		catalogCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{catalogCRD}, nil, mainNamedStrategy)
+
+		mainCatalogName := genName("mock-ocs-main-update2-")
+		mainManifests := []registry.PackageManifest{
+			{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: mainPackageStable},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		// Create the catalog sources
+		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{catalogCRD}, []operatorsv1alpha1.ClusterServiceVersion{catalogCSV})
+		defer cleanupMainCatalogSource()
+
+		// Attempt to get the catalog source before creating install plan
+		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred())
+
+		subscriptionName := genName("sub-nginx-update2-")
+		_ = createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+
+		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(subscription).ToNot(BeNil())
+		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
+		Expect(catalogCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
+
+		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version (v1alpha1)
+		Eventually(func() bool {
+			ip, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred(), "could not get installplan")
+
+			return ip.Status.Phase == operatorsv1alpha1.InstallPlanPhaseFailed
+		}).Should(BeTrue())
+
+		// update CRD status to remove the v1alpha1 stored version
+		newCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), oldCRD.GetName(), metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred(), "error getting new CRD")
+		newCRD.Status.StoredVersions = []string{"v1alpha2"}
+		newCRD, err = c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().UpdateStatus(context.TODO(), newCRD, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred(), "error updating new CRD")
+		GinkgoT().Logf("new crd status stored versions: %#v", newCRD.Status.StoredVersions) // only v1alpha2 should be in the status now
+
+		// install should now succeed
+		// first remove old install plan
+		oldInstallPlanRef := subscription.Status.InstallPlanRef.Name
+		err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred(), "error deleting failed install plan")
+		//remove old subscription
+		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(context.TODO(), subscription.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred(), "error deleting failed install plan")
+
+		//recreate subscription
+		subscriptionNameNew := genName("sub-nginx-update2-new-")
+		_ = createSubscriptionForCatalog(crc, testNamespace, subscriptionNameNew, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+
+		subscription, err = fetchSubscription(crc, testNamespace, subscriptionNameNew, subscriptionHasInstallPlanChecker)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(subscription).ToNot(BeNil())
+		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
+		Expect(catalogCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
+
+		// eventually the subscription should create a new install plan
+		Eventually(func() bool {
+			sub, _ := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+			GinkgoT().Logf("waiting for subscription %s to generate a new install plan...", subscription.GetName())
+			return sub.Status.InstallPlanRef.Name != oldInstallPlanRef
+		}, 5*time.Minute, 10*time.Second).Should(BeTrue())
+
+		// eventually the new installplan should succeed
+		Eventually(func() bool {
+			sub, _ := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+			ip, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), sub.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return false
+			}
+			GinkgoT().Logf("waiting for installplan to succeed...currently %s", ip.Status.Phase)
+			return ip.Status.Phase == operatorsv1alpha1.InstallPlanPhaseComplete
+		}).Should(BeTrue())
+		GinkgoT().Log("manually reconciled potentially unsafe CRD upgrade")
+	})
+})
