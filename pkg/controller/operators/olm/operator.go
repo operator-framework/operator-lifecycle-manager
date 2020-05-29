@@ -658,8 +658,9 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 					kubestate.ResourceUpdated,
 					metaObj,
 				)
-				syncError = a.objGCQueueSet.RequeueEvent(ns, resourceEvent)
-				logger.Debugf("syncObject - requeued update event for %v, res=%v", resourceEvent, syncError)
+				if syncError = a.objGCQueueSet.RequeueEvent("", resourceEvent); syncError != nil {
+					logger.WithError(syncError).Warnf("failed to requeue gc event: %v", resourceEvent)
+				}
 				return
 			}
 		}
@@ -852,8 +853,9 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		logger.WithError(err).Warn("cannot list cluster role bindings")
 	}
 	for _, crb := range crbs {
-		syncError := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, crb))
-		logger.Debugf("handleCSVdeletion - requeued update event for %v, res=%v", crb, syncError)
+		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, crb)); err != nil {
+			logger.WithError(err).Warnf("failed to requeue gc event: %v", crb)
+		}
 	}
 
 	crs, err := a.lister.RbacV1().ClusterRoleLister().List(ownerSelector)
@@ -861,8 +863,9 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		logger.WithError(err).Warn("cannot list cluster roles")
 	}
 	for _, cr := range crs {
-		syncError := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, cr))
-		logger.Debugf("handleCSVdeletion - requeued update event for %v, res=%v", cr, syncError)
+		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, cr)); err != nil {
+			logger.WithError(err).Warnf("failed to requeue gc event: %v", cr)
+		}
 	}
 }
 
