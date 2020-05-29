@@ -135,6 +135,57 @@ func TestTransitionInstallPlan(t *testing.T) {
 	}
 }
 
+func TestSyncInstallPlanUnhappy(t *testing.T) {
+	namespace := "ns"
+
+	tests := []struct {
+		testName string
+		in       *v1alpha1.InstallPlan
+		err      error
+	}{
+		{
+			testName: "NoStatus",
+			in:       installPlan("p", namespace, v1alpha1.InstallPlanPhaseNone),
+			err:      nil,
+		},
+		{
+			// This checks that installplans are not applied when no operatorgroup is present
+			testName: "HasSteps/NoOperatorGroup",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "ServiceAccount",
+							Name:                   "sa",
+							Manifest: toManifest(t, serviceAccount("sa", namespace, "",
+								objectReference("init secret"))),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			err:  fmt.Errorf("attenuated service account query failed - no operator group found that is managing this namespace"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.in))
+			require.NoError(t, err)
+
+			err = op.syncInstallPlans(tt.in)
+			require.Equal(t, tt.err, err)
+		})
+	}
+}
+
 func TestExecutePlan(t *testing.T) {
 	namespace := "ns"
 

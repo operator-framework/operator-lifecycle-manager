@@ -1170,6 +1170,28 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		return
 	}
 
+	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
+	ref, err := querier()
+	if err != nil {
+		syncError = fmt.Errorf("attenuated service account query failed - %v", err)
+		return
+	}
+
+	if ref != nil {
+		out := plan.DeepCopy()
+		out.Status.AttenuatedServiceAccountRef = ref
+
+		if !reflect.DeepEqual(plan, out) {
+			if _, updateErr := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); updateErr != nil {
+				syncError = fmt.Errorf("failed to attach attenuated ServiceAccount to status - %v", updateErr)
+				return
+			}
+
+			logger.WithField("attenuated-sa", ref.Name).Info("successfully attached attenuated ServiceAccount to status")
+			return
+		}
+	}
+
 	// Attempt to unpack bundles before installing
 	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
 	if len(plan.Status.BundleLookups) > 0 {
@@ -1197,28 +1219,6 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 			}
 			logger.Debug("install plan not yet populated from bundle image, requeueing")
 
-			return
-		}
-	}
-
-	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
-	ref, err := querier()
-	if err != nil {
-		syncError = fmt.Errorf("attenuated service account query failed - %v", err)
-		return
-	}
-
-	if ref != nil {
-		out := plan.DeepCopy()
-		out.Status.AttenuatedServiceAccountRef = ref
-
-		if !reflect.DeepEqual(plan, out) {
-			if _, updateErr := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); updateErr != nil {
-				syncError = fmt.Errorf("failed to attach attenuated ServiceAccount to status - %v", updateErr)
-				return
-			}
-
-			logger.WithField("attenuated-sa", ref.Name).Info("successfully attached attenuated ServiceAccount to status")
 			return
 		}
 	}

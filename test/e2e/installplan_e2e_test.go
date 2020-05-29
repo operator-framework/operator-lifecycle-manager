@@ -2398,6 +2398,11 @@ var _ = Describe("Install Plan", func() {
 		}, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
+		og := &operatorsv1.OperatorGroup{}
+		og.SetName("og")
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
 			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
@@ -2618,7 +2623,75 @@ var _ = Describe("Install Plan", func() {
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), 1, len(ips.Items), "If this test fails it should be taken seriously and not treated as a flake. \n%v", ips.Items)
 	})
+	
+	It("without an operatorgroup", func() {
+		defer cleaner.NotifyTestComplete(true)
 
+		log := func(s string) {
+			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+		}
+
+		ns := &corev1.Namespace{}
+		ns.SetName(genName("ns-"))
+
+		c := newKubeClient()
+		crc := newCRClient()
+
+		// Create a namespace
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		deleteOpts := &metav1.DeleteOptions{}
+		defer func() {
+			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
+		}()
+
+		mainPackageName := genName("nginx-")
+		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+		stableChannel := "stable"
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+
+		defer func() {
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+		}()
+
+		mainCatalogName := genName("mock-ocs-main-")
+		mainManifests := []registry.PackageManifest{
+			{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: mainPackageStable},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		// Create the main catalog source
+		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), mainManifests, nil, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
+		defer cleanupMainCatalogSource()
+
+		// Attempt to get the catalog source before creating install plan
+		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		require.NoError(GinkgoT(), err)
+
+		subscriptionName := genName("sub-nginx-")
+		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		defer subscriptionCleanup()
+
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), subscription)
+
+		installPlanName := subscription.Status.InstallPlanRef.Name
+
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
+		require.NoError(GinkgoT(), err)
+		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+
+		fetchedInstallPlan, err = fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
+		require.NoError(GinkgoT(), err)
+		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+	})
 })
 
 type checkInstallPlanFunc func(fip *operatorsv1alpha1.InstallPlan) bool

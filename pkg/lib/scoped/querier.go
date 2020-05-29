@@ -35,7 +35,7 @@ func (f *UserDefinedServiceAccountQuerier) NamespaceQuerier(namespace string) Se
 			logFieldName: logFieldValue,
 		})
 
-		return QueryServiceAccountFromNamespace(logger, f.crclient, namespace)
+		return queryServiceAccountFromNamespace(logger, f.crclient, namespace)
 	}
 
 	return querierFunc
@@ -43,11 +43,11 @@ func (f *UserDefinedServiceAccountQuerier) NamespaceQuerier(namespace string) Se
 
 // QueryServiceAccountFromNamespace will return the reference to a service account
 // associated with the operator group for the given namespace.
-// - If no operator group is found in the namespace, both reference and err are set to nil.
+// - If no operator group is found in the namespace, an error is returned.
 // - If an operator group found is not managing the namespace then it is ignored.
 // - If no operator group is managing this namespace then both reference and err are set to nil.
 // - If more than one operator group are managing this namespace then an error is thrown.
-func QueryServiceAccountFromNamespace(logger *logrus.Entry, crclient versioned.Interface, namespace string) (reference *corev1.ObjectReference, err error) {
+func queryServiceAccountFromNamespace(logger *logrus.Entry, crclient versioned.Interface, namespace string) (reference *corev1.ObjectReference, err error) {
 	// TODO: use a lister instead of a noncached client here.
 	list, err := crclient.OperatorsV1().OperatorGroups(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -55,7 +55,7 @@ func QueryServiceAccountFromNamespace(logger *logrus.Entry, crclient versioned.I
 	}
 
 	if len(list.Items) == 0 {
-		logger.Warnf("list query returned an empty list")
+		err = fmt.Errorf("no operator group found that is managing this namespace")
 		return
 	}
 
@@ -70,7 +70,7 @@ func QueryServiceAccountFromNamespace(logger *logrus.Entry, crclient versioned.I
 	}
 
 	if len(groups) == 0 {
-		logger.Warn("no operator group found that is managing this namespace")
+		err = fmt.Errorf("no operator group found that is managing this namespace")
 		return
 	}
 
