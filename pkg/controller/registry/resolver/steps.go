@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	secretKind = "Secret"
+	secretKind       = "Secret"
 	BundleSecretKind = "BundleSecret"
 )
 
@@ -89,7 +89,7 @@ func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1a
 	return NewStepResourceFromObject(&v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      strings.Join([]string{info.Package, info.Channel, info.Catalog.Name, info.Catalog.Namespace}, "-"),
+			Name:      strings.ToLower(strings.Join([]string{info.Package, info.Channel, info.Catalog.Name, info.Catalog.Namespace}, "-")),
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			CatalogSource:          info.Catalog.Name,
