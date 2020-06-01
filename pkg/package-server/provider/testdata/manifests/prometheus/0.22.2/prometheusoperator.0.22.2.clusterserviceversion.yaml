@@ -184,7 +184,7 @@ spec:
                   allowPrivilegeEscalation: false
                   readOnlyRootFilesystem: true
               nodeSelector:
-                beta.kubernetes.io/os: linux
+                kubernetes.io/os: linux
   maturity: beta
   version: 0.22.2
   customresourcedefinitions:

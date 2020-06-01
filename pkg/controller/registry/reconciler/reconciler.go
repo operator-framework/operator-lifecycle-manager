@@ -143,7 +143,7 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 				},
 			},
 			NodeSelector: map[string]string{
-				"beta.kubernetes.io/os": "linux",
+				"kubernetes.io/os": "linux",
 			},
 		},
 	}

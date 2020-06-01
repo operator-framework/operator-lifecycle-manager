@@ -15,7 +15,7 @@ func TestPodNodeSelector(t *testing.T) {
 		},
 	}
 
-	key := "beta.kubernetes.io/os"
+	key := "kubernetes.io/os"
 	value := "linux"
 
 	gotCatSrcPod := Pod(catsrc, "hello", "busybox", map[string]string{}, int32(0), int32(0))
