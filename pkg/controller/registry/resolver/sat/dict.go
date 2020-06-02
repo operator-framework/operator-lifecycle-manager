@@ -159,7 +159,6 @@ func compileDict(installables []Installable) *dict {
 		im := d.c.Lit()
 		d.installables[im] = installable
 		d.lits[installable.Identifier()] = im
-		weights = append(weights, im)
 	}
 
 	// Then build the constraints:
@@ -170,9 +169,7 @@ func compileDict(installables []Installable) *dict {
 
 			clauses := make([]z.Lit, 0, x.weight)
 			for w := 0; w < x.weight; w++ {
-				wm := d.c.Lit()
-				weights = append(weights, wm)
-				clauses = append(clauses, d.c.Implies(d.LitOf(installable.Identifier()), wm))
+				weights = append(weights, d.lits[installable.Identifier()])
 			}
 
 			if !x.Empty() {
