@@ -9,4 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - run: make -f x.mk e2e-local NODES=2
+      - run: make -f x.mk e2e-local NODES=2 JUNIT_DIRECTORY=./artifacts/
+      - name: Archive production artifacts # test results are only uploaded if any of the e2e tests fails
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: e2e-test-output-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ github.workspace }}/bin/artifacts/*
