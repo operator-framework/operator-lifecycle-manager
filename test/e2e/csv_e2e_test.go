@@ -74,11 +74,11 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Shouldn't create deployment
@@ -137,11 +137,11 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Shouldn't create deployment
@@ -247,11 +247,11 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 		defer cleanupCRD()
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, true, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, true, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Shouldn't create deployment
@@ -309,11 +309,11 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Shouldn't create deployment
@@ -399,11 +399,11 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Shouldn't create deployment
@@ -451,11 +451,11 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Shouldn't create deployment
@@ -553,11 +553,11 @@ var _ = Describe("CSV", func() {
 		}
 
 		// Create CSV first, knowing it will fail
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, true, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, true, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
+		fetchedCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		crd := apiextensions.CustomResourceDefinition{
@@ -706,14 +706,14 @@ var _ = Describe("CSV", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		fetchedCSV, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Delete CRD
 		cleanupCRD()
 
 		// Wait for CSV failure
-		fetchedCSV, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
+		fetchedCSV, err = fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Recreate the CRD
@@ -722,7 +722,7 @@ var _ = Describe("CSV", func() {
 		defer cleanupCRD()
 
 		// Wait for CSV success again
-		fetchedCSV, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
 	It("create requirements met API service", func() {
@@ -876,15 +876,15 @@ var _ = Describe("CSV", func() {
 		_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
 		require.NoError(GinkgoT(), err, "could not create ClusterRoleBinding")
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Fetch cluster service version again to check for unnecessary control loops
-		sameCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		sameCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		compareResources(GinkgoT(), fetchedCSV, sameCSV)
 	})
@@ -960,7 +960,7 @@ var _ = Describe("CSV", func() {
 		csv.SetName(depName)
 
 		// Create the APIService CSV
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer func() {
 			watcher, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch(context.TODO(), metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
@@ -987,7 +987,7 @@ var _ = Describe("CSV", func() {
 			<-deleted
 		}()
 
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should create Deployment
@@ -1035,7 +1035,7 @@ var _ = Describe("CSV", func() {
 		fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		_, err = fetchCSV(crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
 			// Should create deployment
 			dep, err = c.GetDeployment(testNamespace, depName)
 			require.NoError(GinkgoT(), err)
@@ -1061,7 +1061,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for CSV success
-		fetchedCSV, err = fetchCSV(GinkgoT(), crc, csv.GetName(), testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		fetchedCSV, err = fetchCSV(crc, csv.GetName(), testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
 			// Should create an APIService
 			apiService, err := c.GetAPIService(apiServiceName)
 			if err != nil {
@@ -1150,10 +1150,10 @@ var _ = Describe("CSV", func() {
 		csv.SetName("csv-hat-1")
 
 		// Create the APIService CSV
-		_, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		_, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should create Deployment
@@ -1225,11 +1225,11 @@ var _ = Describe("CSV", func() {
 		csv2.SetName("csv-hat-2")
 
 		// Create CSV2 to replace CSV
-		cleanupCSV2, err := createCSV(GinkgoT(), c, crc, csv2, testNamespace, false, true)
+		cleanupCSV2, err := createCSV(c, crc, csv2, testNamespace, false, true)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV2()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv2.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv2.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should create Deployment
@@ -1273,11 +1273,11 @@ var _ = Describe("CSV", func() {
 		csv.SetName("csv-hat-3")
 
 		// Recreate the old CSV
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, true)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, true)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		fetched, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, buildCSVReasonChecker(v1alpha1.CSVReasonOwnerConflict))
+		fetched, err := fetchCSV(crc, csv.Name, testNamespace, buildCSVReasonChecker(v1alpha1.CSVReasonOwnerConflict))
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), string(v1alpha1.CSVPhaseFailed), string(fetched.Status.Phase))
 	})
@@ -1405,11 +1405,11 @@ var _ = Describe("CSV", func() {
 		csv.SetName("csv-hat-1")
 
 		// Create the initial CSV
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should create Deployment
@@ -1480,10 +1480,10 @@ var _ = Describe("CSV", func() {
 		csv2.SetName("csv-hat-2")
 
 		// Create CSV2 to replace CSV
-		_, err = createCSV(GinkgoT(), c, crc, csv2, secondNamespaceName, false, true)
+		_, err = createCSV(c, crc, csv2, secondNamespaceName, false, true)
 		require.NoError(GinkgoT(), err)
 
-		_, err = fetchCSV(GinkgoT(), crc, csv2.Name, secondNamespaceName, csvFailedChecker)
+		_, err = fetchCSV(crc, csv2.Name, secondNamespaceName, csvFailedChecker)
 		require.NoError(GinkgoT(), err)
 	})
 	It("orphaned API service clean up", func() {
@@ -1642,11 +1642,11 @@ var _ = Describe("CSV", func() {
 		}
 
 		// Don't need to cleanup this CSV, it will be deleted by the upgrade process
-		_, err = createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		_, err = createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for current CSV to succeed
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should have created deployment
@@ -1714,12 +1714,12 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupNewCSV, err := createCSV(GinkgoT(), c, crc, csvNew, testNamespace, true, false)
+		cleanupNewCSV, err := createCSV(c, crc, csvNew, testNamespace, true, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupNewCSV()
 
 		// Wait for updated CSV to succeed
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csvNew.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should have updated existing deployment
@@ -1733,7 +1733,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Fetch cluster service version again to check for unnecessary control loops
-		sameCSV, err := fetchCSV(GinkgoT(), crc, csvNew.Name, testNamespace, csvSucceededChecker)
+		sameCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		compareResources(GinkgoT(), fetchedCSV, sameCSV)
 	})
@@ -1825,11 +1825,11 @@ var _ = Describe("CSV", func() {
 		}
 
 		// don't need to clean up this CSV, it will be deleted by the upgrade process
-		_, err = createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		_, err = createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for current CSV to succeed
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should have created deployment
@@ -1895,16 +1895,16 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupNewCSV, err := createCSV(GinkgoT(), c, crc, csvNew, testNamespace, true, false)
+		cleanupNewCSV, err := createCSV(c, crc, csvNew, testNamespace, true, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupNewCSV()
 
 		// Wait for updated CSV to succeed
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csvNew.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Fetch cluster service version again to check for unnecessary control loops
-		sameCSV, err := fetchCSV(GinkgoT(), crc, csvNew.Name, testNamespace, csvSucceededChecker)
+		sameCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		compareResources(GinkgoT(), fetchedCSV, sameCSV)
 
@@ -2013,11 +2013,11 @@ var _ = Describe("CSV", func() {
 		}
 
 		// don't need to clean up this CSV, it will be deleted by the upgrade process
-		_, err = createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		_, err = createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for current CSV to succeed
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should have created deployment
@@ -2083,16 +2083,16 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupNewCSV, err := createCSV(GinkgoT(), c, crc, csvNew, testNamespace, true, false)
+		cleanupNewCSV, err := createCSV(c, crc, csvNew, testNamespace, true, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupNewCSV()
 
 		// Wait for updated CSV to succeed
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csvNew.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Fetch cluster service version again to check for unnecessary control loops
-		sameCSV, err := fetchCSV(GinkgoT(), crc, csvNew.Name, testNamespace, csvSucceededChecker)
+		sameCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		compareResources(GinkgoT(), fetchedCSV, sameCSV)
 
@@ -2195,12 +2195,12 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, true)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, true)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
 		// Wait for current CSV to succeed
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should have created deployment
@@ -2247,7 +2247,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for updated CSV to succeed
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		depUpdated, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
@@ -2361,11 +2361,11 @@ var _ = Describe("CSV", func() {
 		}
 
 		// CSV will be deleted by the upgrade process later
-		_, err = createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		_, err = createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for current CSV to succeed
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should have created deployment
@@ -2440,15 +2440,15 @@ var _ = Describe("CSV", func() {
 		}
 
 		// Create newly updated CSV
-		_, err = createCSV(GinkgoT(), c, crc, csvNew, testNamespace, false, false)
+		_, err = createCSV(c, crc, csvNew, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for updated CSV to succeed
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csvNew.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Fetch cluster service version again to check for unnecessary control loops
-		sameCSV, err := fetchCSV(GinkgoT(), crc, csvNew.Name, testNamespace, csvSucceededChecker)
+		sameCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		compareResources(GinkgoT(), fetchedCSV, sameCSV)
 
@@ -2518,16 +2518,16 @@ var _ = Describe("CSV", func() {
 		}
 
 		// Create newly updated CSV
-		cleanupNewCSV, err := createCSV(GinkgoT(), c, crc, csvNew2, testNamespace, true, false)
+		cleanupNewCSV, err := createCSV(c, crc, csvNew2, testNamespace, true, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupNewCSV()
 
 		// Wait for updated CSV to succeed
-		fetchedCSV, err = fetchCSV(GinkgoT(), crc, csvNew2.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err = fetchCSV(crc, csvNew2.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Fetch cluster service version again to check for unnecessary control loops
-		sameCSV, err = fetchCSV(GinkgoT(), crc, csvNew2.Name, testNamespace, csvSucceededChecker)
+		sameCSV, err = fetchCSV(crc, csvNew2.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		compareResources(GinkgoT(), fetchedCSV, sameCSV)
 
@@ -2632,12 +2632,12 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, true, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, true, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
 		// Wait for current CSV to succeed
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should have created deployments
@@ -2665,7 +2665,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Fetch the current csv
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update csv with same strategy with different deployment's name
@@ -2680,7 +2680,7 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for updated CSV to succeed
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should have created new deployment and deleted old
@@ -2751,11 +2751,11 @@ var _ = Describe("CSV", func() {
 		Expect(err).ToNot(HaveOccurred())
 		defer w.Stop()
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, *csv, csv.GetNamespace(), false, false)
+		cleanupCSV, err := createCSV(c, crc, *csv, csv.GetNamespace(), false, false)
 		Expect(err).ToNot(HaveOccurred())
 		defer cleanupCSV()
 
-		csv, err = fetchCSV(GinkgoT(), crc, csv.GetName(), csv.GetNamespace(), csvPendingChecker)
+		csv, err = fetchCSV(crc, csv.GetName(), csv.GetNamespace(), csvPendingChecker)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("emitting when requirements are not met")
@@ -2868,7 +2868,7 @@ var _ = Describe("CSV", func() {
 			},
 		}
 
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, true, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, true, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
@@ -2891,7 +2891,7 @@ var _ = Describe("CSV", func() {
 			return false
 		}
 
-		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvCheckPhaseAndRequirementStatus)
+		fetchedCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvCheckPhaseAndRequirementStatus)
 		require.NoError(GinkgoT(), err)
 
 		require.Contains(GinkgoT(), fetchedCSV.Status.RequirementStatus, notServedStatus)
@@ -2971,11 +2971,11 @@ var _ = Describe("CSV", func() {
 		createLegacyAPIResources(&csv, owned[0])
 
 		// Create the APIService CSV
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		checkLegacyAPIResources(owned[0], true)
@@ -3055,11 +3055,11 @@ var _ = Describe("CSV", func() {
 		createLegacyAPIResources(nil, owned[0])
 
 		// Create the APIService CSV
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		checkLegacyAPIResources(owned[0], false)
@@ -3174,11 +3174,11 @@ var _ = Describe("CSV", func() {
 		csv.SetNamespace(testNamespace)
 
 		// Create the APIService CSV
-		cleanupCSV, err := createCSV(GinkgoT(), c, crc, csv, testNamespace, false, false)
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
-		_, err = fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Check that the APIService caBundles are equal
@@ -3214,9 +3214,11 @@ func findLastEvent(events *corev1.EventList) (event corev1.Event) {
 	return events.Items[latestInd]
 }
 
-func buildCSVCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
+func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
 	return func() {
-		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{}))
+		err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
 		if deleteCRDs {
 			for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
 				buildCRDCleanupFunc(c, crd.Name)()
@@ -3229,19 +3231,20 @@ func buildCSVCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, c
 			}
 		}
 
-		require.NoError(t, waitForDelete(func() error {
+		err = waitForDelete(func() error {
 			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), csv.GetName(), metav1.GetOptions{})
 			return err
-		}))
+		})
+		Expect(err).ToNot(HaveOccurred())
 	}
 }
 
-func createCSV(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs, cleanupAPIServices bool) (cleanupFunc, error) {
+func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs, cleanupAPIServices bool) (cleanupFunc, error) {
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
 	_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), &csv, metav1.CreateOptions{})
-	require.NoError(t, err)
-	return buildCSVCleanupFunc(t, c, crc, csv, namespace, cleanupCRDs, cleanupAPIServices), nil
+	Expect(err).ToNot(HaveOccurred())
+	return buildCSVCleanupFunc(c, crc, csv, namespace, cleanupCRDs, cleanupAPIServices), nil
 
 }
 
@@ -3408,7 +3411,7 @@ var csvFailedChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseFailed)
 var csvAnyChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting, v1alpha1.CSVPhaseFailed)
 var csvCopiedChecker = buildCSVReasonChecker(v1alpha1.CSVReasonCopied)
 
-func fetchCSV(t GinkgoTInterface, c versioned.Interface, name, namespace string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
+func fetchCSV(c versioned.Interface, name, namespace string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 
@@ -3417,12 +3420,12 @@ func fetchCSV(t GinkgoTInterface, c versioned.Interface, name, namespace string,
 		if err != nil {
 			return false, err
 		}
-		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
+		ctx.Ctx().Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		return checker(fetched), nil
 	})
 
 	if err != nil {
-		t.Logf("never got correct status: %#v", fetched.Status)
+		ctx.Ctx().Logf("never got correct status: %#v", fetched.Status)
 	}
 	return fetched, err
 }

@@ -281,7 +281,7 @@ var _ = Describe("Install Plan", func() {
 			cleanupCRD, err := createCRD(c, dependentCRD)
 			require.NoError(GinkgoT(), err)
 			defer cleanupCRD()
-			cleanupCSV, err := createCSV(GinkgoT(), c, crc, dependentBetaCSV, testNamespace, true, false)
+			cleanupCSV, err := createCSV(c, crc, dependentBetaCSV, testNamespace, true, false)
 			require.NoError(GinkgoT(), err)
 			defer cleanupCSV()
 			GinkgoT().Log("Dependent CRD and preexisting CSV created")
@@ -468,7 +468,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Ensure correct in-cluster resource(s)
-			fetchedCSV, err := fetchCSV(GinkgoT(), crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
 		})
@@ -846,7 +846,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
-			fetchedCSV, err := fetchCSV(GinkgoT(), crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			GinkgoT().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
@@ -1037,7 +1037,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
-			fetchedCSV, err := fetchCSV(GinkgoT(), crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Ensure CRD versions are accurate
@@ -1091,7 +1091,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
-			fetchedCSV, err = fetchCSV(GinkgoT(), crc, mainDeltaCSV.GetName(), testNamespace, csvSucceededChecker)
+			fetchedCSV, err = fetchCSV(crc, mainDeltaCSV.GetName(), testNamespace, csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Ensure CRD versions are accurate

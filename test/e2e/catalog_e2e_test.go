@@ -302,7 +302,7 @@ var _ = Describe("Catalog", func() {
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 
 		ipList, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
@@ -390,7 +390,7 @@ var _ = Describe("Catalog", func() {
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 	})
 	It("gRPC address catalog source", func() {
@@ -519,7 +519,7 @@ var _ = Describe("Catalog", func() {
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update the catalog's address to point at the other registry pod's cluster ip
@@ -591,7 +591,7 @@ var _ = Describe("Catalog", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		// Wait for csv to succeed
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Delete the registry pod
@@ -676,7 +676,7 @@ var _ = Describe("Catalog", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		// Wait for csv to succeed
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Delete the registry pod
@@ -832,7 +832,7 @@ var _ = Describe("Catalog", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		// Wait for csv to succeed
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		registryCheckFunc := func(podList *corev1.PodList) bool {
@@ -923,7 +923,7 @@ var _ = Describe("Catalog", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		// Wait for csv to succeed
-		csv, err := fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// check version of running csv to ensure the latest version (0.9.2) was installed onto the cluster
@@ -1029,7 +1029,7 @@ var _ = Describe("Catalog", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		// Wait for busybox v2 csv to succeed and check the replaces field
-		csv, err := fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), "busybox.v1.0.0", csv.Spec.Replaces)
 
@@ -1042,7 +1042,7 @@ var _ = Describe("Catalog", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		// Wait for busybox-dependency v2 csv to succeed and check the replaces field
-		csv, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		csv, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), "busybox-dependency.v1.0.0", csv.Spec.Replaces)
 	})

@@ -58,7 +58,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 	})
 
@@ -77,7 +77,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
 
 		// Will be cleaned up by the upgrade process
-		_, err := createCSV(GinkgoT(), c, crc, stableCSV, testNamespace, false, false)
+		_, err := createCSV(c, crc, stableCSV, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionCleanup := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
@@ -86,7 +86,7 @@ var _ = Describe("Subscription", func() {
 		subscription, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 	})
 	It("skip range", func() {
@@ -210,7 +210,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		_, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 	})
 
@@ -1203,7 +1203,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		csv, err := fetchCSV(GinkgoT(), crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 
 		proxyEnv := proxyEnvVarFunc(GinkgoT(), config)
@@ -1419,11 +1419,11 @@ var _ = Describe("Subscription", func() {
 		_, err = fetchInstallPlan(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 		require.NoError(GinkgoT(), err)
 		// Fetch CSVs A, B and C
-		_, err = fetchCSV(GinkgoT(), crClient, csvB.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crClient, csvB.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
-		_, err = fetchCSV(GinkgoT(), crClient, csvC.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crClient, csvC.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
-		_, err = fetchCSV(GinkgoT(), crClient, csvA.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crClient, csvA.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		// Ensure csvABC is not installed
 		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvABC.Name, metav1.GetOptions{})
