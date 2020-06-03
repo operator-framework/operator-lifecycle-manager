@@ -1,5 +1,5 @@
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/api.RegistryClient
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_registry_interface.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
+//go:generate counterfeiter -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/api.RegistryClient
+//go:generate counterfeiter -o fakes/fake_registry_interface.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
 package resolver
 
 import (
@@ -10,8 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
-	registryapi "github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
@@ -28,10 +26,10 @@ type SourceRef struct {
 }
 
 type SourceQuerier interface {
-	FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*api.Bundle, *CatalogKey, error)
-	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
-	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
-	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
+	FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*opregistry.Bundle, *CatalogKey, error)
+	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
+	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
+	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
 	Queryable() error
 }
 
@@ -54,7 +52,7 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 	return nil
 }
 
-func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*registryapi.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*opregistry.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if ok {

@@ -605,7 +605,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create the catalog source
 		mainCatalogSourceName := genName("mock-ocs-main-" + strings.ToLower(t.Name()) + "-")
-		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{dependentStableCSV, mainStableCSV, mainBetaCSV})
+		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentStableCSV, mainStableCSV, mainBetaCSV})
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
 		_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)

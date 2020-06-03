@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
@@ -14,10 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/operator-framework/api/pkg/lib/version"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 )
 
 func TestNewNamespaceSourceQuerier(t *testing.T) {
@@ -122,9 +121,9 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		CatalogKey{"test", "ns"}:  &fakeSource,
 		CatalogKey{"test2", "ns"}: &fakeSource2,
 	}
-	bundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
-	bundle2 := &api.Bundle{CsvName: "test2", PackageName: "testPkg2", ChannelName: "testChannel2"}
-	fakeSource.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*api.Bundle, error) {
+	bundle := opregistry.NewBundle("test", "testPkg", "testChannel")
+	bundle2 := opregistry.NewBundle("test2", "testPkg2", "testChannel2")
+	fakeSource.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*opregistry.Bundle, error) {
 		if group != "group" || version != "version" || kind != "kind" {
 			return nil, fmt.Errorf("Not Found")
 		}
@@ -136,13 +135,13 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		}
 		return bundle2, nil
 	}
-	fakeSource.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind, pkgName string) (*api.Bundle, error) {
+	fakeSource.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind, pkgName string) (*opregistry.Bundle, error) {
 		if group != "group" || version != "version" || kind != "kind" {
 			return nil, fmt.Errorf("Not Found")
 		}
 		return bundle, nil
 	}
-	fakeSource2.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind, pkgName string) (*api.Bundle, error) {
+	fakeSource2.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind, pkgName string) (*opregistry.Bundle, error) {
 		if group != "group2" || version != "version2" || kind != "kind2" {
 			return nil, fmt.Errorf("Not Found")
 		}
@@ -240,11 +239,11 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 	initialSource := fakes.FakeClientInterface{}
 	otherSource := fakes.FakeClientInterface{}
-	initalBundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
-	startingBundle := &api.Bundle{CsvName: "starting-test", PackageName: "testPkg", ChannelName: "testChannel"}
-	otherBundle := &api.Bundle{CsvName: "other", PackageName: "otherPkg", ChannelName: "otherChannel"}
-	initialSource.GetBundleStub = func(ctx context.Context, pkgName, channelName, csvName string) (*api.Bundle, error) {
-		if csvName != startingBundle.CsvName {
+	initalBundle := opregistry.NewBundle("test", "testPkg", "testChannel")
+	startingBundle := opregistry.NewBundle("starting-test", "testPkg", "testChannel")
+	otherBundle := opregistry.NewBundle("other", "otherPkg", "otherChannel")
+	initialSource.GetBundleStub = func(ctx context.Context, pkgName, channelName, csvName string) (*opregistry.Bundle, error) {
+		if csvName != startingBundle.Name {
 			return nil, fmt.Errorf("not found")
 		}
 		return startingBundle, nil

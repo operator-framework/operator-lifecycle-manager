@@ -1,4 +1,4 @@
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o resolver/fakes/fake_registry_client_interface.go . ClientInterface
+//go:generate counterfeiter -o resolver/fakes/fake_registry_client_interface.go . ClientInterface
 package registry
 
 import (
@@ -11,6 +11,9 @@ import (
 	registryapi "github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
+	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 )
 
 // ChannelEntryStream interface
@@ -21,7 +24,7 @@ type ChannelEntryStream interface {
 // ClientInterface that extends client.Interface
 type ClientInterface interface {
 	client.Interface
-	FindBundleThatProvides(ctx context.Context, group, version, kind, excludedPkgName string) (*registryapi.Bundle, error)
+	FindBundleThatProvides(ctx context.Context, group, version, kind, excludedPkgName string) (*opregistry.Bundle, error)
 	GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (*ChannelEntryIterator, error)
 }
 
@@ -63,7 +66,11 @@ type Client struct {
 // NewClientFromConn returns the next Channel Entry in the grpc stream
 func NewClientFromConn(conn *grpc.ClientConn) *Client {
 	return &Client{
-		Client: client.NewClientFromConn(conn),
+		Client: &client.Client{
+			Registry: api.NewRegistryClient(conn),
+			Health:   grpc_health_v1.NewHealthClient(conn),
+			Conn:     conn,
+		},
 	}
 }
 
@@ -81,7 +88,7 @@ func (rc *Client) GetLatestChannelEntriesThatProvide(ctx context.Context, group,
 
 // FindBundleThatProvides returns a bundle that provides the request API and
 // doesn't belong to the provided package
-func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, kind, excludedPkgName string) (*registryapi.Bundle, error) {
+func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, kind, excludedPkgName string) (*opregistry.Bundle, error) {
 	it, err := rc.GetLatestChannelEntriesThatProvide(ctx, group, version, kind)
 	if err != nil {
 		return nil, err
@@ -94,7 +101,7 @@ func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, ki
 	if err != nil {
 		return nil, err
 	}
-	return bundle, nil
+	return opregistry.NewBundleFromStrings(bundle.CsvName, bundle.PackageName, bundle.ChannelName, bundle.Object)
 }
 
 // FilterChannelEntries filters out a channel entries that provide the requested

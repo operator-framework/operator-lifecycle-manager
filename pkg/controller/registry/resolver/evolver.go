@@ -113,9 +113,9 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 		e.gen.MarkAPIChecked(*api)
 
 		// identify the initialSource
-		initialSource := CatalogKey{}
+		var initialSource *OperatorSourceInfo
 		for _, operator := range e.gen.MissingAPIs()[*api] {
-			initialSource = operator.SourceInfo().Catalog
+			initialSource = operator.SourceInfo()
 			break
 		}
 
