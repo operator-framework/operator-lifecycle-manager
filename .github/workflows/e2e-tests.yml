@@ -8,5 +8,12 @@ jobs:
   run-e2e-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - run: make -f x.mk e2e-local
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Run e2e tests
+        run: make -f x.mk e2e-local
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: e2e-test-output
+          path: ${{ github.workspace }}/bin/junit_e2e_*.xml
