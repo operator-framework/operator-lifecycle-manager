@@ -6,7 +6,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -66,7 +65,7 @@ func cleanup(logger *logrus.Logger, c operatorclient.ClientInterface, crc versio
 }
 
 func waitForDelete(checkResource checkResourceFunc, deleteResource deleteResourceFunc) error {
-	if err := checkResource(); err != nil && errors.IsNotFound(err) {
+	if err := checkResource(); err != nil && k8serrors.IsNotFound(err) {
 		return nil
 	}
 	if err := deleteResource(); err != nil {
@@ -74,7 +73,7 @@ func waitForDelete(checkResource checkResourceFunc, deleteResource deleteResourc
 	}
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		err := checkResource()
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			return true, nil
 		}
 		if err != nil {
