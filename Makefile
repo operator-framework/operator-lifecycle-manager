@@ -224,7 +224,7 @@ endif
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)
-	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/chart/crds deploy/$(target)/quickstart/olm.yaml deploy/$(target)/quickstart/crds.yaml deploy/$(target)/quickstart/install.sh
+	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml deploy/$(target)/quickstart/crds.yaml deploy/$(target)/quickstart/install.sh
 endif
 
 .PHONY: run-console-local

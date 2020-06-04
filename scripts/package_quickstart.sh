@@ -9,25 +9,24 @@ if [[ ${#@} < 3 ]]; then
     exit 1
 fi
 
-manifestdir=$1
-crddir=$2
-out=$3
-outcrds=$4
-outscript=$5
+dir=$1
+out=$2
+outcrds=$3
+outscript=$4
 
 rm -f ${out}
 rm -f ${outcrds}
 touch ${out}
 touch ${outcrds}
 
-for f in ${manifestdir}/*.yaml
+for f in ${dir}/*.yaml
 do
-    awk 'NR==1 && !/^---*/ {print "---"} !/^[[:space:]]*#/ {print}' $f >> ${out}
-done
-
-for f in ${crddir}/*.yaml
-do 
-    awk 'NR==1 && !/^---*/ {print "---"} !/^[[:space:]]*#/ {print}' $f >> ${outcrds}
+    if [[ $f == *.crd.yaml ]]
+    then
+    	awk 'NR==1 && !/^---*/ {print "---"} !/^[[:space:]]*#/ {print}' $f >> ${outcrds}
+    else
+    	awk 'NR==1 && !/^---*/ {print "---"} !/^[[:space:]]*#/ {print}' $f >> ${out}
+    fi
 done
 
 echo "Wrote manifests to ${out} and ${outcrds}"
