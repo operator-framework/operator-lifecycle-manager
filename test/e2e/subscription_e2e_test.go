@@ -424,6 +424,7 @@ var _ = Describe("Subscription", func() {
 		// Set up async watches that will fail the test if csvB doesn't get created in between csvA and csvC
 		var wg sync.WaitGroup
 		go func(t GinkgoTInterface) {
+			defer GinkgoRecover()
 			wg.Add(1)
 			defer wg.Done()
 			_, err := awaitCSV(GinkgoT(), crc, testNamespace, csvB.GetName(), csvReplacingChecker)
