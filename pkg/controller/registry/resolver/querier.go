@@ -1,4 +1,5 @@
-//go:generate counterfeiter -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/api.RegistryClient
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_registry_interface.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
 package resolver
 
 import (
@@ -10,8 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
+	registryapi "github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 const SkipPackageAnnotationKey = "olm.skipRange"
@@ -24,7 +28,7 @@ type SourceRef struct {
 }
 
 type SourceQuerier interface {
-	FindProvider(api opregistry.APIKey, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
+	FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*api.Bundle, *CatalogKey, error)
 	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
 	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
 	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
@@ -32,12 +36,12 @@ type SourceQuerier interface {
 }
 
 type NamespaceSourceQuerier struct {
-	sources map[CatalogKey]client.Interface
+	sources map[CatalogKey]registry.ClientInterface
 }
 
 var _ SourceQuerier = &NamespaceSourceQuerier{}
 
-func NewNamespaceSourceQuerier(sources map[CatalogKey]client.Interface) *NamespaceSourceQuerier {
+func NewNamespaceSourceQuerier(sources map[CatalogKey]registry.ClientInterface) *NamespaceSourceQuerier {
 	return &NamespaceSourceQuerier{
 		sources: sources,
 	}
@@ -50,23 +54,23 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 	return nil
 }
 
-func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*registryapi.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if ok {
-			if bundle, err := source.GetBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind); err == nil {
+			if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, excludedPkgName); err == nil {
 				return bundle, &initialSource, nil
 			}
-			if bundle, err := source.GetBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind); err == nil {
+			if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, excludedPkgName); err == nil {
 				return bundle, &initialSource, nil
 			}
 		}
 	}
 	for key, source := range q.sources {
-		if bundle, err := source.GetBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind); err == nil {
+		if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind, excludedPkgName); err == nil {
 			return bundle, &key, nil
 		}
-		if bundle, err := source.GetBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind); err == nil {
+		if bundle, err := source.FindBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind, excludedPkgName); err == nil {
 			return bundle, &key, nil
 		}
 	}

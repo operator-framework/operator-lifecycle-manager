@@ -1404,7 +1404,183 @@ func TestCreateNewSubscriptionWithDependencies(t *testing.T) {
 	installPlan, err := fetchInstallPlan(t, crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 	require.NoError(t, err)
 	require.Len(t, installPlan.Status.CatalogSources, 1)
+}
 
+// Test creation with dependencies required and provided in different versions of an
+// operator in the same package
+// CatSrc:
+//
+// Package A (apackage)
+// Default Channel: Stable
+// Channel Stable:
+// Operator A (Requires: CRD 1, CRD 2 )
+// Channel Alpha:
+// Operator ABC (Provides: CRD 1, CRD 2 )
+// Package B (apackage)
+// Default Channel: Stable
+// Channel Stable:
+// Operator B (Provides: CRD)
+// CatSrc2:
+//
+// Package B (bpackage)
+// Default Channel: Stable
+// Channel Stable:
+// Operator C (Provides: CRD 2)
+// Then create a subscription:
+//
+// CatalogSource: CatSrc
+// Package: Package A,
+// Channel: Stable,
+// StartingCSV: CSV A
+//
+// Check installed:
+//
+// CSV A, CSV B, CSV C
+//
+// CSV A required B and C but didn't get them from Package A
+func TestCreateNewSubscriptionWithDependenciesSamePackage(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	kubeClient := newKubeClient(t)
+	crClient := newCRClient(t)
+
+	permissions := deploymentPermissions(t)
+
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	crdPlural2 := genName("ins")
+	crdName2 := crdPlural2 + ".cluster.com"
+
+	crd := apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	}
+
+	crd2 := apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName2,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural2,
+				Singular: crdPlural2,
+				Kind:     crdPlural2,
+				ListKind: "list" + crdPlural2,
+			},
+			Scope: "Namespaced",
+		},
+	}
+
+	// Create CSV
+	packageName1 := genName("apackage")
+	packageName2 := genName("bpackage")
+
+	namedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
+	depNamedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
+	depNamedStrategy2 := newNginxInstallStrategy((genName("dep")), permissions, nil)
+	// csvA requires CRD1 and CRD2
+	csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd, crd2}, namedStrategy)
+	// csvABC provides CRD1 and CRD2 in the same catalogsource with csvA (apackage)
+	// also in the same package with csvA but different channel
+	csvABC := newCSV("nginx-a-bc", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, namedStrategy)
+	// csvB provides CRD1 in the same catalogsource with csvA (apackage)
+	csvB := newCSV("nginx-b-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
+	// csvC provides CRD2 in the different catalogsource with csvA (apackage)
+	csvC := newCSV("nginx-c-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, depNamedStrategy2)
+
+	// Create PackageManifests 1
+	// Contain csvA, ABC and B
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName1,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvA.GetName()},
+				{Name: alphaChannel, CurrentCSVName: csvABC.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+		{
+			PackageName: packageName2,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvB.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create PackageManifests 2
+	// Contain csvC
+	manifests2 := []registry.PackageManifest{
+		{
+			PackageName: packageName2,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvC.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	catalogSourceName := genName("catsrc")
+	catsrc, cleanup := createInternalCatalogSource(t, kubeClient, crClient, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvABC, csvB})
+	defer cleanup()
+
+	// Ensure that the catalog source is resolved before we create a subscription.
+	_, err := fetchCatalogSource(t, crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionSpec := &v1alpha1.SubscriptionSpec{
+		CatalogSource:          catsrc.GetName(),
+		CatalogSourceNamespace: catsrc.GetNamespace(),
+		Package:                packageName1,
+		Channel:                stableChannel,
+		StartingCSV:            csvA.GetName(),
+		InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+	}
+
+	catalogSourceName2 := genName("catsrc")
+	catsrc2, cleanup2 := createInternalCatalogSource(t, kubeClient, crClient, catalogSourceName2, testNamespace, manifests2, []apiextensions.CustomResourceDefinition{crd2}, []v1alpha1.ClusterServiceVersion{csvC})
+	defer cleanup2()
+
+	// Ensure that the catalog source is resolved before we create a subscription.
+	_, err = fetchCatalogSource(t, crClient, catsrc2.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create a subscription that has a dependency
+	subscriptionName := genName("sub-")
+	cleanupSubscription := createSubscriptionForCatalogWithSpec(t, crClient, testNamespace, subscriptionName, subscriptionSpec)
+	defer cleanupSubscription()
+
+	subscription, err := fetchSubscription(t, crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Check that a single catalog source was used to resolve the InstallPlan
+	_, err = fetchInstallPlan(t, crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+	require.NoError(t, err)
+	// Fetch CSVs A, B and C
+	_, err = fetchCSV(t, crClient, csvB.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+	_, err = fetchCSV(t, crClient, csvC.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+	_, err = fetchCSV(t, crClient, csvA.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+	// Ensure csvABC is not installed
+	_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(csvABC.Name, metav1.GetOptions{})
+	require.Error(t, err)
 }
 
 func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) {
