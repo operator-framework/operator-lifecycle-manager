@@ -42,9 +42,7 @@ func (r ManifestResult) HasWarn() bool {
 // https://godoc.org/k8s.io/apimachinery/pkg/util/validation/field
 
 // Error is an implementation of the 'error' interface, which represents a
-// warning or an error in a yaml file. Error type is taken as is from
-// https://github.com/operator-framework/operator-registry/blob/master/vendor/k8s.io/apimachinery/pkg/util/validation/field/errors.go#L31
-// to maintain compatibility with upstream.
+// warning or an error in a yaml file.
 type Error struct {
 	// Type is the ErrorType string constant that represents the kind of
 	// error, ex. "MandatoryStructMissing", "I/O".

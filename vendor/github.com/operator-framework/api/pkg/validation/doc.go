@@ -8,7 +8,7 @@
 // by exported functions for missing mandatory and optional fields,
 // respectively. Each Error implements the error interface.
 //
-// Manifest and Bundle format: https://github.com/operator-framework/operator-registry/#manifest-format
+// Bundle format: https://github.com/operator-framework/operator-registry/#manifest-format
 // ClusterServiceVersion documentation: https://github.com/operator-framework/operator-lifecycle-manager/blob/master/Documentation/design/building-your-csv.md
 // Package manifest documentation: https://github.com/operator-framework/operator-lifecycle-manager#discovery-catalogs-and-automated-upgrades
 // CustomResourceDefinition documentation: https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definitions/

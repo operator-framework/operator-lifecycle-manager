@@ -3,10 +3,9 @@ package internal
 import (
 	"fmt"
 
+	"github.com/operator-framework/api/pkg/manifests"
 	"github.com/operator-framework/api/pkg/validation/errors"
 	interfaces "github.com/operator-framework/api/pkg/validation/interfaces"
-
-	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 var PackageManifestValidator interfaces.Validator = interfaces.ValidatorFunc(validatePackageManifests)
@@ -14,20 +13,20 @@ var PackageManifestValidator interfaces.Validator = interfaces.ValidatorFunc(val
 func validatePackageManifests(objs ...interface{}) (results []errors.ManifestResult) {
 	for _, obj := range objs {
 		switch v := obj.(type) {
-		case *registry.PackageManifest:
+		case *manifests.PackageManifest:
 			results = append(results, validatePackageManifest(v))
 		}
 	}
 	return results
 }
 
-func validatePackageManifest(pkg *registry.PackageManifest) errors.ManifestResult {
+func validatePackageManifest(pkg *manifests.PackageManifest) errors.ManifestResult {
 	result := errors.ManifestResult{Name: pkg.PackageName}
 	result.Add(validateChannels(pkg)...)
 	return result
 }
 
-func validateChannels(pkg *registry.PackageManifest) (errs []errors.Error) {
+func validateChannels(pkg *manifests.PackageManifest) (errs []errors.Error) {
 	if pkg.PackageName == "" {
 		errs = append(errs, errors.ErrInvalidPackageManifest("packageName empty", pkg.PackageName))
 	}
