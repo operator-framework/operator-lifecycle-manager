@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-registry/pkg/registry"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
@@ -26,20 +24,9 @@ func validateCSVs(objs ...interface{}) (results []errors.ManifestResult) {
 		switch v := obj.(type) {
 		case *v1alpha1.ClusterServiceVersion:
 			results = append(results, validateCSV(v))
-		case *registry.ClusterServiceVersion:
-			results = append(results, validateCSVRegistry(v))
 		}
 	}
 	return results
-}
-
-func validateCSVRegistry(bcsv *registry.ClusterServiceVersion) (result errors.ManifestResult) {
-	csv, err := bundleCSVToCSV(bcsv)
-	if err != (errors.Error{}) {
-		result.Add(err)
-		return result
-	}
-	return validateCSV(csv)
 }
 
 // Iterates over the given CSV. Returns a ManifestResult type object.
@@ -186,16 +173,4 @@ func validateInstallModes(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Er
 		errs = append(errs, errors.ErrInvalidCSV("none of InstallModeTypes are supported", csv.GetName()))
 	}
 	return errs
-}
-
-func bundleCSVToCSV(bcsv *registry.ClusterServiceVersion) (*v1alpha1.ClusterServiceVersion, errors.Error) {
-	spec := v1alpha1.ClusterServiceVersionSpec{}
-	if err := json.Unmarshal(bcsv.Spec, &spec); err != nil {
-		return nil, errors.ErrInvalidParse(fmt.Sprintf("converting bundle CSV %q", bcsv.GetName()), err)
-	}
-	return &v1alpha1.ClusterServiceVersion{
-		TypeMeta:   bcsv.TypeMeta,
-		ObjectMeta: bcsv.ObjectMeta,
-		Spec:       spec,
-	}, errors.Error{}
 }
