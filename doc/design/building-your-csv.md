@@ -202,7 +202,7 @@ An APIService is uniquely identified by the group-version it provides and can be
 **Kind**: A kind that the APIService is expected to provide.
 
 **DeploymentName**:
-Name of the deployment defined by your CSV that corresponds to your APIService (required for owned APIServices). During the CSV pending phase, the OLM Operator will search your CSV's InstallStrategy for a deployment spec with a matching name, and if not found, will not transition the CSV to the install ready phase.  
+Name of the deployment defined by your CSV that corresponds to your APIService (required for owned APIServices). During the CSV pending phase, the OLM Operator will search your CSV's InstallStrategy for a deployment spec with a matching name, and if not found, will not transition the CSV to the install ready phase.
 
 **Resources**:
 Your APIServices will own one or more types of Kubernetes objects. These are listed in the resources section to inform your end-users of the objects they might need to troubleshoot or how to connect to the application, such as the Service or Ingress rule that exposes a database.
@@ -345,7 +345,7 @@ Here’s a full example:
                 imagePullSecrets:
                   - name: ''
                 nodeSelector:
-                  beta.kubernetes.io/os: linux
+                  kubernetes.io/os: linux
                 serviceAccountName: example-operator
       permissions:
         - serviceAccountName: example-operator

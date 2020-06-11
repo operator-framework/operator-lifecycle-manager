@@ -85,7 +85,7 @@ spec:
               port: 8080
           terminationMessagePolicy: FallbackToLogsOnError
           env:
-        
+
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
@@ -96,10 +96,10 @@ spec:
             requests:
               cpu: 10m
               memory: 160Mi
-          
-      
+
+
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -148,15 +148,15 @@ spec:
               port: 8080
           terminationMessagePolicy: FallbackToLogsOnError
           env:
-          
+
           resources:
             requests:
               cpu: 10m
               memory: 80Mi
-          
-      
+
+
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -285,7 +285,7 @@ spec:
             spec:
               serviceAccountName: olm-operator-serviceaccount
               nodeSelector:
-                beta.kubernetes.io/os: linux
+                kubernetes.io/os: linux
               containers:
               - name: packageserver
                 command:
