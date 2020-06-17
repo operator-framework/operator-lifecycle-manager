@@ -8,7 +8,6 @@ import (
 	"time"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -40,6 +39,7 @@ import (
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"

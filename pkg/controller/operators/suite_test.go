@@ -7,13 +7,16 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/operator-framework/api/crds"
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/reference"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -23,14 +26,17 @@ import (
 
 	// +kubebuilder:scaffold:imports
 
+	"github.com/operator-framework/api/crds"
+	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 const (
-	timeout  = time.Second * 10
+	timeout  = time.Second * 20
 	interval = time.Millisecond * 100
 )
 
@@ -47,15 +53,30 @@ var (
 		GracePeriodSeconds: &gracePeriod,
 		PropagationPolicy:  &propagation,
 	}
-	genName = names.SimpleNameGenerator.GenerateName
+	genName  = names.SimpleNameGenerator.GenerateName
+	fixtures = testobj.NewFixtureFiller(
+		testobj.WithFixtureFile(&appsv1.Deployment{}, "testdata/fixtures/deployment.yaml"),
+		testobj.WithFixtureFile(&corev1.Service{}, "testdata/fixtures/service.yaml"),
+		testobj.WithFixtureFile(&corev1.ServiceAccount{}, "testdata/fixtures/sa.yaml"),
+		testobj.WithFixtureFile(&corev1.Secret{}, "testdata/fixtures/secret.yaml"),
+		testobj.WithFixtureFile(&corev1.ConfigMap{}, "testdata/fixtures/configmap.yaml"),
+		testobj.WithFixtureFile(&rbacv1.Role{}, "testdata/fixtures/role.yaml"),
+		testobj.WithFixtureFile(&rbacv1.RoleBinding{}, "testdata/fixtures/rb.yaml"),
+		testobj.WithFixtureFile(&rbacv1.ClusterRole{}, "testdata/fixtures/clusterrole.yaml"),
+		testobj.WithFixtureFile(&rbacv1.ClusterRoleBinding{}, "testdata/fixtures/crb.yaml"),
+		testobj.WithFixtureFile(&apiextensionsv1.CustomResourceDefinition{}, "testdata/fixtures/crd.yaml"),
+		testobj.WithFixtureFile(&apiregistrationv1.APIService{}, "testdata/fixtures/apiservice.yaml"),
+	)
 )
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecsWithDefaultAndCustomReporters(t,
+	RunSpecsWithDefaultAndCustomReporters(
+		t,
 		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
+		[]Reporter{printer.NewlineReporter{}},
+	)
 }
 
 var _ = BeforeSuite(func() {
@@ -83,19 +104,26 @@ var _ = BeforeSuite(func() {
 	By("Setting up a controller manager")
 	err = AddToScheme(scheme)
 	Expect(err).ToNot(HaveOccurred())
-
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 
-	reconciler, err := NewOperatorReconciler(
+	operatorReconciler, err := NewOperatorReconciler(
 		mgr.GetClient(),
 		ctrl.Log.WithName("controllers").WithName("Operator"),
 		mgr.GetScheme(),
 	)
 	Expect(err).ToNot(HaveOccurred())
 
-	By("Adding the operator controller to the manager")
-	Expect(reconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
+	adoptionReconciler, err := NewAdoptionReconciler(
+		mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("Adoption"),
+		mgr.GetScheme(),
+	)
+	Expect(err).ToNot(HaveOccurred())
+
+	By("Adding controllers to the manager")
+	Expect(operatorReconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
+	Expect(adoptionReconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
 
 	stop = make(chan struct{})
 	go func() {

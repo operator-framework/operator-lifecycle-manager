@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -23,16 +24,19 @@ func WithName(name string, obj runtime.Object) runtime.Object {
 	return out
 }
 
-// WithNamespacedName sets the namespace and name of the given object and panics if it can't access the object's meta.
-func WithNamespacedName(name *types.NamespacedName, obj runtime.Object) runtime.Object {
-	out := obj.DeepCopyObject()
-	m, err := meta.Accessor(out)
-	if err != nil {
-		panic(fmt.Sprintf("error setting namespaced name: %v", err))
-	}
+// WithNamespace sets the namespace of the given object and panics if it can't access the object's meta.
+func WithNamespace(namespace string, obj runtime.Object) RuntimeMetaObject {
+	out := obj.DeepCopyObject().(RuntimeMetaObject)
+	out.SetNamespace(namespace)
 
-	m.SetNamespace(name.Namespace)
-	m.SetName(name.Name)
+	return out
+}
+
+// WithNamespacedName sets the namespace and name of the given object.
+func WithNamespacedName(name *types.NamespacedName, obj runtime.Object) RuntimeMetaObject {
+	out := obj.DeepCopyObject().(RuntimeMetaObject)
+	out.SetNamespace(name.Namespace)
+	out.SetName(name.Name)
 
 	return out
 }
@@ -67,6 +71,13 @@ func WithLabel(key, value string, objs ...runtime.Object) (labelled []runtime.Ob
 	return
 }
 
+// WithLabels sets the labels of an object and returns the updated result.
+func WithLabels(labels map[string]string, obj RuntimeMetaObject) RuntimeMetaObject {
+	out := obj.DeepCopyObject().(RuntimeMetaObject)
+	out.SetLabels(labels)
+	return out
+}
+
 // StripLabel removes the label with the given key from each object given and panics if it can't access an object's meta.
 func StripLabel(key string, objs ...runtime.Object) (stripped []runtime.Object) {
 	for _, obj := range objs {
@@ -84,7 +95,7 @@ func StripLabel(key string, objs ...runtime.Object) (stripped []runtime.Object) 
 	return
 }
 
-// GetUnstructured gets an Unstructured for the given object and panics if it can't.
+// GetUnstructured gets an Unstructured for the given object and panics if it fails.
 func GetUnstructured(scheme *runtime.Scheme, obj runtime.Object) *unstructured.Unstructured {
 	u := &unstructured.Unstructured{}
 	if err := scheme.Convert(obj, u, nil); err != nil {
@@ -94,7 +105,7 @@ func GetUnstructured(scheme *runtime.Scheme, obj runtime.Object) *unstructured.U
 	return u
 }
 
-// WithItems sets the items of the list given and panics if it can't.
+// WithItems sets the items of the list given and panics if it fails.
 func WithItems(list runtime.Object, items ...runtime.Object) runtime.Object {
 	out := list.DeepCopyObject()
 	if err := meta.SetList(out, items); err != nil {
@@ -112,4 +123,27 @@ func MarshalJSON(obj runtime.Object) (marshaled []byte) {
 	}
 
 	return
+}
+
+var (
+	notController          = false
+	dontBlockOwnerDeletion = false
+)
+
+// WithOwner appends the an owner to an object and returns a panic if it fails.
+func WithOwner(owner, obj RuntimeMetaObject) RuntimeMetaObject {
+	out := obj.DeepCopyObject().(RuntimeMetaObject)
+	gvk := owner.GetObjectKind().GroupVersionKind()
+	apiVersion, kind := gvk.ToAPIVersionAndKind()
+	refs := append(out.GetOwnerReferences(), metav1.OwnerReference{
+		APIVersion:         apiVersion,
+		Kind:               kind,
+		Name:               owner.GetName(),
+		UID:                owner.GetUID(),
+		BlockOwnerDeletion: &dontBlockOwnerDeletion,
+		Controller:         &notController,
+	})
+	out.SetOwnerReferences(refs)
+
+	return out
 }

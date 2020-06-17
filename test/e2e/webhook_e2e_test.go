@@ -487,20 +487,35 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 	})
 	It("Allows multiple installs of the same webhook", func() {
-		var csv v1alpha1.ClusterServiceVersion
-		namespace1, ns1CleanupFunc := newNamespace(GinkgoT(), c, genName("webhook-test-"))
-		defer ns1CleanupFunc()
+		namespace1, cleanupNS1 := newNamespace(c, genName("webhook-test-"))
+		defer cleanupNS1()
 
-		namespace2, ns2CleanupFunc := newNamespace(GinkgoT(), c, genName("webhook-test-"))
-		defer ns2CleanupFunc()
+		namespace2, cleanupNS2 := newNamespace(c, genName("webhook-test-"))
+		defer cleanupNS2()
 
 		og1 := newOperatorGroup(namespace1.Name, genName("test-og-"), nil, nil, []string{"test-go-"}, false)
-		og1, err := crc.OperatorsV1().OperatorGroups(namespace1.Name).Create(context.TODO(), og1, metav1.CreateOptions{})
-		Expect(err).Should(BeNil())
+		Eventually(func() error {
+			og, err := crc.OperatorsV1().OperatorGroups(namespace1.Name).Create(context.TODO(), og1, metav1.CreateOptions{})
+			if err != nil {
+				return err
+			}
+
+			og1 = og
+
+			return nil
+		}).Should(Succeed())
 
 		og2 := newOperatorGroup(namespace2.Name, genName("test-og-"), nil, nil, []string{"test-go-"}, false)
-		og2, err = crc.OperatorsV1().OperatorGroups(namespace2.Name).Create(context.TODO(), og2, metav1.CreateOptions{})
-		Expect(err).Should(BeNil())
+		Eventually(func() error {
+			og, err := crc.OperatorsV1().OperatorGroups(namespace2.Name).Create(context.TODO(), og2, metav1.CreateOptions{})
+			if err != nil {
+				return err
+			}
+
+			og2 = og
+
+			return nil
+		}).Should(Succeed())
 
 		sideEffect := admissionregistrationv1.SideEffectClassNone
 		webhook := v1alpha1.WebhookDescription{
@@ -512,33 +527,48 @@ var _ = Describe("CSVs with a Webhook", func() {
 			SideEffects:             &sideEffect,
 		}
 
-		csv = createCSVWithWebhook(namespace.GetName(), webhook)
+		csv := createCSVWithWebhook(namespace.GetName(), webhook)
 
 		csv.Namespace = namespace1.GetName()
-		cleanupCSV, err := createCSV(c, crc, csv, namespace1.Name, false, false)
-		Expect(err).Should(BeNil())
+		var cleanupCSV cleanupFunc
+		Eventually(func() (err error) {
+			cleanupCSV, err = createCSV(c, crc, csv, namespace1.Name, false, false)
+			return
+		}).Should(Succeed())
 		defer cleanupCSV()
 
-		_, err = fetchCSV(crc, csv.Name, namespace1.Name, csvSucceededChecker)
-		Expect(err).Should(BeNil())
+		Eventually(func() (err error) {
+			_, err = fetchCSV(crc, csv.Name, namespace1.Name, csvSucceededChecker)
+			return
+		}).Should(Succeed())
 
 		csv.Namespace = namespace2.Name
-		cleanupCSV, err = createCSV(c, crc, csv, namespace2.Name, false, false)
-		Expect(err).Should(BeNil())
+		Eventually(func() (err error) {
+			cleanupCSV, err = createCSV(c, crc, csv, namespace2.Name, false, false)
+			return
+		}).Should(Succeed())
 		defer cleanupCSV()
 
-		_, err = fetchCSV(crc, csv.Name, namespace2.Name, csvSucceededChecker)
-		Expect(err).Should(BeNil())
+		Eventually(func() (err error) {
+			_, err = fetchCSV(crc, csv.Name, namespace2.Name, csvSucceededChecker)
+			return
+		}).Should(Succeed())
 
-		webhooks, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{})
-		Expect(err).Should(BeNil())
-		count := 0
-		for _, w := range webhooks.Items {
-			if strings.HasPrefix(w.GetName(), webhook.GenerateName) {
-				count++
+		Eventually(func() (count int, err error) {
+			var webhooks *admissionregistrationv1.ValidatingWebhookConfigurationList
+			webhooks, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return
 			}
-		}
-		Expect(count).Should(Equal(2))
+
+			for _, w := range webhooks.Items {
+				if strings.HasPrefix(w.GetName(), webhook.GenerateName) {
+					count++
+				}
+			}
+
+			return
+		}).Should(Equal(2))
 	})
 })
 

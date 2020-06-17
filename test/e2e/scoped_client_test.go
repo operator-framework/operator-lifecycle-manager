@@ -87,7 +87,7 @@ var _ = Describe("Scoped Client", func() {
 		// 5. Invoke Get API call on non existent object(s) to check if
 		//    the call can be made successfully.
 		namespace := genName("a")
-		_, cleanupNS := newNamespace(GinkgoT(), kubeclient, namespace)
+		_, cleanupNS := newNamespace(kubeclient, namespace)
 		defer cleanupNS()
 
 		saName := genName("user-defined-")

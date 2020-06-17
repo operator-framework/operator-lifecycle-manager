@@ -3,9 +3,6 @@ package ownerutil
 import (
 	"fmt"
 
-	"github.com/operator-framework/api/pkg/operators/v1"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -16,6 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 const (
@@ -42,6 +42,20 @@ func IsOwnedBy(object metav1.Object, owner Owner) bool {
 			return true
 		}
 	}
+	return false
+}
+
+func IsOwnedByLabel(object metav1.Object, owner Owner) bool {
+	kind := owner.GetObjectKind().GroupVersionKind().Kind
+	name, namespace, ok := GetOwnerByKindLabel(object, kind)
+	if !ok {
+		return false
+	}
+
+	if namespace == owner.GetNamespace() && name == owner.GetName() {
+		return true
+	}
+
 	return false
 }
 
@@ -253,8 +267,8 @@ func AdoptableLabels(labels map[string]string, checkName bool, targets ...Owner)
 }
 
 // CSVOwnerSelector returns a label selector to find generated objects owned by owner
-func CSVOwnerSelector(owner *v1alpha1.ClusterServiceVersion) labels.Selector {
-	return labels.SelectorFromSet(OwnerLabel(owner, v1alpha1.ClusterServiceVersionKind))
+func CSVOwnerSelector(owner *operatorsv1alpha1.ClusterServiceVersion) labels.Selector {
+	return labels.SelectorFromSet(OwnerLabel(owner, operatorsv1alpha1.ClusterServiceVersionKind))
 }
 
 // AddOwner adds an owner to the ownerref list.
@@ -350,34 +364,34 @@ func InferGroupVersionKind(obj runtime.Object) error {
 			Version: "v1",
 			Kind:    "RoleBinding",
 		})
-	case *v1alpha1.ClusterServiceVersion:
+	case *operatorsv1alpha1.ClusterServiceVersion:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1alpha1.GroupName,
-			Version: v1alpha1.GroupVersion,
-			Kind:    v1alpha1.ClusterServiceVersionKind,
+			Group:   operatorsv1alpha1.GroupName,
+			Version: operatorsv1alpha1.GroupVersion,
+			Kind:    operatorsv1alpha1.ClusterServiceVersionKind,
 		})
-	case *v1alpha1.InstallPlan:
+	case *operatorsv1alpha1.InstallPlan:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1alpha1.GroupName,
-			Version: v1alpha1.GroupVersion,
-			Kind:    v1alpha1.InstallPlanKind,
+			Group:   operatorsv1alpha1.GroupName,
+			Version: operatorsv1alpha1.GroupVersion,
+			Kind:    operatorsv1alpha1.InstallPlanKind,
 		})
-	case *v1alpha1.Subscription:
+	case *operatorsv1alpha1.Subscription:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1alpha1.GroupName,
-			Version: v1alpha1.GroupVersion,
-			Kind:    v1alpha1.SubscriptionKind,
+			Group:   operatorsv1alpha1.GroupName,
+			Version: operatorsv1alpha1.GroupVersion,
+			Kind:    operatorsv1alpha1.SubscriptionKind,
 		})
-	case *v1alpha1.CatalogSource:
+	case *operatorsv1alpha1.CatalogSource:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1alpha1.GroupName,
-			Version: v1alpha1.GroupVersion,
-			Kind:    v1alpha1.CatalogSourceKind,
+			Group:   operatorsv1alpha1.GroupName,
+			Version: operatorsv1alpha1.GroupVersion,
+			Kind:    operatorsv1alpha1.CatalogSourceKind,
 		})
-	case *v1.OperatorGroup:
+	case *operatorsv1.OperatorGroup:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1.GroupName,
-			Version: v1.GroupVersion,
+			Group:   operatorsv1.GroupName,
+			Version: operatorsv1.GroupVersion,
 			Kind:    "OperatorGroup",
 		})
 	case *apiregistrationv1.APIService:

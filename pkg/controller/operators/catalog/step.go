@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"fmt"
+
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 

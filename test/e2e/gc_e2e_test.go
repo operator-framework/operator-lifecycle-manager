@@ -317,8 +317,15 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				},
 			}
 
-			source, err := operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
-			Expect(err).ToNot(HaveOccurred(), "could not create catalog source")
+			Eventually(func() error {
+				cs, err := operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+				if err != nil {
+					return err
+				}
+				source = cs.DeepCopy()
+
+				return nil
+			}).Should(Succeed(), "could not create catalog source")
 
 			// Create a Subscription for package
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)

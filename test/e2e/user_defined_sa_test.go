@@ -6,6 +6,7 @@ import (
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -17,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,7 +31,7 @@ var _ = Describe("User defined service account", func() {
 		crclient := newCRClient()
 
 		namespace := genName("scoped-ns-")
-		_, cleanupNS := newNamespace(GinkgoT(), kubeclient, namespace)
+		_, cleanupNS := newNamespace(kubeclient, namespace)
 		defer cleanupNS()
 
 		// Create a service account, but add no permission to it.
@@ -84,7 +86,7 @@ var _ = Describe("User defined service account", func() {
 		crclient := newCRClient()
 
 		namespace := genName("scoped-ns-")
-		_, cleanupNS := newNamespace(GinkgoT(), kubeclient, namespace)
+		_, cleanupNS := newNamespace(kubeclient, namespace)
 		defer cleanupNS()
 
 		// Create a service account, add enough permission to it so that operator install is successful.
@@ -140,7 +142,7 @@ var _ = Describe("User defined service account", func() {
 		crclient := newCRClient()
 
 		namespace := genName("scoped-ns-")
-		_, cleanupNS := newNamespace(GinkgoT(), kubeclient, namespace)
+		_, cleanupNS := newNamespace(kubeclient, namespace)
 		defer cleanupNS()
 
 		// Create a service account, but add no permission to it.
@@ -188,20 +190,27 @@ var _ = Describe("User defined service account", func() {
 	})
 })
 
-func newNamespace(t GinkgoTInterface, client operatorclient.ClientInterface, name string) (ns *corev1.Namespace, cleanup cleanupFunc) {
+func newNamespace(client operatorclient.ClientInterface, name string) (ns *corev1.Namespace, cleanup cleanupFunc) {
 	request := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
 
-	ns, err := client.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), request, metav1.CreateOptions{})
-	require.NoError(t, err)
-	require.NotNil(t, ns)
+	Eventually(func() (err error) {
+		ns, err = client.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), request, metav1.CreateOptions{})
+		return
+	}).Should(Succeed())
 
 	cleanup = func() {
-		err := client.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), metav1.DeleteOptions{})
-		require.NoError(t, err)
+		Eventually(func() error {
+			err := client.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), metav1.DeleteOptions{})
+			if apierrors.IsNotFound(err) {
+				err = nil
+			}
+
+			return err
+		}).Should(Succeed())
 	}
 
 	return

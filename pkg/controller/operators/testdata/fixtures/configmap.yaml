@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  foo: |
+    a simple foo
+kind: ConfigMap
+metadata:
+  name: foo
+  namespace: bar
