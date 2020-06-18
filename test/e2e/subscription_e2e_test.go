@@ -1349,6 +1349,8 @@ var _ = Describe("Subscription", func() {
 		csvB := newCSV("nginx-b-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
 		// csvC provides CRD2 in the different catalogsource with csvA (apackage)
 		csvC := newCSV("nginx-c-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, depNamedStrategy2)
+		// csvD provides CRD1 in the same catalogsource with csvA (apackage)
+		csvD := newCSV("nginx-d-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
 
 		// Create PackageManifests 1
 		// Contain csvA, ABC and B
@@ -1364,6 +1366,7 @@ var _ = Describe("Subscription", func() {
 			{
 				PackageName: packageName2,
 				Channels: []registry.PackageChannel{
+					{Name: alphaChannel, CurrentCSVName: csvD.GetName()},
 					{Name: stableChannel, CurrentCSVName: csvB.GetName()},
 				},
 				DefaultChannelName: stableChannel,
@@ -1383,7 +1386,7 @@ var _ = Describe("Subscription", func() {
 		}
 
 		catalogSourceName := genName("catsrc")
-		catsrc, cleanup := createInternalCatalogSource(kubeClient, crClient, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvABC, csvB})
+		catsrc, cleanup := createInternalCatalogSource(kubeClient, crClient, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvABC, csvB, csvD})
 		defer cleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
@@ -1428,6 +1431,9 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		// Ensure csvABC is not installed
 		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvABC.Name, metav1.GetOptions{})
+		require.Error(GinkgoT(), err)
+		// Ensure csvD is not installed -- this implies the dependent subscription selected the default channel
+		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvD.Name, metav1.GetOptions{})
 		require.Error(GinkgoT(), err)
 	})
 })
