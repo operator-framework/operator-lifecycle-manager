@@ -51,7 +51,7 @@ var _ = Describe("Subscription", func() {
 		}()
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
 
-		cleanup := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
+		cleanup, _ := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
 		defer cleanup()
 
 		subscription, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
@@ -80,7 +80,7 @@ var _ = Describe("Subscription", func() {
 		_, err := createCSV(c, crc, stableCSV, testNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
-		subscriptionCleanup := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
+		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
@@ -188,7 +188,7 @@ var _ = Describe("Subscription", func() {
 		}()
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
 
-		subscriptionCleanup := createSubscription(GinkgoT(), crc, testNamespace, "manual-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, testNamespace, "manual-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
@@ -1789,7 +1789,7 @@ func buildSubscriptionCleanupFunc(crc versioned.Interface, subscription *v1alpha
 	}
 }
 
-func createSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, name, packageName, channel string, approval v1alpha1.Approval) cleanupFunc {
+func createSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, name, packageName, channel string, approval v1alpha1.Approval) (cleanupFunc, *v1alpha1.Subscription) {
 	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.SubscriptionKind,
@@ -1809,8 +1809,13 @@ func createSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, 
 	}
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.TODO(), subscription, metav1.CreateOptions{})
-	require.NoError(t, err)
-	return buildSubscriptionCleanupFunc(crc, subscription)
+	Expect(err).ToNot(HaveOccurred())
+	return buildSubscriptionCleanupFunc(crc, subscription), subscription
+}
+
+func updateSubscription(t GinkgoTInterface, crc versioned.Interface, subscription *v1alpha1.Subscription) {
+	_, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Update(context.TODO(), subscription, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
 }
 
 func createSubscriptionForCatalog(crc versioned.Interface, namespace, name, catalog, packageName, channel, startingCSV string, approval v1alpha1.Approval) cleanupFunc {

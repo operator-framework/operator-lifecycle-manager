@@ -5,20 +5,23 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
-	"regexp"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Metrics are generated for OLM pod", func() {
+var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 	var (
 		c   operatorclient.ClientInterface
@@ -69,7 +72,7 @@ var _ = Describe("Metrics are generated for OLM pod", func() {
 			It("generates csv_abnormal metric for OLM pod", func() {
 
 				// Verify metrics have been emitted for packageserver csv
-				Expect(getMetricsFromPod(c, getOLMPod(c), "8081")).To(And(
+				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).To(And(
 					ContainSubstring("csv_abnormal"),
 					ContainSubstring(fmt.Sprintf("name=\"%s\"", failingCSV.Name)),
 					ContainSubstring("phase=\"Failed\""),
@@ -91,7 +94,7 @@ var _ = Describe("Metrics are generated for OLM pod", func() {
 
 				It("deletes its associated CSV metrics", func() {
 					// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
-					Expect(getMetricsFromPod(c, getOLMPod(c), "8081")).ToNot(And(
+					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).ToNot(And(
 						ContainSubstring("csv_abnormal{name=\"%s\"", failingCSV.Name),
 						ContainSubstring("csv_succeeded{name=\"%s\"", failingCSV.Name),
 					))
@@ -99,10 +102,81 @@ var _ = Describe("Metrics are generated for OLM pod", func() {
 			})
 		})
 	})
+
+	Context("Subscription Metric", func() {
+		var (
+			subscriptionCleanup cleanupFunc
+			subscription        *v1alpha1.Subscription
+		)
+		When("A subscription object is created", func() {
+
+			BeforeEach(func() {
+				subscriptionCleanup, _ = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-create", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+			})
+
+			It("generates subscription_sync_total metric", func() {
+
+				// Verify metrics have been emitted for subscription
+				Eventually(func() string {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}, time.Minute, 5*time.Second).Should(And(
+					ContainSubstring("subscription_sync_total"),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.NAME_LABEL, "metric-subscription-for-create")),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, stableChannel)),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, testPackageName))))
+			})
+			if subscriptionCleanup != nil {
+				subscriptionCleanup()
+			}
+		})
+		When("A subscription object is updated", func() {
+
+			BeforeEach(func() {
+				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-update", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				subscription.Spec.Channel = "beta"
+				updateSubscription(GinkgoT(), crc, subscription)
+			})
+
+			It("deletes the old Subscription metric and emits the new metric", func() {
+				Eventually(func() string {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}, time.Minute, 5*time.Second).ShouldNot(And(
+					ContainSubstring("subscription_sync_total{name=\"metric-subscription-for-update\""),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, stableChannel))))
+
+				Eventually(func() string {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}, time.Minute, 5*time.Second).Should(And(
+					ContainSubstring("subscription_sync_total"),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.NAME_LABEL, "metric-subscription-for-update")),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, "beta")),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, testPackageName))))
+			})
+			if subscriptionCleanup != nil {
+				subscriptionCleanup()
+			}
+		})
+
+		When("A subscription object is deleted", func() {
+
+			BeforeEach(func() {
+				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-delete", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				if subscriptionCleanup != nil {
+					subscriptionCleanup()
+				}
+			})
+
+			It("deletes the Subscription metric", func() {
+				Eventually(func() string {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}, time.Minute, 5*time.Second).ShouldNot(ContainSubstring("subscription_sync_total{name=\"metric-subscription-for-update\""))
+			})
+		})
+	})
 })
 
-func getOLMPod(client operatorclient.ClientInterface) *corev1.Pod {
-	listOptions := metav1.ListOptions{LabelSelector: "app=olm-operator"}
+func getPodWithLabel(client operatorclient.ClientInterface, label string) *corev1.Pod {
+	listOptions := metav1.ListOptions{LabelSelector: label}
 	var podList *corev1.PodList
 	Eventually(func() (err error) {
 		podList, err = client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(context.TODO(), listOptions)
