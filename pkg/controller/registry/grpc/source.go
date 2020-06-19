@@ -9,7 +9,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 	"github.com/operator-framework/operator-registry/pkg/client"
@@ -189,8 +191,8 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(globalNamespace, localNamespace string) map[resolver.CatalogKey]client.Interface {
-	refs := map[resolver.CatalogKey]client.Interface{}
+func (s *SourceStore) AsClients(globalNamespace, localNamespace string) map[resolver.CatalogKey]registry.ClientInterface {
+	refs := map[resolver.CatalogKey]registry.ClientInterface{}
 	s.sourcesLock.RLock()
 	for key, source := range s.sources {
 		if !(key.Namespace == globalNamespace || key.Namespace == localNamespace) {
@@ -199,7 +201,7 @@ func (s *SourceStore) AsClients(globalNamespace, localNamespace string) map[reso
 		if source.LastConnect.IsZero() {
 			continue
 		}
-		refs[key] = NewClient(source.Conn)
+		refs[key] = registry.NewClientFromConn(source.Conn)
 	}
 	s.sourcesLock.RUnlock()
 
