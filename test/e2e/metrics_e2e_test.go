@@ -37,7 +37,6 @@ func TestMetricsEndpoint(t *testing.T) {
 
 	cleanupCSV, err := createCSV(t, c, crc, failingCSV, testNamespace, false, false)
 	require.NoError(t, err)
-	defer cleanupCSV()
 
 	_, err = fetchCSV(t, crc, failingCSV.Name, testNamespace, csvFailedChecker)
 	require.NoError(t, err)
@@ -53,9 +52,16 @@ func TestMetricsEndpoint(t *testing.T) {
 	require.Contains(t, rawOutput, "phase=\"Failed\"")
 	require.Contains(t, rawOutput, "reason=\"UnsupportedOperatorGroup\"")
 	require.Contains(t, rawOutput, "version=\"0.0.0\"")
-
 	require.Contains(t, rawOutput, "csv_succeeded")
-	log.Info(rawOutput)
+
+	cleanupCSV()
+
+	rawOutput, err = getMetricsFromPod(t, c, getOLMPodName(t, c), operatorNamespace, "8081")
+	if err != nil {
+		t.Fatalf("Failed to retrieve metrics from OLM pod because of: %v\n", err)
+	}
+	require.NotContains(t, rawOutput, "csv_abnormal{name=\""+failingCSV.Name+"\"")
+	require.NotContains(t, rawOutput, "csv_succeeded{name=\""+failingCSV.Name+"\"")
 }
 
 func getOLMPodName(t *testing.T, client operatorclient.ClientInterface) string {

@@ -188,6 +188,12 @@ func CounterForSubscription(name, installedCSV, channelName, packageName string)
 	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, packageName)
 }
 
+func DeleteCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion) {
+	// Delete the old CSV metrics
+	csvAbnormal.DeleteLabelValues(oldCSV.Namespace, oldCSV.Name, oldCSV.Spec.Version.String(), string(oldCSV.Status.Phase), string(oldCSV.Status.Reason))
+	csvSucceeded.DeleteLabelValues(oldCSV.Namespace, oldCSV.Name, oldCSV.Spec.Version.String())
+}
+
 func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha1.ClusterServiceVersion) {
 	if oldCSV == nil || newCSV == nil {
 		return
