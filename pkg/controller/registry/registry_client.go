@@ -86,9 +86,9 @@ func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, ki
 	if err != nil {
 		return nil, err
 	}
-	entry := rc.filterChannelEntries(it, excludedPkgName)
+	entry := rc.filterChannelEntries(ctx, it, excludedPkgName)
 	if entry == nil {
-		return nil, fmt.Errorf("Unable to find a channel entry which doesn't belong to package %s", excludedPkgName)
+		return nil, fmt.Errorf("Unable to find a channel entry which doesn't belong to package %s's default channel", excludedPkgName)
 	}
 	bundle, err := rc.Client.Registry.GetBundle(ctx, &registryapi.GetBundleRequest{PkgName: entry.PackageName, ChannelName: entry.ChannelName, CsvName: entry.BundleName})
 	if err != nil {
@@ -97,25 +97,53 @@ func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, ki
 	return bundle, nil
 }
 
-// FilterChannelEntries filters out a channel entries that provide the requested
+// FilterChannelEntries filters out channel entries that provide the requested
 // API and come from the same package with original operator and returns the
-// first entry on the list
-func (rc *Client) filterChannelEntries(it *ChannelEntryIterator, excludedPkgName string) *opregistry.ChannelEntry {
+// first entry on the list from the default channel of that package
+func (rc *Client) filterChannelEntries(ctx context.Context, it *ChannelEntryIterator, excludedPkgName string) *opregistry.ChannelEntry {
+	defChannels := make(map[string]string, 0)
+
 	var entries []*opregistry.ChannelEntry
 	for e := it.Next(); e != nil; e = it.Next() {
 		if e.PackageName != excludedPkgName {
-			entry := &opregistry.ChannelEntry{
-				PackageName: e.PackageName,
-				ChannelName: e.ChannelName,
-				BundleName:  e.BundleName,
-				Replaces:    e.Replaces,
+			// keep track of the default channel for each package
+			if _, ok := defChannels[e.PackageName]; !ok {
+				defChannel, err := rc.getDefaultPackageChannel(ctx, e.PackageName)
+				if err != nil {
+					continue
+				}
+				defChannels[e.PackageName] = defChannel
 			}
-			entries = append(entries, entry)
+
+			// only add entry to the list if the entry is in the default channel
+			if e.ChannelName == defChannels[e.PackageName] {
+				entry := &opregistry.ChannelEntry{
+					PackageName: e.PackageName,
+					ChannelName: e.ChannelName,
+					BundleName:  e.BundleName,
+					Replaces:    e.Replaces,
+				}
+				entries = append(entries, entry)
+			}
 		}
 	}
 
-	if entries != nil {
+	if len(entries) > 0 {
 		return entries[0]
 	}
 	return nil
+}
+
+// GetDefaultPackageChannel uses registry client to get the default
+// channel name for a given package name
+func (rc *Client) getDefaultPackageChannel(ctx context.Context, pkgName string) (string, error) {
+	pkg, err := rc.Client.Registry.GetPackage(ctx, &registryapi.GetPackageRequest{Name: pkgName})
+	if err != nil {
+		return "", err
+	}
+	if pkg == nil {
+		return "", fmt.Errorf("package %s not found in registry", pkgName)
+	}
+
+	return pkg.DefaultChannelName, nil
 }
