@@ -71,6 +71,14 @@ func TestConfigMapUnpacker(t *testing.T) {
 						Namespace: "ns-a",
 						Name:      "src-a",
 					},
+					Conditions: []operatorsv1alpha1.BundleLookupCondition{
+						{
+							Type:    operatorsv1alpha1.BundleLookupPending,
+							Status:  corev1.ConditionTrue,
+							Reason:  JobNotStartedReason,
+							Message: JobNotStartedMessage,
+						},
+					},
 				},
 			},
 			expected: expected{
@@ -115,6 +123,14 @@ func TestConfigMapUnpacker(t *testing.T) {
 					CatalogSourceRef: &corev1.ObjectReference{
 						Namespace: "ns-a",
 						Name:      "src-a",
+					},
+					Conditions: []operatorsv1alpha1.BundleLookupCondition{
+						{
+							Type:    operatorsv1alpha1.BundleLookupPending,
+							Status:  corev1.ConditionTrue,
+							Reason:  JobNotStartedReason,
+							Message: JobNotStartedMessage,
+						},
 					},
 				},
 			},

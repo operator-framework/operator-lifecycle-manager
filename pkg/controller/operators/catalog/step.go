@@ -38,15 +38,17 @@ func (s StepperFunc) Status() (v1alpha1.StepStatus, error) {
 type builder struct {
 	opclient          operatorclient.ClientInterface
 	dynamicClient     dynamic.Interface
+	manifestResolver  ManifestResolver
 	csvToProvidedAPIs map[string]cache.Indexer
 	logger            logger.FieldLogger
 }
 
 func newBuilder(opclient operatorclient.ClientInterface, dynamicClient dynamic.Interface, csvToProvidedAPIs map[string]cache.Indexer,
-	logger logger.FieldLogger) *builder {
+	manifestResolver ManifestResolver, logger logger.FieldLogger) *builder {
 	return &builder{
 		opclient:          opclient,
 		dynamicClient:     dynamicClient,
+		manifestResolver:  manifestResolver,
 		csvToProvidedAPIs: csvToProvidedAPIs,
 		logger:            logger,
 	}
@@ -62,9 +64,15 @@ func (n notSupportedStepperErr) Error() string {
 
 // step is a factory that creates StepperFuncs based on the install plan step Kind.
 func (b *builder) create(step *v1alpha1.Step) (Stepper, error) {
+	manifest, err := b.manifestResolver.ManifestForStep(step)
+	if err != nil {
+		return nil, err
+	}
+	step.Resource.Manifest = manifest
+
 	switch step.Resource.Kind {
 	case crdKind:
-		version, err := crdlib.Version(&step.Resource.Manifest)
+		version, err := crdlib.Version(&manifest)
 		if err != nil {
 			return nil, err
 		}
