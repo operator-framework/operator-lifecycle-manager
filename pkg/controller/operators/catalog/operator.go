@@ -1105,6 +1105,16 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 	return reference.GetReference(res)
 }
 
+type UnpackedBundleReference struct {
+	Kind                   string `json:"kind"`
+	Name                   string `json:"name"`
+	Namespace              string `json:"namespace"`
+	CatalogSourceName      string `json:"catalogSourceName"`
+	CatalogSourceNamespace string `json:"catalogSourceNamespace"`
+	Replaces               string `json:"replaces"`
+}
+
+// unpackBundles makes one walk through the bundlelookups and attempts to progress them
 func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.InstallPlan, error) {
 	out := plan.DeepCopy()
 	unpacked := true
@@ -1117,32 +1127,53 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 			errs = append(errs, err)
 			continue
 		}
-
-		if res == nil {
-			unpacked = false
-			continue
-		}
-
 		out.Status.BundleLookups[i] = *res.BundleLookup
-		if res.Bundle() == nil || len(res.Bundle().GetObject()) == 0 {
+
+		// if pending condition is present, still waiting for the job to unpack to configmap
+		if res.GetCondition(v1alpha1.BundleLookupPending).Status == corev1.ConditionTrue {
 			unpacked = false
 			continue
 		}
 
+		// if packed condition is missing, bundle has already been unpacked into steps, continue
+		if res.GetCondition(resolver.BundleLookupConditionPacked).Status == corev1.ConditionUnknown {
+			continue
+		}
+
+		// Ensure that bundle can be applied by the current version of OLM by converting to steps
 		steps, err := resolver.NewStepsFromBundle(res.Bundle(), out.GetNamespace(), res.Replaces, res.CatalogSourceRef.Name, res.CatalogSourceRef.Namespace)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to turn bundle into steps: %s", err.Error()))
+			errs = append(errs, fmt.Errorf("failed to turn bundle into steps: %v", err))
 			unpacked = false
 			continue
 		}
 
-		// Add steps and remove resolved bundle lookup
+		// step manifests are replaced with references to the configmap containing them
+		for i, s := range steps {
+			ref := UnpackedBundleReference{
+				Kind:                   "ConfigMap",
+				Namespace:              res.CatalogSourceRef.Namespace,
+				Name:                   res.Name(),
+				CatalogSourceName:      res.CatalogSourceRef.Name,
+				CatalogSourceNamespace: res.CatalogSourceRef.Namespace,
+				Replaces:               res.Replaces,
+			}
+			r, err := json.Marshal(&ref)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to generate reference for configmap: %v", err))
+				unpacked = false
+				continue
+			}
+			s.Resource.Manifest = string(r)
+			steps[i] = s
+		}
+		res.RemoveCondition(resolver.BundleLookupConditionPacked)
+		out.Status.BundleLookups[i] = *res.BundleLookup
 		out.Status.Plan = append(out.Status.Plan, steps...)
-		out.Status.BundleLookups = append(out.Status.BundleLookups[:i], out.Status.BundleLookups[i+1:]...)
-		i--
 	}
 
 	if err := utilerrors.NewAggregate(errs); err != nil {
+		o.logger.Debugf("failed to unpack bundles: %v", err)
 		return false, nil, err
 	}
 
@@ -1416,7 +1447,8 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	ensurer := newStepEnsurer(kubeclient, crclient, dynamicClient)
-	b := newBuilder(kubeclient, dynamicClient, o.csvProvidedAPIsIndexer, o.logger)
+	r := newManifestResolver(plan.GetNamespace(), o.lister.CoreV1().ConfigMapLister(), o.logger)
+	b := newBuilder(kubeclient, dynamicClient, o.csvProvidedAPIsIndexer, r, o.logger)
 
 	for i, step := range plan.Status.Plan {
 		doStep := true
@@ -1443,12 +1475,16 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated, v1alpha1.StepStatusWaitingForAPI:
 			continue
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
+			manifest, err := r.ManifestForStep(step)
+			if err != nil {
+				return err
+			}
 			o.logger.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).Debug("execute resource")
 			switch step.Resource.Kind {
 			case v1alpha1.ClusterServiceVersionKind:
 				// Marshal the manifest into a CSV instance.
 				var csv v1alpha1.ClusterServiceVersion
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &csv)
+				err := json.Unmarshal([]byte(manifest), &csv)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1481,7 +1517,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			case v1alpha1.SubscriptionKind:
 				// Marshal the manifest into a subscription instance.
 				var sub v1alpha1.Subscription
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &sub)
+				err := json.Unmarshal([]byte(manifest), &sub)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1505,7 +1541,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 			case resolver.BundleSecretKind:
 				var s corev1.Secret
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &s)
+				err := json.Unmarshal([]byte(manifest), &s)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1544,7 +1580,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			case clusterRoleKind:
 				// Marshal the manifest into a ClusterRole instance.
 				var cr rbacv1.ClusterRole
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &cr)
+				err := json.Unmarshal([]byte(manifest), &cr)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1559,7 +1595,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			case clusterRoleBindingKind:
 				// Marshal the manifest into a RoleBinding instance.
 				var rb rbacv1.ClusterRoleBinding
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &rb)
+				err := json.Unmarshal([]byte(manifest), &rb)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1574,7 +1610,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			case roleKind:
 				// Marshal the manifest into a Role instance.
 				var r rbacv1.Role
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &r)
+				err := json.Unmarshal([]byte(manifest), &r)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1597,7 +1633,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			case roleBindingKind:
 				// Marshal the manifest into a RoleBinding instance.
 				var rb rbacv1.RoleBinding
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &rb)
+				err := json.Unmarshal([]byte(manifest), &rb)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1620,7 +1656,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			case serviceAccountKind:
 				// Marshal the manifest into a ServiceAccount instance.
 				var sa corev1.ServiceAccount
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &sa)
+				err := json.Unmarshal([]byte(manifest), &sa)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1643,7 +1679,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			case serviceKind:
 				// Marshal the manifest into a Service instance
 				var s corev1.Service
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &s)
+				err := json.Unmarshal([]byte(manifest), &s)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1673,7 +1709,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 			case configMapKind:
 				var cfg corev1.ConfigMap
-				err := json.Unmarshal([]byte(step.Resource.Manifest), &cfg)
+				err := json.Unmarshal([]byte(manifest), &cfg)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
@@ -1709,7 +1745,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 				// Marshal the manifest into an unstructured object
-				dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(step.Resource.Manifest), 10)
+				dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(manifest), 10)
 				unstructuredObject := &unstructured.Unstructured{}
 				if err := dec.Decode(unstructuredObject); err != nil {
 					return errorwrap.Wrapf(err, "error decoding %s object to an unstructured object", step.Resource.Name)
