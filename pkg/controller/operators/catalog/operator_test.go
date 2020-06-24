@@ -269,13 +269,13 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1",
 							Kind:                   "ConfigMap",
 							Name:                   "cfg",
-							Manifest:               toManifest(t, configmap("cfg", namespace)),
+							Manifest:               toManifest(t, configMap("cfg", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
 				},
 			),
-			want: []runtime.Object{configmap("cfg", namespace)},
+			want: []runtime.Object{configMap("cfg", namespace)},
 			err:  nil,
 		},
 		{
@@ -1307,7 +1307,7 @@ func serviceAccount(name, namespace, generateName string, secretRef *corev1.Obje
 	}
 }
 
-func configmap(name, namespace string) *corev1.ConfigMap {
+func configMap(name, namespace string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		TypeMeta:   metav1.TypeMeta{Kind: configMapKind},
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
