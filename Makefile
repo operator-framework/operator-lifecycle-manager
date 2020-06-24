@@ -139,7 +139,7 @@ e2e-local-docker:
 	. ./scripts/run_e2e_docker.sh $(TEST)
 
 e2e-operator-metrics:
-	go test -v $(MOD_FLAGS) -failfast -timeout 70m ./test/rh-operators/...
+	go test -v $(MOD_FLAGS) -timeout 70m ./test/rh-operators/...
 
 vendor:
 	go mod tidy
