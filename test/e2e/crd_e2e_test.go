@@ -307,8 +307,12 @@ var _ = Describe("CRD Versions", func() {
 		_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), sub, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred(), "could not update subscription")
 
+		subscriptionAtLatestWithDifferentInstallPlan := func(v *operatorsv1alpha1.Subscription) bool {
+			return subscriptionStateAtLatestChecker(v) && v.Status.InstallPlanRef != nil && v.Status.InstallPlanRef.Name != fetchedInstallPlan.Name
+		}
+
 		// fetch new subscription
-		s, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		s, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionAtLatestWithDifferentInstallPlan)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(s).ToNot(BeNil())
 		Expect(s.Status.InstallPlanRef).ToNot(Equal(nil))
