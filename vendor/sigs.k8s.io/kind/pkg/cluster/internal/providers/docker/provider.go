@@ -19,6 +19,8 @@ package docker
 import (
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -28,6 +30,7 @@ import (
 	"sigs.k8s.io/kind/pkg/exec"
 	"sigs.k8s.io/kind/pkg/log"
 
+	internallogs "sigs.k8s.io/kind/pkg/cluster/internal/logs"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers/provider"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers/provider/common"
 	"sigs.k8s.io/kind/pkg/cluster/nodeutils"
@@ -56,13 +59,24 @@ func (p *Provider) Provision(status *cli.Status, cluster string, cfg *config.Clu
 		return err
 	}
 
+	// ensure the pre-requesite network exists
+	networkName := fixedNetworkName
+	if n := os.Getenv("KIND_EXPERIMENTAL_DOCKER_NETWORK"); n != "" {
+		p.logger.Warn("WARNING: Overriding docker network due to KIND_EXPERIMENTAL_DOCKER_NETWORK")
+		p.logger.Warn("WARNING: Here be dragons! This is not supported currently.")
+		networkName = n
+	}
+	if err := ensureNetwork(networkName); err != nil {
+		return errors.Wrap(err, "failed to ensure docker network")
+	}
+
 	// actually provision the cluster
 	icons := strings.Repeat("📦 ", len(cfg.Nodes))
 	status.Start(fmt.Sprintf("Preparing nodes %s", icons))
 	defer func() { status.End(err == nil) }()
 
 	// plan creating the containers
-	createContainerFuncs, err := planCreation(cluster, cfg)
+	createContainerFuncs, err := planCreation(cluster, cfg, networkName)
 	if err != nil {
 		return err
 	}
@@ -75,9 +89,7 @@ func (p *Provider) Provision(status *cli.Status, cluster string, cfg *config.Clu
 func (p *Provider) ListClusters() ([]string, error) {
 	cmd := exec.Command("docker",
 		"ps",
-		"-q",         // quiet output for parsing
-		"-a",         // show stopped nodes
-		"--no-trunc", // don't truncate
+		"-a", // show stopped nodes
 		// filter for nodes with the cluster label
 		"--filter", "label="+clusterLabelKey,
 		// format to include the cluster name
@@ -94,9 +106,7 @@ func (p *Provider) ListClusters() ([]string, error) {
 func (p *Provider) ListNodes(cluster string) ([]nodes.Node, error) {
 	cmd := exec.Command("docker",
 		"ps",
-		"-q",         // quiet output for parsing
-		"-a",         // show stopped nodes
-		"--no-trunc", // don't truncate
+		"-a", // show stopped nodes
 		// filter for nodes with the cluster label
 		"--filter", fmt.Sprintf("label=%s=%s", clusterLabelKey, cluster),
 		// format to include the cluster name
@@ -171,9 +181,75 @@ func (p *Provider) GetAPIServerEndpoint(cluster string) (string, error) {
 	return net.JoinHostPort(parts[0], parts[1]), nil
 }
 
+// GetAPIServerInternalEndpoint is part of the providers.Provider interface
+func (p *Provider) GetAPIServerInternalEndpoint(cluster string) (string, error) {
+	// locate the node that hosts this
+	allNodes, err := p.ListNodes(cluster)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to list nodes")
+	}
+	n, err := nodeutils.APIServerEndpointNode(allNodes)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get api server endpoint")
+	}
+	// NOTE: we're using the nodes's hostnames which are their names
+	return net.JoinHostPort(n.String(), fmt.Sprintf("%d", common.APIServerInternalPort)), nil
+}
+
 // node returns a new node handle for this provider
 func (p *Provider) node(name string) nodes.Node {
 	return &node{
 		name: name,
 	}
+}
+
+// CollectLogs will populate dir with cluster logs and other debug files
+func (p *Provider) CollectLogs(dir string, nodes []nodes.Node) error {
+	execToPathFn := func(cmd exec.Cmd, path string) func() error {
+		return func() error {
+			f, err := common.FileOnHost(path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			return cmd.SetStdout(f).SetStderr(f).Run()
+		}
+	}
+	// construct a slice of methods to collect logs
+	fns := []func() error{
+		// TODO(bentheelder): record the kind version here as well
+		// record info about the host docker
+		execToPathFn(
+			exec.Command("docker", "info"),
+			filepath.Join(dir, "docker-info.txt"),
+		),
+	}
+
+	// collect /var/log for each node and plan collecting more logs
+	var errs []error
+	for _, n := range nodes {
+		node := n // https://golang.org/doc/faq#closures_and_goroutines
+		name := node.String()
+		path := filepath.Join(dir, name)
+		if err := internallogs.DumpDir(p.logger, node, "/var/log", path); err != nil {
+			errs = append(errs, err)
+		}
+
+		fns = append(fns,
+			func() error { return common.CollectLogs(node, path) },
+			execToPathFn(exec.Command("docker", "inspect", name), filepath.Join(path, "inspect.json")),
+			func() error {
+				f, err := common.FileOnHost(filepath.Join(path, "serial.log"))
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				return node.SerialLogs(f)
+			},
+		)
+	}
+
+	// run and collect up all errors
+	errs = append(errs, errors.AggregateConcurrent(fns))
+	return errors.NewAggregate(errs)
 }

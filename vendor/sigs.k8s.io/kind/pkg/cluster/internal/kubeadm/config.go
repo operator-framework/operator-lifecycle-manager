@@ -18,6 +18,8 @@ package kubeadm
 
 import (
 	"bytes"
+	"fmt"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -48,7 +50,8 @@ type ConfigData struct {
 	// The subnet used for services
 	ServiceSubnet string
 	// IPv4 values take precedence over IPv6 by default, if true set IPv6 default values
-	IPv6 bool
+	IPv6         bool
+	FeatureGates map[string]bool
 	// DerivedConfigData is populated by Derive()
 	// These auto-generated fields are available to Config templates,
 	// but not meant to be set by hand
@@ -60,6 +63,10 @@ type ConfigData struct {
 type DerivedConfigData struct {
 	// DockerStableTag is automatically derived from KubernetesVersion
 	DockerStableTag string
+	// SortedFeatureGateKeys allows us to iterate FeatureGates deterministically
+	SortedFeatureGateKeys []string
+	// FeatureGatesString is of the form `Foo=true,Baz=false`
+	FeatureGatesString string
 }
 
 // Derive automatically derives DockerStableTag if not specified
@@ -67,6 +74,22 @@ func (c *ConfigData) Derive() {
 	if c.DockerStableTag == "" {
 		c.DockerStableTag = strings.Replace(c.KubernetesVersion, "+", "_", -1)
 	}
+
+	// get sorted list of FeatureGate keys
+	featureGateKeys := make([]string, 0, len(c.FeatureGates))
+	for k := range c.FeatureGates {
+		featureGateKeys = append(featureGateKeys, k)
+	}
+	sort.Strings(featureGateKeys)
+	c.SortedFeatureGateKeys = featureGateKeys
+
+	// create a sorted key=value,... string of FeatureGates
+	var featureGates []string
+	for _, k := range featureGateKeys {
+		v := c.FeatureGates[k]
+		featureGates = append(featureGates, fmt.Sprintf("%s=%t", k, v))
+	}
+	c.FeatureGatesString = strings.Join(featureGates, ",")
 }
 
 // See docs for these APIs at:
@@ -125,8 +148,6 @@ kubeletConfiguration:
       nodefs.available: "0%"
       nodefs.inodesFree: "0%"
       imagefs.available: "0%"
-controllerManagerExtraArgs:
-  enable-hostpath-provisioner: "true"
 nodeRegistration:
   criSocket: "/run/containerd/containerd.sock"
   kubeletExtraArgs:
@@ -134,6 +155,22 @@ nodeRegistration:
     node-ip: "{{ .NodeAddress }}"
 networking:
   podSubnet: "{{ .PodSubnet }}"
+controllerManagerExtraArgs:
+  enable-hostpath-provisioner: "true"
+{{ if .FeatureGates }}  "feature-gates": "{{ .FeatureGatesString }}"
+apiServerExtraArgs:
+  "feature-gates": "{{ .FeatureGatesString }}"
+schedulerExtraArgs:
+  "feature-gates": "{{ .FeatureGatesString }}"
+nodeRegistration:
+  kubeletExtraArgs:
+    "feature-gates": "{{ .FeatureGatesString }}"
+kubeProxy:
+  config:
+    featureGates:
+{{ range $key := .SortedFeatureGateKeys }}
+      "{{ $key }}": {{ index $.FeatureGates $key }}
+{{ end }}{{ end }}
 {{else}}# config for this worker node
 apiVersion: kubeadm.k8s.io/v1alpha2
 kind: NodeConfiguration
@@ -148,6 +185,7 @@ nodeRegistration:
   kubeletExtraArgs:
     fail-swap-on: "false"
     node-ip: "{{ .NodeAddress }}"
+    "feature-gates": "{{ .FeatureGatesString }}"
 {{end}}
 `
 
@@ -177,6 +215,12 @@ apiServerExtraVolumes:
 apiServerCertSANs: [localhost, "{{.APIServerAddress}}"]
 controllerManagerExtraArgs:
   enable-hostpath-provisioner: "true"
+{{ if .FeatureGates }}  "feature-gates": "{{ .FeatureGatesString }}"
+apiServerExtraArgs:
+  "feature-gates": "{{ .FeatureGatesString }}"
+schedulerExtraArgs:
+  "feature-gates": "{{ .FeatureGatesString }}"
+{{ end }}
 networking:
   podSubnet: "{{ .PodSubnet }}"
 ---
@@ -235,12 +279,19 @@ evictionHard:
   nodefs.available: "0%"
   nodefs.inodesFree: "0%"
   imagefs.available: "0%"
+{{if .FeatureGates}}featureGates:
+{{ range $key := .SortedFeatureGateKeys }}
+  "{{ $key }}": {{$.FeatureGates $key }}
+{{end}}{{end}}
 ---
-# no-op entry that exists solely so it can be patched
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 kind: KubeProxyConfiguration
 metadata:
   name: config
+{{if .FeatureGates}}featureGates:
+{{ range $key := .SortedFeatureGateKeys }}
+  "{{ $key }}": {{$.FeatureGates $key }}
+{{end}}{{end}}
 `
 
 // ConfigTemplateBetaV1 is the kubadm config template for API version v1beta1
@@ -257,8 +308,15 @@ controlPlaneEndpoint: "{{ .ControlPlaneEndpoint }}"
 # to the cluster after rewriting the kubeconfig to point to localhost
 apiServer:
   certSANs: [localhost, "{{.APIServerAddress}}"]
-controllerManager:
+{{ if .FeatureGates }}
   extraArgs:
+    "feature-gates": "{{ .FeatureGatesString }}"
+{{ end}}
+controllerManager:
+{{ if .FeatureGates }}
+  extraArgs:
+    "feature-gates": "{{ .FeatureGatesString }}"
+{{ end}}
     enable-hostpath-provisioner: "true"
     # configure ipv6 default addresses for IPv6 clusters
     {{ if .IPv6 -}}
@@ -266,6 +324,9 @@ controllerManager:
     {{- end }}
 scheduler:
   extraArgs:
+{{ if .FeatureGates }}
+    "feature-gates": "{{ .FeatureGatesString }}"
+{{ end }}
     # configure ipv6 default addresses for IPv6 clusters
     {{ if .IPv6 -}}
     address: "::"
@@ -298,7 +359,7 @@ apiVersion: kubeadm.k8s.io/v1beta1
 kind: JoinConfiguration
 metadata:
   name: config
-{{ if .ControlPlane -}}	
+{{ if .ControlPlane -}}
 controlPlane:
   localAPIEndpoint:
     advertiseAddress: "{{ .NodeAddress }}"
@@ -332,12 +393,19 @@ evictionHard:
   nodefs.available: "0%"
   nodefs.inodesFree: "0%"
   imagefs.available: "0%"
+{{if .FeatureGates}}featureGates:
+{{ range $key := .SortedFeatureGateKeys }}
+  "{{ $key }}": {{$.FeatureGates $key }}
+{{end}}{{end}}
 ---
-# no-op entry that exists solely so it can be patched
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 kind: KubeProxyConfiguration
 metadata:
   name: config
+{{if .FeatureGates}}featureGates:
+{{ range $key := .SortedFeatureGateKeys }}
+  "{{ $key }}": {{ index $.FeatureGates $key }}
+{{end}}{{end}}
 `
 
 // ConfigTemplateBetaV2 is the kubadm config template for API version v1beta2
@@ -354,8 +422,15 @@ controlPlaneEndpoint: "{{ .ControlPlaneEndpoint }}"
 # to the cluster after rewriting the kubeconfig to point to localhost
 apiServer:
   certSANs: [localhost, "{{.APIServerAddress}}"]
+{{ if .FeatureGates }}
+  extraArgs:
+    "feature-gates": "{{ .FeatureGatesString }}"
+{{ end }}
 controllerManager:
   extraArgs:
+{{ if .FeatureGates }}
+    "feature-gates": "{{ .FeatureGatesString }}"
+{{ end }}
     enable-hostpath-provisioner: "true"
     # configure ipv6 default addresses for IPv6 clusters
     {{ if .IPv6 -}}
@@ -363,6 +438,9 @@ controllerManager:
     {{- end }}
 scheduler:
   extraArgs:
+{{ if .FeatureGates }}
+    "feature-gates": "{{ .FeatureGatesString }}"
+{{ end }}
     # configure ipv6 default addresses for IPv6 clusters
     {{ if .IPv6 -}}
     address: "::"
@@ -429,12 +507,19 @@ evictionHard:
   nodefs.available: "0%"
   nodefs.inodesFree: "0%"
   imagefs.available: "0%"
+{{if .FeatureGates}}featureGates:
+{{ range $key := .SortedFeatureGateKeys }}
+  "{{ $key }}": {{ index $.FeatureGates $key }}
+{{end}}{{end}}
 ---
-# no-op entry that exists solely so it can be patched
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 kind: KubeProxyConfiguration
 metadata:
   name: config
+{{if .FeatureGates}}featureGates:
+{{ range $key := .SortedFeatureGateKeys }}
+  "{{ $key }}": {{ index $.FeatureGates $key }}
+{{end}}{{end}}
 `
 
 // Config returns a kubeadm config generated from config data, in particular
@@ -445,9 +530,30 @@ func Config(data ConfigData) (config string, err error) {
 		return "", err
 	}
 
+	// ensure featureGates is non-nil, as we may add entries
+	if data.FeatureGates == nil {
+		data.FeatureGates = make(map[string]bool)
+	}
+
+	if ver.AtLeast(version.MustParseSemantic("v1.18.0")) {
+		// Use IP autodiscovery
+		if data.IPv6 {
+			data.NodeAddress = "::"
+		} else {
+			data.NodeAddress = ""
+		}
+	}
+
 	// assume the latest API version, then fallback if the k8s version is too low
 	templateSource := ConfigTemplateBetaV2
 	if ver.LessThan(version.MustParseSemantic("v1.12.0")) {
+		// in Kubernetes 1.11 we need to enable this feature, unless the user
+		// explicitly disabled it. this is considered part of our "base config"
+		// so it's totally not a layering violation, we just don't want this logic
+		// encoded in the text template ;-)
+		if _, set := data.FeatureGates["DynamicProvisioningScheduling"]; !set {
+			data.FeatureGates["DynamicProvisioningScheduling"] = true
+		}
 		templateSource = ConfigTemplateAlphaV2
 	} else if ver.LessThan(version.MustParseSemantic("v1.13.0")) {
 		templateSource = ConfigTemplateAlphaV3

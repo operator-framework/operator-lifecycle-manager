@@ -17,6 +17,7 @@ limitations under the License.
 package cluster
 
 import (
+	"os/exec"
 	"sort"
 
 	"sigs.k8s.io/kind/pkg/cluster/constants"
@@ -27,8 +28,8 @@ import (
 	internalcreate "sigs.k8s.io/kind/pkg/cluster/internal/create"
 	internaldelete "sigs.k8s.io/kind/pkg/cluster/internal/delete"
 	"sigs.k8s.io/kind/pkg/cluster/internal/kubeconfig"
-	internallogs "sigs.k8s.io/kind/pkg/cluster/internal/logs"
 	"sigs.k8s.io/kind/pkg/cluster/internal/providers/docker"
+	"sigs.k8s.io/kind/pkg/cluster/internal/providers/podman"
 	internalprovider "sigs.k8s.io/kind/pkg/cluster/internal/providers/provider"
 )
 
@@ -55,10 +56,21 @@ func NewProvider(options ...ProviderOption) *Provider {
 		return iIsLogger && !jIsLogger
 	})
 	for _, o := range options {
-		o.apply(p)
+		if o != nil {
+			o.apply(p)
+		}
 	}
+
 	if p.provider == nil {
-		p.provider = docker.NewProvider(p.logger)
+		// auto-detect based on what is available in path
+		// default to docker for backwards compatibility
+		if path, err := exec.LookPath("docker"); err == nil && path != "" {
+			p.provider = docker.NewProvider(p.logger)
+		} else if path, err := exec.LookPath("podman"); err == nil && path != "" {
+			p.provider = podman.NewProvider(p.logger)
+		} else {
+			p.provider = docker.NewProvider(p.logger)
+		}
 	}
 	return p
 }
@@ -76,10 +88,36 @@ func (a providerLoggerOption) apply(p *Provider) {
 	a(p)
 }
 
+var _ ProviderOption = providerLoggerOption(nil)
+
 // ProviderWithLogger configures the provider to use Logger logger
 func ProviderWithLogger(logger log.Logger) ProviderOption {
 	return providerLoggerOption(func(p *Provider) {
 		p.logger = logger
+	})
+}
+
+// providerLoggerOption is a trivial ProviderOption adapter
+// we use a type specific to logging options so we can handle them first
+type providerRuntimeOption func(p *Provider)
+
+func (a providerRuntimeOption) apply(p *Provider) {
+	a(p)
+}
+
+var _ ProviderOption = providerRuntimeOption(nil)
+
+// ProviderWithDocker configures the provider to use docker runtime
+func ProviderWithDocker() ProviderOption {
+	return providerRuntimeOption(func(p *Provider) {
+		p.provider = docker.NewProvider(p.logger)
+	})
+}
+
+// ProviderWithPodman configures the provider to use podman runtime
+func ProviderWithPodman() ProviderOption {
+	return providerRuntimeOption(func(p *Provider) {
+		p.provider = podman.NewProvider(p.logger)
 	})
 }
 
@@ -138,11 +176,5 @@ func (p *Provider) ListInternalNodes(name string) ([]nodes.Node, error) {
 
 // CollectLogs will populate dir with cluster logs and other debug files
 func (p *Provider) CollectLogs(name, dir string) error {
-	// TODO: should use ListNodes and Collect should handle nodes differently
-	// based on role ...
-	n, err := p.ListInternalNodes(name)
-	if err != nil {
-		return err
-	}
-	return internallogs.Collect(p.logger, n, dir)
+	return p.ic(name).CollectLogs(dir)
 }

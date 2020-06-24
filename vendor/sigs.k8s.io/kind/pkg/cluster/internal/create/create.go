@@ -100,7 +100,6 @@ func Cluster(logger log.Logger, ctx *context.Context, opts *ClusterOptions) erro
 	// Create node containers implementing defined config Nodes
 	if err := ctx.Provider().Provision(status, ctx.Name(), opts.Config); err != nil {
 		// In case of errors nodes are deleted (except if retain is explicitly set)
-		logger.Errorf("%v", err)
 		if !opts.Retain {
 			_ = delete.Cluster(logger, ctx, opts.KubeconfigPath)
 		}
@@ -178,7 +177,7 @@ func logSalutation(logger log.Logger) {
 	salutations := []string{
 		"Have a nice day! 👋",
 		"Thanks for using kind! 😊",
-		"Not sure what to do next? 😅 Check out https://kind.sigs.k8s.io/docs/user/quick-start/",
+		"Not sure what to do next? 😅  Check out https://kind.sigs.k8s.io/docs/user/quick-start/",
 		"Have a question, bug, or feature request? Let us know! https://kind.sigs.k8s.io/#community 🙂",
 	}
 	r := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
