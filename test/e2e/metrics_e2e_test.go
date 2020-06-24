@@ -123,7 +123,8 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					ContainSubstring("subscription_sync_total"),
 					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.NAME_LABEL, "metric-subscription-for-create")),
 					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, stableChannel)),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, testPackageName))))
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, testPackageName)),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.APPROVAL_LABEL, v1alpha1.ApprovalManual))))
 			})
 			if subscriptionCleanup != nil {
 				subscriptionCleanup()
@@ -150,7 +151,8 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					ContainSubstring("subscription_sync_total"),
 					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.NAME_LABEL, "metric-subscription-for-update")),
 					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, "beta")),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, testPackageName))))
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, testPackageName)),
+					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.APPROVAL_LABEL, v1alpha1.ApprovalManual))))
 			})
 			if subscriptionCleanup != nil {
 				subscriptionCleanup()
