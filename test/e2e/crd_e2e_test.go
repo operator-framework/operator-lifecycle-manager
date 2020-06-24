@@ -3,6 +3,8 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -13,7 +15,6 @@ import (
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"time"
 )
 
 var _ = Describe("CRD Versions", func() {
@@ -313,14 +314,22 @@ var _ = Describe("CRD Versions", func() {
 		Expect(s.Status.InstallPlanRef).ToNot(Equal(nil))
 
 		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version
-		Eventually(func() bool {
-			ip, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), s.Status.InstallPlanRef.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred(), "could not get installplan")
-
-			Expect(ip.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseFailed))
-			Expect(ip.Status.Conditions[len(ip.Status.Conditions)-1].Message).To(ContainSubstring("risk of data loss"))
-			return true
-		}).Should(BeTrue())
+		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+			return crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), s.Status.InstallPlanRef.Name, metav1.GetOptions{})
+		}).Should(And(
+			WithTransform(
+				func(v *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
+					return v.Status.Phase
+				},
+				Equal(operatorsv1alpha1.InstallPlanPhaseFailed),
+			),
+			WithTransform(
+				func(v *operatorsv1alpha1.InstallPlan) string {
+					return v.Status.Conditions[len(v.Status.Conditions)-1].Message
+				},
+				ContainSubstring("risk of data loss"),
+			),
+		))
 	})
 
 	// Create a CRD on cluster with v1alpha1 (storage)
@@ -369,7 +378,9 @@ var _ = Describe("CRD Versions", func() {
 		// wrap CRD update in a poll because of the object has been modified related errors
 		Eventually(func() error {
 			oldCRD, err = c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), oldCRD.GetName(), metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred(), "error getting old CRD")
+			if err != nil {
+				return err
+			}
 			GinkgoT().Logf("old crd status stored versions: %#v", oldCRD.Status.StoredVersions)
 
 			// set v1alpha1 to no longer served
@@ -448,12 +459,12 @@ var _ = Describe("CRD Versions", func() {
 		Expect(catalogCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
 
 		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version (v1alpha1)
-		Eventually(func() bool {
-			ip, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred(), "could not get installplan")
-
-			return ip.Status.Phase == operatorsv1alpha1.InstallPlanPhaseFailed
-		}).Should(BeTrue())
+		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+			return crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+		}).Should(WithTransform(
+			func(v *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase { return v.Status.Phase },
+			Equal(operatorsv1alpha1.InstallPlanPhaseFailed),
+		))
 
 		// update CRD status to remove the v1alpha1 stored version
 		newCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), oldCRD.GetName(), metav1.GetOptions{})
