@@ -81,7 +81,7 @@ spec:
               serviceAccountName: olm-operator-serviceaccount
               priorityClassName: "system-cluster-critical"
               nodeSelector:
-                beta.kubernetes.io/os: linux
+                kubernetes.io/os: linux
                 node-role.kubernetes.io/master: ""
               tolerations:
               - effect: NoSchedule
