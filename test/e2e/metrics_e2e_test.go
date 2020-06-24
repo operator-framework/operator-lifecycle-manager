@@ -136,6 +136,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					WithLabel("name", "metric-subscription-for-create"),
 					WithLabel("channel", stableChannel),
 					WithLabel("package", testPackageName),
+					WithLabel("approval", v1alpha1.ApprovalManual),
 				)))
 			})
 		})
@@ -178,6 +179,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						WithLabel("name", "metric-subscription-for-update"),
 						WithLabel("channel", "beta"),
 						WithLabel("package", testPackageName),
+						WithLabel("approval", v1alpha1.ApprovalManual),
 					)),
 				))
 			})
