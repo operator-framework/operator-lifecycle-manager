@@ -20,6 +20,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	controllerbundle "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
@@ -125,6 +126,20 @@ func TestNamespaceResolver(t *testing.T) {
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
 							Name:      catalog.Name,
+						},
+						Conditions: []v1alpha1.BundleLookupCondition{
+							{
+								Type:    BundleLookupConditionPacked,
+								Status:  corev1.ConditionTrue,
+								Reason:  controllerbundle.NotUnpackedReason,
+								Message: controllerbundle.NotUnpackedMessage,
+							},
+							{
+								Type:    v1alpha1.BundleLookupPending,
+								Status:  corev1.ConditionTrue,
+								Reason:  controllerbundle.JobNotStartedReason,
+								Message: controllerbundle.JobNotStartedMessage,
+							},
 						},
 					},
 				},
@@ -240,6 +255,20 @@ func TestNamespaceResolver(t *testing.T) {
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
 							Name:      catalog.Name,
+						},
+						Conditions: []v1alpha1.BundleLookupCondition{
+							{
+								Type:    BundleLookupConditionPacked,
+								Status:  corev1.ConditionTrue,
+								Reason:  controllerbundle.NotUnpackedReason,
+								Message: controllerbundle.NotUnpackedMessage,
+							},
+							{
+								Type:    v1alpha1.BundleLookupPending,
+								Status:  corev1.ConditionTrue,
+								Reason:  controllerbundle.JobNotStartedReason,
+								Message: controllerbundle.JobNotStartedMessage,
+							},
 						},
 					},
 				},
@@ -540,10 +569,6 @@ func TestNamespaceResolver(t *testing.T) {
 }
 
 func TestNamespaceResolverRBAC(t *testing.T) {
-	generateName = func(base string) string {
-		return "a"
-	}
-
 	namespace := "catsrc-namespace"
 	catalog := CatalogKey{"catsrc", namespace}
 

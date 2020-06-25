@@ -15,7 +15,12 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	controllerbundle "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+)
+
+const (
+	BundleLookupConditionPacked v1alpha1.BundleLookupConditionType = "BundleLookupNotPersisted"
 )
 
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
@@ -115,6 +120,20 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 					CatalogSourceRef: &corev1.ObjectReference{
 						Namespace: op.SourceInfo().Catalog.Namespace,
 						Name:      op.SourceInfo().Catalog.Name,
+					},
+					Conditions: []v1alpha1.BundleLookupCondition{
+						{
+							Type:    BundleLookupConditionPacked,
+							Status:  corev1.ConditionTrue,
+							Reason:  controllerbundle.NotUnpackedReason,
+							Message: controllerbundle.NotUnpackedMessage,
+						},
+						{
+							Type:    v1alpha1.BundleLookupPending,
+							Status:  corev1.ConditionTrue,
+							Reason:  controllerbundle.JobNotStartedReason,
+							Message: controllerbundle.JobNotStartedMessage,
+						},
 					},
 				})
 			}
