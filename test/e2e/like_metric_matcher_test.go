@@ -47,6 +47,30 @@ func WithLabel(n, v string) MetricPredicate {
 	}
 }
 
+func WithName(name string) MetricPredicate {
+	return WithLabel("name", name)
+}
+
+func WithChannel(channel string) MetricPredicate {
+	return WithLabel("channel", channel)
+}
+
+func WithPackage(pkg string) MetricPredicate {
+	return WithLabel("package", pkg)
+}
+
+func WithPhase(phase string) MetricPredicate {
+	return WithLabel("phase", phase)
+}
+
+func WithReason(reason string) MetricPredicate {
+	return WithLabel("reason", reason)
+}
+
+func WithVersion(version string) MetricPredicate {
+	return WithLabel("version", version)
+}
+
 func WithValue(v float64) MetricPredicate {
 	return MetricPredicate{
 		name: fmt.Sprintf("WithValue(%g)", v),
