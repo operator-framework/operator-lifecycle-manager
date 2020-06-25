@@ -1029,11 +1029,12 @@ var _ = Describe("CSV", func() {
 		require.True(GinkgoT(), ok, "expected olm sha annotation not present on existing pod template")
 
 		// Induce a cert rotation
-		now := metav1.Now()
-		fetchedCSV.Status.CertsLastUpdated = &now
-		fetchedCSV.Status.CertsRotateAt = &now
-		fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(Apply(fetchedCSV, func(csv *v1alpha1.ClusterServiceVersion) error {
+			now := metav1.Now()
+			csv.Status.CertsLastUpdated = &now
+			csv.Status.CertsRotateAt = &now
+			return nil
+		})).Should(Succeed())
 
 		_, err = fetchCSV(crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
 			// Should create deployment
