@@ -34,6 +34,27 @@ func (b *BundleUnpackResult) Bundle() *api.Bundle {
 	return b.bundle
 }
 
+func (b *BundleUnpackResult) Name() string {
+	return b.name
+}
+
+// SetCondition replaces the existing BundleLookupCondition of the same type, or adds it if it was not found.
+func (b *BundleUnpackResult) SetCondition(cond operatorsv1alpha1.BundleLookupCondition) operatorsv1alpha1.BundleLookupCondition {
+	for i, existing := range b.Conditions {
+		if existing.Type != cond.Type {
+			continue
+		}
+		if existing.Status == cond.Status && existing.Reason == cond.Reason {
+			cond.LastTransitionTime = existing.LastTransitionTime
+		}
+		b.Conditions[i] = cond
+		return cond
+	}
+	b.Conditions = append(b.Conditions, cond)
+
+	return cond
+}
+
 var catalogSourceGVK = operatorsv1alpha1.SchemeGroupVersion.WithKind(operatorsv1alpha1.CatalogSourceKind)
 
 func newBundleUnpackResult(lookup *operatorsv1alpha1.BundleLookup) *BundleUnpackResult {
@@ -251,16 +272,26 @@ const (
 	CatalogSourceMissingMessage = "referenced catalogsource not found"
 	JobIncompleteReason         = "JobIncomplete"
 	JobIncompleteMessage        = "unpack job not completed"
+	JobNotStartedReason         = "JobNotStarted"
+	JobNotStartedMessage        = "unpack job not yet started"
+	NotUnpackedReason           = "BundleNotUnpacked"
+	NotUnpackedMessage          = "bundle contents have not yet been persisted to installplan status"
 )
 
 func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup) (result *BundleUnpackResult, err error) {
 	result = newBundleUnpackResult(lookup)
+
+	// if pending condition is missing, bundle has already been unpacked
 	cond := result.GetCondition(operatorsv1alpha1.BundleLookupPending)
+	if cond.Status == corev1.ConditionUnknown {
+		return result, nil
+	}
+
 	now := c.now()
 
 	var cs *operatorsv1alpha1.CatalogSource
 	if cs, err = c.csLister.CatalogSources(result.CatalogSourceRef.Namespace).Get(result.CatalogSourceRef.Name); err != nil {
-		if apierrors.IsNotFound(err) && cond.Status != corev1.ConditionTrue && cond.Reason != CatalogSourceMissingReason {
+		if apierrors.IsNotFound(err) && cond.Reason != CatalogSourceMissingReason {
 			cond.Status = corev1.ConditionTrue
 			cond.Reason = CatalogSourceMissingReason
 			cond.Message = CatalogSourceMissingMessage
@@ -304,7 +335,7 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 		return
 	}
 
-	if !jobConditionTrue(job, batchv1.JobComplete) && cond.Status != corev1.ConditionTrue && cond.Reason != JobIncompleteReason {
+	if !jobConditionTrue(job, batchv1.JobComplete) && (cond.Status != corev1.ConditionTrue || cond.Reason != JobIncompleteReason) {
 		cond.Status = corev1.ConditionTrue
 		cond.Reason = JobIncompleteReason
 		cond.Message = JobIncompleteMessage
@@ -316,6 +347,10 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 
 	result.bundle, err = c.loader.Load(cm)
 	if err != nil {
+		return
+	}
+
+	if result.Bundle() == nil || len(result.Bundle().GetObject()) == 0 {
 		return
 	}
 
