@@ -198,8 +198,8 @@ func RegisterCatalog() {
 	prometheus.MustRegister(SubscriptionSyncCount)
 }
 
-func CounterForSubscription(name, installedCSV, channelName, packageName, planApproval string) prometheus.Counter {
-	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, packageName, planApproval)
+func CounterForSubscription(name, installedCSV, channelName, packageName, installPlanApproval string) prometheus.Counter {
+	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, packageName, installPlanApproval)
 }
 
 func DeleteCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion) {
@@ -268,7 +268,7 @@ func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
 		approvalStrategy != counterValues.planApproval {
 
 		// Delete metric will label values of old Subscription first
-		SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), counterValues.installedCSV, counterValues.channel, counterValues.pkg)
+		SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), counterValues.installedCSV, counterValues.channel, counterValues.pkg, counterValues.planApproval)
 
 		counterValues.installedCSV = sub.Status.InstalledCSV
 		counterValues.pkg = sub.Spec.Package
