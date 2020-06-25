@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
@@ -264,11 +263,13 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			})
 			It("should successfully update the CatalogSource field", func() {
 
-				Eventually(func() string {
+				Eventually(func() (string, error) {
 					pm, err := fetchPackageManifest(pmc, testNamespace, packageName,
 						packageManifestHasStatus)
-					Expect(err).NotTo(HaveOccurred(), "error getting package manifest after updating catsrc")
-					return pm.Status.CatalogSourceDisplayName
+					if err != nil {
+						return "", err
+					}
+					return pm.Status.CatalogSourceDisplayName, nil
 				}).Should(Equal(displayName))
 			})
 		})
@@ -286,11 +287,11 @@ func fetchPackageManifest(pmc pmversioned.Interface, namespace, name string, che
 	var fetched *packagev1.PackageManifest
 	var err error
 
-	Eventually(func() (bool, error) {
+	EventuallyWithOffset(1, func() (bool, error) {
 		ctx.Ctx().Logf("Polling...")
 		fetched, err = pmc.OperatorsV1().PackageManifests(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-		if err != nil && !errors.IsNotFound(err) {
-			return true, err
+		if err != nil {
+			return false, err
 		}
 		return check(fetched), nil
 	}).Should(BeTrue())

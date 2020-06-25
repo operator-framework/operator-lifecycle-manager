@@ -458,16 +458,15 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			})
 
 			It("OLM should have upgraded associated configmap in place", func() {
-				Eventually(func() bool {
+				Eventually(func() (string, error) {
 					cfg, err := kubeClient.GetConfigMap(testNamespace, configmapName)
 					if err != nil {
-						return false
+						return "", err
 					}
 					// check data in configmap to ensure it is the new data (configmap was updated in the newer bundle)
 					// new value in the configmap is "updated-very-much"
-					data := cfg.Data["special.how"]
-					return data == "updated-very-much"
-				}).Should(BeTrue())
+					return cfg.Data["special.how"], nil
+				}).Should(Equal("updated-very-much"))
 				ctx.Ctx().Logf("dependent successfully updated after csv owner was updated")
 			})
 		})
