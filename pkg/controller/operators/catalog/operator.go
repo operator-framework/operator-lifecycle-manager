@@ -1204,7 +1204,26 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
 	ref, err := querier()
 	if err != nil {
+		// issue with operator group/service account in installplan namespace
+		// fail installplan (if not already failed)
 		syncError = fmt.Errorf("attenuated service account query failed - %v", err)
+
+		if plan.Status.Phase != v1alpha1.InstallPlanFailed {
+			t := metav1.Now()
+			out := plan.DeepCopy()
+			out.Status.Phase = v1alpha1.InstallPlanFailed
+			out.Status.Conditions[0] = v1alpha1.InstallPlanCondition{
+				Reason:         v1alpha1.InstallPlanReasonDependencyConflict,
+				Message:        syncError.Error(),
+				LastUpdateTime: &t,
+			}
+
+			if _, updateErr := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); updateErr != nil {
+				syncError = fmt.Errorf("failed to updated failed installplan status - %v", updateErr)
+				return
+			}
+		}
+
 		return
 	}
 
