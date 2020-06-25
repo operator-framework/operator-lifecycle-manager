@@ -3,19 +3,34 @@
 package e2e
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
-// TestMetrics tests the metrics endpoint of the OLM pod.
-func TestMetricsEndpoint(t *testing.T) {
+const (
+	// RetryInterval defines the frequency at which we check for updates against the
+	// k8s api when waiting for a specific condition to be true.
+	RetryInterval = time.Second * 5
+
+	// Timeout defines the amount of time we should spend querying the k8s api
+	// when waiting for a specific condition to be true.
+	Timeout = time.Minute * 5
+)
+
+// TestCSVMetrics tests the metrics endpoint of the OLM pod for CSV metrics.
+func TestCSVMetrics(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
@@ -41,7 +56,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	_, err = fetchCSV(t, crc, failingCSV.Name, testNamespace, csvFailedChecker)
 	require.NoError(t, err)
 
-	rawOutput, err := getMetricsFromPod(t, c, getOLMPodName(t, c), operatorNamespace, "8081")
+	rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=olm-operator"), operatorNamespace, "8081")
 	if err != nil {
 		t.Fatalf("Metrics test failed: %v\n", err)
 	}
@@ -56,7 +71,7 @@ func TestMetricsEndpoint(t *testing.T) {
 
 	cleanupCSV()
 
-	rawOutput, err = getMetricsFromPod(t, c, getOLMPodName(t, c), operatorNamespace, "8081")
+	rawOutput, err = getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=olm-operator"), operatorNamespace, "8081")
 	if err != nil {
 		t.Fatalf("Failed to retrieve metrics from OLM pod because of: %v\n", err)
 	}
@@ -64,8 +79,45 @@ func TestMetricsEndpoint(t *testing.T) {
 	require.NotContains(t, rawOutput, "csv_succeeded{name=\""+failingCSV.Name+"\"")
 }
 
-func getOLMPodName(t *testing.T, client operatorclient.ClientInterface) string {
-	listOptions := metav1.ListOptions{LabelSelector: "app=olm-operator"}
+func TestSubscriptionMetrics(t *testing.T) {
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	subscriptionName := "metric-subscription"
+
+	_, subscription := createSubscription(t, crc, testNamespace, "metric-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+	err := waitForSubscriptionMetric(t, c, subscriptionName, testPackageName, stableChannel)
+	require.NoError(t, err)
+
+	subscription = getSubscription(t, crc, testNamespace, subscriptionName)
+	subscription.Spec.Channel = betaChannel
+	updateSubscription(t, crc, subscription)
+	err = waitForSubscriptionMetric(t, c, subscriptionName, testPackageName, betaChannel)
+	require.NoError(t, err)
+	err = waitForSubscriptionMetricDeletion(t, c, subscriptionName, testPackageName, stableChannel)
+	require.NoError(t, err)
+
+	subscription = getSubscription(t, crc, testNamespace, subscriptionName)
+	subscription.Spec.Channel = alphaChannel
+	updateSubscription(t, crc, subscription)
+	err = waitForSubscriptionMetric(t, c, subscriptionName, testPackageName, alphaChannel)
+	require.NoError(t, err)
+	err = waitForSubscriptionMetricDeletion(t, c, subscriptionName, testPackageName, stableChannel)
+	require.NoError(t, err)
+	err = waitForSubscriptionMetricDeletion(t, c, subscriptionName, testPackageName, betaChannel)
+	require.NoError(t, err)
+
+	subscription = getSubscription(t, crc, testNamespace, subscriptionName)
+	subscriptionCleanup := buildSubscriptionCleanupFunc(t, crc, subscription)
+	if subscriptionCleanup != nil {
+		subscriptionCleanup()
+	}
+	err = waitForSubscriptionMetricDeletion(t, c, subscriptionName, testPackageName, alphaChannel)
+	require.NoError(t, err)
+
+}
+
+func getPodWithLabel(t *testing.T, client operatorclient.ClientInterface, label string) string {
+	listOptions := metav1.ListOptions{LabelSelector: label}
 	podList, err := client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(listOptions)
 	if err != nil {
 		log.Infof("Error %v\n", err)
@@ -120,4 +172,38 @@ func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podN
 		return "", err
 	}
 	return string(rawOutput), nil
+}
+
+func waitForSubscriptionMetric(t *testing.T, c operatorclient.ClientInterface, name, pkg, channel string) error {
+	return wait.PollImmediate(RetryInterval, Timeout, func() (bool, error) {
+
+		rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=catalog-operator"), operatorNamespace, "8081")
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(rawOutput, "subscription_sync_total") &&
+			strings.Contains(rawOutput, fmt.Sprintf("%s=\"%s\"", metrics.NAME_LABEL, name)) &&
+			strings.Contains(rawOutput, fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, channel)) &&
+			strings.Contains(rawOutput, fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, pkg)) {
+			return true, nil
+		}
+		return false, nil
+	})
+}
+
+func waitForSubscriptionMetricDeletion(t *testing.T, c operatorclient.ClientInterface, name, pkg, channel string) error {
+	return wait.PollImmediate(RetryInterval, Timeout, func() (bool, error) {
+
+		rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=catalog-operator"), operatorNamespace, "8081")
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(rawOutput, "subscription_sync_total") &&
+			strings.Contains(rawOutput, fmt.Sprintf("%s=\"%s\"", metrics.NAME_LABEL, name)) &&
+			strings.Contains(rawOutput, fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, channel)) &&
+			strings.Contains(rawOutput, fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, pkg)) {
+			return false, nil
+		}
+		return true, nil
+	})
 }
