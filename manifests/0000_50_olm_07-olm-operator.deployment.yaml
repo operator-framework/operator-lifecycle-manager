@@ -77,7 +77,7 @@ spec:
           secretName: olm-operator-serving-cert
       
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
         node-role.kubernetes.io/master: ""
       tolerations:
       - effect: NoSchedule
