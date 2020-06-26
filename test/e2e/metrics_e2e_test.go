@@ -3,13 +3,15 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"regexp"
-	"time"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	io_prometheus_client "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
@@ -17,7 +19,6 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
@@ -71,14 +72,19 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 			It("generates csv_abnormal metric for OLM pod", func() {
 
-				// Verify metrics have been emitted for packageserver csv
 				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).To(And(
-					ContainSubstring("csv_abnormal"),
-					ContainSubstring(fmt.Sprintf("name=\"%s\"", failingCSV.Name)),
-					ContainSubstring("phase=\"Failed\""),
-					ContainSubstring("reason=\"UnsupportedOperatorGroup\""),
-					ContainSubstring("version=\"0.0.0\""),
-					ContainSubstring("csv_succeeded"),
+					ContainElement(LikeMetric(
+						WithFamily("csv_abnormal"),
+						WithLabel("name", failingCSV.Name),
+						WithLabel("phase", "Failed"),
+						WithLabel("reason", "UnsupportedOperatorGroup"),
+						WithLabel("version", "0.0.0"),
+					)),
+					ContainElement(LikeMetric(
+						WithFamily("csv_succeeded"),
+						WithValue(0),
+						WithLabel("name", failingCSV.Name),
+					)),
 				))
 
 				cleanupCSV()
@@ -95,8 +101,8 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				It("deletes its associated CSV metrics", func() {
 					// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
 					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).ToNot(And(
-						ContainSubstring("csv_abnormal{name=\"%s\"", failingCSV.Name),
-						ContainSubstring("csv_succeeded{name=\"%s\"", failingCSV.Name),
+						ContainElement(LikeMetric(WithFamily("csv_abnormal"), WithLabel("name", failingCSV.Name))),
+						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithLabel("name", failingCSV.Name))),
 					))
 				})
 			})
@@ -108,68 +114,98 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			subscriptionCleanup cleanupFunc
 			subscription        *v1alpha1.Subscription
 		)
-		When("A subscription object is created", func() {
 
+		When("A subscription object is created", func() {
 			BeforeEach(func() {
 				subscriptionCleanup, _ = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-create", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+			})
+
+			AfterEach(func() {
+				if subscriptionCleanup != nil {
+					subscriptionCleanup()
+				}
 			})
 
 			It("generates subscription_sync_total metric", func() {
 
 				// Verify metrics have been emitted for subscription
-				Eventually(func() string {
+				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
-				}, time.Minute, 5*time.Second).Should(And(
-					ContainSubstring("subscription_sync_total"),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.NAME_LABEL, "metric-subscription-for-create")),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, stableChannel)),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, testPackageName))))
+				}).Should(ContainElement(LikeMetric(
+					WithFamily("subscription_sync_total"),
+					WithLabel("name", "metric-subscription-for-create"),
+					WithLabel("channel", stableChannel),
+					WithLabel("package", testPackageName),
+				)))
 			})
-			if subscriptionCleanup != nil {
-				subscriptionCleanup()
-			}
 		})
-		When("A subscription object is updated", func() {
+
+		When("A subscription object is updated after emitting metrics", func() {
 
 			BeforeEach(func() {
 				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-update", testPackageName, stableChannel, v1alpha1.ApprovalManual)
-				subscription.Spec.Channel = "beta"
-				updateSubscription(GinkgoT(), crc, subscription)
+				Eventually(func() []Metric {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-update"))))
+				Eventually(func() error {
+					s, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+					s.Spec.Channel = "beta"
+					_, err = crc.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Update(context.TODO(), s, metav1.UpdateOptions{})
+					return err
+				}).Should(Succeed())
+			})
+
+			AfterEach(func() {
+				if subscriptionCleanup != nil {
+					subscriptionCleanup()
+				}
 			})
 
 			It("deletes the old Subscription metric and emits the new metric", func() {
-				Eventually(func() string {
+				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
-				}, time.Minute, 5*time.Second).ShouldNot(And(
-					ContainSubstring("subscription_sync_total{name=\"metric-subscription-for-update\""),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, stableChannel))))
-
-				Eventually(func() string {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
-				}, time.Minute, 5*time.Second).Should(And(
-					ContainSubstring("subscription_sync_total"),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.NAME_LABEL, "metric-subscription-for-update")),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.CHANNEL_LABEL, "beta")),
-					ContainSubstring(fmt.Sprintf("%s=\"%s\"", metrics.PACKAGE_LABEL, testPackageName))))
+				}).Should(And(
+					Not(ContainElement(LikeMetric(
+						WithFamily("subscription_sync_total"),
+						WithLabel("name", "metric-subscription-for-update"),
+						WithLabel("channel", stableChannel),
+					))),
+					ContainElement(LikeMetric(
+						WithFamily("subscription_sync_total"),
+						WithLabel("name", "metric-subscription-for-update"),
+						WithLabel("channel", "beta"),
+						WithLabel("package", testPackageName),
+					)),
+				))
 			})
-			if subscriptionCleanup != nil {
-				subscriptionCleanup()
-			}
 		})
 
-		When("A subscription object is deleted", func() {
+		When("A subscription object is deleted after emitting metrics", func() {
 
 			BeforeEach(func() {
 				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-delete", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				Eventually(func() []Metric {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-delete"))))
+				if subscriptionCleanup != nil {
+					subscriptionCleanup()
+					subscriptionCleanup = nil
+				}
+			})
+
+			AfterEach(func() {
 				if subscriptionCleanup != nil {
 					subscriptionCleanup()
 				}
 			})
 
 			It("deletes the Subscription metric", func() {
-				Eventually(func() string {
+				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
-				}, time.Minute, 5*time.Second).ShouldNot(ContainSubstring("subscription_sync_total{name=\"metric-subscription-for-update\""))
+				}).ShouldNot(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-delete"))))
 			})
 		})
 	})
@@ -178,7 +214,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 func getPodWithLabel(client operatorclient.ClientInterface, label string) *corev1.Pod {
 	listOptions := metav1.ListOptions{LabelSelector: label}
 	var podList *corev1.PodList
-	Eventually(func() (err error) {
+	EventuallyWithOffset(1, func() (err error) {
 		podList, err = client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(context.TODO(), listOptions)
 		return
 	}).Should(Succeed(), "Failed to list OLM pods")
@@ -187,8 +223,8 @@ func getPodWithLabel(client operatorclient.ClientInterface, label string) *corev
 	return &podList.Items[0]
 }
 
-func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod, port string) string {
-	By(fmt.Sprintf("querying pod %s/%s", pod.GetNamespace(), pod.GetName()))
+func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod, port string) []Metric {
+	ctx.Ctx().Logf("querying pod %s/%s\n", pod.GetNamespace(), pod.GetName())
 
 	// assuming -tls-cert and -tls-key aren't used anywhere else as a parameter value
 	var foundCert, foundKey bool
@@ -210,17 +246,61 @@ func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod, p
 	}
 	ctx.Ctx().Logf("Retrieving metrics using scheme %v\n", scheme)
 
-	var raw []byte
-	Eventually(func() (err error) {
-		raw, err = client.KubernetesInterface().CoreV1().RESTClient().Get().
+	mfs := make(map[string]*io_prometheus_client.MetricFamily)
+	EventuallyWithOffset(1, func() error {
+		raw, err := client.KubernetesInterface().CoreV1().RESTClient().Get().
 			Namespace(pod.GetNamespace()).
 			Resource("pods").
 			SubResource("proxy").
 			Name(net.JoinSchemeNamePort(scheme, pod.GetName(), port)).
 			Suffix("metrics").
 			Do(context.Background()).Raw()
-		return
+		if err != nil {
+			return err
+		}
+		var p expfmt.TextParser
+		mfs, err = p.TextToMetricFamilies(bytes.NewReader(raw))
+		if err != nil {
+			return err
+		}
+		return nil
 	}).Should(Succeed())
 
-	return string(raw)
+	var metrics []Metric
+	for family, mf := range mfs {
+		var ignore bool
+		for _, ignoredPrefix := range []string{"go_", "process_", "promhttp_"} {
+			ignore = ignore || strings.HasPrefix(family, ignoredPrefix)
+		}
+		if ignore {
+			// Metrics with these prefixes shouldn't be
+			// relevant to these tests, so they can be
+			// stripped out to make test failures easier
+			// to understand.
+			continue
+		}
+
+		for _, metric := range mf.Metric {
+			m := Metric{
+				Family: family,
+			}
+			if len(metric.GetLabel()) > 0 {
+				m.Labels = make(map[string][]string)
+			}
+			for _, pair := range metric.GetLabel() {
+				m.Labels[pair.GetName()] = append(m.Labels[pair.GetName()], pair.GetValue())
+			}
+			if u := metric.GetUntyped(); u != nil {
+				m.Value = u.GetValue()
+			}
+			if g := metric.GetGauge(); g != nil {
+				m.Value = g.GetValue()
+			}
+			if c := metric.GetCounter(); c != nil {
+				m.Value = c.GetValue()
+			}
+			metrics = append(metrics, m)
+		}
+	}
+	return metrics
 }
