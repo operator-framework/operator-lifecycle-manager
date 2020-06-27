@@ -1813,11 +1813,6 @@ func createSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, 
 	return buildSubscriptionCleanupFunc(crc, subscription), subscription
 }
 
-func updateSubscription(t GinkgoTInterface, crc versioned.Interface, subscription *v1alpha1.Subscription) {
-	_, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Update(context.TODO(), subscription, metav1.UpdateOptions{})
-	Expect(err).ToNot(HaveOccurred())
-}
-
 func createSubscriptionForCatalog(crc versioned.Interface, namespace, name, catalog, packageName, channel, startingCSV string, approval v1alpha1.Approval) cleanupFunc {
 	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
