@@ -267,5 +267,7 @@ func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
 		counterValues.installedCSV = sub.Status.InstalledCSV
 		counterValues.pkg = sub.Spec.Package
 		counterValues.channel = sub.Spec.Channel
+
+		subscriptionSyncCounters[sub.GetName()] = counterValues
 	}
 }

@@ -75,15 +75,15 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).To(And(
 					ContainElement(LikeMetric(
 						WithFamily("csv_abnormal"),
-						WithLabel("name", failingCSV.Name),
-						WithLabel("phase", "Failed"),
-						WithLabel("reason", "UnsupportedOperatorGroup"),
-						WithLabel("version", "0.0.0"),
+						WithName(failingCSV.Name),
+						WithPhase("Failed"),
+						WithReason("UnsupportedOperatorGroup"),
+						WithVersion("0.0.0"),
 					)),
 					ContainElement(LikeMetric(
 						WithFamily("csv_succeeded"),
 						WithValue(0),
-						WithLabel("name", failingCSV.Name),
+						WithName(failingCSV.Name),
 					)),
 				))
 
@@ -101,8 +101,8 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				It("deletes its associated CSV metrics", func() {
 					// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
 					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).ToNot(And(
-						ContainElement(LikeMetric(WithFamily("csv_abnormal"), WithLabel("name", failingCSV.Name))),
-						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithLabel("name", failingCSV.Name))),
+						ContainElement(LikeMetric(WithFamily("csv_abnormal"), WithName(failingCSV.Name))),
+						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(failingCSV.Name))),
 					))
 				})
 			})
@@ -133,9 +133,9 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
 				}).Should(ContainElement(LikeMetric(
 					WithFamily("subscription_sync_total"),
-					WithLabel("name", "metric-subscription-for-create"),
-					WithLabel("channel", stableChannel),
-					WithLabel("package", testPackageName),
+					WithName("metric-subscription-for-create"),
+					WithChannel(stableChannel),
+					WithPackage(testPackageName),
 				)))
 			})
 		})
@@ -152,7 +152,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					if err != nil {
 						return err
 					}
-					s.Spec.Channel = "beta"
+					s.Spec.Channel = betaChannel
 					_, err = crc.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Update(context.TODO(), s, metav1.UpdateOptions{})
 					return err
 				}).Should(Succeed())
@@ -170,16 +170,54 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				}).Should(And(
 					Not(ContainElement(LikeMetric(
 						WithFamily("subscription_sync_total"),
-						WithLabel("name", "metric-subscription-for-update"),
-						WithLabel("channel", stableChannel),
+						WithName("metric-subscription-for-update"),
+						WithChannel(stableChannel),
+						WithPackage(testPackageName),
 					))),
 					ContainElement(LikeMetric(
 						WithFamily("subscription_sync_total"),
-						WithLabel("name", "metric-subscription-for-update"),
-						WithLabel("channel", "beta"),
-						WithLabel("package", testPackageName),
+						WithName("metric-subscription-for-update"),
+						WithChannel(betaChannel),
+						WithPackage(testPackageName),
 					)),
 				))
+			})
+			When("The subscription object is updated again", func() {
+
+				BeforeEach(func() {
+					Eventually(func() error {
+						s, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+						if err != nil {
+							return err
+						}
+						s.Spec.Channel = alphaChannel
+						_, err = crc.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Update(context.TODO(), s, metav1.UpdateOptions{})
+						return err
+					}).Should(Succeed())
+				})
+
+				It("deletes the old subscription metric and emits the new metric(there is only one metric for the subscription)", func() {
+					Eventually(func() []Metric {
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					}).Should(And(
+						Not(ContainElement(LikeMetric(
+							WithFamily("subscription_sync_total"),
+							WithName("metric-subscription-for-update"),
+							WithChannel(stableChannel),
+						))),
+						Not(ContainElement(LikeMetric(
+							WithFamily("subscription_sync_total"),
+							WithName("metric-subscription-for-update"),
+							WithChannel(betaChannel),
+							WithPackage(testPackageName),
+						))),
+						ContainElement(LikeMetric(
+							WithFamily("subscription_sync_total"),
+							WithName("metric-subscription-for-update"),
+							WithChannel(alphaChannel),
+							WithPackage(testPackageName),
+						))))
+				})
 			})
 		})
 
@@ -205,7 +243,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			It("deletes the Subscription metric", func() {
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
-				}).ShouldNot(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-delete"))))
+				}).ShouldNot(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithName("metric-subscription-for-delete"))))
 			})
 		})
 	})
