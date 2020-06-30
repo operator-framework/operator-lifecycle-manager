@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/component-base/featuregate"
+	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -881,4 +883,111 @@ func toggleFeatureGates(deployment *appsv1.Deployment, toToggle ...featuregate.F
 	defer cancel()
 
 	awaitPredicates(deadline, w, deploymentReplicas(2), deploymentAvailable, deploymentReplicas(1))
+}
+
+type Object interface {
+	runtime.Object
+	metav1.Object
+}
+
+// Apply returns a function that invokes a change func on an object and performs a server-side apply patch with the result and its status subresource.
+// The given resource must be a pointer to a struct that specifies its Name, Namespace, APIVersion, and Kind at minimum.
+// The given change function must be aunary, matching the signature: "func(<obj type>) error".
+// The returned function is suitable for use w/ asyncronous assertions.
+// Ex. Change the spec of an existing InstallPlan
+//
+// plan := &InstallPlan{}
+// plan.SetNamespace("ns")
+// plan.SetName("install-123def")
+// plan.GetObjectKind().SetGroupVersionKind(schema.GroupVersionKind{
+//		Group:   GroupName,
+//		Version: GroupVersion,
+//		Kind:    InstallPlanKind,
+// })
+// Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+//		p.Spec.Approved = true
+//		return nil
+// })).Should(Succeed())
+func Apply(obj Object, changeFunc interface{}) func() error {
+	// Ensure given object is a pointer
+	objType := reflect.TypeOf(obj)
+	if objType.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("argument object must be a pointer"))
+	}
+
+	// Ensure given function matches expected signature
+	var (
+		change     = reflect.ValueOf(changeFunc)
+		changeType = change.Type()
+	)
+	if n := changeType.NumIn(); n != 1 {
+		panic(fmt.Sprintf("unexpected number of formal parameters in change function signature: expected 1, present %d", n))
+	}
+	if pt := changeType.In(0); pt != objType {
+		panic(fmt.Sprintf("argument object type does not match the change function parameter type: argument %s, parameter: %s", objType, pt))
+	}
+	if n := changeType.NumOut(); n != 1 {
+		panic(fmt.Sprintf("unexpected number of return values in change function signature: expected 1, present %d", n))
+	}
+	var err error
+	if rt := changeType.Out(0); !rt.Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		panic(fmt.Sprintf("unexpected return type in change function signature: expected %t, preset %s", err, rt))
+	}
+
+	var (
+		bg     = context.Background()
+		client = ctx.Ctx().Client()
+	)
+	key, err := controllerclient.ObjectKeyFromObject(obj)
+	if err != nil {
+		panic(fmt.Sprintf("unable to extract key from resource: %s", err))
+	}
+
+	return func() error {
+		cp := obj.DeepCopyObject().(Object)
+		if err := client.Get(bg, key, cp); err != nil {
+			return err
+		}
+		cp.GetObjectKind().SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+		cp.SetManagedFields(nil)
+
+		var (
+			cpv = reflect.ValueOf(cp)
+			out = change.Call([]reflect.Value{reflect.ValueOf(cp)})
+		)
+		if len(out) != 1 {
+			panic(fmt.Sprintf("unexpected number of return values from apply mutation func: expected 1, returned %d", len(out)))
+		}
+
+		if err := out[0].Interface(); err != nil {
+			return err.(error)
+		}
+
+		if err := client.Patch(bg, cp, controllerclient.Apply, controllerclient.ForceOwnership, controllerclient.FieldOwner("test")); err != nil {
+			return err
+		}
+
+		if err := client.Get(bg, key, cp); err != nil {
+			return err
+		}
+		cp.GetObjectKind().SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+		cp.SetManagedFields(nil)
+
+		if len(out) != 1 {
+			panic(fmt.Sprintf("unexpected number of return values from apply mutation func: expected 1, returned %d", len(out)))
+		}
+
+		out = change.Call([]reflect.Value{reflect.ValueOf(cp)})
+		if err := out[0].Interface(); err != nil {
+			return err.(error)
+		}
+
+		if err := client.Status().Patch(bg, cp, controllerclient.Apply, controllerclient.ForceOwnership, controllerclient.FieldOwner("test")); err != nil {
+			return err
+		}
+
+		reflect.ValueOf(obj).Elem().Set(cpv.Elem())
+
+		return nil
+	}
 }

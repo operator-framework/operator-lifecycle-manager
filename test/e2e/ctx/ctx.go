@@ -5,12 +5,18 @@ import (
 	"strings"
 
 	. "github.com/onsi/ginkgo"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
+	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var ctx TestContext
@@ -23,6 +29,11 @@ type TestContext struct {
 	operatorClient versioned.Interface
 	dynamicClient  dynamic.Interface
 	packageClient  pversioned.Interface
+
+	scheme *runtime.Scheme
+
+	// client is the controller-runtime client -- we should use this from now on
+	client controllerclient.Client
 }
 
 // Ctx returns a pointer to the global test context. During parallel
@@ -38,6 +49,10 @@ func (ctx TestContext) Logf(f string, v ...interface{}) {
 		f += "\n"
 	}
 	fmt.Fprintf(GinkgoWriter, f, v...)
+}
+
+func (ctx TestContext) Scheme() *runtime.Scheme {
+	return ctx.scheme
 }
 
 func (ctx TestContext) RESTConfig() *rest.Config {
@@ -58,6 +73,10 @@ func (ctx TestContext) DynamicClient() dynamic.Interface {
 
 func (ctx TestContext) PackageClient() pversioned.Interface {
 	return ctx.packageClient
+}
+
+func (ctx TestContext) Client() controllerclient.Client {
+	return ctx.client
 }
 
 func setDerivedFields(ctx *TestContext) error {
@@ -92,6 +111,25 @@ func setDerivedFields(ctx *TestContext) error {
 		return err
 	}
 	ctx.packageClient = packageClient
+
+	ctx.scheme = runtime.NewScheme()
+	localSchemeBuilder := runtime.NewSchemeBuilder(
+		kscheme.AddToScheme,
+		operatorsv1alpha1.AddToScheme,
+		operatorsv1.AddToScheme,
+		operatorsv2alpha1.AddToScheme,
+	)
+	if err := localSchemeBuilder.AddToScheme(ctx.scheme); err != nil {
+		return err
+	}
+
+	client, err := controllerclient.New(ctx.restConfig, controllerclient.Options{
+		Scheme: ctx.scheme,
+	})
+	if err != nil {
+		return err
+	}
+	ctx.client = client
 
 	return nil
 }
