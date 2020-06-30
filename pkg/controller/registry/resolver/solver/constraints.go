@@ -1,4 +1,4 @@
-package sat
+package solver
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 type Constraint interface {
 	String(subject Identifier) string
 	apply(x constrainer, subject Identifier)
+	order() []Identifier
 }
 
 // AppliedConstraint values compose a single Constraint with the
@@ -35,9 +36,6 @@ type constrainer interface {
 	// the given Identifier to the clause representing a
 	// Constraint.
 	AddNot(Identifier)
-	// Weight sets an additional weight to add to the constrained
-	// Installable. Calls with negative arguments are ignored.
-	Weight(int)
 }
 
 type mandatory struct{}
@@ -48,6 +46,10 @@ func (c mandatory) String(subject Identifier) string {
 
 func (c mandatory) apply(x constrainer, subject Identifier) {
 	x.Add(subject)
+}
+
+func (c mandatory) order() []Identifier {
+	return nil
 }
 
 // Mandatory returns a Constraint that will permit only solutions that
@@ -64,6 +66,10 @@ func (c prohibited) String(subject Identifier) string {
 
 func (c prohibited) apply(x constrainer, subject Identifier) {
 	x.AddNot(subject)
+}
+
+func (c prohibited) order() []Identifier {
+	return nil
 }
 
 // Prohibited returns a Constraint that will reject any solution that
@@ -94,10 +100,15 @@ func (c dependency) apply(x constrainer, subject Identifier) {
 	}
 }
 
+func (c dependency) order() []Identifier {
+	return []Identifier(c)
+}
+
 // Dependency returns a Constraint that will only permit solutions
 // containing a given Installable on the condition that at least one
 // of the Installables identified by the given Identifiers also
-// appears in the solution.
+// appears in the solution. Identifiers appearing earlier in the
+// argument list have higher preference than those appearing later.
 func Dependency(ids ...Identifier) Constraint {
 	return dependency(ids)
 }
@@ -113,25 +124,13 @@ func (c conflict) apply(x constrainer, subject Identifier) {
 	x.AddNot(Identifier(c))
 }
 
+func (c conflict) order() []Identifier {
+	return nil
+}
+
 // Conflict returns a Constraint that will permit solutions containing
 // either the constrained Installable, the Installable identified by
 // the given Identifier, or neither, but not both.
 func Conflict(id Identifier) Constraint {
 	return conflict(id)
-}
-
-type weight int
-
-func (c weight) String(subject Identifier) string {
-	return fmt.Sprintf("%s has weight %d", subject, c)
-}
-
-func (c weight) apply(x constrainer, subject Identifier) {
-	x.Weight(int(c))
-}
-
-// Weight returns a Constraint that increases the weight of the
-// constrainted Installable by the given (non-negative) amount.
-func Weight(w int) Constraint {
-	return weight(w)
 }

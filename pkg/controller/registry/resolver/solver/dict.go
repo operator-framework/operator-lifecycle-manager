@@ -1,10 +1,8 @@
-package sat
+package solver
 
 import (
-	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/irifrance/gini"
 	"github.com/irifrance/gini/inter"
@@ -16,20 +14,20 @@ import (
 // Solve (Constraints, Installables, etc.) and the variables that
 // appear in the SAT formula.
 type dict struct {
+	inorder      []Installable
 	installables map[z.Lit]Installable
 	lits         map[Identifier]z.Lit
 	constraints  map[z.Lit]AppliedConstraint
 	c            *logic.C
-	cards        *logic.CardSort
 	errs         dictError
+	buf          []z.Lit
 }
 
 // cstate is a reusable constrainer that accumulates terms of
 // constraint clauses.
 type cstate struct {
-	pos    []Identifier
-	neg    []Identifier
-	weight int
+	pos []Identifier
+	neg []Identifier
 }
 
 func (x *cstate) Add(id Identifier) {
@@ -40,18 +38,11 @@ func (x *cstate) AddNot(id Identifier) {
 	x.neg = append(x.neg, id)
 }
 
-func (x *cstate) Weight(w int) {
-	if w >= 0 {
-		x.weight = w
-	}
-}
-
 // Reset clears the receiver's internal state so that it can be
 // reused.
 func (x *cstate) Reset() {
 	x.pos = x.pos[:0]
 	x.neg = x.neg[:0]
-	x.weight = 0
 }
 
 // Empty returns true if and only if the receiver has accumulated no
@@ -109,6 +100,10 @@ func (zeroConstraint) String(subject Identifier) string {
 func (zeroConstraint) apply(x constrainer, subject Identifier) {
 }
 
+func (zeroConstraint) order() []Identifier {
+	return nil
+}
+
 // ConstraintOf returns the constraint application corresponding to
 // the provided literal, or a zeroConstraint if no such constraint
 // exists.
@@ -144,45 +139,40 @@ func (d *dict) Error() error {
 // inputs to the underlying solver.
 func compileDict(installables []Installable) *dict {
 	d := dict{
+		inorder:      installables,
 		installables: make(map[z.Lit]Installable, len(installables)),
 		lits:         make(map[Identifier]z.Lit, len(installables)),
 		constraints:  make(map[z.Lit]AppliedConstraint),
-		c:            logic.NewC(),
+		c:            logic.NewCCap(len(installables)),
 	}
 
-	var buf []z.Lit
-	var x cstate
-	weights := make([]z.Lit, 0, len(installables))
-
-	// First pass to assign lits from the circuit:
+	// First pass to assign lits:
 	for _, installable := range installables {
 		im := d.c.Lit()
-		d.installables[im] = installable
 		d.lits[installable.Identifier()] = im
+		d.installables[im] = installable
 	}
 
-	// Then build the constraints:
+	var x cstate
 	for _, installable := range installables {
 		for _, constraint := range installable.Constraints() {
 			x.Reset()
 			constraint.apply(&x, installable.Identifier())
-
-			clauses := make([]z.Lit, 0, x.weight)
-			for w := 0; w < x.weight; w++ {
-				weights = append(weights, d.lits[installable.Identifier()])
+			if x.Empty() {
+				// This constraint doesn't have a
+				// useful representation in the SAT
+				// inputs.
+				continue
 			}
 
-			if !x.Empty() {
-				buf = buf[:0]
-				for _, p := range x.pos {
-					buf = append(buf, d.LitOf(p))
-				}
-				for _, n := range x.neg {
-					buf = append(buf, d.LitOf(n).Not())
-				}
-				clauses = append(clauses, d.c.Ors(buf...))
+			d.buf = d.buf[:0]
+			for _, p := range x.pos {
+				d.buf = append(d.buf, d.LitOf(p))
 			}
-			m := d.c.Ands(clauses...)
+			for _, n := range x.neg {
+				d.buf = append(d.buf, d.LitOf(n).Not())
+			}
+			m := d.c.Ors(d.buf...)
 
 			d.constraints[m] = AppliedConstraint{
 				Installable: installable,
@@ -191,75 +181,82 @@ func compileDict(installables []Installable) *dict {
 		}
 	}
 
-	d.cards = d.c.CardSort(weights)
-
 	return &d
 }
 
-// Solve searches for a solution to the problem encoded in a dict that
-// minimizes the total weight of all selected Installables.
-func (d *dict) Solve(ctx context.Context, g *gini.Gini) int {
+func (d *dict) AddConstraints(g *gini.Gini) {
 	d.c.ToCnf(g)
+}
 
-	var result int
-	linearSearch(0, d.cards.N(), func(w int) bool {
-		if w >= 0 {
-			// Omitting the cardinality constraint on the
-			// last iteration prevents the cardinality
-			// constraint literal from showing up in the
-			// set of failed assumptions should there be
-			// no solution.
-			g.Assume(d.cards.Leq(w))
-		}
-		for m := range d.constraints {
-			g.Assume(m)
-		}
-		result = waitForSolution(ctx, g.GoSolve())
-		return result == satisfiable
-	})
+func (d *dict) AssumeConstraints(s inter.S) {
+	for m := range d.constraints {
+		s.Assume(m)
+	}
+}
 
+// CardinalityConstrainer constructs a sorting network to provide
+// cardinality constraints over the provided slice of literals. Any
+// new clauses and variables are translated to CNF and taught to the
+// given inter.Adder, so this function will panic if it is in a test
+// context.
+func (d *dict) CardinalityConstrainer(g inter.Adder, ms []z.Lit) *logic.CardSort {
+	clen := d.c.Len()
+	cs := d.c.CardSort(ms)
+	marks := make([]int8, clen, d.c.Len())
+	for i := range marks {
+		marks[i] = 1
+	}
+	for w := 0; w <= cs.N(); w++ {
+		marks, _ = d.c.CnfSince(g, marks, cs.Leq(w))
+	}
+	return cs
+}
+
+// MandatoryIdentifiers returns a slice containing the Identifiers of
+// every Installable with at least one "Mandatory" constraint, in the
+// order they appear in the input.
+func (d *dict) MandatoryIdentifiers() []Identifier {
+	var ids []Identifier
+	for _, installable := range d.inorder {
+		for _, constraint := range installable.Constraints() {
+			if _, ok := constraint.(mandatory); ok {
+				ids = append(ids, installable.Identifier())
+				break
+			}
+		}
+	}
+	return ids
+}
+
+func (d *dict) Installables(g *gini.Gini) []Installable {
+	var result []Installable
+	for _, i := range d.inorder {
+		if g.Value(d.LitOf(i.Identifier())) {
+			result = append(result, i)
+		}
+	}
 	return result
 }
 
-func waitForSolution(ctx context.Context, gs inter.Solve) int {
-	t := time.NewTicker(50 * time.Millisecond)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return gs.Stop()
-		case <-t.C:
-			if result, ok := gs.Test(); ok {
-				return result
-			}
-		}
+func (d *dict) Lits(dst []z.Lit) []z.Lit {
+	if cap(dst) < len(d.inorder) {
+		dst = make([]z.Lit, 0, len(d.inorder))
 	}
+	dst = dst[:0]
+	for _, i := range d.inorder {
+		m := d.LitOf(i.Identifier())
+		dst = append(dst, m)
+	}
+	return dst
 }
 
-func linearSearch(min, max int, f func(int) bool) {
-	for x := min; x <= max; x++ {
-		if f(x) {
-			return
+func (d *dict) Conflicts(g *gini.Gini) []AppliedConstraint {
+	whys := g.Why(nil)
+	as := make([]AppliedConstraint, 0, len(whys))
+	for _, why := range whys {
+		if a, ok := d.constraints[why]; ok {
+			as = append(as, a)
 		}
 	}
-	f(-1) // omit cardinality constraint
-}
-
-func binarySearch(min, max int, f func(int) bool) {
-	for {
-		x := min + ((max - min) / 2)
-		s := f(x)
-		if min >= max {
-			if !s {
-				f(-1) // omit cardinality constraint
-			}
-			return
-		}
-		if s {
-			max = x
-		} else {
-			min = x + 1
-		}
-	}
+	return as
 }

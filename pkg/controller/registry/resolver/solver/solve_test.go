@@ -1,11 +1,11 @@
-package sat
+package solver
 
 import (
+	"bytes"
+	"context"
 	"fmt"
-	"math/rand"
 	"reflect"
 	"sort"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +22,10 @@ func (i TestInstallable) Identifier() Identifier {
 
 func (i TestInstallable) Constraints() []Constraint {
 	return i.constraints
+}
+
+func (i TestInstallable) GoString() string {
+	return fmt.Sprintf("%q", i.Identifier())
 }
 
 func installable(id Identifier, constraints ...Constraint) Installable {
@@ -154,10 +158,10 @@ func TestSolve(t *testing.T) {
 			},
 		},
 		{
-			Name: "solution with lowest weight is selected",
+			Name: "solution with first dependency is selected",
 			Installables: []Installable{
 				installable("a"),
-				installable("b", Weight(1), Conflict("a")),
+				installable("b", Conflict("a")),
 				installable("c", Mandatory(), Dependency("a", "b")),
 			},
 			Installed: []Installable{
@@ -166,15 +170,27 @@ func TestSolve(t *testing.T) {
 			},
 		},
 		{
-			Name: "solution with lowest weight is selected (reverse)",
+			Name: "solution with only first dependency is selected",
 			Installables: []Installable{
-				installable("a", Weight(1)),
-				installable("b", Conflict("a")),
+				installable("a"),
+				installable("b"),
 				installable("c", Mandatory(), Dependency("a", "b")),
 			},
 			Installed: []Installable{
-				installable("b", Conflict("a")),
+				installable("a"),
 				installable("c", Mandatory(), Dependency("a", "b")),
+			},
+		},
+		{
+			Name: "solution with first dependency is selected (reverse)",
+			Installables: []Installable{
+				installable("a"),
+				installable("b", Conflict("a")),
+				installable("c", Mandatory(), Dependency("b", "a")),
+			},
+			Installed: []Installable{
+				installable("b", Conflict("a")),
+				installable("c", Mandatory(), Dependency("b", "a")),
 			},
 		},
 		{
@@ -198,11 +214,81 @@ func TestSolve(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name: "irrelevant dependencies don't influence search order",
+			Installables: []Installable{
+				installable("a", Dependency("x", "y")),
+				installable("b", Mandatory(), Dependency("y", "x")),
+				installable("x"),
+				installable("y"),
+			},
+			Installed: []Installable{
+				installable("b", Mandatory(), Dependency("y", "x")),
+				installable("y"),
+			},
+		},
+		{
+			Name: "two dependencies satisfied by one installable",
+			Installables: []Installable{
+				installable("a", Mandatory(), Dependency("y")),
+				installable("b", Mandatory(), Dependency("x", "y")),
+				installable("x"),
+				installable("y"),
+			},
+			Installed: []Installable{
+				installable("a", Mandatory(), Dependency("y")),
+				installable("b", Mandatory(), Dependency("x", "y")),
+				installable("y"),
+			},
+		},
+		{
+			Name: "result size larger than minimum due to preference",
+			Installables: []Installable{
+				installable("a", Mandatory(), Dependency("x", "y")),
+				installable("b", Mandatory(), Dependency("y")),
+				installable("x"),
+				installable("y"),
+			},
+			Installed: []Installable{
+				installable("a", Mandatory(), Dependency("x", "y")),
+				installable("b", Mandatory(), Dependency("y")),
+				installable("x"),
+				installable("y"),
+			},
+		},
+		{
+			Name: "only the least preferable choice is acceptable",
+			Installables: []Installable{
+				installable("a", Mandatory(), Dependency("a1", "a2")),
+				installable("a1", Conflict("c1"), Conflict("c2")),
+				installable("a2", Conflict("c1")),
+				installable("b", Mandatory(), Dependency("b1", "b2")),
+				installable("b1", Conflict("c1"), Conflict("c2")),
+				installable("b2", Conflict("c1")),
+				installable("c", Mandatory(), Dependency("c1", "c2")),
+				installable("c1"),
+				installable("c2"),
+			},
+			Installed: []Installable{
+				installable("a", Mandatory(), Dependency("a1", "a2")),
+				installable("a2", Conflict("c1")),
+				installable("b", Mandatory(), Dependency("b1", "b2")),
+				installable("b2", Conflict("c1")),
+				installable("c", Mandatory(), Dependency("c1", "c2")),
+				installable("c2"),
+			},
+		},
 	} {
 		t.Run(tt.Name, func(t *testing.T) {
 			assert := assert.New(t)
 
-			installed, err := Solve(tt.Installables)
+			var traces bytes.Buffer
+			s, err := New(WithInput(tt.Installables), WithTracer(LoggingTracer{Writer: &traces}))
+			if err != nil {
+				t.Fatalf("failed to initialize solver: %s", err)
+			}
+
+			installed, err := s.Solve(context.TODO())
 
 			if installed != nil {
 				sort.SliceStable(installed, func(i, j int) bool {
@@ -240,53 +326,10 @@ func TestSolve(t *testing.T) {
 
 			assert.Equal(tt.Installed, installed)
 			assert.Equal(tt.Error, err)
+
+			if t.Failed() {
+				t.Logf("\n%s", traces.String())
+			}
 		})
 	}
-}
-
-func TestSolveWithWeight(t *testing.T) {
-	assert := assert.New(t)
-
-	id := func(i int) Identifier {
-		return Identifier(strconv.Itoa(i + 1))
-	}
-
-	installables := make([]Installable, 256)
-	c := make(dependency, len(installables)-1)
-	for i := 0; i < len(installables)-1; i++ {
-		installables[i] = TestInstallable{
-			identifier:  id(i),
-			constraints: []Constraint{Weight(1)},
-		}
-		c[i] = id(i)
-	}
-	installables[len(installables)-2] = TestInstallable{
-		identifier: id(len(installables) - 2),
-	}
-	rand.Seed(42)
-	rand.Shuffle(len(installables)-1, func(i, j int) {
-		installables[i], installables[j] = installables[j], installables[i]
-		c[i], c[j] = c[j], c[i]
-	})
-	installables[len(installables)-1] = TestInstallable{
-		identifier:  id(len(installables) - 1),
-		constraints: []Constraint{Mandatory(), c},
-	}
-
-	result, err := Solve(installables)
-
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Identifier() < result[j].Identifier()
-	})
-
-	assert.NoError(err)
-	assert.Equal([]Installable{
-		TestInstallable{
-			identifier: id(len(installables) - 2),
-		},
-		TestInstallable{
-			identifier:  id(len(installables) - 1),
-			constraints: []Constraint{Mandatory(), c},
-		},
-	}, result)
 }

@@ -1,4 +1,4 @@
-package sat
+package solver
 
 import (
 	"sort"
@@ -64,20 +64,6 @@ func TestConstraints(t *testing.T) {
 				neg: []Identifier{"a", "b"},
 			},
 		},
-		{
-			Name:       "negative weight",
-			Constraint: Weight(-1),
-			Subject:    "a",
-			Expected:   cstate{},
-		},
-		{
-			Name:       "weight",
-			Constraint: Weight(5),
-			Subject:    "a",
-			Expected: cstate{
-				weight: 5,
-			},
-		},
 	} {
 		t.Run(tt.Name, func(t *testing.T) {
 			var x cstate
@@ -92,6 +78,38 @@ func TestConstraints(t *testing.T) {
 			})
 
 			assert.Equal(t, tt.Expected, x)
+		})
+	}
+}
+
+func TestOrder(t *testing.T) {
+	type tc struct {
+		Name       string
+		Constraint Constraint
+		Expected   []Identifier
+	}
+
+	for _, tt := range []tc{
+		{
+			Name:       "mandatory",
+			Constraint: Mandatory(),
+		},
+		{
+			Name:       "prohibited",
+			Constraint: Prohibited(),
+		},
+		{
+			Name:       "dependency",
+			Constraint: Dependency("a", "b", "c"),
+			Expected:   []Identifier{"a", "b", "c"},
+		},
+		{
+			Name:       "conflict",
+			Constraint: Conflict("a"),
+		},
+	} {
+		t.Run(tt.Name, func(t *testing.T) {
+			assert.Equal(t, tt.Expected, tt.Constraint.order())
 		})
 	}
 }
