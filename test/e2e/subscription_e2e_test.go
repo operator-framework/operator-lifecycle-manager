@@ -22,6 +22,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 
@@ -47,7 +48,7 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
 
@@ -72,7 +73,7 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
 
@@ -124,7 +125,7 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 
 		mainCatalogName := genName("mock-ocs-main-")
@@ -184,7 +185,7 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
 
@@ -203,7 +204,7 @@ var _ = Describe("Subscription", func() {
 		require.Equal(GinkgoT(), v1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
 
 		installPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), installPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), installPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		subscription, err = fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
@@ -284,7 +285,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Ensure that only 1 installplan was created
-		ips, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
+		ips, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.Background(), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 		require.Len(GinkgoT(), ips.Items, 1)
 
@@ -326,7 +327,7 @@ var _ = Describe("Subscription", func() {
 
 		// Approve the installplan and wait for csvA to be installed
 		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), fetchedInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvA.GetName(), csvSucceededChecker)
@@ -342,14 +343,14 @@ var _ = Describe("Subscription", func() {
 
 		// Approve the upgrade installplan and wait for
 		upgradeInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), upgradeInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), upgradeInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		_, err = awaitCSV(GinkgoT(), crc, testNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Ensure that 2 installplans were created
-		ips, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
+		ips, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.Background(), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 		require.Len(GinkgoT(), ips.Items, 2)
 	})
@@ -508,10 +509,10 @@ var _ = Describe("Subscription", func() {
 		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 
 		// Delete this subscription
-		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
+		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 		// Delete orphaned csvB
-		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), csvB.GetName(), metav1.DeleteOptions{}))
+		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.Background(), csvB.GetName(), metav1.DeleteOptions{}))
 
 		// Create an InstallPlan for csvB
 		ip := &v1alpha1.InstallPlan{
@@ -525,7 +526,7 @@ var _ = Describe("Subscription", func() {
 				Approved:                   false,
 			},
 		}
-		ip2, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(context.TODO(), ip, metav1.CreateOptions{})
+		ip2, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(context.Background(), ip, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		ip2.Status = v1alpha1.InstallPlanStatus{
@@ -533,7 +534,7 @@ var _ = Describe("Subscription", func() {
 			CatalogSources: []string{catalogSourceName},
 		}
 
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).UpdateStatus(context.TODO(), ip2, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).UpdateStatus(context.Background(), ip2, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName = genName("sub-nginx-")
@@ -553,7 +554,7 @@ var _ = Describe("Subscription", func() {
 
 		// Approve the installplan and wait for csvA to be installed
 		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), fetchedInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Wait for csvA to be installed
@@ -571,7 +572,7 @@ var _ = Describe("Subscription", func() {
 
 		// Approve the installplan and wait for csvB to be installed
 		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), fetchedInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Wait for csvB to be installed
@@ -596,7 +597,7 @@ var _ = Describe("Subscription", func() {
 
 		AfterEach(func() {
 			defer cleaner.NotifyTestComplete(true)
-			err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -626,7 +627,7 @@ var _ = Describe("Subscription", func() {
 
 				// Update sub to target an existing CatalogSource
 				sub.Spec.CatalogSource = catalogSourceName
-				_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), sub, metav1.UpdateOptions{})
+				_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.Background(), sub, metav1.UpdateOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
 				// Wait for SubscriptionCatalogSourcesUnhealthy to be false
@@ -657,9 +658,9 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.TODO(), cs, metav1.CreateOptions{})
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
-						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.TODO(), cs.GetName(), *deleteOpts)
+						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
 						Expect(err).ToNot(HaveOccurred())
 					}()
 
@@ -692,7 +693,7 @@ var _ = Describe("Subscription", func() {
 					Expect(sub).ToNot(BeNil())
 
 					// Get the latest CatalogSource
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Get(context.TODO(), cs.GetName(), getOpts)
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Get(context.Background(), cs.GetName(), getOpts)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(cs).ToNot(BeNil())
 				})
@@ -716,9 +717,9 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.TODO(), cs, metav1.CreateOptions{})
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
-						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.TODO(), cs.GetName(), *deleteOpts)
+						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
 						Expect(err).ToNot(HaveOccurred())
 					}()
 
@@ -769,9 +770,9 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.TODO(), cs, metav1.CreateOptions{})
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
-						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.TODO(), cs.GetName(), *deleteOpts)
+						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
 						Expect(err).ToNot(HaveOccurred())
 					}()
 
@@ -822,9 +823,9 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.TODO(), cs, metav1.CreateOptions{})
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
-						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.TODO(), cs.GetName(), *deleteOpts)
+						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
 						Expect(err).ToNot(HaveOccurred())
 					}()
 
@@ -886,10 +887,7 @@ var _ = Describe("Subscription", func() {
 	// 19. Delete the referenced InstallPlan
 	// 20. Wait for sub to have status condition SubscriptionInstallPlanMissing true
 	// 21. Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
-	It("install plan status", func() {
-
-		defer cleaner.NotifyTestComplete(true)
-
+	It("can reconcile InstallPlan status", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -899,10 +897,15 @@ var _ = Describe("Subscription", func() {
 				Name: genName("ns-"),
 			},
 		}
-		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(func() error {
+			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
+			return err
+		}).Should(Succeed())
+
 		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), metav1.DeleteOptions{}))
+			Eventually(func() error {
+				return c.KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), ns.GetName(), metav1.DeleteOptions{})
+			}).Should(Succeed())
 		}()
 
 		// Create CatalogSource, cs, in ns
@@ -923,16 +926,15 @@ var _ = Describe("Subscription", func() {
 		catalogName := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSourceOnStatus(crc, catalogName, ns.GetName(), catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred())
 
 		// Create OperatorGroup, og, in ns selecting its own namespace
 		og := newOperatorGroup(ns.GetName(), genName("og-"), nil, nil, []string{ns.GetName()}, false)
-		_, err = crc.OperatorsV1().OperatorGroups(og.GetNamespace()).Create(context.TODO(), og, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1().OperatorGroups(og.GetNamespace()).Delete(context.TODO(), og.GetName(), metav1.DeleteOptions{}))
-		}()
+		Eventually(func() error {
+			_, err = crc.OperatorsV1().OperatorGroups(og.GetNamespace()).Create(context.Background(), og, metav1.CreateOptions{})
+			return err
+		}).Should(Succeed())
 
 		// Create Subscription to a package of cs in ns, sub
 		subName := genName("sub-")
@@ -948,106 +950,112 @@ var _ = Describe("Subscription", func() {
 			}
 			return subscriptionStateAtLatestChecker(s)
 		})
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), sub)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sub).ToNot(BeNil())
 
 		// Store conditions for later comparision
 		conds := sub.Status.Conditions
 
-		// Get the InstallPlan
 		ref := sub.Status.InstallPlanRef
-		require.NotNil(GinkgoT(), ref)
-		plan, err := crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(context.TODO(), ref.Name, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(ref).ToNot(BeNil())
+
+		plan := &v1alpha1.InstallPlan{}
+		plan.SetNamespace(ref.Namespace)
+		plan.SetName(ref.Name)
+		plan.GetObjectKind().SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1alpha1.GroupName,
+			Version: v1alpha1.GroupVersion,
+			Kind:    v1alpha1.InstallPlanKind,
+		})
 
 		// Set the InstallPlan's approval mode to Manual
-		plan.Spec.Approval = v1alpha1.ApprovalManual
-		plan.Spec.Approved = false
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Update(context.TODO(), plan, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+			p.Spec.Approval = v1alpha1.ApprovalManual
+			p.Spec.Approved = false
+			return nil
+		})).Should(Succeed())
 
 		// Set the InstallPlan's phase to None
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseNone
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(context.TODO(), plan, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+			p.Status.Phase = v1alpha1.InstallPlanPhaseNone
+			return nil
+		})).Should(Succeed())
 
 		// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason InstallPlanNotYetReconciled
 		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == v1alpha1.InstallPlanNotYetReconciled
 		})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ToNot(HaveOccurred())
 
-		// Get the latest InstallPlan and set the phase to InstallPlanPhaseRequiresApproval
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(context.TODO(), ref.Name, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(context.TODO(), plan, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		// Set the phase to InstallPlanPhaseRequiresApproval
+		Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+			p.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
+			return nil
+		})).Should(Succeed())
 
 		// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason RequiresApproval
 		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanPhaseRequiresApproval)
 		})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ToNot(HaveOccurred())
 
-		// Get the latest InstallPlan and set the phase to InstallPlanPhaseInstalling
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(context.TODO(), ref.Name, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(context.TODO(), plan, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		// Set the phase to InstallPlanPhaseInstalling
+		Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+			p.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+			return nil
+		})).Should(Succeed())
 
 		// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
 		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanPhaseInstalling)
 		})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ToNot(HaveOccurred())
 
-		// Get the latest InstallPlan and set the phase to InstallPlanPhaseFailed and remove all status conditions
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(context.TODO(), ref.Name, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-		plan.Status.Conditions = nil
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(context.TODO(), plan, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		// Set the phase to InstallPlanPhaseFailed and remove all status conditions
+		Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+			p.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+			p.Status.Conditions = nil
+			return nil
+		})).Should(Succeed())
 
 		// Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallPlanFailed
 		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanFailed)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == v1alpha1.InstallPlanFailed
 		})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ToNot(HaveOccurred())
 
-		// Get the latest InstallPlan and set status condition of type Installed to false with reason InstallComponentFailed
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(context.TODO(), ref.Name, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-		failedCond := plan.Status.GetCondition(v1alpha1.InstallPlanInstalled)
-		failedCond.Status = corev1.ConditionFalse
-		failedCond.Reason = v1alpha1.InstallPlanReasonComponentFailed
-		plan.Status.SetCondition(failedCond)
-		plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(context.TODO(), plan, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		// Set status condition of type Installed to false with reason InstallComponentFailed
+		Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+			p.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+			failedCond := p.Status.GetCondition(v1alpha1.InstallPlanInstalled)
+			failedCond.Status = corev1.ConditionFalse
+			failedCond.Reason = v1alpha1.InstallPlanReasonComponentFailed
+			p.Status.SetCondition(failedCond)
+			return nil
+		})).Should(Succeed())
 
 		// Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallComponentFailed
 		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanFailed)
 			return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanReasonComponentFailed)
 		})
-		require.NoError(GinkgoT(), err)
+		Expect(err).ToNot(HaveOccurred())
 
 		// Delete the referenced InstallPlan
-		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Delete(context.TODO(), ref.Name, metav1.DeleteOptions{}))
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Delete(context.Background(), ref.Name, metav1.DeleteOptions{})
+		}).Should(Succeed())
 
 		// Wait for sub to have status condition SubscriptionInstallPlanMissing true
 		sub, err = fetchSubscription(crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
 			return s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanMissing).Status == corev1.ConditionTrue
 		})
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), sub)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sub).ToNot(BeNil())
 
 		// Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
 		hashEqual := comparison.NewHashEqualitor()
@@ -1079,7 +1087,7 @@ var _ = Describe("Subscription", func() {
 				return nil
 			}
 
-			proxy, getErr := client.Proxies().Get(context.TODO(), "cluster", metav1.GetOptions{})
+			proxy, getErr := client.Proxies().Get(context.Background(), "cluster", metav1.GetOptions{})
 			if k8serrors.IsNotFound(getErr) {
 				return nil
 			}
@@ -1124,10 +1132,10 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 
-		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.TODO(), testConfigMap, metav1.CreateOptions{})
+		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.Background(), testConfigMap, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Delete(context.TODO(), testConfigMap.Name, metav1.DeleteOptions{})
+			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
@@ -1430,10 +1438,10 @@ var _ = Describe("Subscription", func() {
 		_, err = fetchCSV(crClient, csvA.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		// Ensure csvABC is not installed
-		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvABC.Name, metav1.GetOptions{})
+		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), csvABC.Name, metav1.GetOptions{})
 		require.Error(GinkgoT(), err)
 		// Ensure csvD is not installed -- this implies the dependent subscription selected the default channel
-		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvD.Name, metav1.GetOptions{})
+		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), csvD.Name, metav1.GetOptions{})
 		require.Error(GinkgoT(), err)
 	})
 })
@@ -1672,7 +1680,7 @@ func init() {
 func initCatalog(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface) error {
 
 	dummyCatalogConfigMap.SetNamespace(testNamespace)
-	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.TODO(), dummyCatalogConfigMap, metav1.CreateOptions{}); err != nil {
+	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.Background(), dummyCatalogConfigMap, metav1.CreateOptions{}); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
@@ -1680,7 +1688,7 @@ func initCatalog(t GinkgoTInterface, c operatorclient.ClientInterface, crc versi
 	}
 
 	dummyCatalogSource.SetNamespace(testNamespace)
-	if _, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.TODO(), &dummyCatalogSource, metav1.CreateOptions{}); err != nil {
+	if _, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), &dummyCatalogSource, metav1.CreateOptions{}); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
@@ -1757,7 +1765,7 @@ func fetchSubscription(crc versioned.Interface, namespace, name string, checker 
 	}
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(context.Background(), name, metav1.GetOptions{})
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
@@ -1776,7 +1784,7 @@ func buildSubscriptionCleanupFunc(crc versioned.Interface, subscription *v1alpha
 
 		if installPlanRef := subscription.Status.InstallPlanRef; installPlanRef != nil {
 
-			installPlan, err := crc.OperatorsV1alpha1().InstallPlans(subscription.GetNamespace()).Get(context.TODO(), installPlanRef.Name, metav1.GetOptions{})
+			installPlan, err := crc.OperatorsV1alpha1().InstallPlans(subscription.GetNamespace()).Get(context.Background(), installPlanRef.Name, metav1.GetOptions{})
 			if err == nil {
 				buildInstallPlanCleanupFunc(crc, subscription.GetNamespace(), installPlan)()
 			} else {
@@ -1784,7 +1792,7 @@ func buildSubscriptionCleanupFunc(crc versioned.Interface, subscription *v1alpha
 			}
 		}
 
-		err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(context.TODO(), subscription.GetName(), metav1.DeleteOptions{})
+		err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(context.Background(), subscription.GetName(), metav1.DeleteOptions{})
 		Expect(err).NotTo(HaveOccurred())
 	}
 }
@@ -1808,7 +1816,7 @@ func createSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, 
 		},
 	}
 
-	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.TODO(), subscription, metav1.CreateOptions{})
+	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.Background(), subscription, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	return buildSubscriptionCleanupFunc(crc, subscription), subscription
 }
@@ -1833,7 +1841,7 @@ func createSubscriptionForCatalog(crc versioned.Interface, namespace, name, cata
 		},
 	}
 
-	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.TODO(), subscription, metav1.CreateOptions{})
+	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.Background(), subscription, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
 	return buildSubscriptionCleanupFunc(crc, subscription)
 }
@@ -1851,7 +1859,7 @@ func createSubscriptionForCatalogWithSpec(t GinkgoTInterface, crc versioned.Inte
 		Spec: spec,
 	}
 
-	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.TODO(), subscription, metav1.CreateOptions{})
+	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.Background(), subscription, metav1.CreateOptions{})
 	require.NoError(t, err)
 	return buildSubscriptionCleanupFunc(crc, subscription)
 }
@@ -1948,7 +1956,7 @@ func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclie
 	}
 
 	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
-		deployment, err := client.KubernetesInterface().AppsV1().Deployments(csv.GetNamespace()).Get(context.TODO(), deploymentSpec.Name, metav1.GetOptions{})
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(csv.GetNamespace()).Get(context.Background(), deploymentSpec.Name, metav1.GetOptions{})
 		require.NoError(t, err)
 		for _, v := range volumes {
 			existing, found := findVolume(deployment.Spec.Template.Spec.Volumes, v.Name)
@@ -1975,7 +1983,7 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	require.NoError(t, err)
 
 	// Get initial configmap
-	configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+	configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	// Update package to point to new csv
@@ -1999,7 +2007,7 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	configMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 
 	// Update configmap
-	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Update(context.TODO(), configMap, metav1.UpdateOptions{})
+	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Update(context.Background(), configMap, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	// wait for catalog to update

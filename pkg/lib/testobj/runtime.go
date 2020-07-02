@@ -1,6 +1,7 @@
 package testobj
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -101,4 +102,14 @@ func WithItems(list runtime.Object, items ...runtime.Object) runtime.Object {
 	}
 
 	return out
+}
+
+// MarshalJSON marshals an object to JSON and panics if it can't.
+func MarshalJSON(obj runtime.Object) (marshaled []byte) {
+	var err error
+	if marshaled, err = json.Marshal(obj); err != nil {
+		panic(fmt.Sprintf("failed to marshal obj to json: %s", err))
+	}
+
+	return
 }
