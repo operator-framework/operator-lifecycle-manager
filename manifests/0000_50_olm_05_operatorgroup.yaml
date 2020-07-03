@@ -1,0 +1,15 @@
+metadata:
+  name: global-operators
+  namespace: openshift-operators
+spec: {}
+kind: OperatorGroup
+apiVersion: operators.coreos.com/v1
+---
+metadata:
+  name: olm-operators
+  namespace: openshift-operator-lifecycle-manager
+spec:
+  targetNamespaces:
+    - openshift-operator-lifecycle-manager
+kind: OperatorGroup
+apiVersion: operators.coreos.com/v1

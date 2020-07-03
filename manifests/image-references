@@ -1,12 +1,12 @@
-kind: ImageStream
-apiVersion: image.openshift.io/v1
 spec:
   tags:
-  - name: operator-lifecycle-manager
-    from:
-      kind: DockerImage
-      name: quay.io/operator-framework/olm@sha256:2c389d2e380c842cbf542820ad4493249164302ddf0e699b0a37105d234e67ee
-  - name: operator-registry
-    from:
-      kind: DockerImage
-      name: quay.io/operator-framework/configmap-operator-registry:latest
+    - name: operator-lifecycle-manager
+      from:
+        name: quay.io/operator-framework/olm:latest
+        kind: DockerImage
+    - name: operator-registry
+      from:
+        name: quay.io/operator-framework/configmap-operator-registry:latest
+        kind: DockerImage
+kind: ImageStream
+apiVersion: image.openshift.io/v1

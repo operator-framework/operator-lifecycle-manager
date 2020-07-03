@@ -1,0 +1,88 @@
+metadata:
+  name: operator-lifecycle-manager-metrics
+  namespace: openshift-operator-lifecycle-manager
+rules:
+  - apiGroups:
+      - '""'
+    resources:
+      - services
+      - endpoints
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+---
+metadata:
+  name: operator-lifecycle-manager-metrics
+  namespace: openshift-operator-lifecycle-manager
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+subjects:
+  - name: prometheus-k8s
+    namespace: openshift-monitoring
+    kind: ServiceAccount
+roleRef:
+  name: operator-lifecycle-manager-metrics
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+---
+metadata:
+  name: olm-operator
+  namespace: openshift-operator-lifecycle-manager
+labels:
+  app: olm-operator
+spec:
+  selector:
+    matchLabels:
+      app: olm-operator
+  endpoints:
+    - interval: 30s
+      port: https-metrics
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      metricRelabelings:
+        - action: drop
+      regex: etcd_(debugging|disk|request|server).*
+      sourceLabels:
+        - __name__
+      tlsConfig:
+        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+        serverName: olm-operator-metrics.openshift-operator-lifecycle-manager.svc
+  jobLabel: component
+  namespaceSelector:
+    matchNames:
+      - openshift-operator-lifecycle-manager
+kind: ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+---
+metadata:
+  name: catalog-operator
+  namespace: openshift-operator-lifecycle-manager
+labels:
+  app: catalog-operator
+spec:
+  selector:
+    matchLabels:
+      app: catalog-operator
+  endpoints:
+    - interval: 30s
+      port: https-metrics
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      metricRelabelings:
+        - action: drop
+      regex: etcd_(debugging|disk|request|server).*
+      sourceLabels:
+        - __name__
+      tlsConfig:
+        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+        serverName: catalog-operator-metrics.openshift-operator-lifecycle-manager.svc
+  jobLabel: component
+  namespaceSelector:
+    matchNames:
+      - openshift-operator-lifecycle-manager
+kind: ServiceMonitor
+apiVersion: monitoring.coreos.com/v1

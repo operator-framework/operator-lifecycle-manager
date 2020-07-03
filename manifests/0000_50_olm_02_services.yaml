@@ -1,0 +1,37 @@
+metadata:
+  name: olm-operator-metrics
+  labels:
+    app: olm-operator
+  namespace: openshift-operator-lifecycle-manager
+  annotations:
+    service.alpha.openshift.io/serving-cert-secret-name: olm-operator-serving-cert
+spec:
+  type: ClusterIP
+  selector:
+    app: olm-operator
+  ports:
+    - name: https-metrics
+      protocol: TCP
+      port: 8081
+      targetPort: metrics
+kind: Service
+apiVersion: v1
+---
+metadata:
+  name: catalog-operator-metrics
+  labels:
+    app: catalog-operator
+  namespace: openshift-operator-lifecycle-manager
+  annotations:
+    service.alpha.openshift.io/serving-cert-secret-name: catalog-operator-serving-cert
+spec:
+  type: ClusterIP
+  selector:
+    app: catalog-operator
+  ports:
+    - name: https-metrics
+      protocol: TCP
+      port: 8081
+      targetPort: metrics
+kind: Service
+apiVersion: v1

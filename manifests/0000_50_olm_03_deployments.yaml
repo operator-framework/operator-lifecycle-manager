@@ -1,0 +1,107 @@
+metadata:
+  name: olm-operator
+  labels:
+    app: olm-operator
+  namespace: openshift-operator-lifecycle-manager
+spec:
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: olm-operator
+  nodeSelector:
+    kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
+  template:
+    metadata:
+      labels:
+        app: olm-operator
+    spec:
+      serviceAccountName: olm-operator
+      containers:
+        - name: olm-operator
+          env:
+            - name: OPERATOR_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: OPERATOR_NAME
+              value: olm-operator
+          resources:
+            requests:
+              cpu: 10m
+              memory: 160Mi
+          image: quay.io/operator-framework/olm:latest
+          command:
+            - /bin/olm
+          args:
+            - --namespace
+            - $(OPERATOR_NAMESPACE)
+          ports:
+            - name: health
+              containerPort: 8080
+            - name: metrics
+              protocol: TCP
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          terminationMessagePolicy: FallbackToLogsOnError
+          imagePullPolicy: IfNotPresent
+  replicas: 1
+kind: Deployment
+apiVersion: apps/v1
+---
+metadata:
+  name: catalog-operator
+  labels:
+    app: catalog-operator
+  namespace: openshift-operator-lifecycle-manager
+spec:
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: catalog-operator
+  nodeSelector:
+    kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
+  template:
+    metadata:
+      labels:
+        app: catalog-operator
+    spec:
+      serviceAccountName: olm-operator
+      containers: []
+  replicas: 1
+kind: Deployment
+apiVersion: apps/v1

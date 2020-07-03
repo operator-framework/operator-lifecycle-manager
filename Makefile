@@ -161,11 +161,6 @@ clean:
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
 
-
-# Copy CRD manifests
-manifests: vendor
-	./scripts/copy_crds.sh
-
 # Generate deepcopy, conversion, clients, listers, and informers
 codegen:
 	# Clients, listers, and informers
@@ -189,35 +184,13 @@ verify: verify-codegen verify-mockgen verify-manifests
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
 release: ver=$(shell cat OLM_VERSION)
-release: manifests
+release: vendor
 	docker pull quay.io/operator-framework/olm:$(ver)
-	$(MAKE) target=upstream ver=$(ver) quickstart=true package
-	$(MAKE) target=ocp ver=$(ver) package
-	rm -rf manifests
-	mkdir manifests
-	cp -R deploy/ocp/manifests/$(ver)/. manifests
-	# requires gnu sed if on mac
-	find ./manifests -type f -exec sed -i "/^#/d" {} \;
-	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
+	rm -rf ./manifests/*
+	rm -rf ./kube/*
+	pushd deploy && cue cmd generate && popd
 
 verify-release: release diff
-
-package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/operator-framework/olm:$(ver))
-package:
-ifndef target
-	$(error target is undefined)
-endif
-ifndef ver
-	$(error ver is undefined)
-endif
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
-	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
-	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
-ifeq ($(quickstart), true)
-	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml deploy/$(target)/quickstart/crds.yaml deploy/$(target)/quickstart/install.sh
-endif
 
 ################################
 #  OLM - Install/Uninstall/Run #

@@ -1,0 +1,26 @@
+status:
+  versions:
+    - name: operator
+      version: 0.0.1-snapshot
+metadata:
+  name: operator-lifecycle-manager
+kind: ClusterOperator
+apiVersion: config.openshift.io/v1
+---
+status:
+  versions:
+    - name: operator
+      version: 0.0.1-snapshot
+metadata:
+  name: operator-lifecycle-manager-catalog
+kind: ClusterOperator
+apiVersion: config.openshift.io/v1
+---
+status:
+  versions:
+    - name: operator
+      version: 0.0.1-snapshot
+metadata:
+  name: operator-lifecycle-manager-packageserver
+kind: ClusterOperator
+apiVersion: config.openshift.io/v1

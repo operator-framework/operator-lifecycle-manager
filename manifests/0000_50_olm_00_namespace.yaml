@@ -1,0 +1,9 @@
+metadata:
+  name: openshift-operator-lifecycle-manager
+kind: Namespace
+apiVersion: v1
+---
+metadata:
+  name: openshift-operators
+kind: Namespace
+apiVersion: v1
