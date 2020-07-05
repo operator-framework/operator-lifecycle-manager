@@ -1942,16 +1942,23 @@ func (o *Operator) apiresourceFromGVK(gvk schema.GroupVersionKind) (metav1.APIRe
 }
 
 const (
-	PrometheusRuleKind = "PrometheusRule"
-	ServiceMonitorKind = "ServiceMonitor"
+	PrometheusRuleKind        = "PrometheusRule"
+	ServiceMonitorKind        = "ServiceMonitor"
+	PodDisruptionBudgetKind   = "PodDisruptionBudget"
+	PriorityClassKind         = "PriorityClass"
+	VerticalPodAutoscalerKind = "VerticalPodAutoscaler"
 )
+
+var supportedKinds = map[string]struct{}{
+	PrometheusRuleKind:        {},
+	ServiceMonitorKind:        {},
+	PodDisruptionBudgetKind:   {},
+	PriorityClassKind:         {},
+	VerticalPodAutoscalerKind: {},
+}
 
 // isSupported returns true if OLM supports this type of CustomResource.
 func isSupported(kind string) bool {
-	switch kind {
-	case PrometheusRuleKind, ServiceMonitorKind:
-		return true
-	default:
-		return false
-	}
+	_, ok := supportedKinds[kind]
+	return ok
 }
