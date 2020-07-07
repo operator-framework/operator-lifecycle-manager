@@ -83,7 +83,7 @@ func TestGetNewStatus(t *testing.T) {
 					},
 					{
 						Group:     v1alpha1.GroupName,
-						Resource:  v1alpha1.ClusterServiceVersionKind,
+						Resource:  clusterServiceVersionResource,
 						Namespace: "foo-namespace",
 						Name:      "foo",
 					},
@@ -159,7 +159,7 @@ func TestGetNewStatus(t *testing.T) {
 					},
 					{
 						Group:     v1alpha1.GroupName,
-						Resource:  v1alpha1.ClusterServiceVersionKind,
+						Resource:  clusterServiceVersionResource,
 						Namespace: "foo-namespace",
 						Name:      "foo",
 					},

@@ -21,7 +21,7 @@ func newCSVStatusReporter(releaseVersion string) *csvStatusReporter {
 	}
 }
 
-// csvStatusReporter provides the logic for initialzing ClusterOperator and
+// csvStatusReporter provides the logic for initializing ClusterOperator and
 // ClusterOperatorStatus types.
 type csvStatusReporter struct {
 	clock          clock.Clock
@@ -76,7 +76,7 @@ func (r *csvStatusReporter) GetNewStatus(existing *configv1.ClusterOperatorStatu
 		gvk := csv.GetObjectKind().GroupVersionKind()
 
 		builder.WithoutVersion(csv.GetName(), csv.Spec.Version.String()).
-			WithoutRelatedObject(gvk.Group, gvk.Kind, csv.GetNamespace(), csv.GetName())
+			WithoutRelatedObject(gvk.Group, clusterServiceVersionResource, csv.GetNamespace(), csv.GetName())
 
 		if context.WorkingToward == nil {
 			builder.WithProgressing(configv1.ConditionFalse, fmt.Sprintf("Uninstalled version %s", csv.Spec.Version)).
@@ -94,7 +94,7 @@ func (r *csvStatusReporter) GetNewStatus(existing *configv1.ClusterOperatorStatu
 
 	gvk := csv.GetObjectKind().GroupVersionKind()
 	builder.WithRelatedObject("", "namespaces", "", csv.GetNamespace()).
-		WithRelatedObject(gvk.Group, gvk.Kind, csv.GetNamespace(), csv.GetName())
+		WithRelatedObject(gvk.Group, clusterServiceVersionResource, csv.GetNamespace(), csv.GetName())
 
 	switch phase {
 	case v1alpha1.CSVPhaseSucceeded:

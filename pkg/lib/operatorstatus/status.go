@@ -25,9 +25,12 @@ import (
 )
 
 const (
-	clusterOperatorOLM           = "operator-lifecycle-manager"
-	clusterOperatorCatalogSource = "operator-lifecycle-manager-catalog"
-	openshiftNamespace           = "openshift-operator-lifecycle-manager"
+	clusterOperatorOLM            = "operator-lifecycle-manager"
+	clusterOperatorCatalogSource  = "operator-lifecycle-manager-catalog"
+	openshiftNamespace            = "openshift-operator-lifecycle-manager"
+	clusterServiceVersionResource = "clusterserviceversions"
+	subscriptionResource          = "subscriptions"
+	installPlanResource           = "installplans"
 )
 
 func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface, crClient versioned.Interface) {
@@ -280,7 +283,7 @@ func relatedObjects(name string, opClient operatorclient.ClientInterface, crClie
 			}
 			objectReferences = append(objectReferences, configv1.ObjectReference{
 				Group:     olmv1alpha1.GroupName,
-				Resource:  olmv1alpha1.ClusterServiceVersionKind,
+				Resource:  clusterServiceVersionResource,
 				Namespace: csv.GetNamespace(),
 				Name:      csv.GetName(),
 			})
@@ -299,7 +302,7 @@ func relatedObjects(name string, opClient operatorclient.ClientInterface, crClie
 		for _, sub := range subList.Items {
 			objectReferences = append(objectReferences, configv1.ObjectReference{
 				Group:     olmv1alpha1.GroupName,
-				Resource:  olmv1alpha1.SubscriptionKind,
+				Resource:  subscriptionResource,
 				Namespace: sub.GetNamespace(),
 				Name:      sub.GetName(),
 			})
@@ -307,7 +310,7 @@ func relatedObjects(name string, opClient operatorclient.ClientInterface, crClie
 		for _, ip := range installPlanList.Items {
 			objectReferences = append(objectReferences, configv1.ObjectReference{
 				Group:     olmv1alpha1.GroupName,
-				Resource:  olmv1alpha1.InstallPlanKind,
+				Resource:  installPlanResource,
 				Namespace: ip.GetNamespace(),
 				Name:      ip.GetName(),
 			})
