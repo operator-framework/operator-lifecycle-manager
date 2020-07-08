@@ -7,28 +7,9 @@ import (
 	"strings"
 
 	"github.com/irifrance/gini"
+	"github.com/irifrance/gini/inter"
 	"github.com/irifrance/gini/z"
 )
-
-// Identifier values uniquely identify particular Installables within
-// the input to a single call to Solve.
-type Identifier string
-
-func (id Identifier) String() string {
-	return string(id)
-}
-
-// Installable values are the basic unit of problems and solutions
-// understood by this package.
-type Installable interface {
-	// Identifier returns the Identifier that uniquely identifies
-	// this Installable among all other Installables in a given
-	// problem.
-	Identifier() Identifier
-	// Constraints returns the set of constraints that apply to
-	// this Installable.
-	Constraints() []Constraint
-}
 
 var Incomplete = errors.New("cancelled before a solution could be found")
 
@@ -53,8 +34,8 @@ type Solver interface {
 }
 
 type solver struct {
-	g      *gini.Gini
-	dict   *dict
+	g      inter.S
+	litMap *litMapping
 	tracer Tracer
 	buffer []z.Lit
 }
@@ -62,6 +43,7 @@ type solver struct {
 const (
 	satisfiable   = 1
 	unsatisfiable = -1
+	unknown       = 0
 )
 
 // Solve takes a slice containing all Installables and returns a slice
@@ -72,33 +54,45 @@ func (s *solver) Solve(ctx context.Context) (result []Installable, err error) {
 	defer func() {
 		// This likely indicates a bug, so discard whatever
 		// return values were produced.
-		if derr := s.dict.Error(); derr != nil {
+		if derr := s.litMap.Error(); derr != nil {
 			result = nil
 			err = derr
 		}
 	}()
 
-	s.dict.AddConstraints(s.g)
-	h := searcher{
+	// add constraints from the initial set of installables
+	s.litMap.AddConstraints(s.g)
+
+	// the ordered searcher can look for solutions in input order, so that preferences
+	// can be taken into acount (i.e. prefer one catalog to another)
+	orderedSearcher := searcher{
 		solver:  s,
 		assumed: &orderedLitSet{indices: make(map[z.Lit]int)},
 	}
-	for _, anchor := range s.dict.MandatoryIdentifiers() {
-		h.assumed.Add(s.dict.LitOf(anchor))
-	}
-	s.g.Assume(h.assumed.Slice()...)
-	s.dict.AssumeConstraints(s.g)
 
+	// mandatory literals should come first in the ordered search
+	for _, anchor := range s.litMap.MandatoryIdentifiers() {
+		orderedSearcher.assumed.Add(s.litMap.LitOf(anchor))
+	}
+
+	// the base solver should also assume mandatory literals
+	s.g.Assume(orderedSearcher.assumed.Slice()...)
+
+	// the litMapping needs to be updated with the new constraints from adding mandatory items
+	s.litMap.AssumeConstraints(s.g)
+
+	// check if we have enough information to return sat/unsat after just the mandatory items
 	outcome, _ := s.g.Test(nil)
 	if outcome != satisfiable && outcome != unsatisfiable {
-		outcome = h.search(ctx, 0)
+		// use the searcher to walk through installables and see if we can determin sat/unsat
+		outcome = orderedSearcher.search(ctx)
 	}
 	switch outcome {
 	case satisfiable:
-		s.buffer = s.dict.Lits(s.buffer)
+		s.buffer = s.litMap.Lits(s.buffer)
 		var extras, excluded []z.Lit
 		for _, m := range s.buffer {
-			if h.assumed.Contains(m) {
+			if orderedSearcher.assumed.Contains(m) {
 				continue
 			}
 			if !s.g.Value(m) {
@@ -108,22 +102,22 @@ func (s *solver) Solve(ctx context.Context) (result []Installable, err error) {
 			extras = append(extras, m)
 		}
 		s.g.Untest()
-		cs := s.dict.CardinalityConstrainer(s.g, extras)
-		s.g.Assume(h.assumed.Slice()...)
+		cs := s.litMap.CardinalityConstrainer(s.g, extras)
+		s.g.Assume(orderedSearcher.assumed.Slice()...)
 		s.g.Assume(excluded...)
-		s.dict.AssumeConstraints(s.g)
+		s.litMap.AssumeConstraints(s.g)
 		_, s.buffer = s.g.Test(s.buffer)
 		for w := 0; w <= cs.N(); w++ {
 			s.g.Assume(cs.Leq(w))
 			if s.g.Solve() == satisfiable {
-				return s.dict.Installables(s.g), nil
+				return s.litMap.Installables(s.g), nil
 			}
 		}
 		// Something is wrong if we can't find a model anymore
 		// after optimizing for cardinality.
 		return nil, fmt.Errorf("unexpected internal error")
 	case unsatisfiable:
-		return nil, NotSatisfiable(s.dict.Conflicts(s.g))
+		return nil, NotSatisfiable(s.litMap.Conflicts(s.g))
 	}
 
 	return nil, Incomplete
@@ -162,6 +156,43 @@ func (set *orderedLitSet) Len() int {
 	return len(set.lits)
 }
 
+type depthTrackingS interface {
+	inter.S
+	Unwind()
+}
+
+type depthTrackingGini struct {
+	inter.S
+	depth int
+}
+
+var _ depthTrackingS = &depthTrackingGini{}
+
+func newDepthTrackingGini(s inter.S) *depthTrackingGini {
+	return &depthTrackingGini{
+		S:     s,
+		depth: 0,
+	}
+}
+
+func (g *depthTrackingGini) Test(dst []z.Lit) (result int, out []z.Lit) {
+	result, out = g.S.Test(dst)
+	g.depth++
+	return
+}
+
+func (g *depthTrackingGini) Untest() int {
+	outcome := g.S.Untest()
+	g.depth--
+	return outcome
+}
+
+func (g *depthTrackingGini) Unwind() {
+	for i := 0; i < g.depth; i++ {
+		g.Untest()
+	}
+}
+
 type searcher struct {
 	solver  *solver
 	assumed *orderedLitSet
@@ -172,53 +203,58 @@ type searcher struct {
 // constraint. Identifiers appearing earlier within a particular
 // constraint are preferred. Like (*gini.Gini).Solve(), search always
 // returns either satisfiable or unsatisfiable.
-func (h *searcher) search(ctx context.Context, upto int) int {
-	if upto >= h.assumed.Len() {
-		return h.solver.g.Solve()
-	}
+func (h *searcher) search(ctx context.Context) int {
+	unwindableSolver := newDepthTrackingGini(h.solver.g)
+	defer unwindableSolver.Unwind()
 
-	for _, constraint := range h.solver.dict.InstallableOf(h.assumed.Slice()[upto]).Constraints() {
-		dependencies := constraint.order()
-		skip := len(dependencies) == 0
-		var ms []z.Lit
-		for _, dependency := range dependencies {
-			m := h.solver.dict.LitOf(dependency)
-			if h.assumed.Contains(m) {
-				skip = true
-				break
-			}
-			ms = append(ms, h.solver.dict.LitOf(dependency))
-		}
-		if skip {
-			// Constraint already satisfied!
-			continue
-		}
-		for _, m := range ms {
-			h.assumed.Add(m)
-			h.solver.g.Assume(m)
-
-			var outcome int
-			outcome, h.solver.buffer = h.solver.g.Test(h.solver.buffer)
-			if outcome != satisfiable && outcome != unsatisfiable {
-				outcome = h.search(ctx, upto+1)
-			}
-			switch outcome {
-			case satisfiable:
-				h.solver.g.Untest()
-				return satisfiable
-			case unsatisfiable:
-				h.solver.tracer.Trace(h)
-				h.assumed.Remove(m)
-				if h.solver.g.Untest() == unsatisfiable {
-					return unsatisfiable
+	canSatisfyConstraints := func(m z.Lit) (outcome int) {
+		for _, constraint := range h.solver.litMap.InstallableOf(m).Constraints() {
+			dependencies := constraint.order()
+			skip := len(dependencies) == 0
+			var ms []z.Lit
+			for _, dependency := range dependencies {
+				m := h.solver.litMap.LitOf(dependency)
+				if h.assumed.Contains(m) {
+					skip = true
+					break
 				}
-			default:
-				panic("search returned unexpected value")
+				ms = append(ms, h.solver.litMap.LitOf(dependency))
 			}
+			if skip {
+				// Constraint already satisfied!
+				continue
+			}
+			for _, m := range ms {
+				h.assumed.Add(m)
+				unwindableSolver.Assume(m)
+
+				outcome, h.solver.buffer = unwindableSolver.Test(h.solver.buffer)
+				switch outcome {
+				case satisfiable:
+					unwindableSolver.Untest()
+					return
+				case unsatisfiable:
+					h.solver.tracer.Trace(h)
+					h.assumed.Remove(m)
+					if unwindableSolver.Untest() == unsatisfiable {
+						return
+					}
+				default:
+					return
+				}
+			}
+		}
+		return
+	}
+
+	for i := 0; i < h.assumed.Len(); i++ {
+		outcome := canSatisfyConstraints(h.assumed.Slice()[i])
+		if outcome != unknown {
+			return outcome
 		}
 	}
 
-	return h.search(ctx, upto+1)
+	return unwindableSolver.Solve()
 }
 
 func (h *searcher) Installables() []Installable {
@@ -228,17 +264,17 @@ func (h *searcher) Installables() []Installable {
 	}
 	result := make([]Installable, len(ms))
 	for i := 0; i < len(result); i++ {
-		result[i] = h.solver.dict.InstallableOf(ms[i])
+		result[i] = h.solver.litMap.InstallableOf(ms[i])
 	}
 	return result
 }
 
 func (h *searcher) Conflicts() []AppliedConstraint {
-	return h.solver.dict.Conflicts(h.solver.g)
+	return h.solver.litMap.Conflicts(h.solver.g)
 }
 
 func New(options ...Option) (Solver, error) {
-	s := solver{g: gini.New()}
+	s := solver{g: newDepthTrackingGini(gini.New())}
 	for _, option := range append(options, defaults...) {
 		if err := option(&s); err != nil {
 			return nil, err
@@ -251,7 +287,7 @@ type Option func(s *solver) error
 
 func WithInput(input []Installable) Option {
 	return func(s *solver) error {
-		s.dict = compileDict(input)
+		s.litMap = newLitMapping(input)
 		return nil
 	}
 }
@@ -265,8 +301,8 @@ func WithTracer(t Tracer) Option {
 
 var defaults = []Option{
 	func(s *solver) error {
-		if s.dict == nil {
-			s.dict = compileDict(nil)
+		if s.litMap == nil {
+			s.litMap = newLitMapping(nil)
 		}
 		return nil
 	},

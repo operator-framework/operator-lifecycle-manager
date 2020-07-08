@@ -5,12 +5,55 @@ import (
 	"strings"
 )
 
+// constrainer is a reusable accumulator of constraint clause terms.
+type constrainer struct {
+	pos []Identifier
+	neg []Identifier
+}
+
+func (x *constrainer) Add(id Identifier) {
+	x.pos = append(x.pos, id)
+}
+
+func (x *constrainer) AddNot(id Identifier) {
+	x.neg = append(x.neg, id)
+}
+
+// Reset clears the receiver's internal state so that it can be
+// reused.
+func (x *constrainer) Reset() {
+	x.pos = x.pos[:0]
+	x.neg = x.neg[:0]
+}
+
+// Empty returns true if and only if the receiver has accumulated no
+// positive or negative terms.
+func (x *constrainer) Empty() bool {
+	return len(x.pos) == 0 && len(x.neg) == 0
+}
+
 // Constraint implementations limit the circumstances under which a
 // particular Installable can appear in a solution.
 type Constraint interface {
 	String(subject Identifier) string
-	apply(x constrainer, subject Identifier)
+	apply(x *constrainer, subject Identifier)
 	order() []Identifier
+}
+
+// zeroConstraint is returned by ConstraintOf in error cases.
+type zeroConstraint struct{}
+
+var _ Constraint = zeroConstraint{}
+
+func (zeroConstraint) String(subject Identifier) string {
+	return ""
+}
+
+func (zeroConstraint) apply(x *constrainer, subject Identifier) {
+}
+
+func (zeroConstraint) order() []Identifier {
+	return nil
 }
 
 // AppliedConstraint values compose a single Constraint with the
@@ -26,25 +69,13 @@ func (a AppliedConstraint) String() string {
 	return a.Constraint.String(a.Installable.Identifier())
 }
 
-// constrainer is the set of operations available to Constraint
-// implementations.
-type constrainer interface {
-	// Add appends the Installable identified by the given
-	// Identifier to the clause representing a Constraint.
-	Add(Identifier)
-	// Add appends the negation of the Installable identified by
-	// the given Identifier to the clause representing a
-	// Constraint.
-	AddNot(Identifier)
-}
-
 type mandatory struct{}
 
 func (c mandatory) String(subject Identifier) string {
 	return fmt.Sprintf("%s is mandatory", subject)
 }
 
-func (c mandatory) apply(x constrainer, subject Identifier) {
+func (c mandatory) apply(x *constrainer, subject Identifier) {
 	x.Add(subject)
 }
 
@@ -64,7 +95,7 @@ func (c prohibited) String(subject Identifier) string {
 	return fmt.Sprintf("%s is prohibited", subject)
 }
 
-func (c prohibited) apply(x constrainer, subject Identifier) {
+func (c prohibited) apply(x *constrainer, subject Identifier) {
 	x.AddNot(subject)
 }
 
@@ -90,7 +121,7 @@ func (c dependency) String(subject Identifier) string {
 	return fmt.Sprintf("%s requires at least one of %s", subject, strings.Join(s, ", "))
 }
 
-func (c dependency) apply(x constrainer, subject Identifier) {
+func (c dependency) apply(x *constrainer, subject Identifier) {
 	if len(c) == 0 {
 		return
 	}
@@ -119,7 +150,7 @@ func (c conflict) String(subject Identifier) string {
 	return fmt.Sprintf("%s conflicts with %s", subject, c)
 }
 
-func (c conflict) apply(x constrainer, subject Identifier) {
+func (c conflict) apply(x *constrainer, subject Identifier) {
 	x.AddNot(subject)
 	x.AddNot(Identifier(c))
 }
