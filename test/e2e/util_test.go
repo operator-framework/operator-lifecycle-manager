@@ -39,6 +39,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/feature"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -881,4 +882,8 @@ func toggleFeatureGates(deployment *appsv1.Deployment, toToggle ...featuregate.F
 	defer cancel()
 
 	awaitPredicates(deadline, w, deploymentReplicas(2), deploymentAvailable, deploymentReplicas(1))
+}
+
+func Apply(obj controllerclient.Object, changeFunc interface{}) func() error {
+	return ctx.Ctx().SSAClient().Apply(context.Background(), obj, changeFunc)
 }

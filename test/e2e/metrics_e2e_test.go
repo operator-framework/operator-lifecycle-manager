@@ -109,8 +109,11 @@ var _ = Describe("Metrics", func() {
 				BeforeEach(func() {
 					updatedSubscription, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
-					updatedSubscription.Spec.Channel = betaChannel
-					updateSubscription(GinkgoT(), crc, updatedSubscription)
+
+					Eventually(Apply(updatedSubscription, func(s *v1alpha1.Subscription) error {
+						s.Spec.Channel = betaChannel
+						return nil
+					})).Should(Succeed(), "could not update subscription")
 				})
 
 				It("deletes the old Subscription metric and emits the new metric", func() {
@@ -134,8 +137,12 @@ var _ = Describe("Metrics", func() {
 					BeforeEach(func() {
 						updatedSubscription, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
 						Expect(err).ToNot(HaveOccurred())
-						updatedSubscription.Spec.Channel = alphaChannel
-						updateSubscription(GinkgoT(), crc, updatedSubscription)
+
+						Eventually(Apply(updatedSubscription, func(s *v1alpha1.Subscription) error {
+							s.Spec.Channel = alphaChannel
+							return nil
+						})).Should(Succeed(), "could not update subscription")
+
 					})
 
 					It("deletes the old subscription metric and emits the new metric(there is only one metric for the subscription)", func() {
