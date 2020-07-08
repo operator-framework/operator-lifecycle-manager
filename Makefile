@@ -161,6 +161,9 @@ clean:
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
 
+e2e-test-report-analysis:
+    go run 
+
 
 # Copy CRD manifests
 manifests: vendor
