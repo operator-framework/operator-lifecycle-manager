@@ -5,6 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -31,11 +35,13 @@ import (
 	"k8s.io/client-go/dynamic"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pmclient "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
@@ -624,4 +630,91 @@ func Local(client operatorclient.ClientInterface) (bool, error) {
 	}
 
 	return true, nil
+}
+
+var applier *controllerclient.ServerSideApplier
+
+func Apply(obj controllerclient.Object, changeFunc interface{}) func() error {
+	if applier == nil {
+		var err error
+		applier, err = NewSSAClient()
+		if err != nil {
+			panic(fmt.Sprintf("failed to initialize SSA client: %v", err))
+		}
+	}
+	return applier.Apply(context.Background(), obj, changeFunc)
+}
+
+func NewSSAClient() (*controllerclient.ServerSideApplier, error) {
+	ssaScheme = runtime.NewScheme()
+	localSchemeBuilder := runtime.NewSchemeBuilder(
+		apiextensionsv1.AddToScheme,
+		kscheme.AddToScheme,
+		operatorsv1alpha1.AddToScheme,
+		operatorsv1.AddToScheme,
+		apiextensionsv1.AddToScheme,
+	)
+	if err := localSchemeBuilder.AddToScheme(ssaScheme); err != nil {
+		return nil, err
+	}
+
+	restConfig, err := GetConfig()
+
+	ssaClient, err := controllerclient.NewForConfig(restConfig, ssaScheme, "test.olm.registry")
+
+}
+
+// GetConfig returns a kubernetes config for configuring a client from a kubeconfig string
+func GetConfig() (*rest.Config, error) {
+	path := os.Getenv("KUBECONFIG")
+	if path == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine kubeconfig path: %s", err.Error())
+		}
+		path = filepath.Join(home, ".kube", "config")
+	}
+
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		// try in-cluster config
+		// see https://github.com/coreos/etcd-operator/issues/731#issuecomment-283804819
+		if len(os.Getenv("KUBERNETES_SERVICE_HOST")) == 0 {
+			addrs, err := net.LookupHost("kubernetes.default.svc")
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve kubernetes service: %s", err.Error())
+			}
+			os.Setenv("KUBERNETES_SERVICE_HOST", addrs[0])
+		}
+
+		if len(os.Getenv("KUBERNETES_SERVICE_PORT")) == 0 {
+			os.Setenv("KUBERNETES_SERVICE_PORT", "443")
+		}
+
+		restConfig, err := rest.InClusterConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve in-cluster config: %s", err.Error())
+		}
+		return restConfig, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to open kubeconfig: %s", err.Error())
+	}
+	defer f.Close()
+
+	const MaxKubeconfigBytes = 65535
+	var b bytes.Buffer
+	n, err := b.ReadFrom(io.LimitReader(f, MaxKubeconfigBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read kubeconfig: %s", err.Error())
+	}
+	if n >= MaxKubeconfigBytes {
+		return nil, fmt.Errorf("kubeconfig larger than maximum allowed size: %d bytes", MaxKubeconfigBytes)
+	}
+
+	restConfig, err := clientcmd.RESTConfigFromKubeConfig(b.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("error loading kubeconfig: %s", err.Error())
+	}
+	return restConfig, nil
 }

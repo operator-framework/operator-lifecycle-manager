@@ -10,6 +10,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/ghodss/yaml"
+	"github.com/onsi/gomega"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -1059,6 +1060,7 @@ func TestSubscriptionInstallPlanStatus(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
+	g := gomega.NewWithT(t)
 
 	// Create namespace ns
 	ns := &corev1.Namespace{
@@ -1128,15 +1130,17 @@ func TestSubscriptionInstallPlanStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the InstallPlan's approval mode to Manual
-	plan.Spec.Approval = v1alpha1.ApprovalManual
-	plan.Spec.Approved = false
-	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Update(plan)
-	require.NoError(t, err)
+	g.Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+		p.Spec.Approval = v1alpha1.ApprovalManual
+		p.Spec.Approved = false
+		return nil
+	})).Should(Succeed())
 
 	// Set the InstallPlan's phase to None
-	plan.Status.Phase = v1alpha1.InstallPlanPhaseNone
-	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
-	require.NoError(t, err)
+	g.Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+		p.Status.Phase = v1alpha1.InstallPlanPhaseNone
+		return nil
+	})).Should(Succeed())
 
 	// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason InstallPlanNotYetReconciled
 	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
@@ -1148,9 +1152,10 @@ func TestSubscriptionInstallPlanStatus(t *testing.T) {
 	// Get the latest InstallPlan and set the phase to InstallPlanPhaseRequiresApproval
 	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
 	require.NoError(t, err)
-	plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
-	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
-	require.NoError(t, err)
+	g.Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+		p.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
+		return nil
+	})).Should(Succeed())
 
 	// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason RequiresApproval
 	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
@@ -1162,9 +1167,10 @@ func TestSubscriptionInstallPlanStatus(t *testing.T) {
 	// Get the latest InstallPlan and set the phase to InstallPlanPhaseInstalling
 	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
 	require.NoError(t, err)
-	plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
-	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
-	require.NoError(t, err)
+	g.Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+		p.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+		return nil
+	})).Should(Succeed())
 
 	// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
 	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
@@ -1176,10 +1182,11 @@ func TestSubscriptionInstallPlanStatus(t *testing.T) {
 	// Get the latest InstallPlan and set the phase to InstallPlanPhaseFailed and remove all status conditions
 	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
 	require.NoError(t, err)
-	plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-	plan.Status.Conditions = nil
-	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
-	require.NoError(t, err)
+	Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+		p.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+		p.Status.Conditions = nil
+		return nil
+	})).Should(Succeed())
 
 	// Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallPlanFailed
 	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
@@ -1191,13 +1198,14 @@ func TestSubscriptionInstallPlanStatus(t *testing.T) {
 	// Get the latest InstallPlan and set status condition of type Installed to false with reason InstallComponentFailed
 	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
 	require.NoError(t, err)
-	plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-	failedCond := plan.Status.GetCondition(v1alpha1.InstallPlanInstalled)
-	failedCond.Status = corev1.ConditionFalse
-	failedCond.Reason = v1alpha1.InstallPlanReasonComponentFailed
-	plan.Status.SetCondition(failedCond)
-	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
-	require.NoError(t, err)
+	Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
+		p.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+		failedCond := p.Status.GetCondition(v1alpha1.InstallPlanInstalled)
+		failedCond.Status = corev1.ConditionFalse
+		failedCond.Reason = v1alpha1.InstallPlanReasonComponentFailed
+		p.Status.SetCondition(failedCond)
+		return nil
+	})).Should(Succeed())
 
 	// Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallComponentFailed
 	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {

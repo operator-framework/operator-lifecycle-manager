@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -1192,6 +1193,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
+	g := gomega.NewWithT(t)
 
 	depName := genName("hat-server")
 	mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
@@ -1326,11 +1328,12 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	require.True(t, ok, "expected olm sha annotation not present on existing pod template")
 
 	// Induce a cert rotation
-	now := metav1.Now()
-	fetchedCSV.Status.CertsLastUpdated = &now
-	fetchedCSV.Status.CertsRotateAt = &now
-	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
-	require.NoError(t, err)
+	g.Eventually(Apply(fetchedCSV, func(csv *v1alpha1.ClusterServiceVersion) error {
+		now := metav1.Now()
+		csv.Status.CertsLastUpdated = &now
+		csv.Status.CertsRotateAt = &now
+		return nil
+	})).Should(Succeed())
 
 	_, err = fetchCSV(t, crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
 		// Should create deployment
