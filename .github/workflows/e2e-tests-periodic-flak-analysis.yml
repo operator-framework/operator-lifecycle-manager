@@ -1,11 +1,11 @@
 name: e2e-tests-periodic-flak-analysis
 on:
+  pull_request:
   schedule:
     - cron: '0 0 12 * * SUN'
   push:
     branches:
-      - master
-  pull_request:
+    - master
 jobs:
   flak-analysis:
     runs-on: ubuntu-latest
