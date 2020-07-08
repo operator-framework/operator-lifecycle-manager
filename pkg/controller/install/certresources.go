@@ -227,7 +227,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		if !ownerutil.Adoptable(i.owner, existingService.GetOwnerReferences()) {
 			return nil, nil, fmt.Errorf("service %s not safe to replace: extraneous ownerreferences found", service.GetName())
 		}
-		service.SetOwnerReferences(append(service.GetOwnerReferences(), existingService.GetOwnerReferences()...))
+		service.SetOwnerReferences(existingService.GetOwnerReferences())
 
 		// Delete the Service to replace
 		deleteErr := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
