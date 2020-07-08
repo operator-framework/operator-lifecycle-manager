@@ -10,13 +10,14 @@ import (
 	"k8s.io/client-go/dynamic"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
-	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var ctx TestContext
@@ -29,11 +30,12 @@ type TestContext struct {
 	operatorClient versioned.Interface
 	dynamicClient  dynamic.Interface
 	packageClient  pversioned.Interface
+	ssaClient      *controllerclient.ServerSideApplier
 
 	scheme *runtime.Scheme
 
 	// client is the controller-runtime client -- we should use this from now on
-	client controllerclient.Client
+	client k8scontrollerclient.Client
 }
 
 // Ctx returns a pointer to the global test context. During parallel
@@ -75,8 +77,12 @@ func (ctx TestContext) PackageClient() pversioned.Interface {
 	return ctx.packageClient
 }
 
-func (ctx TestContext) Client() controllerclient.Client {
+func (ctx TestContext) Client() k8scontrollerclient.Client {
 	return ctx.client
+}
+
+func (ctx TestContext) SSAClient() *controllerclient.ServerSideApplier {
+	return ctx.ssaClient
 }
 
 func setDerivedFields(ctx *TestContext) error {
@@ -124,13 +130,18 @@ func setDerivedFields(ctx *TestContext) error {
 		return err
 	}
 
-	client, err := controllerclient.New(ctx.restConfig, controllerclient.Options{
+	client, err := k8scontrollerclient.New(ctx.restConfig, k8scontrollerclient.Options{
 		Scheme: ctx.scheme,
 	})
 	if err != nil {
 		return err
 	}
 	ctx.client = client
+
+	ctx.ssaClient, err = controllerclient.NewForConfig(ctx.restConfig, ctx.scheme, "test.olm.registry")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
