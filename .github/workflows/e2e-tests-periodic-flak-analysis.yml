@@ -2,6 +2,7 @@ name: e2e-tests-periodic-flak-analysis
 on:
   schedule:
     - cron: '0 0 12 * * SUN'
+  pull_request:
 jobs:
   flak-analysis:
     runs-on: ubuntu-latest
