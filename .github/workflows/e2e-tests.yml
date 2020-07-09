@@ -16,9 +16,11 @@ jobs:
         with:
           name: e2e-test-output-${{ github.sha }}-${{ github.run_id }}
           path: ${{ github.workspace }}/bin/artifacts/*
-        - uses: actions/download-artifact@v2
-          with:
-            path: ${{ github.workspace }}/bin/artifacts/*
-        - name: Display structure of downloaded files
-          run: ls -R
-          working-directory: ${{ github.workspace }}/bin/artifacts/*
+      - uses: actions/download-artifact@v2
+        if: ${{ failure() }}
+        with:
+          path: ${{ github.workspace }}/bin/artifacts/*
+      - name: Display structure of downloaded files
+        if: ${{ failure() }}
+        run: ls -R
+        working-directory: ${{ github.workspace }}/bin/artifacts/*
