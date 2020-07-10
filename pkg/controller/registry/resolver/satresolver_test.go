@@ -794,7 +794,7 @@ type FakeOperatorCache struct {
 	fakedNamespacedOperatorCache NamespacedOperatorCache
 }
 
-func (f *FakeOperatorCache) Namespaced(namespaces ...string) *NamespacedOperatorCache {
+func (f *FakeOperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 	return &f.fakedNamespacedOperatorCache
 }
 
