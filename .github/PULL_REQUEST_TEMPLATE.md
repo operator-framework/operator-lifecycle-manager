@@ -1,6 +1,6 @@
 <!--
 
-Before making a PR, please read our contributing guidelines https://github.com/operator-framework/operator-lifecycle-manager/blob/master/CONTRIBUTING.MD
+Before making a PR, please read our contributing guidelines https://github.com/operator-framework/operator-lifecycle-manager/blob/master/CONTRIBUTING.md
 
 Note: Make sure your branch is rebased to the latest upstream master.
 
