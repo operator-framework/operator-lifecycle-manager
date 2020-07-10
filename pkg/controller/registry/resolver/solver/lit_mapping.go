@@ -48,26 +48,15 @@ func newLitMapping(installables []Installable) *litMapping {
 		d.installables[im] = installable
 	}
 
-	var x constrainer
 	for _, installable := range installables {
 		for _, constraint := range installable.Constraints() {
-			x.Reset()
-			constraint.apply(&x, installable.Identifier())
-			if x.Empty() {
+			m := constraint.apply(d.c, &d, installable.Identifier())
+			if m == z.LitNull {
 				// This constraint doesn't have a
 				// useful representation in the SAT
 				// inputs.
 				continue
 			}
-
-			d.buf = d.buf[:0]
-			for _, p := range x.pos {
-				d.buf = append(d.buf, d.LitOf(p))
-			}
-			for _, n := range x.neg {
-				d.buf = append(d.buf, d.LitOf(n).Not())
-			}
-			m := d.c.Ors(d.buf...)
 
 			d.constraints[m] = AppliedConstraint{
 				Installable: installable,
