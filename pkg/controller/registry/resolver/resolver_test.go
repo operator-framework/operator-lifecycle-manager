@@ -606,7 +606,7 @@ type stubOperatorCacheProvider struct {
 	noc *NamespacedOperatorCache
 }
 
-func (stub *stubOperatorCacheProvider) Namespaced(namespaces ...string) *NamespacedOperatorCache {
+func (stub *stubOperatorCacheProvider) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 	return stub.noc
 }
 
