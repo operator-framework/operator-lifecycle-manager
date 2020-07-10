@@ -32,6 +32,8 @@ type installableFilter struct {
 	startingCSV string
 }
 
+
+
 func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[OperatorSourceInfo]struct{}) (OperatorSet, error) {
 	var errs []error
 
@@ -50,7 +52,7 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			startingCSV: sub.Spec.StartingCSV,
 			currentCSV:  sub.Status.CurrentCSV,
 		}
-		packageInstallables, err := s.getPackageInstallables(pkg, filter, namespacedCache)
+		packageInstallables, err := s.getPackageInstallables(pkg, filter, namespacedCache, nil)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -71,7 +73,7 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			channel:     opToAdd.Channel,
 		}
 
-		packageInstallables, err := s.getPackageInstallables(pkg, filter, namespacedCache)
+		packageInstallables, err := s.getPackageInstallables(pkg, filter, namespacedCache, nil)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -114,7 +116,7 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			errs = append(errs, err)
 			continue
 		}
-		operators[csvName] = &op
+		operators[csvName] = op
 	}
 
 	if len(errs) > 0 {
@@ -124,9 +126,12 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilter, namespacedCache *NamespacedOperatorCache) (map[string]solve.Installable, error) {
+func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilter, namespacedCache *NamespacedOperatorCache, visited map[OperatorSurface]struct{}) (map[string]solve.Installable, error) {
 	var errs []error
 	installables := make(map[string]solve.Installable, 0)
+	if visited == nil {
+		visited = make(map[OperatorSurface]struct{}, 0)
+	}
 
 	virtualInstallable := NewVirtualPackageInstallable(pkg)
 
@@ -136,14 +141,19 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 		return nil, err
 	}
 
-	weightedBundles := s.getWeightedBundles(bundles, namespacedCache)
+	weightedBundles := s.sortBundles(bundles)
 
 	virtDependencies := make(map[solve.Identifier]struct{}, 0)
 	// add installable for each bundle version of the package
 	// this is done to pin a mandatory solve to each required package
 	for _, bundle := range weightedBundles {
+		if _, ok := visited[bundle]; ok {
+			continue
+		}
+		visited[bundle] = struct{}{}
+
 		// traverse the dependency tree to generate the set of installables for given bundle version
-		virtDependencyIdentifiers, bundleInstallables, err := s.getBundleInstallables(bundle.operator.Identifier(), filter, filter.catalog, namespacedCache)
+		virtDependencyIdentifiers, bundleInstallables, err := s.getBundleInstallables(bundle.Identifier(), filter, filter.catalog, namespacedCache, visited)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -168,17 +178,23 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 	return installables, nil
 }
 
-func (s *SatResolver) getBundleInstallables(csvName string, filter installableFilter, preferredCatalog CatalogKey, namespacedCache *NamespacedOperatorCache) (map[solve.Identifier]struct{}, []solve.Installable, error) {
+func (s *SatResolver) getBundleInstallables(csvName string, filter installableFilter, preferredCatalog CatalogKey, namespacedCache *NamespacedOperatorCache, visited map[OperatorSurface]struct{}) (map[solve.Identifier]struct{}, []solve.Installable, error) {
 	var errs []error
 	installables := make([]solve.Installable, 0)          // aggregate all of the installables at every depth
 	identifiers := make(map[solve.Identifier]struct{}, 0) // keep track of depth + 1 dependencies
-
+	if visited == nil {
+		visited = make(map[OperatorSurface]struct{}, 0)
+	}
 	bundles, err := namespacedCache.GetCsvFromAllCatalogsWithFilter(csvName, filter)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	for _, bundle := range bundles {
+		if _, ok := visited[bundle]; ok {
+			continue
+		}
+		visited[bundle] = struct{}{}
 		bundleSource := bundle.SourceInfo()
 		if bundleSource == nil {
 			err := fmt.Errorf("Unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
@@ -197,7 +213,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 
 			bundleDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range depCandidates {
-				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.Identifier(), installableFilter{}, preferredCatalog, namespacedCache)
+				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.Identifier(), installableFilter{}, preferredCatalog, namespacedCache, visited)
 				if err != nil {
 					errs = append(errs, err)
 					continue
@@ -222,11 +238,11 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 			}
 
 			// sort requiredAPICandidates
-			weightedCandidates := s.getWeightedBundles(requiredAPICandidates, namespacedCache)
+			sortedCandidates := s.sortBundles(requiredAPICandidates)
 
 			requiredAPIDependencies := make(map[solve.Identifier]struct{}, 0)
-			for _, dep := range weightedCandidates {
-				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.operator.Identifier(), installableFilter{}, preferredCatalog, namespacedCache)
+			for _, dep := range sortedCandidates {
+				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.Identifier(), installableFilter{}, preferredCatalog, namespacedCache, visited)
 				if err != nil {
 					errs = append(errs, err)
 					continue
@@ -256,12 +272,10 @@ type weightedBundle struct {
 	operator Operator
 }
 
-func (s *SatResolver) getWeightedBundles(bundles []Operator, namespacedCache *NamespacedOperatorCache) []weightedBundle {
-	weightedBundles := make([]weightedBundle, 0)
-
-	versionMap := make(map[string]Operator, 0)
+func (s *SatResolver) sortBundles(bundles []*Operator) []*Operator {
+	versionMap := make(map[string]*Operator, 0)
 	versionSlice := make([]semver.Version, 0)
-	unsortableList := make([]Operator, 0)
+	unsortableList := make([]*Operator, 0)
 
 	zeroVersion, _ := semver.Make("")
 
@@ -280,7 +294,7 @@ func (s *SatResolver) getWeightedBundles(bundles []Operator, namespacedCache *Na
 
 	// todo: if len(versionSlice == 0) then try to build the graph and sort that way
 
-	sortedBundles := make([]Operator, 0)
+	sortedBundles := make([]*Operator, 0)
 	for _, sortedVersion := range versionSlice {
 		sortedBundles = append(sortedBundles, versionMap[sortedVersion.String()])
 	}
@@ -288,22 +302,5 @@ func (s *SatResolver) getWeightedBundles(bundles []Operator, namespacedCache *Na
 		sortedBundles = append(sortedBundles, unsortable)
 	}
 
-	// At the moment, the solver is bound to the highest weight of an installable
-	// for sufficiently large weight. The weight is an aggregate factor that can currently
-	// take in preferred catalog sources as well as version order. In order to minimize
-	// that factor, multiply the total bundle version weight by the number of catalogs +
-	// number of bundles to compare in order to scale minimally.
-	// TODO: In the future, some more complex aggregation should be done here in order
-	// to make weighting more robust.
-	catalogFactor := namespacedCache.GetCacheCatalogSize() + len(sortedBundles)
-
-	for weight, sortedBundle := range sortedBundles {
-		weightedBundle := weightedBundle{
-			weight:   (len(sortedBundles) - weight) * catalogFactor, // rank them highest to lowest
-			operator: sortedBundle,
-		}
-		weightedBundles = append(weightedBundles, weightedBundle)
-	}
-
-	return weightedBundles
+	return sortedBundles
 }

@@ -348,6 +348,9 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *Namesp
 
 		source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*api.Bundle, error) {
 			for _, b := range bundles {
+				if len(b.CsvJson) == 0 {
+					continue
+				}
 				csv, err := V1alpha1CSVFromBundle(b)
 				if err != nil {
 					panic(err)
