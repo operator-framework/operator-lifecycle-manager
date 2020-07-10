@@ -81,7 +81,7 @@ type CatalogDependencyCache interface {
 	GetCSVNameFromCatalog(csvName string, catalog CatalogKey) (Operator, error)
 	GetCSVNameFromAllCatalogs(csvName string) ([]Operator, error)
 	GetPackageFromAllCatalogs(pkg string) ([]Operator, error)
-	GetPackageVersionFromAllCatalogs(pkg string, version semver.Version) ([]Operator, error)
+	GetPackageVersionFromAllCatalogs(pkg string, inRange semver.Range) ([]Operator, error)
 	GetPackageChannelFromCatalog(pkg, channel string, catalog CatalogKey) ([]Operator, error)
 	GetRequiredAPIFromAllCatalogs(requiredAPI registry.APIKey) ([]Operator, error)
 	GetChannelCSVNameFromCatalog(csvName, channel string, catalog CatalogKey) (Operator, error)
@@ -325,15 +325,15 @@ func (n *NamespacedOperatorCache) GetPackageFromAllCatalogs(pkg string) ([]Opera
 	return result, nil
 }
 
-func (n *NamespacedOperatorCache) GetPackageVersionFromAllCatalogs(pkg string, version semver.Version) ([]Operator, error) {
+func (n *NamespacedOperatorCache) GetPackageVersionFromAllCatalogs(pkg string, inRange semver.Range) ([]Operator, error) {
 	var result []Operator
 	for _, s := range n.snapshots {
 		result = append(result, s.Find(func(o *Operator) bool {
-			return o.Package() == pkg && o.version.Equals(version)
+			return o.Package() == pkg && inRange(*o.version)
 		})...)
 	}
 	if len(result) == 0 {
-		return nil, fmt.Errorf("operator with package %s and version %s not found in any catalog", pkg, version)
+		return nil, fmt.Errorf("operator with package %s and version %v not found in any catalog", pkg, inRange)
 	}
 	return result, nil
 }

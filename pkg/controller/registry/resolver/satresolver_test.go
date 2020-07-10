@@ -170,7 +170,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	opsToAdd := map[OperatorSourceInfo]struct{}{
 		opToAdd: struct{}{},
 	}
-	depVersion, _ := semver.Make("1.0.1")
+	depVersion := semver.MustParseRange("1.0.1")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
 			Package: "packageC",
@@ -231,7 +231,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_ManyVersionsInCatalog(
 	opsToAdd := map[OperatorSourceInfo]struct{}{
 		opToAdd: struct{}{},
 	}
-	depVersion, _ := semver.Make("1.0.1")
+	depVersion := semver.MustParseRange("1.0.1")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
 			Package: "packageC",
@@ -300,7 +300,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 	opsToAdd := map[OperatorSourceInfo]struct{}{
 		opToAdd: struct{}{},
 	}
-	depVersion, _ := semver.Make("1.0.1")
+	depVersion := semver.MustParseRange("1.0.1")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
 			Package: "packageC",
@@ -446,7 +446,7 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	opsToAdd := map[OperatorSourceInfo]struct{}{
 		opToAdd: struct{}{},
 	}
-	depVersion, _ := semver.Make("1.0.1")
+	depVersion := semver.MustParseRange("1.0.1")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
 			Package: "packageC",
@@ -516,7 +516,7 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 	opsToAdd := map[OperatorSourceInfo]struct{}{
 		opToAdd: struct{}{},
 	}
-	depVersion, _ := semver.Make("0.1.0")
+	depVersion := semver.MustParseRange("0.1.0")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
 			Package: "packageC",
@@ -672,7 +672,7 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 	opsToAdd := map[OperatorSourceInfo]struct{}{
 		opToAdd: struct{}{},
 	}
-	depVersion, _ := semver.Make("0.1.0")
+	depVersion := semver.MustParseRange("0.1.0")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
 			Package: "packageC",
@@ -736,7 +736,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	opsToAdd := map[OperatorSourceInfo]struct{}{
 		opToAdd: struct{}{},
 	}
-	depVersion, _ := semver.Make("0.1.0")
+	depVersion := semver.MustParseRange("0.1.0")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
 			Package: "packageC",
