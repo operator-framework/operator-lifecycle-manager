@@ -1,15 +1,13 @@
-package sat
+package solver
 
 import (
 	"context"
 	"math/rand"
 	"strconv"
 	"testing"
-
-	"github.com/irifrance/gini"
 )
 
-func generateInput() []Installable {
+var BenchmarkInput = func() []Installable {
 	const (
 		length      = 256
 		seed        = 9
@@ -18,8 +16,6 @@ func generateInput() []Installable {
 		nDependency = 6
 		pConflict   = .05
 		nConflict   = 3
-		pWeight     = 0
-		nWeight     = 4
 	)
 
 	id := func(i int) Identifier {
@@ -53,10 +49,6 @@ func generateInput() []Installable {
 				c = append(c, Conflict(id(y)))
 			}
 		}
-		if rand.Float64() < pWeight {
-			n := rand.Intn(nWeight-1) + 1
-			c = append(c, Weight(n))
-		}
 		return TestInstallable{
 			identifier:  id(i),
 			constraints: c,
@@ -69,23 +61,14 @@ func generateInput() []Installable {
 		result[i] = installable(i)
 	}
 	return result
-}
+}()
 
-func BenchmarkCompileDict(b *testing.B) {
-	input := generateInput()
-
-	b.ResetTimer()
+func BenchmarkSolve(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		compileDict(input)
-	}
-}
-
-func BenchmarkDictSolve(b *testing.B) {
-	d := compileDict(generateInput())
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		g := gini.New()
-		d.Solve(context.Background(), g)
+		s, err := New(WithInput(BenchmarkInput))
+		if err != nil {
+			b.Fatalf("failed to initialize solver: %s", err)
+		}
+		s.Solve(context.Background())
 	}
 }

@@ -1,4 +1,4 @@
-package sat
+package solver
 
 import (
 	"sort"
@@ -12,7 +12,7 @@ func TestConstraints(t *testing.T) {
 		Name       string
 		Constraint Constraint
 		Subject    Identifier
-		Expected   cstate
+		Expected   constrainer
 	}
 
 	for _, tt := range []tc{
@@ -20,7 +20,7 @@ func TestConstraints(t *testing.T) {
 			Name:       "mandatory",
 			Constraint: Mandatory(),
 			Subject:    "a",
-			Expected: cstate{
+			Expected: constrainer{
 				pos: []Identifier{"a"},
 			},
 		},
@@ -28,7 +28,7 @@ func TestConstraints(t *testing.T) {
 			Name:       "prohibited",
 			Constraint: Prohibited(),
 			Subject:    "a",
-			Expected: cstate{
+			Expected: constrainer{
 				neg: []Identifier{"a"},
 			},
 		},
@@ -36,13 +36,13 @@ func TestConstraints(t *testing.T) {
 			Name:       "empty dependency",
 			Constraint: Dependency(),
 			Subject:    "a",
-			Expected:   cstate{},
+			Expected:   constrainer{},
 		},
 		{
 			Name:       "single dependency",
 			Constraint: Dependency("b"),
 			Subject:    "a",
-			Expected: cstate{
+			Expected: constrainer{
 				pos: []Identifier{"b"},
 				neg: []Identifier{"a"},
 			},
@@ -51,7 +51,7 @@ func TestConstraints(t *testing.T) {
 			Name:       "multiple dependency",
 			Constraint: Dependency("x", "y", "z"),
 			Subject:    "a",
-			Expected: cstate{
+			Expected: constrainer{
 				pos: []Identifier{"x", "y", "z"},
 				neg: []Identifier{"a"},
 			},
@@ -60,27 +60,13 @@ func TestConstraints(t *testing.T) {
 			Name:       "conflict",
 			Constraint: Conflict("b"),
 			Subject:    "a",
-			Expected: cstate{
+			Expected: constrainer{
 				neg: []Identifier{"a", "b"},
-			},
-		},
-		{
-			Name:       "negative weight",
-			Constraint: Weight(-1),
-			Subject:    "a",
-			Expected:   cstate{},
-		},
-		{
-			Name:       "weight",
-			Constraint: Weight(5),
-			Subject:    "a",
-			Expected: cstate{
-				weight: 5,
 			},
 		},
 	} {
 		t.Run(tt.Name, func(t *testing.T) {
-			var x cstate
+			var x constrainer
 			tt.Constraint.apply(&x, tt.Subject)
 
 			// Literals in lexically increasing order:
@@ -92,6 +78,38 @@ func TestConstraints(t *testing.T) {
 			})
 
 			assert.Equal(t, tt.Expected, x)
+		})
+	}
+}
+
+func TestOrder(t *testing.T) {
+	type tc struct {
+		Name       string
+		Constraint Constraint
+		Expected   []Identifier
+	}
+
+	for _, tt := range []tc{
+		{
+			Name:       "mandatory",
+			Constraint: Mandatory(),
+		},
+		{
+			Name:       "prohibited",
+			Constraint: Prohibited(),
+		},
+		{
+			Name:       "dependency",
+			Constraint: Dependency("a", "b", "c"),
+			Expected:   []Identifier{"a", "b", "c"},
+		},
+		{
+			Name:       "conflict",
+			Constraint: Conflict("a"),
+		},
+	} {
+		t.Run(tt.Name, func(t *testing.T) {
+			assert.Equal(t, tt.Expected, tt.Constraint.order())
 		})
 	}
 }
