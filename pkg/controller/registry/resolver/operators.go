@@ -249,9 +249,7 @@ type Operator struct {
 
 type VersionDependency struct {
 	Package string
-	Version semver.Version
-	// TODO: BundleImage string
-	// TODO: VersionRange string
+	Version semver.Range
 }
 
 var _ OperatorSurface = &Operator{}
@@ -324,9 +322,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 			}
 			// Ignore package dependency if it is not valid (missing PackageName or
 			// invalid semver version).
-			// TODO: Support semver range. This requires code change on `VersionDependency`
-			// and probably the cache func as well.
-			ver, err := semver.ParseTolerant(pkgDep.Version)
+			ver, err := semver.ParseRange(pkgDep.Version)
 			if err != nil {
 				continue
 			}
