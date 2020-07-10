@@ -143,7 +143,7 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 	// this is done to pin a mandatory solve to each required package
 	for _, bundle := range weightedBundles {
 		// traverse the dependency tree to generate the set of installables for given bundle version
-		virtDependencyIdentifiers, bundleInstallables, err := s.getBundleInstallables(bundle.operator.Identifier(), filter, filter.catalog, bundle.weight, namespacedCache)
+		virtDependencyIdentifiers, bundleInstallables, err := s.getBundleInstallables(bundle.operator.Identifier(), filter, filter.catalog, namespacedCache)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -168,7 +168,7 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 	return installables, nil
 }
 
-func (s *SatResolver) getBundleInstallables(csvName string, filter installableFilter, preferredCatalog CatalogKey, weight int, namespacedCache *NamespacedOperatorCache) (map[solve.Identifier]struct{}, []solve.Installable, error) {
+func (s *SatResolver) getBundleInstallables(csvName string, filter installableFilter, preferredCatalog CatalogKey, namespacedCache *NamespacedOperatorCache) (map[solve.Identifier]struct{}, []solve.Installable, error) {
 	var errs []error
 	installables := make([]solve.Installable, 0)          // aggregate all of the installables at every depth
 	identifiers := make(map[solve.Identifier]struct{}, 0) // keep track of depth + 1 dependencies
@@ -197,7 +197,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 
 			bundleDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range depCandidates {
-				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.Identifier(), installableFilter{}, preferredCatalog, 0, namespacedCache)
+				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.Identifier(), installableFilter{}, preferredCatalog, namespacedCache)
 				if err != nil {
 					errs = append(errs, err)
 					continue
@@ -226,7 +226,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 
 			requiredAPIDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range weightedCandidates {
-				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.operator.Identifier(), installableFilter{}, preferredCatalog, dep.weight, namespacedCache)
+				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.operator.Identifier(), installableFilter{}, preferredCatalog, namespacedCache)
 				if err != nil {
 					errs = append(errs, err)
 					continue
