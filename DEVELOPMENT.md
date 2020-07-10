@@ -6,8 +6,10 @@
 |-------------|-----------------------|----------------------|
 | Go          | Compiler              | brew install go      |
 | Docker      | Packaging             | [Docker for Mac]     |
+| kubebuilder | Testing               | [kubebuilder docs]   |
 
 [Docker for Mac]: https://store.docker.com/editions/community/docker-ce-desktop-mac
+[kubebuilder docs]: https://book.kubebuilder.io/quick-start.html#installation
 
 ### Usage
 
