@@ -422,14 +422,14 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
-					NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
+					NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 				),
 			},
 			args: args{},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("original.v2", "o", "c", "original", "catsrc", "", nil, nil, nil, nil),
-				NewFakeOperatorSurface("depender.v2", "depender", "channel", "depender.v1", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("original.v2", "o", "c", "original", "catsrc", "", nil, nil, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v2", "depender", "channel", "depender.v1", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 			),
 		},
 		{
@@ -442,13 +442,13 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+					NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 				),
 			},
 			args: args{},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "",  []opregistry.APIKey{{"g", "v", "k", "ks"}},nil, nil, nil),
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil,[]opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+				NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "",  []opregistry.APIKey{{"g", "v", "k", "ks"}},nil, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil,[]opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 			),
 		},
 	}

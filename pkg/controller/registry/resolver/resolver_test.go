@@ -413,32 +413,32 @@ func TestNamespaceResolver(t *testing.T) {
 				},
 			},
 		},
-		{
-			// This test verifies that version deadlock that could happen with the previous algorithm can't happen here
-			name: "NoMoreVersionDeadlock",
-			clusterState: []runtime.Object{
-				existingSub(namespace, "a.v1", "a", "alpha", catalog),
-				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, Requires2, nil, nil),
-				existingSub(namespace, "b.v1", "b", "alpha", catalog),
-				existingOperator(namespace, "b.v1", "b", "alpha", "", Provides2, Requires1, nil, nil),
-			},
-			bundlesByCatalog: map[CatalogKey][]*api.Bundle{
-				catalog: {
-					bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil),
-					bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil),
-				},
-			},
-			out: out{
-				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil), namespace, "", catalog),
-					bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil), namespace, "", catalog),
-				},
-				subs: []*v1alpha1.Subscription{
-					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
-					updatedSub(namespace, "b.v2", "b", "alpha", catalog),
-				},
-			},
-		},
+		//{
+		//	// This test verifies that version deadlock that could happen with the previous algorithm can't happen here
+		//	name: "NoMoreVersionDeadlock",
+		//	clusterState: []runtime.Object{
+		//		existingSub(namespace, "a.v1", "a", "alpha", catalog),
+		//		existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, Requires2, nil, nil),
+		//		existingSub(namespace, "b.v1", "b", "alpha", catalog),
+		//		existingOperator(namespace, "b.v1", "b", "alpha", "", Provides2, Requires1, nil, nil),
+		//	},
+		//	bundlesByCatalog: map[CatalogKey][]*api.Bundle{
+		//		catalog: {
+		//			bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil),
+		//			bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil),
+		//		},
+		//	},
+		//	out: out{
+		//		steps: [][]*v1alpha1.Step{
+		//			bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil), namespace, "", catalog),
+		//			bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil), namespace, "", catalog),
+		//		},
+		//		subs: []*v1alpha1.Subscription{
+		//			updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+		//			updatedSub(namespace, "b.v2", "b", "alpha", catalog),
+		//		},
+		//	},
+		//},
 		{
 			// This test verifies that ownership of an api can be migrated between two operators
 			name: "OwnedAPITransfer",

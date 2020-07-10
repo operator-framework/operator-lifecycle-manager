@@ -1,13 +1,14 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/blang/semver"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/sat"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solve"
 )
 
 type BooleanSatResolver interface {
@@ -34,7 +35,7 @@ type installableFilter struct {
 func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[OperatorSourceInfo]struct{}) (OperatorSet, error) {
 	var errs []error
 
-	installables := make([]sat.Installable, 0)
+	installables := make([]solve.Installable, 0)
 
 	namespacedCache := s.cache.Namespaced(namespaces...)
 
@@ -84,8 +85,11 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	if len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
 	}
-
-	solvedInstallables, err := sat.Solve(installables)
+	solver, err := solve.New(solve.WithInput(installables))
+	if err != nil {
+		return nil, err
+	}
+	solvedInstallables, err := solver.Solve(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -120,9 +124,9 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilter, namespacedCache *NamespacedOperatorCache) (map[string]sat.Installable, error) {
+func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilter, namespacedCache *NamespacedOperatorCache) (map[string]solve.Installable, error) {
 	var errs []error
-	installables := make(map[string]sat.Installable, 0)
+	installables := make(map[string]solve.Installable, 0)
 
 	virtualInstallable := NewVirtualPackageInstallable(pkg)
 
@@ -134,7 +138,7 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 
 	weightedBundles := s.getWeightedBundles(bundles, namespacedCache)
 
-	virtDependencies := make(map[sat.Identifier]struct{}, 0)
+	virtDependencies := make(map[solve.Identifier]struct{}, 0)
 	// add installable for each bundle version of the package
 	// this is done to pin a mandatory solve to each required package
 	for _, bundle := range weightedBundles {
@@ -164,10 +168,10 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 	return installables, nil
 }
 
-func (s *SatResolver) getBundleInstallables(csvName string, filter installableFilter, preferredCatalog CatalogKey, weight int, namespacedCache *NamespacedOperatorCache) (map[sat.Identifier]struct{}, []sat.Installable, error) {
+func (s *SatResolver) getBundleInstallables(csvName string, filter installableFilter, preferredCatalog CatalogKey, weight int, namespacedCache *NamespacedOperatorCache) (map[solve.Identifier]struct{}, []solve.Installable, error) {
 	var errs []error
-	installables := make([]sat.Installable, 0)          // aggregate all of the installables at every depth
-	identifiers := make(map[sat.Identifier]struct{}, 0) // keep track of depth + 1 dependencies
+	installables := make([]solve.Installable, 0)          // aggregate all of the installables at every depth
+	identifiers := make(map[solve.Identifier]struct{}, 0) // keep track of depth + 1 dependencies
 
 	bundles, err := namespacedCache.GetCsvFromAllCatalogsWithFilter(csvName, filter)
 	if err != nil {
@@ -183,12 +187,6 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 		}
 		bundleInstallable := NewBundleInstallable(csvName, bundle.bundle.ChannelName, bundleSource.Catalog)
 
-		bundleWeight := weight
-		if bundleSource.Catalog != preferredCatalog {
-			bundleWeight++
-		}
-		bundleInstallable.AddWeight(bundleWeight)
-
 		for _, depVersion := range bundle.VersionDependencies() {
 			depCandidates, err := namespacedCache.GetPackageVersionFromAllCatalogs(depVersion.Package, depVersion.Version)
 			if err != nil {
@@ -197,7 +195,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 				continue
 			}
 
-			bundleDependencies := make(map[sat.Identifier]struct{}, 0)
+			bundleDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range depCandidates {
 				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.Identifier(), installableFilter{}, preferredCatalog, 0, namespacedCache)
 				if err != nil {
@@ -226,7 +224,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 			// sort requiredAPICandidates
 			weightedCandidates := s.getWeightedBundles(requiredAPICandidates, namespacedCache)
 
-			requiredAPIDependencies := make(map[sat.Identifier]struct{}, 0)
+			requiredAPIDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range weightedCandidates {
 				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.operator.Identifier(), installableFilter{}, preferredCatalog, dep.weight, namespacedCache)
 				if err != nil {
