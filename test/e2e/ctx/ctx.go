@@ -57,7 +57,7 @@ func (ctx TestContext) Scheme() *runtime.Scheme {
 }
 
 func (ctx TestContext) RESTConfig() *rest.Config {
-	return ctx.restConfig
+	return rest.CopyConfig(ctx.restConfig)
 }
 
 func (ctx TestContext) KubeClient() operatorclient.ClientInterface {

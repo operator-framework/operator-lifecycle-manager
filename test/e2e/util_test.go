@@ -873,13 +873,12 @@ func toggleFeatureGates(deployment *appsv1.Deployment, toToggle ...featuregate.F
 	w, err := c.Watch(clientCtx, metav1.ListOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
-	timeout := 1 * time.Minute
-	Eventually(func() error {
-		_, err := c.Update(clientCtx, deployment, metav1.UpdateOptions{})
-		return err
-	}, timeout).Should(Succeed())
+	Eventually(Apply(deployment, func(d *appsv1.Deployment) error {
+		d.Spec = deployment.Spec
+		return nil
+	})).Should(Succeed())
 
-	deadline, cancel := context.WithTimeout(context.Background(), timeout)
+	deadline, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()
 
 	awaitPredicates(deadline, w, deploymentReplicas(2), deploymentAvailable, deploymentReplicas(1))
@@ -1002,6 +1001,7 @@ func Apply(obj Object, changeFunc interface{}) func() error {
 		}
 
 		if err := client.Patch(bg, cp, controllerclient.Apply, controllerclient.ForceOwnership, controllerclient.FieldOwner("test")); err != nil {
+			fmt.Printf("first patch error: %s\n", err)
 			return err
 		}
 
