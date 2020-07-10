@@ -32,8 +32,6 @@ type installableFilter struct {
 	startingCSV string
 }
 
-
-
 func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[OperatorSourceInfo]struct{}) (OperatorSet, error) {
 	var errs []error
 
@@ -111,7 +109,7 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			errs = append(errs, err)
 			continue
 		}
-		op, err := namespacedCache.GetChannelCSVNameFromCatalog(csvName, channel, catalog)
+		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(WithCSVName(csvName), WithChannel(channel)))
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -126,7 +124,7 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilter, namespacedCache *NamespacedOperatorCache, visited map[OperatorSurface]struct{}) (map[string]solve.Installable, error) {
+func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilter, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]struct{}) (map[string]solve.Installable, error) {
 	var errs []error
 	installables := make(map[string]solve.Installable, 0)
 	if visited == nil {
@@ -136,9 +134,9 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 	virtualInstallable := NewVirtualPackageInstallable(pkg)
 
 	// TODO: pass the filter into the cache to use startingcsv/latestcsv as limiters
-	bundles, err := namespacedCache.GetPackageChannelFromCatalog(pkg, filter.channel, filter.catalog)
-	if err != nil {
-		return nil, err
+	bundles := namespacedCache.Catalog(filter.catalog).Find(InChannel(pkg, filter.channel))
+	if len(bundles) == 0 {
+		return nil, fmt.Errorf("no opts with pkg %s and channel %s found in %s", pkg, filter.channel, filter.catalog)
 	}
 
 	weightedBundles := s.sortBundles(bundles)
@@ -178,17 +176,22 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 	return installables, nil
 }
 
-func (s *SatResolver) getBundleInstallables(csvName string, filter installableFilter, preferredCatalog CatalogKey, namespacedCache *NamespacedOperatorCache, visited map[OperatorSurface]struct{}) (map[solve.Identifier]struct{}, []solve.Installable, error) {
+func (s *SatResolver) getBundleInstallables(csvName string, filter installableFilter, preferredCatalog CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]struct{}) (map[solve.Identifier]struct{}, []solve.Installable, error) {
 	var errs []error
 	installables := make([]solve.Installable, 0)          // aggregate all of the installables at every depth
 	identifiers := make(map[solve.Identifier]struct{}, 0) // keep track of depth + 1 dependencies
 	if visited == nil {
 		visited = make(map[OperatorSurface]struct{}, 0)
 	}
-	bundles, err := namespacedCache.GetCsvFromAllCatalogsWithFilter(csvName, filter)
-	if err != nil {
-		return nil, nil, err
+	ps := []OperatorPredicate{WithCSVName(csvName)}
+	if filter.channel != "" {
+		ps = append(ps, WithChannel(filter.channel))
 	}
+	var finder OperatorFinder = namespacedCache
+	if !filter.catalog.IsEmpty() {
+		finder = namespacedCache.Catalog(filter.catalog)
+	}
+	bundles := finder.Find(ps...)
 
 	for _, bundle := range bundles {
 		if _, ok := visited[bundle]; ok {
@@ -204,7 +207,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 		bundleInstallable := NewBundleInstallable(csvName, bundle.bundle.ChannelName, bundleSource.Catalog)
 
 		for _, depVersion := range bundle.VersionDependencies() {
-			depCandidates, err := namespacedCache.GetPackageVersionFromAllCatalogs(depVersion.Package, depVersion.Version)
+			depCandidates, err := AtLeast(1, namespacedCache.Find(WithPackage(depVersion.Package), WithVersionInRange(depVersion.Version)))
 			if err != nil {
 				// If there are no candidates for a dependency, it means this bundle can't be resolved
 				bundleInstallable.MakeProhibited()
@@ -230,7 +233,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, filter installableFi
 
 		requiredAPIs := bundle.RequiredAPIs()
 		for requiredAPI := range requiredAPIs {
-			requiredAPICandidates, err := namespacedCache.GetRequiredAPIFromAllCatalogs(requiredAPI)
+			requiredAPICandidates, err := AtLeast(1, namespacedCache.Find(ProvidingAPI(requiredAPI)))
 			if err != nil {
 				// If there are no candidates for a dependency, it means this bundle can't be resolved
 				bundleInstallable.MakeProhibited()
