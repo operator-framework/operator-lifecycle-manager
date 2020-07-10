@@ -13,10 +13,12 @@ import (
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -595,8 +597,13 @@ var _ = Describe("Catalog", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Delete the registry pod
-		err = c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(func() error {
+			err := c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+			if apierrors.IsNotFound(err) {
+				err = nil
+			}
+			return err
+		}).Should(Succeed())
 
 		// Wait for a new registry pod to be created
 		notUID := func(pods *corev1.PodList) bool {

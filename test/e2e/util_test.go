@@ -784,24 +784,25 @@ const (
 func toggleCVO() {
 	c := ctx.Ctx().KubeClient().KubernetesInterface().AppsV1().Deployments(cvoNamespace)
 	clientCtx := context.Background()
-	scale, err := c.GetScale(clientCtx, cvoDeploymentName, metav1.GetOptions{})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			// CVO is not enabled
-			return
-		}
-
-		Expect(err).ToNot(HaveOccurred())
-	}
-
-	if scale.Spec.Replicas > 0 {
-		scale.Spec.Replicas = 0
-	} else {
-		scale.Spec.Replicas = 1
-	}
 
 	Eventually(func() error {
-		_, err := c.UpdateScale(clientCtx, cvoDeploymentName, scale, metav1.UpdateOptions{})
+		scale, err := c.GetScale(clientCtx, cvoDeploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				// CVO is not enabled
+				return nil
+			}
+
+			return err
+		}
+
+		if scale.Spec.Replicas > 0 {
+			scale.Spec.Replicas = 0
+		} else {
+			scale.Spec.Replicas = 1
+		}
+
+		_, err = c.UpdateScale(clientCtx, cvoDeploymentName, scale, metav1.UpdateOptions{})
 		return err
 	}).Should(Succeed())
 }

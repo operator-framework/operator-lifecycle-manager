@@ -16,6 +16,7 @@ import (
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -414,11 +415,13 @@ var _ = Describe("CSVs with a Webhook", func() {
 			Expect(ok).Should(BeTrue())
 
 			// Induce a cert rotation
-			now := metav1.Now()
-			fetchedCSV.Status.CertsLastUpdated = &now
-			fetchedCSV.Status.CertsRotateAt = &now
-			fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.Name).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
-			Expect(err).Should(BeNil())
+			Eventually(Apply(fetchedCSV, func(csv *operatorsv1alpha1.ClusterServiceVersion) error {
+				now := metav1.Now()
+				csv.Status.CertsLastUpdated = &now
+				csv.Status.CertsRotateAt = &now
+				return nil
+			})).Should(Succeed())
+
 			_, err = fetchCSV(crc, csv.Name, namespace.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
 				// Should create deployment
 				dep, err = c.GetDeployment(namespace.Name, csv.Spec.WebhookDefinitions[0].DeploymentName)

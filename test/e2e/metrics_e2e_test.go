@@ -252,11 +252,14 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 func getPodWithLabel(client operatorclient.ClientInterface, label string) *corev1.Pod {
 	listOptions := metav1.ListOptions{LabelSelector: label}
 	var podList *corev1.PodList
-	EventuallyWithOffset(1, func() (err error) {
+	EventuallyWithOffset(1, func() (numPods int, err error) {
 		podList, err = client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(context.TODO(), listOptions)
+		if podList != nil {
+			numPods = len(podList.Items)
+		}
+
 		return
-	}).Should(Succeed(), "Failed to list OLM pods")
-	Expect(len(podList.Items)).To(Equal(1))
+	}).Should(Equal(1), "number of pods never scaled to one")
 
 	return &podList.Items[0]
 }
