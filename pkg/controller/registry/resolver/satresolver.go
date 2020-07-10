@@ -145,11 +145,6 @@ func (s *SatResolver) getPackageInstallables(pkg string, filter installableFilte
 	// add installable for each bundle version of the package
 	// this is done to pin a mandatory solve to each required package
 	for _, bundle := range weightedBundles {
-		if _, ok := visited[bundle]; ok {
-			continue
-		}
-		visited[bundle] = struct{}{}
-
 		// traverse the dependency tree to generate the set of installables for given bundle version
 		virtDependencyIdentifiers, bundleInstallables, err := s.getBundleInstallables(bundle.Identifier(), filter, filter.catalog, namespacedCache, visited)
 		if err != nil {

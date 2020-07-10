@@ -363,8 +363,9 @@ func AtLeast(n int, operators []*Operator) ([]*Operator, error) {
 	}
 	return operators, nil
 }
+
 func ExactlyOne(operators []*Operator) (*Operator, error) {
-	if len(operators) != 0 {
+	if len(operators) != 1 {
 		return nil, fmt.Errorf("expected exactly one operator, got %d", len(operators))
 	}
 	return operators[0], nil
