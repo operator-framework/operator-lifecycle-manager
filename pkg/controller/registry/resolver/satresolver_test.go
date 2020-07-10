@@ -39,7 +39,7 @@ func TestSolveOperators(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.1", "packageB", "alpha", "community", "olm", nil, nil, nil),
 				},
@@ -82,7 +82,7 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "beta", "community", "olm", nil, nil, nil),
@@ -129,7 +129,7 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -188,7 +188,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -249,7 +249,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_ManyVersionsInCatalog(
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.1.0", "0.1.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.2.0", "0.2.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -318,7 +318,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -331,7 +331,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "cat1",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -344,7 +344,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "cat2",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -357,7 +357,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "cat3",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB", "alpha", "cat3", "olm", nil, nil, opToAddVersionDeps),
@@ -367,7 +367,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "cat4",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
@@ -375,7 +375,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "cat5",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
@@ -383,7 +383,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "cat6",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
@@ -391,7 +391,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "cat7",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
@@ -399,7 +399,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "olm",
 				Name:      "cat8",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
@@ -407,7 +407,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 				Namespace: "ns2",
 				Name:      "cat9",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
@@ -470,7 +470,7 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -530,7 +530,7 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
 					genOperator("packageC.v1", "0.1.0", "packageC", "alpha", "community", "olm", nil, nil, nil),
@@ -574,7 +574,7 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, nil),
 					genOperator("packageC.v1", "0.1.0", "packageC", "alpha", "community", "olm", nil, Provides, nil),
@@ -618,7 +618,7 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, nil),
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB", "alpha", "community", "olm", Provides, nil, nil),
@@ -631,7 +631,7 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "certified",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageC.v1.0.0", "1.0.0", "packageC", "alpha", "certified", "olm", Provides2, Provides, nil),
 					genOperator("packageC.v1.0.1", "1.0.1", "packageC", "alpha", "certified", "olm", Provides2, Provides, nil),
 					genOperator("packageD.v1.0.1", "1.0.1", "packageD", "alpha", "certified", "olm", nil, Provides2, nil),
@@ -686,7 +686,7 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
 					genOperator("packageC.v1", "0.1.0", "packageC", "alpha", "community", "olm", nil, nil, nil),
@@ -696,7 +696,7 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 				Namespace: "olm",
 				Name:      "certified",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "certified", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps),
 					genOperator("packageC.v1", "0.1.0", "packageC", "alpha", "certified", "olm", nil, nil, nil),
@@ -756,7 +756,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
 					genOperator("packageC.v1", "0.1.0", "packageC", "alpha", "community", "olm", nil, nil, unsatisfiableVersionDeps),
@@ -766,7 +766,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "certified",
 			}: &CatalogSnapshot{
-				operators: []Operator{
+				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "certified", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps),
 					genOperator("packageC.v1", "0.1.0", "packageC", "alpha", "certified", "olm", nil, nil, nil),
@@ -804,9 +804,9 @@ func getFakeOperatorCache(fakedNamespacedOperatorCache NamespacedOperatorCache) 
 	}
 }
 
-func genOperator(name, version, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs APISet, versionDependencies []VersionDependency) Operator {
+func genOperator(name, version, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs APISet, versionDependencies []VersionDependency) *Operator {
 	semversion, _ := semver.Make(version)
-	return Operator{
+	return &Operator{
 		name:    name,
 		version: &semversion,
 		bundle: &api.Bundle{

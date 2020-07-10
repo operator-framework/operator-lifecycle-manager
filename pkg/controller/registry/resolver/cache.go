@@ -31,11 +31,11 @@ func (lc *LazyClient) Get() (client.Interface, error) {
 	if lc.c != nil {
 		return lc.c, nil
 	}
-	client, err := client.NewClient(lc.address)
+	c, err := client.NewClient(lc.address)
 	if err != nil {
 		return nil, err
 	}
-	lc.c = client
+	lc.c = c
 	return lc.c, nil
 }
 
@@ -78,14 +78,14 @@ func (rcp *DefaultRegistryClientProvider) ClientsForNamespaces(namespaces ...str
 }
 
 type CatalogDependencyCache interface {
-	GetCSVNameFromCatalog(csvName string, catalog CatalogKey) (Operator, error)
-	GetCSVNameFromAllCatalogs(csvName string) ([]Operator, error)
-	GetPackageFromAllCatalogs(pkg string) ([]Operator, error)
-	GetPackageVersionFromAllCatalogs(pkg string, inRange semver.Range) ([]Operator, error)
-	GetPackageChannelFromCatalog(pkg, channel string, catalog CatalogKey) ([]Operator, error)
-	GetRequiredAPIFromAllCatalogs(requiredAPI registry.APIKey) ([]Operator, error)
-	GetChannelCSVNameFromCatalog(csvName, channel string, catalog CatalogKey) (Operator, error)
-	GetCsvFromAllCatalogsWithFilter(csvName string, filter installableFilter) ([]Operator, error)
+	GetCSVNameFromCatalog(csvName string, catalog CatalogKey) (*Operator, error)
+	GetCSVNameFromAllCatalogs(csvName string) ([]*Operator, error)
+	GetPackageFromAllCatalogs(pkg string) ([]*Operator, error)
+	GetPackageVersionFromAllCatalogs(pkg string, inRange semver.Range) ([]*Operator, error)
+	GetPackageChannelFromCatalog(pkg, channel string, catalog CatalogKey) ([]*Operator, error)
+	GetRequiredAPIFromAllCatalogs(requiredAPI registry.APIKey) ([]*Operator, error)
+	GetChannelCSVNameFromCatalog(csvName, channel string, catalog CatalogKey) (*Operator, error)
+	GetCsvFromAllCatalogsWithFilter(csvName string, filter installableFilter) ([]*Operator, error)
 	GetCacheCatalogSize() int
 }
 
@@ -215,7 +215,7 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 		return
 	}
 
-	var operators []Operator
+	var operators []*Operator
 	for b := it.Next(); b != nil; b = it.Next() {
 		o, err := NewOperatorFromBundle(b, "", snapshot.key)
 		if err != nil {
@@ -224,7 +224,7 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 		}
 		o.providedAPIs = o.ProvidedAPIs().StripPlural()
 		o.requiredAPIs = o.RequiredAPIs().StripPlural()
-		operators = append(operators, *o)
+		operators = append(operators, o)
 	}
 	if err := it.Error(); err != nil {
 		snapshot.logger.Warnf("error encountered while listing bundles: %s", err.Error())
@@ -237,7 +237,7 @@ type CatalogSnapshot struct {
 	logger    logrus.FieldLogger
 	key       CatalogKey
 	expiry    time.Time
-	operators []Operator
+	operators []*Operator
 	m         sync.RWMutex
 	pop       context.CancelFunc
 }
@@ -252,55 +252,55 @@ func (s *CatalogSnapshot) Expired(at time.Time) bool {
 
 type OperatorPredicate func(*Operator) bool
 
-func (s *CatalogSnapshot) Find(p OperatorPredicate) []Operator {
+func (s *CatalogSnapshot) Find(p OperatorPredicate) []*Operator {
 	s.m.RLock()
 	defer s.m.RUnlock()
 
-	var result []Operator
+	var result []*Operator
 	for _, o := range s.operators {
-		if p(&o) {
+		if p(o) {
 			result = append(result, o)
 		}
 	}
 	return result
 }
 
-func (n *NamespacedOperatorCache) GetCSVNameFromCatalog(csvName string, catalog CatalogKey) (Operator, error) {
+func (n *NamespacedOperatorCache) GetCSVNameFromCatalog(csvName string, catalog CatalogKey) (*Operator, error) {
 	s, ok := n.snapshots[catalog]
 	if !ok {
-		return Operator{}, fmt.Errorf("catalog %s not found", catalog)
+		return &Operator{}, fmt.Errorf("catalog %s not found", catalog)
 	}
 	operators := s.Find(func(o *Operator) bool {
 		return o.name == csvName
 	})
 	if len(operators) == 0 {
-		return Operator{}, fmt.Errorf("operator %s not found in catalog %s", csvName, catalog)
+		return &Operator{}, fmt.Errorf("operator %s not found in catalog %s", csvName, catalog)
 	}
 	if len(operators) > 1 {
-		return Operator{}, fmt.Errorf("multiple operators named %s found in catalog %s", csvName, catalog)
+		return &Operator{}, fmt.Errorf("multiple operators named %s found in catalog %s", csvName, catalog)
 	}
 	return operators[0], nil
 }
 
-func (n *NamespacedOperatorCache) GetChannelCSVNameFromCatalog(csvName, channel string, catalog CatalogKey) (Operator, error) {
+func (n *NamespacedOperatorCache) GetChannelCSVNameFromCatalog(csvName, channel string, catalog CatalogKey) (*Operator, error) {
 	s, ok := n.snapshots[catalog]
 	if !ok {
-		return Operator{}, fmt.Errorf("catalog %s not found", catalog)
+		return &Operator{}, fmt.Errorf("catalog %s not found", catalog)
 	}
 	operators := s.Find(func(o *Operator) bool {
 		return o.name == csvName && o.bundle.ChannelName == channel
 	})
 	if len(operators) == 0 {
-		return Operator{}, fmt.Errorf("operator %s not found in catalog %s", csvName, catalog)
+		return &Operator{}, fmt.Errorf("operator %s not found in catalog %s", csvName, catalog)
 	}
 	if len(operators) > 1 {
-		return Operator{}, fmt.Errorf("multiple operators named %s found in catalog %s", csvName, catalog)
+		return &Operator{}, fmt.Errorf("multiple operators named %s found in catalog %s", csvName, catalog)
 	}
 	return operators[0], nil
 }
 
-func (n *NamespacedOperatorCache) GetCSVNameFromAllCatalogs(csvName string) ([]Operator, error) {
-	var result []Operator
+func (n *NamespacedOperatorCache) GetCSVNameFromAllCatalogs(csvName string) ([]*Operator, error) {
+	var result []*Operator
 	for _, s := range n.snapshots {
 		result = append(result, s.Find(func(o *Operator) bool {
 			return o.name == csvName
@@ -312,8 +312,8 @@ func (n *NamespacedOperatorCache) GetCSVNameFromAllCatalogs(csvName string) ([]O
 	return result, nil
 }
 
-func (n *NamespacedOperatorCache) GetPackageFromAllCatalogs(pkg string) ([]Operator, error) {
-	var result []Operator
+func (n *NamespacedOperatorCache) GetPackageFromAllCatalogs(pkg string) ([]*Operator, error) {
+	var result []*Operator
 	for _, s := range n.snapshots {
 		result = append(result, s.Find(func(o *Operator) bool {
 			return o.Package() == pkg
@@ -325,8 +325,8 @@ func (n *NamespacedOperatorCache) GetPackageFromAllCatalogs(pkg string) ([]Opera
 	return result, nil
 }
 
-func (n *NamespacedOperatorCache) GetPackageVersionFromAllCatalogs(pkg string, inRange semver.Range) ([]Operator, error) {
-	var result []Operator
+func (n *NamespacedOperatorCache) GetPackageVersionFromAllCatalogs(pkg string, inRange semver.Range) ([]*Operator, error) {
+	var result []*Operator
 	for _, s := range n.snapshots {
 		result = append(result, s.Find(func(o *Operator) bool {
 			return o.Package() == pkg && inRange(*o.version)
@@ -338,8 +338,8 @@ func (n *NamespacedOperatorCache) GetPackageVersionFromAllCatalogs(pkg string, i
 	return result, nil
 }
 
-func (n *NamespacedOperatorCache) GetRequiredAPIFromAllCatalogs(requiredAPI registry.APIKey) ([]Operator, error) {
-	var result []Operator
+func (n *NamespacedOperatorCache) GetRequiredAPIFromAllCatalogs(requiredAPI registry.APIKey) ([]*Operator, error) {
+	var result []*Operator
 	for _, s := range n.snapshots {
 		result = append(result, s.Find(func(o *Operator) bool {
 			providedAPIs := o.ProvidedAPIs()
@@ -355,8 +355,8 @@ func (n *NamespacedOperatorCache) GetRequiredAPIFromAllCatalogs(requiredAPI regi
 	return result, nil
 }
 
-func (n *NamespacedOperatorCache) GetCsvFromAllCatalogsWithFilter(csvName string, filter installableFilter) ([]Operator, error) {
-	var result []Operator
+func (n *NamespacedOperatorCache) GetCsvFromAllCatalogsWithFilter(csvName string, filter installableFilter) ([]*Operator, error) {
+	var result []*Operator
 	for _, s := range n.snapshots {
 		result = append(result, s.Find(func(o *Operator) bool {
 			candidate := true
@@ -375,8 +375,8 @@ func (n *NamespacedOperatorCache) GetCsvFromAllCatalogsWithFilter(csvName string
 	return result, nil
 }
 
-func (n *NamespacedOperatorCache) GetPackageChannelFromCatalog(pkg, channel string, catalog CatalogKey) ([]Operator, error) {
-	var result []Operator
+func (n *NamespacedOperatorCache) GetPackageChannelFromCatalog(pkg, channel string, catalog CatalogKey) ([]*Operator, error) {
+	var result []*Operator
 	s, ok := n.snapshots[catalog]
 	if !ok {
 		return nil, fmt.Errorf("catalog %s not found", catalog)
