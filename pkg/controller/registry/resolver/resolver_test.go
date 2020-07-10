@@ -239,45 +239,45 @@ func TestNamespaceResolver(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	name: "InstalledSub/UpdateAvailable/FromBundlePath",
-		// 	clusterState: []runtime.Object{
-		// 		existingSub(namespace, "a.v1", "a", "alpha", catalog),
-		// 		existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
-		// 	},
-		// 	bundlesByCatalog: map[CatalogKey][]*api.Bundle{catalog: []*api.Bundle{stripManifests(withBundlePath(bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil), "quay.io/test/bundle@sha256:abcd"))}},
-		// 	out: out{
-		// 		steps: [][]*v1alpha1.Step{},
-		// 		lookups: []v1alpha1.BundleLookup{
-		// 			{
-		// 				Path:       "quay.io/test/bundle@sha256:abcd",
-		// 				Identifier: "a.v2",
-		// 				Replaces:   "a.v1",
-		// 				CatalogSourceRef: &corev1.ObjectReference{
-		// 					Namespace: catalog.Namespace,
-		// 					Name:      catalog.Name,
-		// 				},
-		// 				Conditions: []v1alpha1.BundleLookupCondition{
-		// 					{
-		// 						Type:    BundleLookupConditionPacked,
-		// 						Status:  corev1.ConditionTrue,
-		// 						Reason:  controllerbundle.NotUnpackedReason,
-		// 						Message: controllerbundle.NotUnpackedMessage,
-		// 					},
-		// 					{
-		// 						Type:    v1alpha1.BundleLookupPending,
-		// 						Status:  corev1.ConditionTrue,
-		// 						Reason:  controllerbundle.JobNotStartedReason,
-		// 						Message: controllerbundle.JobNotStartedMessage,
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 		subs: []*v1alpha1.Subscription{
-		// 			updatedSub(namespace, "a.v2", "a", "alpha", catalog),
-		// 		},
-		// 	},
-		// },
+		{
+			name: "InstalledSub/UpdateAvailable/FromBundlePath",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			bundlesByCatalog: map[CatalogKey][]*api.Bundle{catalog: []*api.Bundle{stripManifests(withBundlePath(bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil), "quay.io/test/bundle@sha256:abcd"))}},
+			out: out{
+				steps: [][]*v1alpha1.Step{},
+				lookups: []v1alpha1.BundleLookup{
+					{
+						Path:       "quay.io/test/bundle@sha256:abcd",
+						Identifier: "a.v2",
+						Replaces:   "a.v1",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: catalog.Namespace,
+							Name:      catalog.Name,
+						},
+						Conditions: []v1alpha1.BundleLookupCondition{
+							{
+								Type:    BundleLookupConditionPacked,
+								Status:  corev1.ConditionTrue,
+								Reason:  controllerbundle.NotUnpackedReason,
+								Message: controllerbundle.NotUnpackedMessage,
+							},
+							{
+								Type:    v1alpha1.BundleLookupPending,
+								Status:  corev1.ConditionTrue,
+								Reason:  controllerbundle.JobNotStartedReason,
+								Message: controllerbundle.JobNotStartedMessage,
+							},
+						},
+					},
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+				},
+			},
+		},
 		{
 			name: "InstalledSub/NoRunningOperator",
 			clusterState: []runtime.Object{
@@ -413,32 +413,32 @@ func TestNamespaceResolver(t *testing.T) {
 				},
 			},
 		},
-		//{
-		//	// This test verifies that version deadlock that could happen with the previous algorithm can't happen here
-		//	name: "NoMoreVersionDeadlock",
-		//	clusterState: []runtime.Object{
-		//		existingSub(namespace, "a.v1", "a", "alpha", catalog),
-		//		existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, Requires2, nil, nil),
-		//		existingSub(namespace, "b.v1", "b", "alpha", catalog),
-		//		existingOperator(namespace, "b.v1", "b", "alpha", "", Provides2, Requires1, nil, nil),
-		//	},
-		//	bundlesByCatalog: map[CatalogKey][]*api.Bundle{
-		//		catalog: {
-		//			bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil),
-		//			bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil),
-		//		},
-		//	},
-		//	out: out{
-		//		steps: [][]*v1alpha1.Step{
-		//			bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil), namespace, "", catalog),
-		//			bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil), namespace, "", catalog),
-		//		},
-		//		subs: []*v1alpha1.Subscription{
-		//			updatedSub(namespace, "a.v2", "a", "alpha", catalog),
-		//			updatedSub(namespace, "b.v2", "b", "alpha", catalog),
-		//		},
-		//	},
-		//},
+		{
+			// This test verifies that version deadlock that could happen with the previous algorithm can't happen here
+			name: "NoMoreVersionDeadlock",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, Requires2, nil, nil),
+				existingSub(namespace, "b.v1", "b", "alpha", catalog),
+				existingOperator(namespace, "b.v1", "b", "alpha", "", Provides2, Requires1, nil, nil),
+			},
+			bundlesByCatalog: map[CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil),
+					bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil),
+				},
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil), namespace, "", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+					updatedSub(namespace, "b.v2", "b", "alpha", catalog),
+				},
+			},
+		},
 		{
 			// This test verifies that ownership of an api can be migrated between two operators
 			name: "OwnedAPITransfer",
@@ -576,7 +576,7 @@ func TestNamespaceResolver(t *testing.T) {
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
-					stubSnapshot.operators = append(stubSnapshot.operators, *op)
+					stubSnapshot.operators = append(stubSnapshot.operators, op)
 				}
 			}
 			stubCache := &stubOperatorCacheProvider{

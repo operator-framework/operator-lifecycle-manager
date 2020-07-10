@@ -224,8 +224,8 @@ func TestCatalogSnapshotFind(t *testing.T) {
 	type tc struct {
 		Name      string
 		Predicate func(*Operator) bool
-		Operators []Operator
-		Expected  []Operator
+		Operators []*Operator
+		Expected  []*Operator
 	}
 
 	for _, tt := range []tc{
@@ -234,10 +234,10 @@ func TestCatalogSnapshotFind(t *testing.T) {
 			Predicate: func(*Operator) bool {
 				return false
 			},
-			Operators: []Operator{
-				Operator{name: "a"},
-				Operator{name: "b"},
-				Operator{name: "c"},
+			Operators: []*Operator{
+				{name: "a"},
+				{name: "b"},
+				{name: "c"},
 			},
 			Expected: nil,
 		},
@@ -254,15 +254,15 @@ func TestCatalogSnapshotFind(t *testing.T) {
 			Predicate: func(*Operator) bool {
 				return true
 			},
-			Operators: []Operator{
-				Operator{name: "a"},
-				Operator{name: "b"},
-				Operator{name: "c"},
+			Operators: []*Operator{
+				{name: "a"},
+				{name: "b"},
+				{name: "c"},
 			},
-			Expected: []Operator{
-				Operator{name: "a"},
-				Operator{name: "b"},
-				Operator{name: "c"},
+			Expected: []*Operator{
+				{name: "a"},
+				{name: "b"},
+				{name: "c"},
 			},
 		},
 		{
@@ -270,14 +270,14 @@ func TestCatalogSnapshotFind(t *testing.T) {
 			Predicate: func(o *Operator) bool {
 				return o.name != "a"
 			},
-			Operators: []Operator{
-				Operator{name: "a"},
-				Operator{name: "b"},
-				Operator{name: "c"},
+			Operators: []*Operator{
+				{name: "a"},
+				{name: "b"},
+				{name: "c"},
 			},
-			Expected: []Operator{
-				Operator{name: "b"},
-				Operator{name: "c"},
+			Expected: []*Operator{
+				{name: "b"},
+				{name: "c"},
 			},
 		},
 	} {
