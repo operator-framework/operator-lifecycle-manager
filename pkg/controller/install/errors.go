@@ -38,11 +38,11 @@ func IsErrorUnrecoverable(err error) bool {
 	if err == nil {
 		return false
 	}
-	_, ok := unrecoverableErrors[reasonForError(err)]
+	_, ok := unrecoverableErrors[ReasonForError(err)]
 	return ok
 }
 
-func reasonForError(err error) string {
+func ReasonForError(err error) string {
 	switch t := err.(type) {
 	case StrategyError:
 		return t.Reason
