@@ -885,9 +885,32 @@ func toggleFeatureGates(deployment *appsv1.Deployment, toToggle ...featuregate.F
 	awaitPredicates(deadline, w, deploymentReplicas(2), deploymentAvailable, deploymentReplicas(1))
 }
 
+var gvks = map[reflect.Type]schema.GroupVersionKind{
+	reflect.TypeOf(&v1alpha1.ClusterServiceVersion{}): schema.GroupVersionKind{
+		Group:   v1alpha1.GroupName,
+		Version: v1alpha1.GroupVersion,
+		Kind:    v1alpha1.ClusterServiceVersionKind,
+	},
+	reflect.TypeOf(&v1alpha1.InstallPlan{}): schema.GroupVersionKind{
+		Group:   v1alpha1.GroupName,
+		Version: v1alpha1.GroupVersion,
+		Kind:    v1alpha1.InstallPlanKind,
+	},
+}
+
 type Object interface {
 	runtime.Object
 	metav1.Object
+}
+
+func SetDefaultGroupVersionKind(o Object) {
+	gvk := o.GetObjectKind().GroupVersionKind()
+	if !gvk.Empty() {
+		return
+	}
+	if gvk, ok := gvks[reflect.TypeOf(o)]; ok {
+		o.GetObjectKind().SetGroupVersionKind(gvk)
+	}
 }
 
 // Apply returns a function that invokes a change func on an object and performs a server-side apply patch with the result and its status subresource.
@@ -948,7 +971,7 @@ func Apply(obj Object, changeFunc interface{}) func() error {
 		if err := client.Get(bg, key, cp); err != nil {
 			return err
 		}
-		cp.GetObjectKind().SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+		SetDefaultGroupVersionKind(cp)
 		cp.SetManagedFields(nil)
 
 		var (
@@ -970,7 +993,7 @@ func Apply(obj Object, changeFunc interface{}) func() error {
 		if err := client.Get(bg, key, cp); err != nil {
 			return err
 		}
-		cp.GetObjectKind().SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+		SetDefaultGroupVersionKind(cp)
 		cp.SetManagedFields(nil)
 
 		if len(out) != 1 {

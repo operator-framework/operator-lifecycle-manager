@@ -22,7 +22,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 
@@ -962,11 +961,6 @@ var _ = Describe("Subscription", func() {
 		plan := &v1alpha1.InstallPlan{}
 		plan.SetNamespace(ref.Namespace)
 		plan.SetName(ref.Name)
-		plan.GetObjectKind().SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1alpha1.GroupName,
-			Version: v1alpha1.GroupVersion,
-			Kind:    v1alpha1.InstallPlanKind,
-		})
 
 		// Set the InstallPlan's approval mode to Manual
 		Eventually(Apply(plan, func(p *v1alpha1.InstallPlan) error {
