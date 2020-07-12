@@ -128,13 +128,23 @@ type DependenciesFile struct {
 	Dependencies []Dependency `json:"dependencies" yaml:"dependencies"`
 }
 
-// Dependencies is a list of dependencies for a given bundle
+// Dependency specifies a single constraint that can be satisfied by a property on another bundle..
 type Dependency struct {
-	// The type of dependency. It can be `olm.package` for operator-version based
-	// dependency or `olm.gvk` for gvk based dependency. This field is required.
+	// The type of dependency. This field is required.
 	Type string `json:"type" yaml:"type"`
 
-	// The value of the dependency (either GVKDependency or PackageDependency)
+	// The serialized value of the dependency
+	Value json.RawMessage `json:"value" yaml:"value"`
+}
+
+// Property defines a single piece of the public interface for a bundle. Dependencies are specified over properties.
+// The Type of the property determines how to interpret the Value, but the value is treated opaquely for
+// for non-first-party types.
+type Property struct {
+	// The type of property. This field is required.
+	Type string `json:"type" yaml:"type"`
+
+	// The serialized value of the propertuy
 	Value string `json:"value" yaml:"value"`
 }
 
@@ -145,7 +155,7 @@ type GVKDependency struct {
 	// The kind of GVK based dependency
 	Kind string `json:"kind" yaml:"kind"`
 
-	// The version of dependency in semver format
+	// The version of GVK based dependency
 	Version string `json:"version" yaml:"version"`
 }
 
@@ -153,7 +163,26 @@ type PackageDependency struct {
 	// The name of dependency such as 'etcd'
 	PackageName string `json:"packageName" yaml:"packageName"`
 
-	// The version of dependency in semver format
+	// The version range of dependency in semver range format
+	Version string `json:"version" yaml:"version"`
+}
+
+type GVKProperty struct {
+	// The group of GVK based property
+	Group string `json:"group" yaml:"group"`
+
+	// The kind of GVK based property
+	Kind string `json:"kind" yaml:"kind"`
+
+	// The version of the API
+	Version string `json:"version" yaml:"version"`
+}
+
+type PackageProperty struct {
+	// The name of package such as 'etcd'
+	PackageName string `json:"packageName" yaml:"packageName"`
+
+	// The version of package in semver format
 	Version string `json:"version" yaml:"version"`
 }
 
@@ -181,12 +210,9 @@ func (pd *PackageDependency) Validate() []error {
 	if pd.Version == "" {
 		errs = append(errs, fmt.Errorf("Package version is empty"))
 	} else {
-		_, err := semver.Parse(pd.Version)
+		_, err := semver.ParseRange(pd.Version)
 		if err != nil {
-			_, err := semver.ParseRange(pd.Version)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("Invalid semver format version"))
-			}
+			errs = append(errs, fmt.Errorf("Invalid semver format version"))
 		}
 	}
 	return errs
@@ -204,50 +230,39 @@ func (d *DependenciesFile) GetDependencies() []*Dependency {
 
 // GetType returns the type of dependency
 func (e *Dependency) GetType() string {
-	if e.Type != "" {
-		return e.Type
-	}
-	return ""
+	return e.Type
 }
 
 // GetTypeValue returns the dependency object that is converted
 // from value string
 func (e *Dependency) GetTypeValue() interface{} {
-	if e.Type != "" {
-		switch e.GetType() {
-		case GVKType:
-			dep := GVKDependency{}
-			err := json.Unmarshal([]byte(e.GetValue()), &dep)
-			if err != nil {
-				return nil
-			}
-			return dep
-		case PackageType:
-			dep := PackageDependency{}
-			err := json.Unmarshal([]byte(e.GetValue()), &dep)
-			if err != nil {
-				return nil
-			}
-			return dep
+	switch e.GetType() {
+	case GVKType:
+		dep := GVKDependency{}
+		err := json.Unmarshal([]byte(e.GetValue()), &dep)
+		if err != nil {
+			return nil
 		}
+		return dep
+	case PackageType:
+		dep := PackageDependency{}
+		err := json.Unmarshal([]byte(e.GetValue()), &dep)
+		if err != nil {
+			return nil
+		}
+		return dep
 	}
 	return nil
 }
 
 // GetValue returns the value content of dependency
 func (e *Dependency) GetValue() string {
-	if e.Value != "" {
-		return e.Value
-	}
-	return ""
+	return string(e.Value)
 }
 
 // GetName returns the package name of the bundle
 func (a *AnnotationsFile) GetName() string {
-	if a.Annotations.PackageName != "" {
-		return a.Annotations.PackageName
-	}
-	return ""
+	return a.Annotations.PackageName
 }
 
 // GetChannels returns the channels that this bundle should be added to

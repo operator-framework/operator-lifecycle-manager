@@ -2,19 +2,16 @@ package configmap
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"regexp"
 
 	"github.com/ghodss/yaml"
-	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/operator-framework/operator-registry/pkg/client"
@@ -64,32 +61,6 @@ func NewConfigMapLoaderForDirectory(configMapName, namespace, manifestsDir, kube
 func TranslateInvalidChars(input string) string {
 	validConfigMapKey := unallowedKeyChars.ReplaceAllString(input, "~")
 	return validConfigMapKey
-}
-
-func validateConfigmapAnnotations(annotations map[string]string) error {
-	errs := []error{}
-	if annotations[bundle.ManifestsLabel] == "" {
-		errs = append(errs, errors.New(bundle.ManifestsLabel))
-	}
-	if annotations[bundle.MediatypeLabel] == "" {
-		errs = append(errs, errors.New(bundle.MediatypeLabel))
-	}
-	if annotations[bundle.MetadataLabel] == "" {
-		errs = append(errs, errors.New(bundle.MetadataLabel))
-	}
-	if annotations[bundle.PackageLabel] == "" {
-		errs = append(errs, errors.New(bundle.PackageLabel))
-	}
-	if annotations[bundle.ChannelsLabel] == "" {
-		errs = append(errs, errors.New(bundle.ChannelsLabel))
-	}
-	if annotations[bundle.ChannelDefaultLabel] == "" {
-		errs = append(errs, errors.New(bundle.ChannelDefaultLabel))
-	}
-	if len(errs) > 0 {
-		return utilerrors.NewAggregate(errs)
-	}
-	return nil
 }
 
 func (c *ConfigMapWriter) Populate(maxDataSizeLimit uint64) error {
@@ -150,10 +121,7 @@ func (c *ConfigMapWriter) Populate(maxDataSizeLimit uint64) error {
 			}
 		}
 	}
-	err = validateConfigmapAnnotations(configMapPopulate.GetAnnotations())
-	if err != nil {
-		return errorwrap.Wrap(err, "annotation validation failed, missing or empty values")
-	}
+
 	if sourceImage := os.Getenv(EnvContainerImage); sourceImage != "" {
 		annotations := configMapPopulate.GetAnnotations()
 		annotations[ConfigMapImageAnnotationKey] = sourceImage

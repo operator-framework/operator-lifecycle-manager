@@ -2,8 +2,6 @@ package bundle
 
 import (
 	"context"
-	"github.com/operator-framework/operator-registry/pkg/image"
-	"github.com/operator-framework/operator-registry/pkg/image/execregistry"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -12,7 +10,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/operator-framework/operator-registry/pkg/containertools"
+	"github.com/operator-framework/operator-registry/pkg/image"
 	"github.com/operator-framework/operator-registry/pkg/image/containerdregistry"
+	"github.com/operator-framework/operator-registry/pkg/image/execregistry"
 )
 
 // BundleExporter exports the manifests of a bundle image into a directory
@@ -22,7 +22,7 @@ type BundleExporter struct {
 	containerTool containertools.ContainerTool
 }
 
-func NewSQLExporterForBundle(image, directory string, containerTool containertools.ContainerTool) *BundleExporter {
+func NewExporterForBundle(image, directory string, containerTool containertools.ContainerTool) *BundleExporter {
 	return &BundleExporter{
 		image:         image,
 		directory:     directory,
