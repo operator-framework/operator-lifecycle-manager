@@ -228,6 +228,42 @@ func TestSolve(t *testing.T) {
 			},
 		},
 		{
+			Name: "cardinality constraint prevents resolution",
+			Installables: []Installable{
+				installable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
+				installable("x", Mandatory()),
+				installable("y", Mandatory()),
+			},
+			Error: NotSatisfiable{
+				{
+					Installable: installable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
+					Constraint:  AtMost(1, "x", "y"),
+				},
+				{
+					Installable: installable("x", Mandatory()),
+					Constraint:  Mandatory(),
+				},
+				{
+					Installable: installable("y", Mandatory()),
+					Constraint:  Mandatory(),
+				},
+			},
+		},
+		{
+			Name: "cardinality constraint forces alternative",
+			Installables: []Installable{
+				installable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
+				installable("b", Mandatory(), Dependency("y")),
+				installable("x"),
+				installable("y"),
+			},
+			Installed: []Installable{
+				installable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
+				installable("b", Mandatory(), Dependency("y")),
+				installable("y"),
+			},
+		},
+		{
 			Name: "two dependencies satisfied by one installable",
 			Installables: []Installable{
 				installable("a", Mandatory(), Dependency("y")),

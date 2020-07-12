@@ -3,40 +3,16 @@ package solver
 import (
 	"fmt"
 	"strings"
+
+	"github.com/irifrance/gini/logic"
+	"github.com/irifrance/gini/z"
 )
-
-// constrainer is a reusable accumulator of constraint clause terms.
-type constrainer struct {
-	pos []Identifier
-	neg []Identifier
-}
-
-func (x *constrainer) Add(id Identifier) {
-	x.pos = append(x.pos, id)
-}
-
-func (x *constrainer) AddNot(id Identifier) {
-	x.neg = append(x.neg, id)
-}
-
-// Reset clears the receiver's internal state so that it can be
-// reused.
-func (x *constrainer) Reset() {
-	x.pos = x.pos[:0]
-	x.neg = x.neg[:0]
-}
-
-// Empty returns true if and only if the receiver has accumulated no
-// positive or negative terms.
-func (x *constrainer) Empty() bool {
-	return len(x.pos) == 0 && len(x.neg) == 0
-}
 
 // Constraint implementations limit the circumstances under which a
 // particular Installable can appear in a solution.
 type Constraint interface {
 	String(subject Identifier) string
-	apply(x *constrainer, subject Identifier)
+	apply(c *logic.C, lm *litMapping, subject Identifier) z.Lit
 	order() []Identifier
 }
 
@@ -49,7 +25,8 @@ func (zeroConstraint) String(subject Identifier) string {
 	return ""
 }
 
-func (zeroConstraint) apply(x *constrainer, subject Identifier) {
+func (zeroConstraint) apply(c *logic.C, lm *litMapping, subject Identifier) z.Lit {
+	return z.LitNull
 }
 
 func (zeroConstraint) order() []Identifier {
@@ -71,15 +48,15 @@ func (a AppliedConstraint) String() string {
 
 type mandatory struct{}
 
-func (c mandatory) String(subject Identifier) string {
+func (constraint mandatory) String(subject Identifier) string {
 	return fmt.Sprintf("%s is mandatory", subject)
 }
 
-func (c mandatory) apply(x *constrainer, subject Identifier) {
-	x.Add(subject)
+func (constraint mandatory) apply(_ *logic.C, lm *litMapping, subject Identifier) z.Lit {
+	return lm.LitOf(subject)
 }
 
-func (c mandatory) order() []Identifier {
+func (constraint mandatory) order() []Identifier {
 	return nil
 }
 
@@ -91,15 +68,15 @@ func Mandatory() Constraint {
 
 type prohibited struct{}
 
-func (c prohibited) String(subject Identifier) string {
+func (constraint prohibited) String(subject Identifier) string {
 	return fmt.Sprintf("%s is prohibited", subject)
 }
 
-func (c prohibited) apply(x *constrainer, subject Identifier) {
-	x.AddNot(subject)
+func (constraint prohibited) apply(c *logic.C, lm *litMapping, subject Identifier) z.Lit {
+	return lm.LitOf(subject).Not()
 }
 
-func (c prohibited) order() []Identifier {
+func (constraint prohibited) order() []Identifier {
 	return nil
 }
 
@@ -113,26 +90,24 @@ func Prohibited() Constraint {
 
 type dependency []Identifier
 
-func (c dependency) String(subject Identifier) string {
-	s := make([]string, len(c))
-	for i, each := range c {
+func (constraint dependency) String(subject Identifier) string {
+	s := make([]string, len(constraint))
+	for i, each := range constraint {
 		s[i] = string(each)
 	}
 	return fmt.Sprintf("%s requires at least one of %s", subject, strings.Join(s, ", "))
 }
 
-func (c dependency) apply(x *constrainer, subject Identifier) {
-	if len(c) == 0 {
-		return
+func (constraint dependency) apply(c *logic.C, lm *litMapping, subject Identifier) z.Lit {
+	m := lm.LitOf(subject).Not()
+	for _, each := range constraint {
+		m = c.Or(m, lm.LitOf(each))
 	}
-	x.AddNot(subject)
-	for _, each := range c {
-		x.Add(each)
-	}
+	return m
 }
 
-func (c dependency) order() []Identifier {
-	return []Identifier(c)
+func (constraint dependency) order() []Identifier {
+	return constraint
 }
 
 // Dependency returns a Constraint that will only permit solutions
@@ -146,16 +121,15 @@ func Dependency(ids ...Identifier) Constraint {
 
 type conflict Identifier
 
-func (c conflict) String(subject Identifier) string {
-	return fmt.Sprintf("%s conflicts with %s", subject, c)
+func (constraint conflict) String(subject Identifier) string {
+	return fmt.Sprintf("%s conflicts with %s", subject, constraint)
 }
 
-func (c conflict) apply(x *constrainer, subject Identifier) {
-	x.AddNot(subject)
-	x.AddNot(Identifier(c))
+func (constraint conflict) apply(c *logic.C, lm *litMapping, subject Identifier) z.Lit {
+	return c.Or(lm.LitOf(subject).Not(), lm.LitOf(Identifier(constraint)).Not())
 }
 
-func (c conflict) order() []Identifier {
+func (constraint conflict) order() []Identifier {
 	return nil
 }
 
@@ -164,4 +138,39 @@ func (c conflict) order() []Identifier {
 // the given Identifier, or neither, but not both.
 func Conflict(id Identifier) Constraint {
 	return conflict(id)
+}
+
+type leq struct {
+	ids []Identifier
+	n   int
+}
+
+func (constraint leq) String(subject Identifier) string {
+	s := make([]string, len(constraint.ids))
+	for i, each := range constraint.ids {
+		s[i] = string(each)
+	}
+	return fmt.Sprintf("%s permits at most %d of %s", subject, constraint.n, strings.Join(s, ", "))
+}
+
+func (constraint leq) apply(c *logic.C, lm *litMapping, subject Identifier) z.Lit {
+	ms := make([]z.Lit, len(constraint.ids))
+	for i, each := range constraint.ids {
+		ms[i] = lm.LitOf(each)
+	}
+	return c.CardSort(ms).Leq(constraint.n)
+}
+
+func (constraint leq) order() []Identifier {
+	return nil
+}
+
+// AtMost returns a Constraint that forbids solutions that contain
+// more than n of the Installables identified by the given
+// Identifiers.
+func AtMost(n int, ids ...Identifier) Constraint {
+	return leq{
+		ids: ids,
+		n:   n,
+	}
 }
