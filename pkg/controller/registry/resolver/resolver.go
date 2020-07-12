@@ -95,7 +95,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	} else {
 		// new dependency resolution
 		namespaces := []string{namespace, r.globalCatalogNamespace}
-		operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs, add)
+		operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs)
 		if err != nil {
 			return nil, nil, nil, err
 		}

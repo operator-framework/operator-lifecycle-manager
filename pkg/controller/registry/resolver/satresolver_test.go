@@ -22,16 +22,8 @@ func TestSolveOperators(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
-
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
 		snapshots: map[CatalogKey]*CatalogSnapshot{
@@ -50,7 +42,7 @@ func TestSolveOperators(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 }
@@ -65,16 +57,8 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
-
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
 		snapshots: map[CatalogKey]*CatalogSnapshot{
@@ -94,7 +78,7 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 	for _, op := range operators {
@@ -112,16 +96,8 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
-
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
 		snapshots: map[CatalogKey]*CatalogSnapshot{
@@ -142,7 +118,7 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 	for _, op := range operators {
@@ -160,16 +136,9 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
 	depVersion := semver.MustParseRange("1.0.1")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
@@ -203,7 +172,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 	for _, op := range operators {
@@ -221,16 +190,9 @@ func TestSolveOperators_FindLatestVersionWithDependencies_ManyVersionsInCatalog(
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
 	depVersion := semver.MustParseRange("1.0.1")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
@@ -272,7 +234,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_ManyVersionsInCatalog(
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 	for _, op := range operators {
@@ -290,16 +252,9 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
 	depVersion := semver.MustParseRange("1.0.1")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
@@ -417,7 +372,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm", "ns2"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm", "ns2"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 	for _, op := range operators {
@@ -436,16 +391,9 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
 	depVersion := semver.MustParseRange("1.0.1")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
@@ -488,7 +436,7 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(operators))
 	for _, op := range operators {
@@ -506,16 +454,9 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
 	depVersion := semver.MustParseRange("0.1.0")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
@@ -542,7 +483,7 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(operators))
 }
@@ -557,16 +498,8 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
-
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
 		snapshots: map[CatalogKey]*CatalogSnapshot{
@@ -586,7 +519,7 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(operators))
 }
@@ -601,16 +534,8 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
-
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
 		snapshots: map[CatalogKey]*CatalogSnapshot{
@@ -643,7 +568,7 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 	for _, op := range operators {
@@ -662,16 +587,9 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
 	depVersion := semver.MustParseRange("0.1.0")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
@@ -708,7 +626,7 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(operators))
 	for _, op := range operators {
@@ -726,16 +644,9 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{sub}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	opToAdd := OperatorSourceInfo{
-		Package: "packageB",
-		Channel: "alpha",
-		Catalog: catalog,
-	}
-	opsToAdd := map[OperatorSourceInfo]struct{}{
-		opToAdd: struct{}{},
-	}
 	depVersion := semver.MustParseRange("0.1.0")
 	opToAddVersionDeps := []VersionDependency{
 		VersionDependency{
@@ -778,7 +689,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, opsToAdd)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(operators))
 	for _, op := range operators {

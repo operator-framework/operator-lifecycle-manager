@@ -32,7 +32,7 @@ type installableFilter struct {
 	startingCSV string
 }
 
-func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[OperatorSourceInfo]struct{}) (OperatorSet, error) {
+func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (OperatorSet, error) {
 	var errs []error
 
 	installables := make([]solve.Installable, 0)
@@ -40,17 +40,16 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 
 	namespacedCache := s.cache.Namespaced(namespaces...)
 
-	// build constraints for existing installed Subscriptions
+	// build constraints for each Subscription
 	for _, sub := range subs {
-		if sub.Status.InstalledCSV == "" {
-			continue
-		}
 		pkg := sub.Spec.Package
 		catalog := CatalogKey{
 			Name:      sub.Spec.CatalogSource,
 			Namespace: sub.Spec.CatalogSourceNamespace,
 		}
 		predicates := []OperatorPredicate{InChannel(pkg, sub.Spec.Channel)}
+
+		// find the currently installed operator (if it exists)
 		var current *Operator
 		for _, csv := range csvs {
 			if csv.Name == sub.Status.InstalledCSV {
@@ -63,17 +62,15 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			}
 		}
 
-		// if we can't find the currently installed operator, we should treat it as a "new" subscription and skip treating it as already installed
-		if current == nil {
-			add[OperatorSourceInfo{
-				Package:     sub.Spec.Package,
-				Channel:     sub.Spec.Channel,
-				StartingCSV: sub.Spec.StartingCSV,
-				Catalog:     catalog,
-			}] = struct{}{}
-			continue
+		channelFilter := []OperatorPredicate{}
+
+		// if we found an existing installed operator, we should filter the channel by operators that can replace it
+		if current != nil {
+			channelFilter = append(channelFilter, Or(SkipRangeIncludes(*current.Version()), Replaces(current.Identifier())))
 		}
-		replacementInstallables, err := s.getReplacementInstallables(pkg, current, catalog, predicates, namespacedCache, visited)
+
+		// find operators, in channel order, that can skip from the current version or list the current in "replaces"
+		replacementInstallables, err := s.getSubscriptionInstallables(pkg, current, catalog, predicates, channelFilter, namespacedCache, visited)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -84,24 +81,7 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 	}
 
-	// TODO: package installable building / replacement installable building can differ only in an additional "can replace" predicate
-
 	// TODO: Consider csvs not attached to subscriptions
-
-	for opToAdd := range add {
-		pkg := opToAdd.Package
-		//TODO: pass opToAdd.StartingCSV
-		predicates := []OperatorPredicate{InChannel(pkg, opToAdd.Channel)}
-		packageInstallables, err := s.getPackageInstallables(pkg, opToAdd.Catalog, predicates, namespacedCache, visited)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		for _, pkgInstallable := range packageInstallables {
-			installables = append(installables, pkgInstallable)
-		}
-	}
 
 	if len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
@@ -149,133 +129,60 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (s *SatResolver) getReplacementInstallables(pkg string, current *Operator, catalog CatalogKey, predicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[string]solve.Installable, error) {
+func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[string]solve.Installable, error) {
 	installables := make(map[string]solve.Installable, 0)
 	candidates := make([]*BundleInstallable, 0)
 
-	// updates have the options: head of a channel (if skiprange matches), next replacement (if it exists), currently installed, in that order.
-	virtReplacementInstallable := NewReplacementInstallable(pkg)
+	subInstallable := NewSubscriptionInstallable(pkg)
+	installables[string(subInstallable.Identifier())] = &subInstallable
 
-	bundles := namespacedCache.Catalog(catalog).Find(predicates...)
+	bundles := namespacedCache.Catalog(catalog).Find(cachePredicates...)
 
-	if len(bundles) > 0 {
-		sortedBundles, err := s.sortChannel(bundles)
+	// there are no options for this package, return early
+	if len(bundles) == 0 {
+		return installables, nil
+	}
+
+	sortedBundles, err := s.sortChannel(bundles)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: write a test for jumping to a skiprange that's not latest
+	// TODO: write a test for updating to an operator that skips but doesn't replace or skiprange
+
+	for _, o := range Filter(sortedBundles, channelPredicates...) {
+		predicates := append(cachePredicates, WithCSVName(o.Identifier()))
+		id, installable, err := s.getBundleInstallables(o.Identifier(), catalog, predicates, catalog, namespacedCache, visited)
 		if err != nil {
 			return nil, err
 		}
-
-		// add head if it includes the current in semver range
-		head := sortedBundles[0]
-		semverRange, err := semver.ParseRange(head.bundle.SkipRange)
-		if err == nil && semverRange(*current.Version()) {
-			headPredicates := append(predicates, WithCSVName(head.Identifier()))
-			headId, headInstallable, err := s.getBundleInstallables(head.Identifier(), catalog, headPredicates, catalog, namespacedCache, visited)
-			if err != nil {
-				return nil, err
-			}
-			if len(headId) != 1 {
-				// TODO better messages
-				return nil, fmt.Errorf("trouble finding bundle for head")
-			}
-
-			for _, i := range headInstallable {
-				if _, ok := headId[i.Identifier()]; ok {
-					candidates = append(candidates, i)
-				}
-				installables[string(i.Identifier())] = i
-			}
+		if len(id) != 1 {
+			// TODO better messages
+			return nil, fmt.Errorf("trouble generating installable for potential replacement bundle")
 		}
 
-		// add replacement if we have one
-		var replacement *Operator
-		for _, b := range bundles {
-			if b.replaces == current.Identifier() {
-				replacement = b
-				break
+		for _, i := range installable {
+			if _, ok := id[i.Identifier()]; ok {
+				candidates = append(candidates, i)
 			}
-		}
-		if replacement != nil {
-			replacePredicates := append(predicates, WithCSVName(replacement.Identifier()))
-			repId, repInstallable, err := s.getBundleInstallables(replacement.Identifier(), catalog, replacePredicates, catalog, namespacedCache, visited)
-			if err != nil {
-				return nil, err
-			}
-			if len(repId) != 1 {
-				// TODO better messages
-				return nil, fmt.Errorf("trouble finding bundle for replacement")
-			}
-
-			for _, i := range repInstallable {
-				if _, ok := repId[i.Identifier()]; ok {
-					candidates = append(candidates, i)
-				}
-				installables[string(i.Identifier())] = i
-			}
+			installables[string(i.Identifier())] = i
 		}
 	}
 
 	// TODO: is there a reason to track the current bundle as an installable (it is already installed)
-
-	// TODO: this will be an issue if it is ever possible for one bundle to replace two different bundles that
-	// are already installed in the cluster
+	// TODO: this will be an issue if it is ever possible for one bundle to replace two different bundles that are already installed in the cluster
 	depIds := make([]solve.Identifier, 0)
 	for _, c := range candidates {
 		// track which operator this is replacing, so that it can be realized when creating the resources on cluster
-		c.Replaces = current.Identifier()
+		if current != nil {
+			c.Replaces = current.Identifier()
+		}
 		depIds = append(depIds, c.Identifier())
 	}
 
 	// all candiates added as options for this constraint
-	virtReplacementInstallable.AddDependency(depIds)
-
-	// installables now holds all options for the replacement, only one of which can be picked
-	virtReplacementInstallable.ExactlyOne(candidates)
-
-	installables[string(virtReplacementInstallable.Identifier())] = virtReplacementInstallable
-
-	return installables, nil
-}
-
-func (s *SatResolver) getPackageInstallables(pkg string, catalog CatalogKey, predicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[string]solve.Installable, error) {
-	var errs []error
-	installables := make(map[string]solve.Installable, 0)
-	virtualInstallable := NewVirtualPackageInstallable(pkg)
-
-	// TODO: pass the filter into the cache to use startingcsv/latestcsv as limiters
-	bundles := namespacedCache.Catalog(catalog).Find(predicates...)
-	if len(bundles) == 0 {
-		return nil, fmt.Errorf("no opts with pkg %s and channel TODO found in %s", pkg, catalog)
-	}
-
-	weightedBundles := s.sortBundles(bundles)
-
-	virtDependencies := make(map[solve.Identifier]struct{}, 0)
-	// add installable for each bundle version of the package
-	// this is done to pin a mandatory solve to each required package
-	for _, bundle := range weightedBundles {
-		// traverse the dependency tree to generate the set of installables for given bundle version
-		virtDependencyIdentifiers, bundleInstallables, err := s.getBundleInstallables(bundle.Identifier(), CatalogKey{}, predicates, catalog, namespacedCache, visited)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		for _, bundleInstallable := range bundleInstallables {
-			installables[string(bundleInstallable.Identifier())] = bundleInstallable
-		}
-
-		for virtDependency := range virtDependencyIdentifiers {
-			virtDependencies[virtDependency] = struct{}{}
-		}
-	}
-
-	if len(errs) > 0 {
-		return nil, utilerrors.NewAggregate(errs)
-	}
-
-	// TODO: need an exactlyone constraint or a cardinality constraint
-	virtualInstallable.AddDependencyFromSet(virtDependencies)
-	installables[string(virtualInstallable.Identifier())] = virtualInstallable
+	subInstallable.AddDependency(depIds)
 
 	return installables, nil
 }
