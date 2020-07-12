@@ -233,7 +233,21 @@ func apiSetToGVk(crds, apis APISet) (out []*api.GroupVersionKind) {
 	return
 }
 
-func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet) *api.Bundle {
+type bundleOpt func(*api.Bundle)
+
+func withSkipRange(skipRange string) bundleOpt {
+	return func(b *api.Bundle) {
+		b.SkipRange = skipRange
+	}
+}
+
+func withVersion(version string) bundleOpt {
+	return func(b *api.Bundle) {
+		b.Version = version
+	}
+}
+
+func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, opts ...bundleOpt) *api.Bundle {
 	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil))
 	if err != nil {
 		panic(err)
@@ -248,7 +262,7 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		objs = append(objs, string(crdJson))
 	}
 
-	return &api.Bundle{
+	b := &api.Bundle{
 		CsvName:      name,
 		PackageName:  pkg,
 		ChannelName:  channel,
@@ -257,7 +271,12 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		Version:      "0.0.0",
 		ProvidedApis: apiSetToGVk(providedCRDs, providedAPIServices),
 		RequiredApis: apiSetToGVk(requiredCRDs, requiredAPIServices),
+		Replaces:     replaces,
 	}
+	for _, f := range opts {
+		f(b)
+	}
+	return b
 }
 
 func stripManifests(bundle *api.Bundle) *api.Bundle {
@@ -348,15 +367,7 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *Namesp
 
 		source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*api.Bundle, error) {
 			for _, b := range bundles {
-				if len(b.CsvJson) == 0 {
-					continue
-				}
-				csv, err := V1alpha1CSVFromBundle(b)
-				if err != nil {
-					panic(err)
-				}
-				replaces := csv.Spec.Replaces
-				if replaces == bundleName && b.ChannelName == channelName && b.PackageName == packageName {
+				if b.Replaces == bundleName && b.ChannelName == channelName && b.PackageName == packageName {
 					return b, nil
 				}
 			}
