@@ -153,7 +153,7 @@ func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 
 	for _, o := range Filter(sortedBundles, channelPredicates...) {
 		predicates := append(cachePredicates, WithCSVName(o.Identifier()))
-		id, installable, err := s.getBundleInstallables(o.Identifier(), catalog, predicates, catalog, namespacedCache, visited)
+		id, installable, err := s.getBundleInstallables(catalog, predicates, catalog, namespacedCache, visited)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +187,7 @@ func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 	return installables, nil
 }
 
-func (s *SatResolver) getBundleInstallables(csvName string, catalog CatalogKey, predicates []OperatorPredicate, preferredCatalog CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solve.Identifier]struct{}, map[solve.Identifier]*BundleInstallable, error) {
+func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []OperatorPredicate, preferredCatalog CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solve.Identifier]struct{}, map[solve.Identifier]*BundleInstallable, error) {
 	var errs []error
 	installables := make(map[solve.Identifier]*BundleInstallable, 0) // aggregate all of the installables at every depth
 	identifiers := make(map[solve.Identifier]struct{}, 0)            // keep track of depth + 1 dependencies
@@ -196,10 +196,8 @@ func (s *SatResolver) getBundleInstallables(csvName string, catalog CatalogKey, 
 	if !catalog.IsEmpty() {
 		finder = namespacedCache.Catalog(catalog)
 	}
-	// TODO: verify that everywhere we call this already has this predicate
-	bundles := finder.Find(append(predicates, WithCSVName(csvName))...)
 
-	for _, bundle := range bundles {
+	for _, bundle := range finder.Find(predicates...) {
 		bundleSource := bundle.SourceInfo()
 		if bundleSource == nil {
 			err := fmt.Errorf("Unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
@@ -213,7 +211,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, catalog CatalogKey, 
 			continue
 		}
 
-		bundleInstallable := NewBundleInstallable(csvName, bundle.bundle.ChannelName, bundleSource.Catalog)
+		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.bundle.ChannelName, bundleSource.Catalog)
 		visited[bundle] = &bundleInstallable
 
 		for _, depVersion := range bundle.VersionDependencies() {
@@ -226,7 +224,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, catalog CatalogKey, 
 
 			bundleDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range depCandidates {
-				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.Identifier(), CatalogKey{}, []OperatorPredicate{}, preferredCatalog, namespacedCache, visited)
+				depIdentifiers, depInstallables, err := s.getBundleInstallables(CatalogKey{}, []OperatorPredicate{WithCSVName(dep.Identifier())}, preferredCatalog, namespacedCache, visited)
 				if err != nil {
 					errs = append(errs, err)
 					continue
@@ -260,7 +258,7 @@ func (s *SatResolver) getBundleInstallables(csvName string, catalog CatalogKey, 
 
 			requiredAPIDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range sortedCandidates {
-				depIdentifiers, depInstallables, err := s.getBundleInstallables(dep.Identifier(), CatalogKey{}, []OperatorPredicate{}, preferredCatalog, namespacedCache, visited)
+				depIdentifiers, depInstallables, err := s.getBundleInstallables(CatalogKey{}, []OperatorPredicate{WithCSVName(dep.Identifier())}, preferredCatalog, namespacedCache, visited)
 				if err != nil {
 					errs = append(errs, err)
 					continue
