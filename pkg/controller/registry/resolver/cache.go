@@ -260,39 +260,6 @@ func (s *CatalogSnapshot) Find(p ...OperatorPredicate) []*Operator {
 	return Filter(s.operators, p...)
 }
 
-func (n *NamespacedOperatorCache) GetCSVNameFromAllCatalogs(csvName string) ([]*Operator, error) {
-	var result []*Operator
-	for _, s := range n.snapshots {
-		result = append(result, s.Find(func(o *Operator) bool {
-			return o.name == csvName
-		})...)
-	}
-	if len(result) == 0 {
-		return nil, fmt.Errorf("operator %s not found in any catalog", csvName)
-	}
-	return result, nil
-}
-
-func (n *NamespacedOperatorCache) GetCsvFromAllCatalogsWithFilter(csvName string, filter installableFilter) ([]*Operator, error) {
-	var result []*Operator
-	for _, s := range n.snapshots {
-		result = append(result, s.Find(func(o *Operator) bool {
-			candidate := true
-			if filter.channel != "" && o.Bundle().GetChannelName() != filter.channel {
-				candidate = false
-			}
-			if !filter.catalog.IsEmpty() && !filter.catalog.IsEqual(o.SourceInfo().Catalog) {
-				candidate = false
-			}
-			return candidate && o.name == csvName
-		})...)
-	}
-	if len(result) == 0 {
-		return nil, fmt.Errorf("operator with csvName %s not found in any catalog", csvName)
-	}
-	return result, nil
-}
-
 type OperatorFinder interface {
 	Find(...OperatorPredicate) []*Operator
 }

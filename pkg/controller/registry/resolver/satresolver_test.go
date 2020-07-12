@@ -5,11 +5,11 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/stretchr/testify/require"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 func TestSolveOperators(t *testing.T) {
@@ -30,7 +30,7 @@ func TestSolveOperators(t *testing.T) {
 			CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
-			}: &CatalogSnapshot{
+			}: {
 				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.1", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -44,7 +44,12 @@ func TestSolveOperators(t *testing.T) {
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(operators))
+
+	// TODO: decide if the original operator should be returned here, and update the rests of the tests based on that decision
+	expected := OperatorSet{
+		"packageB.v1": genOperator("packageB.v1", "1.0.1", "packageB", "alpha", "community", "olm", nil, nil, nil),
+	}
+	require.EqualValues(t, expected, operators)
 }
 
 func TestSolveOperators_MultipleChannels(t *testing.T) {
@@ -65,7 +70,7 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 			CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
-			}: &CatalogSnapshot{
+			}: {
 				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
