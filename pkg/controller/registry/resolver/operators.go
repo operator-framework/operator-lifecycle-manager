@@ -340,6 +340,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 
 	return &Operator{
 		name:                bundle.CsvName,
+		replaces:            bundle.Replaces,
 		version:             version,
 		providedAPIs:        provided,
 		requiredAPIs:        required,
