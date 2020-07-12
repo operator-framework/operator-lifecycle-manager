@@ -20,6 +20,16 @@ func (t ContainerTool) String() (s string) {
 	return
 }
 
+func (t ContainerTool) CommandFactory() CommandFactory {
+	switch t {
+	case PodmanTool:
+		return &PodmanCommandFactory{}
+	case DockerTool:
+		return &DockerCommandFactory{}
+	}
+	return &StubCommandFactory{}
+}
+
 func NewContainerTool(s string, defaultTool ContainerTool) (t ContainerTool) {
 	switch s {
 	case "podman":

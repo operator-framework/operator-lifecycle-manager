@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -32,7 +33,7 @@ const (
 )
 
 type AnnotationMetadata struct {
-	Annotations map[string]string `yaml:"annotations"`
+	Annotations map[string]string `yaml:"annotations" json:"annotations"`
 }
 
 // GenerateFunc builds annotations.yaml with mediatype, manifests &
@@ -111,6 +112,9 @@ func GenerateFunc(directory, outputDir, packageName, channels, channelDefault st
 
 		if channelDefault == "" {
 			channelDefault = i.GetDefaultChannel()
+			if !containsString(strings.Split(channels, ","), channelDefault) {
+				channelDefault = ""
+			}
 			log.Infof("Inferred default channel: %s", channelDefault)
 		}
 	}
@@ -146,7 +150,7 @@ func GenerateFunc(directory, outputDir, packageName, channels, channelDefault st
 	} else if err != nil {
 		return err
 	} else {
-		log.Info("A bundle.Dockerfile already exists in current working directory")
+		log.Infof("A bundle.Dockerfile already exists in current working directory: %s", workingDir)
 	}
 
 	return nil
@@ -189,7 +193,7 @@ func CopyYamlOutput(annotationsContent []byte, manifestDir, outputDir, workingDi
 	} else if err != nil {
 		return "", "", err
 	} else {
-		log.Info("An annotations.yaml already exists in directory")
+		log.Infof("An annotations.yaml already exists in the directory: %s", MetadataDir)
 		if err = ValidateAnnotations(file, annotationsContent); err != nil {
 			return "", "", err
 		}
@@ -271,24 +275,22 @@ func ValidateAnnotations(existing, expected []byte) error {
 		return err
 	}
 
-	if len(fileAnnotations.Annotations) != len(expectedAnnotations.Annotations) {
-		return fmt.Errorf("Unmatched number of fields. Expected (%d) vs existing (%d)",
-			len(expectedAnnotations.Annotations), len(fileAnnotations.Annotations))
-	}
-
+	// Ensure each expected annotation key and value exist in existing.
+	var errs []error
 	for label, item := range expectedAnnotations.Annotations {
-		value, ok := fileAnnotations.Annotations[label]
-		if ok == false {
-			return fmt.Errorf("Missing field: %s", label)
+		value, hasAnnotation := fileAnnotations.Annotations[label]
+		if !hasAnnotation {
+			errs = append(errs, fmt.Errorf("Missing field: %s", label))
+			continue
 		}
 
 		if item != value {
-			return fmt.Errorf(`Expect field "%s" to have value "%s" instead of "%s"`,
-				label, item, value)
+			errs = append(errs, fmt.Errorf("Expect field %q to have value %q instead of %q",
+				label, item, value))
 		}
 	}
 
-	return nil
+	return utilerrors.NewAggregate(errs)
 }
 
 // ValidateChannelDefault validates provided default channel to ensure it exists in
@@ -297,6 +299,10 @@ func ValidateChannelDefault(channels, channelDefault string) (string, error) {
 	var chanDefault string
 	var chanErr error
 	channelList := strings.Split(channels, ",")
+
+	if containsString(channelList, "") {
+		return chanDefault, fmt.Errorf("invalid channels are provided: %s", channels)
+	}
 
 	if channelDefault != "" {
 		for _, channel := range channelList {
@@ -309,15 +315,8 @@ func ValidateChannelDefault(channels, channelDefault string) (string, error) {
 			chanDefault = channelList[0]
 			chanErr = fmt.Errorf(`The channel list "%s" doesn't contain channelDefault "%s"`, channels, channelDefault)
 		}
-	} else {
-		chanDefault = channelList[0]
 	}
-
-	if chanDefault != "" {
-		return chanDefault, chanErr
-	} else {
-		return chanDefault, fmt.Errorf("Invalid channels is provied: %s", channels)
-	}
+	return chanDefault, chanErr
 }
 
 // GenerateAnnotations builds annotations.yaml with mediatype, manifests &
@@ -398,7 +397,7 @@ func WriteFile(fileName, directory string, content []byte) error {
 			return err
 		}
 	}
-
+	log.Infof("Writing %s in %s", fileName, directory)
 	err := ioutil.WriteFile(filepath.Join(directory, fileName), content, DefaultPermission)
 	if err != nil {
 		return err
@@ -470,4 +469,13 @@ func copyManifestDir(from, to string, overwrite bool) error {
 	}
 
 	return nil
+}
+
+func containsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
 }
