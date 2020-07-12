@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -107,6 +108,7 @@ func NewOperatorCache(rcp RegistryClientProvider) *OperatorCache {
 }
 
 type NamespacedOperatorCache struct {
+	namespaces []string
 	snapshots map[CatalogKey]*CatalogSnapshot
 }
 
@@ -119,6 +121,7 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	clients := c.rcp.ClientsForNamespaces(namespaces...)
 
 	result := NamespacedOperatorCache{
+		namespaces: namespaces,
 		snapshots: make(map[CatalogKey]*CatalogSnapshot),
 	}
 
@@ -152,7 +155,6 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	}
 	for _, key := range expired {
 		delete(c.snapshots, key)
-
 	}
 
 	// Check for any snapshots that were populated while waiting to acquire the lock.
@@ -229,7 +231,9 @@ func (c *NamespacedOperatorCache) Catalog(k CatalogKey) OperatorFinder {
 
 func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
 	var result []*Operator
-	for _, snapshot := range c.snapshots {
+	sorted := NewSortableSnapshots(c.namespaces, c.snapshots)
+	sort.Sort(sorted)
+	for _, snapshot := range sorted.snapshots {
 		result = append(result, snapshot.Find(p...)...)
 	}
 	return result
@@ -250,6 +254,46 @@ func (s *CatalogSnapshot) Cancel() {
 
 func (s *CatalogSnapshot) Expired(at time.Time) bool {
 	return !at.Before(s.expiry)
+}
+
+type SortableSnapshots struct {
+	snapshots []*CatalogSnapshot
+	namespaces map[string]int
+}
+
+func NewSortableSnapshots(namespaces []string, snapshots map[CatalogKey]*CatalogSnapshot) SortableSnapshots {
+	sorted := SortableSnapshots{
+		snapshots: make([]*CatalogSnapshot, 0),
+		namespaces: make(map[string]int, 0),
+	}
+	for i, n := range namespaces {
+		sorted.namespaces[n] = i
+	}
+	for _, s := range snapshots {
+		sorted.snapshots = append(sorted.snapshots, s)
+	}
+	return sorted
+}
+
+var _ sort.Interface = SortableSnapshots{}
+
+// Len is the number of elements in the collection.
+func (s SortableSnapshots) Len() int {
+	return len(s.snapshots)
+}
+
+// Less reports whether the element with
+// index i should sort before the element with index j.
+func (s SortableSnapshots) Less(i, j int) bool {
+	if s.snapshots[i].key.Namespace != s.snapshots[j].key.Namespace {
+		return s.namespaces[s.snapshots[i].key.Namespace] <  s.namespaces[s.snapshots[j].key.Namespace]
+	}
+	return s.snapshots[i].key.Name < s.snapshots[j].key.Name
+}
+
+// Swap swaps the elements with indexes i and j.
+func (s SortableSnapshots) Swap(i, j int) {
+	s.snapshots[i], s.snapshots[j] = s.snapshots[j], s.snapshots[i]
 }
 
 type OperatorPredicate func(*Operator) bool
