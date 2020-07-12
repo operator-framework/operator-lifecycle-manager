@@ -2,7 +2,6 @@ package registry
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -19,7 +18,7 @@ import (
 )
 
 type Dependencies struct {
-	RawMessage []map[string]string `json:"dependencies" yaml:"dependencies"`
+	RawMessage []map[string]interface{} `json:"dependencies" yaml:"dependencies"`
 }
 
 // DirectoryPopulator loads an unpacked operator bundle from a directory into the database.
@@ -370,36 +369,4 @@ func DecodeFile(path string, into interface{}) error {
 	decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
 
 	return decoder.Decode(into)
-}
-
-func parseDependenciesFile(path string, depFile *DependenciesFile) error {
-	deps := Dependencies{}
-	err := DecodeFile(path, &deps)
-	if err != nil || len(deps.RawMessage) == 0 {
-		return fmt.Errorf("Unable to decode the dependencies file %s", path)
-	}
-	depList := []Dependency{}
-	for _, v := range deps.RawMessage {
-		// convert map to json
-		jsonStr, _ := json.Marshal(v)
-
-		// Check dependency type
-		dep := Dependency{}
-		err := json.Unmarshal(jsonStr, &dep)
-		if err != nil {
-			return err
-		}
-
-		switch dep.GetType() {
-		case GVKType, PackageType:
-			dep.Value = string(jsonStr)
-		default:
-			return fmt.Errorf("Unsupported dependency type %s", dep.GetType())
-		}
-		depList = append(depList, dep)
-	}
-
-	depFile.Dependencies = depList
-
-	return nil
 }

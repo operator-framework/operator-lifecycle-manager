@@ -1,18 +1,15 @@
 package bundle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	v "github.com/operator-framework/api/pkg/validation"
-	"github.com/operator-framework/operator-registry/pkg/containertools"
-	validation "github.com/operator-framework/operator-registry/pkg/lib/validation"
-	"github.com/operator-framework/operator-registry/pkg/registry"
-
+	y "github.com/ghodss/yaml"
+	log "github.com/sirupsen/logrus"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiValidation "k8s.io/apimachinery/pkg/api/validation"
@@ -22,8 +19,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	y "github.com/ghodss/yaml"
-	log "github.com/sirupsen/logrus"
+	v1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	v "github.com/operator-framework/api/pkg/validation"
+	"github.com/operator-framework/operator-registry/pkg/image"
+	validation "github.com/operator-framework/operator-registry/pkg/lib/validation"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 const (
@@ -38,8 +38,8 @@ type Meta struct {
 
 // imageValidator is a struct implementation of the Indexer interface
 type imageValidator struct {
-	imageReader containertools.ImageReader
-	logger      *log.Entry
+	registry image.Registry
+	logger   *log.Entry
 }
 
 // PullBundleImage shells out to a container tool and pulls a given image tag
@@ -48,7 +48,7 @@ type imageValidator struct {
 func (i imageValidator) PullBundleImage(imageTag, directory string) error {
 	i.logger.Debug("Pulling and unpacking container image")
 
-	return i.imageReader.GetImageData(imageTag, directory)
+	return i.registry.Unpack(context.Background(), image.SimpleReference(imageTag), directory)
 }
 
 // ValidateBundle takes a directory containing the contents of a bundle and validates
@@ -124,7 +124,7 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 		}
 
 		if !dependenciesFound {
-			err = parseDependenciesFile(filepath.Join(metadataDir, f.Name()), dependenciesFile)
+			err = registry.DecodeFile(filepath.Join(metadataDir, f.Name()), &dependenciesFile)
 			if err == nil && len(dependenciesFile.Dependencies) > 0 {
 				dependenciesFound = true
 			}
@@ -225,10 +225,10 @@ func validateDependencies(dependenciesFile *registry.DependenciesFile) []error {
 			case registry.PackageDependency:
 				errs = dp.Validate()
 			default:
-				errs = append(errs, fmt.Errorf("Unsupported dependency type %s", d.GetType()))
+				errs = append(errs, fmt.Errorf("unsupported dependency type %s", d.GetType()))
 			}
 		} else {
-			errs = append(errs, fmt.Errorf("Unsupported dependency type %s", d.GetType()))
+			errs = append(errs, fmt.Errorf("couldn't parse dependency of type %s", d.GetType()))
 		}
 		validationErrors = append(validationErrors, errs...)
 	}
@@ -313,10 +313,11 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 				}
 			}
 		} else if gvk.Kind == CRDKind {
+			dec := k8syaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
 			switch gv := gvk.GroupVersion().String(); gv {
 			case v1CRDapiVersion:
 				crd := &apiextensionsv1.CustomResourceDefinition{}
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(k8sFile.Object, crd)
+				err := dec.Decode(crd)
 				if err != nil {
 					validationErrors = append(validationErrors, err)
 					continue
@@ -330,7 +331,7 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 				}
 			case v1beta1CRDapiVersion:
 				crd := &apiextensionsv1beta1.CustomResourceDefinition{}
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(k8sFile.Object, crd)
+				err := dec.Decode(crd)
 				if err != nil {
 					validationErrors = append(validationErrors, err)
 					continue
@@ -368,32 +369,6 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 	if len(validationErrors) > 0 {
 		return NewValidationError(validationErrors)
 	}
-
-	return nil
-}
-
-func parseDependenciesFile(path string, depFile *registry.DependenciesFile) error {
-	deps := registry.Dependencies{}
-	err := registry.DecodeFile(path, &deps)
-
-	if err != nil || len(deps.RawMessage) == 0 {
-		return fmt.Errorf("Unable to decode the dependencies file %s", path)
-	}
-
-	depList := []registry.Dependency{}
-	for _, v := range deps.RawMessage {
-		jsonStr, _ := json.Marshal(v)
-		dep := registry.Dependency{}
-		err := json.Unmarshal(jsonStr, &dep)
-		if err != nil {
-			return err
-		}
-
-		dep.Value = string(jsonStr)
-		depList = append(depList, dep)
-	}
-
-	depFile.Dependencies = depList
 
 	return nil
 }

@@ -7,12 +7,13 @@ import (
 )
 
 type HealthServer struct {
+	health.UnimplementedHealthServer
 }
 
 var _ health.HealthServer = &HealthServer{}
 
 func NewHealthServer() *HealthServer {
-	return &HealthServer{}
+	return &HealthServer{health.UnimplementedHealthServer{}}
 }
 
 func (s *HealthServer) Check(ctx context.Context, req *health.HealthCheckRequest) (*health.HealthCheckResponse, error) {
