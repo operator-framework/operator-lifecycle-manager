@@ -60,76 +60,29 @@ func NewBundleInstallable(bundle, channel string, catalog CatalogKey, constraint
 	}
 }
 
-type VirtPackageInstallable struct {
-	identifier  solve.Identifier
-	constraints []solve.Constraint
-}
-
-func (v VirtPackageInstallable) Identifier() solve.Identifier {
-	return v.identifier
-}
-
-func (v VirtPackageInstallable) Constraints() []solve.Constraint {
-	return v.constraints
-}
-
-func (v *VirtPackageInstallable) AddDependency(dependencies []solve.Identifier) {
-	v.constraints = append(v.constraints, solve.Dependency(dependencies...))
-}
-
-func (v *VirtPackageInstallable) AddDependencyFromSet(dependencySet map[solve.Identifier]struct{}) {
-	dependencies := make([]solve.Identifier, 0)
-	for dep := range dependencySet {
-		dependencies = append(dependencies, dep)
-	}
-	v.constraints = append(v.constraints, solve.Dependency(dependencies...))
-}
-
-func NewVirtualPackageInstallable(pkg string) VirtPackageInstallable {
-	return VirtPackageInstallable{
+func NewSubscriptionInstallable(pkg string) SubscriptionInstallable {
+	return SubscriptionInstallable{
 		identifier:  solve.Identifier(pkg),
 		constraints: []solve.Constraint{solve.Mandatory()},
 	}
 }
 
-func NewReplacementInstallable(pkg string) ReplacementInstallable {
-	return ReplacementInstallable{
-		identifier:  solve.Identifier(pkg),
-		constraints: []solve.Constraint{solve.Mandatory()},
-	}
-}
-
-type ReplacementInstallable struct {
+type SubscriptionInstallable struct {
 	identifier  solve.Identifier
 	constraints []solve.Constraint
 }
 
-func (r ReplacementInstallable) Identifier() solve.Identifier {
+func (r SubscriptionInstallable) Identifier() solve.Identifier {
 	return r.identifier
 }
 
-func (r ReplacementInstallable) Constraints() []solve.Constraint {
+func (r SubscriptionInstallable) Constraints() []solve.Constraint {
 	return r.constraints
 }
 
-func (r *ReplacementInstallable) AddDependency(dependencies []solve.Identifier) {
-	r.constraints = append(r.constraints, solve.Dependency(dependencies...))
-}
-
-func (r *ReplacementInstallable) AddDependencyFromSet(dependencySet map[solve.Identifier]struct{}) {
-	dependencies := make([]solve.Identifier, 0)
-	for dep := range dependencySet {
-		dependencies = append(dependencies, dep)
-	}
-	r.constraints = append(r.constraints, solve.Dependency(dependencies...))
-}
-
-// Generate conflicts for all pairs of bundle dependencies
-// This should be replaced with a cardinatlity constraint
-func (r *ReplacementInstallable) ExactlyOne(deps []*BundleInstallable) {
-	for i := 0; i <= len(deps); i++ {
-		for j := i + 1; j <= len(deps)-1; j++ {
-			deps[i].constraints = append(deps[i].constraints, solve.Conflict(deps[j].Identifier()))
-		}
+func (r *SubscriptionInstallable) AddDependency(dependencies []solve.Identifier) {
+	if len(dependencies) > 0 {
+		r.constraints = append(r.constraints, solve.Dependency(dependencies...))
+		r.constraints = append(r.constraints, solve.AtMost(1, dependencies...))
 	}
 }

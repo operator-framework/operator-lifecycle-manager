@@ -257,21 +257,7 @@ type OperatorPredicate func(*Operator) bool
 func (s *CatalogSnapshot) Find(p ...OperatorPredicate) []*Operator {
 	s.m.RLock()
 	defer s.m.RUnlock()
-
-	var result []*Operator
-	for _, o := range s.operators {
-		var failed bool
-		for _, each := range p {
-			if !each(o) {
-				failed = true
-				break
-			}
-		}
-		if !failed {
-			result = append(result, o)
-		}
-	}
-	return result
+	return Filter(s.operators, p...)
 }
 
 func (n *NamespacedOperatorCache) GetCSVNameFromAllCatalogs(csvName string) ([]*Operator, error) {
@@ -359,6 +345,32 @@ func ProvidingAPI(api registry.APIKey) OperatorPredicate {
 	}
 }
 
+func SkipRangeIncludes(version semver.Version) OperatorPredicate {
+	return func(o *Operator) bool {
+		// TODO: lift range parsing to OperatorSurface
+		semverRange, err := semver.ParseRange(o.bundle.SkipRange)
+		return err == nil && semverRange(version)
+	}
+}
+
+func Replaces(name string) OperatorPredicate {
+	return func(o *Operator) bool {
+		return o.Replaces() == name
+	}
+}
+
+func And(a, b OperatorPredicate) OperatorPredicate {
+	return func(o *Operator) bool {
+		return a(o) && b(o)
+	}
+}
+
+func Or(a, b OperatorPredicate) OperatorPredicate {
+	return func(o *Operator) bool {
+		return a(o) || b(o)
+	}
+}
+
 func AtLeast(n int, operators []*Operator) ([]*Operator, error) {
 	if len(operators) < n {
 		return nil, fmt.Errorf("expected at least %d operator(s), got %d", n, len(operators))
@@ -371,4 +383,23 @@ func ExactlyOne(operators []*Operator) (*Operator, error) {
 		return nil, fmt.Errorf("expected exactly one operator, got %d", len(operators))
 	}
 	return operators[0], nil
+}
+
+func Filter(operators []*Operator, p ...OperatorPredicate) []*Operator {
+	var result []*Operator
+	for _, o := range operators {
+		if Matches(o, p...) {
+			result = append(result, o)
+		}
+	}
+	return result
+}
+
+func Matches(o *Operator, p ...OperatorPredicate) bool {
+	for _, each := range p {
+		if !each(o) {
+			return false
+		}
+	}
+	return true
 }
