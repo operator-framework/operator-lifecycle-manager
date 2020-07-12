@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+option go_package = ".;grpc_health_v1";
+
 package grpc.health.v1;
 
 message HealthCheckRequest {

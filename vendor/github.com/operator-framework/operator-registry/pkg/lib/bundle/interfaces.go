@@ -1,9 +1,9 @@
 package bundle
 
 import (
-	"github.com/operator-framework/operator-registry/pkg/containertools"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/operator-framework/operator-registry/pkg/image"
 )
 
 // BundleImageValidator provides a toolset for pulling and then validating
@@ -21,9 +21,9 @@ type BundleImageValidator interface {
 }
 
 // NewImageValidator is a constructor that returns an ImageValidator
-func NewImageValidator(containerTool string, logger *logrus.Entry) BundleImageValidator {
+func NewImageValidator(registry image.Registry, logger *logrus.Entry) BundleImageValidator {
 	return imageValidator{
-		imageReader: containertools.NewImageReader(containertools.NewContainerTool(containerTool, containertools.NoneTool), logger),
-		logger:      logger,
+		registry: registry,
+		logger:   logger,
 	}
 }
