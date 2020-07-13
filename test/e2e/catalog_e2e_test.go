@@ -29,10 +29,11 @@ import (
 )
 
 var _ = Describe("Catalog", func() {
+	AfterEach(func() {
+		TearDown(testNamespace)
+	})
+
 	It("loading between restarts", func() {
-
-		defer cleaner.NotifyTestComplete(true)
-
 		// create a simple catalogsource
 		packageName := genName("nginx")
 		stableChannel := "stable"
@@ -87,8 +88,6 @@ var _ = Describe("Catalog", func() {
 		GinkgoT().Logf("Catalog source sucessfully loaded after rescale")
 	})
 	It("global update triggers subscription sync", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		globalNS := operatorNamespace
 		c := newKubeClient()
@@ -196,8 +195,6 @@ var _ = Describe("Catalog", func() {
 		require.True(GinkgoT(), timeLapse < 60)
 	})
 	It("config map update triggers registry pod rollout", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		mainPackageName := genName("nginx-")
 		dependentPackageName := genName("nginxdep-")
@@ -316,8 +313,6 @@ var _ = Describe("Catalog", func() {
 	})
 	It("config map replace triggers registry pod rollout", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		mainPackageName := genName("nginx-")
 		dependentPackageName := genName("nginxdep-")
 
@@ -405,8 +400,6 @@ var _ = Describe("Catalog", func() {
 		// Wait for the stable CSV to be Successful
 		// Update the "address" CatalogSources's Spec.Address field with the PodIP of the replacement copied pod's PodIP
 		// Wait for the replacement CSV to be Successful
-
-		defer cleaner.NotifyTestComplete(true)
 
 		mainPackageName := genName("nginx-")
 		dependentPackageName := genName("nginxdep-")
@@ -543,8 +536,6 @@ var _ = Describe("Catalog", func() {
 		// Delete the registry pod
 		// Wait for a new registry pod to be created
 
-		defer cleaner.NotifyTestComplete(true)
-
 		// Create internal CatalogSource containing csv in package
 		packageName := genName("nginx-")
 		packageStable := fmt.Sprintf("%s-stable", packageName)
@@ -622,8 +613,6 @@ var _ = Describe("Catalog", func() {
 		// Wait for csv to succeed
 		// Delete the registry pod
 		// Wait for a new registry pod to be created
-
-		defer cleaner.NotifyTestComplete(true)
 
 		sourceName := genName("catalog-")
 		packageName := "etcd"
@@ -774,7 +763,6 @@ var _ = Describe("Catalog", func() {
 		}
 
 		// 2. setup catalog source
-		defer cleaner.NotifyTestComplete(true)
 
 		sourceName := genName("catalog-")
 		packageName := "busybox"
@@ -945,7 +933,6 @@ var _ = Describe("Catalog", func() {
 		// Update the catalog to point to an image that contains the busybox v2 and busybox-dependency v2 images.
 		// Wait for the new Subscriptions to succeed and check if they include the new CSVs
 		// Wait for the CSVs to succeed and confirm that the have the correct Spec.Replaces fields.
-		defer cleaner.NotifyTestComplete(true)
 
 		sourceName := genName("catalog-")
 		packageName := "busybox"

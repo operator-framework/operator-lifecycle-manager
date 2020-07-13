@@ -5,7 +5,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -30,7 +29,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 	})
 
 	AfterEach(func() {
-		cleaner.NotifyTestComplete(true)
+		TearDown(testNamespace)
 	})
 
 	When("a bundle with a pdb, priorityclass, and VPA object is installed", func() {

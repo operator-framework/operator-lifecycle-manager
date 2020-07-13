@@ -36,7 +36,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 	})
 
 	AfterEach(func() {
-		cleaner.NotifyTestComplete(true)
+		TearDown(testNamespace)
 	})
 
 	Context("Given a CatalogSource created using the ConfigMap as catalog source type", func() {

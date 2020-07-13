@@ -36,9 +36,11 @@ import (
 )
 
 var _ = Describe("Install Plan", func() {
-	It("with CSVs across multiple catalog sources", func() {
+	AfterEach(func() {
+		TearDown(testNamespace)
+	})
 
-		defer cleaner.NotifyTestComplete(true)
+	It("with CSVs across multiple catalog sources", func() {
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
@@ -208,7 +210,6 @@ var _ = Describe("Install Plan", func() {
 	Context("creation with pre existing CRD owners", func() {
 
 		It("OnePreExistingCRDOwner", func() {
-			defer cleaner.NotifyTestComplete(true)
 
 			mainPackageName := genName("nginx-")
 			dependentPackageName := genName("nginx-dep-")
@@ -332,7 +333,6 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), 0, len(expectedSteps), "Actual resource steps do not match expected")
 		})
 		It("PreExistingCRDOwnerIsReplaced", func() {
-			defer cleaner.NotifyTestComplete(true)
 
 			mainPackageName := genName("nginx-")
 			dependentPackageName := genName("nginx-dep-")
@@ -713,7 +713,6 @@ var _ = Describe("Install Plan", func() {
 		}
 
 		table.DescribeTable("Test", func(tt schemaPayload) {
-			defer cleaner.NotifyTestComplete(true)
 
 			mainPackageName := genName("nginx-")
 			mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
@@ -928,7 +927,6 @@ var _ = Describe("Install Plan", func() {
 		}
 
 		table.DescribeTable("Test", func(tt schemaPayload) {
-			defer cleaner.NotifyTestComplete(true)
 
 			mainPackageName := genName("nginx-")
 			mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
@@ -2038,14 +2036,12 @@ var _ = Describe("Install Plan", func() {
 			}
 		})
 		AfterEach(func() {
-			defer cleaner.NotifyTestComplete(true)
+
 		})
 	})
 
 	// This It spec creates an InstallPlan with a CSV containing a set of permissions to be resolved.
 	It("creation with permissions", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		packageName := genName("nginx")
 		stableChannel := "stable"
@@ -2295,7 +2291,6 @@ var _ = Describe("Install Plan", func() {
 	It("CRD validation", func() {
 		// Tests if CRD validation works with the "minimum" property after being
 		// pulled from a CatalogSource's operator-registry.
-		defer cleaner.NotifyTestComplete(true)
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
@@ -2476,8 +2471,6 @@ var _ = Describe("Install Plan", func() {
 		// Should see only 1 installplan created
 		// Should see the main CSV installed
 
-		defer cleaner.NotifyTestComplete(true)
-
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
@@ -2623,9 +2616,8 @@ var _ = Describe("Install Plan", func() {
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), 1, len(ips.Items), "If this test fails it should be taken seriously and not treated as a flake. \n%v", ips.Items)
 	})
-	
+
 	It("without an operatorgroup", func() {
-		defer cleaner.NotifyTestComplete(true)
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)

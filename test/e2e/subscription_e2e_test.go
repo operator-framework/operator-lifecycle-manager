@@ -38,11 +38,13 @@ import (
 
 var _ = Describe("Subscription", func() {
 
+	AfterEach(func() {
+		TearDown(testNamespace)
+	})
+
 	//   I. Creating a new subscription
 	//      A. If package is not installed, creating a subscription should install latest version
 	It("creation if not installed", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -67,8 +69,6 @@ var _ = Describe("Subscription", func() {
 	//         version
 	It("creation using existing CSV", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
@@ -90,8 +90,6 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 	})
 	It("skip range", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
@@ -179,8 +177,6 @@ var _ = Describe("Subscription", func() {
 	// If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 	It("creation manual approval", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
@@ -215,8 +211,6 @@ var _ = Describe("Subscription", func() {
 	})
 
 	It("with starting CSV", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
@@ -356,8 +350,6 @@ var _ = Describe("Subscription", func() {
 
 	It("updates multiple intermediates", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
 
@@ -464,7 +456,6 @@ var _ = Describe("Subscription", func() {
 	It("updates existing install plan", func() {
 
 		Skip("ToDo: This test was skipped before ginkgo conversion")
-		defer cleaner.NotifyTestComplete(true)
 
 		// Create CSV
 		packageName := genName("nginx-")
@@ -595,7 +586,7 @@ var _ = Describe("Subscription", func() {
 		})
 
 		AfterEach(func() {
-			defer cleaner.NotifyTestComplete(true)
+
 			err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -1067,8 +1058,6 @@ var _ = Describe("Subscription", func() {
 
 	It("creation with pod config", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		newConfigClient := func(t GinkgoTInterface) configv1client.ConfigV1Interface {
 			client, err := configv1client.NewForConfig(ctx.Ctx().RESTConfig())
 			require.NoError(GinkgoT(), err)
@@ -1218,8 +1207,6 @@ var _ = Describe("Subscription", func() {
 
 	It("creation with dependencies", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		kubeClient := newKubeClient()
 		crClient := newCRClient()
 
@@ -1288,8 +1275,6 @@ var _ = Describe("Subscription", func() {
 	//
 	// CSV A required B and C but didn't get them from Package A
 	It("creation with dependencies required and provided in different versions of an operator in the same package", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		kubeClient := newKubeClient()
 		crClient := newCRClient()

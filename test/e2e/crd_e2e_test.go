@@ -18,7 +18,7 @@ import (
 )
 
 var _ = Describe("CRD Versions", func() {
-	AfterEach(func() { cleaner.NotifyTestComplete(true) }, float64(10))
+	AfterEach(func() { TearDown(testNamespace) }, float64(30))
 
 	It("creates v1beta1 crds with a v1beta1 schema successfully", func() {
 		By("This test proves that OLM is able to handle v1beta1 CRDs successfully. Creating v1 CRDs has more " +

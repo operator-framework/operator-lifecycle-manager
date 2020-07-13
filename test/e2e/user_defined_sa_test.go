@@ -21,9 +21,11 @@ import (
 )
 
 var _ = Describe("User defined service account", func() {
-	It("with no permission", func() {
+	AfterEach(func() {
+		TearDown(testNamespace)
+	})
 
-		defer cleaner.NotifyTestComplete(false)
+	It("with no permission", func() {
 
 		kubeclient := newKubeClient()
 		crclient := newCRClient()
@@ -76,8 +78,6 @@ var _ = Describe("User defined service account", func() {
 		}
 	})
 	It("with permission", func() {
-
-		defer cleaner.NotifyTestComplete(false)
 
 		// Create the CatalogSource
 		kubeclient := newKubeClient()
@@ -133,8 +133,6 @@ var _ = Describe("User defined service account", func() {
 		}
 	})
 	It("with retry", func() {
-
-		defer cleaner.NotifyTestComplete(false)
 
 		kubeclient := newKubeClient()
 		crclient := newCRClient()

@@ -34,9 +34,11 @@ import (
 )
 
 var _ = Describe("CSV", func() {
-	It("create with unmet requirements mini kube version", func() {
+	AfterEach(func() {
+		TearDown(testNamespace)
+	})
 
-		defer cleaner.NotifyTestComplete(true)
+	It("create with unmet requirements mini kube version", func() {
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -87,8 +89,6 @@ var _ = Describe("CSV", func() {
 	})
 	// TODO: same test but missing serviceaccount instead
 	It("create with unmet requirements CRD", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -149,8 +149,6 @@ var _ = Describe("CSV", func() {
 		require.Error(GinkgoT(), err)
 	})
 	It("create with unmet permissions CRD", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -260,8 +258,6 @@ var _ = Describe("CSV", func() {
 	})
 	It("create with unmet requirements API service", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -321,8 +317,6 @@ var _ = Describe("CSV", func() {
 		require.Error(GinkgoT(), err)
 	})
 	It("create with unmet permissions API service", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -412,8 +406,6 @@ var _ = Describe("CSV", func() {
 	})
 	It("create with unmet requirements native API", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -464,8 +456,6 @@ var _ = Describe("CSV", func() {
 	})
 	// TODO: same test but create serviceaccount instead
 	It("create requirements met CRD", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -727,8 +717,6 @@ var _ = Describe("CSV", func() {
 	})
 	It("create requirements met API service", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -889,8 +877,6 @@ var _ = Describe("CSV", func() {
 		compareResources(GinkgoT(), fetchedCSV, sameCSV)
 	})
 	It("create with owned API service", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -1080,8 +1066,6 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 	})
 	It("update with owned API service", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -1283,8 +1267,6 @@ var _ = Describe("CSV", func() {
 		require.Equal(GinkgoT(), string(v1alpha1.CSVPhaseFailed), string(fetched.Status.Phase))
 	})
 	It("create same CSV with owned API service multi namespace", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -1489,8 +1471,6 @@ var _ = Describe("CSV", func() {
 	})
 	It("orphaned API service clean up", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 
 		mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
@@ -1555,8 +1535,6 @@ var _ = Describe("CSV", func() {
 		<-deleted
 	})
 	It("update same deployment name", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -1740,8 +1718,6 @@ var _ = Describe("CSV", func() {
 	})
 	It("update different deployment name", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -1921,8 +1897,6 @@ var _ = Describe("CSV", func() {
 		require.NoError(GinkgoT(), err)
 	})
 	It("update multiple intermediates", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -2110,8 +2084,6 @@ var _ = Describe("CSV", func() {
 	})
 	It("update in place", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -2263,8 +2235,6 @@ var _ = Describe("CSV", func() {
 		require.Equal(GinkgoT(), *depUpdated.Spec.Replicas, *strategyNew.DeploymentSpecs[0].Spec.Replicas)
 	})
 	It("update multiple version CRD", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -2545,8 +2515,6 @@ var _ = Describe("CSV", func() {
 	})
 	It("update modify deployment name", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -2697,7 +2665,6 @@ var _ = Describe("CSV", func() {
 	})
 
 	It("emits CSV requirement events", func() {
-		defer cleaner.NotifyTestComplete(true)
 
 		c := ctx.Ctx().KubeClient()
 		crc := ctx.Ctx().OperatorClient()
@@ -2784,8 +2751,6 @@ var _ = Describe("CSV", func() {
 
 	// TODO: test behavior when replaces field doesn't point to existing CSV
 	It("status invalid CSV", func() {
-
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -2899,7 +2864,6 @@ var _ = Describe("CSV", func() {
 	})
 
 	It("api service resource migrated if adoptable", func() {
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -2983,7 +2947,6 @@ var _ = Describe("CSV", func() {
 	})
 
 	It("API service resource not migrated if not adoptable", func() {
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -3070,7 +3033,6 @@ var _ = Describe("CSV", func() {
 	})
 
 	It("multiple API services on a single pod", func() {
-		defer cleaner.NotifyTestComplete(true)
 
 		c := newKubeClient()
 		crc := newCRClient()
