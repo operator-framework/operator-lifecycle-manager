@@ -25,13 +25,6 @@ func NewDefaultSatResolver(rcp RegistryClientProvider) *SatResolver {
 	}
 }
 
-type installableFilter struct {
-	channel     string
-	catalog     CatalogKey
-	currentCSV  string
-	startingCSV string
-}
-
 func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (OperatorSet, error) {
 	var errs []error
 
