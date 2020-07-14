@@ -241,6 +241,12 @@ func withSkipRange(skipRange string) bundleOpt {
 	}
 }
 
+func withSkips(skips []string) bundleOpt {
+	return func(b *api.Bundle) {
+		b.Skips = skips
+	}
+}
+
 func withVersion(version string) bundleOpt {
 	return func(b *api.Bundle) {
 		b.Version = version
