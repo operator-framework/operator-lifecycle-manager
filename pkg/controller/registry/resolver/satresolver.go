@@ -148,9 +148,6 @@ func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 		return nil, err
 	}
 
-	// TODO: write a test for jumping to a skiprange that's not latest
-	// TODO: write a test for updating to an operator that skips but doesn't replace or skiprange
-
 	for _, o := range Filter(sortedBundles, channelPredicates...) {
 		predicates := append(cachePredicates, WithCSVName(o.Identifier()))
 		id, installable, err := s.getBundleInstallables(catalog, predicates, catalog, namespacedCache, visited)
@@ -170,8 +167,6 @@ func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 		}
 	}
 
-	// TODO: is there a reason to track the current bundle as an installable (it is already installed)
-	// TODO: this will be an issue if it is ever possible for one bundle to replace two different bundles that are already installed in the cluster
 	depIds := make([]solve.Identifier, 0)
 	for _, c := range candidates {
 		// track which operator this is replacing, so that it can be realized when creating the resources on cluster
