@@ -2,12 +2,13 @@ package e2e
 
 import (
 	"context"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -45,6 +46,8 @@ var _ = Describe("Installing bundles with new object types", func() {
 				sourceName = "test-catalog"
 				imageName  = "quay.io/olmtest/single-bundle-index:pdb"
 			)
+
+			var installPlanRef string
 			// create catalog source
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
@@ -69,10 +72,16 @@ var _ = Describe("Installing bundles with new object types", func() {
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			Eventually(func() error {
-				_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
-				return err
-			}).Should(BeNil())
+			sub, err := fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
+
+			installPlanRef = sub.Status.InstallPlanRef.Name
+
+			// Wait for the installplan to complete (5 minute timeout)
+			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
+
+			ctx.Ctx().Logf("install plan %s completed", installPlanRef)
 		})
 
 		It("should create the additional bundle objects", func() {
