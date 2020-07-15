@@ -31,6 +31,9 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	installables := make([]solve.Installable, 0)
 	visited := make(map[OperatorSurface]*BundleInstallable, 0)
 
+	// TODO: better abstraction
+	startingCSVs := make(map[string]struct{})
+
 	namespacedCache := s.cache.Namespaced(namespaces...)
 
 	// build constraints for each Subscription
@@ -60,6 +63,12 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		// if we found an existing installed operator, we should filter the channel by operators that can replace it
 		if current != nil {
 			channelFilter = append(channelFilter, Or(SkipRangeIncludes(*current.Version()), Replaces(current.Identifier())))
+		}
+
+		// if no operator is installed and we have a startingCSV, filter for it
+		if current == nil && len(sub.Spec.StartingCSV) > 0 {
+			channelFilter = append(channelFilter, WithCSVName(sub.Spec.StartingCSV))
+			startingCSVs[sub.Spec.StartingCSV] = struct{}{}
 		}
 
 		// find operators, in channel order, that can skip from the current version or list the current in "replaces"
@@ -111,7 +120,15 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			errs = append(errs, err)
 			continue
 		}
-		op.replaces = installableOperator.Replaces
+		if len(installableOperator.Replaces) > 0 {
+			op.replaces = installableOperator.Replaces
+		}
+
+		// lookup if this installable came from a starting CSV
+		if _, ok := startingCSVs[csvName]; ok {
+			op.sourceInfo.StartingCSV = csvName
+		}
+
 		operators[csvName] = op
 	}
 

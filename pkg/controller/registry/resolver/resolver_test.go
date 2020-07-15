@@ -643,6 +643,25 @@ func TestResolverNew(t *testing.T) {
 				},
 			},
 		},
+		resolverTest{
+			name: "NewSub/StartingCSV",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog, withStartingCSV("a.v2")),
+			},
+			bundlesByCatalog: map[CatalogKey][]*api.Bundle{catalog: {
+				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+				bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil),
+				bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil, withVersion("1.0.0"), withSkipRange("< 1.0.0")),
+			}},
+			out: resolverTestOut{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil), namespace, "a.v1", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "", "a", "alpha", catalog, withStartingCSV("a.v2")),
+				},
+			},
+		},
 	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -659,7 +678,6 @@ func TestResolverNew(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 			kClientFake := k8sfake.NewSimpleClientset()
-
 
 			stubSnapshot := &CatalogSnapshot{}
 			for _, bundles := range tt.bundlesByCatalog {
@@ -802,8 +820,16 @@ func StartResolverInformers(namespace string, stopCh <-chan struct{}, objs ...ru
 	return clientFake, nsInformerFactory, hasSyncedCheckFns
 }
 
-func newSub(namespace, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscription {
-	return &v1alpha1.Subscription{
+type subOption func(*v1alpha1.Subscription)
+
+func withStartingCSV(name string) subOption {
+	return func(s *v1alpha1.Subscription) {
+		s.Spec.StartingCSV = name
+	}
+}
+
+func newSub(namespace, pkg, channel string, catalog CatalogKey, option ...subOption) *v1alpha1.Subscription {
+	s := &v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pkg + "-" + channel,
 			Namespace: namespace,
@@ -815,10 +841,14 @@ func newSub(namespace, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscr
 			CatalogSourceNamespace: catalog.Namespace,
 		},
 	}
+	for _, o := range option {
+		o(s)
+	}
+	return s
 }
 
-func updatedSub(namespace, currentOperatorName, installedOperatorName, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscription {
-	return &v1alpha1.Subscription{
+func updatedSub(namespace, currentOperatorName, installedOperatorName, pkg, channel string, catalog CatalogKey, option ...subOption) *v1alpha1.Subscription {
+	s := &v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pkg + "-" + channel,
 			Namespace: namespace,
@@ -834,6 +864,10 @@ func updatedSub(namespace, currentOperatorName, installedOperatorName, pkg, chan
 			InstalledCSV: installedOperatorName,
 		},
 	}
+	for _, o := range option {
+		o(s)
+	}
+	return s
 }
 
 func existingSub(namespace, operatorName, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscription {
