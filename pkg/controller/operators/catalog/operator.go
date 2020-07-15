@@ -130,7 +130,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	var res resolver.Resolver
 	if resolverV2Enable {
-		res = resolver.NewSatStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
+		res = resolver.NewSatStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, logger)
 	} else {
 		res = resolver.NewOperatorsV1alpha1Resolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
 	}
