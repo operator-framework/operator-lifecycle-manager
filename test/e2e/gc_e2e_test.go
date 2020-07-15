@@ -298,6 +298,8 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				sourceName = "test-catalog"
 				imageName  = "quay.io/olmtest/single-bundle-index:objects"
 			)
+			var installPlanRef string
+
 			// create catalog source
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
@@ -322,10 +324,16 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			Eventually(func() error {
-				_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
-				return err
-			}).Should(BeNil())
+			sub, err := fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
+
+			installPlanRef = sub.Status.InstallPlanRef.Name
+
+			// Wait for the installplan to complete (5 minute timeout)
+			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
+
+			ctx.Ctx().Logf("install plan %s completed", installPlanRef)
 
 			// confirm extra bundle objects (secret and configmap) are installed
 			Eventually(func() error {
@@ -393,6 +401,8 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				sourceName  = "test-catalog"
 				imageName   = "quay.io/olmtest/single-bundle-index:objects-upgrade-samename"
 			)
+
+			var installPlanRef string
 			// create catalog source
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
@@ -417,10 +427,14 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			Eventually(func() error {
-				_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
-				return err
-			}).Should(BeNil())
+			sub, err := fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
+
+			installPlanRef = sub.Status.InstallPlanRef.Name
+
+			// Wait for the installplan to complete (5 minute timeout)
+			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 			Eventually(func() error {
 				_, err := kubeClient.GetConfigMap(testNamespace, configmapName)
@@ -433,6 +447,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				upgradeChannelName = "beta"
 				newCSVname         = "busybox.v3.0.0"
 			)
+			var installPlanRef string
 
 			BeforeEach(func() {
 				// update subscription first
@@ -445,10 +460,14 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				Expect(err).ToNot(HaveOccurred(), "could not update subscription")
 
 				// Wait for the Subscription to succeed
-				Eventually(func() error {
-					_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
-					return err
-				}).Should(BeNil())
+				sub, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+				Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
+
+				installPlanRef = sub.Status.InstallPlanRef.Name
+
+				// Wait for the installplan to complete (5 minute timeout)
+				_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+				Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 				// Ensure the new csv is installed
 				Eventually(func() error {
@@ -485,6 +504,8 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				sourceName  = "test-catalog"
 				imageName   = "quay.io/olmtest/single-bundle-index:objects-upgrade-diffname"
 			)
+
+			var installPlanRef string
 			// create catalog source
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
@@ -509,10 +530,14 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			Eventually(func() error {
-				_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
-				return err
-			}).Should(BeNil())
+			sub, err := fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
+
+			installPlanRef = sub.Status.InstallPlanRef.Name
+
+			// Wait for the installplan to complete (5 minute timeout)
+			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 			Eventually(func() error {
 				_, err := kubeClient.GetConfigMap(testNamespace, configmapName)
@@ -526,6 +551,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				upgradedConfigMapName = "not-special-config"
 				newCSVname            = "busybox.v3.0.0"
 			)
+			var installPlanRef string
 
 			BeforeEach(func() {
 				// update subscription first
@@ -538,10 +564,14 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				Expect(err).ToNot(HaveOccurred(), "could not update subscription")
 
 				// Wait for the Subscription to succeed
-				Eventually(func() error {
-					_, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
-					return err
-				}).Should(BeNil())
+				sub, err = fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+				Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
+
+				installPlanRef = sub.Status.InstallPlanRef.Name
+
+				// Wait for the installplan to complete (5 minute timeout)
+				_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+				Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 				// Ensure the new csv is installed
 				Eventually(func() error {
