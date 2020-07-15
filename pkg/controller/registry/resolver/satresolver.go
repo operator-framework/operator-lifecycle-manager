@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
 
 	"github.com/blang/semver"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -17,12 +18,27 @@ type BooleanSatResolver interface {
 
 type SatResolver struct {
 	cache OperatorCacheProvider
+	log logrus.FieldLogger
 }
 
-func NewDefaultSatResolver(rcp RegistryClientProvider) *SatResolver {
+func NewDefaultSatResolver(rcp RegistryClientProvider, log logrus.FieldLogger) *SatResolver {
 	return &SatResolver{
 		cache: NewOperatorCache(rcp),
+		log: log,
 	}
+}
+
+type debugWriter struct {
+	logrus.FieldLogger
+}
+
+func (w *debugWriter) Write(b []byte) (int, error) {
+	n := len(b)
+	if n > 0 && b[n-1] == '\n' {
+		b = b[:n-1]
+	}
+	w.Debug(b)
+	return n, nil
 }
 
 func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (OperatorSet, error) {
@@ -88,7 +104,7 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	if len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
 	}
-	solver, err := solve.New(solve.WithInput(installables))
+	solver, err := solve.New(solve.WithInput(installables), solve.WithTracer(solve.LoggingTracer{&debugWriter{s.log}}))
 	if err != nil {
 		return nil, err
 	}
@@ -202,10 +218,13 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 		finder = namespacedCache.Catalog(catalog)
 	}
 
-	for _, bundle := range finder.Find(predicates...) {
+	bundleStack := finder.Find(predicates...)
+	for _, bundle := range bundleStack {
+		bundleStack = bundleStack[:len(bundleStack)-1]
+
 		bundleSource := bundle.SourceInfo()
 		if bundleSource == nil {
-			err := fmt.Errorf("Unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
+			err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
 			errs = append(errs, err)
 			continue
 		}
@@ -229,26 +248,30 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 
 			bundleDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range depCandidates {
-				depIdentifiers, depInstallables, err := s.getBundleInstallables(CatalogKey{}, []OperatorPredicate{WithCSVName(dep.Identifier())}, preferredCatalog, namespacedCache, visited)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				for _, depInstallable := range depInstallables {
-					// TODO: this check shouldn't be needed, depInstallable should point to the same instance
-					if _, ok := installables[depInstallable.Identifier()]; !ok {
-						installables[depInstallable.Identifier()] = depInstallable
+				// TODO: search in preferred catalog?
+				candidateBundles := finder.Find(WithCSVName(dep.Identifier()))
+				for _, b := range candidateBundles {
+
+					// TODO: can we ensure this is always available here?
+					src := b.SourceInfo()
+					if src == nil {
+						err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
+						errs = append(errs, err)
+						continue
 					}
-				}
-				for depIdentifier := range depIdentifiers {
-					bundleDependencies[depIdentifier] = struct{}{}
+
+					i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, bundleSource.Catalog)
+					installables[i.Identifier()] = &i
+					bundleDependencies[i.Identifier()] = struct{}{}
+					bundleStack = append(bundleStack, b)
 				}
 			}
-			// TODO: IMPORTANT: all dependencies (version + gvk) need to be added at once so that they are in one Dependency clause
-			// currently this adds them seperately
+
+			// TODO: IMPORTANT: current a solver bug will skip later dependency clauses
 			bundleInstallable.AddDependencyFromSet(bundleDependencies)
 		}
 
+		// TODO: should handle generic dependencies / etc
 		requiredAPIs := bundle.RequiredAPIs()
 		for requiredAPI := range requiredAPIs {
 			requiredAPICandidates, err := AtLeast(1, namespacedCache.Find(ProvidingAPI(requiredAPI)))
@@ -258,25 +281,27 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 				continue
 			}
 
-			// TODO: the sorting here should probably be `sortChannel`
 			// sort requiredAPICandidates
-			sortedCandidates := s.sortBundles(requiredAPICandidates)
+			sortedCandidates := s.sortByVersion(requiredAPICandidates)
 
 			requiredAPIDependencies := make(map[solve.Identifier]struct{}, 0)
 			for _, dep := range sortedCandidates {
-				depIdentifiers, depInstallables, err := s.getBundleInstallables(CatalogKey{}, []OperatorPredicate{WithCSVName(dep.Identifier())}, preferredCatalog, namespacedCache, visited)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				for _, depInstallable := range depInstallables {
-					// TODO: this check shouldn't be needed, depInstallable should point to the same instance
-					if _, ok := installables[depInstallable.Identifier()]; !ok {
-						installables[depInstallable.Identifier()] = depInstallable
+				// TODO: search in preferred catalog?
+				candidateBundles := finder.Find(WithCSVName(dep.Identifier()))
+				for _, b := range candidateBundles {
+
+					// TODO: can we ensure this is always available here?
+					src := b.SourceInfo()
+					if src == nil {
+						err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
+						errs = append(errs, err)
+						continue
 					}
-				}
-				for depIdentifier := range depIdentifiers {
-					requiredAPIDependencies[depIdentifier] = struct{}{}
+
+					i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, bundleSource.Catalog)
+					installables[i.Identifier()] = &i
+					requiredAPIDependencies[i.Identifier()] = struct{}{}
+					bundleStack = append(bundleStack, b)
 				}
 			}
 			bundleInstallable.AddDependencyFromSet(requiredAPIDependencies)
@@ -292,7 +317,7 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 	return identifiers, installables, nil
 }
 
-func (s *SatResolver) sortBundles(bundles []*Operator) []*Operator {
+func (s *SatResolver) sortByVersion(bundles []*Operator) []*Operator {
 	versionMap := make(map[string]*Operator, 0)
 	versionSlice := make([]semver.Version, 0)
 	unsortableList := make([]*Operator, 0)
