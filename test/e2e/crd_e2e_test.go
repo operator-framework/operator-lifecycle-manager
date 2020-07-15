@@ -10,6 +10,8 @@ import (
 	. "github.com/onsi/gomega"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -299,13 +301,12 @@ var _ = Describe("CRD Versions", func() {
 
 		// old CRD has been installed onto the cluster - now upgrade the subscription to point to the channel with the new CRD
 		// installing the new CSV should fail with a warning about data loss, since a storage version is missing in the new CRD
-		sub, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred(), "could not get subscription")
-
-		// update channel on sub
-		sub.Spec.Channel = alphaChannel
-		_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), sub, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred(), "could not update subscription")
+		// use server-side apply to apply the update to the subscription point to the alpha channel
+		Eventually(Apply(subscription, func(s *operatorsv1alpha1.Subscription) error {
+			s.Spec.Channel = alphaChannel
+			return nil
+		})).Should(Succeed())
+		ctx.Ctx().Logf("updated subscription to point to alpha channel")
 
 		subscriptionAtLatestWithDifferentInstallPlan := func(v *operatorsv1alpha1.Subscription) bool {
 			return subscriptionStateAtLatestChecker(v) && v.Status.InstallPlanRef != nil && v.Status.InstallPlanRef.Name != fetchedInstallPlan.Name
