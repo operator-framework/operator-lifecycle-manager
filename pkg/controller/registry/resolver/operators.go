@@ -233,7 +233,7 @@ type OperatorSurface interface {
 	SourceInfo() *OperatorSourceInfo
 	Bundle() *api.Bundle
 	Inline() bool
-	VersionDependencies() []VersionDependency
+	Dependencies() []*api.Dependency
 }
 
 type Operator struct {
@@ -244,12 +244,7 @@ type Operator struct {
 	version             *semver.Version
 	bundle              *api.Bundle
 	sourceInfo          *OperatorSourceInfo
-	versionDependencies []VersionDependency
-}
-
-type VersionDependency struct {
-	Package string
-	Version semver.Range
+	dependencies        []*api.Dependency
 }
 
 var _ OperatorSurface = &Operator{}
@@ -300,44 +295,6 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 		return op, nil
 	}
 
-	// Extract dependencies info
-	var depList []VersionDependency
-	for _, v := range bundle.GetDependencies() {
-		switch v.GetType() {
-		case registry.GVKType:
-			gvkDep := registry.GVKDependency{}
-			err := json.Unmarshal([]byte(v.GetValue()), &gvkDep)
-			// Ignore if can't parse JSON string
-			if err != nil {
-				continue
-			}
-			// Add to requiredAPIs list
-			// Set Plural to be empty string
-			required[registry.APIKey{Group: gvkDep.Group, Kind: gvkDep.Kind, Version: gvkDep.Version}] = struct{}{}
-		case registry.PackageType:
-			pkgDep := registry.PackageDependency{}
-			err := json.Unmarshal([]byte(v.GetValue()), &pkgDep)
-			if err != nil {
-				continue
-			}
-			// Ignore package dependency if it is not valid (missing PackageName or
-			// invalid semver version).
-			ver, err := semver.ParseRange(pkgDep.Version)
-			if err != nil {
-				continue
-			}
-			if pkgDep.PackageName == "" {
-				continue
-			}
-
-			vd := VersionDependency{
-				Package: pkgDep.PackageName,
-				Version: ver,
-			}
-			depList = append(depList, vd)
-		}
-	}
-
 	return &Operator{
 		name:                bundle.CsvName,
 		replaces:            bundle.Replaces,
@@ -346,7 +303,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 		requiredAPIs:        required,
 		bundle:              bundle,
 		sourceInfo:          sourceInfo,
-		versionDependencies: depList,
+		dependencies:        bundle.Dependencies,
 	}, nil
 }
 
@@ -424,6 +381,56 @@ func (o *Operator) Inline() bool {
 	return o.bundle != nil && o.bundle.GetBundlePath() == ""
 }
 
-func (o *Operator) VersionDependencies() []VersionDependency {
-	return o.versionDependencies
+func (o *Operator) Dependencies() []*api.Dependency {
+	return o.bundle.Dependencies
 }
+
+func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
+	predicates = make([]OperatorPredicate, 0)
+	for _, d := range o.bundle.Dependencies {
+		var p OperatorPredicate
+		p, err = PredicateForDependency(d)
+		if err != nil {
+			return
+		}
+		predicates = append(predicates, p)
+	}
+	return
+}
+
+// TODO: this should go in its own dependency/predicate builder package
+// TODO: can we make this more extensible, i.e. via cue
+func PredicateForDependency(dependency *api.Dependency) (OperatorPredicate, error) {
+	return predicates[dependency.Type](dependency.Value)
+}
+
+var predicates = map[string]func(string) (OperatorPredicate, error) {
+	opregistry.GVKType: predicateForGVKDependency,
+	opregistry.PackageType: predicateForPackageDependency,
+}
+
+func predicateForGVKDependency(value string) (OperatorPredicate, error) {
+	var gvk opregistry.GVKDependency
+	if err := json.Unmarshal([]byte(value), &gvk); err != nil {
+		return nil, err
+	}
+	return ProvidingAPI(registry.APIKey{
+		Group:   gvk.Group,
+		Version: gvk.Version,
+		Kind:    gvk.Kind,
+	}), nil
+}
+
+func predicateForPackageDependency(value string) (OperatorPredicate, error) {
+	var pkg opregistry.PackageDependency
+	if err := json.Unmarshal([]byte(value), &pkg); err != nil {
+		return nil, err
+	}
+	ver, err := semver.ParseRange(pkg.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	return And(WithPackage(pkg.PackageName), WithVersionInRange(ver)), nil
+}
+

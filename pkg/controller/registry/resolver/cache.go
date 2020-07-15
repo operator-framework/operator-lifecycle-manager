@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"sync"
@@ -351,8 +352,20 @@ func WithVersionInRange(r semver.Range) OperatorPredicate {
 
 func ProvidingAPI(api registry.APIKey) OperatorPredicate {
 	return func(o *Operator) bool {
-		_, provided := o.ProvidedAPIs()[api]
-		return provided
+		for _, p := range o.bundle.Properties {
+			if p.Type != registry.GVKType {
+				continue
+			}
+			var prop registry.GVKProperty
+			err := json.Unmarshal([]byte(p.Value), &prop)
+			if err != nil {
+				continue
+			}
+			if prop.Kind == api.Kind && prop.Version == api.Version && prop.Group == api.Group {
+				return true
+			}
+		}
+		return false
 	}
 }
 
@@ -378,15 +391,25 @@ func Replaces(name string) OperatorPredicate {
 	}
 }
 
-func And(a, b OperatorPredicate) OperatorPredicate {
+func And(p ...OperatorPredicate) OperatorPredicate {
 	return func(o *Operator) bool {
-		return a(o) && b(o)
+		for _, l := range p {
+			if l(o) == false {
+				return false
+			}
+		}
+		return true
 	}
 }
 
-func Or(a, b OperatorPredicate) OperatorPredicate {
+func Or(p ...OperatorPredicate) OperatorPredicate {
 	return func(o *Operator) bool {
-		return a(o) || b(o)
+		for _, l := range p {
+			if l(o) == true {
+				return true
+			}
+		}
+		return false
 	}
 }
 
@@ -415,10 +438,5 @@ func Filter(operators []*Operator, p ...OperatorPredicate) []*Operator {
 }
 
 func Matches(o *Operator, p ...OperatorPredicate) bool {
-	for _, each := range p {
-		if !each(o) {
-			return false
-		}
-	}
-	return true
+	return And(p...)(o)
 }
