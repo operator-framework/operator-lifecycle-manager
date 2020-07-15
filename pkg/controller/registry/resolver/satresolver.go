@@ -238,8 +238,13 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.bundle.ChannelName, bundleSource.Catalog)
 		visited[bundle] = &bundleInstallable
 
-		for _, depVersion := range bundle.VersionDependencies() {
-			depCandidates, err := AtLeast(1, namespacedCache.Find(WithPackage(depVersion.Package), WithVersionInRange(depVersion.Version)))
+		dependencyPredicates, err := bundle.DependencyPredicates()
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		for _, d := range dependencyPredicates {
+			candidateBundles, err := AtLeast(1, namespacedCache.Find(d))
 			if err != nil {
 				// If there are no candidates for a dependency, it means this bundle can't be resolved
 				bundleInstallable.MakeProhibited()
@@ -247,12 +252,13 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 			}
 
 			bundleDependencies := make(map[solve.Identifier]struct{}, 0)
-			for _, dep := range depCandidates {
-				// TODO: search in preferred catalog?
+			for _, dep := range candidateBundles {
+				// TODO: search in preferred catalog
 				candidateBundles := finder.Find(WithCSVName(dep.Identifier()))
-				for _, b := range candidateBundles {
 
-					// TODO: can we ensure this is always available here?
+				sortedCandidates := s.sortByVersion(candidateBundles)
+
+				for _, b := range sortedCandidates {
 					src := b.SourceInfo()
 					if src == nil {
 						err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
@@ -271,41 +277,6 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 			bundleInstallable.AddDependencyFromSet(bundleDependencies)
 		}
 
-		// TODO: should handle generic dependencies / etc
-		requiredAPIs := bundle.RequiredAPIs()
-		for requiredAPI := range requiredAPIs {
-			requiredAPICandidates, err := AtLeast(1, namespacedCache.Find(ProvidingAPI(requiredAPI)))
-			if err != nil {
-				// If there are no candidates for a dependency, it means this bundle can't be resolved
-				bundleInstallable.MakeProhibited()
-				continue
-			}
-
-			// sort requiredAPICandidates
-			sortedCandidates := s.sortByVersion(requiredAPICandidates)
-
-			requiredAPIDependencies := make(map[solve.Identifier]struct{}, 0)
-			for _, dep := range sortedCandidates {
-				// TODO: search in preferred catalog?
-				candidateBundles := finder.Find(WithCSVName(dep.Identifier()))
-				for _, b := range candidateBundles {
-
-					// TODO: can we ensure this is always available here?
-					src := b.SourceInfo()
-					if src == nil {
-						err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
-						errs = append(errs, err)
-						continue
-					}
-
-					i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, bundleSource.Catalog)
-					installables[i.Identifier()] = &i
-					requiredAPIDependencies[i.Identifier()] = struct{}{}
-					bundleStack = append(bundleStack, b)
-				}
-			}
-			bundleInstallable.AddDependencyFromSet(requiredAPIDependencies)
-		}
 		installables[bundleInstallable.Identifier()] = &bundleInstallable
 		identifiers[bundleInstallable.Identifier()] = struct{}{}
 	}
