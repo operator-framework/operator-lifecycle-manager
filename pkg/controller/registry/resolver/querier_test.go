@@ -121,6 +121,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		CatalogKey{"test", "ns"}:  &fakeSource,
 		CatalogKey{"test2", "ns"}: &fakeSource2,
 	}
+	excludedPkgs := make(map[string]struct{})
 	bundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
 	bundle2 := &api.Bundle{CsvName: "test2", PackageName: "testPkg2", ChannelName: "testChannel2"}
 	fakeSource.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*api.Bundle, error) {
@@ -135,13 +136,13 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		}
 		return bundle2, nil
 	}
-	fakeSource.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind, pkgName string) (*api.Bundle, error) {
+	fakeSource.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind string, excludedPkgs map[string]struct{}) (*api.Bundle, error) {
 		if group != "group" || version != "version" || kind != "kind" {
 			return nil, fmt.Errorf("Not Found")
 		}
 		return bundle, nil
 	}
-	fakeSource2.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind, pkgName string) (*api.Bundle, error) {
+	fakeSource2.FindBundleThatProvidesStub = func(ctx context.Context, group, version, kind string, excludedPkgs map[string]struct{}) (*api.Bundle, error) {
 		if group != "group2" || version != "version2" || kind != "kind2" {
 			return nil, fmt.Errorf("Not Found")
 		}
@@ -228,7 +229,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
 			}
-			bundle, key, err := q.FindProvider(tt.args.api, tt.args.catalogKey, "")
+			bundle, key, err := q.FindProvider(tt.args.api, tt.args.catalogKey, excludedPkgs)
 			require.Equal(t, tt.out.err, err)
 			require.Equal(t, tt.out.bundle, bundle)
 			require.Equal(t, tt.out.key, key)

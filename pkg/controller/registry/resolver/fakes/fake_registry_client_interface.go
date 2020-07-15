@@ -21,14 +21,14 @@ type FakeClientInterface struct {
 	closeReturnsOnCall map[int]struct {
 		result1 error
 	}
-	FindBundleThatProvidesStub        func(context.Context, string, string, string, string) (*api.Bundle, error)
+	FindBundleThatProvidesStub        func(context.Context, string, string, string, map[string]struct{}) (*api.Bundle, error)
 	findBundleThatProvidesMutex       sync.RWMutex
 	findBundleThatProvidesArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
 		arg3 string
 		arg4 string
-		arg5 string
+		arg5 map[string]struct{}
 	}
 	findBundleThatProvidesReturns struct {
 		result1 *api.Bundle
@@ -187,7 +187,7 @@ func (fake *FakeClientInterface) CloseReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeClientInterface) FindBundleThatProvides(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 string) (*api.Bundle, error) {
+func (fake *FakeClientInterface) FindBundleThatProvides(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 map[string]struct{}) (*api.Bundle, error) {
 	fake.findBundleThatProvidesMutex.Lock()
 	ret, specificReturn := fake.findBundleThatProvidesReturnsOnCall[len(fake.findBundleThatProvidesArgsForCall)]
 	fake.findBundleThatProvidesArgsForCall = append(fake.findBundleThatProvidesArgsForCall, struct {
@@ -195,7 +195,7 @@ func (fake *FakeClientInterface) FindBundleThatProvides(arg1 context.Context, ar
 		arg2 string
 		arg3 string
 		arg4 string
-		arg5 string
+		arg5 map[string]struct{}
 	}{arg1, arg2, arg3, arg4, arg5})
 	fake.recordInvocation("FindBundleThatProvides", []interface{}{arg1, arg2, arg3, arg4, arg5})
 	fake.findBundleThatProvidesMutex.Unlock()
@@ -215,13 +215,13 @@ func (fake *FakeClientInterface) FindBundleThatProvidesCallCount() int {
 	return len(fake.findBundleThatProvidesArgsForCall)
 }
 
-func (fake *FakeClientInterface) FindBundleThatProvidesCalls(stub func(context.Context, string, string, string, string) (*api.Bundle, error)) {
+func (fake *FakeClientInterface) FindBundleThatProvidesCalls(stub func(context.Context, string, string, string, map[string]struct{}) (*api.Bundle, error)) {
 	fake.findBundleThatProvidesMutex.Lock()
 	defer fake.findBundleThatProvidesMutex.Unlock()
 	fake.FindBundleThatProvidesStub = stub
 }
 
-func (fake *FakeClientInterface) FindBundleThatProvidesArgsForCall(i int) (context.Context, string, string, string, string) {
+func (fake *FakeClientInterface) FindBundleThatProvidesArgsForCall(i int) (context.Context, string, string, string, map[string]struct{}) {
 	fake.findBundleThatProvidesMutex.RLock()
 	defer fake.findBundleThatProvidesMutex.RUnlock()
 	argsForCall := fake.findBundleThatProvidesArgsForCall[i]

@@ -132,9 +132,14 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 			initialSource = operator.SourceInfo()
 			break
 		}
+		// Get the list of installed operators in the namespace
+		opList := make(map[string]struct{})
+		for _, operator := range e.gen.Operators() {
+			opList[operator.SourceInfo().Package] = struct{}{}
+		}
 
 		// attempt to find a bundle that provides that api
-		if bundle, key, err := e.querier.FindProvider(*api, initialSource.Catalog, initialSource.Package); err == nil {
+		if bundle, key, err := e.querier.FindProvider(*api, initialSource.Catalog, opList); err == nil {
 			// add a bundle that provides the api to the generation
 			o, err := NewOperatorFromBundle(bundle, "", *key)
 			if err != nil {
