@@ -366,7 +366,15 @@ func SkipRangeIncludes(version semver.Version) OperatorPredicate {
 
 func Replaces(name string) OperatorPredicate {
 	return func(o *Operator) bool {
-		return o.Replaces() == name
+		if o.Replaces() == name {
+			return true
+		}
+		for _, s := range o.bundle.Skips {
+			if s == name {
+				return true
+			}
+		}
+		return false
 	}
 }
 

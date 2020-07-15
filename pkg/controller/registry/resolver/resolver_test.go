@@ -662,6 +662,25 @@ func TestResolverNew(t *testing.T) {
 				},
 			},
 		},
+		resolverTest{
+			name: "InstalledSub/UpdatesAvailable/SpecifiedSkips",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			bundlesByCatalog: map[CatalogKey][]*api.Bundle{catalog: {
+				bundle("a.v2", "a", "alpha", "", nil, nil, nil, nil, withVersion("1.0.0"), withSkips([]string{"a.v1"})),
+				bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil, withVersion("1.0.0"), withSkips([]string{"a.v1"})),
+			}},
+			out: resolverTestOut{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil), namespace, "a.v1", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v3", "a.v1", "a", "alpha", catalog),
+				},
+			},
+		},
 	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
