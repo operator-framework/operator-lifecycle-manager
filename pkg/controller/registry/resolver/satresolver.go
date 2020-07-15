@@ -169,7 +169,7 @@ func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 		depIds = append(depIds, c.Identifier())
 	}
 
-	// all candiates added as options for this constraint
+	// all candidates added as options for this constraint
 	subInstallable.AddDependency(depIds)
 
 	return installables, nil
@@ -241,6 +241,7 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 				continue
 			}
 
+			// TODO: the sorting here should probably be `sortChannel`
 			// sort requiredAPICandidates
 			sortedCandidates := s.sortBundles(requiredAPICandidates)
 
