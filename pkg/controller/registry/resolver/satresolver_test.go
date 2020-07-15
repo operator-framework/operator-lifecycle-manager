@@ -144,15 +144,14 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	depVersion := semver.MustParseRange("1.0.1")
-	opToAddVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageC",
-			Version: depVersion,
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageC", "version"": "1.0.1"}`,
 		},
-		VersionDependency{
-			Package: "packageD",
-			Version: depVersion,
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageD", "version"": "1.0.1"}`,
 		},
 	}
 
@@ -198,15 +197,14 @@ func TestSolveOperators_FindLatestVersionWithDependencies_ManyVersionsInCatalog(
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	depVersion := semver.MustParseRange("1.0.1")
-	opToAddVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageC",
-			Version: depVersion,
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageC", "version"": "1.0.1"}`,
 		},
-		VersionDependency{
-			Package: "packageD",
-			Version: depVersion,
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageD", "version"": "1.0.1"}`,
 		},
 	}
 
@@ -260,15 +258,14 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	depVersion := semver.MustParseRange("1.0.1")
-	opToAddVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageC",
-			Version: depVersion,
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageC", "version"": "1.0.1"}`,
 		},
-		VersionDependency{
-			Package: "packageD",
-			Version: depVersion,
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageD", "version"": "1.0.1"}`,
 		},
 	}
 
@@ -399,21 +396,20 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	depVersion := semver.MustParseRange("1.0.1")
-	opToAddVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageC",
-			Version: depVersion,
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageC", "version"": "1.0.1"}`,
 		},
-		VersionDependency{
-			Package: "packageD",
-			Version: depVersion,
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageD", "version"": "1.0.1"}`,
 		},
 	}
-	nestedVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageE",
-			Version: depVersion,
+	nestedVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageE", "version"": "1.0.1"}`,
 		},
 	}
 
@@ -462,11 +458,10 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	depVersion := semver.MustParseRange("0.1.0")
-	opToAddVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageC",
-			Version: depVersion,
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageC", "version"": "0.1.0"}`,
 		},
 	}
 
@@ -595,14 +590,12 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	depVersion := semver.MustParseRange("0.1.0")
-	opToAddVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageC",
-			Version: depVersion,
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageC", "version"": "0.1.0"}`,
 		},
 	}
-
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
 		snapshots: map[CatalogKey]*CatalogSnapshot{
 			CatalogKey{
@@ -652,17 +645,16 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	depVersion := semver.MustParseRange("0.1.0")
-	opToAddVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageC",
-			Version: depVersion,
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageC", "version"": "0.1.0"}`,
 		},
 	}
-	unsatisfiableVersionDeps := []VersionDependency{
-		VersionDependency{
-			Package: "packageD",
-			Version: depVersion,
+	unsatisfiableVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"packageName": "packageD", "version"": "0.1.0"}`,
 		},
 	}
 
@@ -720,7 +712,7 @@ func getFakeOperatorCache(fakedNamespacedOperatorCache NamespacedOperatorCache) 
 	}
 }
 
-func genOperator(name, version, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs APISet, versionDependencies []VersionDependency) *Operator {
+func genOperator(name, version, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs APISet, dependencies []*api.Dependency) *Operator {
 	semversion, _ := semver.Make(version)
 	return &Operator{
 		name:    name,
@@ -729,7 +721,7 @@ func genOperator(name, version, pkg, channel, catalogName, catalogNamespace stri
 			PackageName: pkg,
 			ChannelName: channel,
 		},
-		versionDependencies: versionDependencies,
+		dependencies: dependencies,
 		sourceInfo: &OperatorSourceInfo{
 			Catalog: CatalogKey{
 				Name:      catalogName,
