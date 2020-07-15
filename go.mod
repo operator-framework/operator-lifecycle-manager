@@ -36,6 +36,7 @@ require (
 	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	google.golang.org/grpc v1.30.0
+	google.golang.org/grpc/examples v0.0.0-20200709232328-d8193ee9cc3e // indirect
 	gopkg.in/yaml.v2 v2.2.8
 	helm.sh/helm/v3 v3.1.2
 	k8s.io/api v0.18.2
@@ -61,6 +62,10 @@ replace (
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0 // release-4.5
 
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
+
+	// pinned because latest etcd does not yet work with the latest grpc version (1.30.0)
+	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
+	google.golang.org/grpc => google.golang.org/grpc v1.27.0
 
 	// pinned because no tag supports 1.18 yet
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.1.0-rc.1.0.20200416205415-853ba2de16a0
