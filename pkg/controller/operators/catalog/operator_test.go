@@ -1100,14 +1100,14 @@ type fakeOperatorConfig struct {
 	regObjs       []runtime.Object
 	clientOptions []clientfake.Option
 	logger        *logrus.Logger
-	resolver      resolver.Resolver
+	resolver      resolver.StepResolver
 	reconciler    reconciler.RegistryReconcilerFactory
 }
 
 // fakeOperatorOption applies an option to the given fake operator configuration.
 type fakeOperatorOption func(*fakeOperatorConfig)
 
-func withResolver(res resolver.Resolver) fakeOperatorOption {
+func withResolver(res resolver.StepResolver) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.resolver = res
 	}
