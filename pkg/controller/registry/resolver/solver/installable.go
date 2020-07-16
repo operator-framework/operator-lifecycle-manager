@@ -1,4 +1,4 @@
-package solve
+package solver
 
 // Identifier values uniquely identify particular Installables within
 // the input to a single call to Solve.

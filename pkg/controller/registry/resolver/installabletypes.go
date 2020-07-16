@@ -4,38 +4,38 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solve"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 )
 
 type BundleInstallable struct {
-	identifier  solve.Identifier
-	constraints []solve.Constraint
+	identifier  solver.Identifier
+	constraints []solver.Constraint
 
 	Replaces string
 }
 
-func (i BundleInstallable) Identifier() solve.Identifier {
+func (i BundleInstallable) Identifier() solver.Identifier {
 	return i.identifier
 }
 
-func (i BundleInstallable) Constraints() []solve.Constraint {
+func (i BundleInstallable) Constraints() []solver.Constraint {
 	return i.constraints
 }
 
 func (i *BundleInstallable) MakeProhibited() {
-	i.constraints = append(i.constraints, solve.Prohibited())
+	i.constraints = append(i.constraints, solver.Prohibited())
 }
 
-func (i *BundleInstallable) AddDependency(dependencies []solve.Identifier) {
-	i.constraints = append(i.constraints, solve.Dependency(dependencies...))
+func (i *BundleInstallable) AddDependency(dependencies []solver.Identifier) {
+	i.constraints = append(i.constraints, solver.Dependency(dependencies...))
 }
 
-func (i *BundleInstallable) AddDependencyFromSet(dependencySet map[solve.Identifier]struct{}) {
-	dependencies := make([]solve.Identifier, 0)
+func (i *BundleInstallable) AddDependencyFromSet(dependencySet map[solver.Identifier]struct{}) {
+	dependencies := make([]solver.Identifier, 0)
 	for dep := range dependencySet {
 		dependencies = append(dependencies, dep)
 	}
-	i.constraints = append(i.constraints, solve.Dependency(dependencies...))
+	i.constraints = append(i.constraints, solver.Dependency(dependencies...))
 }
 
 func (i *BundleInstallable) BundleSourceInfo() (string, string, CatalogKey, error) {
@@ -53,36 +53,36 @@ func (i *BundleInstallable) BundleSourceInfo() (string, string, CatalogKey, erro
 	return csvName, channel, catalog, nil
 }
 
-func NewBundleInstallable(bundle, channel string, catalog CatalogKey, constraints ...solve.Constraint) BundleInstallable {
+func NewBundleInstallable(bundle, channel string, catalog CatalogKey, constraints ...solver.Constraint) BundleInstallable {
 	return BundleInstallable{
-		identifier:  solve.Identifier(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle)),
+		identifier:  solver.Identifier(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle)),
 		constraints: constraints,
 	}
 }
 
 func NewSubscriptionInstallable(pkg string) SubscriptionInstallable {
 	return SubscriptionInstallable{
-		identifier:  solve.Identifier(pkg),
-		constraints: []solve.Constraint{solve.Mandatory()},
+		identifier:  solver.Identifier(pkg),
+		constraints: []solver.Constraint{solver.Mandatory()},
 	}
 }
 
 type SubscriptionInstallable struct {
-	identifier  solve.Identifier
-	constraints []solve.Constraint
+	identifier  solver.Identifier
+	constraints []solver.Constraint
 }
 
-func (r SubscriptionInstallable) Identifier() solve.Identifier {
+func (r SubscriptionInstallable) Identifier() solver.Identifier {
 	return r.identifier
 }
 
-func (r SubscriptionInstallable) Constraints() []solve.Constraint {
+func (r SubscriptionInstallable) Constraints() []solver.Constraint {
 	return r.constraints
 }
 
-func (r *SubscriptionInstallable) AddDependency(dependencies []solve.Identifier) {
+func (r *SubscriptionInstallable) AddDependency(dependencies []solver.Identifier) {
 	if len(dependencies) > 0 {
-		r.constraints = append(r.constraints, solve.Dependency(dependencies...))
-		r.constraints = append(r.constraints, solve.AtMost(1, dependencies...))
+		r.constraints = append(r.constraints, solver.Dependency(dependencies...))
+		r.constraints = append(r.constraints, solver.AtMost(1, dependencies...))
 	}
 }
