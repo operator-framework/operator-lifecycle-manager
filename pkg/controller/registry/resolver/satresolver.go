@@ -9,7 +9,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solve"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 )
 
 type BooleanSatResolver interface {
@@ -41,16 +41,16 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (OperatorSet, error) {
+func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (OperatorSet, error) {
 	var errs []error
 
-	installables := make([]solve.Installable, 0)
+	installables := make([]solver.Installable, 0)
 	visited := make(map[OperatorSurface]*BundleInstallable, 0)
 
 	// TODO: better abstraction
 	startingCSVs := make(map[string]struct{})
 
-	namespacedCache := s.cache.Namespaced(namespaces...)
+	namespacedCache := r.cache.Namespaced(namespaces...)
 
 	// build constraints for each Subscription
 	for _, sub := range subs {
@@ -88,7 +88,7 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 
 		// find operators, in channel order, that can skip from the current version or list the current in "replaces"
-		replacementInstallables, err := s.getSubscriptionInstallables(pkg, current, catalog, predicates, channelFilter, namespacedCache, visited)
+		replacementInstallables, err := r.getSubscriptionInstallables(pkg, current, catalog, predicates, channelFilter, namespacedCache, visited)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -104,11 +104,11 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	if len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
 	}
-	solver, err := solve.New(solve.WithInput(installables), solve.WithTracer(solve.LoggingTracer{&debugWriter{s.log}}))
+	s, err := solver.New(solver.WithInput(installables), solver.WithTracer(solver.LoggingTracer{&debugWriter{r.log}}))
 	if err != nil {
 		return nil, err
 	}
-	solvedInstallables, err := solver.Solve(context.TODO())
+	solvedInstallables, err := s.Solve(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -155,8 +155,8 @@ func (s *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[string]solve.Installable, error) {
-	installables := make(map[string]solve.Installable, 0)
+func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[string]solver.Installable, error) {
+	installables := make(map[string]solver.Installable, 0)
 	candidates := make([]*BundleInstallable, 0)
 
 	subInstallable := NewSubscriptionInstallable(pkg)
@@ -169,14 +169,14 @@ func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 		return installables, nil
 	}
 
-	sortedBundles, err := s.sortChannel(bundles)
+	sortedBundles, err := r.sortChannel(bundles)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, o := range Filter(sortedBundles, channelPredicates...) {
 		predicates := append(cachePredicates, WithCSVName(o.Identifier()))
-		id, installable, err := s.getBundleInstallables(catalog, predicates, catalog, namespacedCache, visited)
+		id, installable, err := r.getBundleInstallables(catalog, predicates, catalog, namespacedCache, visited)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +193,7 @@ func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 		}
 	}
 
-	depIds := make([]solve.Identifier, 0)
+	depIds := make([]solver.Identifier, 0)
 	for _, c := range candidates {
 		// track which operator this is replacing, so that it can be realized when creating the resources on cluster
 		if current != nil {
@@ -208,10 +208,10 @@ func (s *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 	return installables, nil
 }
 
-func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []OperatorPredicate, preferredCatalog CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solve.Identifier]struct{}, map[solve.Identifier]*BundleInstallable, error) {
+func (r *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []OperatorPredicate, preferredCatalog CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
 	var errs []error
-	installables := make(map[solve.Identifier]*BundleInstallable, 0) // aggregate all of the installables at every depth
-	identifiers := make(map[solve.Identifier]struct{}, 0)            // keep track of depth + 1 dependencies
+	installables := make(map[solver.Identifier]*BundleInstallable, 0) // aggregate all of the installables at every depth
+	identifiers := make(map[solver.Identifier]struct{}, 0)            // keep track of depth + 1 dependencies
 
 	var finder OperatorFinder = namespacedCache
 	if !catalog.IsEmpty() {
@@ -251,12 +251,12 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 				continue
 			}
 
-			bundleDependencies := make(map[solve.Identifier]struct{}, 0)
+			bundleDependencies := make(map[solver.Identifier]struct{}, 0)
 			for _, dep := range candidateBundles {
 				// TODO: search in preferred catalog
 				candidateBundles := finder.Find(WithCSVName(dep.Identifier()))
 
-				sortedCandidates := s.sortByVersion(candidateBundles)
+				sortedCandidates := r.sortByVersion(candidateBundles)
 
 				for _, b := range sortedCandidates {
 					src := b.SourceInfo()
@@ -288,7 +288,7 @@ func (s *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 	return identifiers, installables, nil
 }
 
-func (s *SatResolver) sortByVersion(bundles []*Operator) []*Operator {
+func (r *SatResolver) sortByVersion(bundles []*Operator) []*Operator {
 	versionMap := make(map[string]*Operator, 0)
 	versionSlice := make([]semver.Version, 0)
 	unsortableList := make([]*Operator, 0)
@@ -322,7 +322,7 @@ func (s *SatResolver) sortByVersion(bundles []*Operator) []*Operator {
 }
 
 // sorts bundle in a channel by replaces
-func (s *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
+func (r *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
 	if len(bundles) <= 1 {
 		return bundles, nil
 	}
