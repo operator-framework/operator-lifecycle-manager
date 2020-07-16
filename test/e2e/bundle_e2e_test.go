@@ -16,7 +16,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Installing bundles with new object types", func() {
+// FIXME: Reintegrate this test
+var _ = PDescribe("Installing bundles with new object types", func() {
 	var (
 		kubeClient     operatorclient.ClientInterface
 		operatorClient versioned.Interface
