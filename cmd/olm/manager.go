@@ -38,7 +38,7 @@ func Manager(ctx context.Context) (ctrl.Manager, error) {
 	if feature.Gate.Enabled(feature.OperatorLifecycleManagerV2) {
 		setupLog.Info(fmt.Sprintf("feature enabled: %v", feature.OperatorLifecycleManagerV2))
 
-		reconciler, err := operators.NewOperatorReconciler(
+		operatorReconciler, err := operators.NewOperatorReconciler(
 			mgr.GetClient(),
 			ctrl.Log.WithName("controllers").WithName("operator"),
 			mgr.GetScheme(),
@@ -65,9 +65,23 @@ func Manager(ctx context.Context) (ctrl.Manager, error) {
 		}
 		setupLog.Info("v2alpha1 CRDs installed")
 
-		if err = reconciler.SetupWithManager(mgr); err != nil {
+		if err = operatorReconciler.SetupWithManager(mgr); err != nil {
 			return nil, err
 		}
+
+		adoptionReconciler, err := operators.NewAdoptionReconciler(
+			mgr.GetClient(),
+			ctrl.Log.WithName("controllers").WithName("adoption"),
+			mgr.GetScheme(),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if err = adoptionReconciler.SetupWithManager(mgr); err != nil {
+			return nil, err
+		}
+
 	}
 
 	setupLog.Info("manager configured")

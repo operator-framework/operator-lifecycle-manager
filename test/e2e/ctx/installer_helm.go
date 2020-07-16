@@ -80,7 +80,6 @@ func (a clientAdapter) ConfigAccess() clientcmd.ConfigAccess {
 func Install(ctx *TestContext) error {
 	cfg := action.Configuration{}
 	cfg.Init(clientAdapter{ctx.RESTConfig()}, "", "memory", ctx.Logf)
-
 	act := action.NewInstall(&cfg)
 	act.Timeout = 5 * time.Second
 	act.ReleaseName = fmt.Sprintf("release-%s", rand.String(8))

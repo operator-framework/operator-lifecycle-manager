@@ -215,14 +215,13 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	}
 	service.SetName(ServiceName(deploymentName))
 	service.SetNamespace(i.owner.GetNamespace())
-	ownerutil.AddNonBlockingOwner(service, i.owner)
 
 	existingService, err := i.strategyClient.GetOpLister().CoreV1().ServiceLister().Services(i.owner.GetNamespace()).Get(service.GetName())
 	if err == nil {
 		if !ownerutil.Adoptable(i.owner, existingService.GetOwnerReferences()) {
 			return nil, fmt.Errorf("service %s not safe to replace: extraneous ownerreferences found", service.GetName())
 		}
-		service.SetOwnerReferences(append(service.GetOwnerReferences(), existingService.GetOwnerReferences()...))
+		service.SetOwnerReferences(existingService.GetOwnerReferences())
 
 		// Delete the Service to replace
 		deleteErr := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
@@ -230,6 +229,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			return nil, fmt.Errorf("could not delete existing service %s", service.GetName())
 		}
 	}
+	ownerutil.AddNonBlockingOwner(service, i.owner)
 
 	// Attempt to create the Service
 	_, err = i.strategyClient.GetOpClient().CreateService(service)

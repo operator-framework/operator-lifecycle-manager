@@ -5,18 +5,18 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 )
 
-var _ = Describe("Operator Reconciler", func() {
+var _ = Describe("Operator Controller", func() {
 	var (
 		ctx                            context.Context
 		operator                       *operatorsv2alpha1.Operator

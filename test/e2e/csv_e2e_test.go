@@ -3243,8 +3243,11 @@ func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interfa
 func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs, cleanupAPIServices bool) (cleanupFunc, error) {
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
-	_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), &csv, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	Eventually(func() error {
+		_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), &csv, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
+
 	return buildCSVCleanupFunc(c, crc, csv, namespace, cleanupCRDs, cleanupAPIServices), nil
 
 }
