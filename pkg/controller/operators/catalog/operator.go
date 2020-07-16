@@ -87,7 +87,7 @@ type Operator struct {
 	namespace                string
 	sources                  *grpc.SourceStore
 	sourcesLastUpdate        sharedtime.SharedTime
-	resolver                 resolver.Resolver
+	resolver                 resolver.StepResolver
 	reconciler               reconciler.RegistryReconcilerFactory
 	csvProvidedAPIsIndexer   map[string]cache.Indexer
 	catalogSubscriberIndexer map[string]cache.Indexer
@@ -128,11 +128,11 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Create an OperatorLister
 	lister := operatorlister.NewLister()
 
-	var res resolver.Resolver
+	var res resolver.StepResolver
 	if resolverV2Enable {
-		res = resolver.NewSatStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, logger)
+		res = resolver.NewOperatorStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, logger)
 	} else {
-		res = resolver.NewOperatorsV1alpha1Resolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
+		res = resolver.NewLegacyResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
 	}
 
 	// Allocate the new instance of an Operator.
