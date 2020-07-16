@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"k8s.io/apimachinery/pkg/selection"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/selection"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	registryserver "github.com/operator-framework/operator-registry/pkg/server"
@@ -195,7 +196,7 @@ func TestToPackageManifest(t *testing.T) {
 							CurrentCSVDesc: func() operators.CSVDescription {
 								csv := operatorsv1alpha1.ClusterServiceVersion{}
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-								return operators.CreateCSVDescription(&csv)
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
 						},
 					},
@@ -257,7 +258,7 @@ func TestToPackageManifest(t *testing.T) {
 							CurrentCSVDesc: func() operators.CSVDescription {
 								csv := operatorsv1alpha1.ClusterServiceVersion{}
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-								return operators.CreateCSVDescription(&csv)
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
 						},
 					},
@@ -322,7 +323,7 @@ func TestToPackageManifest(t *testing.T) {
 							CurrentCSVDesc: func() operators.CSVDescription {
 								csv := operatorsv1alpha1.ClusterServiceVersion{}
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-								return operators.CreateCSVDescription(&csv)
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
 						},
 					},
@@ -387,7 +388,7 @@ func TestToPackageManifest(t *testing.T) {
 							CurrentCSVDesc: func() operators.CSVDescription {
 								csv := operatorsv1alpha1.ClusterServiceVersion{}
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-								return operators.CreateCSVDescription(&csv)
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
 						},
 					},
@@ -507,7 +508,7 @@ func TestRegistryProviderGet(t *testing.T) {
 							CurrentCSVDesc: func() operators.CSVDescription {
 								csv := operatorsv1alpha1.ClusterServiceVersion{}
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-								return operators.CreateCSVDescription(&csv)
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
 						},
 					},
@@ -556,7 +557,7 @@ func TestRegistryProviderGet(t *testing.T) {
 							CurrentCSVDesc: func() operators.CSVDescription {
 								csv := operatorsv1alpha1.ClusterServiceVersion{}
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-								return operators.CreateCSVDescription(&csv)
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
 						},
 					},
@@ -604,7 +605,7 @@ func TestRegistryProviderGet(t *testing.T) {
 							CurrentCSVDesc: func() operators.CSVDescription {
 								csv := operatorsv1alpha1.ClusterServiceVersion{}
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-								return operators.CreateCSVDescription(&csv)
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
 						},
 					},
@@ -691,7 +692,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
 							},
 						},
@@ -725,7 +726,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
 							},
 						},
@@ -771,7 +772,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
 							},
 						},
@@ -805,7 +806,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
 							},
 						},
@@ -851,7 +852,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
 							},
 						},
@@ -885,7 +886,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
 							},
 						},
@@ -919,7 +920,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
 							},
 						},
@@ -953,7 +954,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
 							},
 						},
@@ -1042,7 +1043,7 @@ func TestRegistryProviderList(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
 							},
 						},
@@ -1134,7 +1135,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
 							},
 						},
@@ -1168,7 +1169,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
 							},
 						},
@@ -1217,7 +1218,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
 							},
 						},
@@ -1251,7 +1252,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
 							},
 						},
@@ -1310,7 +1311,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
 							},
 						},
@@ -1344,7 +1345,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 								CurrentCSVDesc: func() operators.CSVDescription {
 									csv := operatorsv1alpha1.ClusterServiceVersion{}
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
-									return operators.CreateCSVDescription(&csv)
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
 							},
 						},

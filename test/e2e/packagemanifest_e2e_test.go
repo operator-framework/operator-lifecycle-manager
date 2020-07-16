@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -67,6 +68,22 @@ func TestPackageManifestLoading(t *testing.T) {
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 	csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 	csv.SetLabels(map[string]string{"projected": "label"})
+	csv.Spec.NativeAPIs = []metav1.GroupVersionKind{{Group: "kubenative.io", Version: "v1", Kind: "Native"}}
+	csvJSON, _ := json.Marshal(csv)
+	csv.Spec.Keywords = []string{"foo", "bar"}
+	csv.Spec.Links = []v1alpha1.AppLink{
+		{
+			Name: "foo",
+			URL:  "example.com",
+		},
+	}
+	csv.Spec.Maintainers = []v1alpha1.Maintainer{
+		{
+			Name:  "foo",
+			Email: "example@gmail.com",
+		},
+	}
+	csv.Spec.Maturity = "foo"
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	pmc := newPMClient(t)
@@ -79,7 +96,7 @@ func TestPackageManifestLoading(t *testing.T) {
 			{
 				Name:           stableChannel,
 				CurrentCSV:     packageStable,
-				CurrentCSVDesc: packagev1.CreateCSVDescription(&csv),
+				CurrentCSVDesc: packagev1.CreateCSVDescription(&csv, string(csvJSON)),
 			},
 		},
 		DefaultChannel: stableChannel,
@@ -108,9 +125,16 @@ func TestPackageManifestLoading(t *testing.T) {
 	require.NotNil(t, pm)
 	require.Equal(t, packageName, pm.GetName())
 	require.Equal(t, expectedStatus, pm.Status)
+	require.Equal(t, "0.0.0", pm.Status.Channels[0].CurrentCSVDesc.MinKubeVersion)
+	require.Equal(t, *dummyImage, pm.Status.Channels[0].CurrentCSVDesc.RelatedImages[0])
+	require.Equal(t, csv.Spec.NativeAPIs, pm.Status.Channels[0].CurrentCSVDesc.NativeAPIs)
 	require.Equal(t, "label", pm.GetLabels()["projected"])
 	require.Equal(t, "supported", pm.GetLabels()["operatorframework.io/arch.amd64"])
 	require.Equal(t, "supported", pm.GetLabels()["operatorframework.io/os.linux"])
+	require.Equal(t, []string{"foo", "bar"}, pm.Status.Channels[0].CurrentCSVDesc.Keywords)
+	require.Equal(t, "foo", pm.Status.Channels[0].CurrentCSVDesc.Maturity)
+	require.Equal(t, []packagev1.AppLink{{Name: "foo", URL: "example.com"}}, pm.Status.Channels[0].CurrentCSVDesc.Links)
+	require.Equal(t, []packagev1.Maintainer{{Name: "foo", Email: "example@gmail.com"}}, pm.Status.Channels[0].CurrentCSVDesc.Maintainers)
 
 	// Get a PackageManifestList and ensure it has the correct items
 	pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
@@ -146,9 +170,32 @@ func TestPkgManifestsFromCatsrc(t *testing.T) {
 		},
 	}
 
+	expectedRelatedImages := map[string]string{
+		"quay.io/coreos/etcd@sha256:3816b6daf9b66d6ced6f0f966314e2d4f894982c6b1493061502f8c2bf86ac84":          "",
+		"quay.io/coreos/etcd@sha256:49d3d4a81e0d030d3f689e7167f23e120abf955f7d08dbedf3ea246485acee9f":          "",
+		"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": "",
+	}
+
 	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Create(catalogSource)
 	require.NoError(t, err, "error creating Catalog Sources")
 	require.NotNil(t, catalogSource)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Delete(catalogSource.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Wait for package-server to be ready
+	err = wait.Poll(pollInterval, 1*time.Minute, func() (bool, error) {
+		t.Logf("Polling package-server...")
+		_, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+		if err == nil {
+			return true, nil
+		}
+		return false, nil
+	})
+	require.NoError(t, err, "package-server not available")
+
+	_, err = fetchCatalogSource(t, crc, catalogSource.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
 
 	pm, err := fetchPackageManifest(t, pmc, testNamespace, packageName, packageManifestHasStatus)
 	require.NoError(t, err, "error getting package manifest")
@@ -175,4 +222,12 @@ func TestPkgManifestsFromCatsrc(t *testing.T) {
 		return pm.Status.CatalogSourceDisplayName == displayName, nil
 	})
 	require.NoError(t, err, "error package manifest Status.CatalogSourceDisplayName is not updated to catsrc Spec.DisplayName")
+
+	relatedImages := pm.Status.Channels[0].CurrentCSVDesc.RelatedImages
+	require.Equal(t, len(expectedRelatedImages), len(relatedImages))
+
+	for _, v := range relatedImages {
+		_, ok := expectedRelatedImages[v]
+		require.True(t, ok, "Expect this image %s to exist in the related images list\n", v)
+	}
 }

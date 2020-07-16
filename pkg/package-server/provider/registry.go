@@ -503,7 +503,7 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 		manifest.Status.Channels = append(manifest.Status.Channels, operators.PackageChannel{
 			Name:           pkgChannel.GetName(),
 			CurrentCSV:     csv.GetName(),
-			CurrentCSVDesc: operators.CreateCSVDescription(&csv),
+			CurrentCSVDesc: operators.CreateCSVDescription(&csv, bundle.GetCsvJson()),
 		})
 
 		if manifest.Status.DefaultChannel != "" && pkgChannel.GetName() == manifest.Status.DefaultChannel || !providerSet {

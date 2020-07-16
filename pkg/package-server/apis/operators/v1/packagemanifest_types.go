@@ -96,6 +96,13 @@ type CSVDescription struct {
 	// Provider is the CSV's provider
 	Provider    AppLink           `json:"provider,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
+	// +listType=set
+	Keywords []string `json:"keywords,omitempty"`
+	// +listType=set
+	Links []AppLink `json:"links,omitempty"`
+	// +listType=set
+	Maintainers []Maintainer `json:"maintainers,omitempty"`
+	Maturity    string       `json:"maturity,omitempty"`
 
 	// LongDescription is the CSV's description
 	LongDescription string `json:"description,omitempty"`
@@ -105,12 +112,25 @@ type CSVDescription struct {
 
 	CustomResourceDefinitions operatorv1alpha1.CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
 	APIServiceDefinitions     operatorv1alpha1.APIServiceDefinitions     `json:"apiservicedefinitions,omitempty"`
+	NativeAPIs                []metav1.GroupVersionKind                  `json:"nativeApis,omitempty"`
+
+	// Minimum Kubernetes version for operator installation
+	MinKubeVersion string `json:"minKubeVersion,omitempty"`
+
+	// List of related images
+	RelatedImages []string `json:"relatedImages,omitempty"`
 }
 
 // AppLink defines a link to an application
 type AppLink struct {
 	Name string `json:"name,omitempty"`
 	URL  string `json:"url,omitempty"`
+}
+
+// Maintainer defines a project maintainer
+type Maintainer struct {
+	Name  string `json:"name,omitempty"`
+	Email string `json:"email,omitempty"`
 }
 
 // Icon defines a base64 encoded icon and media type
