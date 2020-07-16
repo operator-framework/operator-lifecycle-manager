@@ -125,4 +125,4 @@ func (fake *FakeResolver) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ resolver.Resolver = new(FakeResolver)
+var _ resolver.StepResolver = new(FakeResolver)
