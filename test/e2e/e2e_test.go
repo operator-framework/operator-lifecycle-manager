@@ -69,9 +69,6 @@ var _ = BeforeSuite(func() {
 	testNamespace = *namespace
 	operatorNamespace = *olmNamespace
 	communityOperatorsImage = *communityOperators
-
-	cleaner = newNamespaceCleaner(testNamespace)
-
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 

@@ -23,10 +23,12 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
@@ -51,48 +53,15 @@ const (
 	pollInterval = 1 * time.Second
 	pollDuration = 5 * time.Minute
 
-	olmConfigMap = "olm-operators"
+	olmConfigMap = "olm-operators" // No-longer used, how long do we keep this around?
+
 	// sync name with scripts/install_local.sh
 	packageServerCSV = "packageserver.v1.0.0"
 )
 
 var (
-	cleaner *namespaceCleaner
 	genName = names.SimpleNameGenerator.GenerateName
-
-	persistentCatalogNames               = []string{olmConfigMap}
-	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
-	persistentConfigMapNames             = []string{olmConfigMap}
-	nonPersistentConfigMapsFieldSelector = createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...)
-	persistentCSVNames                   = []string{packageServerCSV}
-	nonPersistentCSVFieldSelector        = createFieldNotEqualSelector("metadata.name", persistentCSVNames...)
 )
-
-type namespaceCleaner struct {
-	namespace      string
-	skipCleanupOLM bool
-}
-
-func newNamespaceCleaner(namespace string) *namespaceCleaner {
-	return &namespaceCleaner{
-		namespace:      namespace,
-		skipCleanupOLM: false,
-	}
-}
-
-// notifyOnFailure checks if a test has failed or cleanup is true before cleaning a namespace
-func (c *namespaceCleaner) NotifyTestComplete(cleanup bool) {
-	if CurrentGinkgoTestDescription().Failed {
-		c.skipCleanupOLM = true
-	}
-
-	if c.skipCleanupOLM || !cleanup {
-		ctx.Ctx().Logf("skipping cleanup")
-		return
-	}
-
-	cleanupOLM(c.namespace)
-}
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
 func newKubeClient() operatorclient.ClientInterface {
@@ -369,74 +338,163 @@ func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string,
 	return fetched, err
 }
 
-func createFieldNotEqualSelector(field string, names ...string) string {
+// createFieldNotEqualSelector generates a field selector that matches resources that have a field value that DOES NOT match any of a set of values.
+// This function panics if the generated selector cannot be parsed.
+func createFieldNotEqualSelector(field string, values ...string) fields.Selector {
 	var builder strings.Builder
-	for i, name := range names {
+	for i, value := range values {
 		builder.WriteString(field)
 		builder.WriteString("!=")
-		builder.WriteString(name)
-		if i < len(names)-1 {
+		builder.WriteString(value)
+		if i < len(values)-1 {
 			builder.WriteString(",")
 		}
 	}
 
-	return builder.String()
+	selector, err := fields.ParseSelector(builder.String())
+	if err != nil {
+		panic(fmt.Errorf("failed to build fields-not-equal selector: %s", err))
+	}
+
+	return selector
 }
 
-func cleanupOLM(namespace string) {
-	var immediate int64 = 0
-	crc := newCRClient()
-	c := newKubeClient()
+// MaskNotFound "masks" an given error by returning nil when it refers to a "NotFound" API status response, otherwise returns the error unaltered.
+func MaskNotFound(err error) error {
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+
+	return err
+}
+
+var (
+	persistentCatalogNames        = []string{olmConfigMap}
+	ephemeralCatalogFieldSelector = controllerclient.MatchingFieldsSelector{
+		Selector: createFieldNotEqualSelector("metadata.name", persistentCatalogNames...),
+	}
+	persistentConfigMapNames         = []string{olmConfigMap}
+	ephemeralConfigMapsFieldSelector = controllerclient.MatchingFieldsSelector{
+		Selector: createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...),
+	}
+	persistentCSVNames        = []string{packageServerCSV}
+	ephemeralCSVFieldSelector = controllerclient.MatchingFieldsSelector{
+		Selector: createFieldNotEqualSelector("metadata.name", persistentCSVNames...),
+	}
+)
+
+// TearDown deletes all OLM resources in the corresponding namespace and at the cluster scope.
+func TearDown(namespace string) {
+	var (
+		clientCtx   = context.Background()
+		client      = ctx.Ctx().Client()
+		inNamespace = controllerclient.InNamespace(namespace)
+		logf        = ctx.Ctx().Logf
+	)
 
 	// Cleanup non persistent OLM CRs
-	ctx.Ctx().Logf("cleaning up any remaining non persistent resources...")
-	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: &immediate}
-	listOptions := metav1.ListOptions{}
+	logf("cleaning up ephemeral test resources...")
 
-	err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
-	Expect(err).NotTo(HaveOccurred())
+	logf("deleting test subscriptions...")
+	Eventually(func() error {
+		return client.DeleteAllOf(clientCtx, &v1alpha1.Subscription{}, inNamespace)
+	}).Should(Succeed(), "failed to delete test subscriptions")
 
-	err = crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(context.TODO(), deleteOptions, listOptions)
-	Expect(err).NotTo(HaveOccurred())
+	Eventually(func() (remaining []v1alpha1.Subscription, err error) {
+		list := &v1alpha1.SubscriptionList{}
+		err = client.List(clientCtx, list, inNamespace)
+		if list != nil {
+			remaining = list.Items
+		}
 
-	err = crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(context.TODO(), deleteOptions, listOptions)
-	Expect(err).NotTo(HaveOccurred())
+		return
+	}).Should(BeEmpty(), "failed to await deletion of test subscriptions")
 
-	err = crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector})
-	Expect(err).NotTo(HaveOccurred())
+	logf("deleting test installplans...")
+	Eventually(func() error {
+		return client.DeleteAllOf(clientCtx, &v1alpha1.InstallPlan{}, inNamespace)
+	}).Should(Succeed(), "failed to delete test installplans")
 
-	// error: the server does not allow this method on the requested resource
-	// Cleanup non persistent configmaps
-	err = c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(context.TODO(), deleteOptions, metav1.ListOptions{})
-	Expect(err).NotTo(HaveOccurred())
+	Eventually(func() (remaining []v1alpha1.InstallPlan, err error) {
+		list := &v1alpha1.InstallPlanList{}
+		err = client.List(clientCtx, list, inNamespace)
+		if list != nil {
+			remaining = list.Items
+		}
 
-	err = waitForEmptyList(func() (int, error) {
-		res, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
-		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "csvs")
-		return len(res.Items), err
-	})
-	Expect(err).NotTo(HaveOccurred())
+		return
+	}).Should(BeEmpty(), "failed to await deletion of test installplans")
 
-	err = waitForEmptyList(func() (int, error) {
-		res, err := crc.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), metav1.ListOptions{})
-		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "installplans")
-		return len(res.Items), err
-	})
-	Expect(err).NotTo(HaveOccurred())
+	logf("deleting test catalogsources...")
+	Eventually(func() error {
+		return client.DeleteAllOf(clientCtx, &v1alpha1.CatalogSource{}, inNamespace, ephemeralCatalogFieldSelector)
+	}).Should(Succeed(), "failed to delete test catalogsources")
 
-	err = waitForEmptyList(func() (int, error) {
-		res, err := crc.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
-		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "subs")
-		return len(res.Items), err
-	})
-	Expect(err).NotTo(HaveOccurred())
+	Eventually(func() (remaining []v1alpha1.CatalogSource, err error) {
+		list := &v1alpha1.CatalogSourceList{}
+		err = client.List(clientCtx, list, inNamespace, ephemeralCatalogFieldSelector)
+		if list != nil {
+			remaining = list.Items
+		}
 
-	err = waitForEmptyList(func() (int, error) {
-		res, err := crc.OperatorsV1alpha1().CatalogSources(namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector})
-		ctx.Ctx().Logf("%d %s remaining", len(res.Items), "catalogs")
-		return len(res.Items), err
-	})
-	Expect(err).NotTo(HaveOccurred())
+		return
+	}).Should(BeEmpty(), "failed to await deletion of test catalogsources")
+
+	logf("deleting test crds...")
+	remainingCSVs := func() (csvs []v1alpha1.ClusterServiceVersion, err error) {
+		list := &v1alpha1.ClusterServiceVersionList{}
+		err = client.List(clientCtx, list, inNamespace, ephemeralCSVFieldSelector)
+		if list != nil {
+			csvs = list.Items
+		}
+
+		return
+	}
+
+	var crds []apiextensionsv1.CustomResourceDefinition
+	Eventually(func() error {
+		csvs, err := remainingCSVs()
+		if err != nil {
+			return err
+		}
+
+		for _, csv := range csvs {
+			for _, desc := range csv.Spec.CustomResourceDefinitions.Owned {
+				crd := &apiextensionsv1.CustomResourceDefinition{}
+				err := client.Get(clientCtx, types.NamespacedName{Name: desc.Name}, crd)
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				crds = append(crds, *crd)
+			}
+		}
+
+		return nil
+	}).Should(Succeed(), "failed to aggregate test crds for deletion")
+
+	Eventually(func() error {
+		for _, crd := range crds {
+			// Note: NotFound errors will be masked, so we can simply iterate until no other errors are returned.
+			// This is pretty inefficient, so if we're concerned about the number of API calls, we should replace this with something more sparing.
+			if err := client.Delete(clientCtx, &crd); MaskNotFound(err) != nil {
+				return err
+			}
+		}
+
+		return nil
+	}).Should(Succeed(), "failed to delete test crds")
+
+	logf("deleting test csvs...")
+	Eventually(func() error {
+		return client.DeleteAllOf(clientCtx, &v1alpha1.ClusterServiceVersion{}, inNamespace, ephemeralCSVFieldSelector)
+	}).Should(Succeed(), "failed to delete test csvs")
+
+	Eventually(remainingCSVs).Should(BeEmpty(), "failed to await deletion of test csvs")
+
+	logf("test resources deleted")
 }
 
 func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {

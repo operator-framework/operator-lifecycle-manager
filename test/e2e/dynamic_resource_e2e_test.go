@@ -36,7 +36,7 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 	})
 
 	AfterEach(func() {
-		cleaner.NotifyTestComplete(true)
+		TearDown(testNamespace)
 	})
 
 	Context("Given a Namespace", func() {

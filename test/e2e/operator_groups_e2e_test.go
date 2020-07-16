@@ -33,6 +33,10 @@ import (
 )
 
 var _ = Describe("Operator Group", func() {
+	AfterEach(func() {
+		TearDown(testNamespace)
+	})
+
 	It("e2e functionality", func() {
 
 		// Create namespace with specific label
@@ -48,7 +52,6 @@ var _ = Describe("Operator Group", func() {
 		// Verify the copied CSV transitions to FAILED
 		// Delete CSV
 		// Verify copied CVS is deleted
-		defer cleaner.NotifyTestComplete(true)
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
@@ -416,8 +419,6 @@ var _ = Describe("Operator Group", func() {
 		// Create crd so csv succeeds
 		// Ensure clusterroles created and aggregated for access provided APIs
 
-		defer cleaner.NotifyTestComplete(true)
-
 		// Generate namespaceA
 		nsA := genName("a")
 		c := newKubeClient()
@@ -607,8 +608,6 @@ var _ = Describe("Operator Group", func() {
 		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
 		// Update csvA to have AllNamespaces supported=true
 		// Ensure csvA transitions to Pending
-
-		defer cleaner.NotifyTestComplete(true)
 
 		// Generate namespaceA and namespaceB
 		nsA := genName("a")
@@ -848,8 +847,6 @@ var _ = Describe("Operator Group", func() {
 		// Wait for csvB to be successful
 		// Wait for operatorGroupB to have providedAPI annotation with crdB's Kind.version.group
 		// Wait for csvB to have a CSV with a copied status in namespace C
-
-		defer cleaner.NotifyTestComplete(true)
 
 		// Create a catalog for csvA, csvB, and csvD
 		pkgA := genName("a-")
@@ -1131,8 +1128,6 @@ var _ = Describe("Operator Group", func() {
 		// Wait for KindA.version.group providedAPI annotation to be removed from operatorGroupC's providedAPIs annotation
 		// Ensure KindA.version.group providedAPI annotation on operatorGroupA
 
-		defer cleaner.NotifyTestComplete(true)
-
 		// Create a catalog for csvA, csvB
 		pkgA := genName("a-")
 		pkgB := genName("b-")
@@ -1324,7 +1319,6 @@ var _ = Describe("Operator Group", func() {
 	// TODO: Test Subscription upgrade paths with + and - providedAPIs
 	It("CSV copy watching all namespaces", func() {
 
-		defer cleaner.NotifyTestComplete(true)
 		c := newKubeClient()
 		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
@@ -1569,8 +1563,6 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("insufficient permissions resolve via RBAC", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
@@ -1706,8 +1698,6 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("insufficient permissions resolve via service account removal", func() {
 
-		defer cleaner.NotifyTestComplete(true)
-
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
@@ -1809,7 +1799,6 @@ var _ = Describe("Operator Group", func() {
 	// preventing them from being GCd. This ensures that any leftover CSVs in that state are properly cleared up.
 	It("cleanup csvs with bad owner operator groups", func() {
 
-		defer cleaner.NotifyTestComplete(true)
 		c := newKubeClient()
 		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation

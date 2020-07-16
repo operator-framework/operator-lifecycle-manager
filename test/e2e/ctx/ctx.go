@@ -115,6 +115,7 @@ func setDerivedFields(ctx *TestContext) error {
 
 	ctx.scheme = runtime.NewScheme()
 	localSchemeBuilder := runtime.NewSchemeBuilder(
+		apiextensionsv1.AddToScheme,
 		kscheme.AddToScheme,
 		operatorsv1alpha1.AddToScheme,
 		operatorsv1.AddToScheme,
