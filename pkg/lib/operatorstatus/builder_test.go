@@ -336,7 +336,7 @@ func TestBuilder(t *testing.T) {
 		{
 			name: "WithRelatedObject/ReferenceNotPresentInStatus",
 			action: func(b *Builder) {
-				b.WithRelatedObject("group", "resource", "namespace", "name")
+				b.WithRelatedObject("group", "resources", "namespace", "name")
 			},
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
@@ -344,7 +344,7 @@ func TestBuilder(t *testing.T) {
 				RelatedObjects: []configv1.ObjectReference{
 					configv1.ObjectReference{
 						Group:     "group",
-						Resource:  "resource",
+						Resource:  "resources",
 						Namespace: "namespace",
 						Name:      "name",
 					},
@@ -357,7 +357,7 @@ func TestBuilder(t *testing.T) {
 		{
 			name: "WithRelatedObject/ReferencePresentInStatus",
 			action: func(b *Builder) {
-				b.WithRelatedObject("group", "resource", "namespace", "name")
+				b.WithRelatedObject("group", "resources", "namespace", "name")
 			},
 			existing: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
@@ -365,7 +365,7 @@ func TestBuilder(t *testing.T) {
 				RelatedObjects: []configv1.ObjectReference{
 					configv1.ObjectReference{
 						Group:     "group",
-						Resource:  "resource",
+						Resource:  "resources",
 						Namespace: "namespace",
 						Name:      "name",
 					},
@@ -377,7 +377,7 @@ func TestBuilder(t *testing.T) {
 				RelatedObjects: []configv1.ObjectReference{
 					configv1.ObjectReference{
 						Group:     "group",
-						Resource:  "resource",
+						Resource:  "resources",
 						Namespace: "namespace",
 						Name:      "name",
 					},
@@ -390,7 +390,7 @@ func TestBuilder(t *testing.T) {
 		{
 			name: "WithoutRelatedObject/ReferenceBeingRemoved",
 			action: func(b *Builder) {
-				b.WithoutRelatedObject("group", "resource", "namespace", "name")
+				b.WithoutRelatedObject("group", "resources", "namespace", "name")
 			},
 			existing: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
@@ -398,7 +398,7 @@ func TestBuilder(t *testing.T) {
 				RelatedObjects: []configv1.ObjectReference{
 					configv1.ObjectReference{
 						Group:     "group",
-						Resource:  "resource",
+						Resource:  "resources",
 						Namespace: "namespace",
 						Name:      "name",
 					},
