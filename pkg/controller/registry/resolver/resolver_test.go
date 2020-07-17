@@ -47,8 +47,8 @@ func TestSolveOperators(t *testing.T) {
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 
-	// TODO: decide if the original operator should be returned here, and update the rests of the tests based on that decision
 	expected := OperatorSet{
+		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 		"packageB.v1": genOperator("packageB.v1", "1.0.1", "packageB", "alpha", "community", "olm", nil, nil, nil),
 	}
 	require.EqualValues(t, expected, operators)
@@ -698,6 +698,128 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 			assert.Equal(t, "community", op.SourceInfo().Catalog.Name)
 		}
 	}
+}
+
+// Behavior: The resolver should prefer catalogs in the same namespace as the subscription.
+// It should also prefer the same catalog over global catalogs in terms of the operator cache.
+func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides := APISet
+
+	namespace := "olm"
+	altNamespace := "alt-olm"
+	catalog := registry.CatalogKey{"community", namespace}
+	altnsCatalog := registry.CatalogKey{"alt-community", altNamespace}
+
+	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
+	csvs := []*v1alpha1.ClusterServiceVersion{csv}
+	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			catalog: {
+				operators: []*Operator{
+					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil),
+				},
+			},
+			altnsCatalog: {
+				operators: []*Operator{
+					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", altnsCatalog.Name, altnsCatalog.Namespace, nil, Provides, nil),
+				},
+			},
+		},
+		namespaces: []string{namespace, altNamespace},
+	}
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	assert.NoError(t, err)
+
+	expected := OperatorSet{
+		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil),
+	}
+	require.EqualValues(t, expected, operators)
+}
+
+// Behavior: The resolver should not look in catalogs not in the same namespace or the global catalog namespace when resolving the subscription.
+// This test should not result in a successful resolution because the catalog fulfilling the subscription is not in the operator cache.
+func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides := APISet
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{"community", namespace}
+	otherCatalog := registry.CatalogKey{Name: "secret", Namespace: "secret"}
+
+	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
+	csvs := []*v1alpha1.ClusterServiceVersion{csv}
+	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			catalog: {
+				operators: []*Operator{
+					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", otherCatalog.Name, otherCatalog.Namespace, nil, Provides, nil),
+				},
+			},
+		},
+		namespaces: []string{otherCatalog.Namespace},
+	}
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	assert.Error(t, err)
+	assert.Equal(t, err.Error(), "expected exactly one operator, got 0", "did not expect to receive a resolution")
+	assert.Len(t, operators, 0)
+}
+
+// Behavior: the resolver should always prefer the default channel for the bundle (unless we implement ordering for channels)
+// TODO
+func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
+	t.Skip("TODO: accessing default channel....")
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides := APISet
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{"community", namespace}
+
+	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
+	csvs := []*v1alpha1.ClusterServiceVersion{csv}
+
+	// do not specify a channel explicitly on the subscription
+	newSub := newSub(namespace, "packageA", "", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			catalog: {
+				operators: []*Operator{
+					// Default channel is stable in this case
+					genOperator("packageA.v1", "0.0.1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil),
+					genOperator("packageA.v1", "0.0.1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil),
+				},
+			},
+		},
+	}
+
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	assert.NoError(t, err)
+
+	// operator should be from the default stable channel
+	expected := OperatorSet{
+		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil),
+	}
+	require.EqualValues(t, expected, operators)
 }
 
 type FakeOperatorCache struct {
