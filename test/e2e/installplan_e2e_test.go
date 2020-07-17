@@ -11,8 +11,19 @@ import (
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
+	opver "github.com/operator-framework/api/pkg/lib/version"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,16 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/util/retry"
-
-	opver "github.com/operator-framework/api/pkg/lib/version"
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 var _ = Describe("Install Plan", func() {
@@ -373,7 +374,6 @@ var _ = Describe("Install Plan", func() {
 
 			dependentCRDPlural := genName("ins-")
 			dependentCRD := newCRD(dependentCRDPlural)
-
 			// Create new CSVs
 			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
 			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
@@ -441,8 +441,26 @@ var _ = Describe("Install Plan", func() {
 			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err)
 
+			// wait for eventual deletion
+			Eventually(func() error {
+				_, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}).Should(Succeed())
+
 			// Delete orphaned csv
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainStableCSV.GetName(), metav1.DeleteOptions{}))
+
+			// wait for eventual deletion
+			Eventually(func() error {
+				_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), mainStableCSV.GetName(), metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}).Should(Succeed())
 
 			// existing cleanup should remove this
 			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
@@ -819,16 +837,12 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Update the subscription resource to point to the beta CSV
-			err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-				subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-				require.NoError(GinkgoT(), err)
-				require.NotNil(GinkgoT(), subscription)
-
-				subscription.Spec.Channel = betaChannel
-				subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), subscription, metav1.UpdateOptions{})
-
-				return err
-			})
+			// use server-side apply to update the subscription to point to the beta channel
+			Eventually(Apply(subscription, func(s *operatorsv1alpha1.Subscription) error {
+				s.Spec.Channel = betaChannel
+				return nil
+			})).Should(Succeed())
+			ctx.Ctx().Logf("updated subscription to point to beta channel")
 
 			// Wait for subscription to have a new installplan
 			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
@@ -1011,12 +1025,30 @@ var _ = Describe("Install Plan", func() {
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
 
-			// Update the subscription resource to point to the beta CSV
+			// Update the subscription resource to point to the beta CSV - first delete existing subscription
 			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err)
 
+			// wait for eventual deletion
+			Eventually(func() error {
+				_, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscriptionName, metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}).Should(Succeed())
+
 			// Delete orphaned csv
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainStableCSV.GetName(), metav1.DeleteOptions{}))
+
+			// wait for eventual deletion
+			Eventually(func() error {
+				_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), mainStableCSV.GetName(), metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}).Should(Succeed())
 
 			// existing cleanup should remove this
 			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
@@ -1065,12 +1097,30 @@ var _ = Describe("Install Plan", func() {
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
 
-			// Update the subscription resource to point to the beta CSV
+			// Update the subscription resource to point to the delta CSV - first delete existing subscription
 			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err)
 
+			// wait for eventual deletion
+			Eventually(func() error {
+				_, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscriptionName, metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}).Should(Succeed())
+
 			// Delete orphaned csv
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainBetaCSV.GetName(), metav1.DeleteOptions{}))
+
+			// wait for eventual deletion
+			Eventually(func() error {
+				_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), mainBetaCSV.GetName(), metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}).Should(Succeed())
 
 			// existing cleanup should remove this
 			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, deltaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
@@ -1826,10 +1876,22 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{updatedCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV}, mainManifests)
+			// Attempt to get the catalog source before creating install plan(s)
+			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+			require.NoError(GinkgoT(), err)
 
 			// Update the subscription resource
 			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(GinkgoT(), err)
+
+			// wait for eventual deletion
+			Eventually(func() error {
+				_, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscriptionName, metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}).Should(Succeed())
 
 			// existing cleanup should remove this
 			subscriptionName = genName("sub-nginx-update-after-")
