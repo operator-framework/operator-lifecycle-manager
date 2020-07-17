@@ -82,7 +82,7 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 			Package:     pkg,
 			Channel:     channel,
 			StartingCSV: startingCSV,
-			Catalog:     CatalogKey{src, src + "-namespace"},
+			Catalog:     registry.CatalogKey{src, src + "-namespace"},
 		},
 		bundle:              b,
 		dependencies: dependencies,
@@ -234,12 +234,15 @@ func apiSetToGVK(crds, apis APISet) (out []*api.GroupVersionKind) {
 }
 
 func apiSetToDependencies(crds, apis APISet) (out []*api.Dependency) {
+	if len(crds) + len(apis) == 0 {
+		return nil
+	}
 	out = make([]*api.Dependency, 0)
 	for a := range crds {
 		val, err := json.Marshal(opregistry.GVKDependency{
 			Group:   a.Group,
-			Kind:    a.Version,
-			Version: a.Kind,
+			Kind:    a.Kind,
+			Version: a.Version,
 		})
 		if err != nil {
 			panic(err)
@@ -252,8 +255,8 @@ func apiSetToDependencies(crds, apis APISet) (out []*api.Dependency) {
 	for a := range apis {
 		val, err := json.Marshal(opregistry.GVKDependency{
 			Group:   a.Group,
-			Kind:    a.Version,
-			Version: a.Kind,
+			Kind:    a.Kind,
+			Version: a.Version,
 		})
 		if err != nil {
 			panic(err)
@@ -271,8 +274,8 @@ func apiSetToProperties(crds, apis APISet) (out []*api.Property) {
 	for a := range crds {
 		val, err := json.Marshal(opregistry.GVKProperty{
 			Group:   a.Group,
-			Kind:    a.Version,
-			Version: a.Kind,
+			Kind:    a.Kind,
+			Version: a.Version,
 		})
 		if err != nil {
 			panic(err)
@@ -285,8 +288,8 @@ func apiSetToProperties(crds, apis APISet) (out []*api.Property) {
 	for a := range apis {
 		val, err := json.Marshal(opregistry.GVKProperty{
 			Group:   a.Group,
-			Kind:    a.Version,
-			Version: a.Kind,
+			Kind:    a.Kind,
+			Version: a.Version,
 		})
 		if err != nil {
 			panic(err)
@@ -405,8 +408,8 @@ func withReplaces(operator *Operator, replaces string) *Operator {
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
-	sources := map[CatalogKey]registry.ClientInterface{}
+func NewFakeSourceQuerier(bundlesByCatalog map[registry.CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
+	sources := map[registry.CatalogKey]registry.ClientInterface{}
 	for catKey, bundles := range bundlesByCatalog {
 		source := &fakes.FakeClientInterface{}
 		source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
@@ -534,8 +537,8 @@ func getPkgName(pkgChan string) string {
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
-	sources := map[CatalogKey]registry.ClientInterface{}
+func NewFakeSourceQuerierCustomReplacement(catKey registry.CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
+	sources := map[registry.CatalogKey]registry.ClientInterface{}
 	source := &fakes.FakeClientInterface{}
 	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")

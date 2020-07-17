@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/pkg/errors"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -94,7 +95,7 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]struct{}) error {
 	for s := range add {
 		var bundle *api.Bundle
-		var key *CatalogKey
+		var key *registry.CatalogKey
 		var err error
 		if s.StartingCSV != "" {
 			bundle, key, err = e.querier.FindBundle(s.Package, s.Channel, s.StartingCSV, s.Catalog)

@@ -28,20 +28,20 @@ type SourceRef struct {
 }
 
 type SourceQuerier interface {
-	FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*api.Bundle, *CatalogKey, error)
-	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
-	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
-	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
+	FindProvider(api opregistry.APIKey, initialSource registry.CatalogKey, excludedPkgName string) (*api.Bundle, *registry.CatalogKey, error)
+	FindBundle(pkgName, channelName, bundleName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
+	FindLatestBundle(pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
+	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
 	Queryable() error
 }
 
 type NamespaceSourceQuerier struct {
-	sources map[CatalogKey]registry.ClientInterface
+	sources map[registry.CatalogKey]registry.ClientInterface
 }
 
 var _ SourceQuerier = &NamespaceSourceQuerier{}
 
-func NewNamespaceSourceQuerier(sources map[CatalogKey]registry.ClientInterface) *NamespaceSourceQuerier {
+func NewNamespaceSourceQuerier(sources map[registry.CatalogKey]registry.ClientInterface) *NamespaceSourceQuerier {
 	return &NamespaceSourceQuerier{
 		sources: sources,
 	}
@@ -54,7 +54,7 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 	return nil
 }
 
-func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPkgName string) (*registryapi.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource registry.CatalogKey, excludedPkgName string) (*registryapi.Bundle, *registry.CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if ok {
@@ -77,7 +77,7 @@ func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSour
 	return nil, nil, fmt.Errorf("%s not provided by a package in any CatalogSource", api)
 }
 
-func (q *NamespaceSourceQuerier) FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindBundle(pkgName, channelName, bundleName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if !ok {
@@ -100,7 +100,7 @@ func (q *NamespaceSourceQuerier) FindBundle(pkgName, channelName, bundleName str
 	return nil, nil, fmt.Errorf("%s/%s/%s not found in any available CatalogSource", pkgName, channelName, bundleName)
 }
 
-func (q *NamespaceSourceQuerier) FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindLatestBundle(pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if !ok {
@@ -123,7 +123,7 @@ func (q *NamespaceSourceQuerier) FindLatestBundle(pkgName, channelName string, i
 	return nil, nil, fmt.Errorf("%s/%s not found in any available CatalogSource", pkgName, channelName)
 }
 
-func (q *NamespaceSourceQuerier) FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error) {
 	errs := []error{}
 
 	if initialSource.Name != "" && initialSource.Namespace != "" {

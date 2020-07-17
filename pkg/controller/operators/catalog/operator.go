@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"reflect"
 	"strings"
 	"sync"
@@ -128,12 +129,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Create an OperatorLister
 	lister := operatorlister.NewLister()
 
-	var res resolver.StepResolver
-	if resolverV2Enable {
-		res = resolver.NewOperatorStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, logger)
-	} else {
-		res = resolver.NewLegacyResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
-	}
+
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{
@@ -145,7 +141,6 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		client:                   crClient,
 		lister:                   lister,
 		namespace:                operatorNamespace,
-		resolver:				  res,
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
@@ -156,6 +151,11 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
+	if resolverV2Enable {
+		op.resolver = resolver.NewOperatorStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, op.sources, logger)
+	} else {
+		op.resolver = resolver.NewLegacyResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
+	}
 
 	// Wire OLM CR sharedIndexInformers
 	crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, resyncPeriod())
@@ -488,7 +488,7 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 			}
 		}
 	}
-	sourceKey := resolver.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
+	sourceKey := registry.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
 	if err := o.sources.Remove(sourceKey); err != nil {
 		o.logger.WithError(err).Warn("error closing client")
 	}
@@ -575,7 +575,7 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error) {
 	out = in.DeepCopy()
 
-	sourceKey := resolver.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
+	sourceKey := registry.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
 	srcReconciler := o.reconciler.ReconcilerForSource(in)
 	if srcReconciler == nil {
 		// TODO: Add failure status on catalogsource and remove from sources
@@ -623,7 +623,7 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error) {
 	out = in.DeepCopy()
 
-	sourceKey := resolver.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
+	sourceKey := registry.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
 	// update operator's view of sources
 	now := o.now()
 	address := in.Address()
@@ -958,7 +958,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		if err := querier.Queryable(); err != nil {
 			return nil, false, err
 		}
-		b, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
+		b, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, registry.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
 		if b != nil {
 			o.logger.Tracef("replacement %s bundle found for current bundle %s", b.CsvName, sub.Status.CurrentCSV)
 			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable

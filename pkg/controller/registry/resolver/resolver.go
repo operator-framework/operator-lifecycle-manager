@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 
 	"github.com/blang/semver"
 	"github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ type SatResolver struct {
 
 func NewDefaultSatResolver(rcp RegistryClientProvider, log logrus.FieldLogger) *SatResolver {
 	return &SatResolver{
-		cache: NewOperatorCache(rcp),
+		cache: NewOperatorCache(rcp, log),
 		log: log,
 	}
 }
@@ -55,7 +56,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	// build constraints for each Subscription
 	for _, sub := range subs {
 		pkg := sub.Spec.Package
-		catalog := CatalogKey{
+		catalog := registry.CatalogKey{
 			Name:      sub.Spec.CatalogSource,
 			Namespace: sub.Spec.CatalogSourceNamespace,
 		}
@@ -155,7 +156,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[string]solver.Installable, error) {
+func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[string]solver.Installable, error) {
 	installables := make(map[string]solver.Installable, 0)
 	candidates := make([]*BundleInstallable, 0)
 
@@ -208,7 +209,7 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 	return installables, nil
 }
 
-func (r *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []OperatorPredicate, preferredCatalog CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
+func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predicates []OperatorPredicate, preferredCatalog registry.CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
 	var errs []error
 	installables := make(map[solver.Identifier]*BundleInstallable, 0) // aggregate all of the installables at every depth
 	identifiers := make(map[solver.Identifier]struct{}, 0)            // keep track of depth + 1 dependencies
@@ -220,6 +221,7 @@ func (r *SatResolver) getBundleInstallables(catalog CatalogKey, predicates []Ope
 
 	bundleStack := finder.Find(predicates...)
 	for _, bundle := range bundleStack {
+		// pop from the stack
 		bundleStack = bundleStack[:len(bundleStack)-1]
 
 		bundleSource := bundle.SourceInfo()

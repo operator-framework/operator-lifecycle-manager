@@ -9,15 +9,17 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 func TestSolveOperators(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -26,8 +28,8 @@ func TestSolveOperators(t *testing.T) {
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: {
@@ -53,11 +55,11 @@ func TestSolveOperators(t *testing.T) {
 }
 
 func TestSolveOperators_MultipleChannels(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -66,8 +68,8 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: {
@@ -92,11 +94,11 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 }
 
 func TestSolveOperators_FindLatestVersion(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -105,8 +107,8 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -132,11 +134,11 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 }
 
 func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -156,8 +158,8 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -185,11 +187,11 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 }
 
 func TestSolveOperators_FindLatestVersionWithDependencies_ManyVersionsInCatalog(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -209,8 +211,8 @@ func TestSolveOperators_FindLatestVersionWithDependencies_ManyVersionsInCatalog(
 	}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -246,11 +248,11 @@ func TestSolveOperators_FindLatestVersionWithDependencies_ManyVersionsInCatalog(
 }
 
 func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -270,8 +272,8 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 	}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -284,7 +286,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageD.v1.0.1", "1.0.1", "packageD", "alpha", "community", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "cat1",
 			}: &CatalogSnapshot{
@@ -297,7 +299,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageD.v1.0.1", "1.0.1", "packageD", "alpha", "community", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "cat2",
 			}: &CatalogSnapshot{
@@ -310,7 +312,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageD.v1.0.1", "1.0.1", "packageD", "alpha", "community", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "cat3",
 			}: &CatalogSnapshot{
@@ -320,7 +322,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB", "alpha", "cat3", "olm", nil, nil, opToAddVersionDeps),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "cat4",
 			}: &CatalogSnapshot{
@@ -328,7 +330,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "cat5",
 			}: &CatalogSnapshot{
@@ -336,7 +338,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "cat6",
 			}: &CatalogSnapshot{
@@ -344,7 +346,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "cat7",
 			}: &CatalogSnapshot{
@@ -352,7 +354,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "cat8",
 			}: &CatalogSnapshot{
@@ -360,7 +362,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 					genOperator("packageB.v0.9.0", "0.9.0", "packageB", "alpha", "cat3", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "ns2",
 				Name:      "cat9",
 			}: &CatalogSnapshot{
@@ -384,11 +386,11 @@ func TestSolveOperators_FindLatestVersionWithDependencies_LargeCatalogSet(t *tes
 }
 
 func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -414,8 +416,8 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -446,11 +448,11 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 }
 
 func TestSolveOperators_WithDependencies(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -466,8 +468,8 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 	}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -489,11 +491,11 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 }
 
 func TestSolveOperators_WithGVKDependencies(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -502,8 +504,8 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -525,11 +527,11 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 }
 
 func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -538,8 +540,8 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -552,7 +554,7 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 					genOperator("packageD.v1.0.1", "1.0.1", "packageD", "alpha", "community", "olm", nil, Provides2, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "certified",
 			}: &CatalogSnapshot{
@@ -578,11 +580,11 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 }
 
 func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -597,8 +599,8 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 		},
 	}
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -608,7 +610,7 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 					genOperator("packageC.v1", "0.1.0", "packageC", "alpha", "community", "olm", nil, nil, nil),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "certified",
 			}: &CatalogSnapshot{
@@ -633,11 +635,11 @@ func TestSolveOperators_DependenciesMultiCatalog(t *testing.T) {
 }
 
 func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
-	APISet := APISet{registry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{"community", namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -659,8 +661,8 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-		snapshots: map[CatalogKey]*CatalogSnapshot{
-			CatalogKey{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "community",
 			}: &CatalogSnapshot{
@@ -670,7 +672,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 					genOperator("packageC.v1", "0.1.0", "packageC", "alpha", "community", "olm", nil, nil, unsatisfiableVersionDeps),
 				},
 			},
-			CatalogKey{
+			registry.CatalogKey{
 				Namespace: "olm",
 				Name:      "certified",
 			}: &CatalogSnapshot{
@@ -723,7 +725,7 @@ func genOperator(name, version, pkg, channel, catalogName, catalogNamespace stri
 		},
 		dependencies: dependencies,
 		sourceInfo: &OperatorSourceInfo{
-			Catalog: CatalogKey{
+			Catalog: registry.CatalogKey{
 				Name:      catalogName,
 				Namespace: catalogNamespace,
 			},
