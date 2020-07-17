@@ -175,7 +175,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	op.ipQueueSet.Set(metav1.NamespaceAll, ipQueue)
 	ipQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
-		queueinformer.WithMetricsProvider(metrics.NewMetricsInstallPlan(op.client)),
+		queueinformer.WithMetricsProvider(metrics.NewMetricsInstallPlan(op.lister.OperatorsV1alpha1().InstallPlanLister())),
 		queueinformer.WithLogger(op.logger),
 		queueinformer.WithQueue(ipQueue),
 		queueinformer.WithInformer(ipInformer.Informer()),
@@ -195,7 +195,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	op.catsrcQueueSet.Set(metav1.NamespaceAll, catsrcQueue)
 	catsrcQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
-		queueinformer.WithMetricsProvider(metrics.NewMetricsCatalogSource(op.client)),
+		queueinformer.WithMetricsProvider(metrics.NewMetricsCatalogSource(op.lister.OperatorsV1alpha1().CatalogSourceLister())),
 		queueinformer.WithLogger(op.logger),
 		queueinformer.WithQueue(catsrcQueue),
 		queueinformer.WithInformer(catsrcInformer.Informer()),
@@ -237,7 +237,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 	subQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
-		queueinformer.WithMetricsProvider(metrics.NewMetricsSubscription(op.client)),
+		queueinformer.WithMetricsProvider(metrics.NewMetricsSubscription(op.lister.OperatorsV1alpha1().SubscriptionLister())),
 		queueinformer.WithLogger(op.logger),
 		queueinformer.WithQueue(subQueue),
 		queueinformer.WithInformer(subInformer.Informer()),

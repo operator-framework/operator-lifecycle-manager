@@ -1,14 +1,11 @@
 package metrics
 
 import (
-	"context"
-
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	olmv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 )
 
@@ -45,54 +42,54 @@ func (m *metricsCSV) HandleMetrics() error {
 }
 
 type metricsInstallPlan struct {
-	client versioned.Interface
+	lister v1alpha1.InstallPlanLister
 }
 
-func NewMetricsInstallPlan(client versioned.Interface) MetricsProvider {
-	return &metricsInstallPlan{client}
+func NewMetricsInstallPlan(lister v1alpha1.InstallPlanLister) MetricsProvider {
+	return &metricsInstallPlan{lister}
 }
 
 func (m *metricsInstallPlan) HandleMetrics() error {
-	cList, err := m.client.OperatorsV1alpha1().InstallPlans(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	cList, err := m.lister.InstallPlans(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	installPlanCount.Set(float64(len(cList.Items)))
+	installPlanCount.Set(float64(len(cList)))
 	return nil
 }
 
 type metricsSubscription struct {
-	client versioned.Interface
+	 lister v1alpha1.SubscriptionLister
 }
 
-func NewMetricsSubscription(client versioned.Interface) MetricsProvider {
-	return &metricsSubscription{client}
+func NewMetricsSubscription(lister v1alpha1.SubscriptionLister) MetricsProvider {
+	return &metricsSubscription{lister}
 }
 
 func (m *metricsSubscription) HandleMetrics() error {
-	cList, err := m.client.OperatorsV1alpha1().Subscriptions(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	cList, err := m.lister.Subscriptions(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	subscriptionCount.Set(float64(len(cList.Items)))
+	subscriptionCount.Set(float64(len(cList)))
 	return nil
 }
 
 type metricsCatalogSource struct {
-	client versioned.Interface
+	lister v1alpha1.CatalogSourceLister
 }
 
-func NewMetricsCatalogSource(client versioned.Interface) MetricsProvider {
-	return &metricsCatalogSource{client}
+func NewMetricsCatalogSource(lister v1alpha1.CatalogSourceLister) MetricsProvider {
+	return &metricsCatalogSource{lister}
 
 }
 
 func (m *metricsCatalogSource) HandleMetrics() error {
-	cList, err := m.client.OperatorsV1alpha1().CatalogSources(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	cList, err := m.lister.CatalogSources(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	catalogSourceCount.Set(float64(len(cList.Items)))
+	catalogSourceCount.Set(float64(len(cList)))
 	return nil
 }
 
