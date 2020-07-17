@@ -70,9 +70,10 @@ func TestGeneratesWithinRange(t *testing.T) {
 	require.NoError(t, quick.Check(f, nil))
 }
 
-func TestRBACBindings(t *testing.T) {
+func TestRBACForClusterServiceVersion(t *testing.T) {
 	serviceAccount1 := "test-service-account"
-	serviceAccount2 := "second-account"
+	serviceAccount2 := "second-service-account"
+	csvName := "test-csv.v1.1.0"
 
 	rules := []rbacv1.PolicyRule{
 		{
@@ -82,16 +83,20 @@ func TestRBACBindings(t *testing.T) {
 		},
 	}
 
+	// Note: two CSVs have same name and permissions for a cluster role, this is chosen intentionally,
+	// to verify that ClusterRole and ClusterRoleBinding have different names when the same CSV is installed
+	// twice in the same cluster, but in different namespaces.
 	tests := []struct {
 		name string
 		csv  v1alpha1.ClusterServiceVersion
 		want map[string]*OperatorPermissions
 	}{
 		{
-			name: "RoleBinding",
+			name: "RoleBindings and one ClusterRoleBinding",
 			csv: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-csv-1.1.0",
+					Name:      csvName,
+					Namespace: "test-namespace",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					InstallStrategy: v1alpha1.NamedInstallStrategy{
@@ -117,13 +122,20 @@ func TestRBACBindings(t *testing.T) {
 									Rules:              rules,
 								},
 							},
+							ClusterPermissions: []v1alpha1.StrategyDeploymentPermissions{
+								{
+									ServiceAccountName: serviceAccount1,
+									Rules:              rules,
+								},
+							},
 						},
 					},
 				},
 			},
 			want: map[string]*OperatorPermissions{
 				serviceAccount1: {
-					RoleBindings: []*rbacv1.RoleBinding{{}, {}},
+					RoleBindings:        []*rbacv1.RoleBinding{{}, {}},
+					ClusterRoleBindings: []*rbacv1.ClusterRoleBinding{{}},
 				},
 				serviceAccount2: {
 					RoleBindings: []*rbacv1.RoleBinding{{}},
@@ -134,7 +146,8 @@ func TestRBACBindings(t *testing.T) {
 			name: "ClusterRoleBinding",
 			csv: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "second-csv-1.1.0",
+					Name:      csvName,
+					Namespace: "second-namespace",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
 					InstallStrategy: v1alpha1.NamedInstallStrategy{
@@ -164,13 +177,18 @@ func TestRBACBindings(t *testing.T) {
 			},
 		},
 	}
+
+	// declared here to verify that names are unique when same csv is install in different namespaces
+	clusterRoleBindingNames := map[string]bool{}
+	clusterRolesNames := map[string]bool{}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := RBACForClusterServiceVersion(&tt.csv)
 			require.NoError(t, err)
 
 			roleBindingNames := map[string]bool{}
-			clusterRoleBindingNames := map[string]bool{}
+			rolesNames := map[string]bool{}
 			for serviceAccount, permissions := range tt.want {
 				// Check that correct number of bindings is created
 				require.Equal(t, len(permissions.RoleBindings), len(result[serviceAccount].RoleBindings))
@@ -196,6 +214,20 @@ func TestRBACBindings(t *testing.T) {
 					_, crbWithNameExists := clusterRoleBindingNames[clusterRoleBinding.Name]
 					require.False(t, crbWithNameExists, "ClusterRoleBinding with the same name already generated")
 					clusterRoleBindingNames[clusterRoleBinding.Name] = true
+				}
+
+				// Check that Roles are created with unique names
+				for _, role := range result[serviceAccount].Roles {
+					_, roleWithNameExists := rolesNames[role.Name]
+					require.False(t, roleWithNameExists, "Role with the same name already generated")
+					rolesNames[role.Name] = true
+				}
+
+				// Check that ClusterRoles are created with unique names
+				for _, clusterRole := range result[serviceAccount].ClusterRoles {
+					_, crWithNameExists := clusterRolesNames[clusterRole.Name]
+					require.False(t, crWithNameExists, "ClusterRole with the same name already generated")
+					clusterRolesNames[clusterRole.Name] = true
 				}
 			}
 		})
