@@ -89,7 +89,7 @@ func TestSolve(t *testing.T) {
 	type tc struct {
 		Name         string
 		Installables []Installable
-		Installed    []Installable
+		Installed    []Identifier
 		Error        error
 	}
 
@@ -104,7 +104,7 @@ func TestSolve(t *testing.T) {
 		{
 			Name:         "single mandatory installable is installed",
 			Installables: []Installable{installable("a", Mandatory())},
-			Installed:    []Installable{installable("a", Mandatory())},
+			Installed:    []Identifier{"a"},
 		},
 		{
 			Name:         "both mandatory and prohibited produce error",
@@ -126,10 +126,7 @@ func TestSolve(t *testing.T) {
 				installable("a"),
 				installable("b", Mandatory(), Dependency("a")),
 			},
-			Installed: []Installable{
-				installable("a"),
-				installable("b", Mandatory(), Dependency("a")),
-			},
+			Installed: []Identifier{"a", "b"},
 		},
 		{
 			Name: "transitive dependency is installed",
@@ -138,11 +135,7 @@ func TestSolve(t *testing.T) {
 				installable("b", Dependency("a")),
 				installable("c", Mandatory(), Dependency("b")),
 			},
-			Installed: []Installable{
-				installable("a"),
-				installable("b", Dependency("a")),
-				installable("c", Mandatory(), Dependency("b")),
-			},
+			Installed: []Identifier{"a", "b", "c"},
 		},
 		{
 			Name: "both dependencies are installed",
@@ -151,11 +144,7 @@ func TestSolve(t *testing.T) {
 				installable("b"),
 				installable("c", Mandatory(), Dependency("a"), Dependency("b")),
 			},
-			Installed: []Installable{
-				installable("a"),
-				installable("b"),
-				installable("c", Mandatory(), Dependency("a"), Dependency("b")),
-			},
+			Installed: []Identifier{"a", "b", "c"},
 		},
 		{
 			Name: "solution with first dependency is selected",
@@ -164,10 +153,7 @@ func TestSolve(t *testing.T) {
 				installable("b", Conflict("a")),
 				installable("c", Mandatory(), Dependency("a", "b")),
 			},
-			Installed: []Installable{
-				installable("a"),
-				installable("c", Mandatory(), Dependency("a", "b")),
-			},
+			Installed: []Identifier{"a", "c"},
 		},
 		{
 			Name: "solution with only first dependency is selected",
@@ -176,10 +162,7 @@ func TestSolve(t *testing.T) {
 				installable("b"),
 				installable("c", Mandatory(), Dependency("a", "b")),
 			},
-			Installed: []Installable{
-				installable("a"),
-				installable("c", Mandatory(), Dependency("a", "b")),
-			},
+			Installed: []Identifier{"a", "c"},
 		},
 		{
 			Name: "solution with first dependency is selected (reverse)",
@@ -188,10 +171,7 @@ func TestSolve(t *testing.T) {
 				installable("b", Conflict("a")),
 				installable("c", Mandatory(), Dependency("b", "a")),
 			},
-			Installed: []Installable{
-				installable("b", Conflict("a")),
-				installable("c", Mandatory(), Dependency("b", "a")),
-			},
+			Installed: []Identifier{"b", "c"},
 		},
 		{
 			Name: "two mandatory but conflicting packages",
@@ -222,10 +202,7 @@ func TestSolve(t *testing.T) {
 				installable("x"),
 				installable("y"),
 			},
-			Installed: []Installable{
-				installable("b", Mandatory(), Dependency("y", "x")),
-				installable("y"),
-			},
+			Installed: []Identifier{"b", "y"},
 		},
 		{
 			Name: "cardinality constraint prevents resolution",
@@ -257,11 +234,7 @@ func TestSolve(t *testing.T) {
 				installable("x"),
 				installable("y"),
 			},
-			Installed: []Installable{
-				installable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
-				installable("b", Mandatory(), Dependency("y")),
-				installable("y"),
-			},
+			Installed: []Identifier{"a", "b", "y"},
 		},
 		{
 			Name: "two dependencies satisfied by one installable",
@@ -271,11 +244,19 @@ func TestSolve(t *testing.T) {
 				installable("x"),
 				installable("y"),
 			},
-			Installed: []Installable{
-				installable("a", Mandatory(), Dependency("y")),
+			Installed: []Identifier{"a", "b", "y"},
+		},
+		{
+			Name: "foo two dependencies satisfied by one installable",
+			Installables: []Installable{
+				installable("a", Mandatory(), Dependency("y", "z", "m")),
 				installable("b", Mandatory(), Dependency("x", "y")),
+				installable("x"),
 				installable("y"),
+				installable("z"),
+				installable("m"),
 			},
+			Installed: []Identifier{"a", "b", "y"},
 		},
 		{
 			Name: "result size larger than minimum due to preference",
@@ -285,12 +266,7 @@ func TestSolve(t *testing.T) {
 				installable("x"),
 				installable("y"),
 			},
-			Installed: []Installable{
-				installable("a", Mandatory(), Dependency("x", "y")),
-				installable("b", Mandatory(), Dependency("y")),
-				installable("x"),
-				installable("y"),
-			},
+			Installed: []Identifier{"a", "b", "x", "y"},
 		},
 		{
 			Name: "only the least preferable choice is acceptable",
@@ -305,14 +281,18 @@ func TestSolve(t *testing.T) {
 				installable("c1"),
 				installable("c2"),
 			},
-			Installed: []Installable{
-				installable("a", Mandatory(), Dependency("a1", "a2")),
-				installable("a2", Conflict("c1")),
-				installable("b", Mandatory(), Dependency("b1", "b2")),
-				installable("b2", Conflict("c1")),
-				installable("c", Mandatory(), Dependency("c1", "c2")),
-				installable("c2"),
+			Installed: []Identifier{"a", "a2", "b", "b2", "c", "c2"},
+		},
+		{
+			Name: "preferences respected with multiple dependencies per installable",
+			Installables: []Installable{
+				installable("a", Mandatory(), Dependency("x1", "x2"), Dependency("y1", "y2")),
+				installable("x1"),
+				installable("x2"),
+				installable("y1"),
+				installable("y2"),
 			},
+			Installed: []Identifier{"a", "x1", "y1"},
 		},
 	} {
 		t.Run(tt.Name, func(t *testing.T) {
@@ -360,7 +340,11 @@ func TestSolve(t *testing.T) {
 				})
 			}
 
-			assert.Equal(tt.Installed, installed)
+			var ids []Identifier
+			for _, installable := range installed {
+				ids = append(ids, installable.Identifier())
+			}
+			assert.Equal(tt.Installed, ids)
 			assert.Equal(tt.Error, err)
 
 			if t.Failed() {
@@ -369,9 +353,3 @@ func TestSolve(t *testing.T) {
 		})
 	}
 }
-
-// TODO: the search tests should verify that by the time we're done searching and returned
-// to the CardSort, we're no longer in a deeper test context than we should be.
-//func TestSearch(t *testing.T) {
-//
-//}

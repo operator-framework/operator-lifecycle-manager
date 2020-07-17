@@ -91,6 +91,9 @@ func Prohibited() Constraint {
 type dependency []Identifier
 
 func (constraint dependency) String(subject Identifier) string {
+	if len(constraint) == 0 {
+		return fmt.Sprintf("%s has a dependency without any candidates to satisfy it", subject)
+	}
 	s := make([]string, len(constraint))
 	for i, each := range constraint {
 		s[i] = string(each)

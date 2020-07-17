@@ -187,7 +187,7 @@ func (d *litMapping) Lits(dst []z.Lit) []z.Lit {
 	return dst
 }
 
-func (d *litMapping) Conflicts(g inter.S) []AppliedConstraint {
+func (d *litMapping) Conflicts(g inter.Assumable) []AppliedConstraint {
 	whys := g.Why(nil)
 	as := make([]AppliedConstraint, 0, len(whys))
 	for _, why := range whys {
