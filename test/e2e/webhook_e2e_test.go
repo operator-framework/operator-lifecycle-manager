@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -573,6 +574,78 @@ var _ = Describe("CSVs with a Webhook", func() {
 			return
 		}).Should(Equal(2))
 	})
+	When("WebhookDescription has conversionCrds field", func() {
+		var cleanupCSV cleanupFunc
+		BeforeEach(func() {
+			og := newOperatorGroup(namespace.Name, genName("global-og-"), nil, nil, []string{}, false)
+			og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
+			Expect(err).Should(BeNil())
+		})
+		AfterEach(func() {
+			if cleanupCSV != nil {
+				cleanupCSV()
+			}
+		})
+		It("The conversion crd is updated via webhook", func() {
+			// create CRD
+			crd1Plural := genName("opgroup")
+			crd1 := newV1CRD(crd1Plural)
+			cleanupCRD, er := createV1CRD(c, crd1)
+			require.NoError(GinkgoT(), er)
+			defer cleanupCRD()
+
+			// create another CRD
+			crd2Plural := genName("opgroup")
+			crd2 := newV1CRD(crd2Plural)
+			cleanupCRD2, er := createV1CRD(c, crd2)
+			require.NoError(GinkgoT(), er)
+			defer cleanupCRD2()
+
+			// describe webhook
+			sideEffect := admissionregistrationv1.SideEffectClassNone
+			webhook := v1alpha1.WebhookDescription{
+				GenerateName:            webhookName,
+				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				DeploymentName:          genName("webhook-dep-"),
+				ContainerPort:           443,
+				AdmissionReviewVersions: []string{"v1beta1", "v1"},
+				SideEffects:             &sideEffect,
+				ConversionCrds:          []string{crd1.GetName(), crd2.GetName()},
+			}
+
+			// create csv
+			csv := createCSVWithWebhook(namespace.GetName(), webhook)
+
+			var err error
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
+			Expect(err).Should(BeNil())
+
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
+			Expect(err).Should(BeNil())
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+			Expect(err).Should(BeNil())
+
+			expected := &metav1.LabelSelector{
+				MatchLabels:      map[string]string(nil),
+				MatchExpressions: []metav1.LabelSelectorRequirement(nil),
+			}
+			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(expected))
+
+			expectedUpdatedCrdFields := &apiextensionsv1.CustomResourceConversion{
+				Strategy: "Webhook",
+			}
+
+			// Read the updated crd1 on cluster into the following crd
+			tempCrd1, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crd1.GetName(), metav1.GetOptions{})
+
+			// Read the updated crd1 on cluster into the following crd
+			tempCrd2, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crd2.GetName(), metav1.GetOptions{})
+
+			Expect(tempCrd1.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
+			Expect(tempCrd2.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
+
+		})
+	})
 })
 
 func getWebhookWithGenerateName(c operatorclient.ClientInterface, generateName string) (*admissionregistrationv1.ValidatingWebhookConfiguration, error) {
@@ -623,4 +696,52 @@ func createCSVWithWebhook(namespace string, webhookDesc v1alpha1.WebhookDescript
 			InstallStrategy: newNginxInstallStrategy(webhookDesc.DeploymentName, nil, nil),
 		},
 	}
+}
+
+func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
+	crd := apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: plural + ".cluster.com",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "cluster.com",
+			Scope: "Cluster",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type:        "object",
+							Description: "my crd schema",
+						},
+					},
+				},
+				{
+					Name:    "v1alpha2",
+					Served:  true,
+					Storage: false,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type:        "object",
+							Description: "my crd schema",
+						},
+					},
+				},
+			},
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   plural,
+				Singular: plural,
+				Kind:     plural,
+				ListKind: plural + "list",
+			},
+			PreserveUnknownFields: false,
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1", "v1alpha2"},
+		},
+	}
+
+	return crd
 }
