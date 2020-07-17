@@ -370,7 +370,7 @@ func (o *Operator) Dependencies() []*api.Dependency {
 
 func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
 	predicates = make([]OperatorPredicate, 0)
-	for _, d := range o.bundle.Dependencies {
+	for _, d := range o.Dependencies() {
 		var p OperatorPredicate
 		if d == nil || d.Type == "" {
 			continue
