@@ -3,14 +3,13 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-
 	"github.com/blang/semver"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
+	"sort"
 )
 
 type OperatorResolver interface {
@@ -86,14 +85,14 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 
 		// find operators, in channel order, that can skip from the current version or list the current in "replaces"
-		replacementInstallables, err := r.getSubscriptionInstallables(pkg, current, catalog, predicates, channelFilter, namespacedCache, visited)
+		subInstallables, err := r.getSubscriptionInstallables(pkg, current, catalog, predicates, channelFilter, namespacedCache, visited)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		for _, repInstallable := range replacementInstallables {
-			installables = append(installables, repInstallable)
+		for _, i := range subInstallables {
+			installables = append(installables, i)
 		}
 	}
 
@@ -174,7 +173,7 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 
 	for _, o := range Filter(sortedBundles, channelPredicates...) {
 		predicates := append(cachePredicates, WithCSVName(o.Identifier()))
-		id, installable, err := r.getBundleInstallables(catalog, predicates, catalog, namespacedCache, visited)
+		id, installable, err := r.getBundleInstallables(catalog, predicates, namespacedCache, visited)
 		if err != nil {
 			return nil, err
 		}
@@ -205,7 +204,7 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 	return installables, nil
 }
 
-func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predicates []OperatorPredicate, preferredCatalog registry.CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
+func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
 	errs := []error{}
 	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
 
@@ -252,28 +251,29 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 		}
 		for _, d := range dependencyPredicates {
 			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
-			candidateBundles, _ := AtLeast(1, namespacedCache.Find(d))
-
+			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundleSource.Catalog, d))
+			// TODO: candidates can be in multiple catalogs. This sort account for catalog order / channel order / etc
+			r.sortByVersion(candidateBundles)
 			bundleDependencies := make(map[solver.Identifier]struct{}, 0)
 			for _, dep := range candidateBundles {
-				// TODO: search in preferred catalog
-				candidateBundles := namespacedCache.Find(WithCSVName(dep.Identifier()))
-
-				sortedCandidates := r.sortByVersion(candidateBundles)
-
-				for _, b := range sortedCandidates {
-					src := b.SourceInfo()
-					if src == nil {
-						err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
-						errs = append(errs, err)
-						continue
-					}
-
-					i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, bundleSource.Catalog)
-					installables[i.Identifier()] = &i
-					bundleDependencies[i.Identifier()] = struct{}{}
-					bundleStack = append(bundleStack, b)
+				found := namespacedCache.Catalog(dep.SourceInfo().Catalog).Find(WithCSVName(dep.Identifier()))
+				if len(found) > 1 {
+					err := fmt.Errorf("found duplicate entries for %s in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
+					errs = append(errs, err)
+					continue
 				}
+				b := found[0]
+				src := b.SourceInfo()
+				if src == nil {
+					err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
+					errs = append(errs, err)
+					continue
+				}
+
+				i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, src.Catalog)
+				installables[i.Identifier()] = &i
+				bundleDependencies[i.Identifier()] = struct{}{}
+				bundleStack = append(bundleStack, b)
 			}
 
 			bundleInstallable.AddDependencyFromSet(bundleDependencies)
@@ -294,37 +294,18 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 	return ids, installables, nil
 }
 
-func (r *SatResolver) sortByVersion(bundles []*Operator) []*Operator {
-	versionMap := make(map[string]*Operator, 0)
-	versionSlice := make([]semver.Version, 0)
-	unsortableList := make([]*Operator, 0)
-
+func (r *SatResolver) sortByVersion(bundles []*Operator) {
 	zeroVersion, _ := semver.Make("")
 
-	for _, bundle := range bundles {
-		version := bundle.Version() // initialized to zero value if not set in CSV
-		if version.Equals(zeroVersion) {
-			unsortableList = append(unsortableList, bundle)
-			continue
+	// sort descending
+	sort.Slice(bundles, func(i, j int) bool {
+		iv := bundles[i].Version()
+		jv := bundles[j].Version()
+		if iv.Equals(zeroVersion) || jv.Equals(zeroVersion) {
+			return bundles[i].Identifier() > bundles[j].Identifier()
 		}
-
-		versionMap[version.String()] = bundle
-		versionSlice = append(versionSlice, *version)
-	}
-
-	semver.Sort(versionSlice)
-
-	// todo: if len(versionSlice == 0) then try to build the graph and sort that way
-
-	sortedBundles := make([]*Operator, 0)
-	for _, sortedVersion := range versionSlice {
-		sortedBundles = append(sortedBundles, versionMap[sortedVersion.String()])
-	}
-	for _, unsortable := range unsortableList {
-		sortedBundles = append(sortedBundles, unsortable)
-	}
-
-	return sortedBundles
+		return iv.GT(*jv)
+	})
 }
 
 // sorts bundle in a channel by replaces
