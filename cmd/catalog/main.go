@@ -71,7 +71,7 @@ var (
 		"profiling", false, "serve profiling data (on port 8080)")
 
 	resolverV2Enable = flag.Bool(
-		resolverV2EnableEnvVarName, false, "using resolver V2")
+		resolverV2EnableEnvVarName, true, "using resolver V2")
 )
 
 func init() {
