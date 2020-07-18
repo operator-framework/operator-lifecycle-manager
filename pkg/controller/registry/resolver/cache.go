@@ -88,9 +88,19 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 		c.m.RLock()
 		defer c.m.RUnlock()
 		for key := range clients {
-			if snapshot, ok := c.snapshots[key]; ok && !snapshot.Expired(now) && snapshot.operators != nil && len(snapshot.operators) > 0 {
-				result.snapshots[key] = snapshot
-			} else {
+			snapshot, ok := c.snapshots[key]
+			if ok {
+				func() {
+					snapshot.m.RLock()
+					defer snapshot.m.RUnlock()
+					if !snapshot.Expired(now) && snapshot.operators != nil && len(snapshot.operators) > 0 {
+						result.snapshots[key] = snapshot
+					} else {
+						misses = append(misses, key)
+					}
+				}()
+			}
+			if !ok {
 				misses = append(misses, key)
 			}
 		}
@@ -183,6 +193,7 @@ func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder 
 
 func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
 	var result []*Operator
+
 	sorted := NewSortableSnapshots(c.namespaces, c.snapshots)
 	sort.Sort(sorted)
 	for _, snapshot := range sorted.snapshots {
