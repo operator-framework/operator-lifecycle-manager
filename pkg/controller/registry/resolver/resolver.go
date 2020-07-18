@@ -35,9 +35,6 @@ type debugWriter struct {
 
 func (w *debugWriter) Write(b []byte) (int, error) {
 	n := len(b)
-	if n > 0 && b[n-1] == '\n' {
-		b = b[:n-1]
-	}
 	w.Debug(b)
 	return n, nil
 }
@@ -181,9 +178,8 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 		if err != nil {
 			return nil, err
 		}
-		if len(id) != 1 {
-			// TODO better messages
-			return nil, fmt.Errorf("trouble generating installable for potential replacement bundle")
+		if len(id) < 1 {
+			return nil, fmt.Errorf("could not find any potential bundles for subscription: %s", pkg)
 		}
 
 		for _, i := range installable {
@@ -210,9 +206,8 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 }
 
 func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predicates []OperatorPredicate, preferredCatalog registry.CatalogKey, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
-	var errs []error
-	installables := make(map[solver.Identifier]*BundleInstallable, 0) // aggregate all of the installables at every depth
-	identifiers := make(map[solver.Identifier]struct{}, 0)            // keep track of depth + 1 dependencies
+	errs := []error{}
+	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
 
 	var finder OperatorFinder = namespacedCache
 	if !catalog.IsEmpty() {
@@ -220,8 +215,19 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 	}
 
 	bundleStack := finder.Find(predicates...)
-	for _, bundle := range bundleStack {
+
+	// track the first layer of installable ids
+	var initial = make(map[*Operator]struct{})
+	for _, o := range bundleStack {
+		initial[o] = struct{}{}
+	}
+
+	for {
+		if len(bundleStack) == 0 {
+			break
+		}
 		// pop from the stack
+		bundle := bundleStack[len(bundleStack)-1]
 		bundleStack = bundleStack[:len(bundleStack)-1]
 
 		bundleSource := bundle.SourceInfo()
@@ -233,7 +239,6 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 
 		if b, ok := visited[bundle]; ok {
 			installables[b.identifier] = b
-			identifiers[b.Identifier()] = struct{}{}
 			continue
 		}
 
@@ -275,19 +280,22 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 				}
 			}
 
-			// TODO: IMPORTANT: current a solver bug will skip later dependency clauses
 			bundleInstallable.AddDependencyFromSet(bundleDependencies)
 		}
 
 		installables[bundleInstallable.Identifier()] = &bundleInstallable
-		identifiers[bundleInstallable.Identifier()] = struct{}{}
 	}
 
 	if len(errs) > 0 {
 		return nil, nil, utilerrors.NewAggregate(errs)
 	}
 
-	return identifiers, installables, nil
+	ids := make(map[solver.Identifier]struct{}, 0) // immediate installables found via predicates
+	for o := range initial {
+		ids[visited[o].Identifier()] = struct{}{}
+	}
+
+	return ids, installables, nil
 }
 
 func (r *SatResolver) sortByVersion(bundles []*Operator) []*Operator {

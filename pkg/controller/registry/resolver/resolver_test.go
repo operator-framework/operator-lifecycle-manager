@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"github.com/sirupsen/logrus"
+	"os"
 	"testing"
 
 	"github.com/blang/semver"
@@ -210,77 +212,84 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	}
 }
 
-//
-//func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
-//	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
-//	Provides := APISet
-//
-//	namespace := "olm"
-//	catalog := registry.CatalogKey{"community", namespace}
-//
-//	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-//	csvs := []*v1alpha1.ClusterServiceVersion{csv}
-//	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-//	newSub := newSub(namespace, "packageB", "alpha", catalog)
-//	subs := []*v1alpha1.Subscription{sub, newSub}
-//
-//	opToAddVersionDeps := []*api.Dependency{
-//		{
-//			Type:  "olm.package",
-//			Value: `{"packageName":"packageC","version":"1.0.1"}`,
-//		},
-//		{
-//			Type:  "olm.package",
-//			Value: `{"packageName":"packageD","version":"1.0.1"}`,
-//		},
-//	}
-//	nestedVersionDeps := []*api.Dependency{
-//		{
-//			Type:  "olm.package",
-//			Value: `{"packageName":"packageE","version":"1.0.1"}`,
-//		},
-//	}
-//
-//	fakeNamespacedOperatorCache := NamespacedOperatorCache{
-//		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
-//			registry.CatalogKey{
-//				Namespace: "olm",
-//				Name:      "community",
-//			}: {
-//				operators: []*Operator{
-//					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-//					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
-//					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
-//					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-//					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps),
-//					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps),
-//					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, nil, nil),
-//					genOperator("packageE.v1.0.1", "1.0.1", "", "packageE", "alpha", "community", "olm", nil, nil, nil),
-//					genOperator("packageE.v1.0.0", "1.0.0", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil),
-//				},
-//			},
-//		},
-//	}
-//	satResolver := SatResolver{
-//		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-//	}
-//
-//	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
-//	assert.NoError(t, err)
-//	assert.Equal(t, 5, len(operators))
-//
-//	expected := OperatorSet{
-//		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-//		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-//		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil),
-//		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil),
-//		"packageE.v1.0.1": genOperator("packageE.v1.0.1", "1.0.1", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil),
-//	}
-//	for k := range expected {
-//		require.NotNil(t, operators[k])
-//		assert.EqualValues(t, k, operators[k].Identifier())
-//	}
-//}
+
+func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides := APISet
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{"community", namespace}
+
+	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
+	csvs := []*v1alpha1.ClusterServiceVersion{csv}
+	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub, newSub}
+
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.package",
+			Value: `{"packageName":"packageC","version":"1.0.1"}`,
+		},
+		{
+			Type:  "olm.package",
+			Value: `{"packageName":"packageD","version":"1.0.1"}`,
+		},
+	}
+	nestedVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.package",
+			Value: `{"packageName":"packageE","version":"1.0.1"}`,
+		},
+	}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
+				Namespace: "olm",
+				Name:      "community",
+			}: {
+				operators: []*Operator{
+					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
+					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps),
+					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps),
+					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageE.v1.0.1", "1.0.1", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageE.v1.0.0", "1.0.0", "", "packageE", "alpha", "community", "olm", nil, nil, nil),
+				},
+			},
+		},
+	}
+	logger := logrus.New()
+	logger.SetLevel(logrus.DebugLevel)
+	logger.SetOutput(os.Stdout)
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log: logger,
+	}
+
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	assert.NoError(t, err)
+	assert.Equal(t, 5, len(operators))
+
+	expected := OperatorSet{
+		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
+		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
+		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil),
+		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil),
+		"packageE.v1.0.1": genOperator("packageE.v1.0.1", "1.0.1", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil),
+	}
+	for _, o := range operators {
+		t.Logf("%#v", o)
+	}
+	for k := range expected {
+		require.NotNil(t, operators[k])
+		assert.EqualValues(t, k, operators[k].Identifier())
+	}
+}
 //
 //func TestSolveOperators_WithDependencies(t *testing.T) {
 //	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
