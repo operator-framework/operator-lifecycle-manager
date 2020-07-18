@@ -229,9 +229,9 @@ func SharedResolverSpecs() []resolverTest {
 					{
 						Installable: &BundleInstallable{
 							identifier:  "catsrc/catsrc-namespace/alpha/a.v1",
-							constraints: []solver.Constraint{solver.Prohibited()},
+							constraints: []solver.Constraint{solver.Dependency()},
 						},
-						Constraint: solver.Prohibited(),
+						Constraint: solver.Dependency(),
 					},
 					{
 						Installable: &SubscriptionInstallable{
@@ -700,7 +700,15 @@ func TestResolver(t *testing.T) {
 			} else {
 				// the solver outputs useful information on a failed resolution, which is different from the old resolver
 				require.NotNil(t, err)
-				require.ElementsMatch(t, tt.out.solverError, err.(solver.NotSatisfiable))
+				expectedStrings := []string{}
+				for _, e := range tt.out.solverError {
+					expectedStrings = append(expectedStrings, e.String())
+				}
+				actualStrings := []string{}
+				for _, e := range err.(solver.NotSatisfiable) {
+					actualStrings = append(actualStrings, e.String())
+				}
+				require.ElementsMatch(t, expectedStrings, actualStrings)
 			}
 			RequireStepsEqual(t, expectedSteps, steps)
 			require.ElementsMatch(t, tt.out.lookups, lookups)

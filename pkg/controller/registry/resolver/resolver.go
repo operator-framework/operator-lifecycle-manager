@@ -251,17 +251,13 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			continue
 		}
 		for _, d := range dependencyPredicates {
-			candidateBundles, err := AtLeast(1, namespacedCache.Find(d))
-			if err != nil {
-				// If there are no candidates for a dependency, it means this bundle can't be resolved
-				bundleInstallable.MakeProhibited()
-				continue
-			}
+			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
+			candidateBundles, _ := AtLeast(1, namespacedCache.Find(d))
 
 			bundleDependencies := make(map[solver.Identifier]struct{}, 0)
 			for _, dep := range candidateBundles {
 				// TODO: search in preferred catalog
-				candidateBundles := finder.Find(WithCSVName(dep.Identifier()))
+				candidateBundles := namespacedCache.Find(WithCSVName(dep.Identifier()))
 
 				sortedCandidates := r.sortByVersion(candidateBundles)
 
