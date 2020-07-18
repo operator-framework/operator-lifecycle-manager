@@ -1497,6 +1497,8 @@ func TestCreateNewSubscriptionWithDependenciesSamePackage(t *testing.T) {
 	csvB := newCSV("nginx-b-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
 	// csvC provides CRD2 in the different catalogsource with csvA (apackage)
 	csvC := newCSV("nginx-c-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, depNamedStrategy2)
+	// csvD provides CRD1 in the same catalogsource with csvA (apackage)
+	csvD := newCSV("nginx-d-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
 
 	// Create PackageManifests 1
 	// Contain csvA, ABC and B
@@ -1512,6 +1514,7 @@ func TestCreateNewSubscriptionWithDependenciesSamePackage(t *testing.T) {
 		{
 			PackageName: packageName2,
 			Channels: []registry.PackageChannel{
+				{Name: alphaChannel, CurrentCSVName: csvD.GetName()},
 				{Name: stableChannel, CurrentCSVName: csvB.GetName()},
 			},
 			DefaultChannelName: stableChannel,
@@ -1531,7 +1534,7 @@ func TestCreateNewSubscriptionWithDependenciesSamePackage(t *testing.T) {
 	}
 
 	catalogSourceName := genName("catsrc")
-	catsrc, cleanup := createInternalCatalogSource(t, kubeClient, crClient, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvABC, csvB})
+	catsrc, cleanup := createInternalCatalogSource(t, kubeClient, crClient, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvABC, csvB, csvD})
 	defer cleanup()
 
 	// Ensure that the catalog source is resolved before we create a subscription.
@@ -1576,6 +1579,9 @@ func TestCreateNewSubscriptionWithDependenciesSamePackage(t *testing.T) {
 	require.NoError(t, err)
 	// Ensure csvABC is not installed
 	_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(csvABC.Name, metav1.GetOptions{})
+	require.Error(t, err)
+	// Ensure csvD is not installed -- this implies the dependent subscription selected the default channel
+	_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(csvD.Name, metav1.GetOptions{})
 	require.Error(t, err)
 }
 
