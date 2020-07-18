@@ -191,15 +191,19 @@ func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder 
 	return EmptyOperatorFinder{}
 }
 
-func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
+func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, p ...OperatorPredicate) []*Operator {
 	var result []*Operator
 
-	sorted := NewSortableSnapshots(c.namespaces, c.snapshots)
+	sorted := NewSortableSnapshots(preferred, c.namespaces, c.snapshots)
 	sort.Sort(sorted)
 	for _, snapshot := range sorted.snapshots {
 		result = append(result, snapshot.Find(p...)...)
 	}
 	return result
+}
+
+func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
+	return c.FindPreferred(nil, p...)
 }
 
 type CatalogSnapshot struct {
@@ -222,10 +226,12 @@ func (s *CatalogSnapshot) Expired(at time.Time) bool {
 type SortableSnapshots struct {
 	snapshots  []*CatalogSnapshot
 	namespaces map[string]int
+	preferred *registry.CatalogKey
 }
 
-func NewSortableSnapshots(namespaces []string, snapshots map[registry.CatalogKey]*CatalogSnapshot) SortableSnapshots {
+func NewSortableSnapshots(preferred *registry.CatalogKey, namespaces []string, snapshots map[registry.CatalogKey]*CatalogSnapshot) SortableSnapshots {
 	sorted := SortableSnapshots{
+		preferred: preferred,
 		snapshots:  make([]*CatalogSnapshot, 0),
 		namespaces: make(map[string]int, 0),
 	}
@@ -248,6 +254,12 @@ func (s SortableSnapshots) Len() int {
 // Less reports whether the element with
 // index i should sort before the element with index j.
 func (s SortableSnapshots) Less(i, j int) bool {
+	// preferred catalog is greater than all others
+	if s.preferred != nil &&
+		s.snapshots[j].key.Name == s.preferred.Name &&
+		s.snapshots[j].key.Namespace == s.preferred.Namespace {
+		return true
+	}
 	if s.snapshots[i].key.Namespace != s.snapshots[j].key.Namespace {
 		return s.namespaces[s.snapshots[i].key.Namespace] < s.namespaces[s.snapshots[j].key.Namespace]
 	}
@@ -273,6 +285,7 @@ type OperatorFinder interface {
 
 type MultiCatalogOperatorFinder interface {
 	Catalog(registry.CatalogKey) OperatorFinder
+	FindPreferred(*registry.CatalogKey, ...OperatorPredicate) []*Operator
 	OperatorFinder
 }
 
