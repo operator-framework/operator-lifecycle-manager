@@ -353,3 +353,11 @@ func TestSolve(t *testing.T) {
 		})
 	}
 }
+
+func TestDuplicateIdentifier(t *testing.T) {
+	_, err := New(WithInput([]Installable{
+		installable("a"),
+		installable("a"),
+	}))
+	assert.Equal(t, DuplicateIdentifier("a"), err)
+}

@@ -9,6 +9,12 @@ import (
 	"github.com/irifrance/gini/z"
 )
 
+type DuplicateIdentifier Identifier
+
+func (e DuplicateIdentifier) Error() string {
+	return fmt.Sprintf("duplicate identifier %q in input", Identifier(e))
+}
+
 type inconsistentLitMapping []error
 
 func (inconsistentLitMapping) Error() string {
@@ -32,7 +38,7 @@ type litMapping struct {
 // the provided slice of Installables. This includes construction of
 // the translation tables between Installables/Constraints and the
 // inputs to the underlying solver.
-func newLitMapping(installables []Installable) *litMapping {
+func newLitMapping(installables []Installable) (*litMapping, error) {
 	d := litMapping{
 		inorder:      installables,
 		installables: make(map[z.Lit]Installable, len(installables)),
@@ -44,6 +50,9 @@ func newLitMapping(installables []Installable) *litMapping {
 	// First pass to assign lits:
 	for _, installable := range installables {
 		im := d.c.Lit()
+		if _, ok := d.lits[installable.Identifier()]; ok {
+			return nil, DuplicateIdentifier(installable.Identifier())
+		}
 		d.lits[installable.Identifier()] = im
 		d.installables[im] = installable
 	}
@@ -65,7 +74,7 @@ func newLitMapping(installables []Installable) *litMapping {
 		}
 	}
 
-	return &d
+	return &d, nil
 }
 
 // LitOf returns the positive literal corresponding to the Installable

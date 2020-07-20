@@ -131,8 +131,9 @@ type Option func(s *solver) error
 
 func WithInput(input []Installable) Option {
 	return func(s *solver) error {
-		s.litMap = newLitMapping(input)
-		return nil
+		var err error
+		s.litMap, err = newLitMapping(input)
+		return err
 	}
 }
 
@@ -146,7 +147,9 @@ func WithTracer(t Tracer) Option {
 var defaults = []Option{
 	func(s *solver) error {
 		if s.litMap == nil {
-			s.litMap = newLitMapping(nil)
+			var err error
+			s.litMap, err = newLitMapping(nil)
+			return err
 		}
 		return nil
 	},
