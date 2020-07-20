@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -644,9 +645,6 @@ var _ = Describe("Catalog", func() {
 		crc := newCRClient()
 		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
-		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
-		}()
 
 		// Wait for a new registry pod to be created
 		c := newKubeClient()
@@ -663,8 +661,7 @@ var _ = Describe("Catalog", func() {
 
 		// Create a Subscription for package
 		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
-		defer cleanupSubscription()
+		_ = createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 		// Wait for the Subscription to succeed
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
@@ -676,7 +673,25 @@ var _ = Describe("Catalog", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Delete the registry pod
-		require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(context.TODO(), name, metav1.DeleteOptions{}))
+		Eventually(func() error {
+			backgroundDeletion := metav1.DeletePropagationBackground
+			err = c.KubernetesInterface().CoreV1().Pods(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
+			if err != nil {
+				if k8serrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			return nil
+		}).Should(Succeed())
+
+		Eventually(func() error {
+			_, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).Get(context.TODO(), name, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}).Should(Succeed())
 
 		// Wait for a new registry pod to be created
 		notUID := func(pods *corev1.PodList) bool {
