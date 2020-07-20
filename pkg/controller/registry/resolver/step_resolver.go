@@ -30,6 +30,7 @@ var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 type StepResolver interface {
 	ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
+	Expire(key registry.CatalogKey)
 }
 
 type OperatorStepResolver struct {
@@ -58,6 +59,10 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 	}
 }
 
+func (r *OperatorStepResolver) Expire(key registry.CatalogKey) {
+	r.satResolver.cache.Expire(key)
+}
+
 func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	// create a generation - a representation of the current set of installed operators and their provided/required apis
 	allCSVs, err := r.csvLister.ClusterServiceVersions(namespace).List(labels.Everything())
@@ -84,17 +89,12 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	// get a list of new operators to add to the generation
 	add := r.sourceInfoForNewSubscriptions(namespace, subMap)
 
-	r.log.Debug("1")
-
 	var operators OperatorSet
 	namespaces := []string{namespace, r.globalCatalogNamespace}
 	operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	r.log.Debugf("%#v", operators)
-	r.log.Debug("2")
 
 	// if there's no error, we were able to satisfy all constraints in the subscription set, so we calculate what
 	// changes to persist to the cluster and write them out as `steps`

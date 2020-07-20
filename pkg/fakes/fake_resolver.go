@@ -5,10 +5,16 @@ import (
 	"sync"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 )
 
 type FakeStepResolver struct {
+	ExpireStub        func(registry.CatalogKey)
+	expireMutex       sync.RWMutex
+	expireArgsForCall []struct {
+		arg1 registry.CatalogKey
+	}
 	ResolveStepsStub        func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 	resolveStepsMutex       sync.RWMutex
 	resolveStepsArgsForCall []struct {
@@ -29,6 +35,37 @@ type FakeStepResolver struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeStepResolver) Expire(arg1 registry.CatalogKey) {
+	fake.expireMutex.Lock()
+	fake.expireArgsForCall = append(fake.expireArgsForCall, struct {
+		arg1 registry.CatalogKey
+	}{arg1})
+	fake.recordInvocation("Expire", []interface{}{arg1})
+	fake.expireMutex.Unlock()
+	if fake.ExpireStub != nil {
+		fake.ExpireStub(arg1)
+	}
+}
+
+func (fake *FakeStepResolver) ExpireCallCount() int {
+	fake.expireMutex.RLock()
+	defer fake.expireMutex.RUnlock()
+	return len(fake.expireArgsForCall)
+}
+
+func (fake *FakeStepResolver) ExpireCalls(stub func(registry.CatalogKey)) {
+	fake.expireMutex.Lock()
+	defer fake.expireMutex.Unlock()
+	fake.ExpireStub = stub
+}
+
+func (fake *FakeStepResolver) ExpireArgsForCall(i int) registry.CatalogKey {
+	fake.expireMutex.RLock()
+	defer fake.expireMutex.RUnlock()
+	argsForCall := fake.expireArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeStepResolver) ResolveSteps(arg1 string, arg2 resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
@@ -104,6 +141,8 @@ func (fake *FakeStepResolver) ResolveStepsReturnsOnCall(i int, result1 []*v1alph
 func (fake *FakeStepResolver) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
+	fake.expireMutex.RLock()
+	defer fake.expireMutex.RUnlock()
 	fake.resolveStepsMutex.RLock()
 	defer fake.resolveStepsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

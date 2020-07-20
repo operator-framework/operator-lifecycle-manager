@@ -237,7 +237,6 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			continue
 		}
 
-		fmt.Println("STACK")
 		for _, s := range bundleStack {
 			fmt.Println(s.Identifier(), s.SourceInfo().Catalog)
 		}
@@ -262,10 +261,6 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			if err != nil {
 				errs = append(errs, err)
 				continue
-			}
-			fmt.Println("SORTED CANDIDATES FOR", bundle.Identifier(), bundle.sourceInfo.Catalog.String())
-			for _, c := range sortedBundles {
-				fmt.Println(c.Identifier(), c.sourceInfo.Catalog.String())
 			}
 			bundleDependencies := make([]solver.Identifier, 0)
 			for _, dep := range sortedBundles {

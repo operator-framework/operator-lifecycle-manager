@@ -379,6 +379,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	switch state.State {
 	case connectivity.Ready:
+		o.resolver.Expire(state.Key)
 		if o.namespace == state.Key.Namespace {
 			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
 				state.Key.Name, state.Key.Namespace)

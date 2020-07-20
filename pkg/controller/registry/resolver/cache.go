@@ -38,6 +38,7 @@ func (rcp *DefaultRegistryClientProvider) ClientsForNamespaces(namespaces ...str
 
 type OperatorCacheProvider interface {
 	Namespaced(namespaces ...string) MultiCatalogOperatorFinder
+	Expire(catalog registry.CatalogKey)
 }
 
 type OperatorCache struct {
@@ -68,6 +69,16 @@ func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger) *Opera
 type NamespacedOperatorCache struct {
 	namespaces []string
 	snapshots  map[registry.CatalogKey]*CatalogSnapshot
+}
+
+func (c *OperatorCache) Expire(catalog registry.CatalogKey) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	s, ok := c.snapshots[catalog]
+	if !ok {
+		return
+	}
+	s.expiry = time.Unix(0,0)
 }
 
 func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
@@ -169,7 +180,7 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 	for b := it.Next(); b != nil; b = it.Next() {
 		o, err := NewOperatorFromBundle(b, "", snapshot.key)
 		if err != nil {
-			snapshot.logger.Warnf("failed to construct operator from bundle, continuing: %s", err.Error())
+			snapshot.logger.Warnf("failed to construct operator from bundle, continuing: %v", err)
 			continue
 		}
 		o.providedAPIs = o.ProvidedAPIs().StripPlural()
@@ -180,7 +191,6 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 	if err := it.Error(); err != nil {
 		snapshot.logger.Warnf("error encountered while listing bundles: %s", err.Error())
 	}
-
 	snapshot.operators = operators
 }
 

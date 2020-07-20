@@ -40,6 +40,9 @@ func NewLegacyResolver(lister operatorlister.OperatorLister, client versioned.In
 	}
 }
 
+func (r *LegacyResolver) Expire(_ registry.CatalogKey) {
+}
+
 func (r *LegacyResolver) ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	if err := sourceQuerier.Queryable(); err != nil {
 		return nil, nil, nil, err

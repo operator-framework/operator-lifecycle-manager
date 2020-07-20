@@ -715,6 +715,10 @@ func (f *FakeOperatorCache) Namespaced(namespaces ...string) MultiCatalogOperato
 	return &f.fakedNamespacedOperatorCache
 }
 
+func (f *FakeOperatorCache) Expire(key registry.CatalogKey) {
+	return
+}
+
 func getFakeOperatorCache(fakedNamespacedOperatorCache NamespacedOperatorCache) OperatorCacheProvider {
 	return &FakeOperatorCache{
 		fakedNamespacedOperatorCache: fakedNamespacedOperatorCache,
