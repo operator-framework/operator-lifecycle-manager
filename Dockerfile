@@ -1,6 +1,4 @@
 FROM openshift/origin-release:golang-1.13 as builder
-RUN yum update -y
-RUN yum install -y make git
 
 ENV GO111MODULE auto
 ENV GOPATH /go
