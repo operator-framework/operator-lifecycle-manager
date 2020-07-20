@@ -80,6 +80,15 @@ func WithValue(v float64) MetricPredicate {
 	}
 }
 
+func WithValueGreaterThan(v float64) MetricPredicate {
+	return MetricPredicate{
+		name: fmt.Sprintf("WithValueGreaterThan(%g)", v),
+		f: func(m Metric) bool {
+			return m.Value > v
+		},
+	}
+}
+
 type LikeMetricMatcher struct {
 	Predicates []MetricPredicate
 }
