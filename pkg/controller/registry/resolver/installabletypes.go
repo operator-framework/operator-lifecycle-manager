@@ -31,14 +31,6 @@ func (i *BundleInstallable) AddDependency(dependencies []solver.Identifier) {
 	i.constraints = append(i.constraints, solver.Dependency(dependencies...))
 }
 
-func (i *BundleInstallable) AddDependencyFromSet(dependencySet map[solver.Identifier]struct{}) {
-	dependencies := make([]solver.Identifier, 0)
-	for dep := range dependencySet {
-		dependencies = append(dependencies, dep)
-	}
-	i.constraints = append(i.constraints, solver.Dependency(dependencies...))
-}
-
 func (i *BundleInstallable) BundleSourceInfo() (string, string, registry.CatalogKey, error) {
 	info := strings.Split(string(i.identifier), "/")
 	// This should be enforced by Kube naming constraints

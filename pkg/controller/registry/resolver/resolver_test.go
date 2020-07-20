@@ -34,6 +34,10 @@ func TestSolveOperators(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -74,6 +78,10 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -117,6 +125,10 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -177,6 +189,10 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -252,6 +268,10 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
@@ -313,6 +333,10 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "0.0.1","packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
@@ -366,6 +390,10 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps),
@@ -425,6 +453,10 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1.0.0", "1.0.0", "","packageB", "alpha", "community", "olm", Provides, nil, deps),
@@ -438,6 +470,10 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "certified",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "certified",
+				},
 				operators: []*Operator{
 					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "certified", "olm", Provides2, Provides, deps2),
 					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "certified", "olm", Provides2, Provides, deps2),
@@ -460,9 +496,15 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2),
 		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "","packageD", "alpha", "community", "olm", nil, Provides2, deps2),
 	}
+	got := []string{}
+	for _, o := range operators {
+		got = append(got, o.Identifier())
+	}
 	for k := range expected {
-		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.NotNil(t, operators[k], "did not find expected operator %s in results. have: %s", k, got)
+		if _, ok := operators[k]; ok {
+			assert.EqualValues(t, k, operators[k].Identifier())
+		}
 	}
 }
 
@@ -499,6 +541,10 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "community",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
@@ -509,6 +555,10 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 				Namespace: "olm",
 				Name:      "certified",
 			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "certified",
+				},
 				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "","packageA", "alpha", "certified", "olm", nil, nil, nil),
 					genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps),
