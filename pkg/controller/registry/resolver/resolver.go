@@ -3,13 +3,14 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"github.com/blang/semver"
+	"sort"
+
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"sort"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 )
 
 type OperatorResolver interface {
@@ -236,6 +237,11 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			continue
 		}
 
+		fmt.Println("STACK")
+		for _, s := range bundleStack {
+			fmt.Println(s.Identifier(), s.SourceInfo().Catalog)
+		}
+
 		if b, ok := visited[bundle]; ok {
 			installables[b.identifier] = b
 			continue
@@ -251,11 +257,18 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 		}
 		for _, d := range dependencyPredicates {
 			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
-			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundleSource.Catalog, d))
-			// TODO: candidates can be in multiple catalogs. This sort account for catalog order / channel order / etc
-			r.sortByVersion(candidateBundles)
-			bundleDependencies := make(map[solver.Identifier]struct{}, 0)
-			for _, dep := range candidateBundles {
+			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, d))
+			sortedBundles, err := r.sortBundles(candidateBundles)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			fmt.Println("SORTED CANDIDATES FOR", bundle.Identifier(), bundle.sourceInfo.Catalog.String())
+			for _, c := range sortedBundles {
+				fmt.Println(c.Identifier(), c.sourceInfo.Catalog.String())
+			}
+			bundleDependencies := make([]solver.Identifier, 0)
+			for _, dep := range sortedBundles {
 				found := namespacedCache.Catalog(dep.SourceInfo().Catalog).Find(WithCSVName(dep.Identifier()))
 				if len(found) > 1 {
 					err := fmt.Errorf("found duplicate entries for %s in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
@@ -272,11 +285,11 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 
 				i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, src.Catalog)
 				installables[i.Identifier()] = &i
-				bundleDependencies[i.Identifier()] = struct{}{}
+				bundleDependencies = append(bundleDependencies, i.Identifier())
 				bundleStack = append(bundleStack, b)
 			}
 
-			bundleInstallable.AddDependencyFromSet(bundleDependencies)
+			bundleInstallable.AddDependency(bundleDependencies)
 		}
 
 		installables[bundleInstallable.Identifier()] = &bundleInstallable
@@ -294,18 +307,44 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 	return ids, installables, nil
 }
 
-func (r *SatResolver) sortByVersion(bundles []*Operator) {
-	zeroVersion, _ := semver.Make("")
+func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
+	// assume bundles have been passed in sorted by catalog already
+	catalogOrder := make([]registry.CatalogKey,0)
 
-	// sort descending
-	sort.Slice(bundles, func(i, j int) bool {
-		iv := bundles[i].Version()
-		jv := bundles[j].Version()
-		if iv.Equals(zeroVersion) || jv.Equals(zeroVersion) {
-			return bundles[i].Identifier() > bundles[j].Identifier()
+	// TODO: for now channels will be sorted lexicographically
+	channelOrder := make(map[registry.CatalogKey][]string)
+
+	// partition by catalog -> channel -> bundle
+	partitionedBundles := map[registry.CatalogKey]map[string][]*Operator{}
+	for _, b := range bundles {
+		if _, ok := partitionedBundles[b.sourceInfo.Catalog]; !ok {
+			catalogOrder = append(catalogOrder, b.sourceInfo.Catalog)
+			partitionedBundles[b.sourceInfo.Catalog] = make(map[string][]*Operator)
 		}
-		return iv.GT(*jv)
-	})
+		if _, ok := partitionedBundles[b.sourceInfo.Catalog][b.bundle.ChannelName]; !ok {
+			channelOrder[b.sourceInfo.Catalog] = append(channelOrder[b.sourceInfo.Catalog], b.bundle.ChannelName)
+			partitionedBundles[b.sourceInfo.Catalog][b.bundle.ChannelName] = make([]*Operator, 0)
+		}
+		partitionedBundles[b.sourceInfo.Catalog][b.bundle.ChannelName] = append(partitionedBundles[b.sourceInfo.Catalog][b.bundle.ChannelName], b)
+	}
+
+	for catalog := range partitionedBundles {
+		sort.Strings(channelOrder[catalog])
+		for channel := range partitionedBundles[catalog] {
+			sorted, err := r.sortChannel(partitionedBundles[catalog][channel])
+			if err != nil {
+				return nil, err
+			}
+			partitionedBundles[catalog][channel] = sorted
+		}
+	}
+	all := make([]*Operator, 0)
+	for _, catalog := range catalogOrder {
+		for _, channel := range channelOrder[catalog] {
+			all = append(all, partitionedBundles[catalog][channel]...)
+		}
+	}
+	return all, nil
 }
 
 // sorts bundle in a channel by replaces

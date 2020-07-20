@@ -193,7 +193,6 @@ func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder 
 
 func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, p ...OperatorPredicate) []*Operator {
 	var result []*Operator
-
 	sorted := NewSortableSnapshots(preferred, c.namespaces, c.snapshots)
 	sort.Sort(sorted)
 	for _, snapshot := range sorted.snapshots {
@@ -254,11 +253,16 @@ func (s SortableSnapshots) Len() int {
 // Less reports whether the element with
 // index i should sort before the element with index j.
 func (s SortableSnapshots) Less(i, j int) bool {
-	// preferred catalog is greater than all others
+	// preferred catalog is less than all others
+	if s.preferred != nil &&
+		s.snapshots[i].key.Name == s.preferred.Name &&
+		s.snapshots[i].key.Namespace == s.preferred.Namespace {
+		return true
+	}
 	if s.preferred != nil &&
 		s.snapshots[j].key.Name == s.preferred.Name &&
 		s.snapshots[j].key.Namespace == s.preferred.Namespace {
-		return true
+		return false
 	}
 	if s.snapshots[i].key.Namespace != s.snapshots[j].key.Namespace {
 		return s.namespaces[s.snapshots[i].key.Namespace] < s.namespaces[s.snapshots[j].key.Namespace]
