@@ -1359,7 +1359,7 @@ func validateV1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiexte
 		return err
 	}
 	for _, version := range oldCRD.Spec.Versions {
-		if !version.Served {
+		if version.Served {
 			gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: version.Name, Resource: oldCRD.Spec.Names.Plural}
 			err := validateExistingCRs(dynamicClient, gvr, convertedCRD)
 			if err != nil {
@@ -1382,7 +1382,7 @@ func validateV1Beta1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *ap
 		return err
 	}
 	for _, version := range oldCRD.Spec.Versions {
-		if !version.Served {
+		if version.Served {
 			gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: version.Name, Resource: oldCRD.Spec.Names.Plural}
 			err := validateExistingCRs(dynamicClient, gvr, convertedCRD)
 			if err != nil {

@@ -934,8 +934,6 @@ var _ = Describe("Install Plan", func() {
 			mainPackageDelta := fmt.Sprintf("%s-delta", mainPackageName)
 
 			stableChannel := "stable"
-			betaChannel := "beta"
-			deltaChannel := "delta"
 
 			// Create manifests
 			mainManifests := []registry.PackageManifest{
@@ -998,30 +996,17 @@ var _ = Describe("Install Plan", func() {
 				{
 					PackageName: mainPackageName,
 					Channels: []registry.PackageChannel{
-						{Name: stableChannel, CurrentCSVName: mainPackageStable},
-						{Name: betaChannel, CurrentCSVName: mainPackageBeta},
+						{Name: stableChannel, CurrentCSVName: mainPackageBeta},
 					},
-					DefaultChannelName: betaChannel,
+					DefaultChannelName: stableChannel,
 				},
 			}
 
 			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
-
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
-
-			// Update the subscription resource to point to the beta CSV
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err)
-
-			// Delete orphaned csv
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainStableCSV.GetName(), metav1.DeleteOptions{}))
-
-			// existing cleanup should remove this
-			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-
-			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
@@ -1047,35 +1032,21 @@ var _ = Describe("Install Plan", func() {
 			validateCRDVersions(GinkgoT(), c, tt.oldCRD.GetName(), expectedVersions)
 
 			// Update the manifest
-			mainBetaCSV = newCSV(mainPackageBeta, testNamespace, "", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, nil, mainNamedStrategy)
 			mainManifests = []registry.PackageManifest{
 				{
 					PackageName: mainPackageName,
 					Channels: []registry.PackageChannel{
-						{Name: betaChannel, CurrentCSVName: mainPackageBeta},
-						{Name: deltaChannel, CurrentCSVName: mainPackageDelta},
+						{Name: stableChannel, CurrentCSVName: mainPackageDelta},
 					},
-					DefaultChannelName: deltaChannel,
+					DefaultChannelName: stableChannel,
 				},
 			}
 
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainBetaCSV, mainDeltaCSV}, mainManifests)
-
+			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV, mainDeltaCSV}, mainManifests)
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
-
-			// Update the subscription resource to point to the beta CSV
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err)
-
-			// Delete orphaned csv
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainBetaCSV.GetName(), metav1.DeleteOptions{}))
-
-			// existing cleanup should remove this
-			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, deltaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-
-			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
