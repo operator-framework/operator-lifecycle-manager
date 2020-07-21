@@ -79,7 +79,8 @@ func TestSearch(t *testing.T) {
 			var depth int
 			counter := &TestScopeCounter{depth: &depth, S: &s}
 
-			lits := newLitMapping(tt.Installables)
+			lits, err := newLitMapping(tt.Installables)
+			assert.NoError(err)
 			h := search{
 				s:      counter,
 				lits:   lits,
