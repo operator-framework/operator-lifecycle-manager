@@ -934,8 +934,6 @@ var _ = Describe("Install Plan", func() {
 			mainPackageDelta := fmt.Sprintf("%s-delta", mainPackageName)
 
 			stableChannel := "stable"
-			betaChannel := "beta"
-			deltaChannel := "delta"
 
 			// Create manifests
 			mainManifests := []registry.PackageManifest{
@@ -998,30 +996,17 @@ var _ = Describe("Install Plan", func() {
 				{
 					PackageName: mainPackageName,
 					Channels: []registry.PackageChannel{
-						{Name: stableChannel, CurrentCSVName: mainPackageStable},
-						{Name: betaChannel, CurrentCSVName: mainPackageBeta},
+						{Name: stableChannel, CurrentCSVName: mainPackageBeta},
 					},
-					DefaultChannelName: betaChannel,
+					DefaultChannelName: stableChannel,
 				},
 			}
 
 			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
-
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
-
-			// Update the subscription resource to point to the beta CSV
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err)
-
-			// Delete orphaned csv
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainStableCSV.GetName(), metav1.DeleteOptions{}))
-
-			// existing cleanup should remove this
-			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-
-			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
@@ -1047,35 +1032,21 @@ var _ = Describe("Install Plan", func() {
 			validateCRDVersions(GinkgoT(), c, tt.oldCRD.GetName(), expectedVersions)
 
 			// Update the manifest
-			mainBetaCSV = newCSV(mainPackageBeta, testNamespace, "", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, nil, mainNamedStrategy)
 			mainManifests = []registry.PackageManifest{
 				{
 					PackageName: mainPackageName,
 					Channels: []registry.PackageChannel{
-						{Name: betaChannel, CurrentCSVName: mainPackageBeta},
-						{Name: deltaChannel, CurrentCSVName: mainPackageDelta},
+						{Name: stableChannel, CurrentCSVName: mainPackageDelta},
 					},
-					DefaultChannelName: deltaChannel,
+					DefaultChannelName: stableChannel,
 				},
 			}
 
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainBetaCSV, mainDeltaCSV}, mainManifests)
-
+			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV, mainDeltaCSV}, mainManifests)
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
-
-			// Update the subscription resource to point to the beta CSV
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err)
-
-			// Delete orphaned csv
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainBetaCSV.GetName(), metav1.DeleteOptions{}))
-
-			// existing cleanup should remove this
-			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, deltaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-
-			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
@@ -1710,6 +1681,7 @@ var _ = Describe("Install Plan", func() {
 			mainPackageName := genName("nginx-update-")
 
 			mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+			mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
 
 			stableChannel := "stable"
 
@@ -1769,6 +1741,7 @@ var _ = Describe("Install Plan", func() {
 			}
 
 			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
+			betaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{updatedCRD}, nil, mainNamedStrategy)
 
 			c := newKubeClient()
 			crc := newCRClient()
@@ -1797,7 +1770,7 @@ var _ = Describe("Install Plan", func() {
 			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
 
-			subscriptionName := genName("sub-nginx-update-before-")
+			subscriptionName := genName("sub-nginx-update-")
 			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -1825,19 +1798,19 @@ var _ = Describe("Install Plan", func() {
 			_, err = awaitCSV(GinkgoT(), crc, testNamespace, mainCSV.GetName(), csvAnyChecker)
 			require.NoError(GinkgoT(), err)
 
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{updatedCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV}, mainManifests)
+			mainManifests = []registry.PackageManifest{
+				{
+					PackageName: mainPackageName,
+					Channels: []registry.PackageChannel{
+						{Name: stableChannel, CurrentCSVName: mainPackageBeta},
+					},
+					DefaultChannelName: stableChannel,
+				},
+			}
 
-			// Update the subscription resource
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err)
-
-			// existing cleanup should remove this
-			subscriptionName = genName("sub-nginx-update-after-")
-			subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-			defer subscriptionCleanup()
-
+			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{updatedCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, betaCSV}, mainManifests)
 			// Wait for subscription to update
-			updatedSubscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			updatedSubscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
 			require.NoError(GinkgoT(), err)
 
 			// Verify installplan created and installed
@@ -1846,7 +1819,7 @@ var _ = Describe("Install Plan", func() {
 			require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), fetchedUpdatedInstallPlan.GetName())
 
 			// Wait for csv to update
-			_, err = awaitCSV(GinkgoT(), crc, testNamespace, mainCSV.GetName(), csvAnyChecker)
+			_, err = awaitCSV(GinkgoT(), crc, testNamespace, betaCSV.GetName(), csvAnyChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
