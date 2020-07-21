@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/reference"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -104,6 +105,81 @@ var _ = Describe("Adoption Controller", func() {
 					}, timeout, interval).Should(Succeed())
 
 					componentLabelKey = fmt.Sprintf("%s%s.%s", decorators.ComponentLabelKeyPrefix, sub.Spec.Package, sub.GetNamespace())
+				})
+
+				Context("that references an existing installplan", func() {
+					var (
+						ip *operatorsv1alpha1.InstallPlan
+					)
+
+					BeforeEach(func() {
+						ip = fixtures.Fill(&operatorsv1alpha1.InstallPlan{}).(*operatorsv1alpha1.InstallPlan)
+						ip.SetNamespace(sub.GetNamespace())
+						ip.SetName(genName("poultry-"))
+
+						Eventually(func() error {
+							owned := testobj.WithOwner(sub, ip)
+							return k8sClient.Create(ctx, owned)
+						}).Should(Succeed())
+						created = append(created, ip)
+
+						ref, err := reference.GetReference(scheme, ip)
+						Expect(err).ToNot(HaveOccurred())
+
+						// Set the Subscription's status separately
+						status := sub.DeepCopy().Status
+						status.InstallPlanRef = ref
+						Eventually(func() error {
+							if err := k8sClient.Get(ctx, testobj.NamespacedName(sub), sub); err != nil {
+								return err
+							}
+							sub.Status = status
+
+							return k8sClient.Status().Update(ctx, sub)
+						}).Should(Succeed())
+					})
+
+					Context("and has other, non-latest, adopted installplans", func() {
+						var (
+							ips []*operatorsv1alpha1.InstallPlan
+						)
+
+						BeforeEach(func() {
+							for i := 0; i < 4; i++ {
+								ip := fixtures.Fill(&operatorsv1alpha1.InstallPlan{}).(*operatorsv1alpha1.InstallPlan)
+								ip.SetNamespace(sub.GetNamespace())
+								ip.SetName(genName(""))
+								ip.SetLabels(map[string]string{
+									componentLabelKey: "",
+								})
+
+								Eventually(func() error {
+									return k8sClient.Create(ctx, ip)
+								}).Should(Succeed())
+
+								created = append(created, ip)
+								ips = append(ips, ip)
+							}
+
+						})
+
+						Specify("correct component labels", func() {
+							installPlan := ip.DeepCopy()
+							Eventually(func() (map[string]string, error) {
+								err := k8sClient.Get(ctx, testobj.NamespacedName(ip), installPlan)
+								return installPlan.GetLabels(), err
+							}).Should(HaveKey(componentLabelKey))
+
+							for _, ip := range ips {
+								Eventually(func() (map[string]string, error) {
+									err := k8sClient.Get(ctx, testobj.NamespacedName(ip), ip)
+									return ip.GetLabels(), err
+								}, timeout, interval).ShouldNot(HaveKey(componentLabelKey))
+							}
+
+						})
+
+					})
 				})
 
 				Context("that has an existing installed csv", func() {

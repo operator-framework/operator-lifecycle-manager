@@ -28,6 +28,7 @@ import (
 
 	"github.com/operator-framework/api/crds"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 )
@@ -66,6 +67,7 @@ var (
 		testobj.WithFixtureFile(&rbacv1.ClusterRoleBinding{}, "testdata/fixtures/crb.yaml"),
 		testobj.WithFixtureFile(&apiextensionsv1.CustomResourceDefinition{}, "testdata/fixtures/crd.yaml"),
 		testobj.WithFixtureFile(&apiregistrationv1.APIService{}, "testdata/fixtures/apiservice.yaml"),
+		testobj.WithFixtureFile(&operatorsv1alpha1.InstallPlan{}, "testdata/fixtures/installplan.yaml"),
 	)
 )
 
