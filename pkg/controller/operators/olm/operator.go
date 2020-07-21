@@ -1775,7 +1775,8 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	}
 
 	if strategyErr != nil {
-		if install.ReasonForError(strategyErr) == install.StrategyErrDeploymentUpdated {
+		reasonForError := install.ReasonForError(strategyErr)
+		if reasonForError == install.StrategyErrDeploymentUpdated || reasonForError == install.StrategyErrReasonAnnotationsMissing {
 			csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseInstallReady, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now, a.recorder)
 		} else {
 			csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now, a.recorder)
