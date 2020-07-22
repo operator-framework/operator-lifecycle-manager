@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
+	"reflect"
 	"strings"
 	"testing"
+	"testing/quick"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -27,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/apiserver/pkg/storage/names"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -340,6 +344,82 @@ func TestRemoveDeprecatedStoredVersions(t *testing.T) {
 		resultCRD := removeDeprecatedStoredVersions(&tt.oldCRD, &tt.newCRD)
 		require.Equal(t, tt.expectedResult, resultCRD)
 	}
+}
+
+type ipSet []v1alpha1.InstallPlan
+
+func (ipSet) Generate(rand *rand.Rand, size int) reflect.Value {
+	ips := []v1alpha1.InstallPlan{}
+
+	// each i is the generation value
+	for i := 0; i < rand.Intn(size)+1; i++ {
+
+		// generate a few at each generation to account for bugs that don't increment the generation
+		for j := 0; j < rand.Intn(3); j++ {
+			ips = append(ips, v1alpha1.InstallPlan{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns",
+					Name:      names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%d", i)),
+				},
+				Spec: v1alpha1.InstallPlanSpec{
+					Generation: i,
+				},
+			})
+		}
+	}
+	return reflect.ValueOf(ipSet(ips))
+}
+
+func TestGCInstallPlans(t *testing.T) {
+	f := func(ips ipSet) bool {
+		if len(ips) == 0 {
+			return true
+		}
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+
+		var maxGen int64 = 0
+		for _, i := range ips {
+			if g := i.Generation; g > maxGen {
+				maxGen = g
+			}
+		}
+		objs := make([]runtime.Object, 0)
+		for _, i := range ips {
+			objs = append(objs, i.DeepCopy())
+		}
+		op, err := NewFakeOperator(ctx, "ns", []string{"ns"}, withClientObjs(objs...))
+		require.NoError(t, err)
+
+		out := make([]v1alpha1.InstallPlan, 0)
+		for {
+			op.gcInstallPlans(logrus.New(), "ns")
+			require.NoError(t, err)
+
+			outList, err := op.client.OperatorsV1alpha1().InstallPlans("ns").List(metav1.ListOptions{})
+			require.NoError(t, err)
+			out = outList.Items
+
+			if len(out) <= maxInstallPlanCount {
+				break
+			}
+		}
+
+		keptMax := false
+		for _, o := range out {
+			if o.Generation == maxGen {
+				keptMax = true
+				break
+			}
+		}
+		require.True(t, keptMax)
+
+		if len(ips) < maxInstallPlanCount {
+			return len(out) == len(ips)
+		}
+		return len(out) == maxInstallPlanCount
+	}
+	require.NoError(t, quick.Check(f, nil))
 }
 
 func TestExecutePlan(t *testing.T) {
