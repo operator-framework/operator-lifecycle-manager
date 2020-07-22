@@ -3,6 +3,9 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -13,7 +16,6 @@ import (
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"time"
 )
 
 var _ = Describe("CRD Versions", func() {
@@ -307,7 +309,7 @@ var _ = Describe("CRD Versions", func() {
 		Expect(err).ToNot(HaveOccurred(), "could not update subscription")
 
 		// fetch new subscription
-		s, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		s, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(s).ToNot(BeNil())
 		Expect(s.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -315,12 +317,17 @@ var _ = Describe("CRD Versions", func() {
 		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version
 		Eventually(func() bool {
 			ip, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), s.Status.InstallPlanRef.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred(), "could not get installplan")
-
-			Expect(ip.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseFailed))
-			Expect(ip.Status.Conditions[len(ip.Status.Conditions)-1].Message).To(ContainSubstring("risk of data loss"))
+			if k8serrors.IsNotFound(err) {
+				return false
+			}
+			if ip.Status.Phase != operatorsv1alpha1.InstallPlanPhaseFailed {
+				return false
+			}
+			if !strings.Contains(ip.Status.Conditions[len(ip.Status.Conditions)-1].Message, "risk of data loss") {
+				return false
+			}
 			return true
-		}).Should(BeTrue())
+		}, pollDuration, pollInterval).Should(BeTrue())
 	})
 
 	// Create a CRD on cluster with v1alpha1 (storage)
