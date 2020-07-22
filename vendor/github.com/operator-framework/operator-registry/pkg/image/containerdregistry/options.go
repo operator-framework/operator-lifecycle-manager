@@ -10,6 +10,7 @@ import (
 	"github.com/containerd/containerd/metadata"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/remotes"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
 )
@@ -99,7 +100,10 @@ func NewRegistry(options ...RegistryOption) (registry *Registry, err error) {
 		destroy:  destroy,
 		log:      config.Log,
 		resolver: resolver,
-		platform: platforms.Only(platforms.DefaultSpec()),
+		platform: platforms.Ordered(platforms.DefaultSpec(), specs.Platform{
+			OS:           "linux",
+			Architecture: "amd64",
+		}),
 	}
 	return
 }

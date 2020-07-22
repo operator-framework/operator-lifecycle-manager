@@ -48,7 +48,15 @@ type imageValidator struct {
 func (i imageValidator) PullBundleImage(imageTag, directory string) error {
 	i.logger.Debug("Pulling and unpacking container image")
 
-	return i.registry.Unpack(context.Background(), image.SimpleReference(imageTag), directory)
+	var (
+		ctx = context.TODO()
+		ref = image.SimpleReference(imageTag)
+	)
+	if err := i.registry.Pull(ctx, ref); err != nil {
+		return err
+	}
+
+	return i.registry.Unpack(ctx, ref, directory)
 }
 
 // ValidateBundle takes a directory containing the contents of a bundle and validates

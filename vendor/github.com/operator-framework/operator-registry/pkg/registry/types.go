@@ -14,6 +14,24 @@ var (
 	ErrPackageNotInDatabase = errors.New("Package not in database")
 )
 
+// BundleImageAlreadyAddedErr is an error that describes a bundle is already added
+type BundleImageAlreadyAddedErr struct {
+	ErrorString string
+}
+
+func (e BundleImageAlreadyAddedErr) Error() string {
+	return e.ErrorString
+}
+
+// PackageVersionAlreadyAddedErr is an error that describes that a bundle that is already in the databse that provides this package and version
+type PackageVersionAlreadyAddedErr struct {
+	ErrorString string
+}
+
+func (e PackageVersionAlreadyAddedErr) Error() string {
+	return e.ErrorString
+}
+
 const (
 	GVKType     = "olm.gvk"
 	PackageType = "olm.package"

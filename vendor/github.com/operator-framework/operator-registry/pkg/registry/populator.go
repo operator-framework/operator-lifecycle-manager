@@ -63,7 +63,50 @@ func (i *DirectoryPopulator) Populate(mode Mode) error {
 	return nil
 }
 
+func (i *DirectoryPopulator) globalSanityCheck(imagesToAdd []*ImageInput) error {
+	var errs []error
+	images := make(map[string]struct{})
+	for _, image := range imagesToAdd {
+		images[image.bundle.BundleImage] = struct{}{}
+	}
+
+	for _, image := range imagesToAdd {
+		bundlePaths, err := i.querier.GetBundlePathsForPackage(context.TODO(), image.bundle.Package)
+		if err != nil {
+			// Assume that this means that the bundle is empty
+			// Or that this is the first time the package is loaded.
+			return nil
+		}
+		for _, bundlePath := range bundlePaths {
+			if _, ok := images[bundlePath]; ok {
+				errs = append(errs, BundleImageAlreadyAddedErr{ErrorString: fmt.Sprintf("Bundle %s already exists", image.bundle.BundleImage)})
+				continue
+			}
+		}
+		for _, channel := range image.bundle.Channels {
+			bundle, err := i.querier.GetBundle(context.TODO(), image.bundle.Package, channel, image.bundle.csv.GetName())
+			if err != nil {
+				// Assume that if we can not find a bundle for the package, channel and or CSV Name that this is safe to add
+				continue
+			}
+			if bundle != nil {
+				// raise error that this package + channel + csv combo is already in the db
+				errs = append(errs, PackageVersionAlreadyAddedErr{ErrorString: "Bundle already added that provides package and csv"})
+				break
+			}
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
 func (i *DirectoryPopulator) loadManifests(imagesToAdd []*ImageInput, mode Mode) error {
+	// global sanity checks before insertion
+	err := i.globalSanityCheck(imagesToAdd)
+	if err != nil {
+		return err
+	}
+
 	switch mode {
 	case ReplacesMode:
 		// TODO: This is relatively inefficient. Ideally, we should be able to use a replaces
