@@ -360,7 +360,7 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *Namesp
 			return nil, fmt.Errorf("no bundle found")
 		}
 
-		source.FindBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind, pkgName string) (*api.Bundle, error) {
+		source.FindBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string, excludedPkgs map[string]struct{}) (*api.Bundle, error) {
 			bundles, ok := bundlesByCatalog[catKey]
 			if !ok {
 				return nil, fmt.Errorf("API (%s/%s/%s) not provided by a package in %s CatalogSource", groupOrName, version, kind, catKey)
@@ -368,7 +368,7 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *Namesp
 			sortedBundles := SortBundleInPackageChannel(bundles)
 			for k, v := range sortedBundles {
 				pkgname := getPkgName(k)
-				if pkgname == pkgName {
+				if _, ok := excludedPkgs[pkgname]; ok {
 					continue
 				}
 
