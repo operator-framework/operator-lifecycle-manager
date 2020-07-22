@@ -23,7 +23,8 @@ LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 CONTROLLER_GEN := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v2/
-KUBEBUILDER_ASSETS ?= /usr/local/kubebuilder/bin
+KUBEBUILDER_ASSETS := $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder)))
+export KUBEBUILDER_ASSETS
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
@@ -61,7 +62,7 @@ endif
 schema-check:
 
 cover.out: schema-check
-	go test $(MOD_FLAGS) -v -race -coverprofile=cover.out -covermode=atomic \
+	go test $(MOD_FLAGS) -tags "json1" -v -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
 coverage: cover.out
