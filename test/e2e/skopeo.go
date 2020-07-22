@@ -13,17 +13,17 @@ import (
 
 const (
 	insecure              = "--insecure-policy=true"
-	skopeo                = "skopeo"
+	Skopeo                = "Skopeo"
 	debug                 = "--debug"
 	skipTLS               = "--dest-tls-verify=false"
 	skipCreds             = "--dest-no-creds=true"
 	destCreds             = "--dest-creds="
 	v2format              = "--format=v2s2"
-	skopeoImage           = "quay.io/olmtest/skopeo:0.1.40"
+	skopeoImage           = "quay.io/olmtest/Skopeo:0.1.40"
 	BuilderServiceAccount = "builder"
 )
 
-func openshiftRegistryAuth(client operatorclient.ClientInterface, namespace string) (string, error) {
+func OpenshiftRegistryAuth(client operatorclient.ClientInterface, namespace string) (string, error) {
 	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), BuilderServiceAccount, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -45,7 +45,7 @@ func openshiftRegistryAuth(client operatorclient.ClientInterface, namespace stri
 	return fmt.Sprint(user, ":", pass), nil
 }
 
-func skopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
+func SkopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
 	newImageName := fmt.Sprint(newImage, newTag)
 	oldImageName := fmt.Sprint(oldImage, oldTag)
 
@@ -61,17 +61,17 @@ func skopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
 	return cmd
 }
 
-func createSkopeoPod(client operatorclient.ClientInterface, args []string, namespace string) error {
+func CreateSkopeoPod(client operatorclient.ClientInterface, args []string, namespace string) error {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      skopeo,
+			Name:      Skopeo,
 			Namespace: namespace,
-			Labels:    map[string]string{"name": skopeo},
+			Labels:    map[string]string{"name": Skopeo},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:  skopeo,
+					Name:  Skopeo,
 					Image: skopeoImage,
 					Args:  args,
 				},
@@ -88,8 +88,8 @@ func createSkopeoPod(client operatorclient.ClientInterface, args []string, names
 	return nil
 }
 
-func deleteSkopeoPod(client operatorclient.ClientInterface, namespace string) error {
-	err := client.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), skopeo, metav1.DeleteOptions{})
+func DeleteSkopeoPod(client operatorclient.ClientInterface, namespace string) error {
+	err := client.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), Skopeo, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func deleteSkopeoPod(client operatorclient.ClientInterface, namespace string) er
 func skopeoLocalCopy(newImage, newTag string, oldImage, oldTag string) (string, error) {
 	newImageName := fmt.Sprint(newImage, newTag)
 	oldImageName := fmt.Sprint(oldImage, oldTag)
-	cmd := exec.Command(skopeo, debug, insecure, "copy", skipTLS, v2format, skipCreds, oldImageName, newImageName)
+	cmd := exec.Command(Skopeo, debug, insecure, "copy", skipTLS, v2format, skipCreds, oldImageName, newImageName)
 
 	out, err := cmd.Output()
 	fmt.Println(string(out))

@@ -662,54 +662,54 @@ var _ = Describe("Catalog", func() {
 		var registryURL string
 		var registryAuth string
 		if local {
-			registryURL, err = createDockerRegistry(c, testNamespace)
+			registryURL, err = CreateDockerRegistry(c, testNamespace)
 			if err != nil {
 				GinkgoT().Fatalf("error creating container registry: %s", err)
 			}
-			defer deleteDockerRegistry(c, testNamespace)
+			defer DeleteDockerRegistry(c, testNamespace)
 
 			// ensure registry pod is ready before attempting port-forwarding
-			_ = awaitPod(GinkgoT(), c, testNamespace, registryName, podReady)
+			_ = awaitPod(GinkgoT(), c, testNamespace, RegistryName, podReady)
 
-			err = registryPortForward(testNamespace)
+			err = RegistryPortForward(testNamespace)
 			if err != nil {
 				GinkgoT().Fatalf("port-forwarding local registry: %s", err)
 			}
 		} else {
 			registryURL = openshiftregistryFQDN
-			registryAuth, err = openshiftRegistryAuth(c, testNamespace)
+			registryAuth, err = OpenshiftRegistryAuth(c, testNamespace)
 			if err != nil {
 				GinkgoT().Fatalf("error getting openshift registry authentication: %s", err)
 			}
 		}
 
-		// testImage is the name of the image used throughout the test - the image overwritten by skopeo
+		// testImage is the name of the image used throughout the test - the image overwritten by Skopeo
 		// the tag is generated randomly and appended to the end of the testImage
 		testImage := fmt.Sprint("docker://", registryURL, "/catsrc-update", ":")
 		tag := genName("x")
 
 		// 1. copy old catalog image into test-specific tag in internal docker registry
-		// create skopeo pod to actually do the work of copying (on openshift) or exec out to local skopeo
+		// create Skopeo pod to actually do the work of copying (on openshift) or exec out to local Skopeo
 		if local {
 			_, err := skopeoLocalCopy(testImage, tag, catsrcImage, "old")
 			if err != nil {
 				GinkgoT().Fatalf("error copying old registry file: %s", err)
 			}
 		} else {
-			skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "old", registryAuth)
-			err = createSkopeoPod(c, skopeoArgs, testNamespace)
+			skopeoArgs := SkopeoCopyCmd(testImage, tag, catsrcImage, "old", registryAuth)
+			err = CreateSkopeoPod(c, skopeoArgs, testNamespace)
 			if err != nil {
-				GinkgoT().Fatalf("error creating skopeo pod: %s", err)
+				GinkgoT().Fatalf("error creating Skopeo pod: %s", err)
 			}
 
-			// wait for skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			// wait for Skopeo pod to exit successfully
+			awaitPod(GinkgoT(), c, testNamespace, Skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
-			err = deleteSkopeoPod(c, testNamespace)
+			err = DeleteSkopeoPod(c, testNamespace)
 			if err != nil {
-				GinkgoT().Fatalf("error deleting skopeo pod: %s", err)
+				GinkgoT().Fatalf("error deleting Skopeo pod: %s", err)
 			}
 		}
 
@@ -782,29 +782,29 @@ var _ = Describe("Catalog", func() {
 		}
 		// get old catalog source pod
 		registryPod, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), registryCheckFunc)
-		// 3. Update image on registry via skopeo: this should trigger a newly updated version of the catalog source pod
+		// 3. Update image on registry via Skopeo: this should trigger a newly updated version of the catalog source pod
 		// to be deployed after some time
-		// Make another skopeo pod to do the work of copying the image
+		// Make another Skopeo pod to do the work of copying the image
 		if local {
 			_, err := skopeoLocalCopy(testImage, tag, catsrcImage, "new")
 			if err != nil {
 				GinkgoT().Fatalf("error copying new registry file: %s", err)
 			}
 		} else {
-			skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "new", registryAuth)
-			err = createSkopeoPod(c, skopeoArgs, testNamespace)
+			skopeoArgs := SkopeoCopyCmd(testImage, tag, catsrcImage, "new", registryAuth)
+			err = CreateSkopeoPod(c, skopeoArgs, testNamespace)
 			if err != nil {
-				GinkgoT().Fatalf("error creating skopeo pod: %s", err)
+				GinkgoT().Fatalf("error creating Skopeo pod: %s", err)
 			}
 
-			// wait for skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			// wait for Skopeo pod to exit successfully
+			awaitPod(GinkgoT(), c, testNamespace, Skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
-			err = deleteSkopeoPod(c, testNamespace)
+			err = DeleteSkopeoPod(c, testNamespace)
 			if err != nil {
-				GinkgoT().Fatalf("error deleting skopeo pod: %s", err)
+				GinkgoT().Fatalf("error deleting Skopeo pod: %s", err)
 			}
 		}
 
