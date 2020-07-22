@@ -20,9 +20,9 @@ import (
 )
 
 func TestNewNamespaceSourceQuerier(t *testing.T) {
-	emptySources := map[CatalogKey]registry.ClientInterface{}
-	nonEmptySources := map[CatalogKey]registry.ClientInterface{
-		CatalogKey{"test", "ns"}: &registry.Client{
+	emptySources := map[registry.CatalogKey]registry.ClientInterface{}
+	nonEmptySources := map[registry.CatalogKey]registry.ClientInterface{
+		registry.CatalogKey{"test", "ns"}: &registry.Client{
 			Client: &client.Client{
 				Registry: &fakes.FakeRegistryClient{},
 			},
@@ -30,7 +30,7 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 	}
 
 	type args struct {
-		sources map[CatalogKey]registry.ClientInterface
+		sources map[registry.CatalogKey]registry.ClientInterface
 	}
 	tests := []struct {
 		name string
@@ -68,7 +68,7 @@ func TestNewNamespaceSourceQuerier(t *testing.T) {
 
 func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 	type fields struct {
-		sources map[CatalogKey]registry.ClientInterface
+		sources map[registry.CatalogKey]registry.ClientInterface
 	}
 	tests := []struct {
 		name   string
@@ -85,15 +85,15 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 		{
 			name: "empty",
 			fields: fields{
-				sources: map[CatalogKey]registry.ClientInterface{},
+				sources: map[registry.CatalogKey]registry.ClientInterface{},
 			},
 			error: fmt.Errorf("no catalog sources available"),
 		},
 		{
 			name: "nonEmpty",
 			fields: fields{
-				sources: map[CatalogKey]registry.ClientInterface{
-					CatalogKey{"test", "ns"}: &registry.Client{
+				sources: map[registry.CatalogKey]registry.ClientInterface{
+					registry.CatalogKey{"test", "ns"}: &registry.Client{
 						Client: &client.Client{
 							Registry: &fakes.FakeRegistryClient{},
 						},
@@ -117,9 +117,9 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 	fakeSource := fakes.FakeClientInterface{}
 	fakeSource2 := fakes.FakeClientInterface{}
-	sources := map[CatalogKey]registry.ClientInterface{
-		CatalogKey{"test", "ns"}:  &fakeSource,
-		CatalogKey{"test2", "ns"}: &fakeSource2,
+	sources := map[registry.CatalogKey]registry.ClientInterface{
+		registry.CatalogKey{"test", "ns"}:  &fakeSource,
+		registry.CatalogKey{"test2", "ns"}: &fakeSource2,
 	}
 	excludedPkgs := make(map[string]struct{})
 	bundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
@@ -150,15 +150,15 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 	}
 
 	type fields struct {
-		sources map[CatalogKey]registry.ClientInterface
+		sources map[registry.CatalogKey]registry.ClientInterface
 	}
 	type args struct {
 		api        opregistry.APIKey
-		catalogKey CatalogKey
+		catalogKey registry.CatalogKey
 	}
 	type out struct {
 		bundle *api.Bundle
-		key    *CatalogKey
+		key    *registry.CatalogKey
 		err    error
 	}
 	tests := []struct {
@@ -173,11 +173,11 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			},
 			args: args{
 				api:        opregistry.APIKey{"group", "version", "kind", "plural"},
-				catalogKey: CatalogKey{},
+				catalogKey: registry.CatalogKey{},
 			},
 			out: out{
 				bundle: bundle,
-				key:    &CatalogKey{Name: "test", Namespace: "ns"},
+				key:    &registry.CatalogKey{Name: "test", Namespace: "ns"},
 				err:    nil,
 			},
 		},
@@ -187,7 +187,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			},
 			args: args{
 				api:        opregistry.APIKey{"group", "version", "kind", "plural"},
-				catalogKey: CatalogKey{},
+				catalogKey: registry.CatalogKey{},
 			},
 			out: out{
 				bundle: nil,
@@ -201,11 +201,11 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			},
 			args: args{
 				api:        opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
-				catalogKey: CatalogKey{Name: "test2", Namespace: "ns"},
+				catalogKey: registry.CatalogKey{Name: "test2", Namespace: "ns"},
 			},
 			out: out{
 				bundle: bundle2,
-				key:    &CatalogKey{Name: "test2", Namespace: "ns"},
+				key:    &registry.CatalogKey{Name: "test2", Namespace: "ns"},
 				err:    nil,
 			},
 		},
@@ -215,11 +215,11 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			},
 			args: args{
 				api:        opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
-				catalogKey: CatalogKey{Name: "test3", Namespace: "ns"},
+				catalogKey: registry.CatalogKey{Name: "test3", Namespace: "ns"},
 			},
 			out: out{
 				bundle: bundle2,
-				key:    &CatalogKey{Name: "test2", Namespace: "ns"},
+				key:    &registry.CatalogKey{Name: "test2", Namespace: "ns"},
 				err:    nil,
 			},
 		},
@@ -261,25 +261,25 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 		}
 		return otherBundle, nil
 	}
-	initialKey := CatalogKey{"initial", "ns"}
-	otherKey := CatalogKey{"other", "other"}
-	sources := map[CatalogKey]registry.ClientInterface{
+	initialKey := registry.CatalogKey{"initial", "ns"}
+	otherKey := registry.CatalogKey{"other", "other"}
+	sources := map[registry.CatalogKey]registry.ClientInterface{
 		initialKey: &initialSource,
 		otherKey:   &otherSource,
 	}
 
 	type fields struct {
-		sources map[CatalogKey]registry.ClientInterface
+		sources map[registry.CatalogKey]registry.ClientInterface
 	}
 	type args struct {
 		pkgName       string
 		channelName   string
 		startingCSV   string
-		initialSource CatalogKey
+		initialSource registry.CatalogKey
 	}
 	type out struct {
 		bundle *api.Bundle
-		key    *CatalogKey
+		key    *registry.CatalogKey
 		err    error
 	}
 	tests := []struct {
@@ -291,37 +291,37 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 		{
 			name:   "Initial/Found",
 			fields: fields{sources: sources},
-			args:   args{"test", "testChannel", "", CatalogKey{"initial", "ns"}},
+			args:   args{"test", "testChannel", "", registry.CatalogKey{"initial", "ns"}},
 			out:    out{bundle: initalBundle, key: &initialKey, err: nil},
 		},
 		{
 			name:   "Initial/CatalogNotFound",
 			fields: fields{sources: sources},
-			args:   args{"test", "testChannel", "", CatalogKey{"absent", "found"}},
+			args:   args{"test", "testChannel", "", registry.CatalogKey{"absent", "found"}},
 			out:    out{bundle: nil, key: nil, err: fmt.Errorf("CatalogSource {absent found} not found")},
 		},
 		{
 			name:   "Initial/StartingCSVFound",
 			fields: fields{sources: sources},
-			args:   args{"test", "testChannel", "starting-test", CatalogKey{"initial", "ns"}},
+			args:   args{"test", "testChannel", "starting-test", registry.CatalogKey{"initial", "ns"}},
 			out:    out{bundle: startingBundle, key: &initialKey, err: nil},
 		},
 		{
 			name:   "Initial/StartingCSVNotFound",
 			fields: fields{sources: sources},
-			args:   args{"test", "testChannel", "non-existent", CatalogKey{"initial", "ns"}},
+			args:   args{"test", "testChannel", "non-existent", registry.CatalogKey{"initial", "ns"}},
 			out:    out{bundle: nil, key: nil, err: fmt.Errorf("not found")},
 		},
 		{
 			name:   "Other/Found",
 			fields: fields{sources: sources},
-			args:   args{"other", "testChannel", "", CatalogKey{"", ""}},
+			args:   args{"other", "testChannel", "", registry.CatalogKey{"", ""}},
 			out:    out{bundle: otherBundle, key: &otherKey, err: nil},
 		},
 		{
 			name:   "NotFound",
 			fields: fields{sources: sources},
-			args:   args{"nope", "not", "", CatalogKey{"", ""}},
+			args:   args{"nope", "not", "", registry.CatalogKey{"", ""}},
 			out:    out{bundle: nil, err: fmt.Errorf("nope/not not found in any available CatalogSource")},
 		},
 	}
@@ -331,7 +331,7 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 				sources: tt.fields.sources,
 			}
 			var got *api.Bundle
-			var key *CatalogKey
+			var key *registry.CatalogKey
 			var err error
 			if tt.args.startingCSV != "" {
 				got, key, err = q.FindBundle(tt.args.pkgName, tt.args.channelName, tt.args.startingCSV, tt.args.initialSource)
@@ -420,13 +420,13 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 		return latestBundleNoAnnotation, nil
 	}
 
-	initialKey := CatalogKey{"initial", "ns"}
-	otherKey := CatalogKey{"other", "other"}
-	replacementKey := CatalogKey{"replacement", "ns"}
-	replacementAndLatestKey := CatalogKey{"replat", "ns"}
-	replacementAndNoAnnotationLatestKey := CatalogKey{"replatbad", "ns"}
+	initialKey := registry.CatalogKey{"initial", "ns"}
+	otherKey := registry.CatalogKey{"other", "other"}
+	replacementKey := registry.CatalogKey{"replacement", "ns"}
+	replacementAndLatestKey := registry.CatalogKey{"replat", "ns"}
+	replacementAndNoAnnotationLatestKey := registry.CatalogKey{"replatbad", "ns"}
 
-	sources := map[CatalogKey]registry.ClientInterface{
+	sources := map[registry.CatalogKey]registry.ClientInterface{
 		initialKey:                          &initialSource,
 		otherKey:                            &otherSource,
 		replacementKey:                      &replacementSource,
@@ -438,18 +438,18 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 	notInRange := semver.MustParse("1.0.0-1556661347")
 
 	type fields struct {
-		sources map[CatalogKey]registry.ClientInterface
+		sources map[registry.CatalogKey]registry.ClientInterface
 	}
 	type args struct {
 		currentVersion *semver.Version
 		pkgName        string
 		channelName    string
 		bundleName     string
-		initialSource  CatalogKey
+		initialSource  registry.CatalogKey
 	}
 	type out struct {
 		bundle *api.Bundle
-		key    *CatalogKey
+		key    *registry.CatalogKey
 		err    error
 	}
 	tests := []struct {
@@ -507,7 +507,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 				sources: tt.fields.sources,
 			}
 			var got *api.Bundle
-			var key *CatalogKey
+			var key *registry.CatalogKey
 			var err error
 			got, key, err = q.FindReplacement(tt.args.currentVersion, tt.args.bundleName, tt.args.pkgName, tt.args.channelName, tt.args.initialSource)
 			if err != nil {

@@ -14,14 +14,15 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	opserver "github.com/operator-framework/operator-registry/pkg/server"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
-func server(store registry.Query, port int) (func(), func()) {
+func server(store opregistry.Query, port int) (func(), func()) {
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		logrus.Fatalf("failed to listen: %v", err)
@@ -45,7 +46,7 @@ func server(store registry.Query, port int) (func(), func()) {
 
 type FakeSourceSyncer struct {
 	// using a map[int] to preserve order
-	History map[resolver.CatalogKey][]connectivity.State
+	History map[registry.CatalogKey][]connectivity.State
 
 	sync.Mutex
 	expectedEvents int
@@ -67,7 +68,7 @@ func (f *FakeSourceSyncer) sync(state SourceState) {
 
 func NewFakeSourceSyncer(expectedEvents int) *FakeSourceSyncer {
 	return &FakeSourceSyncer{
-		History:        map[resolver.CatalogKey][]connectivity.State{},
+		History:        map[registry.CatalogKey][]connectivity.State{},
 		expectedEvents: expectedEvents,
 		done:           make(chan struct{}),
 	}
@@ -76,7 +77,7 @@ func NewFakeSourceSyncer(expectedEvents int) *FakeSourceSyncer {
 func TestConnectionEvents(t *testing.T) {
 	type testcase struct {
 		name            string
-		expectedHistory map[resolver.CatalogKey][]connectivity.State
+		expectedHistory map[registry.CatalogKey][]connectivity.State
 	}
 
 	test := func(tt testcase) func(t *testing.T) {
@@ -124,8 +125,8 @@ func TestConnectionEvents(t *testing.T) {
 	cases := []testcase{
 		{
 			name: "Basic",
-			expectedHistory: map[resolver.CatalogKey][]connectivity.State{
-				resolver.CatalogKey{Name: "test", Namespace: "test"}: {
+			expectedHistory: map[registry.CatalogKey][]connectivity.State{
+				registry.CatalogKey{Name: "test", Namespace: "test"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
 				},
@@ -133,12 +134,12 @@ func TestConnectionEvents(t *testing.T) {
 		},
 		{
 			name: "Multiple",
-			expectedHistory: map[resolver.CatalogKey][]connectivity.State{
-				resolver.CatalogKey{Name: "test", Namespace: "test"}: {
+			expectedHistory: map[registry.CatalogKey][]connectivity.State{
+				registry.CatalogKey{Name: "test", Namespace: "test"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
 				},
-				resolver.CatalogKey{Name: "test2", Namespace: "test2"}: {
+				registry.CatalogKey{Name: "test2", Namespace: "test2"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
 				},

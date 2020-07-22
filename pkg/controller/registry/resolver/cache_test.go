@@ -1,3 +1,4 @@
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ./fakes/fake_client_provider.go . RegistryClientProvider
 package resolver
 
 import (
@@ -9,12 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
-	registry "github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 type BundleStreamStub struct {
@@ -66,10 +70,10 @@ func (s *RegistryClientStub) Close() error {
 	return nil
 }
 
-type RegistryClientProviderStub map[CatalogKey]ClientProvider
+type RegistryClientProviderStub map[registry.CatalogKey]client.Interface
 
-func (s RegistryClientProviderStub) ClientsForNamespaces(namespaces ...string) map[CatalogKey]ClientProvider {
-	return map[CatalogKey]ClientProvider(s)
+func (s RegistryClientProviderStub) ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface {
+	return s
 }
 
 func TestOperatorCacheConcurrency(t *testing.T) {
@@ -78,10 +82,10 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 	)
 
 	rcp := RegistryClientProviderStub{}
-	var keys []CatalogKey
+	var keys []registry.CatalogKey
 	for i := 0; i < 128; i++ {
 		for j := 0; j < 8; j++ {
-			key := CatalogKey{Namespace: strconv.Itoa(i), Name: strconv.Itoa(j)}
+			key := registry.CatalogKey{Namespace: strconv.Itoa(i), Name: strconv.Itoa(j)}
 			keys = append(keys, key)
 			rcp[key] = &RegistryClientStub{
 				BundleIterator: client.NewBundleIterator(&BundleStreamStub{
@@ -99,7 +103,7 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 		}
 	}
 
-	c := NewOperatorCache(rcp)
+	c := NewOperatorCache(rcp, logrus.New())
 
 	errs := make(chan error)
 	for w := 0; w < NWorkers; w++ {
@@ -133,7 +137,7 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 
 func TestOperatorCacheExpiration(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
-	key := CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
+	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
 			Bundles: []*api.Bundle{{
@@ -148,7 +152,7 @@ func TestOperatorCacheExpiration(t *testing.T) {
 		}),
 	}
 
-	c := NewOperatorCache(rcp)
+	c := NewOperatorCache(rcp, logrus.New())
 	c.ttl = 0 // instantly stale
 
 	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(WithCSVName("csvname")), 1)
@@ -156,7 +160,7 @@ func TestOperatorCacheExpiration(t *testing.T) {
 
 func TestOperatorCacheReuse(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
-	key := CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
+	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
 			Bundles: []*api.Bundle{{
@@ -171,7 +175,7 @@ func TestOperatorCacheReuse(t *testing.T) {
 		}),
 	}
 
-	c := NewOperatorCache(rcp)
+	c := NewOperatorCache(rcp, logrus.New())
 
 	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(WithCSVName("csvname")), 1)
 }
@@ -283,7 +287,7 @@ func TestCatalogSnapshotFind(t *testing.T) {
 
 func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
-	key := CatalogKey{Namespace: "testnamespace", Name: "testname"}
+	key := registry.CatalogKey{Namespace: "testnamespace", Name: "testname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
 			Bundles: []*api.Bundle{{
@@ -300,14 +304,30 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 					Kind:    "K2",
 					Plural:  "ks2",
 				}},
+				Properties: apiSetToProperties(map[opregistry.APIKey]struct{}{
+					{
+						Group:   "g",
+						Version: "v1",
+						Kind:    "K",
+						Plural:  "ks",
+					}: {},
+				}, nil),
+				Dependencies: apiSetToDependencies(map[opregistry.APIKey]struct{}{
+					{
+						Group:   "g2",
+						Version: "v2",
+						Kind:    "K2",
+						Plural:  "ks2",
+					}: {},
+				}, nil),
 			}},
 		}),
 	}
 
-	c := NewOperatorCache(rcp)
+	c := NewOperatorCache(rcp, logrus.New())
 
 	nc := c.Namespaced("testnamespace")
-	result, err := AtLeast(1, nc.Find(ProvidingAPI(registry.APIKey{Group: "g", Version: "v1", Kind: "K"})))
+	result, err := AtLeast(1, nc.Find(ProvidingAPI(opregistry.APIKey{Group: "g", Version: "v1", Kind: "K"})))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(result))
 	assert.Equal(t, "K.v1.g", result[0].providedAPIs.String())
