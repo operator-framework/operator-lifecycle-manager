@@ -42,7 +42,7 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (OperatorSet, error) {
 	var errs []error
 
-	installables := make([]solver.Installable, 0)
+	installables := make(map[solver.Identifier]solver.Installable, 0)
 	visited := make(map[OperatorSurface]*BundleInstallable, 0)
 
 	// TODO: better abstraction
@@ -93,8 +93,13 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 
 		for _, i := range subInstallables {
-			installables = append(installables, i)
+			installables[i.Identifier()] = i
 		}
+	}
+
+	input := make([]solver.Installable,0)
+	for _, i := range installables {
+		input = append(input, i)
 	}
 
 	// TODO: Consider csvs not attached to subscriptions
@@ -102,7 +107,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	if len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
 	}
-	s, err := solver.New(solver.WithInput(installables), solver.WithTracer(solver.LoggingTracer{&debugWriter{r.log}}))
+	s, err := solver.New(solver.WithInput(input), solver.WithTracer(solver.LoggingTracer{&debugWriter{r.log}}))
 	if err != nil {
 		return nil, err
 	}
