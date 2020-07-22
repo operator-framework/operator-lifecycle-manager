@@ -6,18 +6,15 @@ import (
 	"sync"
 
 	"github.com/go-logr/logr"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -27,6 +24,7 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
+	libsource "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/source"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -37,6 +35,7 @@ type AdoptionReconciler struct {
 	log     logr.Logger
 	mu      sync.RWMutex
 	factory decorators.OperatorFactory
+	source  *libsource.Dynamic
 }
 
 // +kubebuilder:rbac:groups=operators.coreos.com,resources=operators,verbs=create;update;patch;delete
@@ -64,20 +63,7 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.ClusterServiceVersion{}).
-		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Service{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.InstallPlan{}}, enqueueCSV).
+		Watches(r.source, enqueueCSV).
 		Complete(reconcile.Func(r.ReconcileClusterServiceVersion))
 	if err != nil {
 		return err
@@ -104,6 +90,7 @@ func NewAdoptionReconciler(cli client.Client, log logr.Logger, scheme *runtime.S
 
 		log:     log,
 		factory: factory,
+		source:  &libsource.Dynamic{},
 	}, nil
 }
 
@@ -238,6 +225,8 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 		return nil
 	}
 
+	r.log.Info("adopting for", "operator count", len(operators))
+
 	// Label (adopt) prospective components
 	var errs []error
 	// TODO(njhale): parallelize
@@ -247,6 +236,7 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 			errs = append(errs, err)
 			continue
 		}
+		r.log.Info("retrieved components", "component count", len(components))
 
 		for _, component := range components {
 			candidate := component.DeepCopyObject()
@@ -263,6 +253,7 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 				continue
 			}
 
+			r.log.Info("adopted", "component labels", component.(metav1.Object).GetLabels())
 			// Patch the component to adopt
 			if err = r.Patch(ctx, component, client.MergeFrom(candidate)); err != nil {
 				errs = append(errs, err)
@@ -274,24 +265,17 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 }
 
 func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.Operator, csv *operatorsv1alpha1.ClusterServiceVersion) ([]runtime.Object, error) {
-	// Note: We need to figure out how to dynamically add new list types here (or some equivalent) in
-	// order to support operators composed of custom resources.
-	componentLists := []runtime.Object{
-		&appsv1.DeploymentList{},
-		&corev1.ServiceList{},
-		&corev1.NamespaceList{},
-		&corev1.ServiceAccountList{},
-		&corev1.SecretList{},
-		&corev1.ConfigMapList{},
-		&rbacv1.RoleList{},
-		&rbacv1.RoleBindingList{},
-		&rbacv1.ClusterRoleList{},
-		&rbacv1.ClusterRoleBindingList{},
-		&apiregistrationv1.APIServiceList{},
-		&apiextensionsv1.CustomResourceDefinitionList{},
-		&operatorsv1alpha1.SubscriptionList{},
-		&operatorsv1alpha1.InstallPlanList{},
-		&operatorsv1alpha1.ClusterServiceVersionList{},
+	informable, err := r.source.InformableGVKs()
+	if err != nil {
+		return nil, err
+	}
+
+	var componentLists []runtime.Object
+	for _, gvk := range informable {
+		gvk.Kind = gvk.Kind + "List"
+		ul := &unstructured.UnstructuredList{}
+		ul.SetGroupVersionKind(gvk)
+		componentLists = append(componentLists, ul)
 	}
 
 	// Only resources that aren't already labelled are adoption candidates
@@ -394,8 +378,6 @@ func (r *AdoptionReconciler) mapToClusterServiceVersions(obj handler.MapObject) 
 		nsn := types.NamespacedName{Namespace: obj.Meta.GetNamespace(), Name: owner.Name}
 		requests = append(requests, reconcile.Request{NamespacedName: nsn})
 	}
-
-	// TODO(njhale): Requeue CSVs on CRD changes
 
 	return
 }

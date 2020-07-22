@@ -5,11 +5,9 @@ import (
 	"sync"
 
 	"github.com/go-logr/logr"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,12 +17,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
+	libsource "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/source"
 )
 
 var (
@@ -51,6 +49,7 @@ type OperatorReconciler struct {
 
 	// operators contains the names of Operators the OperatorReconciler has observed exist.
 	operators map[types.NamespacedName]struct{}
+	source    *libsource.Dynamic
 }
 
 // +kubebuilder:rbac:groups=operators.coreos.com,resources=operators,verbs=create;update;patch;delete
@@ -64,25 +63,9 @@ func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		ToRequests: handler.ToRequestsFunc(r.mapComponentRequests),
 	}
 
-	// Note: If we want to support resources composed of custom resources, we need to figure out how
-	// to dynamically add resource types to watch.
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv2alpha1.Operator{}).
-		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.InstallPlan{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueueOperator).
-		// TODO(njhale): Add WebhookConfigurations and ConfigMaps
+		Watches(r.source, enqueueOperator).
 		Complete(r)
 }
 
@@ -105,6 +88,7 @@ func NewOperatorReconciler(cli client.Client, log logr.Logger, scheme *runtime.S
 		log:       log,
 		factory:   factory,
 		operators: map[types.NamespacedName]struct{}{},
+		source:    &libsource.Dynamic{},
 	}, nil
 }
 
@@ -168,23 +152,17 @@ func (r *OperatorReconciler) updateComponents(ctx context.Context, operator *dec
 }
 
 func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels.Selector) ([]runtime.Object, error) {
-	// Note: We need to figure out how to dynamically add new list types here (or some equivalent) in
-	// order to support operators composed of custom resources.
-	componentLists := []runtime.Object{
-		&appsv1.DeploymentList{},
-		&corev1.NamespaceList{},
-		&corev1.ServiceAccountList{},
-		&corev1.SecretList{},
-		&corev1.ConfigMapList{},
-		&rbacv1.RoleList{},
-		&rbacv1.RoleBindingList{},
-		&rbacv1.ClusterRoleList{},
-		&rbacv1.ClusterRoleBindingList{},
-		&apiextensionsv1.CustomResourceDefinitionList{},
-		&apiregistrationv1.APIServiceList{},
-		&operatorsv1alpha1.SubscriptionList{},
-		&operatorsv1alpha1.InstallPlanList{},
-		&operatorsv1alpha1.ClusterServiceVersionList{},
+	informable, err := r.source.InformableGVKs()
+	if err != nil {
+		return nil, err
+	}
+
+	var componentLists []runtime.Object
+	for _, gvk := range informable {
+		gvk.Kind = gvk.Kind + "List"
+		ul := &unstructured.UnstructuredList{}
+		ul.SetGroupVersionKind(gvk)
+		componentLists = append(componentLists, ul)
 	}
 
 	opt := client.MatchingLabelsSelector{Selector: selector}

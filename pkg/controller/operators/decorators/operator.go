@@ -218,6 +218,7 @@ func (o *Operator) AdoptComponent(component runtime.Object) (adopted bool, err e
 		labels[labelKey] = ""
 		adopted = true
 	}
+	m.SetLabels(labels)
 
 	return
 }
