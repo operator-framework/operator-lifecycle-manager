@@ -68,6 +68,20 @@ type FakeInterface struct {
 		result1 *api.Bundle
 		result2 error
 	}
+	GetPackageStub        func(context.Context, string) (*api.Package, error)
+	getPackageMutex       sync.RWMutex
+	getPackageArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
+	}
+	getPackageReturns struct {
+		result1 *api.Package
+		result2 error
+	}
+	getPackageReturnsOnCall map[int]struct {
+		result1 *api.Package
+		result2 error
+	}
 	GetReplacementBundleInPackageChannelStub        func(context.Context, string, string, string) (*api.Bundle, error)
 	getReplacementBundleInPackageChannelMutex       sync.RWMutex
 	getReplacementBundleInPackageChannelArgsForCall []struct {
@@ -364,6 +378,70 @@ func (fake *FakeInterface) GetBundleThatProvidesReturnsOnCall(i int, result1 *ap
 	}{result1, result2}
 }
 
+func (fake *FakeInterface) GetPackage(arg1 context.Context, arg2 string) (*api.Package, error) {
+	fake.getPackageMutex.Lock()
+	ret, specificReturn := fake.getPackageReturnsOnCall[len(fake.getPackageArgsForCall)]
+	fake.getPackageArgsForCall = append(fake.getPackageArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	fake.recordInvocation("GetPackage", []interface{}{arg1, arg2})
+	fake.getPackageMutex.Unlock()
+	if fake.GetPackageStub != nil {
+		return fake.GetPackageStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.getPackageReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeInterface) GetPackageCallCount() int {
+	fake.getPackageMutex.RLock()
+	defer fake.getPackageMutex.RUnlock()
+	return len(fake.getPackageArgsForCall)
+}
+
+func (fake *FakeInterface) GetPackageCalls(stub func(context.Context, string) (*api.Package, error)) {
+	fake.getPackageMutex.Lock()
+	defer fake.getPackageMutex.Unlock()
+	fake.GetPackageStub = stub
+}
+
+func (fake *FakeInterface) GetPackageArgsForCall(i int) (context.Context, string) {
+	fake.getPackageMutex.RLock()
+	defer fake.getPackageMutex.RUnlock()
+	argsForCall := fake.getPackageArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeInterface) GetPackageReturns(result1 *api.Package, result2 error) {
+	fake.getPackageMutex.Lock()
+	defer fake.getPackageMutex.Unlock()
+	fake.GetPackageStub = nil
+	fake.getPackageReturns = struct {
+		result1 *api.Package
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeInterface) GetPackageReturnsOnCall(i int, result1 *api.Package, result2 error) {
+	fake.getPackageMutex.Lock()
+	defer fake.getPackageMutex.Unlock()
+	fake.GetPackageStub = nil
+	if fake.getPackageReturnsOnCall == nil {
+		fake.getPackageReturnsOnCall = make(map[int]struct {
+			result1 *api.Package
+			result2 error
+		})
+	}
+	fake.getPackageReturnsOnCall[i] = struct {
+		result1 *api.Package
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeInterface) GetReplacementBundleInPackageChannel(arg1 context.Context, arg2 string, arg3 string, arg4 string) (*api.Bundle, error) {
 	fake.getReplacementBundleInPackageChannelMutex.Lock()
 	ret, specificReturn := fake.getReplacementBundleInPackageChannelReturnsOnCall[len(fake.getReplacementBundleInPackageChannelArgsForCall)]
@@ -568,6 +646,8 @@ func (fake *FakeInterface) Invocations() map[string][][]interface{} {
 	defer fake.getBundleInPackageChannelMutex.RUnlock()
 	fake.getBundleThatProvidesMutex.RLock()
 	defer fake.getBundleThatProvidesMutex.RUnlock()
+	fake.getPackageMutex.RLock()
+	defer fake.getPackageMutex.RUnlock()
 	fake.getReplacementBundleInPackageChannelMutex.RLock()
 	defer fake.getReplacementBundleInPackageChannelMutex.RUnlock()
 	fake.healthCheckMutex.RLock()
