@@ -5,9 +5,10 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/sirupsen/logrus"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -102,8 +103,14 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	updatedSubs := []*v1alpha1.Subscription{}
 	bundleLookups := []v1alpha1.BundleLookup{}
 	for name, op := range operators {
-		_, isAdded := add[*op.SourceInfo()]
-		existingSubscription, subExists := subMap[*op.SourceInfo()]
+		// todo: added "is default channel" to sourceinfo out
+		// of convenience, which breaks map key equality here
+		// because it requires information that can't be
+		// gleaned from subscriptions alone. need to revisit
+		sourceInfo := *op.SourceInfo()
+		sourceInfo.DefaultChannel = false
+		_, isAdded := add[sourceInfo]
+		existingSubscription, subExists := subMap[sourceInfo]
 
 		// subscription exists and is up to date
 		if subExists && existingSubscription.Status.CurrentCSV == op.Identifier() && !isAdded {

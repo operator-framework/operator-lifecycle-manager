@@ -1329,9 +1329,9 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create CSV
-		packageName1 := genName("apackage")
-		packageName2 := genName("bpackage")
-		packageName3 := genName("cpackage")
+		packageNameA := genName("apackage")
+		packageNameB := genName("bpackage")
+		packageNameC := genName("cpackage")
 
 		namedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
 		depNamedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
@@ -1354,7 +1354,7 @@ var _ = Describe("Subscription", func() {
 		// Contain csvA, ABC and B
 		manifests := []registry.PackageManifest{
 			{
-				PackageName: packageName1,
+				PackageName: packageNameA,
 				Channels: []registry.PackageChannel{
 					{Name: stableChannel, CurrentCSVName: csvA.GetName()},
 					{Name: alphaChannel, CurrentCSVName: csvABC.GetName()},
@@ -1362,7 +1362,7 @@ var _ = Describe("Subscription", func() {
 				DefaultChannelName: stableChannel,
 			},
 			{
-				PackageName: packageName2,
+				PackageName: packageNameB,
 				Channels: []registry.PackageChannel{
 					{Name: alphaChannel, CurrentCSVName: csvD.GetName()},
 					{Name: stableChannel, CurrentCSVName: csvB.GetName()},
@@ -1375,14 +1375,14 @@ var _ = Describe("Subscription", func() {
 		// Contain csvC
 		manifests2 := []registry.PackageManifest{
 			{
-				PackageName: packageName2,
+				PackageName: packageNameB,
 				Channels: []registry.PackageChannel{
 					{Name: stableChannel, CurrentCSVName: csvC.GetName()},
 				},
 				DefaultChannelName: stableChannel,
 			},
 			{
-				PackageName: packageName3,
+				PackageName: packageNameC,
 				Channels: []registry.PackageChannel{
 					{Name: stableChannel, CurrentCSVName: csvE.GetName()},
 				},
@@ -1401,7 +1401,7 @@ var _ = Describe("Subscription", func() {
 		subscriptionSpec := &v1alpha1.SubscriptionSpec{
 			CatalogSource:          catsrc.GetName(),
 			CatalogSourceNamespace: catsrc.GetNamespace(),
-			Package:                packageName1,
+			Package:                packageNameA,
 			Channel:                stableChannel,
 			StartingCSV:            csvA.GetName(),
 			InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
