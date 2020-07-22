@@ -28,10 +28,10 @@ type SourceRef struct {
 }
 
 type SourceQuerier interface {
-	FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPackages map[string]struct{}) (*api.Bundle, *CatalogKey, error)
-	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
-	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
-	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
+	FindProvider(api opregistry.APIKey, initialSource registry.CatalogKey, excludedPackages map[string]struct{}) (*api.Bundle, *registry.CatalogKey, error)
+	FindBundle(pkgName, channelName, bundleName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
+	FindLatestBundle(pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
+	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
 	Queryable() error
 }
 
@@ -54,7 +54,7 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 	return nil
 }
 
-func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey, excludedPackages map[string]struct{}) (*registryapi.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource registry.CatalogKey, excludedPackages map[string]struct{}) (*registryapi.Bundle, *registry.CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if ok {
