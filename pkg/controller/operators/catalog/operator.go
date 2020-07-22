@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"reflect"
 	"strings"
 	"sync"
@@ -43,6 +42,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
@@ -128,8 +128,6 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	// Create an OperatorLister
 	lister := operatorlister.NewLister()
-
-
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{

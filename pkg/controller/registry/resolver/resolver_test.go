@@ -721,7 +721,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
 			catalog: {
 				operators: []*Operator{
-					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, []*api.Dependency{{Type: "olm.gvk", Value: `{"group":"g","version":"v","kind":"k"}`}}, defaultChannel),
+					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(nil, Provides), defaultChannel),
 					genOperator("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
 					genOperator("packageB.v0.0.2", "0.0.2", "packageB.v0.0.1", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
 				},
@@ -738,7 +738,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 
 	// operator should be from the default stable channel
 	expected := OperatorSet{
-		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, []*api.Dependency{{Type: "olm.gvk", Value: `{"group":"g","version":"v","kind":"k"}`}}, defaultChannel),
+		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(nil, Provides), defaultChannel),
 		"packageB.v0.0.1": genOperator("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
 	}
 	require.EqualValues(t, expected, operators)
