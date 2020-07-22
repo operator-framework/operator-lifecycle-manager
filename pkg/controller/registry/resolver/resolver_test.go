@@ -1,10 +1,10 @@
 package resolver
 
 import (
-	"github.com/sirupsen/logrus"
 	"testing"
 
 	"github.com/blang/semver"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -39,8 +39,8 @@ func TestSolveOperators(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
 				},
 			},
 		},
@@ -53,8 +53,8 @@ func TestSolveOperators(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := OperatorSet{
-		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-		"packageB.v1": genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
+		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageB.v1": genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
 	}
 	require.EqualValues(t, expected, operators)
 }
@@ -83,9 +83,9 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1", "1.0.0", "", "packageB", "beta", "community", "olm", nil, nil, nil),
+					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1", "1.0.0", "", "packageB", "beta", "community", "olm", nil, nil, nil, ""),
 				},
 			},
 		},
@@ -97,8 +97,8 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	expected := OperatorSet{
-		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
+		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
 	}
 	assert.Equal(t, 2, len(operators))
 	for k, e := range expected {
@@ -130,10 +130,10 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
 				},
 			},
 		},
@@ -150,8 +150,8 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	}
 
 	expected := OperatorSet{
-		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
+		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
 	}
 	assert.Equal(t, 2, len(operators))
 	for k, e := range expected {
@@ -194,22 +194,22 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageD.v1.0.0", "1.0.0", "", "packageD", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageD.v1.0.2", "1.0.2", "packageD.v1.0.1", "packageD", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, ""),
+					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageD.v1.0.0", "1.0.0", "", "packageD", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageD.v1.0.2", "1.0.2", "packageD.v1.0.1", "packageD", "alpha", "community", "olm", nil, nil, nil, ""),
 				},
 			},
 		},
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log: logrus.New(),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -217,10 +217,10 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	assert.Equal(t, 4, len(operators))
 
 	expected := OperatorSet{
-		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil),
-		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil),
+		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, ""),
+		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil, ""),
 	}
 	for _, o := range operators {
 		t.Logf("%#v", o)
@@ -230,7 +230,6 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 		assert.EqualValues(t, k, operators[k].Identifier())
 	}
 }
-
 
 func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
@@ -273,15 +272,15 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps),
-					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps),
-					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageE.v1.0.1", "1.0.1", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageE.v1.0.0", "1.0.0", "", "packageE", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, ""),
+					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps, ""),
+					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps, ""),
+					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageE.v1.0.1", "1.0.1", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageE.v1.0.0", "1.0.0", "", "packageE", "alpha", "community", "olm", nil, nil, nil, ""),
 				},
 			},
 		},
@@ -295,11 +294,11 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	assert.Equal(t, 5, len(operators))
 
 	expected := OperatorSet{
-		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil),
-		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil),
-		"packageE.v1.0.1": genOperator("packageE.v1.0.1", "1.0.1", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil),
+		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, ""),
+		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageE.v1.0.1": genOperator("packageE.v1.0.1", "1.0.1", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil, ""),
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
@@ -338,9 +337,9 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1.0.1", "0.0.1","packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil),
+					genOperator("packageA.v1.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, ""),
+					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil, ""),
 				},
 			},
 		},
@@ -354,9 +353,9 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 	assert.Equal(t, 3, len(operators))
 
 	expected := OperatorSet{
-		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-		"packageB.v1": genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-		"packageC.v1": genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil),
+		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageB.v1":     genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, ""),
+		"packageC.v1":     genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil, ""),
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
@@ -395,9 +394,9 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps),
-					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, Provides, nil),
+					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, ""),
+					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, Provides, nil, ""),
 				},
 			},
 		},
@@ -411,8 +410,8 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 	assert.Equal(t, 2, len(operators))
 
 	expected := OperatorSet{
-		"packageB.v1": genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "community", "olm", Provides, nil, deps),
-		"packageC.v1": genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, Provides, nil),
+		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, ""),
+		"packageC.v1": genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, Provides, nil, ""),
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
@@ -458,12 +457,12 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1.0.0", "1.0.0", "","packageB", "alpha", "community", "olm", Provides, nil, deps),
-					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps),
-					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2),
-					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2),
-					genOperator("packageD.v1.0.1", "1.0.1", "","packageD", "alpha", "community", "olm", nil, Provides2, deps2),
+					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, ""),
+					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, ""),
+					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2, ""),
+					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2, ""),
+					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, Provides2, deps2, ""),
 				},
 			},
 			registry.CatalogKey{
@@ -475,26 +474,26 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 					Name:      "certified",
 				},
 				operators: []*Operator{
-					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "certified", "olm", Provides2, Provides, deps2),
-					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "certified", "olm", Provides2, Provides, deps2),
-					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "certified", "olm", nil, Provides2, nil),
+					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "certified", "olm", Provides2, Provides, deps2, ""),
+					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "certified", "olm", Provides2, Provides, deps2, ""),
+					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "certified", "olm", nil, Provides2, nil, ""),
 				},
 			},
 		},
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log: logrus.New(),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 	expected := OperatorSet{
-		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil),
-		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps),
-		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2),
-		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "","packageD", "alpha", "community", "olm", nil, Provides2, deps2),
+		"packageA.v1.0.1": genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, ""),
+		"packageC.v1.0.1": genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2, ""),
+		"packageD.v1.0.1": genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, Provides2, deps2, ""),
 	}
 	got := []string{}
 	for _, o := range operators {
@@ -507,7 +506,6 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 		}
 	}
 }
-
 
 func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
@@ -546,9 +544,9 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 					Name:      "community",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil),
-					genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps),
-					genOperator("packageC.v1", "0.1.0", "","packageC", "alpha", "community", "olm", nil, nil, unsatisfiableVersionDeps),
+					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, ""),
+					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, unsatisfiableVersionDeps, ""),
 				},
 			},
 			registry.CatalogKey{
@@ -560,9 +558,9 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 					Name:      "certified",
 				},
 				operators: []*Operator{
-					genOperator("packageA.v1", "0.0.1", "","packageA", "alpha", "certified", "olm", nil, nil, nil),
-					genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps),
-					genOperator("packageC.v1", "0.1.0", "","packageC", "alpha", "certified", "olm", nil, nil, nil),
+					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "certified", "olm", nil, nil, nil, ""),
+					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps, ""),
+					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "certified", "olm", nil, nil, nil, ""),
 				},
 			},
 		},
@@ -576,8 +574,8 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	assert.Equal(t, 2, len(operators))
 
 	expected := OperatorSet{
-		"packageB.v1": genOperator("packageB.v1", "1.0.0", "","packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps),
-		"packageC.v1": genOperator("packageC.v1", "0.1.0", "","packageC", "alpha", "certified", "olm", nil, nil, nil),
+		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps, ""),
+		"packageC.v1": genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "certified", "olm", nil, nil, nil, ""),
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
@@ -605,12 +603,12 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
 			catalog: {
 				operators: []*Operator{
-					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil),
+					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, ""),
 				},
 			},
 			altnsCatalog: {
 				operators: []*Operator{
-					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", altnsCatalog.Name, altnsCatalog.Namespace, nil, Provides, nil),
+					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", altnsCatalog.Name, altnsCatalog.Namespace, nil, Provides, nil, ""),
 				},
 			},
 		},
@@ -624,7 +622,7 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := OperatorSet{
-		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil),
+		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, ""),
 	}
 	require.EqualValues(t, expected, operators)
 }
@@ -648,7 +646,7 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
 			catalog: {
 				operators: []*Operator{
-					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", otherCatalog.Name, otherCatalog.Namespace, nil, Provides, nil),
+					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", otherCatalog.Name, otherCatalog.Namespace, nil, Provides, nil, ""),
 				},
 			},
 		},
@@ -664,19 +662,17 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 	assert.Len(t, operators, 0)
 }
 
-// Behavior: the resolver should always prefer the default channel for the bundle (unless we implement ordering for channels)
-// TODO
+// Behavior: the resolver should always prefer the default channel for the subscribed bundle (unless we implement ordering for channels)
 func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
-	t.Skip("TODO: accessing default channel....")
 	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := registry.CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
+	csvs := []*v1alpha1.ClusterServiceVersion{}
 
+	const defaultChannel = "stable"
 	// do not specify a channel explicitly on the subscription
 	newSub := newSub(namespace, "packageA", "", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
@@ -686,8 +682,8 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 			catalog: {
 				operators: []*Operator{
 					// Default channel is stable in this case
-					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil),
-					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil),
+					genOperator("packageA.v0.0.2", "0.0.2", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
+					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
 				},
 			},
 		},
@@ -702,7 +698,48 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 
 	// operator should be from the default stable channel
 	expected := OperatorSet{
-		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil),
+		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
+	}
+	require.EqualValues(t, expected, operators)
+}
+
+// Behavior: the resolver should always prefer the default channel for bundles satisfying transitive dependencies
+func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencies(t *testing.T) {
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides := APISet
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{Name: "community", Namespace: namespace}
+
+	csvs := []*v1alpha1.ClusterServiceVersion{}
+
+	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	const defaultChannel = "stable"
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			catalog: {
+				operators: []*Operator{
+					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, []*api.Dependency{{Type: "olm.gvk", Value: `{"group":"g","version":"v","kind":"k"}`}}, defaultChannel),
+					genOperator("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
+					genOperator("packageB.v0.0.2", "0.0.2", "packageB.v0.0.1", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
+				},
+			},
+		},
+	}
+
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	assert.NoError(t, err)
+
+	// operator should be from the default stable channel
+	expected := OperatorSet{
+		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, []*api.Dependency{{Type: "olm.gvk", Value: `{"group":"g","version":"v","kind":"k"}`}}, defaultChannel),
+		"packageB.v0.0.1": genOperator("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel),
 	}
 	require.EqualValues(t, expected, operators)
 }
@@ -725,17 +762,17 @@ func getFakeOperatorCache(fakedNamespacedOperatorCache NamespacedOperatorCache) 
 	}
 }
 
-func genOperator(name, version, replaces, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs APISet, dependencies []*api.Dependency) *Operator {
+func genOperator(name, version, replaces, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs APISet, dependencies []*api.Dependency, defaultChannel string) *Operator {
 	semversion, _ := semver.Make(version)
 	return &Operator{
-		name:    name,
-		version: &semversion,
+		name:     name,
+		version:  &semversion,
 		replaces: replaces,
 		bundle: &api.Bundle{
-			PackageName: pkg,
-			ChannelName: channel,
+			PackageName:  pkg,
+			ChannelName:  channel,
 			Dependencies: dependencies,
-			Properties: apiSetToProperties(providedAPIs, nil),
+			Properties:   apiSetToProperties(providedAPIs, nil),
 		},
 		dependencies: dependencies,
 		sourceInfo: &OperatorSourceInfo{
@@ -743,6 +780,7 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 				Name:      catalogName,
 				Namespace: catalogNamespace,
 			},
+			DefaultChannel: defaultChannel != "" && channel == defaultChannel,
 		},
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,

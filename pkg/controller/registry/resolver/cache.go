@@ -78,7 +78,7 @@ func (c *OperatorCache) Expire(catalog registry.CatalogKey) {
 	if !ok {
 		return
 	}
-	s.expiry = time.Unix(0,0)
+	s.expiry = time.Unix(0, 0)
 }
 
 func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
@@ -170,6 +170,11 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 	c.sem <- struct{}{}
 	defer func() { <-c.sem }()
 
+	// Fetching default channels this way makes many round trips
+	// -- may need to either add a new API to fetch all at once,
+	// or embed the information into Bundle.
+	defaultChannels := make(map[string]string)
+
 	it, err := registry.ListBundles(ctx)
 	if err != nil {
 		snapshot.logger.Errorf("failed to list bundles: %s", err.Error())
@@ -178,7 +183,17 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 
 	var operators []*Operator
 	for b := it.Next(); b != nil; b = it.Next() {
-		o, err := NewOperatorFromBundle(b, "", snapshot.key)
+		defaultChannel, ok := defaultChannels[b.PackageName]
+		if !ok {
+			if p, err := registry.GetPackage(ctx, b.PackageName); err != nil {
+				snapshot.logger.Warnf("failed to retrieve default channel for bundle, continuing: %v", err)
+				continue
+			} else {
+				defaultChannels[b.PackageName] = p.DefaultChannelName
+				defaultChannel = p.DefaultChannelName
+			}
+		}
+		o, err := NewOperatorFromBundle(b, "", snapshot.key, defaultChannel)
 		if err != nil {
 			snapshot.logger.Warnf("failed to construct operator from bundle, continuing: %v", err)
 			continue
@@ -235,12 +250,12 @@ func (s *CatalogSnapshot) Expired(at time.Time) bool {
 type SortableSnapshots struct {
 	snapshots  []*CatalogSnapshot
 	namespaces map[string]int
-	preferred *registry.CatalogKey
+	preferred  *registry.CatalogKey
 }
 
 func NewSortableSnapshots(preferred *registry.CatalogKey, namespaces []string, snapshots map[registry.CatalogKey]*CatalogSnapshot) SortableSnapshots {
 	sorted := SortableSnapshots{
-		preferred: preferred,
+		preferred:  preferred,
 		snapshots:  make([]*CatalogSnapshot, 0),
 		namespaces: make(map[string]int, 0),
 	}
@@ -307,12 +322,6 @@ type EmptyOperatorFinder struct{}
 
 func (f EmptyOperatorFinder) Find(...OperatorPredicate) []*Operator {
 	return nil
-}
-
-func InChannel(pkg, channel string) OperatorPredicate {
-	return func(o *Operator) bool {
-		return o.Package() == pkg && o.Bundle().ChannelName == channel
-	}
 }
 
 func WithCSVName(name string) OperatorPredicate {

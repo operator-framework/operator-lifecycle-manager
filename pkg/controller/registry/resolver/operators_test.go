@@ -2,8 +2,9 @@ package resolver
 
 import (
 	"encoding/json"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"testing"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
@@ -1031,9 +1032,10 @@ func TestNewOperatorFromBundle(t *testing.T) {
 	}
 
 	type args struct {
-		bundle    *api.Bundle
-		sourceKey registry.CatalogKey
-		replaces  string
+		bundle         *api.Bundle
+		sourceKey      registry.CatalogKey
+		replaces       string
+		defaultChannel string
 	}
 	tests := []struct {
 		name    string
@@ -1171,10 +1173,31 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "bundle in default channel",
+			args: args{
+				bundle:         bundleNoAPIs,
+				sourceKey:      registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+				defaultChannel: "testChannel",
+			},
+			want: &Operator{
+				name:         "testCSV",
+				version:      &version.Version,
+				providedAPIs: EmptyAPISet(),
+				requiredAPIs: EmptyAPISet(),
+				bundle:       bundleNoAPIs,
+				sourceInfo: &OperatorSourceInfo{
+					Package:        "testPackage",
+					Channel:        "testChannel",
+					Catalog:        registry.CatalogKey{"source", "testNamespace"},
+					DefaultChannel: true,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey)
+			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey, tt.args.defaultChannel)
 			require.Equal(t, tt.wantErr, err)
 			require.Equal(t, tt.want, got)
 		})

@@ -63,7 +63,7 @@ type resolverTestOut struct {
 
 func SharedResolverSpecs() []resolverTest {
 	namespace := "catsrc-namespace"
-	catalog := registry.CatalogKey{"catsrc", namespace}
+	catalog := registry.CatalogKey{Name: "catsrc", Namespace: namespace}
 	nothing := resolverTestOut{
 		steps:   [][]*v1alpha1.Step{},
 		lookups: []v1alpha1.BundleLookup{},
@@ -673,7 +673,7 @@ func TestResolver(t *testing.T) {
 			stubSnapshot := &CatalogSnapshot{}
 			for _, bundles := range tt.bundlesByCatalog {
 				for _, bundle := range bundles {
-					op, err := NewOperatorFromBundle(bundle, "", catalog)
+					op, err := NewOperatorFromBundle(bundle, "", catalog, "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}

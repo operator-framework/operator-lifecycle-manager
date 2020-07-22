@@ -61,6 +61,10 @@ func (s *RegistryClientStub) ListBundles(ctx context.Context) (*client.BundleIte
 	return s.BundleIterator, nil
 }
 
+func (s *RegistryClientStub) GetPackage(ctx context.Context, packageName string) (*api.Package, error) {
+	return &api.Package{Name: packageName}, nil
+}
+
 func (s *RegistryClientStub) HealthCheck(ctx context.Context, reconnectTimeout time.Duration) (bool, error) {
 	return false, nil
 }
