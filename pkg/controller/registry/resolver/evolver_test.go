@@ -2,9 +2,9 @@ package resolver
 
 import (
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"testing"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
@@ -129,7 +129,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			wantGen: NewGenerationFromOperators(
 				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 			),
-			wantErr: fmt.Errorf("{nothing channel nothing.v1 {catsrc catsrc-namespace}} not found: no bundle found"),
+			wantErr: fmt.Errorf("{nothing channel nothing.v1 {catsrc catsrc-namespace} false} not found: no bundle found"),
 		},
 		{
 			// the incoming subscription requires apis that can't be found
@@ -465,7 +465,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			fields: fields{
 				querier: NewFakeSourceQuerier(map[registry.CatalogKey][]*api.Bundle{
 					registry.CatalogKey{"catsrc", "catsrc-namespace"}: {
-						bundle("original", "o", "c", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}},  EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+						bundle("original", "o", "c", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
 						bundle("original.v2", "o", "c", "original", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
 					},
 				}),
@@ -475,8 +475,8 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			},
 			args: args{},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "",  []opregistry.APIKey{{"g", "v", "k", "ks"}},nil, nil, nil, nil),
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil,[]opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 			),
 		},
 	}

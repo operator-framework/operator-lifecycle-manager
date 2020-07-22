@@ -19,13 +19,13 @@ type OperatorResolver interface {
 
 type SatResolver struct {
 	cache OperatorCacheProvider
-	log logrus.FieldLogger
+	log   logrus.FieldLogger
 }
 
 func NewDefaultSatResolver(rcp RegistryClientProvider, log logrus.FieldLogger) *SatResolver {
 	return &SatResolver{
 		cache: NewOperatorCache(rcp, log),
-		log: log,
+		log:   log,
 	}
 }
 
@@ -57,7 +57,10 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			Name:      sub.Spec.CatalogSource,
 			Namespace: sub.Spec.CatalogSourceNamespace,
 		}
-		predicates := []OperatorPredicate{InChannel(pkg, sub.Spec.Channel)}
+		predicates := []OperatorPredicate{WithPackage(pkg)}
+		if sub.Spec.Channel != "" {
+			predicates = append(predicates, WithChannel(sub.Spec.Channel))
+		}
 
 		// find the currently installed operator (if it exists)
 		var current *Operator
@@ -97,7 +100,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 	}
 
-	input := make([]solver.Installable,0)
+	input := make([]solver.Installable, 0)
 	for _, i := range installables {
 		input = append(input, i)
 	}
@@ -169,12 +172,42 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 
 	// there are no options for this package, return early
 	if len(bundles) == 0 {
+		// should this condition fail resolution altogether?
 		return installables, nil
 	}
 
-	sortedBundles, err := r.sortChannel(bundles)
-	if err != nil {
-		return nil, err
+	// bundles in the default channel appear first, then lexicographically order by channel name
+	sort.SliceStable(bundles, func(i, j int) bool {
+		var idef bool
+		if isrc := bundles[i].SourceInfo(); isrc != nil {
+			idef = isrc.DefaultChannel
+		}
+		var jdef bool
+		if jsrc := bundles[j].SourceInfo(); jsrc != nil {
+			jdef = jsrc.DefaultChannel
+		}
+		if idef == jdef {
+			return bundles[i].bundle.ChannelName < bundles[j].bundle.ChannelName
+		}
+		return idef
+	})
+
+	var sortedBundles []*Operator
+	lastChannel, lastIndex := "", 0
+	for i := 0; i <= len(bundles); i++ {
+		if i != len(bundles) && bundles[i].bundle.ChannelName == lastChannel {
+			continue
+		}
+		channel, err := r.sortChannel(bundles[lastIndex:i])
+		if err != nil {
+			return nil, err
+		}
+		sortedBundles = append(sortedBundles, channel...)
+
+		if i != len(bundles) {
+			lastChannel = bundles[i].bundle.ChannelName
+			lastIndex = i
+		}
 	}
 
 	for _, o := range Filter(sortedBundles, channelPredicates...) {
@@ -309,27 +342,45 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 
 func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 	// assume bundles have been passed in sorted by catalog already
-	catalogOrder := make([]registry.CatalogKey,0)
+	catalogOrder := make([]registry.CatalogKey, 0)
 
+	type PackageChannel struct {
+		Package, Channel string
+		DefaultChannel   bool
+	}
 	// TODO: for now channels will be sorted lexicographically
-	channelOrder := make(map[registry.CatalogKey][]string)
+	channelOrder := make(map[registry.CatalogKey][]PackageChannel)
 
 	// partition by catalog -> channel -> bundle
-	partitionedBundles := map[registry.CatalogKey]map[string][]*Operator{}
+	partitionedBundles := map[registry.CatalogKey]map[PackageChannel][]*Operator{}
 	for _, b := range bundles {
+		pc := PackageChannel{
+			Package:        b.Package(),
+			Channel:        b.bundle.ChannelName,
+			DefaultChannel: b.SourceInfo().DefaultChannel,
+		}
 		if _, ok := partitionedBundles[b.sourceInfo.Catalog]; !ok {
 			catalogOrder = append(catalogOrder, b.sourceInfo.Catalog)
-			partitionedBundles[b.sourceInfo.Catalog] = make(map[string][]*Operator)
+			partitionedBundles[b.sourceInfo.Catalog] = make(map[PackageChannel][]*Operator)
 		}
-		if _, ok := partitionedBundles[b.sourceInfo.Catalog][b.bundle.ChannelName]; !ok {
-			channelOrder[b.sourceInfo.Catalog] = append(channelOrder[b.sourceInfo.Catalog], b.bundle.ChannelName)
-			partitionedBundles[b.sourceInfo.Catalog][b.bundle.ChannelName] = make([]*Operator, 0)
+		if _, ok := partitionedBundles[b.sourceInfo.Catalog][pc]; !ok {
+			channelOrder[b.sourceInfo.Catalog] = append(channelOrder[b.sourceInfo.Catalog], pc)
+			partitionedBundles[b.sourceInfo.Catalog][pc] = make([]*Operator, 0)
 		}
-		partitionedBundles[b.sourceInfo.Catalog][b.bundle.ChannelName] = append(partitionedBundles[b.sourceInfo.Catalog][b.bundle.ChannelName], b)
+		partitionedBundles[b.sourceInfo.Catalog][pc] = append(partitionedBundles[b.sourceInfo.Catalog][pc], b)
 	}
 
 	for catalog := range partitionedBundles {
-		sort.Strings(channelOrder[catalog])
+		sort.SliceStable(channelOrder[catalog], func(i, j int) bool {
+			pi, pj := channelOrder[catalog][i], channelOrder[catalog][j]
+			if pi.DefaultChannel != pj.DefaultChannel {
+				return pi.DefaultChannel
+			}
+			if pi.Package != pj.Package {
+				return pi.Package < pj.Package
+			}
+			return pi.Channel < pj.Channel
+		})
 		for channel := range partitionedBundles[catalog] {
 			sorted, err := r.sortChannel(partitionedBundles[catalog][channel])
 			if err != nil {
