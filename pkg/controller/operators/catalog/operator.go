@@ -1230,7 +1230,7 @@ func (o *Operator) validateCustomResourceDefinition(oldCRD *v1beta1ext.CustomRes
 		return err
 	}
 	for _, version := range oldCRD.Spec.Versions {
-		if !version.Served {
+		if version.Served {
 			gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: version.Name, Resource: oldCRD.Spec.Names.Plural}
 			err := o.validateExistingCRs(gvr, convertedCRD)
 			if err != nil {
