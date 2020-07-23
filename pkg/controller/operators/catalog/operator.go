@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -67,6 +69,8 @@ const (
 	roleKind               = "Role"
 	roleBindingKind        = "RoleBinding"
 	generatedByKey         = "olm.generated-by"
+	maxInstallPlanCount    = 5
+	maxDeletesPerSweep     = 5
 )
 
 // Operator represents a Kubernetes operator that executes InstallPlans by
@@ -777,6 +781,8 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		"id":        queueinformer.NewLoopID(),
 	})
 
+	o.gcInstallPlans(logger, namespace)
+
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
 
@@ -1178,6 +1184,77 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 	}
 
 	return unpacked, out, nil
+}
+
+// gcInstallPlans garbage collects installplans that are too old
+// installplans are ownerrefd to all subscription inputs, so they will not otherwise
+// be GCd unless all inputs have been deleted.
+func (o *Operator) gcInstallPlans(log logrus.FieldLogger, namespace string) {
+	allIps, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(namespace).List(labels.Everything())
+	if err != nil {
+		log.Warn("unable to list installplans for GC")
+	}
+
+	if len(allIps) <= maxInstallPlanCount {
+		return
+	}
+
+	// we only consider maxDeletesPerSweep more than the allowed number of installplans for delete at one time
+	ips := allIps
+	if len(ips) > maxInstallPlanCount + maxDeletesPerSweep {
+		ips = allIps[:maxInstallPlanCount+maxDeletesPerSweep]
+	}
+
+	byGen := map[int][]*v1alpha1.InstallPlan{}
+	for _, ip := range ips {
+		gen, ok := byGen[ip.Spec.Generation]
+		if !ok {
+			gen = make([]*v1alpha1.InstallPlan, 0)
+		}
+		byGen[ip.Spec.Generation] = append(gen, ip)
+	}
+
+	gens := make([]int, 0)
+	for i := range byGen {
+		gens = append(gens, i)
+	}
+
+	sort.Ints(gens)
+
+	toDelete := make([]*v1alpha1.InstallPlan, 0)
+
+	for _, i := range gens {
+		g := byGen[i]
+
+		if len(ips)-len(toDelete) <= maxInstallPlanCount {
+			break
+		}
+
+		// if removing all installplans at this generation doesn't dip below the max, safe to delete all of them
+		if len(ips)-len(toDelete)-len(g) >= maxInstallPlanCount {
+			toDelete = append(toDelete, g...)
+			continue
+		}
+
+		// CreationTimestamp sorting shouldn't ever be hit unless there is a bug that causes installplans to be
+		// generated without bumping the generation. It is here as a safeguard only.
+
+		// sort by creation time
+		sort.Slice(g, func(i, j int) bool {
+			if !g[i].CreationTimestamp.Equal(&g[j].CreationTimestamp) {
+				return g[i].CreationTimestamp.Before(&g[j].CreationTimestamp)
+			}
+			// final fallback to lexicographic sort, in case many installplans are created with the same timestamp
+			return g[i].GetName() < g[j].GetName()
+		})
+		toDelete = append(toDelete, g[:len(ips)-len(toDelete)-maxInstallPlanCount]...)
+	}
+
+	for _, i := range toDelete {
+		if err := o.client.OperatorsV1alpha1().InstallPlans(namespace).Delete(context.TODO(), i.GetName(), metav1.DeleteOptions{}); err != nil {
+			log.WithField("deleting", i.GetName()).WithError(err).Warn("error GCing old installplan - may have already been deleted")
+		}
+	}
 }
 
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
