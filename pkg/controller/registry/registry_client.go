@@ -21,7 +21,7 @@ type ChannelEntryStream interface {
 // ClientInterface that extends client.Interface
 type ClientInterface interface {
 	client.Interface
-	FindBundleThatProvides(ctx context.Context, group, version, kind, excludedPkgName string) (*registryapi.Bundle, error)
+	FindBundleThatProvides(ctx context.Context, group, version, kind string, excludedPackages map[string]struct{}) (*registryapi.Bundle, error)
 	GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (*ChannelEntryIterator, error)
 }
 
@@ -81,14 +81,14 @@ func (rc *Client) GetLatestChannelEntriesThatProvide(ctx context.Context, group,
 
 // FindBundleThatProvides returns a bundle that provides the request API and
 // doesn't belong to the provided package
-func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, kind, excludedPkgName string) (*registryapi.Bundle, error) {
+func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, kind string, excludedPackages map[string]struct{}) (*registryapi.Bundle, error) {
 	it, err := rc.GetLatestChannelEntriesThatProvide(ctx, group, version, kind)
 	if err != nil {
 		return nil, err
 	}
-	entry := rc.filterChannelEntries(ctx, it, excludedPkgName)
+	entry := rc.filterChannelEntries(ctx, it, excludedPackages)
 	if entry == nil {
-		return nil, fmt.Errorf("Unable to find a channel entry which doesn't belong to package %s's default channel", excludedPkgName)
+		return nil, fmt.Errorf("Unable to find a channel entry that satisfies the requirements")
 	}
 	bundle, err := rc.Client.Registry.GetBundle(ctx, &registryapi.GetBundleRequest{PkgName: entry.PackageName, ChannelName: entry.ChannelName, CsvName: entry.BundleName})
 	if err != nil {
@@ -100,12 +100,12 @@ func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, ki
 // FilterChannelEntries filters out channel entries that provide the requested
 // API and come from the same package with original operator and returns the
 // first entry on the list from the default channel of that package
-func (rc *Client) filterChannelEntries(ctx context.Context, it *ChannelEntryIterator, excludedPkgName string) *opregistry.ChannelEntry {
+func (rc *Client) filterChannelEntries(ctx context.Context, it *ChannelEntryIterator, excludedPackages map[string]struct{}) *opregistry.ChannelEntry {
 	defChannels := make(map[string]string, 0)
 
 	var entries []*opregistry.ChannelEntry
 	for e := it.Next(); e != nil; e = it.Next() {
-		if e.PackageName != excludedPkgName {
+		if _, ok := excludedPackages[e.PackageName]; !ok {
 			// keep track of the default channel for each package
 			if _, ok := defChannels[e.PackageName]; !ok {
 				defChannel, err := rc.getDefaultPackageChannel(ctx, e.PackageName)
