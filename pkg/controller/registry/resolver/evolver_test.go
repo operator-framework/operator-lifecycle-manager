@@ -11,6 +11,7 @@ import (
 )
 
 func TestNamespaceGenerationEvolver(t *testing.T) {
+	t.Skip("skipping test that doesn't apply to the new resolver")
 	type fields struct {
 		querier SourceQuerier
 		gen     Generation

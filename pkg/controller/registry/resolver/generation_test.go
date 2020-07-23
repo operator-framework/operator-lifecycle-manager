@@ -15,6 +15,7 @@ import (
 var NoVersion = semver.MustParse("0.0.0")
 
 func TestNewGenerationFromCSVs(t *testing.T) {
+	t.Skip("skipping test that only applies to the old resolver")
 	type args struct {
 		csvs []*v1alpha1.ClusterServiceVersion
 	}

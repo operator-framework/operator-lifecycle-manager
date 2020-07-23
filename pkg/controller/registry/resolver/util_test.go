@@ -72,6 +72,10 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 	}
 	b := bundle(name, pkg, channel, replaces, providedCRDAPISet, requiredCRDAPISet, providedAPIServiceAPISet, requiredAPIServiceAPISet)
 
+	deps := apiSetToDependencies(requiredCRDAPISet, requiredAPIServiceAPISet)
+	props := apiSetToProperties(requiredCRDAPISet, requiredAPIServiceAPISet)
+	deps = append(deps, dependencies...)
+
 	return &Operator{
 		providedAPIs: providedAPISet,
 		requiredAPIs: requiredAPISet,
@@ -84,8 +88,9 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 			StartingCSV: startingCSV,
 			Catalog:     registry.CatalogKey{src, src + "-namespace"},
 		},
-		bundle:              b,
-		dependencies: dependencies,
+		bundle:       b,
+		dependencies: deps,
+		properties:   props,
 	}
 }
 
@@ -234,7 +239,7 @@ func apiSetToGVK(crds, apis APISet) (out []*api.GroupVersionKind) {
 }
 
 func apiSetToDependencies(crds, apis APISet) (out []*api.Dependency) {
-	if len(crds) + len(apis) == 0 {
+	if len(crds)+len(apis) == 0 {
 		return nil
 	}
 	out = make([]*api.Dependency, 0)
@@ -248,7 +253,7 @@ func apiSetToDependencies(crds, apis APISet) (out []*api.Dependency) {
 			panic(err)
 		}
 		out = append(out, &api.Dependency{
-			Type: opregistry.GVKType,
+			Type:  opregistry.GVKType,
 			Value: string(val),
 		})
 	}
@@ -262,9 +267,12 @@ func apiSetToDependencies(crds, apis APISet) (out []*api.Dependency) {
 			panic(err)
 		}
 		out = append(out, &api.Dependency{
-			Type: opregistry.GVKType,
+			Type:  opregistry.GVKType,
 			Value: string(val),
 		})
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return
 }
@@ -281,7 +289,7 @@ func apiSetToProperties(crds, apis APISet) (out []*api.Property) {
 			panic(err)
 		}
 		out = append(out, &api.Property{
-			Type: opregistry.GVKType,
+			Type:  opregistry.GVKType,
 			Value: string(val),
 		})
 	}
@@ -295,9 +303,12 @@ func apiSetToProperties(crds, apis APISet) (out []*api.Property) {
 			panic(err)
 		}
 		out = append(out, &api.Property{
-			Type: opregistry.GVKType,
+			Type:  opregistry.GVKType,
 			Value: string(val),
 		})
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return
 }

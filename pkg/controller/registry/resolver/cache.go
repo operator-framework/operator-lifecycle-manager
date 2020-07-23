@@ -218,6 +218,9 @@ func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder 
 
 func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, p ...OperatorPredicate) []*Operator {
 	var result []*Operator
+	if preferred != nil && preferred.IsEmpty() {
+		preferred = nil
+	}
 	sorted := NewSortableSnapshots(preferred, c.namespaces, c.snapshots)
 	sort.Sort(sorted)
 	for _, snapshot := range sorted.snapshots {
