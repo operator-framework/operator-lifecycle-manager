@@ -253,8 +253,10 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1al
 			return StrategyError{Reason: StrategyErrReasonAnnotationsMissing, Message: fmt.Sprintf("no annotations found on deployment")}
 		}
 		for key, value := range i.templateAnnotations {
-			if dep.Spec.Template.Annotations[key] != value {
-				return StrategyError{Reason: StrategyErrReasonAnnotationsMissing, Message: fmt.Sprintf("annotations on deployment don't match. couldn't find %s: %s", key, value)}
+			if actualValue, ok := dep.Spec.Template.Annotations[key]; !ok {
+				return StrategyError{Reason: StrategyErrReasonAnnotationsMissing, Message: fmt.Sprintf("annotations on deployment does not contain expected key: %s", key)}
+			} else if dep.Spec.Template.Annotations[key] != value {
+				return StrategyError{Reason: StrategyErrReasonAnnotationsMissing, Message: fmt.Sprintf("unexpected annotation on deployment. Expected %s:%s, found %s:%s", key, value, key, actualValue)}
 			}
 		}
 
