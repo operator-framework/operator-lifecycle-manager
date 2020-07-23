@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"sort"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -22,9 +23,9 @@ type SatResolver struct {
 	log   logrus.FieldLogger
 }
 
-func NewDefaultSatResolver(rcp RegistryClientProvider, log logrus.FieldLogger) *SatResolver {
+func NewDefaultSatResolver(rcp RegistryClientProvider, log logrus.FieldLogger, client versioned.Interface) *SatResolver {
 	return &SatResolver{
-		cache: NewOperatorCache(rcp, log),
+		cache: NewOperatorCache(rcp, log, client),
 		log:   log,
 	}
 }
@@ -276,7 +277,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 		}
 
 		for _, s := range bundleStack {
-			fmt.Println(s.Identifier(), s.SourceInfo().Catalog)
+			fmt.Println(s.Identifier(), s.SourceInfo().CatalogInfo)
 		}
 
 		if b, ok := visited[bundle]; ok {
@@ -284,7 +285,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			continue
 		}
 
-		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.bundle.ChannelName, bundleSource.Catalog)
+		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.bundle.ChannelName, bundleSource.CatalogInfo.CatalogKey)
 		visited[bundle] = &bundleInstallable
 
 		dependencyPredicates, err := bundle.DependencyPredicates()
@@ -294,7 +295,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 		}
 		for _, d := range dependencyPredicates {
 			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
-			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, d))
+			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.CatalogInfo.CatalogKey, d))
 			sortedBundles, err := r.sortBundles(candidateBundles)
 			if err != nil {
 				errs = append(errs, err)
@@ -302,9 +303,9 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			}
 			bundleDependencies := make([]solver.Identifier, 0)
 			for _, dep := range sortedBundles {
-				found := namespacedCache.Catalog(dep.SourceInfo().Catalog).Find(WithCSVName(dep.Identifier()))
+				found := namespacedCache.Catalog(dep.SourceInfo().CatalogInfo.CatalogKey).Find(WithCSVName(dep.Identifier()))
 				if len(found) > 1 {
-					err := fmt.Errorf("found duplicate entries for %s in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
+					err := fmt.Errorf("found duplicate entries for %s in %s", bundle.Identifier(), dep.sourceInfo.CatalogInfo)
 					errs = append(errs, err)
 					continue
 				}
@@ -316,7 +317,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 					continue
 				}
 
-				i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, src.Catalog)
+				i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, src.CatalogInfo.CatalogKey)
 				installables[i.Identifier()] = &i
 				bundleDependencies = append(bundleDependencies, i.Identifier())
 				bundleStack = append(bundleStack, b)
@@ -359,15 +360,15 @@ func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 			Channel:        b.bundle.ChannelName,
 			DefaultChannel: b.SourceInfo().DefaultChannel,
 		}
-		if _, ok := partitionedBundles[b.sourceInfo.Catalog]; !ok {
-			catalogOrder = append(catalogOrder, b.sourceInfo.Catalog)
-			partitionedBundles[b.sourceInfo.Catalog] = make(map[PackageChannel][]*Operator)
+		if _, ok := partitionedBundles[b.sourceInfo.CatalogInfo.CatalogKey]; !ok {
+			catalogOrder = append(catalogOrder, b.sourceInfo.CatalogInfo.CatalogKey)
+			partitionedBundles[b.sourceInfo.CatalogInfo.CatalogKey] = make(map[PackageChannel][]*Operator)
 		}
-		if _, ok := partitionedBundles[b.sourceInfo.Catalog][pc]; !ok {
-			channelOrder[b.sourceInfo.Catalog] = append(channelOrder[b.sourceInfo.Catalog], pc)
-			partitionedBundles[b.sourceInfo.Catalog][pc] = make([]*Operator, 0)
+		if _, ok := partitionedBundles[b.sourceInfo.CatalogInfo.CatalogKey][pc]; !ok {
+			channelOrder[b.sourceInfo.CatalogInfo.CatalogKey] = append(channelOrder[b.sourceInfo.CatalogInfo.CatalogKey], pc)
+			partitionedBundles[b.sourceInfo.CatalogInfo.CatalogKey][pc] = make([]*Operator, 0)
 		}
-		partitionedBundles[b.sourceInfo.Catalog][pc] = append(partitionedBundles[b.sourceInfo.Catalog][pc], b)
+		partitionedBundles[b.sourceInfo.CatalogInfo.CatalogKey][pc] = append(partitionedBundles[b.sourceInfo.CatalogInfo.CatalogKey][pc], b)
 	}
 
 	for catalog := range partitionedBundles {

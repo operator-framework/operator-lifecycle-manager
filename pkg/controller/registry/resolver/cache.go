@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sort"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/sirupsen/logrus"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
@@ -48,11 +50,12 @@ type OperatorCache struct {
 	ttl       time.Duration
 	sem       chan struct{}
 	m         sync.RWMutex
+	crClient  versioned.Interface
 }
 
 var _ OperatorCacheProvider = &OperatorCache{}
 
-func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger) *OperatorCache {
+func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, client versioned.Interface) *OperatorCache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
 	)
@@ -63,6 +66,7 @@ func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger) *Opera
 		snapshots: make(map[registry.CatalogKey]*CatalogSnapshot),
 		ttl:       5 * time.Minute,
 		sem:       make(chan struct{}, MaxConcurrentSnapshotUpdates),
+		crClient:  client,
 	}
 }
 
@@ -193,7 +197,17 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 				defaultChannel = p.DefaultChannelName
 			}
 		}
-		o, err := NewOperatorFromBundle(b, "", snapshot.key, defaultChannel)
+
+		// Default catalog source priority is set to 0 if not found
+		catsrcPriority := 0
+
+		// Fetch catalog Source's priority
+		catsrc, err := c.crClient.OperatorsV1alpha1().CatalogSources(snapshot.key.Namespace).Get(ctx, snapshot.key.Name, v1.GetOptions{})
+		if err == nil {
+			catsrcPriority = catsrc.Spec.Priority
+		}
+
+		o, err := NewOperatorFromBundle(b, "", snapshot.key, catsrcPriority, defaultChannel)
 		if err != nil {
 			snapshot.logger.Warnf("failed to construct operator from bundle, continuing: %v", err)
 			continue
@@ -219,7 +233,8 @@ func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder 
 func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, p ...OperatorPredicate) []*Operator {
 	var result []*Operator
 	sorted := NewSortableSnapshots(preferred, c.namespaces, c.snapshots)
-	sort.Sort(sorted)
+	SortLexicographically(sorted)
+	//sort.Sort(sorted)
 	for _, snapshot := range sorted.snapshots {
 		result = append(result, snapshot.Find(p...)...)
 	}

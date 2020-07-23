@@ -79,7 +79,6 @@ func (r *LegacyResolver) ResolveSteps(namespace string, sourceQuerier SourceQuer
 		return nil, nil, nil, err
 	}
 
-
 	// if there's no error, we were able to satisfy all constraints in the subscription set, so we calculate what
 	// changes to persist to the cluster and write them out as `steps`
 	steps := []*v1alpha1.Step{}
@@ -97,7 +96,7 @@ func (r *LegacyResolver) ResolveSteps(namespace string, sourceQuerier SourceQuer
 		// add steps for any new bundle
 		if op.Bundle() != nil {
 			if op.Inline() {
-				bundleSteps, err := NewStepsFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
+				bundleSteps, err := NewStepsFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().CatalogInfo.Name, op.SourceInfo().CatalogInfo.Namespace)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
 				}
@@ -108,8 +107,8 @@ func (r *LegacyResolver) ResolveSteps(namespace string, sourceQuerier SourceQuer
 					Identifier: op.Identifier(),
 					Replaces:   op.Replaces(),
 					CatalogSourceRef: &corev1.ObjectReference{
-						Namespace: op.SourceInfo().Catalog.Namespace,
-						Name:      op.SourceInfo().Catalog.Name,
+						Namespace: op.SourceInfo().CatalogInfo.Namespace,
+						Name:      op.SourceInfo().CatalogInfo.Name,
 					},
 					Conditions: []v1alpha1.BundleLookupCondition{
 						{
@@ -205,7 +204,7 @@ func (r *LegacyResolver) sourceInfoToSubscriptions(subs []*v1alpha1.Subscription
 			Package:     s.Spec.Package,
 			Channel:     s.Spec.Channel,
 			StartingCSV: startingCSV,
-			Catalog:     registry.CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
+			CatalogInfo: CatalogSrc{0, registry.CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace}},
 		}] = s.DeepCopy()
 	}
 	return

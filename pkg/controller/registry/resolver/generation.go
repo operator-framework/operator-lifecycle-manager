@@ -57,9 +57,9 @@ func NewGenerationFromCluster(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1
 		if sub, ok := subMap[op.Identifier()]; ok {
 			// No need to enable starting csv search since a csv already exists.
 			op.sourceInfo = &OperatorSourceInfo{
-				Package: sub.Spec.Package,
-				Channel: sub.Spec.Channel,
-				Catalog: registry.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace},
+				Package:     sub.Spec.Package,
+				Channel:     sub.Spec.Channel,
+				CatalogInfo: CatalogSrc{0, registry.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace}},
 			}
 		}
 		if err := g.AddOperator(op); err != nil {

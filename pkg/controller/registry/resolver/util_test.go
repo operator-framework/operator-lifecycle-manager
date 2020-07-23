@@ -82,7 +82,7 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 			Package:     pkg,
 			Channel:     channel,
 			StartingCSV: startingCSV,
-			Catalog:     registry.CatalogKey{src, src + "-namespace"},
+			CatalogInfo: registry.CatalogKey{src, src + "-namespace"},
 		},
 		bundle:              b,
 		dependencies: dependencies,

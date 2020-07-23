@@ -55,7 +55,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(NewDefaultRegistryClientProvider(log, provider), log),
+		satResolver:            NewDefaultSatResolver(NewDefaultRegistryClientProvider(log, provider), log, client),
 		log:                    log,
 	}
 }
@@ -120,7 +120,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		// add steps for any new bundle
 		if op.Bundle() != nil {
 			if op.Inline() {
-				bundleSteps, err := NewStepsFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
+				bundleSteps, err := NewStepsFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().CatalogInfo.Name, op.SourceInfo().CatalogInfo.Namespace)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
 				}
@@ -131,8 +131,8 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 					Identifier: op.Identifier(),
 					Replaces:   op.Replaces(),
 					CatalogSourceRef: &corev1.ObjectReference{
-						Namespace: op.SourceInfo().Catalog.Namespace,
-						Name:      op.SourceInfo().Catalog.Name,
+						Namespace: op.SourceInfo().CatalogInfo.Namespace,
+						Name:      op.SourceInfo().CatalogInfo.Name,
 					},
 					Conditions: []v1alpha1.BundleLookupCondition{
 						{
@@ -209,11 +209,18 @@ func (r *OperatorStepResolver) sourceInfoToSubscriptions(subs []*v1alpha1.Subscr
 		} else {
 			sourceNamespace = s.Spec.CatalogSourceNamespace
 		}
+
+		catSrc, err := r.client.OperatorsV1alpha1().CatalogSources(sourceNamespace).Get(context.TODO(), s.Spec.CatalogSource, metav1.GetOptions{})
+		if err != nil {
+			return
+		}
+		catalogKey := registry.CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace}
 		add[OperatorSourceInfo{
 			Package:     s.Spec.Package,
 			Channel:     s.Spec.Channel,
 			StartingCSV: startingCSV,
-			Catalog:     registry.CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
+			// TODO: Use SetCatalogPriority() to set the priority
+			CatalogInfo: CatalogSrc{catSrc.Spec.Priority, catalogKey},
 		}] = s.DeepCopy()
 	}
 	return

@@ -63,9 +63,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "nothing",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "nothing",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -94,7 +94,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 						Package:     "nothing",
 						Channel:     "channel",
 						StartingCSV: "nothing.v1",
-						Catalog:     registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -122,7 +122,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 						Package:     "nothing",
 						Channel:     "channel",
 						StartingCSV: "nothing.v1",
-						Catalog:     registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -146,9 +146,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "depender",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "depender",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -171,9 +171,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "depender",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "depender",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -197,9 +197,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "depender",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "depender",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -231,9 +231,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "depender",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "depender",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -262,9 +262,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "depender",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "depender",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -304,9 +304,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "depender",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "depender",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -345,9 +345,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "depender",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "depender",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},
@@ -387,9 +387,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			args: args{
 				add: map[OperatorSourceInfo]struct{}{
 					OperatorSourceInfo{
-						Package: "depender",
-						Channel: "channel",
-						Catalog: registry.CatalogKey{"catsrc", "catsrc-namespace"},
+						Package:     "depender",
+						Channel:     "channel",
+						CatalogInfo: registry.CatalogKey{"catsrc", "catsrc-namespace"},
 					}: {},
 				},
 			},

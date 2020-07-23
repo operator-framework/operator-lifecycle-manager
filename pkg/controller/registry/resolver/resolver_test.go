@@ -776,7 +776,7 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 		},
 		dependencies: dependencies,
 		sourceInfo: &OperatorSourceInfo{
-			Catalog: registry.CatalogKey{
+			CatalogInfo: registry.CatalogKey{
 				Name:      catalogName,
 				Namespace: catalogNamespace,
 			},

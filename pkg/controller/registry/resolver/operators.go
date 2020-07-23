@@ -197,15 +197,15 @@ type OperatorSourceInfo struct {
 	Package        string
 	Channel        string
 	StartingCSV    string
-	Catalog        registry.CatalogKey
+	CatalogInfo    CatalogSrc
 	DefaultChannel bool
 }
 
 func (i *OperatorSourceInfo) String() string {
-	return fmt.Sprintf("%s/%s in %s/%s", i.Package, i.Channel, i.Catalog.Name, i.Catalog.Namespace)
+	return fmt.Sprintf("%s/%s in %s/%s", i.Package, i.Channel, i.CatalogInfo.Name, i.CatalogInfo.Namespace)
 }
 
-var ExistingOperator = OperatorSourceInfo{"", "", "", registry.CatalogKey{"", ""}, false}
+var ExistingOperator = OperatorSourceInfo{"", "", "", CatalogSrc{0, registry.CatalogKey{"", ""}}, false}
 
 // OperatorSurface describes the API surfaces provided and required by an Operator.
 type OperatorSurface interface {
@@ -233,7 +233,7 @@ type Operator struct {
 
 var _ OperatorSurface = &Operator{}
 
-func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey registry.CatalogKey, defaultChannel string) (*Operator, error) {
+func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey registry.CatalogKey, catsrcPriority int, defaultChannel string) (*Operator, error) {
 	parsedVersion, err := semver.ParseTolerant(bundle.Version)
 	version := &parsedVersion
 	if err != nil {
@@ -251,7 +251,10 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		Package:     bundle.PackageName,
 		Channel:     bundle.ChannelName,
 		StartingCSV: startingCSV,
-		Catalog:     sourceKey,
+		CatalogInfo: CatalogSrc{
+			catsrcPriority,
+			sourceKey,
+		},
 	}
 	sourceInfo.DefaultChannel = sourceInfo.Channel == defaultChannel
 

@@ -877,9 +877,9 @@ func TestOperatorSourceInfo_String(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			i := &OperatorSourceInfo{
-				Package: tt.fields.Package,
-				Channel: tt.fields.Channel,
-				Catalog: registry.CatalogKey{tt.fields.CatalogSource, tt.fields.CatalogSourceNamespace},
+				Package:     tt.fields.Package,
+				Channel:     tt.fields.Channel,
+				CatalogInfo: registry.CatalogKey{tt.fields.CatalogSource, tt.fields.CatalogSourceNamespace},
 			}
 			if got := i.String(); got != tt.want {
 				t.Errorf("OperatorSourceInfo.String() = %v, want %v", got, tt.want)
@@ -1057,9 +1057,9 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				requiredAPIs: EmptyAPISet(),
 				bundle:       bundleNoAPIs,
 				sourceInfo: &OperatorSourceInfo{
-					Package: "testPackage",
-					Channel: "testChannel",
-					Catalog: registry.CatalogKey{"source", "testNamespace"},
+					Package:     "testPackage",
+					Channel:     "testChannel",
+					CatalogInfo: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1102,9 +1102,9 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				},
 				bundle: bundleWithAPIs,
 				sourceInfo: &OperatorSourceInfo{
-					Package: "testPackage",
-					Channel: "testChannel",
-					Catalog: registry.CatalogKey{"source", "testNamespace"},
+					Package:     "testPackage",
+					Channel:     "testChannel",
+					CatalogInfo: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1122,9 +1122,9 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				bundle:       bundleNoAPIs,
 				version:      &version.Version,
 				sourceInfo: &OperatorSourceInfo{
-					Package: "testPackage",
-					Channel: "testChannel",
-					Catalog: registry.CatalogKey{"source", "testNamespace"},
+					Package:     "testPackage",
+					Channel:     "testChannel",
+					CatalogInfo: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1167,9 +1167,9 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				bundle:  bundleWithAPIsUnextracted,
 				version: &version.Version,
 				sourceInfo: &OperatorSourceInfo{
-					Package: "testPackage",
-					Channel: "testChannel",
-					Catalog: registry.CatalogKey{"source", "testNamespace"},
+					Package:     "testPackage",
+					Channel:     "testChannel",
+					CatalogInfo: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1189,7 +1189,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceInfo: &OperatorSourceInfo{
 					Package:        "testPackage",
 					Channel:        "testChannel",
-					Catalog:        registry.CatalogKey{"source", "testNamespace"},
+					CatalogInfo:    registry.CatalogKey{"source", "testNamespace"},
 					DefaultChannel: true,
 				},
 			},

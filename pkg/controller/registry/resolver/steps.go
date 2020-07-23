@@ -89,17 +89,17 @@ func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1a
 	return NewStepResourceFromObject(&v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      strings.Join([]string{info.Package, info.Channel, info.Catalog.Name, info.Catalog.Namespace}, "-"),
+			Name:      strings.Join([]string{info.Package, info.Channel, info.CatalogInfo.Name, info.CatalogInfo.Namespace}, "-"),
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
-			CatalogSource:          info.Catalog.Name,
-			CatalogSourceNamespace: info.Catalog.Namespace,
+			CatalogSource:          info.CatalogInfo.Name,
+			CatalogSourceNamespace: info.CatalogInfo.Namespace,
 			Package:                info.Package,
 			Channel:                info.Channel,
 			StartingCSV:            info.StartingCSV,
 			InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
 		},
-	}, info.Catalog.Name, info.Catalog.Namespace)
+	}, info.CatalogInfo.Name, info.CatalogInfo.Namespace)
 }
 
 func V1alpha1CSVFromBundle(bundle *api.Bundle) (*v1alpha1.ClusterServiceVersion, error) {
