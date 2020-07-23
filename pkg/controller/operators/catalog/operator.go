@@ -814,6 +814,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// ensure the installplan reference is correct
 		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub)
 		if err != nil {
+			logger.Debugf("error ensuring installplan state: %v", err)
 			return err
 		}
 		subscriptionUpdated = subscriptionUpdated || changedIP
@@ -821,6 +822,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
 		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub, querier)
 		if err != nil {
+			logger.Debugf("error recording current state of CSV in status: %v", err)
 			return err
 		}
 
@@ -871,6 +873,8 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			logger.WithError(err).Debug("error ensuring subscription installplan state")
 			return err
 		}
+	} else {
+		logger.Debugf("no subscriptions were updated")
 	}
 
 	return nil
