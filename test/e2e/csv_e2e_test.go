@@ -15,7 +15,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	v1Crd "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -3265,12 +3264,12 @@ func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourc
 }
 
 func createV1CRD(c operatorclient.ClientInterface, crd apiextensionsv1.CustomResourceDefinition) (cleanupFunc, error) {
-	out := &v1Crd.CustomResourceDefinition{}
+	out := &apiextensionsv1.CustomResourceDefinition{}
 	scheme := runtime.NewScheme()
 	if err := apiextensions.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
-	if err := v1Crd.AddToScheme(scheme); err != nil {
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
 	if err := scheme.Convert(&crd, out, nil); err != nil {

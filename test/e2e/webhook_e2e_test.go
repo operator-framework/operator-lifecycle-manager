@@ -574,9 +574,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 			return
 		}).Should(Equal(2))
 	})
-	When("WebhookDescription has conversionCrds field", func() {
+	When("WebhookDescription has conversionCRDs field", func() {
 		var cleanupCSV cleanupFunc
 		BeforeEach(func() {
+			// global operator group
 			og := newOperatorGroup(namespace.Name, genName("global-og-"), nil, nil, []string{}, false)
 			og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
 			Expect(err).Should(BeNil())
@@ -586,18 +587,18 @@ var _ = Describe("CSVs with a Webhook", func() {
 				cleanupCSV()
 			}
 		})
-		It("The conversion crd is updated via webhook", func() {
-			// create CRD
-			crd1Plural := genName("opgroup")
-			crd1 := newV1CRD(crd1Plural)
-			cleanupCRD, er := createV1CRD(c, crd1)
+		It("The conversion CRD is updated via webhook when CSV owns this CRD", func() {
+			// create CRD (crdA)
+			crdAPlural := genName("mockcrda")
+			crdA := newV1CRD(crdAPlural)
+			cleanupCRD, er := createV1CRD(c, crdA)
 			require.NoError(GinkgoT(), er)
 			defer cleanupCRD()
 
-			// create another CRD
-			crd2Plural := genName("opgroup")
-			crd2 := newV1CRD(crd2Plural)
-			cleanupCRD2, er := createV1CRD(c, crd2)
+			// create another CRD (crdB)
+			crdBPlural := genName("mockcrdb")
+			crdB := newV1CRD(crdBPlural)
+			cleanupCRD2, er := createV1CRD(c, crdB)
 			require.NoError(GinkgoT(), er)
 			defer cleanupCRD2()
 
@@ -610,11 +611,15 @@ var _ = Describe("CSVs with a Webhook", func() {
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
-				ConversionCrds:          []string{crd1.GetName(), crd2.GetName()},
+				ConversionCRDs:          []string{crdA.GetName(), crdB.GetName()},
 			}
 
-			// create csv
-			csv := createCSVWithWebhook(namespace.GetName(), webhook)
+			ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
+			ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: crdA.GetName(), Version: crdA.Spec.Versions[0].Name, Kind: crdA.Spec.Names.Kind})
+			ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: crdB.GetName(), Version: crdB.Spec.Versions[0].Name, Kind: crdB.Spec.Names.Kind})
+
+			// create CSV
+			csv := createCSVWithWebhookAndCrds(namespace.GetName(), webhook, ownedCRDDescs)
 
 			var err error
 			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
@@ -635,15 +640,148 @@ var _ = Describe("CSVs with a Webhook", func() {
 				Strategy: "Webhook",
 			}
 
-			// Read the updated crd1 on cluster into the following crd
-			tempCrd1, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crd1.GetName(), metav1.GetOptions{})
+			// Read the updated crdA on cluster into the following crd
+			tempCrdA, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdA.GetName(), metav1.GetOptions{})
 
-			// Read the updated crd1 on cluster into the following crd
-			tempCrd2, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crd2.GetName(), metav1.GetOptions{})
+			// Read the updated crdB on cluster into the following crd
+			tempCrdB, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdB.GetName(), metav1.GetOptions{})
 
-			Expect(tempCrd1.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
-			Expect(tempCrd2.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
+			Expect(tempCrdA.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
+			Expect(tempCrdB.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
 
+			var expectedTempPort int32 = 443
+			expectedConvertPath := "/convert"
+
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Port).Should(Equal(&expectedTempPort))
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Path).Should(Equal(&expectedConvertPath))
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Namespace).Should(Equal(csv.GetNamespace()))
+		})
+		It("The conversion CRD is not updated via webhook when CSV does not own this CRD", func() {
+			// create CRD (crdA)
+			crdAPlural := genName("mockcrda")
+			crdA := newV1CRD(crdAPlural)
+			cleanupCRD, er := createV1CRD(c, crdA)
+			require.NoError(GinkgoT(), er)
+			defer cleanupCRD()
+
+			// create another CRD (crdB)
+			crdBPlural := genName("mockcrdb")
+			crdB := newV1CRD(crdBPlural)
+			cleanupCRD2, er := createV1CRD(c, crdB)
+			require.NoError(GinkgoT(), er)
+			defer cleanupCRD2()
+
+			// describe webhook
+			sideEffect := admissionregistrationv1.SideEffectClassNone
+			webhook := v1alpha1.WebhookDescription{
+				GenerateName:            webhookName,
+				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				DeploymentName:          genName("webhook-dep-"),
+				ContainerPort:           443,
+				AdmissionReviewVersions: []string{"v1beta1", "v1"},
+				SideEffects:             &sideEffect,
+				ConversionCRDs:          []string{crdA.GetName(), crdB.GetName()},
+			}
+
+			ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
+
+			// create CSV
+			csv := createCSVWithWebhookAndCrds(namespace.GetName(), webhook, ownedCRDDescs)
+
+			var err error
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
+			Expect(err).Should(BeNil())
+
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
+			Expect(err).Should(BeNil())
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+			Expect(err).Should(BeNil())
+
+			expected := &metav1.LabelSelector{
+				MatchLabels:      map[string]string(nil),
+				MatchExpressions: []metav1.LabelSelectorRequirement(nil),
+			}
+			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(expected))
+
+			expectedUpdatedCrdFields := &apiextensionsv1.CustomResourceConversion{
+				Strategy: "Webhook",
+			}
+
+			// Read the updated crdA on cluster into the following crd
+			tempCrdA, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdA.GetName(), metav1.GetOptions{})
+
+			// Read the updated crdB on cluster into the following crd
+			tempCrdB, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdB.GetName(), metav1.GetOptions{})
+
+			Expect(tempCrdA.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
+			Expect(tempCrdB.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
+
+			var expectedTempPort int32 = 443
+			expectedConvertPath := "/convert"
+			expectedConvertNamespace := "system"
+
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Port).Should(Equal(&expectedTempPort))
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Path).Should(Equal(&expectedConvertPath))
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Name).Should(Equal("webhook-service"))
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Namespace).Should(Equal(expectedConvertNamespace))
+		})
+		It("The CSV is not created when dealing with conversionCRD and multiple installModes support exists", func() {
+			// create CRD (crdA)
+			crdAPlural := genName("mockcrda")
+			crdA := newV1CRD(crdAPlural)
+			cleanupCRD, er := createV1CRD(c, crdA)
+			require.NoError(GinkgoT(), er)
+			defer cleanupCRD()
+
+			// describe webhook
+			sideEffect := admissionregistrationv1.SideEffectClassNone
+			webhook := v1alpha1.WebhookDescription{
+				GenerateName:            webhookName,
+				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				DeploymentName:          genName("webhook-dep-"),
+				ContainerPort:           443,
+				AdmissionReviewVersions: []string{"v1beta1", "v1"},
+				SideEffects:             &sideEffect,
+				ConversionCRDs:          []string{crdA.GetName()},
+			}
+
+			ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
+			ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: crdA.GetName(), Version: crdA.Spec.Versions[0].Name, Kind: crdA.Spec.Names.Kind})
+
+			// create CSV
+			csv := createCSVWithWebhookAndCrdsAndInvalidInstallModes(namespace.GetName(), webhook, ownedCRDDescs)
+
+			var err error
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
+			Expect(err).Should(BeNil())
+
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
+			Expect(err).Should(BeNil())
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+			Expect(err).Should(BeNil())
+
+			expected := &metav1.LabelSelector{
+				MatchLabels:      map[string]string(nil),
+				MatchExpressions: []metav1.LabelSelectorRequirement(nil),
+			}
+			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(expected))
+
+			expectedUpdatedCrdFields := &apiextensionsv1.CustomResourceConversion{
+				Strategy: "Webhook",
+			}
+
+			// Read the updated crdA on cluster into the following crd
+			tempCrdA, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdA.GetName(), metav1.GetOptions{})
+
+			Expect(tempCrdA.Spec.Conversion.Strategy).Should(Equal(expectedUpdatedCrdFields.Strategy))
+
+			var expectedTempPort int32 = 443
+			expectedConvertPath := "/convert"
+
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Port).Should(Equal(&expectedTempPort))
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Path).Should(Equal(&expectedConvertPath))
+			// CRD namespace would not be updated, hence conversion webhook won't work for objects of this CRD's Kind
+			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Namespace).ShouldNot(Equal(csv.GetNamespace()))
 		})
 	})
 })
@@ -698,14 +836,98 @@ func createCSVWithWebhook(namespace string, webhookDesc v1alpha1.WebhookDescript
 	}
 }
 
+func createCSVWithWebhookAndCrds(namespace string, webhookDesc v1alpha1.WebhookDescription, ownedCRDDescs []v1alpha1.CRDDescription) v1alpha1.ClusterServiceVersion {
+	return v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      genName("webhook-csv-"),
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			WebhookDefinitions: []v1alpha1.WebhookDescription{
+				webhookDesc,
+			},
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: ownedCRDDescs,
+			},
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: false,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: false,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: false,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: newNginxInstallStrategy(webhookDesc.DeploymentName, nil, nil),
+		},
+	}
+}
+
+func createCSVWithWebhookAndCrdsAndInvalidInstallModes(namespace string, webhookDesc v1alpha1.WebhookDescription, ownedCRDDescs []v1alpha1.CRDDescription) v1alpha1.ClusterServiceVersion {
+	return v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      genName("webhook-csv-"),
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			WebhookDefinitions: []v1alpha1.WebhookDescription{
+				webhookDesc,
+			},
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: ownedCRDDescs,
+			},
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: false,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: false,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: newNginxInstallStrategy(webhookDesc.DeploymentName, nil, nil),
+		},
+	}
+}
+
 func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
+	path := "/convert"
+	var port int32 = 443
+	var min float64 = 2
+	var max float64 = 256
 	crd := apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: plural + ".cluster.com",
 		},
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: "cluster.com",
-			Scope: "Cluster",
+			Scope: "Namespaced",
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 				{
 					Name:    "v1alpha1",
@@ -713,8 +935,21 @@ func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
 					Storage: true,
 					Schema: &apiextensionsv1.CustomResourceValidation{
 						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-							Type:        "object",
-							Description: "my crd schema",
+							Type: "object",
+							Properties: map[string]apiextensionsv1.JSONSchemaProps{
+								"spec": {
+									Type:        "object",
+									Description: "Spec of a test object.",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"scalar": {
+											Type:        "number",
+											Description: "Scalar value that should have a min and max.",
+											Minimum:     &min,
+											Maximum:     &max,
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -724,8 +959,21 @@ func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
 					Storage: false,
 					Schema: &apiextensionsv1.CustomResourceValidation{
 						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-							Type:        "object",
-							Description: "my crd schema",
+							Type: "object",
+							Properties: map[string]apiextensionsv1.JSONSchemaProps{
+								"spec": {
+									Type:        "object",
+									Description: "Spec of a test object.",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"scalar": {
+											Type:        "number",
+											Description: "Scalar value that should have a min and max.",
+											Minimum:     &min,
+											Maximum:     &max,
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -737,6 +985,20 @@ func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
 				ListKind: plural + "list",
 			},
 			PreserveUnknownFields: false,
+			Conversion: &apiextensionsv1.CustomResourceConversion{
+				Strategy: "Webhook",
+				Webhook: &apiextensionsv1.WebhookConversion{
+					ClientConfig: &apiextensionsv1.WebhookClientConfig{
+						Service: &apiextensionsv1.ServiceReference{
+							Namespace: "system",
+							Name:      "webhook-service",
+							Path:      &path,
+							Port:      &port,
+						},
+					},
+					ConversionReviewVersions: []string{"v1", "v1beta1"},
+				},
+			},
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1", "v1alpha2"},
