@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"github.com/blang/semver"
+	"github.com/sirupsen/logrus"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
-	"github.com/sirupsen/logrus"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 type RegistryClientProvider interface {
@@ -22,8 +25,9 @@ type RegistryClientProvider interface {
 }
 
 type DefaultRegistryClientProvider struct {
-	logger logrus.FieldLogger
-	s      RegistryClientProvider
+	logger   logrus.FieldLogger
+	s        RegistryClientProvider
+	crClient versioned.Interface
 }
 
 func NewDefaultRegistryClientProvider(log logrus.FieldLogger, store RegistryClientProvider) *DefaultRegistryClientProvider {
@@ -45,6 +49,7 @@ type OperatorCacheProvider interface {
 type OperatorCache struct {
 	logger    logrus.FieldLogger
 	rcp       RegistryClientProvider
+	crClient  versioned.Interface
 	snapshots map[registry.CatalogKey]*CatalogSnapshot
 	ttl       time.Duration
 	sem       chan struct{}
@@ -53,7 +58,7 @@ type OperatorCache struct {
 
 var _ OperatorCacheProvider = &OperatorCache{}
 
-func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger) *OperatorCache {
+func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, client versioned.Interface) *OperatorCache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
 	)
@@ -61,6 +66,7 @@ func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger) *Opera
 	return &OperatorCache{
 		logger:    log,
 		rcp:       rcp,
+		crClient:  client,
 		snapshots: make(map[registry.CatalogKey]*CatalogSnapshot),
 		ttl:       5 * time.Minute,
 		sem:       make(chan struct{}, MaxConcurrentSnapshotUpdates),
@@ -151,11 +157,20 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 
 	for _, miss := range misses {
 		ctx, cancel := context.WithTimeout(context.Background(), CachePopulateTimeout)
+
+		catsrcPriority := 0
+		// Ignoring error and treat catsrc priority as 0 if not found.
+		catsrc, err := c.crClient.OperatorsV1alpha1().CatalogSources(miss.Namespace).Get(ctx, miss.Name, v1.GetOptions{})
+		if err == nil {
+			catsrcPriority = catsrc.Spec.Priority
+		}
+
 		s := CatalogSnapshot{
-			logger: c.logger.WithField("catalog", miss),
-			key:    miss,
-			expiry: now.Add(c.ttl),
-			pop:    cancel,
+			logger:   c.logger.WithField("catalog", miss),
+			key:      miss,
+			priority: solver.NewPriorities(miss, catsrcPriority),
+			expiry:   now.Add(c.ttl),
+			pop:      cancel,
 		}
 		s.m.Lock()
 		c.snapshots[miss] = &s
@@ -222,13 +237,13 @@ func ensurePackageProperty(o *Operator, name, version string) {
 		PackageName: name,
 		Version:     version,
 	}
-	byte, err := json.Marshal(prop)
+	bytes, err := json.Marshal(prop)
 	if err != nil {
 		return
 	}
 	o.properties = append(o.properties, &api.Property{
 		Type:  opregistry.PackageType,
-		Value: string(byte),
+		Value: string(bytes),
 	})
 }
 
@@ -273,6 +288,7 @@ func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
 type CatalogSnapshot struct {
 	logger    logrus.FieldLogger
 	key       registry.CatalogKey
+	priority  solver.Priorities
 	expiry    time.Time
 	operators []*Operator
 	m         sync.RWMutex
@@ -348,16 +364,22 @@ func (s SortableSnapshots) Less(i, j int) bool {
 		s.snapshots[i].key.Namespace == s.preferred.Namespace {
 		return true
 	}
+
 	if s.preferred != nil &&
 		s.snapshots[j].key.Name == s.preferred.Name &&
 		s.snapshots[j].key.Namespace == s.preferred.Namespace {
 		return false
 	}
 
-	// the rest are sorted first in namespace preference order, then by name
+	// the rest are sorted first in namespace preference order, priority, then by name
 	if s.snapshots[i].key.Namespace != s.snapshots[j].key.Namespace {
 		return s.namespaces[s.snapshots[i].key.Namespace] < s.namespaces[s.snapshots[j].key.Namespace]
 	}
+
+	if s.snapshots[i].priority.CatalogSource != s.snapshots[j].priority.CatalogSource {
+		return s.snapshots[i].priority.CatalogSource > s.snapshots[j].priority.CatalogSource
+	}
+
 	return s.snapshots[i].key.Name < s.snapshots[j].key.Name
 }
 

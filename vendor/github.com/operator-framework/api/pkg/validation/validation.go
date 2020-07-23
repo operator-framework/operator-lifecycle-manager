@@ -27,9 +27,20 @@ var CustomResourceDefinitionValidator = internal.CRDValidator
 // BundleValidator implements Validator to validate Bundles.
 var BundleValidator = internal.BundleValidator
 
+// OperatorHubValidator implements Validator to validate bundle objects
+// for OperatorHub.io requirements.
+var OperatorHubValidator = internal.OperatorHubValidator
+
 // AllValidators implements Validator to validate all Operator manifest types.
 var AllValidators = interfaces.Validators{
 	PackageManifestValidator,
+	ClusterServiceVersionValidator,
+	CustomResourceDefinitionValidator,
+	BundleValidator,
+	OperatorHubValidator,
+}
+
+var DefaultBundleValidators = interfaces.Validators{
 	ClusterServiceVersionValidator,
 	CustomResourceDefinitionValidator,
 	BundleValidator,

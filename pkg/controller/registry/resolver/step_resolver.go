@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/sirupsen/logrus"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +18,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	controllerbundle "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
@@ -55,7 +54,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(NewDefaultRegistryClientProvider(log, provider), log),
+		satResolver:            NewDefaultSatResolver(NewDefaultRegistryClientProvider(log, provider), client, log),
 		log:                    log,
 	}
 }

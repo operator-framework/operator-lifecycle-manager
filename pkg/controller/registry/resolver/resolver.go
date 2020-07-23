@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 )
@@ -24,9 +25,9 @@ type SatResolver struct {
 	log   logrus.FieldLogger
 }
 
-func NewDefaultSatResolver(rcp RegistryClientProvider, log logrus.FieldLogger) *SatResolver {
+func NewDefaultSatResolver(rcp RegistryClientProvider, client versioned.Interface, log logrus.FieldLogger) *SatResolver {
 	return &SatResolver{
-		cache: NewOperatorCache(rcp, log),
+		cache: NewOperatorCache(rcp, log, client),
 		log:   log,
 	}
 }
