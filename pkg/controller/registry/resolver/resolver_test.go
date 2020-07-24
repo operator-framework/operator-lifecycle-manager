@@ -744,6 +744,107 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 	require.EqualValues(t, expected, operators)
 }
 
+func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.T) {
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides := APISet
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{"community", namespace}
+
+	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
+	csvs := []*v1alpha1.ClusterServiceVersion{csv}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	deps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"group":"g","kind":"k","version":"v"}`,
+		},
+	}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
+				Namespace: "olm",
+				Name:      "community",
+			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
+				operators: []*Operator{
+					genOperator("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, ""),
+					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, ""),
+				},
+			},
+		},
+	}
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(operators))
+	expected := OperatorSet{
+		"packageA.v1": stripBundle(genOperator("packageA.v1", "", "", "packageA", "alpha", "@existing", catalog.Namespace, nil, Provides, nil, "")),
+		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(Provides, nil), ""),
+	}
+	for k := range expected {
+		require.NotNil(t, operators[k])
+		assert.EqualValues(t, k, operators[k].Identifier())
+	}
+}
+
+func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
+	t.Skip("nothing currently prevents gvk conflicts")
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides := APISet
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{"community", namespace}
+
+	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
+	csvs := []*v1alpha1.ClusterServiceVersion{csv}
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
+				Namespace: "olm",
+				Name:      "community",
+			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
+				operators: []*Operator{
+					genOperator("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, Provides, nil, ""),
+					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, Provides, nil, ""),
+				},
+			},
+		},
+	}
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(operators))
+	expected := OperatorSet{
+		"packageA.v1": stripBundle(genOperator("packageA.v1", "", "", "packageA", "alpha", "@existing", catalog.Namespace, nil, Provides, nil, "")),
+	}
+	for k := range expected {
+		require.NotNil(t, operators[k])
+		assert.EqualValues(t, k, operators[k].Identifier())
+	}
+}
+
 type FakeOperatorCache struct {
 	fakedNamespacedOperatorCache NamespacedOperatorCache
 }
@@ -775,6 +876,7 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 			Properties:   apiSetToProperties(providedAPIs, nil),
 		},
 		dependencies: dependencies,
+		properties: apiSetToProperties(providedAPIs, nil),
 		sourceInfo: &OperatorSourceInfo{
 			Catalog: registry.CatalogKey{
 				Name:      catalogName,
@@ -785,4 +887,9 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,
 	}
+}
+
+func stripBundle(o *Operator) *Operator {
+	o.bundle = nil
+	return o
 }

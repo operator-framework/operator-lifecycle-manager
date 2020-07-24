@@ -377,7 +377,17 @@ func (o *Operator) SetReplaces(replacing string) {
 }
 
 func (o *Operator) Package() string {
-	return o.bundle.PackageName
+	if o.bundle != nil {
+		return o.bundle.PackageName
+	}
+	return ""
+}
+
+func (o *Operator) Channel() string {
+	if o.bundle != nil {
+		return o.bundle.ChannelName
+	}
+	return ""
 }
 
 func (o *Operator) SourceInfo() *OperatorSourceInfo {

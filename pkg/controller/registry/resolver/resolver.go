@@ -48,7 +48,12 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	// TODO: better abstraction
 	startingCSVs := make(map[string]struct{})
 
-	namespacedCache := r.cache.Namespaced(namespaces...)
+	// build a virtual catalog of all currently installed CSVs
+	existingSnapshot, err := r.newSnapshotForNamespace(namespaces[0], subs, csvs)
+	if err != nil {
+		return nil, err
+	}
+	namespacedCache := r.cache.Namespaced(namespaces...).WithExistingOperators(existingSnapshot)
 
 	// build constraints for each Subscription
 	for _, sub := range subs {
@@ -105,8 +110,6 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		input = append(input, i)
 	}
 
-	// TODO: Consider csvs not attached to subscriptions
-
 	if len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
 	}
@@ -137,6 +140,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			errs = append(errs, err)
 			continue
 		}
+
 		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(WithCSVName(csvName), WithChannel(channel)))
 		if err != nil {
 			errs = append(errs, err)
@@ -248,7 +252,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
 
 	var finder OperatorFinder = namespacedCache
-	if !catalog.IsEmpty() {
+	if !catalog.Empty() {
 		finder = namespacedCache.Catalog(catalog)
 	}
 
@@ -275,16 +279,12 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			continue
 		}
 
-		for _, s := range bundleStack {
-			fmt.Println(s.Identifier(), s.SourceInfo().Catalog)
-		}
-
 		if b, ok := visited[bundle]; ok {
 			installables[b.identifier] = b
 			continue
 		}
 
-		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.bundle.ChannelName, bundleSource.Catalog)
+		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.Channel(), bundleSource.Catalog)
 		visited[bundle] = &bundleInstallable
 
 		dependencyPredicates, err := bundle.DependencyPredicates()
@@ -316,7 +316,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 					continue
 				}
 
-				i := NewBundleInstallable(b.Identifier(), b.bundle.ChannelName, src.Catalog)
+				i := NewBundleInstallable(b.Identifier(), b.Channel(), src.Catalog)
 				installables[i.Identifier()] = &i
 				bundleDependencies = append(bundleDependencies, i.Identifier())
 				bundleStack = append(bundleStack, b)
@@ -340,6 +340,37 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 	return ids, installables, nil
 }
 
+func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*CatalogSnapshot, error) {
+	existingOperatorCatalog := registry.NewVirtualCatalogKey(namespace)
+	// build a catalog snapshot of CSVs without subscriptions
+	csvsWithSubscriptions := make(map[*v1alpha1.ClusterServiceVersion]struct{})
+	for _, sub := range subs {
+		for _, csv := range csvs {
+			if csv.Name == sub.Status.InstalledCSV {
+				csvsWithSubscriptions[csv] = struct{}{}
+				break
+			}
+		}
+	}
+	standaloneOperators := make([]*Operator, 0)
+	for _, csv := range csvs {
+		if _, ok := csvsWithSubscriptions[csv]; ok {
+			continue
+		}
+
+		op, err := NewOperatorFromV1Alpha1CSV(csv)
+		if err != nil {
+			return nil, err
+		}
+		op.sourceInfo = &OperatorSourceInfo{
+			Catalog: existingOperatorCatalog,
+		}
+		standaloneOperators = append(standaloneOperators, op)
+	}
+
+	return NewRunningOperatorSnapshot(r.log, existingOperatorCatalog, standaloneOperators), nil
+}
+
 func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 	// assume bundles have been passed in sorted by catalog already
 	catalogOrder := make([]registry.CatalogKey, 0)
@@ -356,7 +387,7 @@ func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 	for _, b := range bundles {
 		pc := PackageChannel{
 			Package:        b.Package(),
-			Channel:        b.bundle.ChannelName,
+			Channel:        b.Channel(),
 			DefaultChannel: b.SourceInfo().DefaultChannel,
 		}
 		if _, ok := partitionedBundles[b.sourceInfo.Catalog]; !ok {
