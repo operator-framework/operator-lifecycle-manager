@@ -28,7 +28,7 @@ bin/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 
 .PHONY: e2e-local
 e2e-local: bin/e2e-local.test bin/e2e-local.image.tar
-	$(GINKGO) -nodes $(or $(NODES),1) -randomizeAllSpecs $(if $(TEST),-focus "$(TEST)") -v -timeout 70m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=e2e-local.image.tar
+	$(GINKGO) -nodes $(or $(NODES),1) -flakeAttempts 3 -randomizeAllSpecs $(if $(TEST),-focus "$(TEST)") -v -timeout 90m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=e2e-local.image.tar
 
 # Phony prerequisite for targets that rely on the go build cache to
 # determine staleness.

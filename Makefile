@@ -126,7 +126,7 @@ setup-bare: clean e2e.namespace
 
 # e2e test exculding the rh-operators directory which tests rh-operators and their metric cardinality.
 e2e:
-	go test -v $(MOD_FLAGS) -failfast -timeout 150m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest
+	go test -v $(MOD_FLAGS)  -failfast -timeout 150m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -ginkgo.flakeAttempts=3
 
 e2e-local: build-linux build-wait build-util-linux
 	. ./scripts/build_local.sh
