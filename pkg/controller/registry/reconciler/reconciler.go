@@ -137,11 +137,6 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 					ImagePullPolicy: pullPolicy,
 				},
 			},
-			Tolerations: []v1.Toleration{
-				{
-					Operator: v1.TolerationOpExists,
-				},
-			},
 			NodeSelector: map[string]string{
 				"kubernetes.io/os": "linux",
 			},
