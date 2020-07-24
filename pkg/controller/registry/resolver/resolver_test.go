@@ -596,8 +596,8 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
-	newSub := newSub(namespace, "packageA", "alpha", catalog)
-	subs := []*v1alpha1.Subscription{newSub}
+	sub := existingSub(namespace,"packageA.v1", "packageA", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{sub}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
 		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
@@ -799,7 +799,6 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 }
 
 func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
-	t.Skip("nothing currently prevents gvk conflicts")
 	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
 
@@ -833,16 +832,8 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(operators))
-	expected := OperatorSet{
-		"packageA.v1": stripBundle(genOperator("packageA.v1", "", "", "packageA", "alpha", "@existing", catalog.Namespace, nil, Provides, nil, "")),
-	}
-	for k := range expected {
-		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
-	}
+	_, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	assert.Error(t, err)
 }
 
 type FakeOperatorCache struct {

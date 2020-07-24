@@ -2,10 +2,12 @@ package resolver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -49,11 +51,15 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	startingCSVs := make(map[string]struct{})
 
 	// build a virtual catalog of all currently installed CSVs
-	existingSnapshot, err := r.newSnapshotForNamespace(namespaces[0], subs, csvs)
+	existingSnapshot, existingInstallables, err := r.newSnapshotForNamespace(namespaces[0], subs, csvs)
 	if err != nil {
 		return nil, err
 	}
 	namespacedCache := r.cache.Namespaced(namespaces...).WithExistingOperators(existingSnapshot)
+
+	for _, i := range existingInstallables {
+		installables[i.Identifier()] = i
+	}
 
 	// build constraints for each Subscription
 	for _, sub := range subs {
@@ -105,6 +111,8 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 	}
 
+	r.addInvariants(namespacedCache, installables)
+
 	input := make([]solver.Installable, 0)
 	for _, i := range installables {
 		input = append(input, i)
@@ -125,9 +133,6 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	// get the set of bundle installables from the result solved installables
 	operatorInstallables := make([]BundleInstallable, 0)
 	for _, installable := range solvedInstallables {
-		if bundleInstallable, ok := installable.(BundleInstallable); ok {
-			operatorInstallables = append(operatorInstallables, bundleInstallable)
-		}
 		if bundleInstallable, ok := installable.(*BundleInstallable); ok {
 			operatorInstallables = append(operatorInstallables, *bundleInstallable)
 		}
@@ -340,7 +345,8 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 	return ids, installables, nil
 }
 
-func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*CatalogSnapshot, error) {
+func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*CatalogSnapshot, []solver.Installable, error) {
+	installables := make([]solver.Installable, 0)
 	existingOperatorCatalog := registry.NewVirtualCatalogKey(namespace)
 	// build a catalog snapshot of CSVs without subscriptions
 	csvsWithSubscriptions := make(map[*v1alpha1.ClusterServiceVersion]struct{})
@@ -360,15 +366,84 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 
 		op, err := NewOperatorFromV1Alpha1CSV(csv)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		op.sourceInfo = &OperatorSourceInfo{
 			Catalog: existingOperatorCatalog,
 		}
 		standaloneOperators = append(standaloneOperators, op)
+
+		// all standalone operators are mandatory
+		i := NewBundleInstallable(op.Identifier(), "", existingOperatorCatalog, solver.Mandatory())
+		installables = append(installables, &i)
 	}
 
-	return NewRunningOperatorSnapshot(r.log, existingOperatorCatalog, standaloneOperators), nil
+	return NewRunningOperatorSnapshot(r.log, existingOperatorCatalog, standaloneOperators), installables, nil
+}
+
+func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, installables map[solver.Identifier]solver.Installable) {
+	// no two operators may provide the same GVK or Package in a namespace
+	conflictToInstallable := make(map[string][]solver.Installable)
+	for _, installable := range installables {
+		bundleInstallable, ok := installable.(*BundleInstallable)
+		if !ok {
+			continue
+		}
+		csvName, channel, catalog, err := bundleInstallable.BundleSourceInfo()
+		if err != nil {
+			continue
+		}
+
+		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(WithCSVName(csvName), WithChannel(channel)))
+		if err != nil {
+			continue
+		}
+
+		// cannot provide the same GVK
+		for _, p := range op.Properties() {
+			if p.Type != opregistry.GVKType {
+				continue
+			}
+			_, ok := conflictToInstallable[p.Value]
+			if !ok {
+				conflictToInstallable[p.Value] = make([]solver.Installable, 0)
+			}
+			conflictToInstallable[p.Value] = append(conflictToInstallable[p.Value], installable)
+		}
+
+		// cannot have the same package
+		for _, p := range op.Properties() {
+			if p.Type != opregistry.PackageType {
+				continue
+			}
+			var prop opregistry.PackageProperty
+			err := json.Unmarshal([]byte(p.Value), &prop)
+			if err != nil {
+				continue
+			}
+			_, ok := conflictToInstallable[prop.PackageName]
+			if !ok {
+				conflictToInstallable[prop.PackageName] = make([]solver.Installable, 0)
+			}
+			conflictToInstallable[prop.PackageName] = append(conflictToInstallable[prop.PackageName], installable)
+		}
+	}
+
+	for key, is := range conflictToInstallable {
+		if len(is) <= 1 {
+			continue
+		}
+
+		ids := []solver.Identifier{}
+		for _, d := range is {
+			ids = append(ids, d.Identifier())
+		}
+		s := NewSubscriptionInstallable(key)
+		s.constraints = []solver.Constraint{
+			solver.AtMost(1, ids...),
+		}
+		installables[s.Identifier()] = s
+	}
 }
 
 func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
