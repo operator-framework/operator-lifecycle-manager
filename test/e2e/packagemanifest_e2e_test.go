@@ -74,8 +74,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			crdPlural := genName("ins")
 			crd := newCRD(crdPlural)
 			catsrcName = genName("mock-ocs")
-			namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-			csv = newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+			csv = newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 			csv.SetLabels(map[string]string{"projected": "label"})
 			csv.Spec.Keywords = []string{"foo", "bar"}
 			csv.Spec.Links = []v1alpha1.AppLink{

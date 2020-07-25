@@ -151,7 +151,7 @@ var _ = Describe("Operator Group", func() {
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
-		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
@@ -447,7 +447,7 @@ var _ = Describe("Operator Group", func() {
 		// Generate csvA in namespaceA with all installmodes supported
 		crd := newCRD(genName("a"))
 		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		csvA := newCSV("nginx-a", nsA, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+		csvA := newCSV("nginx-a", nsA, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Create(context.TODO(), &csvA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
@@ -639,7 +639,7 @@ var _ = Describe("Operator Group", func() {
 		// Generate csvA in namespaceA with no supported InstallModes
 		crd := newCRD(genName("b"))
 		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		csv := newCSV("nginx-a", nsA, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
+		csv := newCSV("nginx-a", nsA, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, &namedStrategy)
 		csvA := &csv
 		csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 			{
@@ -865,9 +865,9 @@ var _ = Describe("Operator Group", func() {
 		kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Version, crdA.Spec.Group)
 		kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Version, crdB.Spec.Group)
 		kvgD := fmt.Sprintf("%s.%s.%s", crdD.Spec.Names.Kind, crdD.Spec.Version, crdD.Spec.Group)
-		csvA := newCSV(pkgAStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, strategyA)
-		csvB := newCSV(pkgBStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA, crdB}, nil, strategyB)
-		csvD := newCSV(pkgDStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdD}, nil, strategyD)
+		csvA := newCSV(pkgAStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, &strategyA)
+		csvB := newCSV(pkgBStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA, crdB}, nil, &strategyB)
+		csvD := newCSV(pkgDStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdD}, nil, &strategyD)
 
 		// Create namespaces
 		nsA, nsB, nsC, nsD, nsE := genName("a-"), genName("b-"), genName("c-"), genName("d-"), genName("e-")
@@ -1140,8 +1140,8 @@ var _ = Describe("Operator Group", func() {
 		crdB := newCRD(genName(pkgB))
 		kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Version, crdA.Spec.Group)
 		kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Version, crdB.Spec.Group)
-		csvA := newCSV(pkgAStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, strategyA)
-		csvB := newCSV(pkgBStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdB}, nil, strategyB)
+		csvA := newCSV(pkgAStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, &strategyA)
+		csvB := newCSV(pkgBStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdB}, nil, &strategyB)
 
 		// Create namespaces
 		nsA, nsB, nsC, nsD := genName("a-"), genName("b-"), genName("c-"), genName("d-")
@@ -1418,7 +1418,7 @@ var _ = Describe("Operator Group", func() {
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
-		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
 		// Use the It spec name as label after stripping whitespaces
 		aCSV.Labels = map[string]string{"label": strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1)}
@@ -1613,7 +1613,7 @@ var _ = Describe("Operator Group", func() {
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, nil, nil)
 
-		aCSV := newCSV(csvName, newNamespaceName, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+		aCSV := newCSV(csvName, newNamespaceName, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
@@ -1748,7 +1748,7 @@ var _ = Describe("Operator Group", func() {
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, nil, nil)
 
-		aCSV := newCSV(csvName, newNamespaceName, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+		aCSV := newCSV(csvName, newNamespaceName, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
@@ -1898,7 +1898,7 @@ var _ = Describe("Operator Group", func() {
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
-		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
 		// Use the It spec name as label after stripping whitespaces
 		aCSV.Labels = map[string]string{"label": strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1)}

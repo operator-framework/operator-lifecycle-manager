@@ -196,8 +196,8 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 		BeforeEach(func() {
 
-			ownerA = newCSV("ownera", testNamespace, "", semver.MustParse("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil, nil))
-			ownerB = newCSV("ownerb", testNamespace, "", semver.MustParse("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil, nil))
+			ownerA = newCSV("ownera", testNamespace, "", semver.MustParse("0.0.0"), nil, nil, nil)
+			ownerB = newCSV("ownerb", testNamespace, "", semver.MustParse("0.0.0"), nil, nil, nil)
 
 			// create all owners
 			var err error

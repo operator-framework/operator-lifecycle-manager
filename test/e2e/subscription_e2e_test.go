@@ -36,8 +36,13 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
-var _ = Describe("Subscription", func() {
+func Step(level int, text string, callbacks ...func()) {
+	By(strings.Repeat(" ", level*2)+text, callbacks...)
+}
 
+var _ = By
+
+var _ = Describe("Subscription", func() {
 	AfterEach(func() {
 		TearDown(testNamespace)
 	})
@@ -114,9 +119,8 @@ var _ = Describe("Subscription", func() {
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		updatedPackageStable := fmt.Sprintf("%s-updated", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661347"), []apiextensions.CustomResourceDefinition{crd}, nil, mainNamedStrategy)
-		updatedCSV := newCSV(updatedPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661832"), []apiextensions.CustomResourceDefinition{crd}, nil, mainNamedStrategy)
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661347"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		updatedCSV := newCSV(updatedPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661832"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 		updatedCSV.SetAnnotations(map[string]string{resolver.SkipPackageAnnotationKey: ">=0.1.0-1556661347 <0.1.0-1556661832"})
 
 		c := newKubeClient()
@@ -236,9 +240,8 @@ var _ = Describe("Subscription", func() {
 		packageName := genName("nginx-")
 		stableChannel := "stable"
 
-		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		// Create PackageManifests
 		manifests := []registry.PackageManifest{
@@ -350,34 +353,15 @@ var _ = Describe("Subscription", func() {
 
 	It("updates multiple intermediates", func() {
 
-		crdPlural := genName("ins")
-		crdName := crdPlural + ".cluster.com"
-
-		crd := apiextensions.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: crdName,
-			},
-			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
-				Names: apiextensions.CustomResourceDefinitionNames{
-					Plural:   crdPlural,
-					Singular: crdPlural,
-					Kind:     crdPlural,
-					ListKind: "list" + crdPlural,
-				},
-				Scope: "Namespaced",
-			},
-		}
+		crd := newCRD("ins")
 
 		// Create CSV
 		packageName := genName("nginx-")
 		stableChannel := "stable"
 
-		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-		csvC := newCSV("nginx-c", testNamespace, "nginx-b", semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvC := newCSV("nginx-c", testNamespace, "nginx-b", semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		// Create PackageManifests
 		manifests := []registry.PackageManifest{
@@ -461,9 +445,8 @@ var _ = Describe("Subscription", func() {
 		packageName := genName("nginx-")
 		stableChannel := "stable"
 
-		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, nil, namedStrategy)
-		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, nil, namedStrategy)
+		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
+		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, nil, nil)
 
 		// Create PackageManifests
 		manifests := []registry.PackageManifest{
@@ -901,9 +884,8 @@ var _ = Describe("Subscription", func() {
 		// Create CatalogSource, cs, in ns
 		pkgName := genName("pkg-")
 		channelName := genName("channel-")
-		strategy := newNginxInstallStrategy(pkgName, nil, nil)
 		crd := newCRD(pkgName)
-		csv := newCSV(pkgName, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, strategy)
+		csv := newCSV(pkgName, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: pkgName,
@@ -1244,202 +1226,143 @@ var _ = Describe("Subscription", func() {
 		require.Len(GinkgoT(), installPlan.Status.CatalogSources, 1)
 	})
 
-	// CatSrc1:
-	//
-	// Package 1 (apackage)
-	// Default Channel: Stable
-	// Channel Stable:
-	// Operator A (Requires: CRD 1, CRD 2 )
-	// Channel Alpha:
-	// Operator ABC (Provides: CRD 1, CRD 2 )
-	// Package B (apackage)
-	// Default Channel: Stable
-	// Channel Stable:
-	// Operator B (Provides: CRD)
-	// Channel Alpha:
-	// Operator D (Provides: CRD)
-	//
-	// CatSrc2:
-	// Package 2 (bpackage)
-	// Default Channel: Stable
-	// Channel Stable:
-	// Operator C (Provides: CRD 2)
-	// Package 3 (cpackage)
-	// Default Channel: Stable
-	// Channel Stable:
-	// Operator E (Provides: CRD 2)
-	//
-	// Then create a subscription:
-	//
-	// CatalogSource: CatSrc
-	// Package: Package A,
-	// Channel: Stable,
-	// StartingCSV: CSV A
-	//
-	// Check installed:
-	// CSV A, CSV B, CSV E
-	//
-	// CSV ABC: not chosen as it is the same package with CSV A
-	// CSV D: not chosen as it is in non-default channel
-	// CSV C: not chosen as it is the same package with CSV B (which is chosen)
 	It("creation with dependencies required and provided in different versions of an operator in the same package", func() {
+		kubeClient := ctx.Ctx().KubeClient()
+		crClient := ctx.Ctx().OperatorClient()
 
-		kubeClient := newKubeClient()
-		crClient := newCRClient()
+		crd := newCRD(genName("ins"))
+		crd2 := newCRD(genName("ins"))
 
-		permissions := deploymentPermissions()
+		// csvs for catalogsource 1
+		csvs1 := make([]v1alpha1.ClusterServiceVersion, 0)
 
-		crdPlural := genName("ins")
-		crdName := crdPlural + ".cluster.com"
-		crdPlural2 := genName("ins")
-		crdName2 := crdPlural2 + ".cluster.com"
+		// csvs for catalogsource 2
+		csvs2 := make([]v1alpha1.ClusterServiceVersion, 0)
 
-		crd := apiextensions.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: crdName,
-			},
-			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
-				Names: apiextensions.CustomResourceDefinitionNames{
-					Plural:   crdPlural,
-					Singular: crdPlural,
-					Kind:     crdPlural,
-					ListKind: "list" + crdPlural,
-				},
-				Scope: "Namespaced",
-			},
-		}
+		packageA := registry.PackageManifest{PackageName: "PackageA"}
+		By("Package A", func() {
+			Step(1, "Default Channel: Stable", func() {
+				packageA.DefaultChannelName = stableChannel
+			})
 
-		crd2 := apiextensions.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: crdName2,
-			},
-			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
-				Names: apiextensions.CustomResourceDefinitionNames{
-					Plural:   crdPlural2,
-					Singular: crdPlural2,
-					Kind:     crdPlural2,
-					ListKind: "list" + crdPlural2,
-				},
-				Scope: "Namespaced",
-			},
-		}
+			Step(1, "Channel Stable", func() {
+				Step(2, "Operator A (Requires CRD, CRD 2)", func() {
+					csvA := newCSV("csv-a", testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd, crd2}, nil)
+					packageA.Channels = append(packageA.Channels, registry.PackageChannel{Name: stableChannel, CurrentCSVName: csvA.GetName()})
+					csvs1 = append(csvs1, csvA)
+				})
+			})
 
-		// Create CSV
-		packageNameA := genName("apackage")
-		packageNameB := genName("bpackage")
-		packageNameC := genName("cpackage")
+			Step(1, "Channel Alpha", func() {
+				Step(2, "Operator ABC (Provides: CRD, CRD 2)", func() {
+					csvABC := newCSV("csv-abc", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, nil)
+					packageA.Channels = append(packageA.Channels, registry.PackageChannel{Name: alphaChannel, CurrentCSVName: csvABC.GetName()})
+					csvs1 = append(csvs1, csvABC)
+				})
+			})
+		})
 
-		namedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
-		depNamedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
-		depNamedStrategy2 := newNginxInstallStrategy((genName("dep")), permissions, nil)
-		// csvA requires CRD1 and CRD2
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd, crd2}, namedStrategy)
-		// csvABC provides CRD1 and CRD2 in the same catalogsource with csvA (apackage)
-		// also in the same package with csvA but different channel
-		csvABC := newCSV("nginx-a-bc", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, namedStrategy)
-		// csvB provides CRD1 in the same catalogsource with csvA (apackage)
-		csvB := newCSV("nginx-b-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
-		// csvC provides CRD2 in the different catalogsource with csvA (apackage)
-		csvC := newCSV("nginx-c-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, depNamedStrategy2)
-		// csvD provides CRD1 in the same catalogsource with csvA (apackage)
-		csvD := newCSV("nginx-d-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, depNamedStrategy)
-		// csvE provides CRD2 in the different catalogsource with csvC (bpackage)
-		csvE := newCSV("nginx-e-dep", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, depNamedStrategy2)
+		packageB := registry.PackageManifest{PackageName: "PackageB"}
+		By("Package B", func() {
+			Step(1, "Default Channel: Stable", func() {
+				packageB.DefaultChannelName = stableChannel
+			})
 
-		// Create PackageManifests 1
-		// Contain csvA, ABC and B
-		manifests := []registry.PackageManifest{
-			{
-				PackageName: packageNameA,
-				Channels: []registry.PackageChannel{
-					{Name: stableChannel, CurrentCSVName: csvA.GetName()},
-					{Name: alphaChannel, CurrentCSVName: csvABC.GetName()},
-				},
-				DefaultChannelName: stableChannel,
-			},
-			{
-				PackageName: packageNameB,
-				Channels: []registry.PackageChannel{
-					{Name: alphaChannel, CurrentCSVName: csvD.GetName()},
-					{Name: stableChannel, CurrentCSVName: csvB.GetName()},
-				},
-				DefaultChannelName: stableChannel,
-			},
-		}
+			Step(1, "Channel Stable", func() {
+				Step(2, "Operator B (Provides: CRD)", func() {
+					csvB := newCSV("csv-b", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+					packageB.Channels = append(packageB.Channels, registry.PackageChannel{Name: stableChannel, CurrentCSVName: csvB.GetName()})
+					csvs1 = append(csvs1, csvB)
+				})
+			})
 
-		// Create PackageManifests 2
-		// Contain csvC
-		manifests2 := []registry.PackageManifest{
-			{
-				PackageName: packageNameB,
-				Channels: []registry.PackageChannel{
-					{Name: stableChannel, CurrentCSVName: csvC.GetName()},
-				},
-				DefaultChannelName: stableChannel,
-			},
-			{
-				PackageName: packageNameC,
-				Channels: []registry.PackageChannel{
-					{Name: stableChannel, CurrentCSVName: csvE.GetName()},
-				},
-				DefaultChannelName: stableChannel,
-			},
-		}
+			Step(1, "Channel Alpha", func() {
+				Step(2, "Operator D (Provides: CRD)", func() {
+					csvD := newCSV("csv-d", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+					packageB.Channels = append(packageB.Channels, registry.PackageChannel{Name: alphaChannel, CurrentCSVName: csvD.GetName()})
+					csvs1 = append(csvs1, csvD)
+				})
+			})
+		})
 
-		catalogSourceName := genName("catsrc")
-		catsrc, cleanup := createInternalCatalogSource(kubeClient, crClient, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvABC, csvB, csvD})
+		packageBInCatsrc2 := registry.PackageManifest{PackageName: "PackageB"}
+		By("Package B", func() {
+			Step(1, "Default Channel: Stable", func() {
+				packageBInCatsrc2.DefaultChannelName = stableChannel
+			})
+
+			Step(1, "Channel Stable", func() {
+				Step(2, "Operator C (Provides: CRD 2)", func() {
+					csvC := newCSV("csv-c", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, nil)
+					packageBInCatsrc2.Channels = append(packageBInCatsrc2.Channels, registry.PackageChannel{Name: stableChannel, CurrentCSVName: csvC.GetName()})
+					csvs2 = append(csvs2, csvC)
+				})
+			})
+		})
+
+		packageC := registry.PackageManifest{PackageName: "PackageC"}
+		By("Package C", func() {
+			Step(1, "Default Channel: Stable", func() {
+				packageC.DefaultChannelName = stableChannel
+			})
+
+			Step(1, "Channel Stable", func() {
+				Step(2, "Operator E (Provides: CRD 2)", func() {
+					csvE := newCSV("csv-e", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, nil)
+					packageC.Channels = append(packageC.Channels, registry.PackageChannel{Name: stable, CurrentCSVName: csvE.GetName()})
+					csvs2 = append(csvs2, csvE)
+				})
+			})
+		})
+
+		// create catalogsources
+		var catsrc, catsrc2 *v1alpha1.CatalogSource
+		var cleanup cleanupFunc
+		By("creating catalogsources", func() {
+			var c1, c2 cleanupFunc
+			catsrc, c1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace, []registry.PackageManifest{packageA, packageB}, []apiextensions.CustomResourceDefinition{crd, crd2}, csvs1)
+			catsrc2, c2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc2"), testNamespace, []registry.PackageManifest{packageBInCatsrc2, packageC}, []apiextensions.CustomResourceDefinition{crd, crd2}, csvs2)
+			cleanup = func() {
+				c1()
+				c2()
+			}
+		})
 		defer cleanup()
 
-		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		By("waiting for catalogsources to be ready", func() {
+			_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+			require.NoError(GinkgoT(), err)
+			_, err = fetchCatalogSourceOnStatus(crClient, catsrc2.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+			require.NoError(GinkgoT(), err)
+		})
 
+		// Create a subscription for packageA in catsrc
 		subscriptionSpec := &v1alpha1.SubscriptionSpec{
 			CatalogSource:          catsrc.GetName(),
 			CatalogSourceNamespace: catsrc.GetNamespace(),
-			Package:                packageNameA,
+			Package:                packageA.PackageName,
 			Channel:                stableChannel,
-			StartingCSV:            csvA.GetName(),
 			InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
 		}
-
-		catalogSourceName2 := genName("catsrc")
-		catsrc2, cleanup2 := createInternalCatalogSource(kubeClient, crClient, catalogSourceName2, testNamespace, manifests2, []apiextensions.CustomResourceDefinition{crd2}, []v1alpha1.ClusterServiceVersion{csvC, csvE})
-		defer cleanup2()
-
-		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err = fetchCatalogSourceOnStatus(crClient, catsrc2.GetName(), testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
-
-		// Create a subscription that has a dependency
 		subscriptionName := genName("sub-")
 		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		// Check that a single catalog source was used to resolve the InstallPlan
-		_, err = fetchInstallPlan(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
-		require.NoError(GinkgoT(), err)
-		// Fetch CSVs A, B and C
-		_, err = fetchCSV(crClient, csvB.Name, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-		_, err = fetchCSV(crClient, csvE.Name, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-		_, err = fetchCSV(crClient, csvA.Name, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-		// Ensure csvABC is not installed
-		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), csvABC.Name, metav1.GetOptions{})
-		require.Error(GinkgoT(), err)
-		// Ensure csvD is not installed -- this implies the dependent subscription selected the default channel
-		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), csvD.Name, metav1.GetOptions{})
-		require.Error(GinkgoT(), err)
+		// ensure correct CSVs were picked
+		var got []string
+		Eventually(func() []string {
+			ip, err := crClient.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			if err != nil {
+				return nil
+			}
+			got = ip.Spec.ClusterServiceVersionNames
+			return got
+		}).ShouldNot(BeNil())
+		require.ElementsMatch(GinkgoT(), []string{"csv-a", "csv-b", "csv-e"}, got)
 	})
 
 	// csvA owns CRD1 & csvB owns CRD2 and requires CRD1
@@ -1454,64 +1377,24 @@ var _ = Describe("Subscription", func() {
 	// that csvNewA requires
 	It("creation in case of transferring providedAPIs", func() {
 
-		kubeClient := newKubeClient()
-		crClient := newCRClient()
+		kubeClient := ctx.Ctx().KubeClient()
+		crClient := ctx.Ctx().OperatorClient()
 
-		permissions := deploymentPermissions()
-
-		crdPlural := genName("ins")
-		crdName := crdPlural + ".cluster.com"
-		crdPlural2 := genName("ins")
-		crdName2 := crdPlural2 + ".cluster.com"
-
-		crd := apiextensions.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: crdName,
-			},
-			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
-				Names: apiextensions.CustomResourceDefinitionNames{
-					Plural:   crdPlural,
-					Singular: crdPlural,
-					Kind:     crdPlural,
-					ListKind: "list" + crdPlural,
-				},
-				Scope: "Namespaced",
-			},
-		}
-
-		crd2 := apiextensions.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: crdName2,
-			},
-			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
-				Names: apiextensions.CustomResourceDefinitionNames{
-					Plural:   crdPlural2,
-					Singular: crdPlural2,
-					Kind:     crdPlural2,
-					ListKind: "list" + crdPlural2,
-				},
-				Scope: "Namespaced",
-			},
-		}
+		crd := newCRD(genName("ins"))
+		crd2 := newCRD(genName("ins"))
 
 		// Create CSV
 		packageName1 := genName("apackage")
 		packageName2 := genName("bpackage")
 
-		namedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
-		namedStrategy2 := newNginxInstallStrategy((genName("dep")), permissions, nil)
 		// csvA provides CRD
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 		// csvB provides CRD2 and requires CRD
-		csvB := newCSV("nginx-b", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, []apiextensions.CustomResourceDefinition{crd}, namedStrategy2)
+		csvB := newCSV("nginx-b", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, []apiextensions.CustomResourceDefinition{crd}, nil)
 		// New csvA requires CRD (transfer CRD ownership to the new csvB)
-		csvNewA := newCSV("nginx-new-a", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
+		csvNewA := newCSV("nginx-new-a", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
 		// New csvB provides CRD and CRD2
-		csvNewB := newCSV("nginx-new-b", testNamespace, "nginx-b", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, namedStrategy2)
+		csvNewB := newCSV("nginx-new-b", testNamespace, "nginx-b", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, nil)
 
 		// Create PackageManifests 1
 		// Contain csvA, ABC and B

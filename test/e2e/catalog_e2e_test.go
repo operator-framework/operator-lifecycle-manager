@@ -51,10 +51,8 @@ var _ = Describe("Catalog", func() {
 			},
 		}
 
-		crdPlural := genName("ins")
-		crd := newCRD(crdPlural)
-		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+		crd := newCRD(genName("ins"))
+		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -112,13 +110,9 @@ var _ = Describe("Catalog", func() {
 
 		stableChannel := "stable"
 
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-		crdPlural := genName("ins-")
-
-		mainCRD := newCRD(crdPlural)
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
-		replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
+		mainCRD := newCRD(genName("ins-"))
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+		replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
 
 		mainCatalogName := genName("mock-ocs-main-")
 
@@ -207,14 +201,9 @@ var _ = Describe("Catalog", func() {
 
 		stableChannel := "stable"
 
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-		crdPlural := genName("ins-")
-
-		dependentCRD := newCRD(crdPlural)
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentCRD := newCRD(genName("ins-"))
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -325,14 +314,9 @@ var _ = Describe("Catalog", func() {
 
 		stableChannel := "stable"
 
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-		crdPlural := genName("ins-")
-
-		dependentCRD := newCRD(crdPlural)
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentCRD := newCRD( genName("ins-"))
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -413,15 +397,10 @@ var _ = Describe("Catalog", func() {
 
 		stableChannel := "stable"
 
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-		crdPlural := genName("ins-")
-
-		dependentCRD := newCRD(crdPlural)
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentCRD := newCRD(genName("ins-"))
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -543,10 +522,9 @@ var _ = Describe("Catalog", func() {
 		packageName := genName("nginx-")
 		packageStable := fmt.Sprintf("%s-stable", packageName)
 		stableChannel := "stable"
-		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 		sourceName := genName("catalog-")
 		crd := newCRD(genName("ins-"))
-		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: packageName,

@@ -32,7 +32,6 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		crdPlural := genName("ins-v1beta1-")
 		crdName := crdPlural + ".cluster.com"
@@ -65,7 +64,7 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -112,7 +111,6 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		crdPlural := genName("ins-v1beta1-")
 		crdName := crdPlural + ".cluster.com"
@@ -138,7 +136,7 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -186,7 +184,6 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		crdPlural := genName("ins-v1beta1-")
 		crdName := crdPlural + ".cluster.com"
@@ -259,8 +256,8 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		oldCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{oldCRD}, nil, mainNamedStrategy)
-		newCSV := newCSV(mainPackageAlpha, testNamespace, mainPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{newCRD}, nil, mainNamedStrategy)
+		oldCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{oldCRD}, nil, nil)
+		newCSV := newCSV(mainPackageAlpha, testNamespace, mainPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{newCRD}, nil, nil)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -432,8 +429,7 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		catalogCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{catalogCRD}, nil, mainNamedStrategy)
+		catalogCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{catalogCRD}, nil, nil)
 
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
