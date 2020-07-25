@@ -395,10 +395,9 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 		}
 
 		o.nsResolveQueue.Add(state.Key.Namespace)
-	default:
-		if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
-			o.logger.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
-		}
+	}
+	if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
+		o.logger.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
 	}
 }
 
