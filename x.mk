@@ -20,15 +20,15 @@ test/e2e/assets/chart/zz_chart.go: $(shell find deploy/chart -type f)
 bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
 	$(GO) test -c -tags kind,helm -o $@ ./test/e2e
 
-bin/e2e-local.image.tar: export GOOS=linux
-bin/e2e-local.image.tar: export GOARCH=386
-bin/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
+test/e2e-local.image.tar: export GOOS=linux
+test/e2e-local.image.tar: export GOARCH=386
+test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
 	docker save -o $@ quay.io/operator-framework/olm:local
 
 .PHONY: e2e-local
-e2e-local: bin/e2e-local.test bin/e2e-local.image.tar
-	$(GINKGO) -nodes $(or $(NODES),1) -flakeAttempts 3 -randomizeAllSpecs $(if $(TEST),-focus "$(TEST)") -v -timeout 90m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=e2e-local.image.tar
+e2e-local: bin/e2e-local.test test/e2e-local.image.tar
+	$(GINKGO) -nodes $(or $(NODES),1) -flakeAttempts 3 -randomizeAllSpecs $(if $(TEST),-focus "$(TEST)") -v -timeout 90m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=../test/e2e-local.image.tar
 
 # Phony prerequisite for targets that rely on the go build cache to
 # determine staleness.
