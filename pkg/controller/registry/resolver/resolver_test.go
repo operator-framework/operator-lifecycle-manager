@@ -893,6 +893,102 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 	assert.Equal(t, 3, len(operators))
 }
 
+func TestSolveOperators_TransferApiOwnership(t *testing.T) {
+	Provides1 := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Requires1 := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides2 := APISet{opregistry.APIKey{"g2", "v", "k", "ks"}: struct{}{}}
+	ProvidesBoth := Provides1.Union(Provides2)
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{Name: "community", Namespace: namespace}
+
+	phases := []struct {
+		subs  []*v1alpha1.Subscription
+		catalog *CatalogSnapshot
+		expected OperatorSet
+	}{
+		{
+			subs: []*v1alpha1.Subscription{newSub(namespace, "packageB", "stable", catalog)},
+			catalog: &CatalogSnapshot{
+				key: catalog,
+				operators: []*Operator{
+					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, ""),
+					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable"),
+				},
+			},
+			expected: OperatorSet{
+				"opA.v1.0.0": genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, ""),
+				"opB.v1.0.0": genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable"),
+			},
+		},
+		{
+			// will have two existing subs after resolving once
+			subs: []*v1alpha1.Subscription{
+				existingSub(namespace, "opA.v1.0.0", "packageA", "stable", catalog),
+				existingSub(namespace, "opB.v1.0.0", "packageB", "stable", catalog),
+			},
+			catalog: &CatalogSnapshot{
+				key: catalog,
+				operators: []*Operator{
+					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, ""),
+					genOperator("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "packageA", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, ""),
+					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable"),
+				},
+			},
+			// nothing new to do here
+			expected: nil,
+		},
+		{
+			// will have two existing subs after resolving once
+			subs: []*v1alpha1.Subscription{
+				existingSub(namespace, "opA.v1.0.0", "packageA", "stable", catalog),
+				existingSub(namespace, "opB.v1.0.0", "packageB", "stable", catalog),
+			},
+			catalog: &CatalogSnapshot{
+				key: catalog,
+				operators: []*Operator{
+					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, ""),
+					genOperator("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "packageA", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, ""),
+					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable"),
+					genOperator("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "stable"),
+				},
+			},
+			expected: OperatorSet{
+				"opA.v1.0.1": genOperator("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "packageA", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, ""),
+				"opB.v1.0.1": genOperator("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "stable"),
+			},
+		},
+	}
+
+	var operators OperatorSet
+	for _, p := range phases {
+		fakeNamespacedOperatorCache := NamespacedOperatorCache{
+			snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+				catalog: p.catalog,
+			},
+		}
+		satResolver := SatResolver{
+			cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+			log:   logrus.New(),
+		}
+		csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
+		for _, o := range operators {
+			csvs = append(csvs, existingOperator(namespace, o.Identifier(), o.Bundle().PackageName, o.Bundle().ChannelName, o.Replaces(), o.ProvidedAPIs(), o.RequiredAPIs(), nil, nil))
+		}
+
+		o, err := satResolver.SolveOperators([]string{"olm"}, csvs, p.subs)
+		if p.expected != nil {
+			assert.NoError(t, err)
+			operators = o
+		}
+		for k := range p.expected {
+			require.NotNil(t, o[k])
+			assert.EqualValues(t, k, o[k].Identifier())
+		}
+		assert.Equal(t, len(p.expected), len(o))
+	}
+}
+
 type FakeOperatorCache struct {
 	fakedNamespacedOperatorCache NamespacedOperatorCache
 }
