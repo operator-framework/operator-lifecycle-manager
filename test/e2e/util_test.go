@@ -314,11 +314,15 @@ func registryPodHealthy(address string) bool {
 func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	registry := catalog.Status.RegistryServiceStatus
 	connState := catalog.Status.GRPCConnectionState
-	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() {
+	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY"{
 		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
 		return registryPodHealthy(registry.Address())
 	}
-	fmt.Printf("waiting for catalog pod %v to be available (for sync)\n", catalog.GetName())
+	state := "NO_CONNECTION"
+	if connState != nil {
+		state = connState.LastObservedState
+	}
+	fmt.Printf("waiting for catalog pod %v to be available (for sync) - %s\n", catalog.GetName(), state)
 	return false
 }
 

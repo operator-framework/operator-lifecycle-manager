@@ -1795,6 +1795,7 @@ func subscriptionStateAtLatestChecker(subscription *v1alpha1.Subscription) bool 
 }
 
 func subscriptionHasInstallPlanChecker(subscription *v1alpha1.Subscription) bool {
+	ctx.Ctx().Logf("waiting for %s to have installplan ref", subscription.GetName())
 	return subscription.Status.InstallPlanRef != nil
 }
 
