@@ -256,8 +256,24 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 	}
 	sourceInfo.DefaultChannel = sourceInfo.Channel == defaultChannel
 
-	// legacy support - if the grpc api doesn't contain the information we need, fallback to csv parsing
-	if len(required) == 0 && len(provided) == 0 && len(bundle.Properties) == 0 && len(bundle.Dependencies) == 0 {
+	// legacy support - if the api doesn't contain properties/dependencies, build them from required/provided apis
+	properties := bundle.Properties
+	if properties == nil || len(properties) == 0{
+		properties, err = apisToProperties(provided)
+		if err != nil {
+			return nil, err
+		}
+	}
+	dependencies := bundle.Dependencies
+	if dependencies == nil || len(dependencies) == 0 {
+		dependencies, err = apisToDependencies(required)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// legacy support - if the grpc api doesn't contain required/provided apis, fallback to csv parsing
+	if len(required) == 0 && len(provided) == 0 && len(properties) == 0 && len(dependencies) == 0 {
 		// fallback to csv parsing
 		if bundle.CsvJson == "" {
 			if bundle.GetBundlePath() != "" {
@@ -281,21 +297,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		return op, nil
 	}
 
-	// legacy support - if the api doesn't contain properties/dependencies, build them from required/provided apis
-	properties := bundle.Properties
-	if properties == nil || len(properties) == 0{
-		properties, err = apisToProperties(provided)
-		if err != nil {
-			return nil, err
-		}
-	}
-	dependencies := bundle.Dependencies
-	if dependencies == nil || len(dependencies) == 0 {
-		dependencies, err = apisToDependencies(required)
-		if err != nil {
-			return nil, err
-		}
-	}
+
 
 	return &Operator{
 		name:         bundle.CsvName,

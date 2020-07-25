@@ -170,12 +170,12 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[string]solver.Installable, error) {
-	installables := make(map[string]solver.Installable, 0)
+func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+	installables := make(map[solver.Identifier]solver.Installable, 0)
 	candidates := make([]*BundleInstallable, 0)
 
 	subInstallable := NewSubscriptionInstallable(pkg)
-	installables[string(subInstallable.Identifier())] = &subInstallable
+	installables[subInstallable.Identifier()] = &subInstallable
 
 	bundles := namespacedCache.Catalog(catalog).Find(cachePredicates...)
 
@@ -233,7 +233,7 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 			if _, ok := id[i.Identifier()]; ok {
 				candidates = append(candidates, i)
 			}
-			installables[string(i.Identifier())] = i
+			installables[i.Identifier()] = i
 		}
 	}
 
@@ -253,7 +253,7 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 }
 
 func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
-	errs := []error{}
+	errs := make([]error, 0)
 	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
 
 	var finder OperatorFinder = namespacedCache
@@ -404,11 +404,17 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			if p.Type != opregistry.GVKType {
 				continue
 			}
-			_, ok := conflictToInstallable[p.Value]
-			if !ok {
-				conflictToInstallable[p.Value] = make([]solver.Installable, 0)
+			var prop opregistry.GVKProperty
+			err := json.Unmarshal([]byte(p.Value), &prop)
+			if err != nil {
+				continue
 			}
-			conflictToInstallable[p.Value] = append(conflictToInstallable[p.Value], installable)
+			key := fmt.Sprintf("gvkunique/%s/%s/%s", prop.Group, prop.Version, prop.Kind)
+			_, ok := conflictToInstallable[key]
+			if !ok {
+				conflictToInstallable[key] = make([]solver.Installable, 0)
+			}
+			conflictToInstallable[key] = append(conflictToInstallable[key], installable)
 		}
 
 		// cannot have the same package
@@ -421,11 +427,12 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			if err != nil {
 				continue
 			}
-			_, ok := conflictToInstallable[prop.PackageName]
+			key := fmt.Sprintf("pkgunique/%s", prop.PackageName)
+			_, ok := conflictToInstallable[key]
 			if !ok {
-				conflictToInstallable[prop.PackageName] = make([]solver.Installable, 0)
+				conflictToInstallable[key] = make([]solver.Installable, 0)
 			}
-			conflictToInstallable[prop.PackageName] = append(conflictToInstallable[prop.PackageName], installable)
+			conflictToInstallable[key] = append(conflictToInstallable[key], installable)
 		}
 	}
 
@@ -434,15 +441,13 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			continue
 		}
 
-		ids := []solver.Identifier{}
+		ids := make([]solver.Identifier, 0)
 		for _, d := range is {
 			ids = append(ids, d.Identifier())
 		}
 		s := NewSubscriptionInstallable(key)
-		s.constraints = []solver.Constraint{
-			solver.AtMost(1, ids...),
-		}
-		installables[s.Identifier()] = s
+		s.constraints = append(s.constraints, solver.AtMost(1, ids...))
+		installables[s.Identifier()] = &s
 	}
 }
 

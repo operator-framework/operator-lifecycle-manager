@@ -836,6 +836,63 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
+	Provides1 := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Requires1 := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides2 := APISet{opregistry.APIKey{"g2", "v", "k", "ks"}: struct{}{}}
+	Requires2 := APISet{opregistry.APIKey{"g2", "v", "k", "ks"}: struct{}{}}
+	ProvidesBoth := Provides1.Union(Provides2)
+	RequiresBoth := Requires1.Union(Requires2)
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{Name: "community", Namespace: namespace}
+	secondaryCatalog := registry.CatalogKey{Namespace: "olm", Name: "secondary"}
+
+	newSub := newSub(namespace, "packageA", "stable", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			catalog: {
+				key: catalog,
+				operators: []*Operator{
+					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, ""),
+					// Despite satisfying dependencies of opA, this is not chosen because it is in the same package
+					genOperator("opABC.v1.0.0", "1.0.0", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, ""),
+
+					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable"),
+					genOperator("opD.v1.0.0", "1.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable"),
+				},
+			},
+			secondaryCatalog: {
+				key: secondaryCatalog,
+				operators: []*Operator{
+					genOperator("opC.v1.0.0", "1.0.0", "", "packageB", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, "stable"),
+
+					genOperator("opE.v1.0.0", "1.0.0", "", "packageC", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, ""),
+				},
+			},
+		},
+	}
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	assert.NoError(t, err)
+	expected := OperatorSet{
+		"opA.v1.0.0": genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, ""),
+		"opB.v1.0.0": genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable"),
+		"opE.v1.0.0": genOperator("opE.v1.0.0", "1.0.0", "", "packageC", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, ""),
+	}
+	for k := range expected {
+		require.NotNil(t, operators[k])
+		assert.EqualValues(t, k, operators[k].Identifier())
+	}
+	assert.Equal(t, 3, len(operators))
+}
+
 type FakeOperatorCache struct {
 	fakedNamespacedOperatorCache NamespacedOperatorCache
 }
@@ -856,7 +913,10 @@ func getFakeOperatorCache(fakedNamespacedOperatorCache NamespacedOperatorCache) 
 
 func genOperator(name, version, replaces, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs APISet, dependencies []*api.Dependency, defaultChannel string) *Operator {
 	semversion, _ := semver.Make(version)
-	return &Operator{
+	if len(dependencies) == 0 {
+		dependencies = apiSetToDependencies(requiredAPIs, nil)
+	}
+	o := &Operator{
 		name:     name,
 		version:  &semversion,
 		replaces: replaces,
@@ -878,6 +938,8 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,
 	}
+	ensurePackageProperty(o, pkg, version)
+	return o
 }
 
 func stripBundle(o *Operator) *Operator {
