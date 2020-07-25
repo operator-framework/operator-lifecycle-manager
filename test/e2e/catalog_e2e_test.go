@@ -974,7 +974,7 @@ var _ = Describe("Catalog", func() {
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
-				Image:      catSrcImage + ":1.0.0",
+				Image:      catSrcImage + ":1.0.0-with-ListBundles-method",
 			},
 		}
 
@@ -1019,7 +1019,7 @@ var _ = Describe("Catalog", func() {
 			if err != nil {
 				return false, err
 			}
-			existingSource.Spec.Image = catSrcImage + ":2.0.0"
+			existingSource.Spec.Image = catSrcImage + ":2.0.0-with-ListBundles-method"
 
 			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), existingSource, metav1.UpdateOptions{})
 			if err == nil {

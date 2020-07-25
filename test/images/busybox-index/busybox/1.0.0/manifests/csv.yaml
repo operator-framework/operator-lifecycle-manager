@@ -1,0 +1,50 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: busybox.v1.0.0
+  namespace: placeholder
+spec:
+  customresourcedefinitions:
+    required:
+    - description: Foo resources for testing dependencies
+      displayName: Foo
+      kind: Foo
+      name: foos.olm.test.io
+      version: v1
+  description: |
+    A busybox CSV.
+  displayName: busybox
+  install:
+    spec:
+      deployments:
+      - name: busybox
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+                app: busybox
+          template:
+            metadata:
+              labels:
+                app: busybox
+            spec:
+              containers:
+              - name: busybox
+                image: busybox
+                command:
+                  - sleep
+                  - "9000"
+    strategy: deployment
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: true
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  maturity: alpha
+  provider:
+    name: Red Hat
+  version: 1.0.0
