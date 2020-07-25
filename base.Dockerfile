@@ -11,3 +11,5 @@ RUN yum install -y skopeo && \
     export PATH=$PATH:/usr/local/kubebuilder/bin && \
     echo "Kubebuilder installation complete!"
 
+ENV PATH=$PATH:/usr/local/kubebuilder/bin
+ENV KUBEBUILDER_ASSETS=/usr/local/kubebuilder/bin

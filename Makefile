@@ -23,7 +23,7 @@ LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 CONTROLLER_GEN := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v2/
-KUBEBUILDER_ASSETS := $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder)))
+KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))), /usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
