@@ -182,7 +182,7 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 		snapshot.logger.Errorf("failed to list bundles: %s", err.Error())
 		return
 	}
-
+	c.logger.WithField("catalog", snapshot.key.String()).Debug("updating cache")
 	var operators []*Operator
 	for b := it.Next(); b != nil; b = it.Next() {
 		defaultChannel, ok := defaultChannels[b.PackageName]

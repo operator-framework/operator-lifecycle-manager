@@ -1227,6 +1227,7 @@ var _ = Describe("Subscription", func() {
 	})
 
 	It("creation with dependencies required and provided in different versions of an operator in the same package", func() {
+		// 	PARITY: this test covers the same scenario as the TestSolveOperators_PackageCannotSelfSatisfy unit test
 		kubeClient := ctx.Ctx().KubeClient()
 		crClient := ctx.Ctx().OperatorClient()
 
@@ -1376,7 +1377,7 @@ var _ = Describe("Subscription", func() {
 	// Now csvNewA and csvNewB are installed successfully as csvNewB provides CRD1
 	// that csvNewA requires
 	It("creation in case of transferring providedAPIs", func() {
-
+		// 	PARITY: this test covers the same scenario as the TestSolveOperators_TransferApiOwnership unit test
 		kubeClient := ctx.Ctx().KubeClient()
 		crClient := ctx.Ctx().OperatorClient()
 
@@ -1395,6 +1396,13 @@ var _ = Describe("Subscription", func() {
 		csvNewA := newCSV("nginx-new-a", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
 		// New csvB provides CRD and CRD2
 		csvNewB := newCSV("nginx-new-b", testNamespace, "nginx-b", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, nil)
+
+
+		// constraints not satisfiable:
+		// apackagert6cq requires at least one of catsrcc6xgr/operators/stable/nginx-new-a,
+		// apackagert6cq is mandatory,
+		// pkgunique/apackagert6cq permits at most 1 of catsrcc6xgr/operators/stable/nginx-new-a, catsrcc6xgr/operators/stable/nginx-a,
+		// catsrcc6xgr/operators/stable/nginx-new-a requires at least one of catsrcc6xgr/operators/stable/nginx-a
 
 		// Create PackageManifests 1
 		// Contain csvA, ABC and B
@@ -1496,7 +1504,16 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 		updateInternalCatalog(GinkgoT(), kubeClient, crClient, catalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvNewA, csvNewB}, manifests)
-		_, err = fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
+		//Eventually(func() bool {
+		//	s, err := crClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subscriptionName, metav1.GetOptions{})
+		//	if err != nil {
+		//		return false
+		//	}
+		//	if s.Status.CatalogHealth
+		//
+		//}).Should(BeTrue())
+
+		_, err = fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(subscription.Status.InstallPlanRef.Name))
 		require.NoError(GinkgoT(), err)
 		// Ensure csvNewA is installed
 		_, err = fetchCSV(crClient, csvNewA.Name, testNamespace, csvSucceededChecker)
@@ -2075,11 +2092,12 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, namespace, func(catalog *v1alpha1.CatalogSource) bool {
 		before := fetchedInitialCatalog.Status.ConfigMapResource
 		after := catalog.Status.ConfigMapResource
-		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion {
+		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion &&
+			catalog.Status.GRPCConnectionState.LastConnectTime.After(after.LastUpdateTime.Time) && catalog.Status.GRPCConnectionState.LastObservedState == "READY" {
 			fmt.Println("catalog updated")
 			return true
 		}
-		fmt.Printf("waiting for catalog pod %v to be available (after catalog update)\n", catalog.GetName())
+		fmt.Printf("waiting for catalog pod %v to be available (after catalog update) - %s\n", catalog.GetName(), catalog.Status.GRPCConnectionState.LastObservedState)
 		return false
 	})
 	require.NoError(t, err)
