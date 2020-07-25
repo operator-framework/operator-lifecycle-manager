@@ -18,8 +18,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -29,6 +27,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Catalog", func() {
@@ -508,13 +507,11 @@ var _ = Describe("Catalog", func() {
 		_, err = awaitCSV(GinkgoT(), crc, testNamespace, replacementCSV.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
+
 	It("delete internal registry pod triggers recreation", func() {
 
 		// Create internal CatalogSource containing csv in package
 		// Wait for a registry pod to be created
-		// Create a Subscription for package
-		// Wait for the Subscription to succeed
-		// Wait for csv to succeed
 		// Delete the registry pod
 		// Wait for a new registry pod to be created
 
@@ -550,59 +547,38 @@ var _ = Describe("Catalog", func() {
 
 		// Store the UID for later comparison
 		uid := registryPods.Items[0].GetUID()
-		name := registryPods.Items[0].GetName()
-
-		// Create a Subscription for package
-		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, sourceName, packageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
-		defer cleanupSubscription()
-
-		// Wait for the Subscription to succeed
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
-
-		// Wait for csv to succeed
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
 
 		// Delete the registry pod
 		Eventually(func() error {
-			err := c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
-			if apierrors.IsNotFound(err) {
-				err = nil
-			}
-			return err
+			backgroundDeletion := metav1.DeletePropagationBackground
+			return c.KubernetesInterface().CoreV1().Pods(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
 		}).Should(Succeed())
 
 		// Wait for a new registry pod to be created
 		notUID := func(pods *corev1.PodList) bool {
+			uids := make([]string,0)
 			for _, pod := range pods.Items {
+				uids = append(uids, string(pod.GetUID()))
 				if pod.GetUID() == uid {
+					ctx.Ctx().Logf("waiting for %v not to contain %s", uids, uid)
 					return false
 				}
 			}
-
-			return true
+			ctx.Ctx().Logf("waiting for %v to not be empty and not contain %s", uids, uid)
+			return len(pods.Items) > 0
 		}
 		registryPods, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
 		require.NoError(GinkgoT(), err, "error waiting for replacement registry pod")
 		require.NotNil(GinkgoT(), registryPods, "nil replacement registry pods")
 		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
 	})
+
 	It("delete gRPC registry pod triggers recreation", func() {
 
 		// Create gRPC CatalogSource using an external registry image (community-operators)
 		// Wait for a registry pod to be created
-		// Create a Subscription for package
-		// Wait for the Subscription to succeed
-		// Wait for csv to succeed
 		// Delete the registry pod
 		// Wait for a new registry pod to be created
-
-		sourceName := genName("catalog-")
-		packageName := "etcd"
-		channelName := "clusterwide-alpha"
 
 		// Create gRPC CatalogSource using an external registry image (community-operators)
 		source := &v1alpha1.CatalogSource{
@@ -611,7 +587,7 @@ var _ = Describe("Catalog", func() {
 				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      sourceName,
+				Name:      genName("catalog-"),
 				Namespace: testNamespace,
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
@@ -635,57 +611,32 @@ var _ = Describe("Catalog", func() {
 
 		// Store the UID for later comparison
 		uid := registryPods.Items[0].GetUID()
-		name := registryPods.Items[0].GetName()
-
-		// Create a Subscription for package
-		subscriptionName := genName("sub-")
-		_ = createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
-
-		// Wait for the Subscription to succeed
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
-
-		// Wait for csv to succeed
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
 
 		// Delete the registry pod
 		Eventually(func() error {
 			backgroundDeletion := metav1.DeletePropagationBackground
-			err = c.KubernetesInterface().CoreV1().Pods(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
-			if err != nil {
-				if k8serrors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-			return nil
-		}).Should(Succeed())
-
-		Eventually(func() error {
-			_, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).Get(context.TODO(), name, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
-				return nil
-			}
-			return err
+			return c.KubernetesInterface().CoreV1().Pods(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
 		}).Should(Succeed())
 
 		// Wait for a new registry pod to be created
 		notUID := func(pods *corev1.PodList) bool {
+			uids := make([]string,0)
 			for _, pod := range pods.Items {
+				uids = append(uids, string(pod.GetUID()))
 				if pod.GetUID() == uid {
+					ctx.Ctx().Logf("waiting for %v not to contain %s", uids, uid)
 					return false
 				}
 			}
-
-			return true
+			ctx.Ctx().Logf("waiting for %v to not be empty and not contain %s", uids, uid)
+			return len(pods.Items) > 0
 		}
 		registryPods, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
 		require.NoError(GinkgoT(), err, "error waiting for replacement registry pod")
 		require.NotNil(GinkgoT(), registryPods, "nil replacement registry pods")
 		require.Equal(GinkgoT(), 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
 	})
+
 	It("image update", func() {
 		if os.Getenv("GITHUB_ACTIONS") == "true" {
 			Skip("This spec fails when run using KIND cluster. See https://github.com/operator-framework/operator-lifecycle-manager/issues/1380 for more details")
