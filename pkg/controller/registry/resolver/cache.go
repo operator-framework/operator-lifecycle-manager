@@ -233,6 +233,10 @@ func ensurePackageProperty(o *Operator, name, version string) {
 }
 
 func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder {
+	// all catalogs match the empty catalog
+	if k.Empty() {
+		return c
+	}
 	if snapshot, ok := c.snapshots[k]; ok {
 		return snapshot
 	}

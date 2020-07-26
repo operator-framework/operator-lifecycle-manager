@@ -103,10 +103,14 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	updatedSubs := []*v1alpha1.Subscription{}
 	bundleLookups := []v1alpha1.BundleLookup{}
 	for name, op := range operators {
-		// todo: added "is default channel" to sourceinfo out
+		// TODO: added "is default channel" to sourceinfo out
 		// of convenience, which breaks map key equality here
 		// because it requires information that can't be
 		// gleaned from subscriptions alone. need to revisit
+		// TODO: this check also doesn't properly account for
+		// subscriptions made without a catalog specified,
+		// which means the sourceinfo won't match for the
+		// realized operator
 		sourceInfo := *op.SourceInfo()
 		sourceInfo.DefaultChannel = false
 		_, isAdded := add[sourceInfo]
