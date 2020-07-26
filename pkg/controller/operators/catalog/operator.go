@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
@@ -48,6 +49,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -90,6 +92,7 @@ type Operator struct {
 	ipQueueSet               *queueinformer.ResourceQueueSet
 	nsResolveQueue           workqueue.RateLimitingInterface
 	namespace                string
+	recorder                 record.EventRecorder
 	sources                  *grpc.SourceStore
 	sourcesLastUpdate        sharedtime.SharedTime
 	resolver                 resolver.StepResolver
@@ -133,6 +136,12 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Create an OperatorLister
 	lister := operatorlister.NewLister()
 
+	// eventRecorder can emit events
+	eventRecorder, err := event.NewRecorder(opClient.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll))
+	if err != nil {
+		return nil, err
+	}
+
 	// Allocate the new instance of an Operator.
 	op := &Operator{
 		Operator:                 queueOperator,
@@ -143,6 +152,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		client:                   crClient,
 		lister:                   lister,
 		namespace:                operatorNamespace,
+		recorder:                 eventRecorder,
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
@@ -854,6 +864,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
 	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
 	if err != nil {
+		go o.recorder.Event(ns, corev1.EventTypeWarning,"ResolutionFailed", err.Error())
 		return err
 	}
 
@@ -1211,7 +1222,7 @@ func (o *Operator) gcInstallPlans(log logrus.FieldLogger, namespace string) {
 
 	// we only consider maxDeletesPerSweep more than the allowed number of installplans for delete at one time
 	ips := allIps
-	if len(ips) > maxInstallPlanCount + maxDeletesPerSweep {
+	if len(ips) > maxInstallPlanCount+maxDeletesPerSweep {
 		ips = allIps[:maxInstallPlanCount+maxDeletesPerSweep]
 	}
 
