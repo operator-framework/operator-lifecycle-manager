@@ -258,7 +258,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 
 	// legacy support - if the api doesn't contain properties/dependencies, build them from required/provided apis
 	properties := bundle.Properties
-	if properties == nil || len(properties) == 0{
+	if properties == nil || len(properties) == 0 {
 		properties, err = apisToProperties(provided)
 		if err != nil {
 			return nil, err
@@ -296,8 +296,6 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		op.bundle = bundle
 		return op, nil
 	}
-
-
 
 	return &Operator{
 		name:         bundle.CsvName,
