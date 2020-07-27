@@ -313,6 +313,12 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 					errs = append(errs, err)
 					continue
 				}
+				if len(found) == 0 {
+					err := fmt.Errorf("couldn't find %s in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
+					errs = append(errs, err)
+					r.log.Warnf("cache consistency error: %s not found in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
+					continue
+				}
 				b := found[0]
 				src := b.SourceInfo()
 				if src == nil {
