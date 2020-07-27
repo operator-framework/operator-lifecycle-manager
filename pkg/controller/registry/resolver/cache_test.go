@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 type BundleStreamStub struct {
@@ -85,6 +85,7 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 	)
 
 	rcp := RegistryClientProviderStub{}
+	crClient := fake.NewSimpleClientset()
 	var keys []registry.CatalogKey
 	for i := 0; i < 128; i++ {
 		for j := 0; j < 8; j++ {
@@ -106,7 +107,7 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 		}
 	}
 
-	c := NewOperatorCache(rcp, logrus.New())
+	c := NewOperatorCache(rcp, logrus.New(), crClient)
 
 	errs := make(chan error)
 	for w := 0; w < NWorkers; w++ {
@@ -140,6 +141,7 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 
 func TestOperatorCacheExpiration(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
+	crClient := fake.NewSimpleClientset()
 	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
@@ -155,7 +157,7 @@ func TestOperatorCacheExpiration(t *testing.T) {
 		}),
 	}
 
-	c := NewOperatorCache(rcp, logrus.New())
+	c := NewOperatorCache(rcp, logrus.New(), crClient)
 	c.ttl = 0 // instantly stale
 
 	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(WithCSVName("csvname")), 1)
@@ -163,6 +165,7 @@ func TestOperatorCacheExpiration(t *testing.T) {
 
 func TestOperatorCacheReuse(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
+	crClient := fake.NewSimpleClientset()
 	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
@@ -178,7 +181,7 @@ func TestOperatorCacheReuse(t *testing.T) {
 		}),
 	}
 
-	c := NewOperatorCache(rcp, logrus.New())
+	c := NewOperatorCache(rcp, logrus.New(), crClient)
 
 	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(WithCSVName("csvname")), 1)
 }
@@ -290,6 +293,7 @@ func TestCatalogSnapshotFind(t *testing.T) {
 
 func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
+	crClient := fake.NewSimpleClientset()
 	key := registry.CatalogKey{Namespace: "testnamespace", Name: "testname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
@@ -327,7 +331,7 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 		}),
 	}
 
-	c := NewOperatorCache(rcp, logrus.New())
+	c := NewOperatorCache(rcp, logrus.New(), crClient)
 
 	nc := c.Namespaced("testnamespace")
 	result, err := AtLeast(1, nc.Find(ProvidingAPI(opregistry.APIKey{Group: "g", Version: "v1", Kind: "K"})))
