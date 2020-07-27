@@ -310,6 +310,151 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	}
 }
 
+func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.package",
+			Value: `{"packageName":"packageB","version":"0.0.1"}`,
+		},
+	}
+
+	namespace := "olm"
+	customCatalog := registry.CatalogKey{"community", namespace}
+	newSub := newSub(namespace, "packageA", "alpha", customCatalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
+				Namespace: "olm",
+				Name:      "community",
+			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
+				operators: []*Operator{
+					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", namespace, nil,
+						nil, opToAddVersionDeps, "",false),
+				},
+			},
+			registry.CatalogKey{
+				Namespace: "olm",
+				Name:      "community-operator",
+			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community-operator",
+				},
+				operators: []*Operator{
+					genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
+						namespace, nil, nil, nil, "",false),
+				},
+			},
+			registry.CatalogKey{
+				Namespace: "olm",
+				Name:      "high-priority-operator",
+			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "high-priority-operator",
+				},
+				priority: catalogSourcePriority(100),
+				operators: []*Operator{
+					genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "high-priority-operator",
+						namespace, nil, nil, nil, "",false),
+				},
+			},
+		},
+	}
+
+	// operators sorted by priority.
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	assert.NoError(t, err)
+	expected := OperatorSet{
+		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm",
+			nil, nil, opToAddVersionDeps, "",false),
+		"packageB.v1": genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "high-priority-operator", "olm",
+			nil, nil, nil, "",false),
+	}
+	assert.Equal(t, 2, len(operators))
+	for k, e := range expected {
+		assert.EqualValues(t, e, operators[k])
+	}
+
+	// Catsrc with the same priority, ns, different name
+	fakeNamespacedOperatorCache.snapshots[registry.CatalogKey{
+		Namespace: "olm",
+		Name:      "community-operator",
+	}] = &CatalogSnapshot{
+		key: registry.CatalogKey{
+			Namespace: "olm",
+			Name:      "community-operator",
+		},
+		priority: catalogSourcePriority(100),
+		operators: []*Operator{
+			genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
+				namespace, nil, nil, nil, "",false),
+		},
+	}
+
+	satResolver = SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+	}
+
+	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	assert.NoError(t, err)
+	expected = OperatorSet{
+		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm",
+			nil, nil, opToAddVersionDeps, "",false),
+		"packageB.v1": genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator", "olm",
+			nil, nil, nil, "",false),
+	}
+	assert.Equal(t, 2, len(operators))
+	for k, e := range expected {
+		assert.EqualValues(t, e, operators[k])
+	}
+
+	// operators from the same catalogs source should be prioritized.
+	fakeNamespacedOperatorCache.snapshots[registry.CatalogKey{
+		Namespace: "olm",
+		Name:      "community",
+	}] = &CatalogSnapshot{
+		key: registry.CatalogKey{
+			Namespace: "olm",
+			Name:      "community",
+		},
+		operators: []*Operator{
+			genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", namespace, nil,
+				nil, opToAddVersionDeps, "",false),
+			genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community",
+				namespace, nil, nil, nil, "",false),
+		},
+	}
+
+	satResolver = SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+	}
+
+	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	assert.NoError(t, err)
+	expected = OperatorSet{
+		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm",
+			nil, nil, opToAddVersionDeps, "",false),
+		"packageB.v1": genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community", "olm",
+			nil, nil, nil, "",false),
+	}
+	assert.Equal(t, 2, len(operators))
+	for k, e := range expected {
+		assert.EqualValues(t, e, operators[k])
+	}
+
+}
+
 func TestSolveOperators_WithDependencies(t *testing.T) {
 	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet
