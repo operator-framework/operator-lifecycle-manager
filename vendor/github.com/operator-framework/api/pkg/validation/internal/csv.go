@@ -46,7 +46,7 @@ func validateCSV(csv *v1alpha1.ClusterServiceVersion) errors.ManifestResult {
 	// validate installModes
 	result.Add(validateInstallModes(csv)...)
 	// check missing optional/mandatory fields.
-	result.Add(checkFields(csv)...)
+	result.Add(checkFields(*csv)...)
 	return result
 }
 
@@ -67,7 +67,7 @@ func parseCSVNameFormat(name string) (string, semver.Version, error) {
 }
 
 // checkFields runs checkEmptyFields and returns its errors.
-func checkFields(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Error) {
+func checkFields(csv v1alpha1.ClusterServiceVersion) (errs []errors.Error) {
 	result := errors.ManifestResult{}
 	checkEmptyFields(&result, reflect.ValueOf(csv), "")
 	return append(result.Errors, result.Warnings...)

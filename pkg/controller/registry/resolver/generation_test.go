@@ -9,7 +9,6 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 )
 
 var NoVersion = semver.MustParse("0.0.0")

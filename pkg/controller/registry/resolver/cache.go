@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/blang/semver"
+	"github.com/sirupsen/logrus"
+
+	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
-	"github.com/sirupsen/logrus"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 type RegistryClientProvider interface {
@@ -43,27 +44,31 @@ type OperatorCacheProvider interface {
 }
 
 type OperatorCache struct {
-	logger    logrus.FieldLogger
-	rcp       RegistryClientProvider
-	snapshots map[registry.CatalogKey]*CatalogSnapshot
-	ttl       time.Duration
-	sem       chan struct{}
-	m         sync.RWMutex
+	logger       logrus.FieldLogger
+	rcp          RegistryClientProvider
+	catsrcLister v1alpha1listers.CatalogSourceLister
+	snapshots    map[registry.CatalogKey]*CatalogSnapshot
+	ttl          time.Duration
+	sem          chan struct{}
+	m            sync.RWMutex
 }
+
+type catalogPriority int
 
 var _ OperatorCacheProvider = &OperatorCache{}
 
-func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger) *OperatorCache {
+func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, catsrcLister v1alpha1listers.CatalogSourceLister) *OperatorCache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
 	)
 
 	return &OperatorCache{
-		logger:    log,
-		rcp:       rcp,
-		snapshots: make(map[registry.CatalogKey]*CatalogSnapshot),
-		ttl:       5 * time.Minute,
-		sem:       make(chan struct{}, MaxConcurrentSnapshotUpdates),
+		logger:       log,
+		rcp:          rcp,
+		catsrcLister: catsrcLister,
+		snapshots:    make(map[registry.CatalogKey]*CatalogSnapshot),
+		ttl:          5 * time.Minute,
+		sem:          make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
 }
 
@@ -151,11 +156,20 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 
 	for _, miss := range misses {
 		ctx, cancel := context.WithTimeout(context.Background(), CachePopulateTimeout)
+
+		catsrcPriority := 0
+		// Ignoring error and treat catsrc priority as 0 if not found.
+		catsrc, err := c.catsrcLister.CatalogSources(miss.Namespace).Get(miss.Name)
+		if err == nil {
+			catsrcPriority = catsrc.Spec.Priority
+		}
+
 		s := CatalogSnapshot{
-			logger: c.logger.WithField("catalog", miss),
-			key:    miss,
-			expiry: now.Add(c.ttl),
-			pop:    cancel,
+			logger:   c.logger.WithField("catalog", miss),
+			key:      miss,
+			expiry:   now.Add(c.ttl),
+			pop:      cancel,
+			priority: catalogPriority(catsrcPriority),
 		}
 		s.m.Lock()
 		c.snapshots[miss] = &s
@@ -222,13 +236,13 @@ func ensurePackageProperty(o *Operator, name, version string) {
 		PackageName: name,
 		Version:     version,
 	}
-	byte, err := json.Marshal(prop)
+	bytes, err := json.Marshal(prop)
 	if err != nil {
 		return
 	}
 	o.properties = append(o.properties, &api.Property{
 		Type:  opregistry.PackageType,
-		Value: string(byte),
+		Value: string(bytes),
 	})
 }
 
@@ -277,6 +291,7 @@ type CatalogSnapshot struct {
 	operators []*Operator
 	m         sync.RWMutex
 	pop       context.CancelFunc
+	priority  catalogPriority
 }
 
 func (s *CatalogSnapshot) Cancel() {
@@ -354,10 +369,14 @@ func (s SortableSnapshots) Less(i, j int) bool {
 		return false
 	}
 
-	// the rest are sorted first in namespace preference order, then by name
+	// the rest are sorted first on priority, namespace and then by name
+	if s.snapshots[i].priority != s.snapshots[j].priority {
+		return s.snapshots[i].priority > s.snapshots[j].priority
+	}
 	if s.snapshots[i].key.Namespace != s.snapshots[j].key.Namespace {
 		return s.namespaces[s.snapshots[i].key.Namespace] < s.namespaces[s.snapshots[j].key.Namespace]
 	}
+
 	return s.snapshots[i].key.Name < s.snapshots[j].key.Name
 }
 

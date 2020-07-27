@@ -55,12 +55,8 @@ func updateResult(result *errors.ManifestResult, typeName string, newParentStruc
 	if !emptyVal {
 		return
 	}
-	if isOptionalField {
-		// TODO: update the value field (typeName).
-		result.Add(errors.WarnFieldMissing("", newParentStructName, typeName))
-	} else if newParentStructName != "Status" {
-		// TODO: update the value field (typeName).
-		result.Add(errors.ErrFieldMissing("", newParentStructName, typeName))
+	if !isOptionalField && newParentStructName != "Status" {
+		result.Add(errors.ErrFieldMissing("required field missing", newParentStructName, typeName))
 	}
 }
 
