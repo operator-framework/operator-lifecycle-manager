@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 type OperatorResolver interface {
@@ -24,9 +25,9 @@ type SatResolver struct {
 	log   logrus.FieldLogger
 }
 
-func NewDefaultSatResolver(rcp RegistryClientProvider, log logrus.FieldLogger) *SatResolver {
+func NewDefaultSatResolver(rcp RegistryClientProvider, catsrcLister v1alpha1listers.CatalogSourceLister, log logrus.FieldLogger) *SatResolver {
 	return &SatResolver{
-		cache: NewOperatorCache(rcp, log),
+		cache: NewOperatorCache(rcp, log, catsrcLister),
 		log:   log,
 	}
 }
