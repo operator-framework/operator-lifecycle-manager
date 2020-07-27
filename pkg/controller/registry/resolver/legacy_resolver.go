@@ -79,7 +79,6 @@ func (r *LegacyResolver) ResolveSteps(namespace string, sourceQuerier SourceQuer
 		return nil, nil, nil, err
 	}
 
-
 	// if there's no error, we were able to satisfy all constraints in the subscription set, so we calculate what
 	// changes to persist to the cluster and write them out as `steps`
 	steps := []*v1alpha1.Step{}
