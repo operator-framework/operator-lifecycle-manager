@@ -10,8 +10,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
-
-
 func TestResolverLegacy(t *testing.T) {
 	namespace := "catsrc-namespace"
 	for _, tt := range SharedResolverSpecs() {

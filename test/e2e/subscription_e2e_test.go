@@ -1366,6 +1366,258 @@ var _ = Describe("Subscription", func() {
 		require.ElementsMatch(GinkgoT(), []string{"csv-a", "csv-b", "csv-e"}, got)
 	})
 
+	Context("with dependencies from different catsrc with priorities", func() {
+		var kubeClient operatorclient.ClientInterface
+		var crClient versioned.Interface
+		var crd apiextensions.CustomResourceDefinition
+		var packageMain, packageDepRight, packageDepWrong registry.PackageManifest
+		var csvsMain, csvsRight, csvsWrong []v1alpha1.ClusterServiceVersion
+		var catsrcMain, catsrcDepRight, catsrcDepWrong *v1alpha1.CatalogSource
+		var cleanup, cleanupSubscription cleanupFunc
+		const (
+			mainCSVName  = "csv-main"
+			rightCSVName = "csv-right"
+			wrongCSVName = "csv-wrong"
+		)
+
+		BeforeEach(func() {
+			kubeClient = ctx.Ctx().KubeClient()
+			crClient = ctx.Ctx().OperatorClient()
+			crd = newCRD(genName("ins"))
+		})
+
+		BeforeEach(func() {
+			packageMain = registry.PackageManifest{PackageName: genName("PkgMain-")}
+			csv := newCSV(mainCSVName, testNamespace, "", semver.MustParse("0.1.0"), nil,
+				[]apiextensions.CustomResourceDefinition{crd}, nil)
+			packageMain.DefaultChannelName = stableChannel
+			packageMain.Channels = append(packageMain.Channels, registry.PackageChannel{Name: stableChannel, CurrentCSVName: csv.GetName()})
+			csvsMain = []v1alpha1.ClusterServiceVersion{csv}
+
+			csvsRight = []v1alpha1.ClusterServiceVersion{}
+			csvsWrong = []v1alpha1.ClusterServiceVersion{}
+		})
+
+		AfterEach(func() {
+			cleanupSubscription()
+			cleanup()
+		})
+
+		ensureInstalledCSVs := func() {
+			By("Create a subscription for the main package and ensure the right CSVs were picked", func() {
+				// Create a subscription for packageA in catsrc
+				subscriptionSpec := &v1alpha1.SubscriptionSpec{
+					CatalogSource:          catsrcMain.GetName(),
+					CatalogSourceNamespace: catsrcMain.GetNamespace(),
+					Package:                packageMain.PackageName,
+					Channel:                stableChannel,
+					InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+				}
+				subscriptionName := genName("sub-")
+				cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
+
+				subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(subscription).ToNot(BeNil())
+
+				_, err = fetchCSV(crClient, mainCSVName, testNamespace, csvSucceededChecker)
+				Expect(err).ToNot(HaveOccurred())
+
+				// ensure correct CSVs were picked
+				Eventually(func() ([]string, error) {
+					ip, err := crClient.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+					if err != nil {
+						return nil, err
+					}
+					return ip.Spec.ClusterServiceVersionNames, nil
+				}).Should(ConsistOf(mainCSVName, rightCSVName))
+			})
+		}
+
+		It("the same dependency exists on catsrcs with different name", func() {
+			// Ensure resolver is deterministic.
+			packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
+			csv := newCSV(rightCSVName, testNamespace, "", semver.MustParse("0.1.0"),
+				[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
+			packageDepRight.DefaultChannelName = alphaChannel
+			packageDepRight.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
+			csvsRight = append(csvsRight, csv)
+
+			csv.Name = wrongCSVName
+			packageDepWrong = packageDepRight
+			packageDepWrong.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
+			csvsWrong = append(csvsWrong, csv)
+
+			By("creating catalogsources", func() {
+				var c1, c2, c3 cleanupFunc
+				catsrcMain, c1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+					[]registry.PackageManifest{packageMain}, nil, csvsMain)
+
+				catsrcDepRight, c2 = createInternalCatalogSource(kubeClient, crClient, "catsrc1", testNamespace,
+					[]registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd}, csvsRight)
+				catsrcDepRight.Spec.Priority = 100
+
+				catsrcDepWrong, c3 = createInternalCatalogSource(kubeClient, crClient, "catsrc2", testNamespace,
+					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
+				catsrcDepWrong.Spec.Priority = 100
+
+				cleanup = func() {
+					c1()
+					c2()
+					c3()
+				}
+			})
+
+			By("waiting for catalogsources to be ready", func() {
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			By("choose the dependent package from the same catsrc that has a higher priority value", func() {
+				ensureInstalledCSVs()
+			})
+		})
+
+		It("the same dependency exists on both the catsrc of the installing operator and another catsrc with a higher"+
+			" priority", func() {
+			packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
+			csv := newCSV(rightCSVName, testNamespace, "", semver.MustParse("0.1.0"),
+				[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
+			packageDepRight.DefaultChannelName = alphaChannel
+			packageDepRight.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
+			csvsMain = append(csvsMain, csv)
+
+			csv.Name = wrongCSVName
+			packageDepWrong = packageDepRight
+			packageDepWrong.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
+			csvsWrong = append(csvsWrong, csv)
+
+			By("creating catalogsources", func() {
+				var c1, c2 cleanupFunc
+				catsrcMain, c1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+					[]registry.PackageManifest{packageDepRight, packageMain}, []apiextensions.CustomResourceDefinition{crd}, csvsMain)
+
+				catsrcDepWrong, c2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
+				catsrcDepWrong.Spec.Priority = 100
+
+				cleanup = func() {
+					c1()
+					c2()
+				}
+			})
+
+			By("waiting for catalogsources to be ready", func() {
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+			})
+			By("choose the dependent package from the same catsrc as the installing operator", func() {
+				ensureInstalledCSVs()
+			})
+		})
+
+		It("the same dependency exists on catsrcs with different priority value", func() {
+			packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
+			csv := newCSV(rightCSVName, testNamespace, "", semver.MustParse("0.1.0"),
+				[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
+			packageDepRight.DefaultChannelName = alphaChannel
+			packageDepRight.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
+			csvsRight = append(csvsRight, csv)
+
+			csv.Name = wrongCSVName
+			packageDepWrong = packageDepRight
+			packageDepWrong.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
+			csvsWrong = append(csvsWrong, csv)
+
+			By("creating catalogsources", func() {
+				var c1, c2, c3 cleanupFunc
+				catsrcMain, c1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+					[]registry.PackageManifest{packageMain}, nil, csvsMain)
+
+				catsrcDepRight, c2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+					[]registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd}, csvsRight)
+				catsrcDepRight.Spec.Priority = 100
+
+				catsrcDepWrong, c3 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
+
+				cleanup = func() {
+					c1()
+					c2()
+					c3()
+				}
+			})
+
+			By("waiting for catalogsources to be ready", func() {
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			By("choose the dependent package from the same catsrc that has a higher priority value", func() {
+				ensureInstalledCSVs()
+			})
+		})
+
+		It("the same dependency exists on catsrcs with different namespaces", func() {
+			packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
+			csv := newCSV(rightCSVName, testNamespace, "", semver.MustParse("0.1.0"),
+				[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
+			packageDepRight.DefaultChannelName = alphaChannel
+			packageDepRight.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
+			csvsRight = append(csvsRight, csv)
+
+			csv.Name = wrongCSVName
+			packageDepWrong = packageDepRight
+			packageDepWrong.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
+			csvsWrong = append(csvsWrong, csv)
+
+			dNS, err := kubeClient.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(),
+				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "ns-"}}, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("creating catalogsources", func() {
+				var c1, c2, c3 cleanupFunc
+				catsrcMain, c1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+					[]registry.PackageManifest{packageMain}, nil, csvsMain)
+
+				catsrcDepRight, c2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+					[]registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd}, csvsRight)
+
+				catsrcDepWrong, c3 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), dNS.GetName(),
+					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
+
+				cleanup = func() {
+					c1()
+					c2()
+					c3()
+				}
+			})
+
+			By("waiting for catalogsources to be ready", func() {
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), dNS.GetName(), catalogSourceRegistryPodSynced)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			By("choose the dependent package from the catsrc that is under the same namepsace as the installing operator", func() {
+				ensureInstalledCSVs()
+			})
+		})
+	})
+
 	// csvA owns CRD1 & csvB owns CRD2 and requires CRD1
 	// Create subscription for csvB lead to installation of csvB and csvA
 	// Update catsrc to upgrade csvA to csvNewA which now requires CRD1
@@ -1396,7 +1648,6 @@ var _ = Describe("Subscription", func() {
 		csvNewA := newCSV("nginx-new-a", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
 		// New csvB provides CRD and CRD2
 		csvNewB := newCSV("nginx-new-b", testNamespace, "nginx-b", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, nil)
-
 
 		// constraints not satisfiable:
 		// apackagert6cq requires at least one of catsrcc6xgr/operators/stable/nginx-new-a,
