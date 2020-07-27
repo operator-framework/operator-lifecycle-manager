@@ -1,8 +1,7 @@
-package utils
+package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 )
@@ -17,17 +16,19 @@ func (r *Registry) CreateAndUploadIndex(indexName string, bundleReferences []str
 	if len(bundleString) == 0 {
 		bundleString = "\"\""
 	}
-	indexReference := fmt.Sprintf("%s/%s:latest", r.URL, indexName)
+	indexReference := fmt.Sprintf("%s/%s:latest", r.url, indexName)
+	r.logger.Debugf("Adding bundles %s to index %s", bundleString, indexReference)
 	BundleCreateCmd := exec.Command("opm", "index", "add", "--tag", indexReference, "--pull-tool", "docker", "-u", "docker", "--skip-tls", "--bundles", bundleString)
-	BundleCreateCmd.Stdout = os.Stdout
-	BundleCreateCmd.Stderr = os.Stderr
+	BundleCreateCmd.Stdout = r.logger.Out
+	BundleCreateCmd.Stderr = r.logger.Out
 	if err := BundleCreateCmd.Run(); err != nil {
 		return "", err
 	}
 
+	r.logger.Debugf("Uploading bundle to registry")
 	BundleUploadCommand := exec.Command("docker", "push", indexReference)
-	BundleUploadCommand.Stdout = os.Stdout
-	BundleUploadCommand.Stderr = os.Stderr
+	BundleUploadCommand.Stdout = r.logger.Out
+	BundleUploadCommand.Stderr = r.logger.Out
 	if err := BundleUploadCommand.Run(); err != nil {
 		return "", err
 	}

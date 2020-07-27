@@ -1,4 +1,4 @@
-package utils
+package main
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
 	"github.com/containers/storage/pkg/unshare"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -19,8 +20,10 @@ import (
 
 type Bundle struct {
 	PackageName             string
+	// Tag for the created bundle image
 	Version                 string
 	DefaultChannel          string
+	// Location on the registry you want the created bundle image to be uploaded
 	BundlePath              string
 	BundleManifestDirectory string
 	Channels                []string
@@ -43,7 +46,7 @@ func (r *Registry) buildBundleImage(b *Bundle) (bundleReference string, err erro
 	if len(bundlePath) == 0 {
 		bundlePath = fmt.Sprintf("%s/operator", b.PackageName)
 	}
-	bundleReference = fmt.Sprintf("%s/%s:%s", r.URL, bundlePath, b.Version)
+	bundleReference = fmt.Sprintf("%s/%s:%s", r.url, bundlePath, b.Version)
 
 	cmd := exec.Command("opm", "alpha", "bundle", "build", "-d", b.BundleManifestDirectory, "-b", "docker", "-e", b.DefaultChannel, "-c", strings.Join(b.Channels, ","), "--tag", bundleReference)
 	cmd.Stdout = os.Stdout
@@ -78,7 +81,7 @@ func getOCIImage(dir, destImage string) (types.ImageReference, error) {
 }
 
 // Builds the bundle image onto local filesystem
-func createLocalBundleImage(imageName, targetImageDir string, bundleContentDirectories []string, labels map[string]string) (string, error) {
+func createLocalBundleImage(imageName, targetImageDir string, bundleContentDirectories []string, labels map[string]string, logger *io.Writer) (string, error) {
 	if len(imageName) == 0 {
 		return "", fmt.Errorf("could not create OCI image: empty image name")
 	}
@@ -106,11 +109,6 @@ func createLocalBundleImage(imageName, targetImageDir string, bundleContentDirec
 		return "", fmt.Errorf("error parsing image reference: %v", err)
 	}
 
-	if buildah.InitReexec() {
-		return "", fmt.Errorf("buildah exec already initialized")
-	}
-	unshare.MaybeReexecUsingUserNamespace(false)
-
 	storeOptions, err := storage.DefaultStoreOptions(unshare.IsRootless(), unshare.GetRootlessUID())
 	if err != nil {
 		return "", fmt.Errorf("could not get default store options: %v", err)
@@ -125,7 +123,7 @@ func createLocalBundleImage(imageName, targetImageDir string, bundleContentDirec
 		FromImage:        "scratch",
 		Container:        containerName,
 		ConfigureNetwork: buildah.NetworkDefault,
-		ReportWriter:     os.Stderr,
+		ReportWriter:     *logger,
 		SystemContext:    &types.SystemContext{},
 		CommonBuildOpts:  &buildah.CommonBuildOptions{},
 	})
@@ -149,10 +147,9 @@ func createLocalBundleImage(imageName, targetImageDir string, bundleContentDirec
 	var dest types.ImageReference
 	dest, err = blobcache.NewBlobCache(imageRef, layerCacheDir, types.PreserveOriginal)
 	_, _, _, err = b.Commit(context.TODO(), dest, buildah.CommitOptions{
-		ReportWriter:          os.Stderr,
-		SystemContext: &types.SystemContext{
-		},
-		OmitTimestamp:         true,
+		ReportWriter:  *logger,
+		SystemContext: &types.SystemContext{},
+		OmitTimestamp: true,
 	})
 	if err != nil {
 		return "", fmt.Errorf("error creating image from container %s: %v", containerName, err)
