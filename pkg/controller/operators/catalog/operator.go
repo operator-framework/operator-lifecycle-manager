@@ -861,7 +861,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
 	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
 	if err != nil {
-		go o.recorder.Event(ns, corev1.EventTypeWarning,"ResolutionFailed", err.Error())
+		go o.recorder.Event(ns, corev1.EventTypeWarning, "ResolutionFailed", err.Error())
 		return err
 	}
 
