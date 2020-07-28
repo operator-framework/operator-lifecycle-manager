@@ -12,11 +12,11 @@ import (
 
 const (
 	registryImage    = "registry:2.7.1"
-	RegistryName     = "registry"
 	localFQDN        = "localhost:5000"
 	defaultLocalPort = 5000
 	containerPort    = 5000
 )
+var RegistryName     = "registry"
 
 func CreateDockerRegistry(client operatorclient.ClientInterface, namespace string) (string, error) {
 	registry := &corev1.Pod{
@@ -76,8 +76,10 @@ func DeleteDockerRegistry(client operatorclient.ClientInterface, namespace strin
 
 // port-forward registry pod port 5000 for local test
 // port-forwarding ends when registry pod is deleted: no need for explicit port-forward stop
+// Note: https://github.com/kubernetes/kubernetes/issues/89208: local ports bound by port-forward are not released till the cluster is reset
+// deleting pods alone does not fix this behaviour.
 func RegistryPortForward(namespace string) error {
-	cmd := exec.Command("kubectl", "-n", namespace, "port-forward", fmt.Sprintf("service/%s", RegistryName), "5000:5000")
+	cmd := exec.Command("kubectl", "-n", namespace, "port-forward", RegistryName, "5000:5000")
 	err := cmd.Start()
 	if err != nil {
 		return fmt.Errorf("failed to exec %#v: %v", cmd.Args, err)

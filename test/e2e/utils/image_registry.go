@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/sirupsen/logrus"
-	"path"
 	"time"
 )
 
@@ -100,29 +99,32 @@ func (r *Registry) CreateBundlesAndIndex(indexName string, bundles []*Bundle) (s
 	case DockerTool:
 		r.logger.Debugf("Using docker as bundle image build tool")
 		for _, b := range bundles {
+			_, err := r.GetAnnotations(b)
+			if err != nil {
+				return "", fmt.Errorf("failed to parse bundle annotations for %s: %v", b.PackageName, err)
+			}
 			ref, err := r.buildBundleImage(b)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("failed to build bundle image for %s: %v", b.PackageName, err)
 			}
 			bundleRefs = append(bundleRefs, ref)
 		}
 
 		if err := r.uploadBundleReferences(bundleRefs); err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to upload bundle image to registry: %v", err)
 		}
 	case BuildahTool:
 		r.logger.Debugf("Using buildah as bundle image build tool")
 		for _, b := range bundles {
-			labels := generateBundleLabels(b.PackageName, b.DefaultChannel, b.Channels)
-			imageRef, err := createLocalBundleImage(path.Dir(b.BundleManifestDirectory), b.BundlePath, []string{"manifests", "metadata"}, labels, &r.logger.Out)
+			labels, err := r.GetAnnotations(b)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("failed to get bundle annotations for %s: %v", b.PackageName, err)
 			}
-			destImageRef := fmt.Sprintf("%s/%s", r.url, b.BundlePath)
-			if err := r.skopeoCopy(r.client, destImageRef, b.Version, imageRef, ""); err != nil {
-				return "", err
+			destImageRef := fmt.Sprintf("%s/%s:%s", r.url, b.BundleURLPath, b.Version)
+			err = buildAndUploadLocalBundleImage(destImageRef, []string{labels[manifestsLabel], labels[metadataLabel]}, labels, &r.logger.Out)
+			if err != nil {
+				return "", fmt.Errorf("build step for local bundle image failed %s: %v", b.PackageName, err)
 			}
-			bundleRefs = append(bundleRefs, fmt.Sprintf("%s:%s", destImageRef, b.Version))
 		}
 	}
 	r.logger.Debugf("Creating new index for upload: %s, bundles: %v", indexName, bundleRefs)

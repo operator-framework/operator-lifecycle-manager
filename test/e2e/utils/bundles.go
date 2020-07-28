@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"github.com/containers/buildah"
 	"github.com/containers/buildah/pkg/blobcache"
-	ocilayout "github.com/containers/image/v5/oci/layout"
+	"github.com/containers/image/v5/docker"
+	dockerreference "github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
 	"github.com/containers/storage/pkg/unshare"
@@ -15,19 +16,22 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"time"
 )
 
 type Bundle struct {
 	PackageName             string
 	// Tag for the created bundle image
 	Version                 string
-	DefaultChannel          string
 	// Location on the registry you want the created bundle image to be uploaded
-	BundlePath              string
+	BundleURLPath string
+	// location where the manifests and metadata directories can be found
+	BundleDir               string
+	// custom name for a manifets directory
 	BundleManifestDirectory string
 	Channels                []string
-	GenerateAnnotations     bool
+	// Default Channel name.
+	DefaultChannel      string
+	GenerateAnnotations bool
 }
 
 // Build the bundle image with opm and docker binary
@@ -42,13 +46,13 @@ func (r *Registry) buildBundleImage(b *Bundle) (bundleReference string, err erro
 		sort.Strings(b.Channels)
 		b.DefaultChannel = b.Channels[0]
 	}
-	bundlePath := b.BundlePath
+	bundlePath := b.BundleURLPath
 	if len(bundlePath) == 0 {
 		bundlePath = fmt.Sprintf("%s/operator", b.PackageName)
 	}
 	bundleReference = fmt.Sprintf("%s/%s:%s", r.url, bundlePath, b.Version)
 
-	cmd := exec.Command("opm", "alpha", "bundle", "build", "-d", b.BundleManifestDirectory, "-b", "docker", "-e", b.DefaultChannel, "-c", strings.Join(b.Channels, ","), "--tag", bundleReference)
+	cmd := exec.Command("opm", "alpha", "bundle", "build", "-d", path.Join(b.BundleDir, "manifests"), "-b", "docker", "-e", b.DefaultChannel, "-c", strings.Join(b.Channels, ","), "--tag", bundleReference)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err = cmd.Run(); err != nil {
@@ -72,51 +76,40 @@ func(r *Registry) uploadBundleReferences(bundleRefs []string) error {
 	return nil
 }
 
-func getOCIImage(dir, destImage string) (types.ImageReference, error) {
-	imageRef, err := ocilayout.ParseReference(fmt.Sprintf("%s:%s", dir, destImage))
+func getDockerImageRef(destImage string) (types.ImageReference, error){
+	ref, err := dockerreference.ParseNormalizedNamed(destImage)
 	if err != nil {
-		return imageRef, fmt.Errorf("could not create OCI image reference: %v", err)
+		return nil, fmt.Errorf("cannot parse docker image reference '%s': %v", destImage, err)
+	}
+	imageRef, err := docker.NewReference(ref)
+	if err != nil {
+		return imageRef, fmt.Errorf("cannot create docker image reference: %v", err)
 	}
 	return imageRef, nil
 }
 
+
 // Builds the bundle image onto local filesystem
-func createLocalBundleImage(imageName, targetImageDir string, bundleContentDirectories []string, labels map[string]string, logger *io.Writer) (string, error) {
-	if len(imageName) == 0 {
-		return "", fmt.Errorf("could not create OCI image: empty image name")
+func buildAndUploadLocalBundleImage(destRef string, bundleContentDirectories []string, labels map[string]string, logger *io.Writer) (error) {
+	if len(destRef) == 0 {
+		return fmt.Errorf("destination image reference must not be empty")
 	}
 
-	ts := time.Now().Unix()
-	if len(targetImageDir) == 0 {
-		targetImageDir = defaultImageDir
-	}
-	containerName := fmt.Sprintf("%s-builder-%d", imageName, ts)
-
-	if cwd, err := os.Getwd(); !path.IsAbs(targetImageDir) && err == nil {
-		targetImageDir = path.Join(cwd, targetImageDir)
-	}
-	layerCacheDir := path.Join(targetImageDir, ".cache")
-
-	if _, err := os.Stat(targetImageDir); os.IsNotExist(err) {
-		_ = os.MkdirAll(targetImageDir, 0755)
-	}
-	if _, err := os.Stat(layerCacheDir); os.IsNotExist(err) {
-		_ = os.MkdirAll(layerCacheDir, 0755)
-	}
-
-	imageRef, err := getOCIImage(targetImageDir, imageName)
+	imageRef, err := getDockerImageRef(destRef)
 	if err != nil {
-		return "", fmt.Errorf("error parsing image reference: %v", err)
+		return fmt.Errorf("error parsing destination image reference: %v", err)
 	}
+
+	containerName := fmt.Sprintf("%s-builder", destRef)
 
 	storeOptions, err := storage.DefaultStoreOptions(unshare.IsRootless(), unshare.GetRootlessUID())
 	if err != nil {
-		return "", fmt.Errorf("could not get default store options: %v", err)
+		return fmt.Errorf("could not get store options: %v", err)
 	}
 
 	localStore, err := storage.GetStore(storeOptions)
 	if err != nil {
-		return "", fmt.Errorf("could not get default store: %v", err)
+		return fmt.Errorf("could not get initialize local store for image builder: %v", err)
 	}
 
 	b, err := buildah.NewBuilder(context.TODO(), localStore, buildah.BuilderOptions{
@@ -128,7 +121,7 @@ func createLocalBundleImage(imageName, targetImageDir string, bundleContentDirec
 		CommonBuildOpts:  &buildah.CommonBuildOptions{},
 	})
 	if err != nil {
-		return "", fmt.Errorf("error creating image builder: %v", err)
+		return fmt.Errorf("error creating image builder: %v", err)
 	}
 	defer func() {
 		_ = b.Delete()
@@ -140,22 +133,27 @@ func createLocalBundleImage(imageName, targetImageDir string, bundleContentDirec
 
 	for _,copydir := range bundleContentDirectories {
 		if err := b.Add(copydir, false, buildah.AddAndCopyOptions{}, copydir); err != nil {
-			return "", fmt.Errorf("error adding layer: %v", err)
+			return fmt.Errorf("failed to add layer: %v", err)
 		}
 	}
 
+	layerCacheDir := ".cache"
+	if _, err := os.Stat(layerCacheDir); os.IsNotExist(err) {
+		_ = os.MkdirAll(layerCacheDir, 0755)
+	}
 	var dest types.ImageReference
 	dest, err = blobcache.NewBlobCache(imageRef, layerCacheDir, types.PreserveOriginal)
+
 	_, _, _, err = b.Commit(context.TODO(), dest, buildah.CommitOptions{
 		ReportWriter:  *logger,
-		SystemContext: &types.SystemContext{},
+		SystemContext: &types.SystemContext{
+			DockerInsecureSkipTLSVerify: types.OptionalBoolTrue,
+		},
 		OmitTimestamp: true,
 	})
 	if err != nil {
-		return "", fmt.Errorf("error creating image from container %s: %v", containerName, err)
+		return fmt.Errorf("error creating image from container %s: %v", containerName, err)
 	}
 
-	return fmt.Sprintf("oci:%s:%s", targetImageDir, imageName), nil
+	return nil
 }
-
-
