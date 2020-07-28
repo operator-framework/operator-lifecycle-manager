@@ -5,12 +5,11 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 var NoVersion = semver.MustParse("0.0.0")
@@ -79,7 +78,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 				providedAPIs: map[opregistry.APIKey]OperatorSurface{
 					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: &Operator{
 						name: "operator.v1",
-						providedAPIs: map[registry.APIKey]struct{}{
+						providedAPIs: map[opregistry.APIKey]struct{}{
 							{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 							{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 						},
@@ -89,7 +88,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 					},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: &Operator{
 						name: "operator.v1",
-						providedAPIs: map[registry.APIKey]struct{}{
+						providedAPIs: map[opregistry.APIKey]struct{}{
 							{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 							{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 						},
@@ -142,7 +141,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 						"operator.v1": &Operator{
 							name:         "operator.v1",
 							providedAPIs: EmptyAPISet(),
-							requiredAPIs: map[registry.APIKey]struct{}{
+							requiredAPIs: map[opregistry.APIKey]struct{}{
 								{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 								{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 							},
@@ -154,7 +153,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 						"operator.v1": &Operator{
 							name:         "operator.v1",
 							providedAPIs: EmptyAPISet(),
-							requiredAPIs: map[registry.APIKey]struct{}{
+							requiredAPIs: map[opregistry.APIKey]struct{}{
 								{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 								{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 							},
@@ -163,7 +162,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 						},
 					},
 				},
-				uncheckedAPIs: map[registry.APIKey]struct{}{
+				uncheckedAPIs: map[opregistry.APIKey]struct{}{
 					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 				},
@@ -172,7 +171,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 						"operator.v1": &Operator{
 							name:         "operator.v1",
 							providedAPIs: EmptyAPISet(),
-							requiredAPIs: map[registry.APIKey]struct{}{
+							requiredAPIs: map[opregistry.APIKey]struct{}{
 								{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 								{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 							},
@@ -184,7 +183,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 						"operator.v1": &Operator{
 							name:         "operator.v1",
 							providedAPIs: EmptyAPISet(),
-							requiredAPIs: map[registry.APIKey]struct{}{
+							requiredAPIs: map[opregistry.APIKey]struct{}{
 								{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 								{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 							},
@@ -439,7 +438,7 @@ func TestNamespaceGeneration_AddOperator(t *testing.T) {
 				},
 			},
 			wantMissingAPIs: APIMultiOwnerSet{
-				registry.APIKey{Group: "wg", Version: "wv", Kind: "wk", Plural: "wks"}: OperatorSet{
+				opregistry.APIKey{Group: "wg", Version: "wv", Kind: "wk", Plural: "wks"}: OperatorSet{
 					"new": &Operator{
 						name: "new",
 						requiredAPIs: map[opregistry.APIKey]struct{}{
@@ -448,7 +447,7 @@ func TestNamespaceGeneration_AddOperator(t *testing.T) {
 					},
 				},
 			},
-			wantUncheckedAPIs: APISet{registry.APIKey{Group: "wg", Version: "wv", Kind: "wk", Plural: "wks"}: {}},
+			wantUncheckedAPIs: APISet{opregistry.APIKey{Group: "wg", Version: "wv", Kind: "wk", Plural: "wks"}: {}},
 		},
 	}
 	for _, tt := range tests {
@@ -561,7 +560,7 @@ func TestNamespaceGeneration_RemoveOperator(t *testing.T) {
 				},
 			},
 			wantMissingAPIs: APIMultiOwnerSet{
-				registry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: OperatorSet{
+				opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: OperatorSet{
 					"requirer": &Operator{
 						name: "requirer",
 						requiredAPIs: map[opregistry.APIKey]struct{}{
@@ -571,7 +570,7 @@ func TestNamespaceGeneration_RemoveOperator(t *testing.T) {
 				},
 			},
 			wantUncheckedAPIs: APISet{
-				registry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: {},
+				opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: {},
 			},
 		},
 	}
@@ -590,7 +589,7 @@ func TestNamespaceGeneration_RemoveOperator(t *testing.T) {
 
 func TestNamespaceGeneration_MarkAPIChecked(t *testing.T) {
 	type args struct {
-		key registry.APIKey
+		key opregistry.APIKey
 	}
 	tests := []struct {
 		name              string
@@ -640,7 +639,7 @@ func TestNamespaceGeneration_MarkAPIChecked(t *testing.T) {
 
 func TestNamespaceGeneration_ResetUnchecked(t *testing.T) {
 	type args struct {
-		key registry.APIKey
+		key opregistry.APIKey
 	}
 	tests := []struct {
 		name              string

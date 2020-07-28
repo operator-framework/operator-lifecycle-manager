@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 // Generation represents a set of operators and their required/provided API surfaces at a point in time.
@@ -14,7 +16,7 @@ type Generation interface {
 	ResetUnchecked()
 	MissingAPIs() APIMultiOwnerSet
 	Operators() OperatorSet
-	MarkAPIChecked(key registry.APIKey)
+	MarkAPIChecked(key opregistry.APIKey)
 	UncheckedAPIs() APISet
 }
 
@@ -57,7 +59,7 @@ func NewGenerationFromCluster(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1
 			op.sourceInfo = &OperatorSourceInfo{
 				Package: sub.Spec.Package,
 				Channel: sub.Spec.Channel,
-				Catalog: CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace},
+				Catalog: registry.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace},
 			}
 		}
 		if err := g.AddOperator(op); err != nil {
@@ -125,7 +127,7 @@ func (g *NamespaceGeneration) RemoveOperator(o OperatorSurface) {
 	delete(g.operators, o.Identifier())
 }
 
-func (g *NamespaceGeneration) MarkAPIChecked(key registry.APIKey) {
+func (g *NamespaceGeneration) MarkAPIChecked(key opregistry.APIKey) {
 	delete(g.uncheckedAPIs, key)
 }
 

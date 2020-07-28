@@ -12,7 +12,7 @@ import (
 
 
 
-func TestLegacyStepResolver(t *testing.T) {
+func TestResolverLegacy(t *testing.T) {
 	namespace := "catsrc-namespace"
 	for _, tt := range SharedResolverSpecs() {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1,10 +1,29 @@
 package registry
 
+import "fmt"
+
 const (
 	ConfigMapCRDName     = "customResourceDefinitions"
 	ConfigMapCSVName     = "clusterServiceVersions"
 	ConfigMapPackageName = "packages"
 )
+
+type CatalogKey struct {
+	Name      string
+	Namespace string
+}
+
+func (k *CatalogKey) String() string {
+	return fmt.Sprintf("%s/%s", k.Name, k.Namespace)
+}
+
+func (k *CatalogKey) IsEmpty() bool {
+	return k.Name == "" && k.Namespace == ""
+}
+
+func (k *CatalogKey) IsEqual(compare CatalogKey) bool {
+	return k.Name == compare.Name && k.Namespace == compare.Namespace
+}
 
 // ResourceKey contains metadata to uniquely identify a resource
 type ResourceKey struct {

@@ -43,7 +43,7 @@ all: test build
 test: clean cover.out
 
 unit: kubebuilder
-	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -count=1 ./pkg/...
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -v -race -count=1 ./pkg/...
 
 # Ensure kubebuilder is installed before continuing
 KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://book.kubebuilder.io/quick-start.html
@@ -101,7 +101,7 @@ bin/cpb:
 
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
-	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o bin/$(shell basename $@) $@
+	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags "json1" -o bin/$(shell basename $@) $@
 
 build: clean $(CMDS)
 

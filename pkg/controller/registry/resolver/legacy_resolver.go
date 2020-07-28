@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -201,7 +202,7 @@ func (r *LegacyResolver) sourceInfoToSubscriptions(subs []*v1alpha1.Subscription
 			Package:     s.Spec.Package,
 			Channel:     s.Spec.Channel,
 			StartingCSV: startingCSV,
-			Catalog:     CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
+			Catalog:     registry.CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
 		}] = s.DeepCopy()
 	}
 	return

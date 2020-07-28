@@ -10,29 +10,12 @@ import (
 	"github.com/blang/semver"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/registry"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
-
-type CatalogKey struct {
-	Name      string
-	Namespace string
-}
-
-func (k *CatalogKey) String() string {
-	return fmt.Sprintf("%s/%s", k.Name, k.Namespace)
-}
-
-func (k *CatalogKey) IsEmpty() bool {
-	return k.Name == "" && k.Namespace == ""
-}
-
-func (k *CatalogKey) IsEqual(compare CatalogKey) bool {
-	return k.Name == compare.Name && k.Namespace == compare.Namespace
-}
 
 type APISet map[opregistry.APIKey]struct{}
 
@@ -214,14 +197,14 @@ type OperatorSourceInfo struct {
 	Package     string
 	Channel     string
 	StartingCSV string
-	Catalog     CatalogKey
+	Catalog     registry.CatalogKey
 }
 
 func (i *OperatorSourceInfo) String() string {
 	return fmt.Sprintf("%s/%s in %s/%s", i.Package, i.Channel, i.Catalog.Name, i.Catalog.Namespace)
 }
 
-var ExistingOperator = OperatorSourceInfo{"", "", "", CatalogKey{"", ""}}
+var ExistingOperator = OperatorSourceInfo{"", "", "", registry.CatalogKey{"", ""}}
 
 // OperatorSurface describes the API surfaces provided and required by an Operator.
 type OperatorSurface interface {
@@ -249,7 +232,7 @@ type Operator struct {
 
 var _ OperatorSurface = &Operator{}
 
-func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
+func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey registry.CatalogKey) (*Operator, error) {
 	parsedVersion, err := semver.ParseTolerant(bundle.Version)
 	version := &parsedVersion
 	if err != nil {
@@ -257,11 +240,11 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 	}
 	provided := APISet{}
 	for _, gvk := range bundle.ProvidedApis {
-		provided[registry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
+		provided[opregistry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
 	}
 	required := APISet{}
 	for _, gvk := range bundle.RequiredApis {
-		required[registry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
+		required[opregistry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
 	}
 	sourceInfo := &OperatorSourceInfo{
 		Package:     bundle.PackageName,
@@ -389,6 +372,9 @@ func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err e
 	predicates = make([]OperatorPredicate, 0)
 	for _, d := range o.bundle.Dependencies {
 		var p OperatorPredicate
+		if d == nil || d.Type == "" {
+			continue
+		}
 		p, err = PredicateForDependency(d)
 		if err != nil {
 			return
@@ -401,7 +387,11 @@ func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err e
 // TODO: this should go in its own dependency/predicate builder package
 // TODO: can we make this more extensible, i.e. via cue
 func PredicateForDependency(dependency *api.Dependency) (OperatorPredicate, error) {
-	return predicates[dependency.Type](dependency.Value)
+	p, ok := predicates[dependency.Type]
+	if !ok {
+		return nil, fmt.Errorf("no predicate for dependency type %s", dependency.Type)
+	}
+	return p(dependency.Value)
 }
 
 var predicates = map[string]func(string) (OperatorPredicate, error) {
@@ -414,7 +404,7 @@ func predicateForGVKDependency(value string) (OperatorPredicate, error) {
 	if err := json.Unmarshal([]byte(value), &gvk); err != nil {
 		return nil, err
 	}
-	return ProvidingAPI(registry.APIKey{
+	return ProvidingAPI(opregistry.APIKey{
 		Group:   gvk.Group,
 		Version: gvk.Version,
 		Kind:    gvk.Kind,

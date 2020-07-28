@@ -5,6 +5,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/sirupsen/logrus"
 	"time"
 
@@ -31,7 +32,6 @@ type StepResolver interface {
 	ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 }
 
-
 type OperatorStepResolver struct {
 	subLister              v1alpha1listers.SubscriptionLister
 	csvLister              v1alpha1listers.ClusterServiceVersionLister
@@ -40,11 +40,12 @@ type OperatorStepResolver struct {
 	kubeclient             kubernetes.Interface
 	globalCatalogNamespace string
 	satResolver            *SatResolver
+	log                    logrus.FieldLogger
 }
 
 var _ StepResolver = &OperatorStepResolver{}
 
-func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface, globalCatalogNamespace string, log logrus.FieldLogger) *OperatorStepResolver {
+func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface, globalCatalogNamespace string, provider RegistryClientProvider, log logrus.FieldLogger) *OperatorStepResolver {
 	return &OperatorStepResolver{
 		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
@@ -52,7 +53,8 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(NewDefaultRegistryClientProvider(client), log),
+		satResolver:            NewDefaultSatResolver(NewDefaultRegistryClientProvider(log, provider), log),
+		log:                    log,
 	}
 }
 
@@ -82,12 +84,17 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	// get a list of new operators to add to the generation
 	add := r.sourceInfoForNewSubscriptions(namespace, subMap)
 
+	r.log.Debug("1")
+
 	var operators OperatorSet
 	namespaces := []string{namespace, r.globalCatalogNamespace}
 	operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	r.log.Debugf("%#v", operators)
+	r.log.Debug("2")
 
 	// if there's no error, we were able to satisfy all constraints in the subscription set, so we calculate what
 	// changes to persist to the cluster and write them out as `steps`
@@ -199,7 +206,7 @@ func (r *OperatorStepResolver) sourceInfoToSubscriptions(subs []*v1alpha1.Subscr
 			Package:     s.Spec.Package,
 			Channel:     s.Spec.Channel,
 			StartingCSV: startingCSV,
-			Catalog:     CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
+			Catalog:     registry.CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
 		}] = s.DeepCopy()
 	}
 	return

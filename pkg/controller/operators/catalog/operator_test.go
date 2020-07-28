@@ -1155,7 +1155,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	config := &fakeOperatorConfig{
 		logger:   logrus.StandardLogger(),
 		clock:    utilclock.RealClock{},
-		resolver: &fakes.FakeResolver{},
+		resolver: &fakes.FakeStepResolver{},
 	}
 	for _, option := range fakeOptions {
 		option(config)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"io"
 	"strings"
 	"sync"
@@ -23,7 +24,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	operatorslisters "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	registrygrpc "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
@@ -38,9 +38,9 @@ const (
 	stateTimeout = 20 * time.Second
 )
 
-func getSourceKey(pkg *operators.PackageManifest) (key *resolver.CatalogKey) {
+func getSourceKey(pkg *operators.PackageManifest) (key *registry.CatalogKey) {
 	if pkg != nil {
-		key = &resolver.CatalogKey{
+		key = &registry.CatalogKey{
 			Namespace: pkg.Status.CatalogSourceNamespace,
 			Name:      pkg.Status.CatalogSource,
 		}
@@ -96,13 +96,13 @@ func newRegistryClient(catsrc *operatorsv1alpha1.CatalogSource, conn *grpc.Clien
 	}
 }
 
-func (r *registryClient) key() (key resolver.CatalogKey, err error) {
+func (r *registryClient) key() (key registry.CatalogKey, err error) {
 	if r.catsrc == nil {
 		err = fmt.Errorf("cannot get key, nil catalog")
 		return
 	}
 
-	key = resolver.CatalogKey{
+	key = registry.CatalogKey{
 		Namespace: r.catsrc.GetNamespace(),
 		Name:      r.catsrc.GetName(),
 	}
@@ -185,7 +185,7 @@ func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) 
 	address := source.Address()
 	logger = logger.WithField("address", address)
 
-	key := resolver.CatalogKey{
+	key := registry.CatalogKey{
 		Namespace: source.GetNamespace(),
 		Name:      source.GetName(),
 	}
@@ -242,7 +242,7 @@ func (p *RegistryProvider) syncSourceState(state registrygrpc.SourceState) {
 	}
 }
 
-func (p *RegistryProvider) registryClient(key resolver.CatalogKey) (client *registryClient, err error) {
+func (p *RegistryProvider) registryClient(key registry.CatalogKey) (client *registryClient, err error) {
 	source := p.sources.Get(key)
 	if source == nil {
 		err = fmt.Errorf("missing source for catalog %s", key)
@@ -331,7 +331,7 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 	return p.gcPackages(key, added)
 }
 
-func (p *RegistryProvider) gcPackages(key resolver.CatalogKey, keep map[string]struct{}) error {
+func (p *RegistryProvider) gcPackages(key registry.CatalogKey, keep map[string]struct{}) error {
 	logger := logrus.WithFields(logrus.Fields{
 		"action": "gc cache",
 		"source": key.String(),
@@ -377,7 +377,7 @@ func (p *RegistryProvider) catalogSourceDeleted(obj interface{}) {
 		}
 	}
 
-	key := resolver.CatalogKey{
+	key := registry.CatalogKey{
 		Namespace: catsrc.GetNamespace(),
 		Name:      catsrc.GetName(),
 	}

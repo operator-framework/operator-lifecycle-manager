@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"encoding/json"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"testing"
 
 	"github.com/blang/semver"
@@ -712,7 +713,7 @@ func TestCatalogKey_String(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			k := &CatalogKey{
+			k := &registry.CatalogKey{
 				Name:      tt.fields.Name,
 				Namespace: tt.fields.Namespace,
 			}
@@ -877,7 +878,7 @@ func TestOperatorSourceInfo_String(t *testing.T) {
 			i := &OperatorSourceInfo{
 				Package: tt.fields.Package,
 				Channel: tt.fields.Channel,
-				Catalog: CatalogKey{tt.fields.CatalogSource, tt.fields.CatalogSourceNamespace},
+				Catalog: registry.CatalogKey{tt.fields.CatalogSource, tt.fields.CatalogSourceNamespace},
 			}
 			if got := i.String(); got != tt.want {
 				t.Errorf("OperatorSourceInfo.String() = %v, want %v", got, tt.want)
@@ -1031,7 +1032,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 
 	type args struct {
 		bundle    *api.Bundle
-		sourceKey CatalogKey
+		sourceKey registry.CatalogKey
 		replaces  string
 	}
 	tests := []struct {
@@ -1044,7 +1045,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleNoAPIs",
 			args: args{
 				bundle:    bundleNoAPIs,
-				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				// lack of full api response falls back to csv name
@@ -1056,7 +1057,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: CatalogKey{"source", "testNamespace"},
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1064,7 +1065,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleWithAPIs",
 			args: args{
 				bundle:    bundleWithAPIs,
-				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				name:    "testBundle",
@@ -1101,7 +1102,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: CatalogKey{"source", "testNamespace"},
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1109,7 +1110,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleReplaceOverrides",
 			args: args{
 				bundle:    bundleNoAPIs,
-				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				// lack of full api response falls back to csv name
@@ -1121,7 +1122,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: CatalogKey{"source", "testNamespace"},
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1129,7 +1130,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleCsvFallback",
 			args: args{
 				bundle:    bundleWithAPIsUnextracted,
-				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				name: "testCSV",
@@ -1166,7 +1167,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: CatalogKey{"source", "testNamespace"},
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},

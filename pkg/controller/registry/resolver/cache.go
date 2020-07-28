@@ -10,73 +10,30 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/client"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
-type ClientProvider interface {
-	Get() (client.Interface, error)
-}
-
-type LazyClient struct {
-	address string
-	c       client.Interface
-	m       sync.Mutex
-}
-
-func (lc *LazyClient) Get() (client.Interface, error) {
-	lc.m.Lock()
-	defer lc.m.Unlock()
-	if lc.c != nil {
-		return lc.c, nil
-	}
-	c, err := client.NewClient(lc.address)
-	if err != nil {
-		return nil, err
-	}
-	lc.c = c
-	return lc.c, nil
-}
-
 type RegistryClientProvider interface {
-	ClientsForNamespaces(namespaces ...string) map[CatalogKey]ClientProvider
+	ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface
 }
 
 type DefaultRegistryClientProvider struct {
 	logger logrus.FieldLogger
-	c      versioned.Interface
+	s      RegistryClientProvider
 }
 
-func NewDefaultRegistryClientProvider(c versioned.Interface) *DefaultRegistryClientProvider {
+func NewDefaultRegistryClientProvider(log logrus.FieldLogger, store RegistryClientProvider) *DefaultRegistryClientProvider {
 	return &DefaultRegistryClientProvider{
-		logger: logrus.New(),
-		c:      c,
+		logger: log,
+		s:      store,
 	}
 }
 
-func (rcp *DefaultRegistryClientProvider) ClientsForNamespaces(namespaces ...string) map[CatalogKey]ClientProvider {
-	result := make(map[CatalogKey]ClientProvider)
-	for _, namespace := range namespaces {
-		list, err := rcp.c.OperatorsV1alpha1().CatalogSources(namespace).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			rcp.logger.Errorf("failed to list catalogsources in %s: %s", namespace, err.Error())
-			continue
-		}
-		for _, source := range list.Items {
-			if source.Status.RegistryServiceStatus == nil {
-				continue
-			}
-			key := CatalogKey{
-				Namespace: source.Namespace,
-				Name:      source.Name,
-			}
-			result[key] = &LazyClient{address: source.Address()}
-		}
-	}
-	return result
+func (rcp *DefaultRegistryClientProvider) ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface {
+	return rcp.s.ClientsForNamespaces(namespaces...)
 }
 
 type OperatorCacheProvider interface {
@@ -86,7 +43,7 @@ type OperatorCacheProvider interface {
 type OperatorCache struct {
 	logger    logrus.FieldLogger
 	rcp       RegistryClientProvider
-	snapshots map[CatalogKey]*CatalogSnapshot
+	snapshots map[registry.CatalogKey]*CatalogSnapshot
 	ttl       time.Duration
 	sem       chan struct{}
 	m         sync.RWMutex
@@ -94,15 +51,15 @@ type OperatorCache struct {
 
 var _ OperatorCacheProvider = &OperatorCache{}
 
-func NewOperatorCache(rcp RegistryClientProvider) *OperatorCache {
+func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger) *OperatorCache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
 	)
 
 	return &OperatorCache{
-		logger:    logrus.New(),
+		logger:    log,
 		rcp:       rcp,
-		snapshots: make(map[CatalogKey]*CatalogSnapshot),
+		snapshots: make(map[registry.CatalogKey]*CatalogSnapshot),
 		ttl:       5 * time.Minute,
 		sem:       make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
@@ -110,7 +67,7 @@ func NewOperatorCache(rcp RegistryClientProvider) *OperatorCache {
 
 type NamespacedOperatorCache struct {
 	namespaces []string
-	snapshots map[CatalogKey]*CatalogSnapshot
+	snapshots  map[registry.CatalogKey]*CatalogSnapshot
 }
 
 func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
@@ -123,15 +80,15 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 
 	result := NamespacedOperatorCache{
 		namespaces: namespaces,
-		snapshots: make(map[CatalogKey]*CatalogSnapshot),
+		snapshots:  make(map[registry.CatalogKey]*CatalogSnapshot),
 	}
 
-	var misses []CatalogKey
+	var misses []registry.CatalogKey
 	func() {
 		c.m.RLock()
 		defer c.m.RUnlock()
 		for key := range clients {
-			if snapshot, ok := c.snapshots[key]; ok && !snapshot.Expired(now) {
+			if snapshot, ok := c.snapshots[key]; ok && !snapshot.Expired(now) && snapshot.operators != nil && len(snapshot.operators) > 0 {
 				result.snapshots[key] = snapshot
 			} else {
 				misses = append(misses, key)
@@ -147,7 +104,7 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	defer c.m.Unlock()
 
 	// Take the opportunity to clear expired snapshots while holding the lock.
-	var expired []CatalogKey
+	var expired []registry.CatalogKey
 	for key, snapshot := range c.snapshots {
 		if snapshot.Expired(now) {
 			snapshot.Cancel()
@@ -161,7 +118,7 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	// Check for any snapshots that were populated while waiting to acquire the lock.
 	var found int
 	for i := range misses {
-		if snapshot, ok := c.snapshots[misses[i]]; ok && !snapshot.Expired(now) {
+		if snapshot, ok := c.snapshots[misses[i]]; ok && !snapshot.Expired(now) && snapshot.operators != nil && len(snapshot.operators) > 0 {
 			result.snapshots[misses[i]] = snapshot
 			misses[found], misses[i] = misses[i], misses[found]
 			found++
@@ -186,17 +143,11 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	return &result
 }
 
-func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot, provider ClientProvider) {
+func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot, registry client.Interface) {
 	defer snapshot.m.Unlock()
 
 	c.sem <- struct{}{}
 	defer func() { <-c.sem }()
-
-	registry, err := provider.Get()
-	if err != nil {
-		snapshot.logger.Errorf("failed to connect to registry: %s", err.Error())
-		return
-	}
 
 	it, err := registry.ListBundles(ctx)
 	if err != nil {
@@ -223,7 +174,7 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 	snapshot.operators = operators
 }
 
-func (c *NamespacedOperatorCache) Catalog(k CatalogKey) OperatorFinder {
+func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder {
 	if snapshot, ok := c.snapshots[k]; ok {
 		return snapshot
 	}
@@ -242,7 +193,7 @@ func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
 
 type CatalogSnapshot struct {
 	logger    logrus.FieldLogger
-	key       CatalogKey
+	key       registry.CatalogKey
 	expiry    time.Time
 	operators []*Operator
 	m         sync.RWMutex
@@ -258,13 +209,13 @@ func (s *CatalogSnapshot) Expired(at time.Time) bool {
 }
 
 type SortableSnapshots struct {
-	snapshots []*CatalogSnapshot
+	snapshots  []*CatalogSnapshot
 	namespaces map[string]int
 }
 
-func NewSortableSnapshots(namespaces []string, snapshots map[CatalogKey]*CatalogSnapshot) SortableSnapshots {
+func NewSortableSnapshots(namespaces []string, snapshots map[registry.CatalogKey]*CatalogSnapshot) SortableSnapshots {
 	sorted := SortableSnapshots{
-		snapshots: make([]*CatalogSnapshot, 0),
+		snapshots:  make([]*CatalogSnapshot, 0),
 		namespaces: make(map[string]int, 0),
 	}
 	for i, n := range namespaces {
@@ -287,7 +238,7 @@ func (s SortableSnapshots) Len() int {
 // index i should sort before the element with index j.
 func (s SortableSnapshots) Less(i, j int) bool {
 	if s.snapshots[i].key.Namespace != s.snapshots[j].key.Namespace {
-		return s.namespaces[s.snapshots[i].key.Namespace] <  s.namespaces[s.snapshots[j].key.Namespace]
+		return s.namespaces[s.snapshots[i].key.Namespace] < s.namespaces[s.snapshots[j].key.Namespace]
 	}
 	return s.snapshots[i].key.Name < s.snapshots[j].key.Name
 }
@@ -310,7 +261,7 @@ type OperatorFinder interface {
 }
 
 type MultiCatalogOperatorFinder interface {
-	Catalog(CatalogKey) OperatorFinder
+	Catalog(registry.CatalogKey) OperatorFinder
 	OperatorFinder
 }
 
@@ -350,13 +301,13 @@ func WithVersionInRange(r semver.Range) OperatorPredicate {
 	}
 }
 
-func ProvidingAPI(api registry.APIKey) OperatorPredicate {
+func ProvidingAPI(api opregistry.APIKey) OperatorPredicate {
 	return func(o *Operator) bool {
 		for _, p := range o.bundle.Properties {
-			if p.Type != registry.GVKType {
+			if p.Type != opregistry.GVKType {
 				continue
 			}
-			var prop registry.GVKProperty
+			var prop opregistry.GVKProperty
 			err := json.Unmarshal([]byte(p.Value), &prop)
 			if err != nil {
 				continue
