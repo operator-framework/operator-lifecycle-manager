@@ -3,7 +3,6 @@ package catalog
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -43,7 +42,7 @@ func TestSyncSubscriptions(t *testing.T) {
 		fields            fields
 		args              args
 		wantErr           error
-		wantInstallPlan   *v1alpha1.InstallPlan
+		wantInstallPlans  []v1alpha1.InstallPlan
 		wantSubscriptions []*v1alpha1.Subscription
 	}{
 		{
@@ -159,31 +158,33 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 				},
 			},
-			wantInstallPlan: &v1alpha1.InstallPlan{
-				Spec: v1alpha1.InstallPlanSpec{
-					ClusterServiceVersionNames: []string{
-						"csv.v.1",
+			wantInstallPlans: []v1alpha1.InstallPlan{
+				{
+					Spec: v1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{
+							"csv.v.1",
+						},
+						Approval:   v1alpha1.ApprovalAutomatic,
+						Approved:   true,
+						Generation: 1,
 					},
-					Approval:   v1alpha1.ApprovalAutomatic,
-					Approved:   true,
-					Generation: 1,
-				},
-				Status: v1alpha1.InstallPlanStatus{
-					Phase: v1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{
-						"src",
-					},
-					Plan: []*v1alpha1.Step{
-						{
-							Resolving: "csv.v.1",
-							Resource: v1alpha1.StepResource{
-								CatalogSource:          "src",
-								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "csv.v.1",
-								Manifest:               "{}",
+					Status: v1alpha1.InstallPlanStatus{
+						Phase: v1alpha1.InstallPlanPhaseInstalling,
+						CatalogSources: []string{
+							"src",
+						},
+						Plan: []*v1alpha1.Step{
+							{
+								Resolving: "csv.v.1",
+								Resource: v1alpha1.StepResource{
+									CatalogSource:          "src",
+									CatalogSourceNamespace: testNamespace,
+									Group:                  v1alpha1.GroupName,
+									Version:                v1alpha1.GroupVersion,
+									Kind:                   v1alpha1.ClusterServiceVersionKind,
+									Name:                   "csv.v.1",
+									Manifest:               "{}",
+								},
 							},
 						},
 					},
@@ -300,31 +301,33 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 				},
 			},
-			wantInstallPlan: &v1alpha1.InstallPlan{
-				Spec: v1alpha1.InstallPlanSpec{
-					ClusterServiceVersionNames: []string{
-						"csv.v.1",
+			wantInstallPlans: []v1alpha1.InstallPlan{
+				{
+					Spec: v1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{
+							"csv.v.1",
+						},
+						Approval:   v1alpha1.ApprovalAutomatic,
+						Approved:   true,
+						Generation: 1,
 					},
-					Approval:   v1alpha1.ApprovalAutomatic,
-					Approved:   true,
-					Generation: 1,
-				},
-				Status: v1alpha1.InstallPlanStatus{
-					Phase: v1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{
-						"src",
-					},
-					Plan: []*v1alpha1.Step{
-						{
-							Resolving: "csv.v.1",
-							Resource: v1alpha1.StepResource{
-								CatalogSource:          "src",
-								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "csv.v.1",
-								Manifest:               "{}",
+					Status: v1alpha1.InstallPlanStatus{
+						Phase: v1alpha1.InstallPlanPhaseInstalling,
+						CatalogSources: []string{
+							"src",
+						},
+						Plan: []*v1alpha1.Step{
+							{
+								Resolving: "csv.v.1",
+								Resource: v1alpha1.StepResource{
+									CatalogSource:          "src",
+									CatalogSourceNamespace: testNamespace,
+									Group:                  v1alpha1.GroupName,
+									Version:                v1alpha1.GroupVersion,
+									Kind:                   v1alpha1.ClusterServiceVersionKind,
+									Name:                   "csv.v.1",
+									Manifest:               "{}",
+								},
 							},
 						},
 					},
@@ -377,7 +380,7 @@ func TestSyncSubscriptions(t *testing.T) {
 				},
 				bundleLookups: []v1alpha1.BundleLookup{
 					{
-						Path: "bundle-path-a",
+						Path:       "bundle-path-a",
 						Identifier: "bundle-a",
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: testNamespace,
@@ -446,31 +449,33 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 				},
 			},
-			wantInstallPlan: &v1alpha1.InstallPlan{
-				Spec: v1alpha1.InstallPlanSpec{
-					ClusterServiceVersionNames: []string{"bundle-a"},
-					Approval:                   v1alpha1.ApprovalAutomatic,
-					Approved:                   true,
-					Generation:                 1,
-				},
-				Status: v1alpha1.InstallPlanStatus{
-					Phase:          v1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{},
-					BundleLookups: []v1alpha1.BundleLookup{
-						{
-							Path: "bundle-path-a",
-							Identifier: "bundle-a",
-							CatalogSourceRef: &corev1.ObjectReference{
-								Namespace: testNamespace,
-								Name:      "src",
-							},
-							Conditions: []v1alpha1.BundleLookupCondition{
-								{
-									Type:               v1alpha1.BundleLookupPending,
-									Status:             corev1.ConditionTrue,
-									Reason:             "JobIncomplete",
-									Message:            "unpack job not completed",
-									LastTransitionTime: &now,
+			wantInstallPlans: []v1alpha1.InstallPlan{
+				{
+					Spec: v1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{"bundle-a"},
+						Approval:                   v1alpha1.ApprovalAutomatic,
+						Approved:                   true,
+						Generation:                 1,
+					},
+					Status: v1alpha1.InstallPlanStatus{
+						Phase:          v1alpha1.InstallPlanPhaseInstalling,
+						CatalogSources: []string{},
+						BundleLookups: []v1alpha1.BundleLookup{
+							{
+								Path:       "bundle-path-a",
+								Identifier: "bundle-a",
+								CatalogSourceRef: &corev1.ObjectReference{
+									Namespace: testNamespace,
+									Name:      "src",
+								},
+								Conditions: []v1alpha1.BundleLookupCondition{
+									{
+										Type:               v1alpha1.BundleLookupPending,
+										Status:             corev1.ConditionTrue,
+										Reason:             "JobIncomplete",
+										Message:            "unpack job not completed",
+										LastTransitionTime: &now,
+									},
 								},
 							},
 						},
@@ -597,31 +602,33 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 				},
 			},
-			wantInstallPlan: &v1alpha1.InstallPlan{
-				Spec: v1alpha1.InstallPlanSpec{
-					ClusterServiceVersionNames: []string{
-						"csv.v.2",
+			wantInstallPlans: []v1alpha1.InstallPlan{
+				{
+					Spec: v1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{
+							"csv.v.2",
+						},
+						Approval:   v1alpha1.ApprovalAutomatic,
+						Approved:   true,
+						Generation: 1,
 					},
-					Approval:   v1alpha1.ApprovalAutomatic,
-					Approved:   true,
-					Generation: 1,
-				},
-				Status: v1alpha1.InstallPlanStatus{
-					Phase: v1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{
-						"src",
-					},
-					Plan: []*v1alpha1.Step{
-						{
-							Resolving: "csv.v.2",
-							Resource: v1alpha1.StepResource{
-								CatalogSource:          "src",
-								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "csv.v.2",
-								Manifest:               "{}",
+					Status: v1alpha1.InstallPlanStatus{
+						Phase: v1alpha1.InstallPlanPhaseInstalling,
+						CatalogSources: []string{
+							"src",
+						},
+						Plan: []*v1alpha1.Step{
+							{
+								Resolving: "csv.v.2",
+								Resource: v1alpha1.StepResource{
+									CatalogSource:          "src",
+									CatalogSourceNamespace: testNamespace,
+									Group:                  v1alpha1.GroupName,
+									Version:                v1alpha1.GroupVersion,
+									Kind:                   v1alpha1.ClusterServiceVersionKind,
+									Name:                   "csv.v.2",
+									Manifest:               "{}",
+								},
 							},
 						},
 					},
@@ -771,56 +778,231 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 				},
 			},
-			wantInstallPlan: &v1alpha1.InstallPlan{
-				Spec: v1alpha1.InstallPlanSpec{
-					ClusterServiceVersionNames: []string{
-						"csv.v.2",
-						"dep.v.1",
+			wantInstallPlans: []v1alpha1.InstallPlan{
+				{
+					Spec: v1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{
+							"csv.v.2",
+							"dep.v.1",
+						},
+						Approval:   v1alpha1.ApprovalAutomatic,
+						Approved:   true,
+						Generation: 1,
 					},
-					Approval:   v1alpha1.ApprovalAutomatic,
-					Approved:   true,
-					Generation: 1,
+					Status: v1alpha1.InstallPlanStatus{
+						Phase: v1alpha1.InstallPlanPhaseInstalling,
+						CatalogSources: []string{
+							"src",
+						},
+						Plan: []*v1alpha1.Step{
+							{
+								Resolving: "csv.v.2",
+								Resource: v1alpha1.StepResource{
+									CatalogSource:          "src",
+									CatalogSourceNamespace: testNamespace,
+									Group:                  v1alpha1.GroupName,
+									Version:                v1alpha1.GroupVersion,
+									Kind:                   v1alpha1.ClusterServiceVersionKind,
+									Name:                   "csv.v.2",
+									Manifest:               "{}",
+								},
+							},
+							{
+								Resolving: "csv.v.2",
+								Resource: v1alpha1.StepResource{
+									CatalogSource:          "src",
+									CatalogSourceNamespace: testNamespace,
+									Group:                  v1alpha1.GroupName,
+									Version:                v1alpha1.GroupVersion,
+									Kind:                   v1alpha1.ClusterServiceVersionKind,
+									Name:                   "dep.v.1",
+									Manifest:               "{}",
+								},
+							},
+							{
+								Resolving: "csv.v.2",
+								Resource: v1alpha1.StepResource{
+									CatalogSource:          "src",
+									CatalogSourceNamespace: testNamespace,
+									Group:                  v1alpha1.GroupName,
+									Version:                v1alpha1.GroupVersion,
+									Kind:                   v1alpha1.SubscriptionKind,
+									Name:                   "sub-dep",
+									Manifest:               "{}",
+								},
+							},
+						},
+					},
 				},
-				Status: v1alpha1.InstallPlanStatus{
-					Phase: v1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{
-						"src",
+			},
+		},
+		{
+			name: "ExistingInstallPlanGenerationRespected",
+			fields: fields{
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
+				existingOLMObjs: []runtime.Object{
+					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      "",
+						},
 					},
-					Plan: []*v1alpha1.Step{
-						{
-							Resolving: "csv.v.2",
-							Resource: v1alpha1.StepResource{
-								CatalogSource:          "src",
-								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "csv.v.2",
-								Manifest:               "{}",
-							},
+					&v1alpha1.InstallPlan{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "ip",
+							Namespace: testNamespace,
 						},
-						{
-							Resolving: "csv.v.2",
-							Resource: v1alpha1.StepResource{
-								CatalogSource:          "src",
-								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "dep.v.1",
-								Manifest:               "{}",
+						Spec: v1alpha1.InstallPlanSpec{
+							Approval: v1alpha1.ApprovalAutomatic,
+							Approved: true,
+							ClusterServiceVersionNames: []string{
+								"some-csv",
 							},
+							// Claim the gen 1 to ensure a new InstallPlan is created at gen 2
+							Generation: 1,
 						},
-						{
-							Resolving: "csv.v.2",
-							Resource: v1alpha1.StepResource{
-								CatalogSource:          "src",
-								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.SubscriptionKind,
-								Name:                   "sub-dep",
-								Manifest:               "{}",
+					},
+				},
+				resolveSteps: []*v1alpha1.Step{
+					{
+						Resolving: "csv.v.1",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+							Group:                  v1alpha1.GroupName,
+							Version:                v1alpha1.GroupVersion,
+							Kind:                   v1alpha1.ClusterServiceVersionKind,
+							Name:                   "csv.v.1",
+							Manifest:               "{}",
+						},
+					},
+				},
+				resolveSubs: []*v1alpha1.Subscription{
+					{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "csv.v.1",
+							State:      "SubscriptionStateAtLatest",
+						},
+					},
+				},
+			},
+			args: args{
+				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+					},
+				},
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "csv.v.1",
+						State:      v1alpha1.SubscriptionStateUpgradePending,
+						Install: &v1alpha1.InstallPlanReference{
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.InstallPlanAPIVersion,
+						},
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace:  testNamespace,
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.InstallPlanAPIVersion,
+						},
+						LastUpdated:           now,
+						InstallPlanGeneration: 2,
+					},
+				},
+			},
+			wantInstallPlans: []v1alpha1.InstallPlan{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ip",
+						Namespace: testNamespace,
+					},
+					Spec: v1alpha1.InstallPlanSpec{
+						Approval: v1alpha1.ApprovalAutomatic,
+						Approved: true,
+						ClusterServiceVersionNames: []string{
+							"some-csv",
+						},
+						// Claim the gen 1 to ensure a new InstallPlan is created at gen 2
+						Generation: 1,
+					},
+				},
+				{
+					Spec: v1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{
+							"csv.v.1",
+						},
+						Approval:   v1alpha1.ApprovalAutomatic,
+						Approved:   true,
+						Generation: 2,
+					},
+					Status: v1alpha1.InstallPlanStatus{
+						Phase: v1alpha1.InstallPlanPhaseInstalling,
+						CatalogSources: []string{
+							"src",
+						},
+						Plan: []*v1alpha1.Step{
+							{
+								Resolving: "csv.v.1",
+								Resource: v1alpha1.StepResource{
+									CatalogSource:          "src",
+									CatalogSourceNamespace: testNamespace,
+									Group:                  v1alpha1.GroupName,
+									Version:                v1alpha1.GroupVersion,
+									Kind:                   v1alpha1.ClusterServiceVersionKind,
+									Name:                   "csv.v.1",
+									Manifest:               "{}",
+								},
 							},
 						},
 					},
@@ -870,16 +1052,20 @@ func TestSyncSubscriptions(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, s, fetched)
 			}
-			if tt.wantInstallPlan != nil {
-				installPlans, err := o.client.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
-				require.NoError(t, err)
-				require.Equal(t, 1, len(installPlans.Items))
-				ip := installPlans.Items[0]
-				if (!reflect.DeepEqual(tt.wantInstallPlan.ObjectMeta, metav1.ObjectMeta{})) {
-					require.Equal(t, tt.wantInstallPlan.ObjectMeta, ip.ObjectMeta)
-				}
-				require.Equal(t, tt.wantInstallPlan.Spec, ip.Spec)
-				require.Equal(t, tt.wantInstallPlan.Status, ip.Status)
+
+			installPlans, err := o.client.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
+			require.Len(t, installPlans.Items, len(tt.wantInstallPlans))
+
+			haveIPs := make(map[string]v1alpha1.InstallPlan)
+			for _, ip := range installPlans.Items {
+				haveIPs[ip.GetName()] = ip
+			}
+
+			for _, ip := range tt.wantInstallPlans {
+				have, ok := haveIPs[ip.GetName()]
+				require.True(t, ok, "installplan %s missing", ip.GetName())
+				require.Equal(t, have.Spec, ip.Spec)
+				require.Equal(t, have.Status, ip.Status)
 			}
 		})
 	}
