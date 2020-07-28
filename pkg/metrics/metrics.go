@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -18,6 +20,9 @@ const (
 	PHASE_LABEL     = "phase"
 	REASON_LABEL    = "reason"
 	PACKAGE_LABEL   = "package"
+	Outcome         = "outcome"
+	Succeeded       = "succeeded"
+	Failed          = "failed"
 )
 
 type MetricsProvider interface {
@@ -59,7 +64,7 @@ func (m *metricsInstallPlan) HandleMetrics() error {
 }
 
 type metricsSubscription struct {
-	 lister v1alpha1.SubscriptionLister
+	lister v1alpha1.SubscriptionLister
 }
 
 func NewMetricsSubscription(lister v1alpha1.SubscriptionLister) MetricsProvider {
@@ -167,6 +172,15 @@ var (
 		[]string{NAMESPACE_LABEL, NAME_LABEL, VERSION_LABEL, PHASE_LABEL, REASON_LABEL},
 	)
 
+	dependencyResolutionSummary = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name:       "olm_resolution_duration_seconds",
+			Help:       "The duration of a dependency resolution attempt",
+			Objectives: map[float64]float64{0.95: 0.05, 0.9: 0.01, 0.99: 0.001},
+		},
+		[]string{Outcome},
+	)
+
 	// subscriptionSyncCounters keeps a record of the promethues counters emitted by
 	// Subscription objects. The key of a record is the Subscription name, while the value
 	//  is struct containing label values used in the counter
@@ -191,6 +205,7 @@ func RegisterCatalog() {
 	prometheus.MustRegister(subscriptionCount)
 	prometheus.MustRegister(catalogSourceCount)
 	prometheus.MustRegister(SubscriptionSyncCount)
+	prometheus.MustRegister(dependencyResolutionSummary)
 }
 
 func CounterForSubscription(name, installedCSV, channelName, packageName string) prometheus.Counter {
@@ -267,4 +282,12 @@ func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
 
 		subscriptionSyncCounters[sub.GetName()] = counterValues
 	}
+}
+
+func RegisterDependencyResolutionSuccess(duration time.Duration) {
+	dependencyResolutionSummary.WithLabelValues(Succeeded).Observe(duration.Seconds())
+}
+
+func RegisterDependencyResolutionFailure(duration time.Duration) {
+	dependencyResolutionSummary.WithLabelValues(Failed).Observe(duration.Seconds())
 }

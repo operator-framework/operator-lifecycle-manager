@@ -109,7 +109,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		})
 	})
 
-	Context("Subscription Metric", func() {
+	Context("Metrics emitted by objects during operator installation", func() {
 		var (
 			subscriptionCleanup cleanupFunc
 			subscription        *v1alpha1.Subscription
@@ -137,6 +137,20 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					WithChannel(stableChannel),
 					WithPackage(testPackageName),
 				)))
+			})
+
+			It("generates dependency_resolution metric", func() {
+
+				// Verify metrics have been emitted for dependency resolution
+				Eventually(func() bool {
+					return Eventually(func() []Metric {
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					}).Should(ContainElement(LikeMetric(
+						WithFamily("olm_resolution_duration_seconds"),
+						WithLabel("outcome", "failed"),
+						WithValueGreaterThan(0),
+					)))
+				})
 			})
 		})
 
