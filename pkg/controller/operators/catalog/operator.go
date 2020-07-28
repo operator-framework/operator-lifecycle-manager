@@ -132,9 +132,15 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Create an OperatorLister
 	lister := operatorlister.NewLister()
 
-	operatorV1alpha1Resolver := resolver.NewOperatorsV1alpha1Resolver(lister, crClient, opClient.KubernetesInterface(), resolverV2Enable)
+	var res resolver.Resolver
+	if resolverV2Enable {
+		res = resolver.NewSatStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
+	} else {
+		res = resolver.NewOperatorsV1alpha1Resolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
+	}
 	successMetricsEmitter := metrics.RegisterDependencyResolutionSuccess
 	failureMetricsEmitter := metrics.RegisterDependencyResolutionFailure
+
 	// Allocate the new instance of an Operator.
 	op := &Operator{
 		Operator:                 queueOperator,
@@ -145,7 +151,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		client:                   crClient,
 		lister:                   lister,
 		namespace:                operatorNamespace,
-		resolver:                 resolver.NewInstrumentedResolver(operatorV1alpha1Resolver, successMetricsEmitter, failureMetricsEmitter),
+		resolver:                 resolver.NewInstrumentedResolver(res, successMetricsEmitter, failureMetricsEmitter),
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
