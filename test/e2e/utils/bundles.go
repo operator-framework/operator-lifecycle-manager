@@ -12,9 +12,6 @@ import (
 	"github.com/containers/storage/pkg/unshare"
 	"io"
 	"os"
-	"os/exec"
-	"path"
-	"sort"
 	"strings"
 )
 
@@ -31,49 +28,9 @@ type Bundle struct {
 	Channels                []string
 	// Default Channel name.
 	DefaultChannel      string
+	// When set to true, GenerateAnnotations will create the annotations.yaml file in the metadata directory
+	// from bundle information. If false, it will read the annotations.yaml to populate bundle fields
 	GenerateAnnotations bool
-}
-
-// Build the bundle image with opm and docker binary
-func (r *Registry) buildBundleImage(b *Bundle) (bundleReference string, err error){
-	if len(b.DefaultChannel) == 0 && len(b.Channels) == 0 {
-		return "", fmt.Errorf("missing default channel and channel list for package %s", b.PackageName)
-	}
-	if len(b.Channels) == 0 {
-		b.Channels = append(b.Channels, b.DefaultChannel)
-	}
-	if len(b.DefaultChannel) == 0 {
-		sort.Strings(b.Channels)
-		b.DefaultChannel = b.Channels[0]
-	}
-	bundlePath := b.BundleURLPath
-	if len(bundlePath) == 0 {
-		bundlePath = fmt.Sprintf("%s/operator", b.PackageName)
-	}
-	bundleReference = fmt.Sprintf("%s/%s:%s", r.url, bundlePath, b.Version)
-
-	cmd := exec.Command("opm", "alpha", "bundle", "build", "-d", path.Join(b.BundleDir, "manifests"), "-b", "docker", "-e", b.DefaultChannel, "-c", strings.Join(b.Channels, ","), "--tag", bundleReference)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err = cmd.Run(); err != nil {
-		return "", err
-	}
-
-	return bundleReference, nil
-}
-
-func(r *Registry) uploadBundleReferences(bundleRefs []string) error {
-	if len(bundleRefs) == 0 {
-		return nil
-	}
-	cmdArgs := append([]string{"push"}, bundleRefs...)
-	cmd := exec.Command("docker", cmdArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
 }
 
 func getDockerImageRef(destImage string) (types.ImageReference, error){
@@ -90,7 +47,7 @@ func getDockerImageRef(destImage string) (types.ImageReference, error){
 
 
 // Builds the bundle image onto local filesystem
-func buildAndUploadLocalBundleImage(destRef string, bundleContentDirectories []string, labels map[string]string, logger *io.Writer) (error) {
+func buildAndUploadBundleImage(destRef, authString string, bundleContentDirectories []string, labels map[string]string, logger *io.Writer) (error) {
 	if len(destRef) == 0 {
 		return fmt.Errorf("destination image reference must not be empty")
 	}
@@ -144,11 +101,23 @@ func buildAndUploadLocalBundleImage(destRef string, bundleContentDirectories []s
 	var dest types.ImageReference
 	dest, err = blobcache.NewBlobCache(imageRef, layerCacheDir, types.PreserveOriginal)
 
+	var systemContex *types.SystemContext
+	if len(authString) == 0 {
+		systemContex = &types.SystemContext{
+			DockerInsecureSkipTLSVerify: types.OptionalBoolTrue,
+		}
+	} else {
+		username, password := getCreds(authString)
+		systemContex = &types.SystemContext{
+			DockerAuthConfig: &types.DockerAuthConfig{
+				Username:      username,
+				Password:      password,
+			},
+		}
+	}
 	_, _, _, err = b.Commit(context.TODO(), dest, buildah.CommitOptions{
 		ReportWriter:  *logger,
-		SystemContext: &types.SystemContext{
-			DockerInsecureSkipTLSVerify: types.OptionalBoolTrue,
-		},
+		SystemContext: systemContex,
 		OmitTimestamp: true,
 	})
 	if err != nil {
@@ -156,4 +125,18 @@ func buildAndUploadLocalBundleImage(destRef string, bundleContentDirectories []s
 	}
 
 	return nil
+}
+
+func getCreds(creds string) (username string, password string) {
+	if creds == "" {
+		return "", ""
+	}
+	up := strings.SplitN(creds, ":", 2)
+	if len(up) == 1 {
+		return up[0], ""
+	}
+	if up[0] == "" {
+		return "", up[1]
+	}
+	return up[0], up[1]
 }

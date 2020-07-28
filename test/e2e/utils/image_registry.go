@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/sirupsen/logrus"
+	"strings"
 	"time"
 )
 
@@ -20,8 +21,7 @@ const (
 	openshiftregistryFQDN = "image-registry.openshift-image-registry.svc:5000/openshift-operators"
 	pollInterval          = 1 * time.Second
 	pollDuration          = 5 * time.Minute
-	BuildahTool           = "buildah"
-	DockerTool            = "docker"
+    defaultIndexName = "operator-index-registry"
 )
 
 func initializeRegistry(testNamespace string, client operatorclient.ClientInterface, logger *logrus.Logger) (*Registry, func(), error) {
@@ -72,6 +72,7 @@ func initializeRegistry(testNamespace string, client operatorclient.ClientInterf
 		if err != nil {
 			return nil, nil, fmt.Errorf("port-forwarding local registry: %s", err)
 		}
+
 	} else {
 		logger.Debugf("Detected remote cluster")
 		registryURL = openshiftregistryFQDN
@@ -81,56 +82,64 @@ func initializeRegistry(testNamespace string, client operatorclient.ClientInterf
 		}
 		cleanUpRegistry = func(){}
 	}
+
 	return &Registry{
 		url:        registryURL,
 		auth:       registryAuth,
 		namespace:  testNamespace,
-		bundleTool: BuildahTool,
 		client:     client,
 		logger:     logger,
 	}, cleanUpRegistry, nil
 }
 
 // Recreates index each time, does not update index. Returns the indexReference to use in CatalogSources
-func (r *Registry) CreateBundlesAndIndex(indexName string, bundles []*Bundle) (string, error) {
+func (r *Registry) CreateBundles(bundles []*Bundle) ([]string, error) {
 	bundleRefs := make([]string, 0)
 
-	switch r.bundleTool {
-	case DockerTool:
-		r.logger.Debugf("Using docker as bundle image build tool")
-		for _, b := range bundles {
-			_, err := r.GetAnnotations(b)
-			if err != nil {
-				return "", fmt.Errorf("failed to parse bundle annotations for %s: %v", b.PackageName, err)
-			}
-			ref, err := r.buildBundleImage(b)
-			if err != nil {
-				return "", fmt.Errorf("failed to build bundle image for %s: %v", b.PackageName, err)
-			}
-			bundleRefs = append(bundleRefs, ref)
+	for _, b := range bundles {
+		labels, err := r.GetAnnotations(b)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get bundle annotations for %s: %v", b.PackageName, err)
 		}
-
-		if err := r.uploadBundleReferences(bundleRefs); err != nil {
-			return "", fmt.Errorf("failed to upload bundle image to registry: %v", err)
+		destImageRef := fmt.Sprintf("%s/%s:%s", r.url, b.BundleURLPath, b.Version)
+		err = buildAndUploadBundleImage(destImageRef, r.auth, []string{labels[manifestsLabel], labels[metadataLabel]}, labels, &r.logger.Out)
+		if err != nil {
+			return nil, fmt.Errorf("build step for local bundle image failed %s: %v", b.PackageName, err)
 		}
-	case BuildahTool:
-		r.logger.Debugf("Using buildah as bundle image build tool")
-		for _, b := range bundles {
-			labels, err := r.GetAnnotations(b)
-			if err != nil {
-				return "", fmt.Errorf("failed to get bundle annotations for %s: %v", b.PackageName, err)
-			}
-			destImageRef := fmt.Sprintf("%s/%s:%s", r.url, b.BundleURLPath, b.Version)
-			err = buildAndUploadLocalBundleImage(destImageRef, []string{labels[manifestsLabel], labels[metadataLabel]}, labels, &r.logger.Out)
-			if err != nil {
-				return "", fmt.Errorf("build step for local bundle image failed %s: %v", b.PackageName, err)
-			}
-		}
+		bundleRefs = append(bundleRefs, destImageRef)
 	}
-	r.logger.Debugf("Creating new index for upload: %s, bundles: %v", indexName, bundleRefs)
-	indexReference, err := r.CreateAndUploadIndex(indexName, bundleRefs)
+	return bundleRefs, nil
+}
+
+func (r *Registry) CreateIndex(indexName string, bundleReferences []string) (string, error) {
+	if len(indexName) == 0 {
+		indexName = defaultIndexName
+	}
+	indexReference := fmt.Sprintf("%s/%s:latest", r.url, indexName)
+
+	local, err := Local(r.client)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to detect kubeconfig type: %v", err)
+	}
+	bundleString := strings.Join(bundleReferences, ",")
+	if len(bundleString) == 0 {
+		bundleString = "\"\""
+	}
+	if local {
+		opmCmd := []string{"opm", "index", "add", "--tag", indexReference, "--pull-tool", "docker", "--build-tool", "docker", "--skip-tls", "--bundles", bundleString}
+		pushCmd := []string{"docker", "push", indexReference}
+		for _, cmd := range [][]string{opmCmd, pushCmd} {
+			if err := execLocal(r.logger.Out, cmd[0], cmd[1:]...); err != nil {
+				return "", err
+			}
+		}
+	} else {
+		opmCmd := []string{"opm", "index", "add", "--tag", indexReference, "--bundles", bundleString}
+		pushCmd := []string{"podman", "push", indexReference}
+		argString := fmt.Sprintf("%s && %s", strings.Join(opmCmd, " "), strings.Join(pushCmd, " "))
+		if err := r.runIndexBuilderPod(argString); err != nil {
+			return "", err
+		}
 	}
 	return indexReference, nil
 }
