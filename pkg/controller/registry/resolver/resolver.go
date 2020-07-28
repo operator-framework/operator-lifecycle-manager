@@ -31,22 +31,28 @@ type Resolver interface {
 }
 
 type OperatorsV1alpha1Resolver struct {
-	subLister  v1alpha1listers.SubscriptionLister
-	csvLister  v1alpha1listers.ClusterServiceVersionLister
-	ipLister   v1alpha1listers.InstallPlanLister
-	client     versioned.Interface
-	kubeclient kubernetes.Interface
+	subLister              v1alpha1listers.SubscriptionLister
+	csvLister              v1alpha1listers.ClusterServiceVersionLister
+	ipLister               v1alpha1listers.InstallPlanLister
+	client                 versioned.Interface
+	kubeclient             kubernetes.Interface
+	globalCatalogNamespace string
+	satResolver            *SatResolver
+	updatedResolution      bool
 }
 
 var _ Resolver = &OperatorsV1alpha1Resolver{}
 
-func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface) *OperatorsV1alpha1Resolver {
+func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface, globalCatalogNamespace string, updatedResolution bool) *OperatorsV1alpha1Resolver {
 	return &OperatorsV1alpha1Resolver{
-		subLister:  lister.OperatorsV1alpha1().SubscriptionLister(),
-		csvLister:  lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
-		ipLister:   lister.OperatorsV1alpha1().InstallPlanLister(),
-		client:     client,
-		kubeclient: kubeclient,
+		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
+		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		ipLister:               lister.OperatorsV1alpha1().InstallPlanLister(),
+		client:                 client,
+		kubeclient:             kubeclient,
+		globalCatalogNamespace: globalCatalogNamespace,
+		satResolver:            NewDefaultSatResolver(NewDefaultRegistryClientProvider(client)),
+		updatedResolution:      updatedResolution,
 	}
 }
 
@@ -75,20 +81,24 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		return nil, nil, nil, err
 	}
 
-	gen, err := NewGenerationFromCluster(csvs, subs)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
 	// create a map of operatorsourceinfo (subscription+catalogsource data) to the original subscriptions
 	subMap := r.sourceInfoToSubscriptions(subs)
 	// get a list of new operators to add to the generation
 	add := r.sourceInfoForNewSubscriptions(namespace, subMap)
 
-	// evolve a generation by resolving the set of subscriptions (in `add`) by querying with `source`
-	// and taking the current generation (in `gen`) into account
-	if err := NewNamespaceGenerationEvolver(sourceQuerier, gen).Evolve(add); err != nil {
-		return nil, nil, nil, err
+	var operators OperatorSet
+	if !r.updatedResolution {
+		operators, err = r.generateOperators(csvs, subs, sourceQuerier, add)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	} else {
+		// new dependency resolution
+		namespaces := []string{namespace, r.globalCatalogNamespace}
+		operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs, add)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 
 	// if there's no error, we were able to satsify all constraints in the subscription set, so we calculate what
@@ -96,7 +106,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	steps := []*v1alpha1.Step{}
 	updatedSubs := []*v1alpha1.Subscription{}
 	bundleLookups := []v1alpha1.BundleLookup{}
-	for name, op := range gen.Operators() {
+	for name, op := range operators {
 		_, isAdded := add[*op.SourceInfo()]
 		existingSubscription, subExists := subMap[*op.SourceInfo()]
 
@@ -165,6 +175,21 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	// Order Steps
 	steps = v1alpha1.OrderSteps(steps)
 	return steps, bundleLookups, updatedSubs, nil
+}
+
+func (r *OperatorsV1alpha1Resolver) generateOperators(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, sourceQuerier SourceQuerier, add map[OperatorSourceInfo]struct{}) (OperatorSet, error) {
+	gen, err := NewGenerationFromCluster(csvs, subs)
+	if err != nil {
+		return nil, err
+	}
+
+	// evolve a generation by resolving the set of subscriptions (in `add`) by querying with `source`
+	// and taking the current generation (in `gen`) into account
+	if err := NewNamespaceGenerationEvolver(sourceQuerier, gen).Evolve(add); err != nil {
+		return nil, err
+	}
+
+	return gen.Operators(), nil
 }
 
 func (r *OperatorsV1alpha1Resolver) sourceInfoForNewSubscriptions(namespace string, subs map[OperatorSourceInfo]*v1alpha1.Subscription) (add map[OperatorSourceInfo]struct{}) {

@@ -26,6 +26,14 @@ func (k *CatalogKey) String() string {
 	return fmt.Sprintf("%s/%s", k.Name, k.Namespace)
 }
 
+func (k *CatalogKey) IsEmpty() bool {
+	return k.Name == "" && k.Namespace == ""
+}
+
+func (k *CatalogKey) IsEqual(compare CatalogKey) bool {
+	return k.Name == compare.Name && k.Namespace == compare.Namespace
+}
+
 type APISet map[opregistry.APIKey]struct{}
 
 func EmptyAPISet() APISet {
@@ -225,16 +233,25 @@ type OperatorSurface interface {
 	SourceInfo() *OperatorSourceInfo
 	Bundle() *api.Bundle
 	Inline() bool
+	VersionDependencies() []VersionDependency
 }
 
 type Operator struct {
-	name         string
-	replaces     string
-	providedAPIs APISet
-	requiredAPIs APISet
-	version      *semver.Version
-	bundle       *api.Bundle
-	sourceInfo   *OperatorSourceInfo
+	name                string
+	replaces            string
+	providedAPIs        APISet
+	requiredAPIs        APISet
+	version             *semver.Version
+	bundle              *api.Bundle
+	sourceInfo          *OperatorSourceInfo
+	versionDependencies []VersionDependency
+}
+
+type VersionDependency struct {
+	Package string
+	Version semver.Version
+	// TODO: BundleImage string
+	// TODO: VersionRange string
 }
 
 var _ OperatorSurface = &Operator{}
@@ -367,4 +384,8 @@ func (o *Operator) Version() *semver.Version {
 
 func (o *Operator) Inline() bool {
 	return o.bundle != nil && o.bundle.GetBundlePath() == ""
+}
+
+func (o *Operator) VersionDependencies() []VersionDependency {
+	return o.versionDependencies
 }
