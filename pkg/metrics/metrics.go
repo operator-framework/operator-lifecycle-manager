@@ -23,6 +23,7 @@ const (
 	Outcome         = "outcome"
 	Succeeded       = "succeeded"
 	Failed          = "failed"
+	APPROVAL_LABEL  = "approval"
 )
 
 type MetricsProvider interface {
@@ -153,7 +154,7 @@ var (
 			Name: "subscription_sync_total",
 			Help: "Monotonic count of subscription syncs",
 		},
-		[]string{NAME_LABEL, INSTALLED_LABEL, CHANNEL_LABEL, PACKAGE_LABEL},
+		[]string{NAME_LABEL, INSTALLED_LABEL, CHANNEL_LABEL, PACKAGE_LABEL, APPROVAL_LABEL},
 	)
 
 	csvSucceeded = prometheus.NewGaugeVec(
@@ -188,9 +189,10 @@ var (
 )
 
 type subscriptionSyncLabelValues struct {
-	installedCSV string
-	pkg          string
-	channel      string
+	installedCSV     string
+	pkg              string
+	channel          string
+	approvalStrategy string
 }
 
 func RegisterOLM() {
@@ -208,8 +210,8 @@ func RegisterCatalog() {
 	prometheus.MustRegister(dependencyResolutionSummary)
 }
 
-func CounterForSubscription(name, installedCSV, channelName, packageName string) prometheus.Counter {
-	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, packageName)
+func CounterForSubscription(name, installedCSV, channelName, packageName, planApprovalStrategy string) prometheus.Counter {
+	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, packageName, planApprovalStrategy)
 }
 
 func DeleteCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion) {
@@ -246,12 +248,13 @@ func EmitSubMetric(sub *olmv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
-	SubscriptionSyncCount.WithLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package).Inc()
+	SubscriptionSyncCount.WithLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package, string(sub.Spec.InstallPlanApproval)).Inc()
 	if _, present := subscriptionSyncCounters[sub.GetName()]; !present {
 		subscriptionSyncCounters[sub.GetName()] = subscriptionSyncLabelValues{
-			installedCSV: sub.Status.InstalledCSV,
-			pkg:          sub.Spec.Package,
-			channel:      sub.Spec.Channel,
+			installedCSV:     sub.Status.InstalledCSV,
+			pkg:              sub.Spec.Package,
+			channel:          sub.Spec.Channel,
+			approvalStrategy: string(sub.Spec.InstallPlanApproval),
 		}
 	}
 }
@@ -260,7 +263,7 @@ func DeleteSubsMetric(sub *olmv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
-	SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package)
+	SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package, string(sub.Spec.InstallPlanApproval))
 }
 
 func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
@@ -268,17 +271,20 @@ func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
 		return
 	}
 	counterValues := subscriptionSyncCounters[sub.GetName()]
+	approvalStrategy := string(sub.Spec.InstallPlanApproval)
 
 	if sub.Spec.Channel != counterValues.channel ||
 		sub.Spec.Package != counterValues.pkg ||
-		sub.Status.InstalledCSV != counterValues.installedCSV {
+		sub.Status.InstalledCSV != counterValues.installedCSV ||
+		approvalStrategy != counterValues.approvalStrategy {
 
 		// Delete metric will label values of old Subscription first
-		SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), counterValues.installedCSV, counterValues.channel, counterValues.pkg)
+		SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), counterValues.installedCSV, counterValues.channel, counterValues.pkg, counterValues.approvalStrategy)
 
 		counterValues.installedCSV = sub.Status.InstalledCSV
 		counterValues.pkg = sub.Spec.Package
 		counterValues.channel = sub.Spec.Channel
+		counterValues.approvalStrategy = approvalStrategy
 
 		subscriptionSyncCounters[sub.GetName()] = counterValues
 	}
