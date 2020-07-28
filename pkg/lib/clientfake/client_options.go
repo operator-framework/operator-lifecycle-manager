@@ -51,3 +51,24 @@ func WithNameGeneration(tb testing.TB) Option {
 		})
 	}
 }
+
+var generateCall int
+
+// WithNameGenerationList returns a fakeK8sClientOption that configures a Clientset to write generated names to all types on create.
+// Names are selected from the given list sequentially in call order and cycles when exhausted.
+func WithNameGenerationList(tb testing.TB, names ...string) Option {
+	if len(names) < 1 {
+		panic("must specify at least one generate name")
+	}
+
+	return func(c ClientsetDecorator) {
+		c.PrependReactor("create", "*", func(a clitesting.Action) (bool, runtime.Object, error) {
+			ca, ok := a.(clitesting.CreateAction)
+			if !ok {
+				tb.Fatalf("expected CreateAction")
+			}
+
+			return false, AddNextNameInList(ca.GetObject(), names), nil
+		})
+	}
+}
