@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"testing"
 	"time"
 
@@ -22,8 +23,14 @@ func (r *fakeResolverWithError) ResolveSteps(namespace string, sourceQuerier Sou
 	return nil, nil, nil, errors.New("Fake error")
 }
 
+func (r *fakeResolverWithError) Expire(key registry.CatalogKey) {
+}
+
 func (r *fakeResolverWithoutError) ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	return nil, nil, nil, nil
+}
+
+func (r *fakeResolverWithoutError) Expire(key registry.CatalogKey) {
 }
 
 func newFakeResolverWithError() *fakeResolverWithError {
