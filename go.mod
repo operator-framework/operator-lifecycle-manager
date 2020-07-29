@@ -4,9 +4,11 @@ go 1.13
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/containerd/containerd v1.3.6 // indirect
 	github.com/containers/buildah v1.15.0
+	github.com/containers/common v0.15.1 // indirect
 	github.com/containers/image/v5 v5.5.1
-	github.com/containers/storage v1.21.2
+	github.com/containers/storage v1.20.2
 	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fsnotify/fsnotify v1.4.9
@@ -16,18 +18,25 @@ require (
 	github.com/go-openapi/spec v0.19.4
 	github.com/golang/mock v1.3.1
 	github.com/google/go-cmp v0.5.0
+	github.com/hashicorp/go-multierror v1.1.0 // indirect
 	github.com/irifrance/gini v1.0.1
+	github.com/klauspost/compress v1.10.10 // indirect
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 	github.com/mikefarah/yq/v2 v2.4.1
 	github.com/mitchellh/hashstructure v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/onsi/ginkgo v1.13.0
 	github.com/onsi/gomega v1.10.1
+	github.com/opencontainers/selinux v1.6.0 // indirect
 	github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
+	github.com/openshift/imagebuilder v1.1.6 // indirect
 	github.com/operator-framework/api v0.3.11
 	github.com/operator-framework/operator-registry v1.13.3
 	github.com/otiai10/copy v1.2.0
+	github.com/operator-framework/api v0.3.7
+	github.com/operator-framework/operator-registry v1.12.2
+	github.com/otiai10/copy v1.0.2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.2.1
 	github.com/prometheus/client_model v0.2.0
@@ -37,6 +46,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.6.1
 	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0
+	go.etcd.io/bbolt v1.3.5 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	google.golang.org/grpc v1.30.0
 	gopkg.in/yaml.v2 v2.2.8

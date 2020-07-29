@@ -1,4 +1,4 @@
-package bundle
+package utils
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func (r *RegistryClient) runIndexBuilderPod(argString string) error {
 		return fmt.Errorf("failed to create index builder pod: %v", err)
 	}
 
-	_, _ = awaitPod(r.client, r.namespace, opmPodName, func(pod *corev1.Pod) bool {
+	_, awaitErr := AwaitPod(r.client, r.namespace, opmPodName, func(pod *corev1.Pod) bool {
 		return pod.Status.Phase == corev1.PodSucceeded
 	})
 
@@ -48,5 +48,5 @@ func (r *RegistryClient) runIndexBuilderPod(argString string) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete index builder pod: %v", err)
 	}
-	return nil
+	return awaitErr
 }

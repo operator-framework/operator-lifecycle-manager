@@ -1,4 +1,4 @@
-package bundle
+package utils
 
 import (
 	"fmt"
@@ -7,41 +7,33 @@ import (
 	"os"
 	"path"
 	"strings"
-)
-
-const (
-	mediatypeLabel      = "operators.operatorframework.io.bundle.mediatype.v1"
-	manifestsLabel      = "operators.operatorframework.io.bundle.manifests.v1"
-	metadataLabel       = "operators.operatorframework.io.bundle.metadata.v1"
-	packageLabel        = "operators.operatorframework.io.bundle.package.v1"
-	channelsLabel       = "operators.operatorframework.io.bundle.channels.v1"
-	defaultChannelLabel = "operators.operatorframework.io.bundle.channel.default.v1"
-	mediatypeRegistry   = "registry+v1"
+	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
 )
 
 type AnnotationsFile struct {
 	Annotations map[string]string `yaml:"annotations"`
 }
 
-func (b *Bundle) generateBundleAnnotations() map[string]string {
-	if len(b.BundleManifestDirectory) == 0 {
-		b.BundleManifestDirectory = "manifests/"
+func (b *Bundle) generateBundleAnnotations() (map[string]string, error) {
+	mediaType, err := bundle.GetMediaType(b.BundlePath)
+	if err != nil {
+		return nil, fmt.Errorf("invalid bundle format: %v", err)
 	}
 	labels := make(map[string]string)
-	labels[mediatypeLabel] = mediatypeRegistry
-	labels[packageLabel] = b.PackageName
-	labels[manifestsLabel] = b.BundleManifestDirectory
-	labels[metadataLabel] = "metadata/"
-	labels[defaultChannelLabel] = b.DefaultChannel
-	labels[channelsLabel] = strings.Join(b.Channels, ",")
-	return labels
+	labels[bundle.PackageLabel] = b.PackageName
+	labels[bundle.ManifestsLabel] = "manifests/"
+	labels[bundle.MetadataLabel] = "metadata/"
+	labels[bundle.ChannelDefaultLabel] = b.DefaultChannel
+	labels[bundle.ChannelsLabel] = strings.Join(b.Channels, ",")
+	labels[bundle.MediatypeLabel] = mediaType
+	return labels, nil
 }
 
 func (r *RegistryClient) GetAnnotations(b *Bundle) (map[string]string, error) {
 	if b == nil {
 		return nil, fmt.Errorf("nil bundle")
 	}
-	metadataDir := path.Join(b.BundleDir, "metadata")
+	metadataDir := path.Join(b.BundlePath, "metadata")
 	annotationsFile := path.Join(metadataDir, "annotations.yaml")
 
 	// Generate an annotations.yaml file from bundle information
@@ -55,7 +47,10 @@ func (r *RegistryClient) GetAnnotations(b *Bundle) (map[string]string, error) {
 		if f != nil && !f.IsDir() {
 			return nil, fmt.Errorf("%s already present and not a directory", metadataDir)
 		}
-		annotations := b.generateBundleAnnotations()
+		annotations, err := b.generateBundleAnnotations()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate bundle annotations: %v", err)
+		}
 		annotationsStruct := AnnotationsFile{Annotations: annotations}
 		annotationsRaw, err := yaml.Marshal(annotationsStruct)
 		if err != nil {
@@ -86,8 +81,8 @@ func (r *RegistryClient) GetAnnotations(b *Bundle) (map[string]string, error) {
 	if err := yaml.Unmarshal(annotationsRaw, &annotations); err != nil {
 		return nil, fmt.Errorf("error unmarshalling from annotations file", err)
 	}
-	b.PackageName = annotations.Annotations[packageLabel]
-	b.DefaultChannel = annotations.Annotations[defaultChannelLabel]
-	b.Channels = strings.Split(annotations.Annotations[channelsLabel], ", ")
+	b.PackageName = annotations.Annotations[bundle.PackageLabel]
+	b.DefaultChannel = annotations.Annotations[bundle.ChannelDefaultLabel]
+	b.Channels = strings.Split(annotations.Annotations[bundle.ChannelsLabel], ", ")
 	return annotations.Annotations, nil
 }

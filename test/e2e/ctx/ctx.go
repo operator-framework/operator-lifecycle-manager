@@ -2,7 +2,7 @@ package ctx
 
 import (
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/bundle"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/utils"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -36,7 +36,7 @@ type TestContext struct {
 	// client is the controller-runtime client -- we should use this from now on
 	client controllerclient.Client
 
-	RegistryClient *bundle.RegistryClient
+	RegistryClient *utils.RegistryClient
 }
 
 // Ctx returns a pointer to the global test context. During parallel

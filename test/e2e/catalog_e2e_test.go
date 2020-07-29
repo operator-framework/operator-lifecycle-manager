@@ -5,6 +5,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/utils"
 	"net"
 	"os"
 	"reflect"
@@ -450,9 +451,12 @@ var _ = Describe("Catalog", func() {
 
 		// Replicate catalog pods with no OwnerReferences
 		mainCopy := replicateCatalogPod(GinkgoT(), c, mainSource)
-		mainCopy = awaitPod(GinkgoT(), c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
+		mainCopy, err = utils.AwaitPod(c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
+		require.NoError(GinkgoT(), err)
+
 		replacementCopy := replicateCatalogPod(GinkgoT(), c, replacementSource)
-		replacementCopy = awaitPod(GinkgoT(), c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
+		replacementCopy, err = utils.AwaitPod(c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
+		require.NoError(GinkgoT(), err)
 
 		addressSourceName := genName("address-catalog-")
 
@@ -662,14 +666,15 @@ var _ = Describe("Catalog", func() {
 		var registryURL string
 		var registryAuth string
 		if local {
-			registryURL, err = CreateDockerRegistry(c, testNamespace)
+			registryURL, err = utils.CreateDockerRegistry(c, testNamespace)
 			if err != nil {
 				GinkgoT().Fatalf("error creating container registry: %s", err)
 			}
-			defer DeleteDockerRegistry(c, testNamespace)
+			defer utils.DeleteDockerRegistry(c, testNamespace)
 
 			// ensure registry pod is ready before attempting port-forwarding
-			_ = awaitPod(GinkgoT(), c, testNamespace, RegistryName, podReady)
+			_, err = utils.AwaitPod(c, testNamespace, RegistryName, utils.PodReady)
+			require.NoError(GinkgoT(), err)
 
 			err = RegistryPortForward(testNamespace)
 			if err != nil {
@@ -702,10 +707,10 @@ var _ = Describe("Catalog", func() {
 				GinkgoT().Fatalf("error creating Skopeo pod: %s", err)
 			}
 
-			// wait for Skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			_, err = utils.AwaitPod(c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
+			require.NoError(GinkgoT(), err)
 
 			err = DeleteSkopeoPod(c, testNamespace)
 			if err != nil {
@@ -798,9 +803,10 @@ var _ = Describe("Catalog", func() {
 			}
 
 			// wait for Skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			_, err = utils.AwaitPod(c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
+			require.NoError(GinkgoT(), err)
 
 			err = DeleteSkopeoPod(c, testNamespace)
 			if err != nil {

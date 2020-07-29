@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/utils"
 	"reflect"
 	"strings"
 	"time"
@@ -149,7 +150,7 @@ func podCount(count int) podsCheckFunc {
 // podsReady returns true if all of the pods in the given PodList have a ready condition with ConditionStatus "True"; false otherwise.
 func podsReady(pods *corev1.PodList) bool {
 	for _, pod := range pods.Items {
-		if !podReady(&pod) {
+		if !utils.PodReady(&pod) {
 			return false
 		}
 	}
@@ -163,38 +164,6 @@ type podCheckFunc func(pod *corev1.Pod) bool
 // hasPodIP returns true if the given Pod has a PodIP.
 func hasPodIP(pod *corev1.Pod) bool {
 	return pod.Status.PodIP != ""
-}
-
-// podReady returns true if the given Pod has a ready condition with ConditionStatus "True"; false otherwise.
-func podReady(pod *corev1.Pod) bool {
-	var status corev1.ConditionStatus
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type != corev1.PodReady {
-			// Ignore all condition other than PodReady
-			continue
-		}
-
-		// Found PodReady condition
-		status = condition.Status
-		break
-	}
-
-	return status == corev1.ConditionTrue
-}
-
-func awaitPod(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, name string, checkPod podCheckFunc) *corev1.Pod {
-	var pod *corev1.Pod
-	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		p, err := c.KubernetesInterface().CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		pod = p
-		return checkPod(pod), nil
-	})
-	require.NoError(t, err)
-
-	return pod
 }
 
 func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error), expected map[string]string) error {

@@ -1,4 +1,4 @@
-package bundle
+package utils
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 // podCheckFunc describes a function that returns true if the given Pod meets some criteria; false otherwise.
 type podCheckFunc func(pod *corev1.Pod) bool
 
-func awaitPod(client operatorclient.ClientInterface, namespace, podName string, checkPod podCheckFunc) (*corev1.Pod, error) {
+func AwaitPod(client operatorclient.ClientInterface, namespace, podName string, checkPod podCheckFunc) (*corev1.Pod, error) {
 	var pod *corev1.Pod
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		p, err := client.KubernetesInterface().CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
@@ -54,7 +54,7 @@ func Local(client operatorclient.ClientInterface) (bool, error) {
 }
 
 // podReady returns true if the given Pod has a ready condition with ConditionStatus "True"; false otherwise.
-func podReady(pod *corev1.Pod) bool {
+func PodReady(pod *corev1.Pod) bool {
 	var status corev1.ConditionStatus
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type != corev1.PodReady {

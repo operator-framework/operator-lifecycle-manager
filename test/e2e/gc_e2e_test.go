@@ -3,7 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/bundle"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/utils"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
@@ -302,17 +302,17 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				// imageName  = "quay.io/olmtest/single-bundle-index:objects"
 			)
 
-			b := &bundle.Bundle{
+			b := &utils.Bundle{
 				PackageName:         "busybox",
-				Tag:                 "objects",
-				BundleURLPath:       "olmtest/single-bundle-index",
-				BundleDir:           "testdata/busybox.single_index.v2.0.0/",
+				Tag:                 "v2.0.0",
+				BundleURLPath:       "olmtest/busybox.single_index",
+				BundlePath:           "testdata/busybox.single_index.v2.0.0/",
 				Channels:            []string{alpha},
 				DefaultChannel:      "alpha",
 				GenerateAnnotations: false,
 			}
 
-			bundleRefs, err := ctx.Ctx().RegistryClient.CreateBundles([]*bundle.Bundle{b})
+			bundleRefs, err := ctx.Ctx().RegistryClient.CreateBundles([]*utils.Bundle{b})
 			Expect(err).NotTo(HaveOccurred())
 			imageName, err := ctx.Ctx().RegistryClient.CreateIndex(indexName, indexTag, bundleRefs)
 			Expect(err).NotTo(HaveOccurred())

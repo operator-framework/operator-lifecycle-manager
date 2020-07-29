@@ -1,4 +1,4 @@
-package bundle
+package utils
 
 import (
 	"context"
@@ -11,22 +11,21 @@ import (
 	"github.com/containers/storage"
 	"github.com/containers/storage/pkg/unshare"
 	"os"
+	"path"
 	"strings"
 )
 
 type Bundle struct {
 	PackageName string
-	// Tag for the created bundle image
-	Tag string
-	// Location on the registry you want the created bundle image to be uploaded
-	BundleURLPath string
 	// location where the manifests and metadata directories can be found
-	BundleDir string
-	// custom name for a manifest directory, this should be a subdirectory within BundleDir
-	// If empty, the BundleManifestDirectory is assumed to be 'manifests/'
-	BundleManifestDirectory string
+	BundlePath string
 	Channels                []string
 	DefaultChannel          string
+	// path on the registry the created bundle image is to be uploaded.
+	// The final location of uploaded bundle will be <registry_name>/<BundleURLPath>:<Tag>
+	BundleURLPath string
+	// Tag for the created bundle image
+	Tag string
 	// When set to true, GenerateAnnotations will create the annotations.yaml file in the metadata directory
 	// from bundle information. If false, it will read the annotations.yaml to populate bundle fields
 	GenerateAnnotations bool
@@ -45,7 +44,7 @@ func getDockerImageRef(destImage string) (types.ImageReference, error) {
 }
 
 // Builds the bundle image onto local filesystem
-func buildAndUploadBundleImage(destRef, authString string, bundleContentDirectories []string, labels map[string]string) error {
+func buildAndUploadBundleImage(destRef, authString, bundlePath string, bundleContentDirectories []string, labels map[string]string) error {
 	if len(destRef) == 0 {
 		return fmt.Errorf("destination image reference must not be empty")
 	}
@@ -85,8 +84,9 @@ func buildAndUploadBundleImage(destRef, authString string, bundleContentDirector
 		b.SetLabel(k, v)
 	}
 
-	for _, copydir := range bundleContentDirectories {
-		if err := b.Add(copydir, false, buildah.AddAndCopyOptions{}, copydir); err != nil {
+	for _, dstDir := range bundleContentDirectories {
+		srcDir := path.Join(bundlePath, dstDir)
+		if err := b.Add(dstDir, false, buildah.AddAndCopyOptions{}, srcDir); err != nil {
 			return fmt.Errorf("failed to add layer: %v", err)
 		}
 	}

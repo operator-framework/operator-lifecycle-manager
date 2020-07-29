@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/containers/buildah"
 	"github.com/containers/storage/pkg/unshare"
-	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/bundle"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/utils"
 	"os"
 	"path"
 	"testing"
@@ -98,7 +98,7 @@ var _ = BeforeSuite(func() {
 	// This must be done prior to the creation of any resources, or the rerun will trigger a re-create of those without cleaning up after.
 	unshare.MaybeReexecUsingUserNamespace(false)
 
-	r, cleanup, err := bundle.InitializeRegistry(testNamespace, ctx.Ctx().KubeClient())
+	r, cleanup, err := utils.InitializeRegistry(testNamespace, ctx.Ctx().KubeClient())
 	if err != nil {
 		panic(err)
 	}

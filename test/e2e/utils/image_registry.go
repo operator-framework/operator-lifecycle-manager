@@ -1,8 +1,9 @@
-package bundle
+package utils
 
 import (
 	"fmt"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
 	"strings"
 	"time"
 )
@@ -51,7 +52,7 @@ func InitializeRegistry(testNamespace string, client operatorclient.ClientInterf
 		}()
 
 		// ensure registry pod is ready before attempting port-forwarding
-		_, err = awaitPod(client, testNamespace, RegistryName, podReady)
+		_, err = AwaitPod(client, testNamespace, RegistryName, PodReady)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to start registry pod: %v", err)
 		}
@@ -88,7 +89,10 @@ func (r *RegistryClient) CreateBundles(bundles []*Bundle) ([]string, error) {
 			return nil, fmt.Errorf("failed to get bundle annotations for %s: %v", b.PackageName, err)
 		}
 		destImageRef := fmt.Sprintf("%s/%s:%s", r.url, b.BundleURLPath, b.Tag)
-		err = buildAndUploadBundleImage(destImageRef, r.auth, []string{labels[manifestsLabel], labels[metadataLabel]}, labels)
+
+		bundleContentDirectories := []string{labels[bundle.ManifestsLabel], labels[bundle.MetadataLabel]}
+
+		err = buildAndUploadBundleImage(destImageRef, r.auth, b.BundlePath, bundleContentDirectories, labels)
 		if err != nil {
 			return nil, fmt.Errorf("build step for local bundle image failed %s: %v", b.PackageName, err)
 		}
@@ -115,6 +119,7 @@ func (r *RegistryClient) CreateIndex(indexName, indexTag string, bundleReference
 		bundleString = "\"\""
 	}
 	if local {
+		// Locally created registry does not have TLS, use docker for insecure pull
 		opmCmd := []string{"opm", "index", "add", "--tag", indexReference, "--pull-tool", "docker", "--build-tool", "docker", "--skip-tls", "--bundles", bundleString}
 		pushCmd := []string{"docker", "push", indexReference}
 		for _, cmd := range [][]string{opmCmd, pushCmd} {
