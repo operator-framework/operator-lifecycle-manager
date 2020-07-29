@@ -17,6 +17,7 @@ type Evolver interface {
 type NamespaceGenerationEvolver struct {
 	querier SourceQuerier
 	gen     Generation
+	replacements map[OperatorSurface]OperatorSurface
 }
 
 func NewNamespaceGenerationEvolver(querier SourceQuerier, gen Generation) Evolver {
@@ -44,6 +45,11 @@ func (e *NamespaceGenerationEvolver) Evolve(add map[OperatorSourceInfo]struct{})
 		return err
 	}
 
+	// if apis are missing, attempt to contract back to a good set by trying all combinations of rollbacks to updates
+	if err := e.downgradeUpdates(); err != nil {
+		return err
+	}
+
 	// for any remaining missing APIs, attempt to downgrade the operator that required them
 	// this may contract the generation back to the original set!
 	e.downgradeAPIs()
@@ -51,6 +57,8 @@ func (e *NamespaceGenerationEvolver) Evolve(add map[OperatorSourceInfo]struct{})
 }
 
 func (e *NamespaceGenerationEvolver) checkForUpdates() error {
+	e.replacements = make(map[OperatorSurface]OperatorSurface)
+
 	// maps the old operator identifier to the new operator
 	updates := EmptyOperatorSet()
 
@@ -74,6 +82,7 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 		}
 		o.SetReplaces(op.Identifier())
 		updates[op.Identifier()] = o
+		e.replacements[op] = o
 	}
 
 	// remove any operators we found updates for
@@ -153,7 +162,68 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 	return nil
 }
 
+func (e *NamespaceGenerationEvolver) downgradeUpdates() error {
+	// no need to attempt downgrades
+	if len(e.gen.MissingAPIs()) == 0 {
+		return nil
+	}
+
+	// smart downgrades are only supported if fewer than 64 updates are resolved at the same time
+	// (this should be all but pathological cases)
+	if len(e.replacements) > 64 {
+		return nil
+	}
+
+	old := make([]OperatorSurface, 0)
+	new := make([]OperatorSurface, 0)
+	for o, n := range e.replacements {
+		old = append(old, o)
+		new = append(new, n)
+	}
+	flagToIndex := make(map[uint64]int)
+	flags := make([]uint64, 0)
+	var max uint64
+	for i := 0; i < len(e.replacements); i++ {
+		var f uint64 = 1 << i
+		flags = append(flags, f)
+		max += f
+		flagToIndex[f] = i
+	}
+
+	var i uint64
+	var g Generation
+	for i = 0; i <= max; i++ {
+		g = NewEmptyGeneration()
+		for _, f := range flags {
+			idx := flagToIndex[f]
+			// if toggled, pick old
+			if f&i != 0 {
+				_ = g.AddOperator(old[idx])
+			} else {
+				_ = g.AddOperator(new[idx])
+			}
+		}
+		// we found a good set, update the real generation and quit
+		if len(g.MissingAPIs()) == 0 {
+			for _, f := range flags {
+				idx := flagToIndex[f]
+				// if toggled, remove new and add old
+				if f&i != 0 {
+					e.gen.RemoveOperator(new[idx])
+					if err := e.gen.AddOperator(old[idx]); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}
+	}
+
+	return nil
+}
+
 func (e *NamespaceGenerationEvolver) downgradeAPIs() {
+	// remove anything we can't satisfy after trying to downgrade all possible combinations
 	e.gen.ResetUnchecked()
 	for missingAPIs := e.gen.MissingAPIs(); len(missingAPIs) > 0; {
 		requirers := missingAPIs.PopAPIRequirers()
