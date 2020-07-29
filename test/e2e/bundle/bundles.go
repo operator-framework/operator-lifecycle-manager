@@ -10,30 +10,29 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
 	"github.com/containers/storage/pkg/unshare"
-	"io"
 	"os"
 	"strings"
 )
 
 type Bundle struct {
-	PackageName             string
+	PackageName string
 	// Tag for the created bundle image
-	Version                 string
+	Tag string
 	// Location on the registry you want the created bundle image to be uploaded
 	BundleURLPath string
 	// location where the manifests and metadata directories can be found
-	BundleDir               string
-	// custom name for a manifets directory
+	BundleDir string
+	// custom name for a manifest directory, this should be a subdirectory within BundleDir
+	// If empty, the BundleManifestDirectory is assumed to be 'manifests/'
 	BundleManifestDirectory string
 	Channels                []string
-	// Default Channel name.
-	DefaultChannel      string
+	DefaultChannel          string
 	// When set to true, GenerateAnnotations will create the annotations.yaml file in the metadata directory
 	// from bundle information. If false, it will read the annotations.yaml to populate bundle fields
 	GenerateAnnotations bool
 }
 
-func getDockerImageRef(destImage string) (types.ImageReference, error){
+func getDockerImageRef(destImage string) (types.ImageReference, error) {
 	ref, err := dockerreference.ParseNormalizedNamed(destImage)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse docker image reference '%s': %v", destImage, err)
@@ -45,9 +44,8 @@ func getDockerImageRef(destImage string) (types.ImageReference, error){
 	return imageRef, nil
 }
 
-
 // Builds the bundle image onto local filesystem
-func buildAndUploadBundleImage(destRef, authString string, bundleContentDirectories []string, labels map[string]string, logger *io.Writer) (error) {
+func buildAndUploadBundleImage(destRef, authString string, bundleContentDirectories []string, labels map[string]string) error {
 	if len(destRef) == 0 {
 		return fmt.Errorf("destination image reference must not be empty")
 	}
@@ -73,7 +71,6 @@ func buildAndUploadBundleImage(destRef, authString string, bundleContentDirector
 		FromImage:        "scratch",
 		Container:        containerName,
 		ConfigureNetwork: buildah.NetworkDefault,
-		ReportWriter:     *logger,
 		SystemContext:    &types.SystemContext{},
 		CommonBuildOpts:  &buildah.CommonBuildOptions{},
 	})
@@ -85,10 +82,10 @@ func buildAndUploadBundleImage(destRef, authString string, bundleContentDirector
 	}()
 
 	for k, v := range labels {
-		b.SetLabel(k,v)
+		b.SetLabel(k, v)
 	}
 
-	for _,copydir := range bundleContentDirectories {
+	for _, copydir := range bundleContentDirectories {
 		if err := b.Add(copydir, false, buildah.AddAndCopyOptions{}, copydir); err != nil {
 			return fmt.Errorf("failed to add layer: %v", err)
 		}
@@ -110,13 +107,12 @@ func buildAndUploadBundleImage(destRef, authString string, bundleContentDirector
 		username, password := getCreds(authString)
 		systemContex = &types.SystemContext{
 			DockerAuthConfig: &types.DockerAuthConfig{
-				Username:      username,
-				Password:      password,
+				Username: username,
+				Password: password,
 			},
 		}
 	}
 	_, _, _, err = b.Commit(context.TODO(), dest, buildah.CommitOptions{
-		ReportWriter:  *logger,
 		SystemContext: systemContex,
 		OmitTimestamp: true,
 	})

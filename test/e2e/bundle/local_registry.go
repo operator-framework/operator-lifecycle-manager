@@ -16,7 +16,8 @@ const (
 	defaultLocalPort = 5000
 	containerPort    = 5000
 )
-var RegistryName     = "registry"
+
+var RegistryName = "registry"
 
 func CreateDockerRegistry(client operatorclient.ClientInterface, namespace string) (string, error) {
 	registry := &corev1.Pod{
@@ -50,7 +51,7 @@ func CreateDockerRegistry(client operatorclient.ClientInterface, namespace strin
 			Selector: map[string]string{"name": RegistryName},
 			Ports: []corev1.ServicePort{
 				{
-					Port:       int32(defaultLocalPort),
+					Port: int32(defaultLocalPort),
 				},
 			},
 		},
@@ -98,7 +99,7 @@ func nextAvailableLocalPort() int {
 	if err != nil {
 		return defaultLocalPort
 	}
-	portnum, err := net.DefaultResolver.LookupPort(context.Background(), "tcp", port);
+	portnum, err := net.DefaultResolver.LookupPort(context.Background(), "tcp", port)
 	if err != nil {
 		return defaultLocalPort
 	}

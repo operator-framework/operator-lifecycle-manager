@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/bundle"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
@@ -296,8 +297,26 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		BeforeEach(func() {
 			const (
 				sourceName = "test-catalog"
-				imageName  = "quay.io/olmtest/single-bundle-index:objects"
+				indexName  = "olmtest/single-bundle-index"
+				indexTag   = "objects"
+				// imageName  = "quay.io/olmtest/single-bundle-index:objects"
 			)
+
+			b := &bundle.Bundle{
+				PackageName:         "busybox",
+				Tag:                 "objects",
+				BundleURLPath:       "olmtest/single-bundle-index",
+				BundleDir:           "testdata/busybox.single_index.v2.0.0/",
+				Channels:            []string{alpha},
+				DefaultChannel:      "alpha",
+				GenerateAnnotations: false,
+			}
+
+			bundleRefs, err := ctx.Ctx().RegistryClient.CreateBundles([]*bundle.Bundle{b})
+			Expect(err).NotTo(HaveOccurred())
+			imageName, err := ctx.Ctx().RegistryClient.CreateIndex(indexName, indexTag, bundleRefs)
+			Expect(err).NotTo(HaveOccurred())
+
 			var installPlanRef string
 
 			// create catalog source

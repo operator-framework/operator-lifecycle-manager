@@ -1,15 +1,13 @@
 package bundle
 
 import (
+	"context"
 	"fmt"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"io"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"context"
-	"os"
 	"os/exec"
 )
 
@@ -72,16 +70,12 @@ func podReady(pod *corev1.Pod) bool {
 	return status == corev1.ConditionTrue
 }
 
-func execLocal(logger io.Writer, cmd string, args ...string) error {
+func execLocal(cmd string, args ...string) error {
 	command := exec.Command(cmd, args...)
-	if logger != nil {
-		command.Stdout = logger
-		command.Stderr = logger
-	} else {
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
-	}
 	if err := command.Run(); err != nil {
+		if execErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("%v: %s", err, string(execErr.Stderr))
+		}
 		return err
 	}
 	return nil

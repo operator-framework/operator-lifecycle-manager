@@ -4,6 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/containers/buildah"
+	"github.com/containers/storage/pkg/unshare"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/bundle"
 	"os"
 	"path"
 	"testing"
@@ -49,6 +52,9 @@ func TestEndToEnd(t *testing.T) {
 	SetDefaultEventuallyTimeout(1 * time.Minute)
 	SetDefaultEventuallyPollingInterval(1 * time.Second)
 
+	if buildah.InitReexec() {
+		return
+	}
 	if junitDir := os.Getenv("JUNIT_DIRECTORY"); junitDir != "" {
 		junitReporter := reporters.NewJUnitReporter(path.Join(junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
 		RunSpecsWithDefaultAndCustomReporters(t, "End-to-end", []Reporter{junitReporter})
@@ -87,6 +93,19 @@ var _ = BeforeSuite(func() {
 			panic(err)
 		}
 	}
+
+	// This step reruns execution in a different user namespace
+	// This must be done prior to the creation of any resources, or the rerun will trigger a re-create of those without cleaning up after.
+	unshare.MaybeReexecUsingUserNamespace(false)
+
+	r, cleanup, err := bundle.InitializeRegistry(testNamespace, ctx.Ctx().KubeClient())
+	if err != nil {
+		panic(err)
+	}
+
+	deprovision = cleanup
+	ctx.Ctx().RegistryClient = r
+
 })
 
 var _ = AfterSuite(func() {

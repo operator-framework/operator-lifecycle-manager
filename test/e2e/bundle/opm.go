@@ -14,7 +14,7 @@ const (
 	shFlag     = "-c"
 )
 
-func (r *Registry) runIndexBuilderPod(argString string) error {
+func (r *RegistryClient) runIndexBuilderPod(argString string) error {
 	cmd := []string{shCommand, shFlag, argString}
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -25,8 +25,8 @@ func (r *Registry) runIndexBuilderPod(argString string) error {
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:  opmPodName,
-					Image: opmImage,
+					Name:    opmPodName,
+					Image:   opmImage,
 					Command: cmd,
 				},
 			},
@@ -50,4 +50,3 @@ func (r *Registry) runIndexBuilderPod(argString string) error {
 	}
 	return nil
 }
-

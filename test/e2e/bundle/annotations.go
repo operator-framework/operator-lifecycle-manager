@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	mediatypeLabel = "operators.operatorframework.io.bundle.mediatype.v1"
-	manifestsLabel = "operators.operatorframework.io.bundle.manifests.v1"
-	metadataLabel = "operators.operatorframework.io.bundle.metadata.v1"
-	packageLabel = "operators.operatorframework.io.bundle.package.v1"
-	channelsLabel = "operators.operatorframework.io.bundle.channels.v1"
+	mediatypeLabel      = "operators.operatorframework.io.bundle.mediatype.v1"
+	manifestsLabel      = "operators.operatorframework.io.bundle.manifests.v1"
+	metadataLabel       = "operators.operatorframework.io.bundle.metadata.v1"
+	packageLabel        = "operators.operatorframework.io.bundle.package.v1"
+	channelsLabel       = "operators.operatorframework.io.bundle.channels.v1"
 	defaultChannelLabel = "operators.operatorframework.io.bundle.channel.default.v1"
-	mediatypeRegistry = "registry+v1"
+	mediatypeRegistry   = "registry+v1"
 )
 
 type AnnotationsFile struct {
@@ -33,14 +33,11 @@ func (b *Bundle) generateBundleAnnotations() map[string]string {
 	labels[manifestsLabel] = b.BundleManifestDirectory
 	labels[metadataLabel] = "metadata/"
 	labels[defaultChannelLabel] = b.DefaultChannel
-	if len(b.DefaultChannel) != 0 && len(b.Channels) == 0 {
-		b.Channels = []string{b.DefaultChannel}
-	}
-	labels[channelsLabel] = strings.Join(b.Channels,",")
+	labels[channelsLabel] = strings.Join(b.Channels, ",")
 	return labels
 }
 
-func (r *Registry) GetAnnotations(b *Bundle) (map[string]string, error){
+func (r *RegistryClient) GetAnnotations(b *Bundle) (map[string]string, error) {
 	if b == nil {
 		return nil, fmt.Errorf("nil bundle")
 	}
@@ -49,7 +46,6 @@ func (r *Registry) GetAnnotations(b *Bundle) (map[string]string, error){
 
 	// Generate an annotations.yaml file from bundle information
 	if b.GenerateAnnotations {
-		r.logger.Debugf("generating annotations.yaml for bundle %s at %s", b.PackageName, annotationsFile)
 		f, err := os.Stat(metadataDir)
 		if os.IsNotExist(err) {
 			if err := os.MkdirAll(metadataDir, 0755); err != nil {
