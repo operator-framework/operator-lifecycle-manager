@@ -857,6 +857,17 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// create installplan if anything updated
 	if len(updatedSubs) > 0 {
 		logger.Debug("resolution caused subscription changes, creating installplan")
+		// Finish calculating max generation by checking the existing installplans
+		installPlans, err := o.listInstallPlans(namespace)
+		if err != nil {
+			return err
+		}
+		for _, ip := range installPlans {
+			if gen := ip.Spec.Generation; gen > maxGeneration {
+				maxGeneration = gen
+			}
+		}
+
 		// any subscription in the namespace with manual approval will force generated installplans to be manual
 		// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
 		installPlanApproval := v1alpha1.ApprovalAutomatic
@@ -1208,7 +1219,7 @@ func (o *Operator) gcInstallPlans(log logrus.FieldLogger, namespace string) {
 
 	// we only consider maxDeletesPerSweep more than the allowed number of installplans for delete at one time
 	ips := allIps
-	if len(ips) > maxInstallPlanCount + maxDeletesPerSweep {
+	if len(ips) > maxInstallPlanCount+maxDeletesPerSweep {
 		ips = allIps[:maxInstallPlanCount+maxDeletesPerSweep]
 	}
 
