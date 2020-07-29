@@ -9,15 +9,14 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/sirupsen/logrus"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
+	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/sirupsen/logrus"
 )
 
 type RegistryClientProvider interface {
@@ -47,29 +46,29 @@ type OperatorCacheProvider interface {
 }
 
 type OperatorCache struct {
-	logger    logrus.FieldLogger
-	rcp       RegistryClientProvider
-	crClient  versioned.Interface
-	snapshots map[registry.CatalogKey]*CatalogSnapshot
-	ttl       time.Duration
-	sem       chan struct{}
-	m         sync.RWMutex
+	logger       logrus.FieldLogger
+	rcp          RegistryClientProvider
+	catsrcLister v1alpha1listers.CatalogSourceLister
+	snapshots    map[registry.CatalogKey]*CatalogSnapshot
+	ttl          time.Duration
+	sem          chan struct{}
+	m            sync.RWMutex
 }
 
 var _ OperatorCacheProvider = &OperatorCache{}
 
-func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, client versioned.Interface) *OperatorCache {
+func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, catsrcLister v1alpha1listers.CatalogSourceLister) *OperatorCache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
 	)
 
 	return &OperatorCache{
-		logger:    log,
-		rcp:       rcp,
-		crClient:  client,
-		snapshots: make(map[registry.CatalogKey]*CatalogSnapshot),
-		ttl:       5 * time.Minute,
-		sem:       make(chan struct{}, MaxConcurrentSnapshotUpdates),
+		logger:       log,
+		rcp:          rcp,
+		catsrcLister: catsrcLister,
+		snapshots:    make(map[registry.CatalogKey]*CatalogSnapshot),
+		ttl:          5 * time.Minute,
+		sem:          make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
 }
 
@@ -160,7 +159,7 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 
 		catsrcPriority := 0
 		// Ignoring error and treat catsrc priority as 0 if not found.
-		catsrc, err := c.crClient.OperatorsV1alpha1().CatalogSources(miss.Namespace).Get(ctx, miss.Name, v1.GetOptions{})
+		catsrc, err := c.catsrcLister.CatalogSources(miss.Namespace).Get(miss.Name)
 		if err == nil {
 			catsrcPriority = catsrc.Spec.Priority
 		}
