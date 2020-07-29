@@ -104,7 +104,15 @@ func testPackage() *operators.PackageManifest {
 						Icon: []operators.Icon{{Mediatype: "image/png", Base64Data: iconData}},
 					},
 				},
+				{
+					Name:       "alpha",
+					CurrentCSV: "csv-b",
+					CurrentCSVDesc: operators.CSVDescription{
+						Icon: []operators.Icon{{Mediatype: "image/png", Base64Data: "different-icon"}},
+					},
+				},
 			},
+			DefaultChannel: "stable",
 		},
 	}
 }

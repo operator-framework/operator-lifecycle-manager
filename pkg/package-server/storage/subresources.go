@@ -51,18 +51,29 @@ func (s *LogoStorage) Connect(ctx context.Context, name string, options runtime.
 			return
 		}
 		imgBytes, mimeType, etag := func() ([]byte, string, string) {
-			if len(pkg.Status.Channels) == 0 || len(pkg.Status.Channels[0].CurrentCSVDesc.Icon) == 0 {
-				return []byte(defaultIcon), "image/svg+xml", ""
-			} else {
-				data := pkg.Status.Channels[0].CurrentCSVDesc.Icon[0].Base64Data
-				mimeType := pkg.Status.Channels[0].CurrentCSVDesc.Icon[0].Mediatype
-				etag := `"` + strings.Join([]string{name, pkg.Status.Channels[0].Name, pkg.Status.Channels[0].CurrentCSV}, ".") + `"`
+			for _, pkgChannel := range pkg.Status.Channels {
+				if pkgChannel.Name != pkg.Status.DefaultChannel {
+					continue
+				}
+
+				desc := pkgChannel.CurrentCSVDesc
+				if len(desc.Icon) == 0 {
+					break
+				}
+
+				// The first icon is call we care about
+				icon := desc.Icon[0]
+				data := icon.Base64Data
+				mimeType := icon.Mediatype
+				etag := `"` + strings.Join([]string{name, pkgChannel.Name, pkgChannel.CurrentCSV}, ".") + `"`
 
 				reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
 				imgBytes, _ := ioutil.ReadAll(reader)
 
 				return imgBytes, mimeType, etag
 			}
+
+			return []byte(defaultIcon), "image/svg+xml", ""
 		}()
 
 		w.Header().Set("Content-Type", mimeType)
