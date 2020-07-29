@@ -422,6 +422,25 @@ func WithVersionInRange(r semver.Range) OperatorPredicate {
 	}
 }
 
+func WithLabel(label string) OperatorPredicate {
+	return func(o *Operator) bool {
+		for _, p := range o.Properties() {
+			if p.Type != opregistry.LabelType {
+				continue
+			}
+			var prop opregistry.LabelProperty
+			err := json.Unmarshal([]byte(p.Value), &prop)
+			if err != nil {
+				continue
+			}
+			if prop.Label == label {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func ProvidingAPI(api opregistry.APIKey) OperatorPredicate {
 	return func(o *Operator) bool {
 		for _, p := range o.Properties() {
