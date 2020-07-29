@@ -703,7 +703,7 @@ var _ = Describe("Catalog", func() {
 			}
 
 			// wait for Skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, Skopeo, func(pod *corev1.Pod) bool {
+			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
@@ -798,7 +798,7 @@ var _ = Describe("Catalog", func() {
 			}
 
 			// wait for Skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, Skopeo, func(pod *corev1.Pod) bool {
+			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 

@@ -13,7 +13,7 @@ import (
 
 const (
 	insecure              = "--insecure-policy=true"
-	Skopeo                = "Skopeo"
+	skopeo                = "skopeo"
 	debug                 = "--debug"
 	skipTLS               = "--dest-tls-verify=false"
 	skipCreds             = "--dest-no-creds=true"
@@ -64,14 +64,14 @@ func SkopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
 func CreateSkopeoPod(client operatorclient.ClientInterface, args []string, namespace string) error {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      Skopeo,
+			Name:      skopeo,
 			Namespace: namespace,
-			Labels:    map[string]string{"name": Skopeo},
+			Labels:    map[string]string{"name": skopeo},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:  Skopeo,
+					Name:  skopeo,
 					Image: skopeoImage,
 					Args:  args,
 				},
@@ -89,7 +89,7 @@ func CreateSkopeoPod(client operatorclient.ClientInterface, args []string, names
 }
 
 func DeleteSkopeoPod(client operatorclient.ClientInterface, namespace string) error {
-	err := client.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), Skopeo, metav1.DeleteOptions{})
+	err := client.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), skopeo, metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func DeleteSkopeoPod(client operatorclient.ClientInterface, namespace string) er
 func skopeoLocalCopy(newImage, newTag string, oldImage, oldTag string) (string, error) {
 	newImageName := fmt.Sprint(newImage, newTag)
 	oldImageName := fmt.Sprint(oldImage, oldTag)
-	cmd := exec.Command(Skopeo, debug, insecure, "copy", skipTLS, v2format, skipCreds, oldImageName, newImageName)
+	cmd := exec.Command(skopeo, debug, insecure, "copy", skipTLS, v2format, skipCreds, oldImageName, newImageName)
 
 	out, err := cmd.Output()
 	fmt.Println(string(out))
