@@ -96,9 +96,34 @@ func (r *RegistryClient) CreateBundles(bundles []*Bundle) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("build step for local bundle image failed %s: %v", b.PackageName, err)
 		}
+
+		if err := r.ValidateBundle(destImageRef); err != nil {
+			return nil, fmt.Errorf("bundle validation failed: %s: %v", destImageRef, err)
+		}
+
 		bundleRefs = append(bundleRefs, destImageRef)
 	}
 	return bundleRefs, nil
+}
+
+func (r *RegistryClient)ValidateBundle(bundleRef string) error {
+	local, err := Local(r.client)
+	if err != nil {
+		return fmt.Errorf("cannot determine cluster type")
+	}
+	if local {
+		opmCmd := []string{"opm", "alpha", "bundle", "validate", "-b", "docker", "-t", bundleRef}
+		if err := execLocal(opmCmd[0], opmCmd[1:]...); err != nil {
+			return err
+		}
+	} else {
+		opmCmd := []string{"opm", "alpha", "bundle", "validate", "-b", "podman", "-t", bundleRef}
+		argString := strings.Join(opmCmd, " ")
+		if err := r.runIndexBuilderPod(argString); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *RegistryClient) CreateIndex(indexName, indexTag string, bundleReferences []string) (string, error) {
