@@ -26,7 +26,12 @@ YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v2/
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))), /usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 KUBEBUILDER_ASSETS ?= /usr/local/kubebuilder/bin
-GOARCH := $(shell go env GOARCH)
+
+ifeq ($(shell go env GOARCH), ppc64le)
+	GOARCH := ppc64le
+else
+	GOARCH := 386
+endif
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
