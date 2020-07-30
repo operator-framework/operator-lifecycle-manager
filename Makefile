@@ -25,6 +25,8 @@ CONTROLLER_GEN := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/controller-tools/cmd/
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v2/
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))), /usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
+KUBEBUILDER_ASSETS ?= /usr/local/kubebuilder/bin
+GOARCH := $(shell go env GOARCH)
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
@@ -84,15 +86,15 @@ build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/..
 build-coverage: clean $(CMDS)
 
 build-linux: build_cmd=build
-build-linux: arch_flags=GOOS=linux GOARCH=386
+build-linux: arch_flags=GOOS=linux GOARCH=$(GOARCH)
 build-linux: clean $(CMDS)
 
 build-wait: clean bin/wait
 
 bin/wait:
-	GOOS=linux GOARCH=386 go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
+	GOOS=linux GOARCH=$(GOARCH) go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
-build-util-linux: arch_flags=GOOS=linux GOARCH=386
+build-util-linux: arch_flags=GOOS=linux GOARCH=$(GOARCH)
 build-util-linux: build-util
 
 build-util: bin/cpb
@@ -161,6 +163,7 @@ clean:
 	@rm -rf test/e2e/test-resources
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
+	@rm -rf build
 
 
 # Copy CRD manifests
