@@ -45,7 +45,7 @@ func NewGenerationFromOperators(ops ...OperatorSurface) *NamespaceGeneration {
 	return g
 }
 
-func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey) *Operator {
+func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey, dependencies []*api.Dependency) *Operator {
 	providedAPISet := EmptyAPISet()
 	requiredAPISet := EmptyAPISet()
 	providedCRDAPISet := EmptyAPISet()
@@ -72,6 +72,10 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 	}
 	b := bundle(name, pkg, channel, replaces, providedCRDAPISet, requiredCRDAPISet, providedAPIServiceAPISet, requiredAPIServiceAPISet)
 
+	deps := apiSetToDependencies(requiredCRDAPISet, requiredAPIServiceAPISet)
+	props := apiSetToProperties(requiredCRDAPISet, requiredAPIServiceAPISet)
+	deps = append(deps, dependencies...)
+
 	return &Operator{
 		providedAPIs: providedAPISet,
 		requiredAPIs: requiredAPISet,
@@ -82,9 +86,11 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 			Package:     pkg,
 			Channel:     channel,
 			StartingCSV: startingCSV,
-			Catalog:     CatalogKey{src, src + "-namespace"},
+			Catalog:     registry.CatalogKey{src, src + "-namespace"},
 		},
-		bundle: b,
+		bundle:       b,
+		dependencies: deps,
+		properties:   props,
 	}
 }
 
@@ -211,7 +217,7 @@ func u(object runtime.Object) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: unst}
 }
 
-func apiSetToGVk(crds, apis APISet) (out []*api.GroupVersionKind) {
+func apiSetToGVK(crds, apis APISet) (out []*api.GroupVersionKind) {
 	out = make([]*api.GroupVersionKind, 0)
 	for a := range crds {
 		out = append(out, &api.GroupVersionKind{
@@ -232,7 +238,102 @@ func apiSetToGVk(crds, apis APISet) (out []*api.GroupVersionKind) {
 	return
 }
 
-func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet) *api.Bundle {
+func apiSetToDependencies(crds, apis APISet) (out []*api.Dependency) {
+	if len(crds)+len(apis) == 0 {
+		return nil
+	}
+	out = make([]*api.Dependency, 0)
+	for a := range crds {
+		val, err := json.Marshal(opregistry.GVKDependency{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Dependency{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKDependency{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Dependency{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return
+}
+
+func apiSetToProperties(crds, apis APISet) (out []*api.Property) {
+	out = make([]*api.Property, 0)
+	for a := range crds {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return
+}
+
+type bundleOpt func(*api.Bundle)
+
+func withSkipRange(skipRange string) bundleOpt {
+	return func(b *api.Bundle) {
+		b.SkipRange = skipRange
+	}
+}
+
+func withSkips(skips []string) bundleOpt {
+	return func(b *api.Bundle) {
+		b.Skips = skips
+	}
+}
+
+func withVersion(version string) bundleOpt {
+	return func(b *api.Bundle) {
+		b.Version = version
+	}
+}
+
+func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, opts ...bundleOpt) *api.Bundle {
 	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil))
 	if err != nil {
 		panic(err)
@@ -247,16 +348,23 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		objs = append(objs, string(crdJson))
 	}
 
-	return &api.Bundle{
+	b := &api.Bundle{
 		CsvName:      name,
 		PackageName:  pkg,
 		ChannelName:  channel,
 		CsvJson:      string(csvJson),
 		Object:       objs,
 		Version:      "0.0.0",
-		ProvidedApis: apiSetToGVk(providedCRDs, providedAPIServices),
-		RequiredApis: apiSetToGVk(requiredCRDs, requiredAPIServices),
+		ProvidedApis: apiSetToGVK(providedCRDs, providedAPIServices),
+		RequiredApis: apiSetToGVK(requiredCRDs, requiredAPIServices),
+		Replaces:     replaces,
+		Dependencies: apiSetToDependencies(requiredCRDs, requiredAPIServices),
+		Properties:   apiSetToProperties(providedCRDs, providedAPIServices),
 	}
+	for _, f := range opts {
+		f(b)
+	}
+	return b
 }
 
 func stripManifests(bundle *api.Bundle) *api.Bundle {
@@ -300,8 +408,8 @@ func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, re
 		ChannelName:  channel,
 		CsvJson:      string(csvJson),
 		Object:       objs,
-		ProvidedApis: apiSetToGVk(providedCRDs, providedAPIServices),
-		RequiredApis: apiSetToGVk(requiredCRDs, requiredAPIServices),
+		ProvidedApis: apiSetToGVK(providedCRDs, providedAPIServices),
+		RequiredApis: apiSetToGVK(requiredCRDs, requiredAPIServices),
 	}
 }
 
@@ -311,8 +419,8 @@ func withReplaces(operator *Operator, replaces string) *Operator {
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
-	sources := map[CatalogKey]registry.ClientInterface{}
+func NewFakeSourceQuerier(bundlesByCatalog map[registry.CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
+	sources := map[registry.CatalogKey]registry.ClientInterface{}
 	for catKey, bundles := range bundlesByCatalog {
 		source := &fakes.FakeClientInterface{}
 		source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
@@ -347,12 +455,7 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *Namesp
 
 		source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*api.Bundle, error) {
 			for _, b := range bundles {
-				csv, err := V1alpha1CSVFromBundle(b)
-				if err != nil {
-					panic(err)
-				}
-				replaces := csv.Spec.Replaces
-				if replaces == bundleName && b.ChannelName == channelName && b.PackageName == packageName {
+				if b.Replaces == bundleName && b.ChannelName == channelName && b.PackageName == packageName {
 					return b, nil
 				}
 			}
@@ -445,8 +548,8 @@ func getPkgName(pkgChan string) string {
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
-	sources := map[CatalogKey]registry.ClientInterface{}
+func NewFakeSourceQuerierCustomReplacement(catKey registry.CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
+	sources := map[registry.CatalogKey]registry.ClientInterface{}
 	source := &fakes.FakeClientInterface{}
 	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")

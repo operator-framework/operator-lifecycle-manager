@@ -20,7 +20,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	"github.com/operator-framework/operator-registry/pkg/registry"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
@@ -378,7 +377,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 		plural := nameGroupPair[0]
 		group := nameGroupPair[1]
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
-		key := registry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
+		key := opregistry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
 		for suffix, verbs := range VerbsForSuffix {
 			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, group, plural, nil, crd, key); err != nil {
 				return err
@@ -395,7 +394,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion)
 			return fmt.Errorf("apiservice %q not found: %s", svcName, err.Error())
 		}
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
-		key := registry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
+		key := opregistry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
 		for suffix, verbs := range VerbsForSuffix {
 			if err := a.ensureProvidedAPIClusterRole(namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key); err != nil {
 				return err

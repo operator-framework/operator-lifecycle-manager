@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"math"
 	"math/big"
 	"reflect"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
-	"github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -843,7 +843,7 @@ func TestTransitionCSV(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
 
-	apiHash, err := resolver.APIKeyToGVKHash(registry.APIKey{Group: "g1", Version: "v1", Kind: "c1"})
+	apiHash, err := resolver.APIKeyToGVKHash(opregistry.APIKey{Group: "g1", Version: "v1", Kind: "c1"})
 	require.NoError(t, err)
 
 	defaultOperatorGroup := &v1.OperatorGroup{

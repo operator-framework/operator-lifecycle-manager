@@ -3,8 +3,9 @@ package v1
 import (
 	"encoding/json"
 
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 const (
@@ -68,7 +69,7 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion, csvJSON 
 func GetImages(csvJSON string) []string {
 	var images []string
 
-	csv := &registry.ClusterServiceVersion{}
+	csv := &opregistry.ClusterServiceVersion{}
 	err := json.Unmarshal([]byte(csvJSON), &csv)
 	if err != nil {
 		return images

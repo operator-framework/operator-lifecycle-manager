@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
@@ -44,9 +45,11 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -89,9 +92,10 @@ type Operator struct {
 	ipQueueSet               *queueinformer.ResourceQueueSet
 	nsResolveQueue           workqueue.RateLimitingInterface
 	namespace                string
+	recorder                 record.EventRecorder
 	sources                  *grpc.SourceStore
 	sourcesLastUpdate        sharedtime.SharedTime
-	resolver                 resolver.Resolver
+	resolver                 resolver.StepResolver
 	reconciler               reconciler.RegistryReconcilerFactory
 	csvProvidedAPIsIndexer   map[string]cache.Indexer
 	catalogSubscriberIndexer map[string]cache.Indexer
@@ -103,7 +107,7 @@ type Operator struct {
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string) (*Operator, error) {
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string, resolverV2Enable bool) (*Operator, error) {
 	resyncPeriod := queueinformer.ResyncWithJitter(resync, 0.2)
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
@@ -132,9 +136,12 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Create an OperatorLister
 	lister := operatorlister.NewLister()
 
-	operatorV1alpha1Resolver := resolver.NewOperatorsV1alpha1Resolver(lister, crClient, opClient.KubernetesInterface())
-	successMetricsEmitter := metrics.RegisterDependencyResolutionSuccess
-	failureMetricsEmitter := metrics.RegisterDependencyResolutionFailure
+	// eventRecorder can emit events
+	eventRecorder, err := event.NewRecorder(opClient.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll))
+	if err != nil {
+		return nil, err
+	}
+
 	// Allocate the new instance of an Operator.
 	op := &Operator{
 		Operator:                 queueOperator,
@@ -145,7 +152,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		client:                   crClient,
 		lister:                   lister,
 		namespace:                operatorNamespace,
-		resolver:                 resolver.NewInstrumentedResolver(operatorV1alpha1Resolver, successMetricsEmitter, failureMetricsEmitter),
+		recorder:                 eventRecorder,
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
@@ -156,6 +163,13 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
+	var res resolver.StepResolver
+	if resolverV2Enable {
+		res = resolver.NewOperatorStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, op.sources, logger)
+	} else {
+		res = resolver.NewLegacyResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace)
+	}
+	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
 	// Wire OLM CR sharedIndexInformers
 	crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, resyncPeriod())
@@ -379,6 +393,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	switch state.State {
 	case connectivity.Ready:
+		o.resolver.Expire(state.Key)
 		if o.namespace == state.Key.Namespace {
 			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
 				state.Key.Name, state.Key.Namespace)
@@ -391,10 +406,9 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 		}
 
 		o.nsResolveQueue.Add(state.Key.Namespace)
-	default:
-		if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
-			o.logger.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
-		}
+	}
+	if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
+		o.logger.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
 	}
 }
 
@@ -488,7 +502,7 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 			}
 		}
 	}
-	sourceKey := resolver.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
+	sourceKey := registry.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
 	if err := o.sources.Remove(sourceKey); err != nil {
 		o.logger.WithError(err).Warn("error closing client")
 	}
@@ -575,7 +589,7 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error) {
 	out = in.DeepCopy()
 
-	sourceKey := resolver.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
+	sourceKey := registry.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
 	srcReconciler := o.reconciler.ReconcilerForSource(in)
 	if srcReconciler == nil {
 		// TODO: Add failure status on catalogsource and remove from sources
@@ -623,7 +637,7 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error) {
 	out = in.DeepCopy()
 
-	sourceKey := resolver.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
+	sourceKey := registry.CatalogKey{Name: in.GetName(), Namespace: in.GetNamespace()}
 	// update operator's view of sources
 	now := o.now()
 	address := in.Address()
@@ -851,6 +865,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
 	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
 	if err != nil {
+		go o.recorder.Event(ns, corev1.EventTypeWarning,"ResolutionFailed", err.Error())
 		return err
 	}
 
@@ -975,7 +990,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		if err := querier.Queryable(); err != nil {
 			return nil, false, err
 		}
-		b, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
+		b, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, registry.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
 		if b != nil {
 			o.logger.Tracef("replacement %s bundle found for current bundle %s", b.CsvName, sub.Status.CurrentCSV)
 			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable

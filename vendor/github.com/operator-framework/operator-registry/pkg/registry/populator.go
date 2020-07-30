@@ -2,7 +2,6 @@ package registry
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -19,7 +18,7 @@ import (
 )
 
 type Dependencies struct {
-	RawMessage []map[string]string `json:"dependencies" yaml:"dependencies"`
+	RawMessage []map[string]interface{} `json:"dependencies" yaml:"dependencies"`
 }
 
 // DirectoryPopulator loads an unpacked operator bundle from a directory into the database.
@@ -64,7 +63,50 @@ func (i *DirectoryPopulator) Populate(mode Mode) error {
 	return nil
 }
 
+func (i *DirectoryPopulator) globalSanityCheck(imagesToAdd []*ImageInput) error {
+	var errs []error
+	images := make(map[string]struct{})
+	for _, image := range imagesToAdd {
+		images[image.bundle.BundleImage] = struct{}{}
+	}
+
+	for _, image := range imagesToAdd {
+		bundlePaths, err := i.querier.GetBundlePathsForPackage(context.TODO(), image.bundle.Package)
+		if err != nil {
+			// Assume that this means that the bundle is empty
+			// Or that this is the first time the package is loaded.
+			return nil
+		}
+		for _, bundlePath := range bundlePaths {
+			if _, ok := images[bundlePath]; ok {
+				errs = append(errs, BundleImageAlreadyAddedErr{ErrorString: fmt.Sprintf("Bundle %s already exists", image.bundle.BundleImage)})
+				continue
+			}
+		}
+		for _, channel := range image.bundle.Channels {
+			bundle, err := i.querier.GetBundle(context.TODO(), image.bundle.Package, channel, image.bundle.csv.GetName())
+			if err != nil {
+				// Assume that if we can not find a bundle for the package, channel and or CSV Name that this is safe to add
+				continue
+			}
+			if bundle != nil {
+				// raise error that this package + channel + csv combo is already in the db
+				errs = append(errs, PackageVersionAlreadyAddedErr{ErrorString: "Bundle already added that provides package and csv"})
+				break
+			}
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
 func (i *DirectoryPopulator) loadManifests(imagesToAdd []*ImageInput, mode Mode) error {
+	// global sanity checks before insertion
+	err := i.globalSanityCheck(imagesToAdd)
+	if err != nil {
+		return err
+	}
+
 	switch mode {
 	case ReplacesMode:
 		// TODO: This is relatively inefficient. Ideally, we should be able to use a replaces
@@ -370,36 +412,4 @@ func DecodeFile(path string, into interface{}) error {
 	decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
 
 	return decoder.Decode(into)
-}
-
-func parseDependenciesFile(path string, depFile *DependenciesFile) error {
-	deps := Dependencies{}
-	err := DecodeFile(path, &deps)
-	if err != nil || len(deps.RawMessage) == 0 {
-		return fmt.Errorf("Unable to decode the dependencies file %s", path)
-	}
-	depList := []Dependency{}
-	for _, v := range deps.RawMessage {
-		// convert map to json
-		jsonStr, _ := json.Marshal(v)
-
-		// Check dependency type
-		dep := Dependency{}
-		err := json.Unmarshal(jsonStr, &dep)
-		if err != nil {
-			return err
-		}
-
-		switch dep.GetType() {
-		case GVKType, PackageType:
-			dep.Value = string(jsonStr)
-		default:
-			return fmt.Errorf("Unsupported dependency type %s", dep.GetType())
-		}
-		depList = append(depList, dep)
-	}
-
-	depFile.Dependencies = depList
-
-	return nil
 }

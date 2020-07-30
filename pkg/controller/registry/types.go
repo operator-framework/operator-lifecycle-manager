@@ -1,10 +1,42 @@
 package registry
 
+import "fmt"
+
 const (
 	ConfigMapCRDName     = "customResourceDefinitions"
 	ConfigMapCSVName     = "clusterServiceVersions"
 	ConfigMapPackageName = "packages"
+	ExistingOperatorKey  = "@existing"
 )
+
+type CatalogKey struct {
+	Name      string
+	Namespace string
+}
+
+func (k *CatalogKey) String() string {
+	return fmt.Sprintf("%s/%s", k.Name, k.Namespace)
+}
+
+func (k *CatalogKey) Empty() bool {
+	return k.Name == "" && k.Namespace == ""
+}
+
+func (k *CatalogKey) Equal(compare CatalogKey) bool {
+	return k.Name == compare.Name && k.Namespace == compare.Namespace
+}
+
+// Virtual indicates if this is a "virtual" catalog representing the currently installed operators in a namespace
+func (k *CatalogKey) Virtual() bool {
+	return k.Name == ExistingOperatorKey && k.Namespace != ""
+}
+
+func NewVirtualCatalogKey(namespace string) CatalogKey {
+	return CatalogKey{
+		Name: ExistingOperatorKey,
+		Namespace: namespace,
+	}
+}
 
 // ResourceKey contains metadata to uniquely identify a resource
 type ResourceKey struct {

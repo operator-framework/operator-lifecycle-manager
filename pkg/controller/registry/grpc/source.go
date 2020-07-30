@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"github.com/operator-framework/operator-registry/pkg/client"
 	"sync"
 	"time"
 
@@ -10,8 +11,6 @@ import (
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -22,7 +21,7 @@ type SourceMeta struct {
 }
 
 type SourceState struct {
-	Key   resolver.CatalogKey
+	Key   registry.CatalogKey
 	State connectivity.State
 }
 
@@ -34,7 +33,7 @@ type SourceConn struct {
 
 type SourceStore struct {
 	sync.Once
-	sources      map[resolver.CatalogKey]SourceConn
+	sources      map[registry.CatalogKey]SourceConn
 	sourcesLock  sync.RWMutex
 	syncFn       func(SourceState)
 	logger       *logrus.Logger
@@ -45,7 +44,7 @@ type SourceStore struct {
 
 func NewSourceStore(logger *logrus.Logger, timeout, readyTimeout time.Duration, sync func(SourceState)) *SourceStore {
 	return &SourceStore{
-		sources:      make(map[resolver.CatalogKey]SourceConn),
+		sources:      make(map[registry.CatalogKey]SourceConn),
 		notify:       make(chan SourceState),
 		syncFn:       sync,
 		logger:       logger,
@@ -72,7 +71,7 @@ func (s *SourceStore) Start(ctx context.Context) {
 	}()
 }
 
-func (s *SourceStore) GetMeta(key resolver.CatalogKey) *SourceMeta {
+func (s *SourceStore) GetMeta(key registry.CatalogKey) *SourceMeta {
 	s.sourcesLock.RLock()
 	source, ok := s.sources[key]
 	s.sourcesLock.RUnlock()
@@ -83,14 +82,14 @@ func (s *SourceStore) GetMeta(key resolver.CatalogKey) *SourceMeta {
 	return &source.SourceMeta
 }
 
-func (s *SourceStore) Exists(key resolver.CatalogKey) bool {
+func (s *SourceStore) Exists(key registry.CatalogKey) bool {
 	s.sourcesLock.RLock()
 	_, ok := s.sources[key]
 	s.sourcesLock.RUnlock()
 	return ok
 }
 
-func (s *SourceStore) Get(key resolver.CatalogKey) *SourceConn {
+func (s *SourceStore) Get(key registry.CatalogKey) *SourceConn {
 	s.sourcesLock.RLock()
 	source, ok := s.sources[key]
 	s.sourcesLock.RUnlock()
@@ -100,7 +99,7 @@ func (s *SourceStore) Get(key resolver.CatalogKey) *SourceConn {
 	return &source
 }
 
-func (s *SourceStore) Add(key resolver.CatalogKey, address string) (*SourceConn, error) {
+func (s *SourceStore) Add(key registry.CatalogKey, address string) (*SourceConn, error) {
 	_ = s.Remove(key)
 
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
@@ -135,7 +134,7 @@ func (s *SourceStore) stateTimeout(state connectivity.State) time.Duration {
 	return s.timeout
 }
 
-func (s *SourceStore) watch(ctx context.Context, key resolver.CatalogKey, source SourceConn) {
+func (s *SourceStore) watch(ctx context.Context, key registry.CatalogKey, source SourceConn) {
 	state := source.ConnectionState
 	for {
 		select {
@@ -170,7 +169,7 @@ func (s *SourceStore) watch(ctx context.Context, key resolver.CatalogKey, source
 	}
 }
 
-func (s *SourceStore) Remove(key resolver.CatalogKey) error {
+func (s *SourceStore) Remove(key registry.CatalogKey) error {
 	s.sourcesLock.RLock()
 	source, ok := s.sources[key]
 	s.sourcesLock.RUnlock()
@@ -190,8 +189,8 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]registry.ClientInterface {
-	refs := map[resolver.CatalogKey]registry.ClientInterface{}
+func (s *SourceStore) AsClients(namespaces ...string) map[registry.CatalogKey]registry.ClientInterface {
+	refs := map[registry.CatalogKey]registry.ClientInterface{}
 	s.sourcesLock.RLock()
 	defer s.sourcesLock.RUnlock()
 	for key, source := range s.sources {
@@ -201,6 +200,25 @@ func (s *SourceStore) AsClients(namespaces ...string) map[resolver.CatalogKey]re
 		for _, namespace := range namespaces {
 			if key.Namespace == namespace {
 				refs[key] = registry.NewClientFromConn(source.Conn)
+			}
+		}
+	}
+
+	// TODO : remove unhealthy
+	return refs
+}
+
+func (s *SourceStore) ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface {
+	refs := map[registry.CatalogKey]client.Interface{}
+	s.sourcesLock.RLock()
+	defer s.sourcesLock.RUnlock()
+	for key, source := range s.sources {
+		if source.LastConnect.IsZero() {
+			continue
+		}
+		for _, namespace := range namespaces {
+			if key.Namespace == namespace {
+				refs[key] = client.NewClientFromConn(source.Conn)
 			}
 		}
 	}

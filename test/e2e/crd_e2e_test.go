@@ -32,7 +32,6 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		crdPlural := genName("ins-v1beta1-")
 		crdName := crdPlural + ".cluster.com"
@@ -65,7 +64,7 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -112,7 +111,6 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		crdPlural := genName("ins-v1beta1-")
 		crdName := crdPlural + ".cluster.com"
@@ -138,7 +136,7 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -186,7 +184,6 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		crdPlural := genName("ins-v1beta1-")
 		crdName := crdPlural + ".cluster.com"
@@ -259,8 +256,8 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		oldCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{oldCRD}, nil, mainNamedStrategy)
-		newCSV := newCSV(mainPackageAlpha, testNamespace, mainPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{newCRD}, nil, mainNamedStrategy)
+		oldCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{oldCRD}, nil, nil)
+		newCSV := newCSV(mainPackageAlpha, testNamespace, mainPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{newCRD}, nil, nil)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -345,7 +342,7 @@ var _ = Describe("CRD Versions", func() {
 	// Update the CRD status to remove the v1alpha1
 	// Now the installplan should succeed
 
-	It("allows a CRD upgrade that could have caused data loss", func() {
+	It("allows a CRD upgrade that doesn't cause data loss", func() {
 		By("manually editing the storage versions in the existing CRD status")
 
 		c := newKubeClient()
@@ -432,8 +429,7 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		catalogCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{catalogCRD}, nil, mainNamedStrategy)
+		catalogCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{catalogCRD}, nil, nil)
 
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
@@ -480,15 +476,18 @@ var _ = Describe("CRD Versions", func() {
 		GinkgoT().Logf("new crd status stored versions: %#v", newCRD.Status.StoredVersions) // only v1alpha2 should be in the status now
 
 		// install should now succeed
-		// first remove old install plan
 		oldInstallPlanRef := subscription.Status.InstallPlanRef.Name
 		err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred(), "error deleting failed install plan")
-		//remove old subscription
+		// remove old subscription
 		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(context.TODO(), subscription.GetName(), metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred(), "error deleting failed install plan")
+		Expect(err).ToNot(HaveOccurred(), "error deleting old subscription")
+		// remove old csv
+		crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainPackageStable, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred(), "error deleting old subscription")
 
-		//recreate subscription
+
+		// recreate subscription
 		subscriptionNameNew := genName("sub-nginx-update2-new-")
 		_ = createSubscriptionForCatalog(crc, testNamespace, subscriptionNameNew, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 	"strings"
 	"sync"
 	"time"
@@ -54,14 +55,9 @@ var _ = Describe("Install Plan", func() {
 
 		stableChannel := "stable"
 
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-		crdPlural := genName("ins-")
-
-		dependentCRD := newCRD(crdPlural)
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentCRD := newCRD(genName("ins-"))
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -179,7 +175,7 @@ var _ = Describe("Install Plan", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Update dependent subscription in catalog and wait for csv to update
-		updatedDependentCSV := newCSV(dependentPackageStable+"-v2", testNamespace, dependentPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		updatedDependentCSV := newCSV(dependentPackageStable+"-v2", testNamespace, dependentPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 		dependentManifests = []registry.PackageManifest{
 			{
 				PackageName: dependentPackageName,
@@ -242,21 +238,14 @@ var _ = Describe("Install Plan", func() {
 			}
 
 			// Create new CRDs
-			mainCRDPlural := genName("ins-")
-			mainCRD := newCRD(mainCRDPlural)
-
-			// Create a new named install strategy
-			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-			dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-			dependentCRDPlural := genName("ins-")
-			dependentCRD := newCRD(dependentCRDPlural)
+			mainCRD := newCRD(genName("ins-"))
+			dependentCRD := newCRD(genName("ins-"))
 
 			// Create new CSVs
-			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-			dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
-			dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+			dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+			dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 			c := newKubeClient()
 			crc := newCRClient()
@@ -364,20 +353,13 @@ var _ = Describe("Install Plan", func() {
 			}
 
 			// Create new CRDs
-			mainCRDPlural := genName("ins-")
-			mainCRD := newCRD(mainCRDPlural)
-
-			// Create a new named install strategy
-			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-			dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-			dependentCRDPlural := genName("ins-")
-			dependentCRD := newCRD(dependentCRDPlural)
+			mainCRD := newCRD(genName("ins-"))
+			dependentCRD := newCRD(genName("ins-"))
 
 			// Create new CSVs
-			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-			dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+			dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 			c := newKubeClient()
 			crc := newCRClient()
@@ -733,12 +715,9 @@ var _ = Describe("Install Plan", func() {
 				},
 			}
 
-			// Create a new named install strategy
-			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
 			// Create new CSVs
-			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{*tt.oldCRD}, nil, mainNamedStrategy)
-			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{*tt.oldCRD}, nil, mainNamedStrategy)
+			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{*tt.oldCRD}, nil, nil)
+			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{*tt.oldCRD}, nil, nil)
 
 			c := newKubeClient()
 			crc := newCRClient()
@@ -946,13 +925,10 @@ var _ = Describe("Install Plan", func() {
 				},
 			}
 
-			// Create a new named install strategy
-			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
 			// Create new CSVs
-			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{*tt.oldCRD}, nil, mainNamedStrategy)
-			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, nil, mainNamedStrategy)
-			mainDeltaCSV := newCSV(mainPackageDelta, testNamespace, mainPackageBeta, semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{*tt.newCRD}, nil, mainNamedStrategy)
+			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{*tt.oldCRD}, nil, nil)
+			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, nil, nil)
+			mainDeltaCSV := newCSV(mainPackageDelta, testNamespace, mainPackageBeta, semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{*tt.newCRD}, nil, nil)
 
 			c := newKubeClient()
 			crc := newCRClient()
@@ -1151,7 +1127,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Create the catalog sources
 			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), permissions, clusterPermissions)
-			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, &mainNamedStrategy)
 			mainCatalogName := genName("mock-ocs-amplify-")
 			mainManifests := []registry.PackageManifest{
 				{
@@ -1230,7 +1206,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Create the catalog sources
 			updatedNamedStrategy := newNginxInstallStrategy(genName("dep-"), updatedPermissions, updatedClusterPermissions)
-			updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, updatedNamedStrategy)
+			updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &updatedNamedStrategy)
 			updatedManifests := []registry.PackageManifest{
 				{
 					PackageName: mainPackageName,
@@ -1338,7 +1314,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Create the catalog sources
 			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), permissions, clusterPermissions)
-			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, &mainNamedStrategy)
 			mainCatalogName := genName("mock-ocs-main-update-perms1-")
 			mainManifests := []registry.PackageManifest{
 				{
@@ -1410,7 +1386,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Create the catalog sources
 			updatedNamedStrategy := newNginxInstallStrategy(genName("dep-"), updatedPermissions, updatedClusterPermissions)
-			updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, updatedNamedStrategy)
+			updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &updatedNamedStrategy)
 			updatedManifests := []registry.PackageManifest{
 				{
 					PackageName: mainPackageName,
@@ -1543,7 +1519,7 @@ var _ = Describe("Install Plan", func() {
 			// Create the catalog sources
 			deploymentName := genName("dep-")
 			mainNamedStrategy := newNginxInstallStrategy(deploymentName, permissions, clusterPermissions)
-			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, &mainNamedStrategy)
 			mainCatalogName := genName("mock-ocs-stomper-")
 			mainManifests := []registry.PackageManifest{
 				{
@@ -1639,7 +1615,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Create the catalog sources
 			// Updated csv has the same deployment strategy as main
-			updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
+			updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &mainNamedStrategy)
 			updatedManifests := []registry.PackageManifest{
 				{
 					PackageName: mainPackageName,
@@ -1684,8 +1660,6 @@ var _ = Describe("Install Plan", func() {
 			mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
 
 			stableChannel := "stable"
-
-			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 			crdPlural := genName("ins-update-")
 			crdName := crdPlural + ".cluster.com"
@@ -1740,8 +1714,8 @@ var _ = Describe("Install Plan", func() {
 				},
 			}
 
-			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
-			betaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{updatedCRD}, nil, mainNamedStrategy)
+			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+			betaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{updatedCRD}, nil, nil)
 
 			c := newKubeClient()
 			crc := newCRClient()
@@ -1861,8 +1835,6 @@ var _ = Describe("Install Plan", func() {
 
 			stableChannel := "stable"
 
-			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
 			crdPlural := genName("ins-update2-")
 			crdName := crdPlural + ".cluster.com"
 			mainCRD := apiextensions.CustomResourceDefinition{
@@ -1931,7 +1903,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 			defer cleanupCRD()
 
-			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
 
 			mainCatalogName := genName("mock-ocs-main-update2-")
 
@@ -2071,7 +2043,7 @@ var _ = Describe("Install Plan", func() {
 		namedStrategy := newNginxInstallStrategy(genName("dep-"), permissions, clusterPermissions)
 
 		// Create new CSVs
-		stableCSV := newCSV(stableCSVName, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+		stableCSV := newCSV(stableCSVName, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -2311,8 +2283,7 @@ var _ = Describe("Install Plan", func() {
 		packageName := genName("nginx-")
 		stableChannel := "stable"
 		packageNameStable := packageName + "-" + stableChannel
-		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		csv := newCSV(packageNameStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+		csv := newCSV(packageNameStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		// Create PackageManifests
 		manifests := []registry.PackageManifest{
@@ -2475,14 +2446,9 @@ var _ = Describe("Install Plan", func() {
 
 		stableChannel := "stable"
 
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-		crdPlural := genName("ins-")
-
-		dependentCRD := newCRD(crdPlural)
-		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentCRD := newCRD(genName("ins-"))
+		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
@@ -2613,8 +2579,7 @@ var _ = Describe("Install Plan", func() {
 		mainPackageName := genName("nginx-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, nil, nil)
 
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
@@ -2682,6 +2647,7 @@ func validateCRDVersions(t GinkgoTInterface, c operatorclient.ClientInterface, n
 
 func buildInstallPlanPhaseCheckFunc(phases ...operatorsv1alpha1.InstallPlanPhase) checkInstallPlanFunc {
 	return func(fip *operatorsv1alpha1.InstallPlan) bool {
+		ctx.Ctx().Logf("installplan is %s", fip.Status.Phase)
 		satisfiesAny := false
 		for _, phase := range phases {
 			satisfiesAny = satisfiesAny || fip.Status.Phase == phase
@@ -2810,10 +2776,18 @@ func newCRD(plural string) apiextensions.CustomResourceDefinition {
 	return crd
 }
 
-func newCSV(name, namespace, replaces string, version semver.Version, owned []apiextensions.CustomResourceDefinition, required []apiextensions.CustomResourceDefinition, namedStrategy operatorsv1alpha1.NamedInstallStrategy) operatorsv1alpha1.ClusterServiceVersion {
+func newCSV(name, namespace, replaces string, version semver.Version, owned []apiextensions.CustomResourceDefinition, required []apiextensions.CustomResourceDefinition, namedStrategy *operatorsv1alpha1.NamedInstallStrategy) operatorsv1alpha1.ClusterServiceVersion {
 	csvType = metav1.TypeMeta{
 		Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
 		APIVersion: operatorsv1alpha1.GroupVersion,
+	}
+
+	// set a simple default strategy if none given
+	var strategy operatorsv1alpha1.NamedInstallStrategy
+	if namedStrategy == nil {
+		strategy = newNginxInstallStrategy(genName("dep"), nil, nil)
+	} else {
+		strategy = *namedStrategy
 	}
 
 	csv := operatorsv1alpha1.ClusterServiceVersion{
@@ -2844,7 +2818,7 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 					Supported: true,
 				},
 			},
-			InstallStrategy: namedStrategy,
+			InstallStrategy: strategy,
 			CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 				Owned:    nil,
 				Required: nil,

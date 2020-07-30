@@ -290,8 +290,8 @@ func newCatalogSource(t GinkgoTInterface, kubeclient operatorclient.ClientInterf
 	stableChannel := "stable"
 
 	namedStrategy := newNginxInstallStrategy(genName(prefixFunc("dep")), permissions, nil)
-	csvA := newCSV("nginx-a", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-	csvB := newCSV("nginx-b", namespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvA := newCSV("nginx-a", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
+	csvB := newCSV("nginx-b", namespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
 
 	// Create PackageManifests
 	manifests := []registry.PackageManifest{
@@ -351,8 +351,8 @@ func newCatalogSourceWithDependencies(t GinkgoTInterface, kubeclient operatorcli
 	stableChannel := "stable"
 
 	namedStrategy := newNginxInstallStrategy(genName(prefixFunc("dep")), permissions, nil)
-	csvA := newCSV("nginx-req-dep", namespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
-	csvB := newCSV("nginx-dependency", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvA := newCSV("nginx-req-dep", namespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, &namedStrategy)
+	csvB := newCSV("nginx-dependency", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
 
 	// Create PackageManifests
 	manifests := []registry.PackageManifest{

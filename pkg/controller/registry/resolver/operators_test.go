@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	opver "github.com/operator-framework/api/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -712,7 +714,7 @@ func TestCatalogKey_String(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			k := &CatalogKey{
+			k := &registry.CatalogKey{
 				Name:      tt.fields.Name,
 				Namespace: tt.fields.Namespace,
 			}
@@ -877,7 +879,7 @@ func TestOperatorSourceInfo_String(t *testing.T) {
 			i := &OperatorSourceInfo{
 				Package: tt.fields.Package,
 				Channel: tt.fields.Channel,
-				Catalog: CatalogKey{tt.fields.CatalogSource, tt.fields.CatalogSourceNamespace},
+				Catalog: registry.CatalogKey{tt.fields.CatalogSource, tt.fields.CatalogSourceNamespace},
 			}
 			if got := i.String(); got != tt.want {
 				t.Errorf("OperatorSourceInfo.String() = %v, want %v", got, tt.want)
@@ -1021,6 +1023,34 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		},
 	}
 
+	bundleWithPropsAndDeps := &api.Bundle{
+		CsvName:     "testBundle",
+		PackageName: "testPackage",
+		ChannelName: "testChannel",
+		Version:     version.String(),
+		BundlePath:  "image",
+		Properties:  []*api.Property{
+			{
+				Type: "olm.gvk",
+				Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
+			},
+			{
+				Type: "olm.gvk",
+				Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
+			},
+		},
+		Dependencies: []*api.Dependency{
+			{
+				Type: "olm.gvk",
+				Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
+			},
+			{
+				Type: "olm.gvk",
+				Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
+			},
+		},
+	}
+
 	bundleWithAPIsUnextracted := &api.Bundle{
 		CsvName:     "testBundle",
 		PackageName: "testPackage",
@@ -1030,9 +1060,10 @@ func TestNewOperatorFromBundle(t *testing.T) {
 	}
 
 	type args struct {
-		bundle    *api.Bundle
-		sourceKey CatalogKey
-		replaces  string
+		bundle         *api.Bundle
+		sourceKey      registry.CatalogKey
+		replaces       string
+		defaultChannel string
 	}
 	tests := []struct {
 		name    string
@@ -1044,7 +1075,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleNoAPIs",
 			args: args{
 				bundle:    bundleNoAPIs,
-				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				// lack of full api response falls back to csv name
@@ -1056,7 +1087,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: CatalogKey{"source", "testNamespace"},
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1064,7 +1095,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleWithAPIs",
 			args: args{
 				bundle:    bundleWithAPIs,
-				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				name:    "testBundle",
@@ -1097,11 +1128,31 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Plural:  "requiredapis",
 					}: struct{}{},
 				},
+				properties:  []*api.Property{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
+					},
+				},
+				dependencies: []*api.Dependency{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
+					},
+				},
 				bundle: bundleWithAPIs,
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: CatalogKey{"source", "testNamespace"},
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1109,7 +1160,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleReplaceOverrides",
 			args: args{
 				bundle:    bundleNoAPIs,
-				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				// lack of full api response falls back to csv name
@@ -1121,7 +1172,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: CatalogKey{"source", "testNamespace"},
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
@@ -1129,7 +1180,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleCsvFallback",
 			args: args{
 				bundle:    bundleWithAPIsUnextracted,
-				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				name: "testCSV",
@@ -1161,20 +1212,123 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Plural:  "requiredapis",
 					}: struct{}{},
 				},
+				properties:  []*api.Property{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
+					},
+				},
+				dependencies: []*api.Dependency{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
+					},
+				},
 				bundle:  bundleWithAPIsUnextracted,
 				version: &version.Version,
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: CatalogKey{"source", "testNamespace"},
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
+				},
+			},
+		},
+		{
+			name: "bundle in default channel",
+			args: args{
+				bundle:         bundleNoAPIs,
+				sourceKey:      registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+				defaultChannel: "testChannel",
+			},
+			want: &Operator{
+				name:         "testCSV",
+				version:      &version.Version,
+				providedAPIs: EmptyAPISet(),
+				requiredAPIs: EmptyAPISet(),
+				bundle:       bundleNoAPIs,
+				sourceInfo: &OperatorSourceInfo{
+					Package:        "testPackage",
+					Channel:        "testChannel",
+					Catalog:        registry.CatalogKey{"source", "testNamespace"},
+					DefaultChannel: true,
+				},
+			},
+		},
+		{
+			name: "BundleNoAPIs",
+			args: args{
+				bundle:    bundleNoAPIs,
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+			},
+			want: &Operator{
+				// lack of full api response falls back to csv name
+				name:         "testCSV",
+				version:      &version.Version,
+				providedAPIs: EmptyAPISet(),
+				requiredAPIs: EmptyAPISet(),
+				bundle:       bundleNoAPIs,
+				sourceInfo: &OperatorSourceInfo{
+					Package: "testPackage",
+					Channel: "testChannel",
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
+				},
+			},
+		},
+		{
+			name: "BundleWithPropertiesAndDependencies",
+			args: args{
+				bundle:    bundleWithPropsAndDeps,
+				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+			},
+			want: &Operator{
+				name:    "testBundle",
+				version: &version.Version,
+				providedAPIs: EmptyAPISet(),
+				requiredAPIs: EmptyAPISet(),
+				properties:  []*api.Property{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
+					},
+				},
+				dependencies: []*api.Dependency{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
+					},
+				},
+				bundle: bundleWithPropsAndDeps,
+				sourceInfo: &OperatorSourceInfo{
+					Package: "testPackage",
+					Channel: "testChannel",
+					Catalog: registry.CatalogKey{"source", "testNamespace"},
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey)
+			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey, tt.args.defaultChannel)
 			require.Equal(t, tt.wantErr, err)
+			require.ElementsMatch(t, tt.want.dependencies, got.dependencies)
+			require.ElementsMatch(t, tt.want.properties, got.properties)
+			tt.want.properties, tt.want.dependencies, got.dependencies, got.properties = nil,nil,nil,nil
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -1248,6 +1402,16 @@ func TestNewOperatorFromCSV(t *testing.T) {
 					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 				},
+				properties: []*api.Property{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
+					},
+				},
 				requiredAPIs: EmptyAPISet(),
 				sourceInfo:   &ExistingOperator,
 				version:      &version.Version,
@@ -1290,6 +1454,16 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				requiredAPIs: map[opregistry.APIKey]struct{}{
 					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
+				},
+				dependencies: []*api.Dependency{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
+					},
 				},
 				sourceInfo: &ExistingOperator,
 				version:    &version.Version,
@@ -1351,6 +1525,26 @@ func TestNewOperatorFromCSV(t *testing.T) {
 					{Group: "g2", Version: "v1", Kind: "APIReqKind", Plural: "apireqkinds"}: {},
 					{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 				},
+				properties: []*api.Property{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"APIOwnedKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"CRDOwnedKind\",\"version\":\"v1\"}",
+					},
+				},
+				dependencies: []*api.Dependency{
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"g2\",\"kind\":\"APIReqKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type: "olm.gvk",
+						Value: "{\"group\":\"g2\",\"kind\":\"CRDReqKind\",\"version\":\"v1\"}",
+					},
+				},
 				sourceInfo: &ExistingOperator,
 				version:    &version.Version,
 			},
@@ -1360,6 +1554,9 @@ func TestNewOperatorFromCSV(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := NewOperatorFromV1Alpha1CSV(tt.args.csv)
 			require.Equal(t, tt.wantErr, err)
+			require.ElementsMatch(t, tt.want.dependencies, got.dependencies)
+			require.ElementsMatch(t, tt.want.properties, got.properties)
+			tt.want.properties, tt.want.dependencies, got.dependencies, got.properties = nil,nil,nil,nil
 			require.Equal(t, tt.want, got)
 		})
 	}

@@ -13,14 +13,19 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
-type SQLLoader struct {
+type sqlLoader struct {
 	db       *sql.DB
 	migrator Migrator
 }
 
-var _ registry.Load = &SQLLoader{}
+type MigratableLoader interface {
+	registry.Load
+	Migrate(context.Context) error
+}
 
-func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (*SQLLoader, error) {
+var _ MigratableLoader = &sqlLoader{}
+
+func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (MigratableLoader, error) {
 	options := defaultDBOptions()
 	for _, o := range opts {
 		o(options)
@@ -35,17 +40,17 @@ func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (*SQLLoader, error) {
 		return nil, err
 	}
 
-	return &SQLLoader{db: db, migrator: migrator}, nil
+	return &sqlLoader{db: db, migrator: migrator}, nil
 }
 
-func (s *SQLLoader) Migrate(ctx context.Context) error {
+func (s *sqlLoader) Migrate(ctx context.Context) error {
 	if s.migrator == nil {
 		return fmt.Errorf("no migrator configured")
 	}
 	return s.migrator.Migrate(ctx)
 }
 
-func (s *SQLLoader) AddOperatorBundle(bundle *registry.Bundle) error {
+func (s *sqlLoader) AddOperatorBundle(bundle *registry.Bundle) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -61,7 +66,7 @@ func (s *SQLLoader) AddOperatorBundle(bundle *registry.Bundle) error {
 	return tx.Commit()
 }
 
-func (s *SQLLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error {
+func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error {
 	addBundle, err := tx.Prepare("insert into operatorbundle(name, csv, bundle, bundlepath, version, skiprange, replaces, skips) values(?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
@@ -120,10 +125,15 @@ func (s *SQLLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 		return err
 	}
 
+	err = s.addBundleProperties(tx, bundle)
+	if err != nil {
+		return err
+	}
+
 	return s.addAPIs(tx, bundle)
 }
 
-func (s *SQLLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
+func (s *sqlLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -244,7 +254,7 @@ func (s *SQLLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
 	return utilerrors.NewAggregate(errs)
 }
 
-func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error {
+func (s *sqlLoader) AddPackageChannels(manifest registry.PackageManifest) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -260,7 +270,7 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 	return tx.Commit()
 }
 
-func (s *SQLLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageManifest) error {
+func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageManifest) error {
 	addPackage, err := tx.Prepare("insert into package(name) values(?)")
 	if err != nil {
 		return err
@@ -295,6 +305,9 @@ func (s *SQLLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 	  SELECT DISTINCT operatorbundle.csv
 	  FROM operatorbundle
 	  WHERE operatorbundle.name=? LIMIT 1`)
+	if err != nil {
+		return err
+	}
 	defer getReplaces.Close()
 
 	var errs []error
@@ -341,8 +354,13 @@ func (s *SQLLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 		replaceCycle := map[string]bool{channelEntryCSVName: true}
 		for {
 			// Get CSV for current entry
-			replaces, skips, err := s.getBundleSkipsReplaces(tx, channelEntryCSVName)
+			replaces, skips, version, err := s.getBundleSkipsReplacesVersion(tx, channelEntryCSVName)
 			if err != nil {
+				errs = append(errs, err)
+				break
+			}
+
+			if err := s.addPackageProperty(tx, channelEntryCSVName, manifest.PackageName, version); err != nil {
 				errs = append(errs, err)
 				break
 			}
@@ -410,7 +428,7 @@ func (s *SQLLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 				errs = append(errs, err)
 				break
 			}
-			if _, _, err := s.getBundleSkipsReplaces(tx, replaces); err != nil {
+			if _, _, _, err := s.getBundleSkipsReplacesVersion(tx, replaces); err != nil {
 				errs = append(errs, fmt.Errorf("%s specifies replacement that couldn't be found", c.CurrentCSVName))
 				break
 			}
@@ -423,7 +441,7 @@ func (s *SQLLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 	return utilerrors.NewAggregate(errs)
 }
 
-func (s *SQLLoader) ClearNonHeadBundles() error {
+func (s *sqlLoader) ClearNonHeadBundles() error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -452,17 +470,17 @@ func (s *SQLLoader) ClearNonHeadBundles() error {
 	return tx.Commit()
 }
 
-func (s *SQLLoader) getBundleSkipsReplaces(tx *sql.Tx, bundleName string) (replaces string, skips []string, err error) {
-	getReplacesAndSkips, err := tx.Prepare(`
-	  SELECT replaces, skips
+func (s *sqlLoader) getBundleSkipsReplacesVersion(tx *sql.Tx, bundleName string) (replaces string, skips []string, version string, err error) {
+	getReplacesSkipsAndVersions, err := tx.Prepare(`
+	  SELECT replaces, skips, version
 	  FROM operatorbundle
 	  WHERE operatorbundle.name=? LIMIT 1`)
 	if err != nil {
 		return
 	}
-	defer getReplacesAndSkips.Close()
+	defer getReplacesSkipsAndVersions.Close()
 
-	rows, rerr := getReplacesAndSkips.Query(bundleName)
+	rows, rerr := getReplacesSkipsAndVersions.Query(bundleName)
 	if err != nil {
 		err = rerr
 		return
@@ -473,22 +491,26 @@ func (s *SQLLoader) getBundleSkipsReplaces(tx *sql.Tx, bundleName string) (repla
 	}
 
 	var replacesStringSQL sql.NullString
-	var skipsStringSql sql.NullString
-	if err = rows.Scan(&replacesStringSQL, &skipsStringSql); err != nil {
+	var skipsStringSQL sql.NullString
+	var versionStringSQL sql.NullString
+	if err = rows.Scan(&replacesStringSQL, &skipsStringSQL, &versionStringSQL); err != nil {
 		return
 	}
 
 	if replacesStringSQL.Valid {
 		replaces = replacesStringSQL.String
 	}
-	if skipsStringSql.Valid && len(skipsStringSql.String) > 0 {
-		skips = strings.Split(skipsStringSql.String, ",")
+	if skipsStringSQL.Valid && len(skipsStringSQL.String) > 0 {
+		skips = strings.Split(skipsStringSQL.String, ",")
+	}
+	if versionStringSQL.Valid {
+		version = versionStringSQL.String
 	}
 
 	return
 }
 
-func (s *SQLLoader) addAPIs(tx *sql.Tx, bundle *registry.Bundle) error {
+func (s *sqlLoader) addAPIs(tx *sql.Tx, bundle *registry.Bundle) error {
 	if bundle.Name == "" {
 		return fmt.Errorf("cannot add apis for bundle with no name: %#v", bundle)
 	}
@@ -548,7 +570,7 @@ func (s *SQLLoader) addAPIs(tx *sql.Tx, bundle *registry.Bundle) error {
 	return nil
 }
 
-func (s *SQLLoader) getCSVNames(tx *sql.Tx, packageName string) ([]string, error) {
+func (s *sqlLoader) getCSVNames(tx *sql.Tx, packageName string) ([]string, error) {
 	getID, err := tx.Prepare(`
 	  SELECT DISTINCT channel_entry.operatorbundle_name
 	  FROM channel_entry
@@ -581,7 +603,7 @@ func (s *SQLLoader) getCSVNames(tx *sql.Tx, packageName string) ([]string, error
 	return csvNames, nil
 }
 
-func (s *SQLLoader) RemovePackage(packageName string) error {
+func (s *sqlLoader) RemovePackage(packageName string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -604,7 +626,7 @@ func (s *SQLLoader) RemovePackage(packageName string) error {
 	return tx.Commit()
 }
 
-func (s *SQLLoader) rmBundle(tx *sql.Tx, csvName string) error {
+func (s *sqlLoader) rmBundle(tx *sql.Tx, csvName string) error {
 	stmt, err := tx.Prepare("DELETE FROM operatorbundle WHERE operatorbundle.name=?")
 	if err != nil {
 		return err
@@ -618,7 +640,7 @@ func (s *SQLLoader) rmBundle(tx *sql.Tx, csvName string) error {
 	return nil
 }
 
-func (s *SQLLoader) AddBundleSemver(graph *registry.Package, bundle *registry.Bundle) error {
+func (s *sqlLoader) AddBundleSemver(graph *registry.Package, bundle *registry.Bundle) error {
 	err := s.AddOperatorBundle(bundle)
 	if err != nil {
 		return err
@@ -632,7 +654,7 @@ func (s *SQLLoader) AddBundleSemver(graph *registry.Package, bundle *registry.Bu
 	return nil
 }
 
-func (s *SQLLoader) AddBundlePackageChannels(manifest registry.PackageManifest, bundle *registry.Bundle) error {
+func (s *sqlLoader) AddBundlePackageChannels(manifest registry.PackageManifest, bundle *registry.Bundle) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -672,7 +694,7 @@ func (s *SQLLoader) AddBundlePackageChannels(manifest registry.PackageManifest, 
 	return tx.Commit()
 }
 
-func (s *SQLLoader) addDependencies(tx *sql.Tx, bundle *registry.Bundle) error {
+func (s *sqlLoader) addDependencies(tx *sql.Tx, bundle *registry.Bundle) error {
 	addDep, err := tx.Prepare("insert into dependencies(type, value, operatorbundle_name, operatorbundle_version, operatorbundle_path) values(?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
@@ -700,17 +722,83 @@ func (s *SQLLoader) addDependencies(tx *sql.Tx, bundle *registry.Bundle) error {
 	}
 
 	for api := range requiredApis {
-		valueMap := map[string]string{
-			"type":    registry.GVKType,
-			"group":   api.Group,
-			"version": api.Version,
-			"kind":    api.Kind,
+		dep := registry.GVKDependency{
+			Group:   api.Group,
+			Kind:    api.Kind,
+			Version: api.Version,
 		}
-		value, err := json.Marshal(valueMap)
+		value, err := json.Marshal(dep)
 		if err != nil {
 			return err
 		}
 		if _, err := addDep.Exec(registry.GVKType, value, bundle.Name, sqlString(bundleVersion), sqlString(bundle.BundleImage)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *sqlLoader) addProperty(tx *sql.Tx, propType, value, bundleName, version, path string) error {
+	addProp, err := tx.Prepare("insert into properties(type, value, operatorbundle_name, operatorbundle_version, operatorbundle_path) values(?, ?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer addProp.Close()
+
+	sqlString := func(s string) sql.NullString {
+		return sql.NullString{String: s, Valid: s != ""}
+	}
+
+	if _, err := addProp.Exec(propType, value, bundleName, sqlString(version), sqlString(path)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *sqlLoader) addPackageProperty(tx *sql.Tx, bundleName, pkg, version string) error {
+	// Add the package property
+	prop := registry.PackageProperty{
+		PackageName: pkg,
+		Version:     version,
+	}
+	value, err := json.Marshal(prop)
+	if err != nil {
+		return err
+	}
+
+	return s.addProperty(tx, registry.PackageType, string(value), bundleName, version, "")
+}
+
+func (s *sqlLoader) addBundleProperties(tx *sql.Tx, bundle *registry.Bundle) error {
+	bundleVersion, err := bundle.Version()
+	if err != nil {
+		return err
+	}
+
+	for _, prop := range bundle.Properties {
+		if err := s.addProperty(tx, prop.Type, prop.Value, bundle.Name, bundleVersion, bundle.BundleImage); err != nil {
+			return err
+		}
+	}
+
+	// Look up providedAPIs in CSV and add them in properties table
+	providedApis, err := bundle.ProvidedAPIs()
+	if err != nil {
+		return err
+	}
+
+	for api := range providedApis {
+		prop := registry.GVKProperty{
+			Group:   api.Group,
+			Kind:    api.Kind,
+			Version: api.Version,
+		}
+		value, err := json.Marshal(prop)
+		if err != nil {
+			return err
+		}
+		if err := s.addProperty(tx, registry.GVKType, string(value), bundle.Name, bundleVersion, bundle.BundleImage); err != nil {
 			return err
 		}
 	}

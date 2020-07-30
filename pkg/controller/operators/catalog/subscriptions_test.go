@@ -1030,7 +1030,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			}
 
 			o.sourcesLastUpdate.Set(tt.fields.sourcesLastUpdate.Time)
-			o.resolver = &fakes.FakeResolver{
+			o.resolver = &fakes.FakeStepResolver{
 				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 					return tt.fields.resolveSteps, tt.fields.bundleLookups, tt.fields.resolveSubs, tt.fields.resolveErr
 				},
@@ -1083,7 +1083,7 @@ type objs struct {
 type srnFields struct {
 	clientOptions []clientfake.Option
 	existingObjs  objs
-	resolver      resolver.Resolver
+	resolver      resolver.StepResolver
 	reconciler    reconciler.RegistryReconcilerFactory
 }
 
@@ -1166,7 +1166,7 @@ func BenchmarkSyncResolvingNamespace(b *testing.B) {
 					}
 				},
 			},
-			resolver: &fakes.FakeResolver{
+			resolver: &fakes.FakeStepResolver{
 				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 					steps := []*v1alpha1.Step{
 						{

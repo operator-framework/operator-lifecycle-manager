@@ -23,7 +23,8 @@ LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 CONTROLLER_GEN := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v2/
-KUBEBUILDER_ASSETS ?= /usr/local/kubebuilder/bin
+KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))), /usr/local/kubebuilder/bin)
+export KUBEBUILDER_ASSETS
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
@@ -43,7 +44,7 @@ all: test build
 test: clean cover.out
 
 unit: kubebuilder
-	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -count=1 ./pkg/...
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -v -race -count=1 ./pkg/...
 
 # Ensure kubebuilder is installed before continuing
 KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://book.kubebuilder.io/quick-start.html
@@ -61,7 +62,7 @@ endif
 schema-check:
 
 cover.out: schema-check
-	go test $(MOD_FLAGS) -v -race -coverprofile=cover.out -covermode=atomic \
+	go test $(MOD_FLAGS) -tags "json1" -v -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
 coverage: cover.out
@@ -101,7 +102,7 @@ bin/cpb:
 
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
-	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o bin/$(shell basename $@) $@
+	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags "json1" -o bin/$(shell basename $@) $@
 
 build: clean $(CMDS)
 
@@ -125,7 +126,7 @@ setup-bare: clean e2e.namespace
 
 # e2e test exculding the rh-operators directory which tests rh-operators and their metric cardinality.
 e2e:
-	go test -v $(MOD_FLAGS) -failfast -timeout 150m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest
+	go test -v $(MOD_FLAGS)  -failfast -timeout 150m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -ginkgo.flakeAttempts=3
 
 e2e-local: build-linux build-wait build-util-linux
 	. ./scripts/build_local.sh

@@ -65,8 +65,8 @@ type ClusterServiceVersion struct {
 	Spec json.RawMessage `json:"spec"`
 }
 
-// ReadCSVFromBundleDirectory tries to parse every YAML file in the directory and see if they are CSV.
-// According to the strict one CSV rule for every bundle, we return the first file that is considered a CSV type.
+// ReadCSVFromBundleDirectory tries to parse every YAML file in the directory without inspecting sub-directories and
+// returns a CSV. According to the strict one CSV per bundle rule, func returns an error if more than one CSV is found.
 func ReadCSVFromBundleDirectory(bundleDir string) (*ClusterServiceVersion, error) {
 	dirContent, err := ioutil.ReadDir(bundleDir)
 	if err != nil {
@@ -80,6 +80,8 @@ func ReadCSVFromBundleDirectory(bundleDir string) (*ClusterServiceVersion, error
 		}
 	}
 
+	csv := ClusterServiceVersion{}
+	foundCSV := false
 	for _, file := range files {
 		yamlReader, err := os.Open(path.Join(bundleDir, file))
 		if err != nil {
@@ -87,7 +89,6 @@ func ReadCSVFromBundleDirectory(bundleDir string) (*ClusterServiceVersion, error
 		}
 
 		unstructuredCSV := unstructured.Unstructured{}
-		csv := ClusterServiceVersion{}
 
 		decoder := yaml.NewYAMLOrJSONDecoder(yamlReader, 30)
 		if err = decoder.Decode(&unstructuredCSV); err != nil {
@@ -98,11 +99,18 @@ func ReadCSVFromBundleDirectory(bundleDir string) (*ClusterServiceVersion, error
 			continue
 		}
 
+		if foundCSV {
+			return nil, fmt.Errorf("more than one ClusterServiceVersion is found in bundle")
+		}
+
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredCSV.UnstructuredContent(),
 			&csv); err != nil {
 			return nil, err
 		}
+		foundCSV = true
+	}
 
+	if foundCSV {
 		return &csv, nil
 	}
 	return nil, fmt.Errorf("no ClusterServiceVersion object found in %s", bundleDir)

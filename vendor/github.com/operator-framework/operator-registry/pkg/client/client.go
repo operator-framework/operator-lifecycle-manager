@@ -18,6 +18,7 @@ type Interface interface {
 	GetReplacementBundleInPackageChannel(ctx context.Context, currentName, packageName, channelName string) (*api.Bundle, error)
 	GetBundleThatProvides(ctx context.Context, group, version, kind string) (*api.Bundle, error)
 	ListBundles(ctx context.Context) (*BundleIterator, error)
+	GetPackage(ctx context.Context, packageName string) (*api.Package, error)
 	HealthCheck(ctx context.Context, reconnectTimeout time.Duration) (bool, error)
 	Close() error
 }
@@ -83,6 +84,10 @@ func (c *Client) ListBundles(ctx context.Context) (*BundleIterator, error) {
 		return nil, err
 	}
 	return NewBundleIterator(stream), nil
+}
+
+func (c *Client) GetPackage(ctx context.Context, packageName string) (*api.Package, error) {
+	return c.Registry.GetPackage(ctx, &api.GetPackageRequest{Name: packageName})
 }
 
 func (c *Client) Close() error {
