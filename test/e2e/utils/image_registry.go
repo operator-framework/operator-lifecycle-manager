@@ -89,16 +89,11 @@ func (r *RegistryClient) CreateBundles(bundles []*Bundle) ([]string, error) {
 			return nil, fmt.Errorf("failed to get bundle annotations for %s: %v", b.PackageName, err)
 		}
 		destImageRef := fmt.Sprintf("%s/%s:%s", r.url, b.BundleURLPath, b.Tag)
-
 		bundleContentDirectories := []string{labels[bundle.ManifestsLabel], labels[bundle.MetadataLabel]}
 
 		err = buildAndUploadBundleImage(destImageRef, r.auth, b.BundlePath, bundleContentDirectories, labels)
 		if err != nil {
 			return nil, fmt.Errorf("build step for local bundle image failed %s: %v", b.PackageName, err)
-		}
-
-		if err := r.ValidateBundle(destImageRef); err != nil {
-			return nil, fmt.Errorf("bundle validation failed: %s: %v", destImageRef, err)
 		}
 
 		bundleRefs = append(bundleRefs, destImageRef)

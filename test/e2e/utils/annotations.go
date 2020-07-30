@@ -15,14 +15,14 @@ type AnnotationsFile struct {
 }
 
 func (b *Bundle) generateBundleAnnotations() (map[string]string, error) {
-	mediaType, err := bundle.GetMediaType(b.BundlePath)
+	mediaType, err := bundle.GetMediaType(path.Join(b.BundlePath, bundle.ManifestsDir))
 	if err != nil {
 		return nil, fmt.Errorf("invalid bundle format: %v", err)
 	}
 	labels := make(map[string]string)
 	labels[bundle.PackageLabel] = b.PackageName
-	labels[bundle.ManifestsLabel] = "manifests/"
-	labels[bundle.MetadataLabel] = "metadata/"
+	labels[bundle.ManifestsLabel] = bundle.ManifestsDir
+	labels[bundle.MetadataLabel] = bundle.MetadataDir
 	labels[bundle.ChannelDefaultLabel] = b.DefaultChannel
 	labels[bundle.ChannelsLabel] = strings.Join(b.Channels, ",")
 	labels[bundle.MediatypeLabel] = mediaType

@@ -313,9 +313,18 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			}
 
 			bundleRefs, err := ctx.Ctx().RegistryClient.CreateBundles([]*utils.Bundle{b})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "could not create bundle")
+
+			invalidBundles := make([]string,0)
+			for _, ref := range bundleRefs {
+				if err = ctx.Ctx().RegistryClient.ValidateBundle(ref); err != nil {
+					invalidBundles = append(invalidBundles, ref)
+				}
+			}
+			Expect(invalidBundles).Should(BeEmpty(), "bundle validation failed")
+
 			imageName, err := ctx.Ctx().RegistryClient.CreateIndex(indexName, indexTag, bundleRefs)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "could not create index")
 
 			var installPlanRef string
 
