@@ -44,6 +44,8 @@ all: test build
 test: clean cover.out
 
 unit: kubebuilder
+	printenv PATH
+	which go
 	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -v -race -count=1 ./pkg/...
 
 # Ensure kubebuilder is installed before continuing
