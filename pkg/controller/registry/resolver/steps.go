@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	secretKind = "Secret"
+	secretKind       = "Secret"
 	BundleSecretKind = "BundleSecret"
 )
 

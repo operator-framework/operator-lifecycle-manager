@@ -22,7 +22,7 @@ func generateName(base string, o interface{}) string {
 	hashutil.DeepHashObject(hasher, o)
 	hash := utilrand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
 	if len(base)+len(hash) > maxNameLength {
-		base = base[:maxNameLength - len(hash) - 1]
+		base = base[:maxNameLength-len(hash)-1]
 	}
 
 	return fmt.Sprintf("%s-%s", base, hash)

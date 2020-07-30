@@ -29,7 +29,7 @@ func TestGenerateName(t *testing.T) {
 			name: "generate",
 			args: args{
 				base: "myname",
-				o: []string{"something"},
+				o:    []string{"something"},
 			},
 			want: "myname-9c895f74f",
 		},
@@ -37,7 +37,7 @@ func TestGenerateName(t *testing.T) {
 			name: "truncated",
 			args: args{
 				base: strings.Repeat("name", 100),
-				o: []string{"something", "else"},
+				o:    []string{"something", "else"},
 			},
 			want: "namenamenamenamenamenamenamenamenamenamenamenamename-78fd8b4d6b",
 		},
