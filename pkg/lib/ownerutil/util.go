@@ -390,8 +390,8 @@ func InferGroupVersionKind(obj runtime.Object) error {
 		})
 	case *operatorsv1.OperatorGroup:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   operatorsv1.GroupName,
-			Version: operatorsv1.GroupVersion,
+			Group:   operatorsv1.GroupVersion.Group,
+			Version: operatorsv1.GroupVersion.Version,
 			Kind:    "OperatorGroup",
 		})
 	case *apiregistrationv1.APIService:

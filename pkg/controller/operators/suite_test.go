@@ -27,7 +27,7 @@ import (
 	// +kubebuilder:scaffold:imports
 
 	"github.com/operator-framework/api/crds"
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 )
@@ -151,7 +151,7 @@ var _ = AfterSuite(func() {
 
 func newOperator(name string) *decorators.Operator {
 	return &decorators.Operator{
-		Operator: &operatorsv2alpha1.Operator{
+		Operator: &operatorsv1.Operator{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name,
 			},
@@ -159,7 +159,7 @@ func newOperator(name string) *decorators.Operator {
 	}
 }
 
-func toRefs(scheme *runtime.Scheme, objs ...runtime.Object) (refs []operatorsv2alpha1.RichReference) {
+func toRefs(scheme *runtime.Scheme, objs ...runtime.Object) (refs []operatorsv1.RichReference) {
 	for _, obj := range objs {
 		ref, err := reference.GetReference(scheme, obj)
 		if err != nil {
@@ -170,7 +170,7 @@ func toRefs(scheme *runtime.Scheme, objs ...runtime.Object) (refs []operatorsv2a
 		ref.UID = ""
 		ref.ResourceVersion = ""
 
-		refs = append(refs, operatorsv2alpha1.RichReference{
+		refs = append(refs, operatorsv1.RichReference{
 			ObjectReference: ref,
 		})
 	}

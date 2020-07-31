@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 )
 
 func TestOperatorNames(t *testing.T) {
@@ -88,13 +88,13 @@ func TestAddComponents(t *testing.T) {
 	require.NoError(t, k8sscheme.AddToScheme(scheme))
 
 	type fields struct {
-		operator *operatorsv2alpha1.Operator
+		operator *operatorsv1.Operator
 	}
 	type args struct {
 		components []runtime.Object
 	}
 	type results struct {
-		operator *operatorsv2alpha1.Operator
+		operator *operatorsv1.Operator
 		err      error
 	}
 
@@ -107,8 +107,8 @@ func TestAddComponents(t *testing.T) {
 		{
 			description: "Empty/ComponentsAdded",
 			fields: fields{
-				operator: func() *operatorsv2alpha1.Operator {
-					operator := &operatorsv2alpha1.Operator{}
+				operator: func() *operatorsv1.Operator {
+					operator := &operatorsv1.Operator{}
 					operator.SetName("puffin")
 
 					return operator
@@ -144,10 +144,10 @@ func TestAddComponents(t *testing.T) {
 				},
 			},
 			results: results{
-				operator: func() *operatorsv2alpha1.Operator {
-					operator := &operatorsv2alpha1.Operator{}
+				operator: func() *operatorsv1.Operator {
+					operator := &operatorsv1.Operator{}
 					operator.SetName("puffin")
-					operator.Status.Components = &operatorsv2alpha1.Components{
+					operator.Status.Components = &operatorsv1.Components{
 						LabelSelector: &metav1.LabelSelector{
 							MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
@@ -157,7 +157,7 @@ func TestAddComponents(t *testing.T) {
 							},
 						},
 					}
-					operator.Status.Components.Refs = []operatorsv2alpha1.RichReference{
+					operator.Status.Components.Refs = []operatorsv1.RichReference{
 						{
 							ObjectReference: &corev1.ObjectReference{
 								APIVersion: "v1",
@@ -172,9 +172,9 @@ func TestAddComponents(t *testing.T) {
 								Namespace:  "atlantic",
 								Name:       "puffin",
 							},
-							Conditions: []operatorsv2alpha1.Condition{
+							Conditions: []operatorsv1.Condition{
 								{
-									Type:   operatorsv2alpha1.ConditionType(corev1.PodReady),
+									Type:   operatorsv1.ConditionType(corev1.PodReady),
 									Status: corev1.ConditionTrue,
 								},
 							},

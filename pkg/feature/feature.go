@@ -12,10 +12,10 @@ const (
 	// alpha: v1.X
 	// (see https://github.com/kubernetes/kubernetes/blob/master/pkg/features/kube_features.go)
 
-	// OperatorLifecycleManagerV2 enables OLM's v2 APIs.
+	// OperatorLifecycleManagerV1 enables OLM's v1 APIs.
 	// owner: @njhale
 	// alpha: v0.15.0
-	OperatorLifecycleManagerV2 featuregate.Feature = "OperatorLifecycleManagerV2"
+	OperatorLifecycleManagerV1 featuregate.Feature = "OperatorLifecycleManagerV1"
 )
 
 var (
@@ -35,5 +35,5 @@ func AddFlag(fs *pflag.FlagSet) {
 }
 
 var featureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	OperatorLifecycleManagerV2: {Default: false, PreRelease: featuregate.Alpha},
+	OperatorLifecycleManagerV1: {Default: true, LockToDefault: true, PreRelease: featuregate.GA},
 }

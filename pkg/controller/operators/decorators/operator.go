@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/reference"
 
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/codec"
 )
 
@@ -47,7 +47,7 @@ func OperatorNames(labels map[string]string) (names []types.NamespacedName) {
 type OperatorFactory interface {
 	// NewOperator returns an Operator decorator that wraps the given external Operator representation.
 	// An error is returned if the decorator cannon be instantiated.
-	NewOperator(external *operatorsv2alpha1.Operator) (*Operator, error)
+	NewOperator(external *operatorsv1.Operator) (*Operator, error)
 
 	// NewPackageOperator returns an Operator decorator for a package and install namespace.
 	NewPackageOperator(pkg, namespace string) (*Operator, error)
@@ -58,7 +58,7 @@ type schemedOperatorFactory struct {
 	scheme *runtime.Scheme
 }
 
-func (s *schemedOperatorFactory) NewOperator(external *operatorsv2alpha1.Operator) (*Operator, error) {
+func (s *schemedOperatorFactory) NewOperator(external *operatorsv1.Operator) (*Operator, error) {
 	if external == nil {
 		return nil, fmt.Errorf(newOperatorError, "cannot create operator with nil external type")
 	}
@@ -80,7 +80,7 @@ func (s *schemedOperatorFactory) NewPackageOperator(pkg, namespace string) (*Ope
 		name = fmt.Sprintf("%s.%s", pkg, namespace)
 	}
 
-	o := &operatorsv2alpha1.Operator{}
+	o := &operatorsv1.Operator{}
 	o.SetName(name)
 
 	return s.NewOperator(o)
@@ -99,7 +99,7 @@ func NewSchemedOperatorFactory(scheme *runtime.Scheme) (OperatorFactory, error) 
 
 // Operator decorates an external Operator and provides convenience methods for managing it.
 type Operator struct {
-	*operatorsv2alpha1.Operator
+	*operatorsv1.Operator
 
 	scheme            *runtime.Scheme
 	componentLabelKey string
@@ -188,7 +188,7 @@ func (o *Operator) ResetComponents() error {
 		return err
 	}
 
-	o.Status.Components = &operatorsv2alpha1.Components{
+	o.Status.Components = &operatorsv1.Components{
 		LabelSelector: labelSelector,
 	}
 
@@ -231,7 +231,7 @@ func (o *Operator) AddComponents(components ...runtime.Object) error {
 		return err
 	}
 
-	var refs []operatorsv2alpha1.RichReference
+	var refs []operatorsv1.RichReference
 	for _, obj := range components {
 		// Unpack nested components
 		if nested, err := meta.ExtractList(obj); err == nil {
@@ -318,12 +318,12 @@ func (c *Component) Matches(selector labels.Selector) (matches bool, err error) 
 	return
 }
 
-func (c *Component) Reference() (ref *operatorsv2alpha1.RichReference, err error) {
+func (c *Component) Reference() (ref *operatorsv1.RichReference, err error) {
 	truncated, err := c.truncatedReference()
 	if err != nil {
 		return
 	}
-	ref = &operatorsv2alpha1.RichReference{
+	ref = &operatorsv1.RichReference{
 		ObjectReference: truncated,
 	}
 

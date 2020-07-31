@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 )
@@ -19,7 +19,7 @@ import (
 var _ = Describe("Operator Controller", func() {
 	var (
 		ctx                            context.Context
-		operator                       *operatorsv2alpha1.Operator
+		operator                       *operatorsv1.Operator
 		name                           types.NamespacedName
 		expectedKey                    string
 		expectedComponentLabelSelector *metav1.LabelSelector
@@ -49,7 +49,7 @@ var _ = Describe("Operator Controller", func() {
 
 	Describe("component selection", func() {
 		BeforeEach(func() {
-			Eventually(func() (*operatorsv2alpha1.Components, error) {
+			Eventually(func() (*operatorsv1.Components, error) {
 				err := k8sClient.Get(ctx, name, operator)
 				return operator.Status.Components, err
 			}, timeout, interval).ShouldNot(BeNil())
@@ -62,7 +62,7 @@ var _ = Describe("Operator Controller", func() {
 
 		Context("with no components bearing its label", func() {
 			Specify("a status containing no component references", func() {
-				Consistently(func() ([]operatorsv2alpha1.RichReference, error) {
+				Consistently(func() ([]operatorsv1.RichReference, error) {
 					err := k8sClient.Get(ctx, name, operator)
 					return operator.Status.Components.Refs, err
 				}, timeout, interval).Should(BeEmpty())
@@ -72,7 +72,7 @@ var _ = Describe("Operator Controller", func() {
 		Context("with components bearing its label", func() {
 			var (
 				objs         []runtime.Object
-				expectedRefs []operatorsv2alpha1.RichReference
+				expectedRefs []operatorsv1.RichReference
 				namespace    string
 			)
 
@@ -97,7 +97,7 @@ var _ = Describe("Operator Controller", func() {
 			})
 
 			Specify("a status containing its component references", func() {
-				Eventually(func() ([]operatorsv2alpha1.RichReference, error) {
+				Eventually(func() ([]operatorsv1.RichReference, error) {
 					err := k8sClient.Get(ctx, name, operator)
 					return operator.Status.Components.Refs, err
 				}, timeout, interval).Should(ConsistOf(expectedRefs))
@@ -133,7 +133,7 @@ var _ = Describe("Operator Controller", func() {
 				})
 
 				It("should add the component references", func() {
-					Eventually(func() ([]operatorsv2alpha1.RichReference, error) {
+					Eventually(func() ([]operatorsv1.RichReference, error) {
 						err := k8sClient.Get(ctx, name, operator)
 						return operator.Status.Components.Refs, err
 					}, timeout, interval).Should(ConsistOf(expectedRefs))
@@ -148,7 +148,7 @@ var _ = Describe("Operator Controller", func() {
 				})
 
 				It("should remove the component references", func() {
-					Eventually(func() ([]operatorsv2alpha1.RichReference, error) {
+					Eventually(func() ([]operatorsv1.RichReference, error) {
 						err := k8sClient.Get(ctx, name, operator)
 						return operator.Status.Components.Refs, err
 					}, timeout, interval).Should(BeEmpty())

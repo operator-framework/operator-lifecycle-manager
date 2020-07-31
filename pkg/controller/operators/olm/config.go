@@ -1,8 +1,9 @@
 package olm
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"time"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -11,7 +12,6 @@ import (
 	"k8s.io/client-go/rest"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/internalversion"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
@@ -29,7 +29,6 @@ type operatorConfig struct {
 	logger            *logrus.Logger
 	operatorClient    operatorclient.ClientInterface
 	externalClient    versioned.Interface
-	internalClient    internalversion.Interface
 	strategyResolver  install.StrategyResolverInterface
 	apiReconciler     resolver.APIIntersectionReconciler
 	apiLabeler        labeler.Labeler
@@ -64,8 +63,6 @@ func (o *operatorConfig) validate() (err error) {
 		err = newInvalidConfigError("operator client", "must not be nil")
 	case o.externalClient == nil:
 		err = newInvalidConfigError("external client", "must not be nil")
-	// case o.internalClient == nil:
-	// err = newInvalidConfigError("internal client", "must not be nil")
 	case o.strategyResolver == nil:
 		err = newInvalidConfigError("strategy resolver", "must not be nil")
 	case o.apiReconciler == nil:
@@ -131,12 +128,6 @@ func WithOperatorClient(operatorClient operatorclient.ClientInterface) OperatorO
 func WithExternalClient(externalClient versioned.Interface) OperatorOption {
 	return func(config *operatorConfig) {
 		config.externalClient = externalClient
-	}
-}
-
-func WithInternalClient(internalClient internalversion.Interface) OperatorOption {
-	return func(config *operatorConfig) {
-		config.internalClient = internalClient
 	}
 }
 

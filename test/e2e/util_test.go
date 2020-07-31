@@ -24,7 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
@@ -36,13 +35,11 @@ import (
 	"k8s.io/client-go/dynamic"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/component-base/featuregate"
 	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/feature"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -836,115 +833,6 @@ func deploymentReplicas(replicas int32) predicateFunc {
 	return filteredPredicate(deploymentPredicate(func(deployment *appsv1.Deployment) bool {
 		return deployment.Status.Replicas == replicas
 	}), watch.Added, watch.Modified)
-}
-
-const (
-	cvoNamespace      = "openshift-cluster-version"
-	cvoDeploymentName = "cluster-version-operator"
-)
-
-func toggleCVO() {
-	c := ctx.Ctx().KubeClient().KubernetesInterface().AppsV1().Deployments(cvoNamespace)
-	clientCtx := context.Background()
-
-	Eventually(func() error {
-		scale, err := c.GetScale(clientCtx, cvoDeploymentName, metav1.GetOptions{})
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				// CVO is not enabled
-				return nil
-			}
-
-			return err
-		}
-
-		if scale.Spec.Replicas > 0 {
-			scale.Spec.Replicas = 0
-		} else {
-			scale.Spec.Replicas = 1
-		}
-
-		_, err = c.UpdateScale(clientCtx, cvoDeploymentName, scale, metav1.UpdateOptions{})
-		return err
-	}).Should(Succeed())
-}
-
-// togglev2alpha1 toggles the v2alpha1 feature gate on or off.
-func togglev2alpha1() {
-	// Set the feature flag on OLM's deployment
-	c := ctx.Ctx().KubeClient()
-	deployment, err := getOperatorDeployment(c, operatorNamespace, labels.Set{"app": "olm-operator"})
-	Expect(err).ToNot(HaveOccurred())
-	toggleFeatureGates(deployment, feature.OperatorLifecycleManagerV2)
-}
-
-// toggleFeatureGates toggles the given feature gates on or off based on their current setting in the deployment.
-func toggleFeatureGates(deployment *appsv1.Deployment, toToggle ...featuregate.Feature) {
-	var (
-		c              = ctx.Ctx().KubeClient().KubernetesInterface().AppsV1().Deployments(deployment.GetNamespace())
-		containers     = deployment.Spec.Template.Spec.Containers
-		containerIndex = -1
-		argIndex       = -1
-		prefix         = "--feature-gates="
-		gateVals       string
-	)
-
-	// Find the container and argument indices for the feature gate option
-	for i, container := range containers {
-		if container.Name != "olm-operator" {
-			continue
-		}
-		containerIndex = i
-
-		for j, arg := range container.Args {
-			if gateVals = strings.TrimPrefix(arg, prefix); arg == gateVals {
-				continue
-			}
-			argIndex = j
-
-			break
-		}
-
-		break
-	}
-	// This should never happen since Deployments must have at least one container
-	Expect(containerIndex).ToNot(BeNumerically("<", 0), "deployment %s has no containers", deployment.GetName())
-
-	gate := feature.Gate.DeepCopy()
-	if argIndex >= 0 {
-		// Collect existing gate values
-		Expect(gate.Set(gateVals)).To(Succeed())
-	}
-
-	// Toggle gates
-	toggled := map[string]bool{}
-	for _, feature := range toToggle {
-		toggled[string(feature)] = !gate.Enabled(feature)
-	}
-	Expect(gate.SetFromMap(toggled)).To(Succeed())
-
-	gateArg := fmt.Sprintf("%s%s", prefix, gate)
-	if argIndex >= 0 {
-		// Overwrite existing gate options
-		containers[containerIndex].Args[argIndex] = gateArg
-	} else {
-		// No existing gate options, add one
-		containers[containerIndex].Args = append(containers[containerIndex].Args, gateArg)
-	}
-
-	clientCtx := context.Background()
-	w, err := c.Watch(clientCtx, metav1.ListOptions{})
-	Expect(err).ToNot(HaveOccurred())
-
-	Eventually(Apply(deployment, func(d *appsv1.Deployment) error {
-		d.Spec = deployment.Spec
-		return nil
-	})).Should(Succeed())
-
-	deadline, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer cancel()
-
-	awaitPredicates(deadline, w, deploymentReplicas(2), deploymentAvailable, deploymentReplicas(1))
 }
 
 type Object interface {

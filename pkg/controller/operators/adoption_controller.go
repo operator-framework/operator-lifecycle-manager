@@ -24,8 +24,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -224,7 +224,7 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 
 	var operators []decorators.Operator
 	for _, name := range decorators.OperatorNames(csv.GetLabels()) {
-		o := &operatorsv2alpha1.Operator{}
+		o := &operatorsv1.Operator{}
 		o.SetName(name.Name)
 		operator, err := r.factory.NewOperator(o)
 		if err != nil {
