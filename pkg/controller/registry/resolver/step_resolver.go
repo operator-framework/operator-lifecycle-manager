@@ -96,6 +96,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	r.log.WithField("operators", operators).Debug("got operators")
 
 	// if there's no error, we were able to satisfy all constraints in the subscription set, so we calculate what
 	// changes to persist to the cluster and write them out as `steps`
@@ -115,6 +116,11 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		sourceInfo.DefaultChannel = false
 		_, isAdded := add[sourceInfo]
 		existingSubscription, subExists := subMap[sourceInfo]
+
+		r.log.Debugf("source: %#v", sourceInfo)
+		r.log.Debugf("already exists: %v %v", subExists, existingSubscription)
+		r.log.Debugf("isAdded: %v", isAdded)
+
 
 		// subscription exists and is up to date
 		if subExists && existingSubscription.Status.CurrentCSV == op.Identifier() && !isAdded {
@@ -180,6 +186,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 
 	// Order Steps
 	steps = v1alpha1.OrderSteps(steps)
+	r.log.WithField("steps", steps).Debug("final")
 	return steps, bundleLookups, updatedSubs, nil
 }
 

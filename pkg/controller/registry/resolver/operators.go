@@ -258,7 +258,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 
 	// legacy support - if the api doesn't contain properties/dependencies, build them from required/provided apis
 	properties := bundle.Properties
-	if properties == nil || len(properties) == 0{
+	if properties == nil || len(properties) == 0 {
 		properties, err = apisToProperties(provided)
 		if err != nil {
 			return nil, err
@@ -296,8 +296,6 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		op.bundle = bundle
 		return op, nil
 	}
-
-
 
 	return &Operator{
 		name:         bundle.CsvName,
@@ -416,10 +414,10 @@ func (o *Operator) Properties() []*api.Property {
 	return o.properties
 }
 
-func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
-	predicates = make([]OperatorPredicate, 0)
+func (o *Operator) DependencyPredicates() (predicates []Predicate, err error) {
+	predicates = make([]Predicate, 0)
 	for _, d := range o.Dependencies() {
-		var p OperatorPredicate
+		var p Predicate
 		if d == nil || d.Type == "" {
 			continue
 		}
@@ -434,7 +432,7 @@ func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err e
 
 // TODO: this should go in its own dependency/predicate builder package
 // TODO: can we make this more extensible, i.e. via cue
-func PredicateForDependency(dependency *api.Dependency) (OperatorPredicate, error) {
+func PredicateForDependency(dependency *api.Dependency) (Predicate, error) {
 	p, ok := predicates[dependency.Type]
 	if !ok {
 		return nil, fmt.Errorf("no predicate for dependency type %s", dependency.Type)
@@ -442,12 +440,12 @@ func PredicateForDependency(dependency *api.Dependency) (OperatorPredicate, erro
 	return p(dependency.Value)
 }
 
-var predicates = map[string]func(string) (OperatorPredicate, error){
+var predicates = map[string]func(string) (Predicate, error){
 	opregistry.GVKType:     predicateForGVKDependency,
 	opregistry.PackageType: predicateForPackageDependency,
 }
 
-func predicateForGVKDependency(value string) (OperatorPredicate, error) {
+func predicateForGVKDependency(value string) (Predicate, error) {
 	var gvk opregistry.GVKDependency
 	if err := json.Unmarshal([]byte(value), &gvk); err != nil {
 		return nil, err
@@ -459,7 +457,7 @@ func predicateForGVKDependency(value string) (OperatorPredicate, error) {
 	}), nil
 }
 
-func predicateForPackageDependency(value string) (OperatorPredicate, error) {
+func predicateForPackageDependency(value string) (Predicate, error) {
 	var pkg opregistry.PackageDependency
 	if err := json.Unmarshal([]byte(value), &pkg); err != nil {
 		return nil, err
@@ -469,7 +467,7 @@ func predicateForPackageDependency(value string) (OperatorPredicate, error) {
 		return nil, err
 	}
 
-	return And(WithPackage(pkg.PackageName), WithVersionInRange(ver)), nil
+	return And(WithPackage(pkg.PackageName), WithVersionInRange(ver, pkg.Version)), nil
 }
 
 func apisToDependencies(apis APISet) (out []*api.Dependency, err error) {

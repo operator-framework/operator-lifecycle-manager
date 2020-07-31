@@ -54,6 +54,7 @@ func (it *BundleIterator) Next() *api.Bundle {
 	}
 	if err != nil {
 		it.error = err
+		return nil
 	}
 	return next
 }

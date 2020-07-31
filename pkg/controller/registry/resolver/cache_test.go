@@ -222,7 +222,7 @@ func TestCatalogSnapshotExpired(t *testing.T) {
 func TestCatalogSnapshotFind(t *testing.T) {
 	type tc struct {
 		Name      string
-		Predicate func(*Operator) bool
+		Predicate Predicate
 		Operators []*Operator
 		Expected  []*Operator
 	}
@@ -230,8 +230,11 @@ func TestCatalogSnapshotFind(t *testing.T) {
 	for _, tt := range []tc{
 		{
 			Name: "nothing satisfies predicate",
-			Predicate: func(*Operator) bool {
-				return false
+			Predicate: &OperatorPredicate{
+				f: func(o *Operator) bool {
+					return false
+				},
+				desc: "nothing",
 			},
 			Operators: []*Operator{
 				{name: "a"},
@@ -242,16 +245,22 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		},
 		{
 			Name: "no operators in snapshot",
-			Predicate: func(*Operator) bool {
-				return true
+			Predicate: &OperatorPredicate{
+				f: func(o *Operator) bool {
+					return true
+				},
+				desc: "everything",
 			},
 			Operators: nil,
 			Expected:  nil,
 		},
 		{
 			Name: "everything satisfies predicate",
-			Predicate: func(*Operator) bool {
-				return true
+			Predicate: &OperatorPredicate{
+				f: func(o *Operator) bool {
+					return true
+				},
+				desc: "everything",
 			},
 			Operators: []*Operator{
 				{name: "a"},
@@ -266,8 +275,11 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		},
 		{
 			Name: "some satisfy predicate",
-			Predicate: func(o *Operator) bool {
-				return o.name != "a"
+			Predicate: &OperatorPredicate{
+				f: func(o *Operator) bool {
+					return o.name != "a"
+				},
+				desc: "not a",
 			},
 			Operators: []*Operator{
 				{name: "a"},

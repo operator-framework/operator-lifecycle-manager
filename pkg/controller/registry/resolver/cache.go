@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -184,7 +185,12 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 	}
 	c.logger.WithField("catalog", snapshot.key.String()).Debug("updating cache")
 	var operators []*Operator
-	for b := it.Next(); b != nil; b = it.Next() {
+	for {
+		b := it.Next()
+		if b == nil {
+			break
+		}
+		c.logger.WithField("op", b.GetCsvName()).WithField("bundledeps", b.Dependencies).Debug("prior to encoding as op")
 		defaultChannel, ok := defaultChannels[b.PackageName]
 		if !ok {
 			if p, err := registry.GetPackage(ctx, b.PackageName); err != nil {
@@ -204,6 +210,7 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 		o.requiredAPIs = o.RequiredAPIs().StripPlural()
 		o.replaces = b.Replaces
 		ensurePackageProperty(o, b.PackageName, b.Version)
+		c.logger.WithField("catalog", snapshot.key.String()).WithField("op", o.Identifier()).WithField("props", o.Properties()).WithField("deps", o.Dependencies()).Debug("adding to cache")
 		operators = append(operators, o)
 	}
 	if err := it.Error(); err != nil {
@@ -222,13 +229,13 @@ func ensurePackageProperty(o *Operator, name, version string) {
 		PackageName: name,
 		Version:     version,
 	}
-	byte, err := json.Marshal(prop)
+	bytes, err := json.Marshal(prop)
 	if err != nil {
 		return
 	}
 	o.properties = append(o.properties, &api.Property{
 		Type:  opregistry.PackageType,
-		Value: string(byte),
+		Value: string(bytes),
 	})
 }
 
@@ -243,7 +250,7 @@ func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder 
 	return EmptyOperatorFinder{}
 }
 
-func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, p ...OperatorPredicate) []*Operator {
+func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, p ...Predicate) []*Operator {
 	var result []*Operator
 	if preferred != nil && preferred.Empty() {
 		preferred = nil
@@ -266,7 +273,7 @@ func (c *NamespacedOperatorCache) WithExistingOperators(snapshot *CatalogSnapsho
 	return o
 }
 
-func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
+func (c *NamespacedOperatorCache) Find(p ...Predicate) []*Operator {
 	return c.FindPreferred(nil, p...)
 }
 
@@ -366,122 +373,202 @@ func (s SortableSnapshots) Swap(i, j int) {
 	s.snapshots[i], s.snapshots[j] = s.snapshots[j], s.snapshots[i]
 }
 
-type OperatorPredicate func(*Operator) bool
+type Predicate interface {
+	fmt.Stringer
+	Apply(*Operator) bool
+}
 
-func (s *CatalogSnapshot) Find(p ...OperatorPredicate) []*Operator {
+type OperatorPredicate struct {
+	f func(*Operator) bool
+	desc string
+}
+
+func (p OperatorPredicate) Apply(o *Operator) bool {
+	return p.f(o)
+}
+
+func (p OperatorPredicate) String() string {
+	return p.desc
+}
+
+func (s *CatalogSnapshot) Find(p ...Predicate) []*Operator {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	return Filter(s.operators, p...)
+
+	descs := make([]string, 0)
+	for _, l := range p {
+		descs = append(descs, l.String())
+	}
+
+	out := Filter(s.operators, p...)
+
+	outids := []string{}
+	for _, o := range out {
+		outids = append(outids, o.Identifier())
+	}
+	s.logger.Debugf("looking in %s with [%s], found [%v]", s.key.String(), strings.Join(descs, ", "), outids)
+	return out
 }
 
 type OperatorFinder interface {
-	Find(...OperatorPredicate) []*Operator
+	Find(...Predicate) []*Operator
 }
 
 type MultiCatalogOperatorFinder interface {
 	Catalog(registry.CatalogKey) OperatorFinder
-	FindPreferred(*registry.CatalogKey, ...OperatorPredicate) []*Operator
+	FindPreferred(*registry.CatalogKey, ...Predicate) []*Operator
 	WithExistingOperators(*CatalogSnapshot) MultiCatalogOperatorFinder
 	OperatorFinder
 }
 
 type EmptyOperatorFinder struct{}
 
-func (f EmptyOperatorFinder) Find(...OperatorPredicate) []*Operator {
+func (f EmptyOperatorFinder) Find(...Predicate) []*Operator {
 	return nil
 }
 
 func WithCSVName(name string) OperatorPredicate {
-	return func(o *Operator) bool {
-		return o.name == name
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			return o.name == name
+		},
+		desc: fmt.Sprintf("where name == %q", name),
 	}
 }
 
 func WithChannel(channel string) OperatorPredicate {
-	return func(o *Operator) bool {
-		// all operators match the empty channel
-		if channel == "" {
-			return true
-		}
-		if o.bundle == nil {
-			return false
-		}
-		return o.bundle.ChannelName == channel
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			// all operators match the empty channel
+			if channel == "" {
+				return true
+			}
+			if o.bundle == nil {
+				return false
+			}
+			return o.bundle.ChannelName == channel
+		},
+		desc: fmt.Sprintf("where channel == %q", channel),
 	}
 }
 
 func WithPackage(pkg string) OperatorPredicate {
-	return func(o *Operator) bool {
-		return o.Package() == pkg
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			return o.Package() == pkg
+		},
+		desc: fmt.Sprintf("where package == %q", pkg),
 	}
 }
 
-func WithVersionInRange(r semver.Range) OperatorPredicate {
-	return func(o *Operator) bool {
-		return o.version != nil && r(*o.version)
+func WithoutPackage(pkg string) OperatorPredicate {
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			return o.Package() != pkg
+		},
+		desc: fmt.Sprintf("where package != %q", pkg),
+	}
+}
+
+func WithVersionInRange(r semver.Range, ver string) OperatorPredicate {
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			return o.version != nil && r(*o.version)
+		},
+		desc: fmt.Sprintf("where version in %q", ver),
 	}
 }
 
 func ProvidingAPI(api opregistry.APIKey) OperatorPredicate {
-	return func(o *Operator) bool {
-		for _, p := range o.Properties() {
-			if p.Type != opregistry.GVKType {
-				continue
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			if o.Identifier() == "lib-bucket-provisioner.v1.0.0" {
+				fmt.Println("FOUND FOUND FOUND")
+				fmt.Println(o.properties)
 			}
-			var prop opregistry.GVKProperty
-			err := json.Unmarshal([]byte(p.Value), &prop)
-			if err != nil {
-				continue
+			for _, p := range o.Properties() {
+				if o.Identifier() == "lib-bucket-provisioner.v1.0.0" {
+					fmt.Println(p.Type, p.Value)
+				}
+				if p.Type != opregistry.GVKType {
+					continue
+				}
+				var prop opregistry.GVKProperty
+				err := json.Unmarshal([]byte(p.Value), &prop)
+				if err != nil {
+					continue
+				}
+				if prop.Kind == api.Kind && prop.Version == api.Version && prop.Group == api.Group {
+					return true
+				}
 			}
-			if prop.Kind == api.Kind && prop.Version == api.Version && prop.Group == api.Group {
-				return true
-			}
-		}
-		return false
+			return false
+		},
+		desc: fmt.Sprintf("where provided apis contain %q", fmt.Sprintf("%s/%s/%s", api.Group, api.Version, api.Kind)),
 	}
 }
 
 func SkipRangeIncludes(version semver.Version) OperatorPredicate {
-	return func(o *Operator) bool {
-		// TODO: lift range parsing to OperatorSurface
-		semverRange, err := semver.ParseRange(o.bundle.SkipRange)
-		return err == nil && semverRange(version)
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			// TODO: lift range parsing to OperatorSurface
+			semverRange, err := semver.ParseRange(o.bundle.SkipRange)
+			return err == nil && semverRange(version)
+		},
+		desc: fmt.Sprintf("where skiprange inclused %q", version),
 	}
 }
 
 func Replaces(name string) OperatorPredicate {
-	return func(o *Operator) bool {
-		if o.Replaces() == name {
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			if o.Replaces() == name {
+				return true
+			}
+			for _, s := range o.bundle.Skips {
+				if s == name {
+					return true
+				}
+			}
+			return false
+		},
+		desc: fmt.Sprintf("where can update from %q", name),
+	}
+}
+
+func And(p ...Predicate) Predicate {
+	descs := make([]string, 0)
+	for _, l := range p {
+		descs = append(descs, l.String())
+	}
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			for _, l := range p {
+				if l.Apply(o) == false {
+					return false
+				}
+			}
 			return true
-		}
-		for _, s := range o.bundle.Skips {
-			if s == name {
-				return true
-			}
-		}
-		return false
+		},
+		desc: fmt.Sprintf("where all [%s]", strings.Join(descs, ",")),
 	}
 }
 
-func And(p ...OperatorPredicate) OperatorPredicate {
-	return func(o *Operator) bool {
-		for _, l := range p {
-			if l(o) == false {
-				return false
-			}
-		}
-		return true
+func Or(p ...Predicate) Predicate {
+	descs := make([]string, 0)
+	for _, l := range p {
+		descs = append(descs, l.String())
 	}
-}
-
-func Or(p ...OperatorPredicate) OperatorPredicate {
-	return func(o *Operator) bool {
-		for _, l := range p {
-			if l(o) == true {
-				return true
+	return OperatorPredicate{
+		f: func(o *Operator) bool {
+			for _, l := range p {
+				if l.Apply(o) == true {
+					return true
+				}
 			}
-		}
-		return false
+			return false
+		},
+		desc: fmt.Sprintf("where one [%s]", strings.Join(descs, ",")),
 	}
 }
 
@@ -499,7 +586,7 @@ func ExactlyOne(operators []*Operator) (*Operator, error) {
 	return operators[0], nil
 }
 
-func Filter(operators []*Operator, p ...OperatorPredicate) []*Operator {
+func Filter(operators []*Operator, p ...Predicate) []*Operator {
 	var result []*Operator
 	for _, o := range operators {
 		if Matches(o, p...) {
@@ -509,6 +596,6 @@ func Filter(operators []*Operator, p ...OperatorPredicate) []*Operator {
 	return result
 }
 
-func Matches(o *Operator, p ...OperatorPredicate) bool {
-	return And(p...)(o)
+func Matches(o *Operator, p ...Predicate) bool {
+	return And(p...).Apply(o)
 }

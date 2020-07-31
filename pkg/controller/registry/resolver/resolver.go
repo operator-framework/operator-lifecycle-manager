@@ -63,12 +63,13 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 
 	// build constraints for each Subscription
 	for _, sub := range subs {
+		log := r.log.WithField("sub", sub.GetName()).WithField("ns", sub.GetNamespace())
 		pkg := sub.Spec.Package
 		catalog := registry.CatalogKey{
 			Name:      sub.Spec.CatalogSource,
 			Namespace: sub.Spec.CatalogSourceNamespace,
 		}
-		predicates := []OperatorPredicate{WithPackage(pkg)}
+		predicates := []Predicate{WithPackage(pkg)}
 		if sub.Spec.Channel != "" {
 			predicates = append(predicates, WithChannel(sub.Spec.Channel))
 		}
@@ -86,15 +87,19 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			}
 		}
 
-		channelFilter := []OperatorPredicate{}
+		channelFilter := make([]Predicate, 0)
 
 		// if we found an existing installed operator, we should filter the channel by operators that can replace it
 		if current != nil {
+			log = log.WithField("current", current.Identifier())
+			log.Debug("filtering to updates, operator is already installed")
 			channelFilter = append(channelFilter, Or(SkipRangeIncludes(*current.Version()), Replaces(current.Identifier())))
 		}
 
 		// if no operator is installed and we have a startingCSV, filter for it
 		if current == nil && len(sub.Spec.StartingCSV) > 0 {
+			log = log.WithField("starting", sub.Spec.StartingCSV)
+			log.Debug("filtering to starting csv")
 			channelFilter = append(channelFilter, WithCSVName(sub.Spec.StartingCSV))
 			startingCSVs[sub.Spec.StartingCSV] = struct{}{}
 		}
@@ -107,6 +112,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 
 		for _, i := range subInstallables {
+			log.WithField("subInstallable", i.Identifier()).WithField("constraints", i.Constraints()).Debug("built installable")
 			installables[i.Identifier()] = i
 		}
 	}
@@ -121,6 +127,9 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	if len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
 	}
+
+	r.log.WithField("input", installables).Debug("solving")
+
 	s, err := solver.New(solver.WithInput(input), solver.WithTracer(solver.LoggingTracer{&debugWriter{r.log}}))
 	if err != nil {
 		return nil, err
@@ -130,9 +139,13 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		return nil, err
 	}
 
+	r.log.Debug("finished solving")
+
 	// get the set of bundle installables from the result solved installables
 	operatorInstallables := make([]BundleInstallable, 0)
 	for _, installable := range solvedInstallables {
+		r.log.WithField("output", installable.Identifier()).Debug("result")
+
 		if bundleInstallable, ok := installable.(*BundleInstallable); ok {
 			operatorInstallables = append(operatorInstallables, *bundleInstallable)
 		}
@@ -170,7 +183,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog registry.CatalogKey, cachePredicates []Predicate, channelPredicates []Predicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
 	installables := make(map[solver.Identifier]solver.Installable, 0)
 	candidates := make([]*BundleInstallable, 0)
 
@@ -178,6 +191,8 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 	installables[subInstallable.Identifier()] = &subInstallable
 
 	bundles := namespacedCache.Catalog(catalog).Find(cachePredicates...)
+
+	r.log.WithField("bundles", bundles).Debug("before filtering")
 
 	// there are no options for this package, return early
 	if len(bundles) == 0 {
@@ -246,22 +261,26 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 		depIds = append(depIds, c.Identifier())
 	}
 
+	if len(depIds) == 0 {
+		return nil, fmt.Errorf("no operators found for %s", pkg)
+	}
+
 	// all candidates added as options for this constraint
+	r.log.Debugf("adding candidates for the dependencies for %s: %v", subInstallable.Identifier(), depIds)
 	subInstallable.AddDependency(depIds)
 
 	return installables, nil
 }
 
-func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
+func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predicates []Predicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
 	errs := make([]error, 0)
 	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
+	bundleStack := namespacedCache.Catalog(catalog).Find(predicates...)
+	r.log.Debugf("getting installables for %s", And(predicates...).String())
+	//for _, b := range bundleStack {
+		//r.log.Debugf("initial bundle stack: %s, %#v", b.Identifier(), b.dependencies)
+	//}
 
-	var finder OperatorFinder = namespacedCache
-	if !catalog.Empty() {
-		finder = namespacedCache.Catalog(catalog)
-	}
-
-	bundleStack := finder.Find(predicates...)
 
 	// track the first layer of installable ids
 	var initial = make(map[*Operator]struct{})
@@ -292,14 +311,22 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.Channel(), bundleSource.Catalog)
 		visited[bundle] = &bundleInstallable
 
+		for _, p := range bundle.Dependencies() {
+			r.log.Debugf("%s has dependency on %s %s", bundle.Identifier(), p.Type, p.Value)
+		}
+		r.log.Debugf("%s has %d dependency predicates", bundle.Identifier(), len(bundle.Dependencies()))
 		dependencyPredicates, err := bundle.DependencyPredicates()
 		if err != nil {
+			r.log.Errorf("ERROR WITH DEPENDENCY")
 			errs = append(errs, err)
 			continue
 		}
+		r.log.Debugf("%s has %d dependencies", bundle.Identifier(), len(dependencyPredicates))
+
 		for _, d := range dependencyPredicates {
 			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
-			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, d))
+			search := And(d, WithoutPackage(bundle.Package()))
+			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, search))
 			sortedBundles, err := r.sortBundles(candidateBundles)
 			if err != nil {
 				errs = append(errs, err)
@@ -453,6 +480,7 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 		}
 		s := NewSubscriptionInstallable(key)
 		s.constraints = append(s.constraints, solver.AtMost(1, ids...))
+		r.log.WithField("constraints", s.Constraints()).WithField("name", key).Debug("added constraint for invariant")
 		installables[s.Identifier()] = &s
 	}
 }
