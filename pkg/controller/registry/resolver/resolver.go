@@ -73,8 +73,6 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			predicates = append(predicates, WithChannel(sub.Spec.Channel))
 		}
 
-		predicates = append(predicates, WithoutDeprecatedProperty())
-
 		// find the currently installed operator (if it exists)
 		var current *Operator
 		for _, csv := range csvs {
@@ -299,7 +297,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			errs = append(errs, err)
 			continue
 		}
-		dependencyPredicates = append(dependencyPredicates, WithoutDeprecatedProperty())
+
 		for _, d := range dependencyPredicates {
 			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
 			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, d))

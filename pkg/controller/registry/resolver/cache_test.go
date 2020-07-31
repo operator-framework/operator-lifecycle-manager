@@ -314,7 +314,7 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 						Kind:    "K",
 						Plural:  "ks",
 					}: {},
-				}, nil),
+				}, nil, false),
 				Dependencies: apiSetToDependencies(map[opregistry.APIKey]struct{}{
 					{
 						Group:   "g2",

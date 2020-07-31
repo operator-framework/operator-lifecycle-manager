@@ -43,6 +43,8 @@ const (
 	GVKType        = "olm.gvk"
 	PackageType    = "olm.package"
 	DeprecatedType = "olm.deprecated"
+	LabelType      = "olm.label"
+	PropertyKey    = "olm.properties"
 )
 
 // APIKey stores GroupVersionKind for use as map keys
@@ -171,7 +173,7 @@ type Property struct {
 	Type string `json:"type" yaml:"type"`
 
 	// The serialized value of the propertuy
-	Value string `json:"value" yaml:"value"`
+	Value json.RawMessage `json:"value" yaml:"value"`
 }
 
 type GVKDependency struct {
@@ -191,6 +193,11 @@ type PackageDependency struct {
 
 	// The version range of dependency in semver range format
 	Version string `json:"version" yaml:"version"`
+}
+
+type LabelDependency struct {
+	// The version range of dependency in semver range format
+	Label string `json:"label" yaml:"label"`
 }
 
 type GVKProperty struct {
@@ -216,6 +223,11 @@ type DeprecatedProperty struct {
 	// Whether the bundle is deprecated
 }
 
+type LabelProperty struct {
+	// The version range of dependency in semver range format
+	Label string `json:"label" yaml:"label"`
+}
+
 // Validate will validate GVK dependency type and return error(s)
 func (gd *GVKDependency) Validate() []error {
 	errs := []error{}
@@ -227,6 +239,15 @@ func (gd *GVKDependency) Validate() []error {
 	}
 	if gd.Kind == "" {
 		errs = append(errs, fmt.Errorf("API Kind is empty"))
+	}
+	return errs
+}
+
+// Validate will validate GVK dependency type and return error(s)
+func (ld *LabelDependency) Validate() []error {
+	errs := []error{}
+	if *ld == (LabelDependency{}) {
+		errs = append(errs, fmt.Errorf("Label information is missing"))
 	}
 	return errs
 }
@@ -276,6 +297,13 @@ func (e *Dependency) GetTypeValue() interface{} {
 		return dep
 	case PackageType:
 		dep := PackageDependency{}
+		err := json.Unmarshal([]byte(e.GetValue()), &dep)
+		if err != nil {
+			return nil
+		}
+		return dep
+	case LabelType:
+		dep := LabelDependency{}
 		err := json.Unmarshal([]byte(e.GetValue()), &dep)
 		if err != nil {
 			return nil
