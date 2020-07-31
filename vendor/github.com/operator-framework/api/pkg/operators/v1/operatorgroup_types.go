@@ -144,3 +144,7 @@ func (o *OperatorGroup) NamespaceLabelSelector() (*metav1.LabelSelector, error) 
 func IsOperatorGroupLabel(label string) bool {
 	return strings.HasPrefix(label, OperatorGroupLabelPrefix)
 }
+
+func init() {
+	SchemeBuilder.Register(&OperatorGroup{}, &OperatorGroupList{})
+}

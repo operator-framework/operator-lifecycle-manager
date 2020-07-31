@@ -16,7 +16,7 @@ spec:
     singular: operator
   scope: Cluster
   versions:
-  - name: v2alpha1
+  - name: v1
     schema:
       openAPIV3Schema:
         description: Operator represents a cluster operator.
