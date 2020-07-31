@@ -33,17 +33,10 @@ MODULE="${ORG}/operator-lifecycle-manager"
 # --output-base    because this script should also be able to run inside the vendor dir of
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
-bash "${CODEGEN_PKG}/generate-groups.sh" "lister,informer" \
+bash "${CODEGEN_PKG}/generate-groups.sh" "client,lister,informer" \
   "${MODULE}/pkg/api/client" \
   "${API_MODULE}/pkg" \
-  "operators:v1alpha1,v1" \
-  --output-base "${OUTPUT_BASE}" \
-  --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
-
-bash "${CODEGEN_PKG}/generate-groups.sh" "client" \
-  "${MODULE}/pkg/api/client" \
-  "${API_MODULE}/pkg" \
-  "operators:v1alpha1,v1,v2alpha1" \
+  "operators:v1alpha1,v1alpha2,v1" \
   --output-base "${OUTPUT_BASE}" \
   --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
 
