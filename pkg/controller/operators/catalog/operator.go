@@ -102,12 +102,13 @@ type Operator struct {
 	clientAttenuator         *scoped.ClientAttenuator
 	serviceAccountQuerier    *scoped.UserDefinedServiceAccountQuerier
 	bundleUnpacker           bundle.Unpacker
+	dynamicResourceTimeout   time.Duration
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string) (*Operator, error) {
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string, dynamicResourceTimeout time.Duration) (*Operator, error) {
 	resyncPeriod := queueinformer.ResyncWithJitter(resync, 0.2)
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
@@ -160,6 +161,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient, dynamicClient),
+		dynamicResourceTimeout:   dynamicResourceTimeout,
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
@@ -1432,6 +1434,11 @@ func transitionInstallPlanState(log *logrus.Logger, transitioner installPlanTran
 			out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled, &now))
 			out.Status.Phase = v1alpha1.InstallPlanPhaseComplete
 		}
+
+		// add resolved condition if no conditions exist - the installplan is still installing (waiting for APIs, etc)
+		if len(out.Status.Conditions) == 0 {
+			out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved, &now))
+		}
 		return out, nil
 	default:
 		return out, nil
@@ -1578,9 +1585,9 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		}
 
 		switch step.Status {
-		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated, v1alpha1.StepStatusWaitingForAPI:
+		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
 			continue
-		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
+		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent, v1alpha1.StepStatusWaitingForAPI:
 			manifest, err := r.ManifestForStep(step)
 			if err != nil {
 				return err
@@ -1857,11 +1864,19 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return errorwrap.Wrapf(err, "error decoding %s object to an unstructured object", step.Resource.Name)
 				}
 
-				// Get the resource from the GVK.
+				// Get the GVK from the resource.
 				gvk := unstructuredObject.GroupVersionKind()
+				// Then check if the API for this dynamic resource is available on-cluster, before creating the resource, by querying discovery.
+				// This ensures CRs created via the dynamic client are created after the corresponding CRD is accepted and established on the cluster to avoid potential race conditions.
+				// (Default) 2 minute timeout for the required API to appear in discovery before failing the installplan
+				if timeout(resolvedTimestamp(plan), o.dynamicResourceTimeout) {
+					return fmt.Errorf("required GVK %s not found via discovery: deadline exceeded", gvk.String())
+				}
 				r, err := o.apiresourceFromGVK(gvk)
 				if err != nil {
-					return err
+					o.logger.Infof("failed to find required server resources: %s", err)
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusWaitingForAPI
+					continue
 				}
 
 				// Create the GVR
@@ -2026,6 +2041,8 @@ func getCSVNameSet(plan *v1alpha1.InstallPlan) map[string]struct{} {
 	return csvNameSet
 }
 
+// apiresourceFromGVK looks for the presence of a GVK on the api-server in a non-blocking way.
+// It checks the installplan timestamp to determine whether or not to continue.
 func (o *Operator) apiresourceFromGVK(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
 	logger := o.logger.WithFields(logrus.Fields{
 		"group":   gvk.Group,
@@ -2036,15 +2053,17 @@ func (o *Operator) apiresourceFromGVK(gvk schema.GroupVersionKind) (metav1.APIRe
 	resources, err := o.opClient.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gvk.GroupVersion().String())
 	if err != nil {
 		logger.WithField("err", err).Info("could not query for GVK in api discovery")
-		return metav1.APIResource{}, err
+		return metav1.APIResource{}, fmt.Errorf("could not query for GVK in api discovery: %s", err)
 	}
 	for _, r := range resources.APIResources {
 		if r.Kind == gvk.Kind {
+			logger.WithField("kind", r.Kind).Infof("found GVK %s in api discovery", gvk.String())
 			return r, nil
 		}
 	}
-	logger.Info("couldn't find GVK in api discovery")
-	return metav1.APIResource{}, olmerrors.GroupVersionKindNotFoundError{gvk.Group, gvk.Version, gvk.Kind}
+
+	logger.Infof("could not find GVK %s in api discovery", gvk.String())
+	return metav1.APIResource{}, fmt.Errorf("could not find GVK %s in api discovery", gvk.String())
 }
 
 const (
@@ -2067,4 +2086,26 @@ var supportedKinds = map[string]struct{}{
 func isSupported(kind string) bool {
 	_, ok := supportedKinds[kind]
 	return ok
+}
+
+func timeout(timestamp time.Time, timeout time.Duration) bool {
+	if timestamp.IsZero() {
+		return false
+	}
+	if time.Now().Sub(timestamp) > timeout {
+		return true
+	}
+	return false
+}
+
+// resolvedTimestamp returns the time at which the installplan had a resolved condition.
+// This condition is representative of the first time the installplan went through a sync.
+// The timestamp is used for timing out the installplan if dynamic resources are missing APIs on the server.
+func resolvedTimestamp(plan *v1alpha1.InstallPlan) time.Time {
+	for _, cond := range plan.Status.Conditions {
+		if cond.Type == v1alpha1.InstallPlanResolved {
+			return cond.LastUpdateTime.Time
+		}
+	}
+	return time.Time{}
 }

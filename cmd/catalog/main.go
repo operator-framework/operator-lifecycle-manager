@@ -27,12 +27,13 @@ import (
 )
 
 const (
-	catalogNamespaceEnvVarName  = "GLOBAL_CATALOG_NAMESPACE"
-	defaultWakeupInterval       = 15 * time.Minute
-	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
-	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
-	defaultUtilImage            = "quay.io/operator-framework/olm:latest"
-	defaultOperatorName         = ""
+	catalogNamespaceEnvVarName    = "GLOBAL_CATALOG_NAMESPACE"
+	defaultWakeupInterval         = 15 * time.Minute
+	defaultCatalogNamespace       = "openshift-operator-lifecycle-manager"
+	defaultConfigMapServerImage   = "quay.io/operatorframework/configmap-operator-registry:latest"
+	defaultUtilImage              = "quay.io/operator-framework/olm:latest"
+	defaultOperatorName           = ""
+	defaultDynamicResourceTimeout = 2 * time.Minute
 )
 
 // config flags defined globally so that they appear on the test binary as well
@@ -68,6 +69,9 @@ var (
 
 	profiling = flag.Bool(
 		"profiling", false, "serve profiling data (on port 8080)")
+
+	dynamicResourceTimeout = flag.Duration(
+		"dynamicResourceTimeout", defaultDynamicResourceTimeout, "timeout to discover required CRDs on the api-server when installing CRs")
 )
 
 func init() {
@@ -172,7 +176,7 @@ func main() {
 	}
 
 	// Create a new instance of the operator.
-	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *utilImage, *catalogNamespace)
+	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *utilImage, *catalogNamespace, *dynamicResourceTimeout)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

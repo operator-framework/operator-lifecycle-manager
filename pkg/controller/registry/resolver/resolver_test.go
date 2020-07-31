@@ -1343,3 +1343,41 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 	}
 	require.EqualValues(t, expected, operators)
 }
+
+// Scenario: An operator bundle provides and requires the same API
+// Expected behavior: The resolver picks the bundle to fulfill the API requirement. One operator can satisfy its own dependency.
+func TestSolveOperators_FulfillsOwnRequirements(t *testing.T) {
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+
+	namespace := "olm"
+	channel := "alpha"
+	catalog := registry.CatalogKey{Name: "community", Namespace: namespace}
+
+	newSub := newSub(namespace, "packageA", channel, catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			catalog: {
+				operators: []*Operator{
+					// Default channel is stable in this case
+					genOperator("packageA.v0.0.2", "0.0.2", "", "packageA", channel, catalog.Name, catalog.Namespace, APISet, APISet, nil, channel, false),
+				},
+			},
+		},
+	}
+
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+	}
+
+	csvs := []*v1alpha1.ClusterServiceVersion{}
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	assert.NoError(t, err)
+
+	// operator should be from the default stable channel
+	expected := OperatorSet{
+		"packageA.v0.0.2": genOperator("packageA.v0.0.2", "0.0.2", "", "packageA", channel, catalog.Name, catalog.Namespace, APISet, APISet, nil, channel, false),
+	}
+	require.EqualValues(t, expected, operators)
+}

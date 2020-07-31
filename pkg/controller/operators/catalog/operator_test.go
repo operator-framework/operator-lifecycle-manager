@@ -590,8 +590,7 @@ func TestExecutePlan(t *testing.T) {
 				case *unstructured.Unstructured:
 					// Get the resource from the GVK
 					gvk := o.GroupVersionKind()
-					var r metav1.APIResource
-					r, err = op.apiresourceFromGVK(gvk)
+					r, err := op.apiresourceFromGVK(gvk)
 					require.NoError(t, err)
 
 					gvr := schema.GroupVersionResource{
