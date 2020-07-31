@@ -1403,6 +1403,12 @@ var _ = Describe("Subscription", func() {
 			cleanup()
 		})
 
+		updateCatSrcPriority := func(crClient versioned.Interface, namespace string, catsrc *v1alpha1.CatalogSource, priority int) {
+			catsrc.Spec.Priority = priority
+			_, err := crClient.OperatorsV1alpha1().CatalogSources(namespace).Update(context.TODO(), catsrc, metav1.UpdateOptions{})
+			Expect(err).Should(BeNil())
+		}
+
 		ensureInstalledCSVs := func() {
 			By("Create a subscription for the main package and ensure the right CSVs were picked", func() {
 				// Create a subscription for packageA in catsrc
@@ -1455,11 +1461,11 @@ var _ = Describe("Subscription", func() {
 
 				catsrcDepRight, c2 = createInternalCatalogSource(kubeClient, crClient, "catsrc1", testNamespace,
 					[]registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd}, csvsRight)
-				catsrcDepRight.Spec.Priority = 100
+				updateCatSrcPriority(crClient, testNamespace, catsrcDepRight, 100)
 
 				catsrcDepWrong, c3 = createInternalCatalogSource(kubeClient, crClient, "catsrc2", testNamespace,
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
-				catsrcDepWrong.Spec.Priority = 100
+				updateCatSrcPriority(crClient, testNamespace, catsrcDepWrong, 100)
 
 				cleanup = func() {
 					c1()
@@ -1503,7 +1509,7 @@ var _ = Describe("Subscription", func() {
 
 				catsrcDepWrong, c2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
-				catsrcDepWrong.Spec.Priority = 100
+				updateCatSrcPriority(crClient, testNamespace, catsrcDepWrong, 100)
 
 				cleanup = func() {
 					c1()
@@ -1542,7 +1548,7 @@ var _ = Describe("Subscription", func() {
 
 				catsrcDepRight, c2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
 					[]registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd}, csvsRight)
-				catsrcDepRight.Spec.Priority = 100
+				updateCatSrcPriority(crClient, testNamespace, catsrcDepRight, 100)
 
 				catsrcDepWrong, c3 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
