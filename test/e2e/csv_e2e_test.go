@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -3255,6 +3256,26 @@ func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourc
 		return nil, err
 	}
 	_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return buildCRDCleanupFunc(c, crd.GetName()), nil
+}
+
+func createV1CRD(c operatorclient.ClientInterface, crd apiextensionsv1.CustomResourceDefinition) (cleanupFunc, error) {
+	out := &apiextensionsv1.CustomResourceDefinition{}
+	scheme := runtime.NewScheme()
+	if err := apiextensions.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := scheme.Convert(&crd, out, nil); err != nil {
+		return nil, err
+	}
+	_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
