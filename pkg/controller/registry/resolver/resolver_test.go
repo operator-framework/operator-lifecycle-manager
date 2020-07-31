@@ -47,6 +47,7 @@ func TestSolveOperators(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -92,6 +93,7 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -140,6 +142,7 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -287,6 +290,7 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -346,6 +350,7 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -403,6 +408,7 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -567,6 +573,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -616,6 +623,7 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -654,6 +662,7 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -691,6 +700,7 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -731,6 +741,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -1075,6 +1086,7 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 	}
 	satResolver := SatResolver{
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
