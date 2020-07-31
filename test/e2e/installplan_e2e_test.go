@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"

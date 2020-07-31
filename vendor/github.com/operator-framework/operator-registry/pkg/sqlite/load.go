@@ -879,50 +879,6 @@ func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
 	return nil
 }
 
-func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
-	getEntryID := `SELECT entry_id FROM channel_entry WHERE operatorbundle_name=?`
-	rows, err := tx.QueryContext(context.TODO(), getEntryID, csvName)
-	if err != nil {
-		return err
-	}
-	var entryIDs []int64
-	for rows.Next() {
-		var entryID sql.NullInt64
-		rows.Scan(&entryID)
-		entryIDs = append(entryIDs, entryID.Int64)
-	}
-	err = rows.Close()
-	if err != nil {
-		return err
-	}
-
-	updateChannelEntry, err := tx.Prepare(`UPDATE channel_entry SET replaces=NULL WHERE replaces=?`)
-	if err != nil {
-		return err
-	}
-	for _, id := range entryIDs {
-		if _, err := updateChannelEntry.Exec(id); err != nil {
-			return err
-		}
-	}
-	err = updateChannelEntry.Close()
-	if err != nil {
-		return err
-	}
-
-	stmt, err := tx.Prepare("DELETE FROM channel_entry WHERE operatorbundle_name=?")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	if _, err := stmt.Exec(csvName); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func getTailFromBundle(tx *sql.Tx, name string) (bundles []string, err error) {
 	getReplacesSkips := `SELECT replaces, skips FROM operatorbundle WHERE name=?`
 	isDefaultChannelHead := `SELECT head_operatorbundle_name FROM channel
