@@ -19,26 +19,22 @@ limitations under the License.
 package fake
 
 import (
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
+	v1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha2"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeOperatorsV1 struct {
+type FakeOperatorsV1alpha2 struct {
 	*testing.Fake
 }
 
-func (c *FakeOperatorsV1) Operators() v1.OperatorInterface {
-	return &FakeOperators{c}
-}
-
-func (c *FakeOperatorsV1) OperatorGroups(namespace string) v1.OperatorGroupInterface {
+func (c *FakeOperatorsV1alpha2) OperatorGroups(namespace string) v1alpha2.OperatorGroupInterface {
 	return &FakeOperatorGroups{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeOperatorsV1) RESTClient() rest.Interface {
+func (c *FakeOperatorsV1alpha2) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }
