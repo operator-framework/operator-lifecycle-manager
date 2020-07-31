@@ -12,6 +12,13 @@ import (
 var (
 	// ErrPackageNotInDatabase is an error that describes a package not found error when querying the registry
 	ErrPackageNotInDatabase = errors.New("Package not in database")
+
+	// ErrBundleImageNotInDatabase is an error that describes a bundle image not found when querying the registry
+	ErrBundleImageNotInDatabase = errors.New("Bundle Image not in database")
+
+	// ErrRemovingDefaultChannelDuringDeprecation is an error that describes a bundle deprecation causing the deletion
+	// of the default channel
+	ErrRemovingDefaultChannelDuringDeprecation = errors.New("Bundle deprecation causing default channel removal")
 )
 
 // BundleImageAlreadyAddedErr is an error that describes a bundle is already added
@@ -33,8 +40,9 @@ func (e PackageVersionAlreadyAddedErr) Error() string {
 }
 
 const (
-	GVKType     = "olm.gvk"
-	PackageType = "olm.package"
+	GVKType        = "olm.gvk"
+	PackageType    = "olm.package"
+	DeprecatedType = "olm.deprecated"
 )
 
 // APIKey stores GroupVersionKind for use as map keys
@@ -202,6 +210,10 @@ type PackageProperty struct {
 
 	// The version of package in semver format
 	Version string `json:"version" yaml:"version"`
+}
+
+type DeprecatedProperty struct {
+	// Whether the bundle is deprecated
 }
 
 // Validate will validate GVK dependency type and return error(s)

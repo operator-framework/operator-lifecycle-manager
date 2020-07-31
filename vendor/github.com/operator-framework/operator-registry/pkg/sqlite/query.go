@@ -779,7 +779,7 @@ func (s *SQLQuerier) GetBundleVersion(ctx context.Context, image string) (string
 	if version.Valid {
 		return version.String, nil
 	}
-	return "", fmt.Errorf("bundle %s not found", image)
+	return "", nil
 }
 
 func (s *SQLQuerier) GetBundlePathsForPackage(ctx context.Context, pkgName string) ([]string, error) {
@@ -943,30 +943,29 @@ func (s *SQLQuerier) ListBundles(ctx context.Context) (bundles []*api.Bundle, er
 		bundleItem, ok := bundlesMap[bundleKey]
 		if ok {
 			// Create new dependency object
-			dep := &api.Dependency{}
-			if !depType.Valid || !depValue.Valid {
-				continue
-			}
-			dep.Type = depType.String
-			dep.Value = depValue.String
+			if depType.Valid && depValue.Valid {
+				dep := &api.Dependency{}
+				dep.Type = depType.String
+				dep.Value = depValue.String
 
-			// Add new dependency to the existing list
-			existingDeps := bundleItem.Dependencies
-			existingDeps = append(existingDeps, dep)
-			bundleItem.Dependencies = existingDeps
+				// Add new dependency to the existing list
+				existingDeps := bundleItem.Dependencies
+				existingDeps = append(existingDeps, dep)
+				bundleItem.Dependencies = existingDeps
+			}
+
 
 			// Create new property object
-			prop := &api.Property{}
-			if !propType.Valid || !propValue.Valid {
-				continue
-			}
-			prop.Type = propType.String
-			prop.Value = propValue.String
+			if propType.Valid && propValue.Valid {
+				prop := &api.Property{}
+				prop.Type = propType.String
+				prop.Value = propValue.String
 
-			// Add new property to the existing list
-			existingProps := bundleItem.Properties
-			existingProps = append(existingProps, prop)
-			bundleItem.Properties = existingProps
+				// Add new property to the existing list
+				existingProps := bundleItem.Properties
+				existingProps = append(existingProps, prop)
+				bundleItem.Properties = existingProps
+			}
 		} else {
 			// Create new bundle
 			out := &api.Bundle{}
