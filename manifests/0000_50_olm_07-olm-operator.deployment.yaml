@@ -34,7 +34,7 @@ spec:
           - /var/run/secrets/serving-cert/tls.crt
           - --tls-key
           - /var/run/secrets/serving-cert/tls.key
-          image: quay.io/operator-framework/olm@sha256:2c389d2e380c842cbf542820ad4493249164302ddf0e699b0a37105d234e67ee
+          image: quay.io/operator-framework/olm@sha256:bd73865b9840cf90ed558ddfcf51a9ba313b53598cc69c9b206669c883c972ec
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
