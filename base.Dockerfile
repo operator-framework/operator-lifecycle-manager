@@ -3,7 +3,7 @@
 FROM openshift/origin-release:golang-1.13
 
 # Install test dependencies
-RUN yum install -y skopeo && \
+RUN yum install -y skopeo gpgme-devel && \
     export OS=$(go env GOOS) && \
     export ARCH=$(go env GOARCH) && \
     curl -L "https://go.kubebuilder.io/dl/2.3.1/${OS}/${ARCH}" | tar -xz -C /tmp/ && \

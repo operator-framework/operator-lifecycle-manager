@@ -22,7 +22,7 @@ import (
  */
 func rewriteTestsInFile(pathToFile string) {
 	fileSet := token.NewFileSet()
-	rootNode, err := parser.ParseFile(fileSet, pathToFile, nil, parser.ParseComments)
+	rootNode, err := parser.ParseFile(fileSet, pathToFile, nil, 0)
 	if err != nil {
 		panic(fmt.Sprintf("Error parsing test file '%s':\n%s\n", pathToFile, err.Error()))
 	}
@@ -56,12 +56,11 @@ func rewriteTestsInFile(pathToFile string) {
 	}
 
 	fileInfo, err := os.Stat(pathToFile)
-
 	if err != nil {
 		panic(fmt.Sprintf("Error stat'ing file: %s\n", pathToFile))
 	}
 
-	err = ioutil.WriteFile(pathToFile, buffer.Bytes(), fileInfo.Mode())
+	ioutil.WriteFile(pathToFile, buffer.Bytes(), fileInfo.Mode())
 }
 
 /*
