@@ -18,8 +18,9 @@ import (
 
 // bundleLoader loads a bundle directory from disk
 type bundleLoader struct {
-	dir    string
-	bundle *Bundle
+	dir      string
+	bundle   *Bundle
+	foundCSV bool
 }
 
 func NewBundleLoader(dir string) bundleLoader {
@@ -32,6 +33,12 @@ func (b *bundleLoader) LoadBundle() error {
 	errs := make([]error, 0)
 	if err := filepath.Walk(b.dir, collectWalkErrs(b.LoadBundleWalkFunc, &errs)); err != nil {
 		errs = append(errs, err)
+	}
+
+	if !b.foundCSV {
+		errs = append(errs, fmt.Errorf("unable to find a csv in bundle directory %s", b.dir))
+	} else if b.bundle == nil {
+		errs = append(errs, fmt.Errorf("unable to load bundle from directory %s", b.dir))
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -81,6 +88,8 @@ func (b *bundleLoader) LoadBundleWalkFunc(path string, f os.FileInfo, err error)
 	if csv.GetKind() != operatorsv1alpha1.ClusterServiceVersionKind {
 		return nil
 	}
+
+	b.foundCSV = true
 
 	var errs []error
 	bundle, err := loadBundle(csv.GetName(), filepath.Dir(path))

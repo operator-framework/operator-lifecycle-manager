@@ -26,12 +26,17 @@ import (
 
 type OperatorsV1Interface interface {
 	RESTClient() rest.Interface
+	OperatorsGetter
 	OperatorGroupsGetter
 }
 
 // OperatorsV1Client is used to interact with features provided by the operators.coreos.com group.
 type OperatorsV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *OperatorsV1Client) Operators() OperatorInterface {
+	return newOperators(c)
 }
 
 func (c *OperatorsV1Client) OperatorGroups(namespace string) OperatorGroupInterface {

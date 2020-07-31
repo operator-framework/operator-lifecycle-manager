@@ -662,13 +662,19 @@ spec:
                       deployments:
                         type: array
                         items:
-                          description: StrategyDeploymentSpec contains the name and
-                            spec for the deployment ALM should create
+                          description: StrategyDeploymentSpec contains the name, spec
+                            and labels for the deployment ALM should create
                           type: object
                           required:
                           - name
                           - spec
                           properties:
+                            label:
+                              description: Set is a map of label:value. It implements
+                                Labels.
+                              type: object
+                              additionalProperties:
+                                type: string
                             name:
                               type: string
                             spec:
@@ -8698,6 +8704,10 @@ spec:
                     containerPort:
                       type: integer
                       format: int32
+                    conversionCRDs:
+                      type: array
+                      items:
+                        type: string
                     deploymentName:
                       type: string
                     failurePolicy:

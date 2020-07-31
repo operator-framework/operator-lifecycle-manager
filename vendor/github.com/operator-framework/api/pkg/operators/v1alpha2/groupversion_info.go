@@ -12,9 +12,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1alpha2 contains API Schema definitions for the discovery v1alpha2 API group.
 // +kubebuilder:object:generate=true
-// +groupName=operators.coreos.com
+
+// Package v1alpha2 contains API Schema definitions for the discovery v1alpha2 API group.
 package v1alpha2
 
 import (
@@ -35,3 +35,8 @@ var (
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
 )
+
+// Resource takes an unqualified resource and returns a Group qualified GroupResource
+func Resource(resource string) schema.GroupResource {
+	return GroupVersion.WithResource(resource).GroupResource()
+}

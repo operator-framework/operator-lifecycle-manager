@@ -24,6 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// Operators returns a OperatorInformer.
+	Operators() OperatorInformer
 	// OperatorGroups returns a OperatorGroupInformer.
 	OperatorGroups() OperatorGroupInformer
 }
@@ -37,6 +39,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// Operators returns a OperatorInformer.
+func (v *version) Operators() OperatorInformer {
+	return &operatorInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // OperatorGroups returns a OperatorGroupInformer.

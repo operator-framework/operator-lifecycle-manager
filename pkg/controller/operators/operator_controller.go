@@ -23,7 +23,6 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 )
 
@@ -34,7 +33,7 @@ var (
 		apiregistrationv1.AddToScheme,
 		operatorsv1alpha1.AddToScheme,
 		operatorsv1.AddToScheme,
-		operatorsv2alpha1.AddToScheme,
+		operatorsv1.AddToScheme,
 	)
 
 	// AddToScheme adds all types necessary for the controller to operate.
@@ -67,7 +66,7 @@ func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Note: If we want to support resources composed of custom resources, we need to figure out how
 	// to dynamically add resource types to watch.
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&operatorsv2alpha1.Operator{}).
+		For(&operatorsv1.Operator{}).
 		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueOperator).
@@ -118,7 +117,7 @@ func (r *OperatorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// Fetch the Operator from the cache
 	ctx := context.TODO()
-	in := &operatorsv2alpha1.Operator{}
+	in := &operatorsv1.Operator{}
 	if err := r.Get(ctx, req.NamespacedName, in); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("Could not find Operator")
@@ -230,7 +229,7 @@ func (r *OperatorReconciler) mapComponentRequests(obj handler.MapObject) (reques
 
 		// Otherwise, best-effort generate a new operator
 		// TODO(njhale): Implement verification that the operator-discovery admission webhook accepted this label (JWT or maybe sign a set of fields?)
-		operator := &operatorsv2alpha1.Operator{}
+		operator := &operatorsv1.Operator{}
 		operator.SetName(name.Name)
 		if err := r.Create(context.Background(), operator); err != nil && !apierrors.IsAlreadyExists(err) {
 			r.log.Error(err, "couldn't generate operator", "operator", name, "component", obj.Meta.GetSelfLink())

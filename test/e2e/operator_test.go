@@ -21,8 +21,7 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	operatorsv2alpha1 "github.com/operator-framework/api/pkg/operators/v2alpha1"
-	clientv2alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v2alpha1"
+	clientv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -34,31 +33,22 @@ var _ = Describe("Operator", func() {
 		clientCtx       context.Context
 		scheme          *runtime.Scheme
 		listOpts        metav1.ListOptions
-		operatorClient  clientv2alpha1.OperatorInterface
+		operatorClient  clientv1.OperatorInterface
 		client          controllerclient.Client
 		operatorFactory decorators.OperatorFactory
 	)
 
 	BeforeEach(func() {
-		// Toggle v2alpha1 feature-gate
-		toggleCVO()
-		togglev2alpha1()
-
 		// Setup common utilities
 		clientCtx = context.Background()
 		scheme = ctx.Ctx().Scheme()
 		listOpts = metav1.ListOptions{}
-		operatorClient = ctx.Ctx().OperatorClient().OperatorsV2alpha1().Operators()
+		operatorClient = ctx.Ctx().OperatorClient().OperatorsV1().Operators()
 		client = ctx.Ctx().Client()
 
 		var err error
 		operatorFactory, err = decorators.NewSchemedOperatorFactory(scheme)
 		Expect(err).ToNot(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		togglev2alpha1()
-		toggleCVO()
 	})
 
 	// Ensures that an Operator resource can select its components by label and surface them correctly in its status.
@@ -77,7 +67,7 @@ var _ = Describe("Operator", func() {
 	// 11. Delete ns-a
 	// 12. Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 	It("should surface components in its status", func() {
-		o := &operatorsv2alpha1.Operator{}
+		o := &operatorsv1.Operator{}
 		o.SetName(genName("o-"))
 
 		Eventually(func() error {
@@ -104,7 +94,7 @@ var _ = Describe("Operator", func() {
 		defer cancel()
 
 		expectedKey := "operators.coreos.com/" + o.GetName()
-		awaitPredicates(deadline, w, operatorPredicate(func(op *operatorsv2alpha1.Operator) bool {
+		awaitPredicates(deadline, w, operatorPredicate(func(op *operatorsv1.Operator) bool {
 			if op.Status.Components == nil || op.Status.Components.LabelSelector == nil {
 				return false
 			}
@@ -283,8 +273,8 @@ var _ = Describe("Operator", func() {
 		})
 
 		It("should automatically adopt components", func() {
-			Eventually(func() (*operatorsv2alpha1.Operator, error) {
-				o := &operatorsv2alpha1.Operator{}
+			Eventually(func() (*operatorsv1.Operator, error) {
+				o := &operatorsv1.Operator{}
 				err := client.Get(clientCtx, operatorName, o)
 				return o, err
 			}).Should(ReferenceComponents([]*corev1.ObjectReference{
@@ -320,7 +310,7 @@ func componentRefEventuallyExists(w watch.Interface, exists bool, ref *corev1.Ob
 	deadline, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()
 
-	awaitPredicates(deadline, w, operatorPredicate(func(op *operatorsv2alpha1.Operator) bool {
+	awaitPredicates(deadline, w, operatorPredicate(func(op *operatorsv1.Operator) bool {
 		if op.Status.Components == nil {
 			return false
 		}
@@ -335,9 +325,9 @@ func componentRefEventuallyExists(w watch.Interface, exists bool, ref *corev1.Ob
 	}))
 }
 
-func operatorPredicate(fn func(*operatorsv2alpha1.Operator) bool) predicateFunc {
+func operatorPredicate(fn func(*operatorsv1.Operator) bool) predicateFunc {
 	return func(event watch.Event) bool {
-		o, ok := event.Object.(*operatorsv2alpha1.Operator)
+		o, ok := event.Object.(*operatorsv1.Operator)
 		if !ok {
 			panic(fmt.Sprintf("unexpected event object type %T in deployment", event.Object))
 		}
@@ -347,12 +337,12 @@ func operatorPredicate(fn func(*operatorsv2alpha1.Operator) bool) predicateFunc 
 }
 
 type OperatorMatcher struct {
-	matches func(*operatorsv2alpha1.Operator) (bool, error)
+	matches func(*operatorsv1.Operator) (bool, error)
 	name    string
 }
 
 func (o OperatorMatcher) Match(actual interface{}) (bool, error) {
-	operator, ok := actual.(*operatorsv2alpha1.Operator)
+	operator, ok := actual.(*operatorsv1.Operator)
 	if !ok {
 		return false, fmt.Errorf("OperatorMatcher expects Operator (got %T)", actual)
 	}
@@ -374,7 +364,7 @@ func (o OperatorMatcher) NegatedFailureMessage(actual interface{}) string {
 
 func ReferenceComponents(refs []*corev1.ObjectReference) gomegatypes.GomegaMatcher {
 	return &OperatorMatcher{
-		matches: func(operator *operatorsv2alpha1.Operator) (bool, error) {
+		matches: func(operator *operatorsv1.Operator) (bool, error) {
 			actual := map[corev1.ObjectReference]struct{}{}
 			for _, ref := range operator.Status.Components.Refs {
 				actual[*ref.ObjectReference] = struct{}{}

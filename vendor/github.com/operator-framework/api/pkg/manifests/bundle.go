@@ -20,3 +20,17 @@ type Bundle struct {
 	V1CRDs         []*apiextensionsv1.CustomResourceDefinition
 	Dependencies   []*Dependency
 }
+
+func (b *Bundle) ObjectsToValidate() []interface{} {
+	objs := []interface{}{}
+	for _, crd := range b.V1CRDs {
+		objs = append(objs, crd)
+	}
+	for _, crd := range b.V1beta1CRDs {
+		objs = append(objs, crd)
+	}
+	objs = append(objs, b.CSV)
+	objs = append(objs, b)
+
+	return objs
+}

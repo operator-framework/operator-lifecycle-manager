@@ -43,13 +43,25 @@ func validateOwnedCRDs(bundle *manifests.Bundle, csv *operatorsv1alpha1.ClusterS
 	}
 
 	// All owned keys must match a CRD in bundle.
+	ownedGVSet := make(map[schema.GroupKind]struct{})
 	for _, ownedKey := range ownedKeys {
 		if _, ok := keySet[ownedKey]; !ok {
 			result.Add(errors.ErrInvalidBundle(fmt.Sprintf("owned CRD %q not found in bundle %q", ownedKey, bundle.Name), ownedKey))
 		} else {
 			delete(keySet, ownedKey)
+			gvKey := schema.GroupKind{Group: ownedKey.Group, Kind: ownedKey.Kind}
+			ownedGVSet[gvKey] = struct{}{}
 		}
 	}
+
+	// Filter out unused versions of the same CRD
+	for key := range keySet {
+		gvKey := schema.GroupKind{Group: key.Group, Kind: key.Kind}
+		if _, ok := ownedGVSet[gvKey]; ok {
+			delete(keySet, key)
+		}
+	}
+
 	// All CRDs present in a CSV must be present in the bundle.
 	for key := range keySet {
 		result.Add(errors.WarnInvalidBundle(fmt.Sprintf("CRD %q is present in bundle %q but not defined in CSV", key, bundle.Name), key))

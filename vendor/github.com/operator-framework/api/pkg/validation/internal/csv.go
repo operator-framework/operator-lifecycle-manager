@@ -46,7 +46,7 @@ func validateCSV(csv *v1alpha1.ClusterServiceVersion) errors.ManifestResult {
 	// validate installModes
 	result.Add(validateInstallModes(csv)...)
 	// check missing optional/mandatory fields.
-	result.Add(checkFields(csv)...)
+	result.Add(checkFields(*csv)...)
 	return result
 }
 
@@ -67,7 +67,7 @@ func parseCSVNameFormat(name string) (string, semver.Version, error) {
 }
 
 // checkFields runs checkEmptyFields and returns its errors.
-func checkFields(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Error) {
+func checkFields(csv v1alpha1.ClusterServiceVersion) (errs []errors.Error) {
 	result := errors.ManifestResult{}
 	checkEmptyFields(&result, reflect.ValueOf(csv), "")
 	return append(result.Errors, result.Warnings...)
@@ -165,6 +165,29 @@ func validateInstallModes(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Er
 			errs = append(errs, errors.ErrInvalidCSV("duplicate install modes present", csv.GetName()))
 		} else if installMode.Supported {
 			anySupported = true
+		}
+	}
+
+	// validate installModes when conversionCRDs field is present in csv.Spec.Webhookdefinitions
+	// check if WebhookDefinitions is present
+	if len(csv.Spec.WebhookDefinitions) != 0 {
+		for _, WebhookDefinition := range csv.Spec.WebhookDefinitions {
+			// check if ConversionCRDs is present
+			if len(WebhookDefinition.ConversionCRDs) != 0 {
+				supportsOnlyAllNamespaces := true
+				// check if AllNamespaces is supported and other install modes are not supported
+				for _, installMode := range csv.Spec.InstallModes {
+					if installMode.Type == "AllNamespaces" && !installMode.Supported {
+						supportsOnlyAllNamespaces = false
+					}
+					if installMode.Type != "AllNamespaces" && installMode.Supported {
+						supportsOnlyAllNamespaces = false
+					}
+				}
+				if supportsOnlyAllNamespaces == false {
+					errs = append(errs, errors.ErrInvalidCSV("only AllNamespaces InstallModeType is supported when conversionCRDs is present", csv.GetName()))
+				}
+			}
 		}
 	}
 

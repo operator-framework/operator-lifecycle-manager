@@ -23,7 +23,7 @@ import (
 
 	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
-	operatorsv2alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v2alpha1"
+	operatorsv1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha2"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -32,8 +32,8 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Interface
+	OperatorsV1alpha2() operatorsv1alpha2.OperatorsV1alpha2Interface
 	OperatorsV1() operatorsv1.OperatorsV1Interface
-	OperatorsV2alpha1() operatorsv2alpha1.OperatorsV2alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -41,8 +41,8 @@ type Interface interface {
 type Clientset struct {
 	*discovery.DiscoveryClient
 	operatorsV1alpha1 *operatorsv1alpha1.OperatorsV1alpha1Client
+	operatorsV1alpha2 *operatorsv1alpha2.OperatorsV1alpha2Client
 	operatorsV1       *operatorsv1.OperatorsV1Client
-	operatorsV2alpha1 *operatorsv2alpha1.OperatorsV2alpha1Client
 }
 
 // OperatorsV1alpha1 retrieves the OperatorsV1alpha1Client
@@ -50,14 +50,14 @@ func (c *Clientset) OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Inter
 	return c.operatorsV1alpha1
 }
 
+// OperatorsV1alpha2 retrieves the OperatorsV1alpha2Client
+func (c *Clientset) OperatorsV1alpha2() operatorsv1alpha2.OperatorsV1alpha2Interface {
+	return c.operatorsV1alpha2
+}
+
 // OperatorsV1 retrieves the OperatorsV1Client
 func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
 	return c.operatorsV1
-}
-
-// OperatorsV2alpha1 retrieves the OperatorsV2alpha1Client
-func (c *Clientset) OperatorsV2alpha1() operatorsv2alpha1.OperatorsV2alpha1Interface {
-	return c.operatorsV2alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -85,11 +85,11 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-	cs.operatorsV1, err = operatorsv1.NewForConfig(&configShallowCopy)
+	cs.operatorsV1alpha2, err = operatorsv1alpha2.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
-	cs.operatorsV2alpha1, err = operatorsv2alpha1.NewForConfig(&configShallowCopy)
+	cs.operatorsV1, err = operatorsv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +106,8 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.operatorsV1alpha1 = operatorsv1alpha1.NewForConfigOrDie(c)
+	cs.operatorsV1alpha2 = operatorsv1alpha2.NewForConfigOrDie(c)
 	cs.operatorsV1 = operatorsv1.NewForConfigOrDie(c)
-	cs.operatorsV2alpha1 = operatorsv2alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -117,8 +117,8 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.operatorsV1alpha1 = operatorsv1alpha1.New(c)
+	cs.operatorsV1alpha2 = operatorsv1alpha2.New(c)
 	cs.operatorsV1 = operatorsv1.New(c)
-	cs.operatorsV2alpha1 = operatorsv2alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

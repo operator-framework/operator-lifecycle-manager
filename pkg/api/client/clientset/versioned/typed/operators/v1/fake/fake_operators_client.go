@@ -28,6 +28,10 @@ type FakeOperatorsV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeOperatorsV1) Operators() v1.OperatorInterface {
+	return &FakeOperators{c}
+}
+
 func (c *FakeOperatorsV1) OperatorGroups(namespace string) v1.OperatorGroupInterface {
 	return &FakeOperatorGroups{c, namespace}
 }

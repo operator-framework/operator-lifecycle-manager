@@ -9,9 +9,7 @@ CRD_PATH="${SCRIPT_ROOT}/vendor/github.com/operator-framework/api/crds"
 
 rm "${SCRIPT_ROOT}"/deploy/chart/crds/*.yaml
 for f in "${CRD_PATH}"/*.yaml ; do
-    if [[ ! "${f}" =~ .*_operators\.yaml ]]; then
-        echo "copying ${f}"
-        cp "${f}" "${SCRIPT_ROOT}/deploy/chart/crds/0000_50_olm_00-$(basename "$f" | sed 's/^.*_\([^.]\+\)\.yaml/\1.crd.yaml/')"
-    fi
+    echo "copying ${f}"
+    cp "${f}" "${SCRIPT_ROOT}/deploy/chart/crds/0000_50_olm_00-$(basename "$f" | sed 's/^.*_\([^.]\+\)\.yaml/\1.crd.yaml/')"
 done
 

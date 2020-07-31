@@ -4,7 +4,7 @@ metadata:
   name: packageserver
   namespace: openshift-operator-lifecycle-manager
   labels:
-    olm.version: 0.15.1
+    olm.version: 0.16.0
     olm.clusteroperator.name: operator-lifecycle-manager-packageserver
 spec:
   displayName: Package Server
@@ -104,7 +104,7 @@ spec:
                 - "5443"
                 - --global-namespace
                 - openshift-marketplace
-                image: quay.io/operator-framework/olm@sha256:2c389d2e380c842cbf542820ad4493249164302ddf0e699b0a37105d234e67ee
+                image: quay.io/operator-framework/olm@sha256:bd73865b9840cf90ed558ddfcf51a9ba313b53598cc69c9b206669c883c972ec
                 imagePullPolicy: IfNotPresent
                 ports:
                 - containerPort: 5443
@@ -130,7 +130,7 @@ spec:
               - name: tmpfs
                 emptyDir: {}
   maturity: alpha
-  version: 0.15.1
+  version: 0.16.0
   apiservicedefinitions:
     owned:
     - group: packages.operators.coreos.com

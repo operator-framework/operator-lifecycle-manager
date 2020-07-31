@@ -18,6 +18,10 @@ limitations under the License.
 
 package v1
 
+// OperatorListerExpansion allows custom methods to be added to
+// OperatorLister.
+type OperatorListerExpansion interface{}
+
 // OperatorGroupListerExpansion allows custom methods to be added to
 // OperatorGroupLister.
 type OperatorGroupListerExpansion interface{}

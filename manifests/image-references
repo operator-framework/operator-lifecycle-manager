@@ -5,7 +5,7 @@ spec:
   - name: operator-lifecycle-manager
     from:
       kind: DockerImage
-      name: quay.io/operator-framework/olm@sha256:2c389d2e380c842cbf542820ad4493249164302ddf0e699b0a37105d234e67ee
+      name: quay.io/operator-framework/olm@sha256:bd73865b9840cf90ed558ddfcf51a9ba313b53598cc69c9b206669c883c972ec
   - name: operator-registry
     from:
       kind: DockerImage
