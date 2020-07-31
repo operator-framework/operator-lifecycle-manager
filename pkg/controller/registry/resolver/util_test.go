@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blang/semver"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
@@ -30,67 +29,6 @@ func RequireStepsEqual(t *testing.T, expectedSteps, steps []*v1alpha1.Step) {
 	}
 	for _, s := range steps {
 		require.Contains(t, expectedSteps, s, "step in steps not found in expected")
-	}
-}
-
-func NewGenerationFromOperators(ops ...OperatorSurface) *NamespaceGeneration {
-	g := NewEmptyGeneration()
-
-	for _, op := range ops {
-		if err := g.AddOperator(op); err != nil {
-			fmt.Printf("error adding operator: %s\n", err.Error())
-			return nil
-		}
-	}
-	return g
-}
-
-func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey, dependencies []*api.Dependency) *Operator {
-	providedAPISet := EmptyAPISet()
-	requiredAPISet := EmptyAPISet()
-	providedCRDAPISet := EmptyAPISet()
-	requiredCRDAPISet := EmptyAPISet()
-	providedAPIServiceAPISet := EmptyAPISet()
-	requiredAPIServiceAPISet := EmptyAPISet()
-	version := semver.MustParse("0.0.0")
-
-	for _, p := range providedCRDs {
-		providedCRDAPISet[p] = struct{}{}
-		providedAPISet[p] = struct{}{}
-	}
-	for _, r := range requiredCRDs {
-		requiredCRDAPISet[r] = struct{}{}
-		requiredAPISet[r] = struct{}{}
-	}
-	for _, p := range providedAPIServices {
-		providedAPIServiceAPISet[p] = struct{}{}
-		providedAPISet[p] = struct{}{}
-	}
-	for _, r := range requiredAPIServices {
-		requiredAPIServiceAPISet[r] = struct{}{}
-		requiredAPISet[r] = struct{}{}
-	}
-	b := bundle(name, pkg, channel, replaces, providedCRDAPISet, requiredCRDAPISet, providedAPIServiceAPISet, requiredAPIServiceAPISet)
-
-	deps := apiSetToDependencies(requiredCRDAPISet, requiredAPIServiceAPISet)
-	props := apiSetToProperties(requiredCRDAPISet, requiredAPIServiceAPISet)
-	deps = append(deps, dependencies...)
-
-	return &Operator{
-		providedAPIs: providedAPISet,
-		requiredAPIs: requiredAPISet,
-		name:         name,
-		replaces:     replaces,
-		version:      &version,
-		sourceInfo: &OperatorSourceInfo{
-			Package:     pkg,
-			Channel:     channel,
-			StartingCSV: startingCSV,
-			Catalog:     registry.CatalogKey{src, src + "-namespace"},
-		},
-		bundle:       b,
-		dependencies: deps,
-		properties:   props,
 	}
 }
 
@@ -545,24 +483,4 @@ func sortBundleInChannel(replaces string, replacedBundle map[string]*api.Bundle,
 func getPkgName(pkgChan string) string {
 	s := strings.Split(pkgChan, "/")
 	return s[0]
-}
-
-// NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerierCustomReplacement(catKey registry.CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
-	sources := map[registry.CatalogKey]registry.ClientInterface{}
-	source := &fakes.FakeClientInterface{}
-	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
-		return nil, fmt.Errorf("no bundle found")
-	}
-	source.GetBundleInPackageChannelStub = func(ctx context.Context, packageName, channelName string) (*api.Bundle, error) {
-		return nil, fmt.Errorf("no bundle found")
-	}
-	source.GetBundleStub = func(ctx context.Context, packageName, channelName, csvName string) (*api.Bundle, error) {
-		return nil, fmt.Errorf("no bundle found")
-	}
-	source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*api.Bundle, error) {
-		return bundle, nil
-	}
-	sources[catKey] = source
-	return NewNamespaceSourceQuerier(sources)
 }
