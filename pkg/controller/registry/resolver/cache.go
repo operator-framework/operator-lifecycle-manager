@@ -416,6 +416,17 @@ func WithPackage(pkg string) OperatorPredicate {
 	}
 }
 
+func WithoutDeprecatedProperty() OperatorPredicate {
+	return func(o *Operator) bool {
+		for _, p := range o.bundle.GetProperties() {
+			if p.GetType() == string(opregistry.DeprecatedType) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
 func WithVersionInRange(r semver.Range) OperatorPredicate {
 	return func(o *Operator) bool {
 		return o.version != nil && r(*o.version)
