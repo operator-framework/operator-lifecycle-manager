@@ -805,3 +805,170 @@ func (s *sqlLoader) addBundleProperties(tx *sql.Tx, bundle *registry.Bundle) err
 
 	return nil
 }
+
+func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
+	getEntryID := `SELECT entry_id FROM channel_entry WHERE operatorbundle_name=?`
+	rows, err := tx.QueryContext(context.TODO(), getEntryID, csvName)
+	if err != nil {
+		return err
+	}
+	var entryIDs []int64
+	for rows.Next() {
+		var entryID sql.NullInt64
+		rows.Scan(&entryID)
+		entryIDs = append(entryIDs, entryID.Int64)
+	}
+	err = rows.Close()
+	if err != nil {
+		return err
+	}
+
+	updateChannelEntry, err := tx.Prepare(`UPDATE channel_entry SET replaces=NULL WHERE replaces=?`)
+	if err != nil {
+		return err
+	}
+	for _, id := range entryIDs {
+		if _, err := updateChannelEntry.Exec(id); err != nil {
+			return err
+		}
+	}
+	err = updateChannelEntry.Close()
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare("DELETE FROM channel_entry WHERE operatorbundle_name=?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.Exec(csvName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getTailFromBundle(tx *sql.Tx, name string) (bundles []string, err error) {
+	getReplacesSkips := `SELECT replaces, skips FROM operatorbundle WHERE name=?`
+	isDefaultChannelHead := `SELECT head_operatorbundle_name FROM channel 
+							INNER JOIN package ON channel.name = package.default_channel 
+							WHERE channel.head_operatorbundle_name = ?`
+
+	tail := make(map[string]struct{})
+	next := name
+
+	for next != "" {
+		rows, err := tx.QueryContext(context.TODO(), getReplacesSkips, next)
+		if err != nil {
+			return nil, err
+		}
+		var replaces sql.NullString
+		var skips sql.NullString
+		if rows.Next() {
+			if err := rows.Scan(&replaces, &skips); err != nil {
+				return nil, err
+			}
+		}
+		rows.Close()
+		if skips.Valid && skips.String != "" {
+			for _, skip := range strings.Split(skips.String, ",") {
+				tail[skip] = struct{}{}
+			}
+		}
+		if replaces.Valid && replaces.String != "" {
+			// check if replaces is the head of the defaultChannel
+			// if it is, the defaultChannel will be removed
+			// this is not allowed because we cannot know which channel to promote as the new default
+			rows, err := tx.QueryContext(context.TODO(), isDefaultChannelHead, replaces.String)
+			if err != nil {
+				return nil, err
+			}
+			if rows.Next() {
+				var defaultChannelHead sql.NullString
+				err := rows.Scan(&defaultChannelHead)
+				if err != nil {
+					return nil, err
+				}
+				if defaultChannelHead.Valid {
+					return nil, registry.ErrRemovingDefaultChannelDuringDeprecation
+				}
+			}
+			next = replaces.String
+			tail[replaces.String] = struct{}{}
+		} else {
+			next = ""
+		}
+	}
+	var allTails []string
+
+	for k := range tail {
+		allTails = append(allTails, k)
+	}
+
+	return allTails, nil
+
+}
+
+func getBundleNameAndVersionForImage(tx *sql.Tx, path string) (string, string, error) {
+	query := `SELECT name, version FROM operatorbundle WHERE bundlepath=? LIMIT 1`
+	rows, err := tx.QueryContext(context.TODO(), query, path)
+	if err != nil {
+		return "", "", err
+	}
+	defer rows.Close()
+
+	var name sql.NullString
+	var version sql.NullString
+	if rows.Next() {
+		if err := rows.Scan(&name, &version); err != nil {
+			return "", "", err
+		}
+	}
+	if name.Valid && version.Valid {
+		return name.String, version.String, nil
+	}
+	return "", "", registry.ErrBundleImageNotInDatabase
+}
+
+func (s *sqlLoader) DeprecateBundle(path string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		tx.Rollback()
+	}()
+
+	name, version, err := getBundleNameAndVersionForImage(tx, path)
+	if err != nil {
+		return err
+	}
+	tailBundles, err := getTailFromBundle(tx, name)
+	if err != nil {
+		return err
+	}
+
+	for _, bundle := range tailBundles {
+		err := s.rmBundle(tx, bundle)
+		if err != nil {
+			return err
+		}
+		err = s.rmChannelEntry(tx, bundle)
+		if err != nil {
+			return err
+		}
+	}
+
+	deprecatedValue, err := json.Marshal(registry.DeprecatedProperty{})
+	if err != nil {
+		return err
+	}
+	err = s.addProperty(tx, registry.DeprecatedType, string(deprecatedValue), name, version, path)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
