@@ -212,7 +212,6 @@ var _ = Describe("Install Plan", func() {
 			dependentPackageName := genName("nginx-dep-")
 
 			mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
-			mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
 			dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
 			dependentPackageBeta := fmt.Sprintf("%s-beta", dependentPackageName)
 
@@ -244,7 +243,6 @@ var _ = Describe("Install Plan", func() {
 
 			// Create new CSVs
 			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 			dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 			dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
@@ -256,7 +254,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Create the catalog source
 			mainCatalogSourceName := genName("mock-ocs-main-" + strings.ToLower(CurrentGinkgoTestDescription().TestText) + "-")
-			_, cleanupCatalogSource := createInternalCatalogSource(c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+			_, cleanupCatalogSource := createInternalCatalogSource(c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV})
 			defer cleanupCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan(s)
