@@ -308,11 +308,6 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			bundleDependencies := make([]solver.Identifier, 0)
 			for _, dep := range sortedBundles {
 				found := namespacedCache.Catalog(dep.SourceInfo().Catalog).Find(WithCSVName(dep.Identifier()))
-				if len(found) > 1 {
-					err := fmt.Errorf("found duplicate entries for %s in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
-					errs = append(errs, err)
-					continue
-				}
 				if len(found) == 0 {
 					err := fmt.Errorf("couldn't find %s in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
 					errs = append(errs, err)
