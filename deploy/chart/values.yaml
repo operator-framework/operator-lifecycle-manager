@@ -23,7 +23,7 @@ olm:
 
 catalog:
   replicaCount: 1
-  commandArgs: -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
+  commandArgs: -configmapServerImage=quay.io/operator-framework/configmap-operator-registry@sha256:64b5d2fa9e13fd484f8a9c3b71c5820bdcbb80c1d196fb89297d1f4b063c8e84
   image:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
