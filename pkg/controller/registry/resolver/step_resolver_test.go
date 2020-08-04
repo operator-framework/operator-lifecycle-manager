@@ -789,7 +789,27 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			resolver := NewLegacyResolver(lister, clientFake, kClientFake, "")
+			stubSnapshot := &CatalogSnapshot{}
+			for _, bundle := range tt.bundlesInCatalog {
+				op, err := NewOperatorFromBundle(bundle, "", catalog, "")
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				op.replaces = bundle.Replaces
+				stubSnapshot.operators = append(stubSnapshot.operators, op)
+			}
+			stubCache := &stubOperatorCacheProvider{
+				noc: &NamespacedOperatorCache{
+					snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+						catalog: stubSnapshot,
+					},
+				},
+			}
+			satresolver := &SatResolver{
+				cache: stubCache,
+			}
+			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, logrus.New())
+			resolver.satResolver = satresolver
 			querier := NewFakeSourceQuerier(map[registry.CatalogKey][]*api.Bundle{catalog: tt.bundlesInCatalog})
 			steps, _, subs, err := resolver.ResolveSteps(namespace, querier)
 			require.Equal(t, tt.out.err, err)
