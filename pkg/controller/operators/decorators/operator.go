@@ -222,6 +222,35 @@ func (o *Operator) AdoptComponent(component runtime.Object) (adopted bool, err e
 	return
 }
 
+// DisownComponent removes the operator's component label from the given component, returning true if the
+// component label was removed and false if it wasn't present.
+func (o *Operator) DisownComponent(component runtime.Object) (disowned bool, err error) {
+	var labelKey string
+	if labelKey, err = o.ComponentLabelKey(); err != nil {
+		return
+	}
+
+	var m metav1.Object
+	if m, err = meta.Accessor(component); err != nil {
+		return
+	}
+
+	labels := m.GetLabels()
+	if len(labels) < 1 {
+		// Not a component
+		return
+	}
+
+	if _, ok := labels[labelKey]; ok {
+		disowned = true
+	}
+
+	delete(labels, labelKey)
+	m.SetLabels(labels)
+
+	return
+}
+
 // AddComponents adds the given components to the operator's status and returns an error
 // if a component isn't associated with the operator by label.
 // List type arguments are flattened to their nested elements before being added.

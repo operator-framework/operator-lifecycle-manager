@@ -1,0 +1,10 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: InstallPlan
+metadata:
+  name: install
+spec:
+  approval: Automatic
+  approved: true
+  clusterServiceVersionNames:
+  - operator.v1.0.0
+  generation: 1

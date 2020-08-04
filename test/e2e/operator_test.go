@@ -202,6 +202,7 @@ var _ = Describe("Operator", func() {
 		var (
 			ns           *corev1.Namespace
 			sub          *operatorsv1alpha1.Subscription
+			ip           *operatorsv1alpha1.InstallPlan
 			operatorName types.NamespacedName
 		)
 
@@ -257,6 +258,21 @@ var _ = Describe("Operator", func() {
 				return s.Status.State, nil
 			}).Should(BeEquivalentTo(operatorsv1alpha1.SubscriptionStateAtLatest))
 
+			var ipRef *corev1.ObjectReference
+			Eventually(func() (*corev1.ObjectReference, error) {
+				if err := client.Get(clientCtx, testobj.NamespacedName(sub), sub); err != nil {
+					return nil, err
+				}
+				ipRef = sub.Status.InstallPlanRef
+
+				return ipRef, nil
+			}).ShouldNot(BeNil())
+
+			ip = &operatorsv1alpha1.InstallPlan{}
+			Eventually(func() error {
+				return client.Get(clientCtx, types.NamespacedName{Namespace: ipRef.Namespace, Name: ipRef.Name}, ip)
+			}).Should(Succeed())
+
 			operator, err := operatorFactory.NewPackageOperator(sub.Spec.Package, sub.GetNamespace())
 			Expect(err).ToNot(HaveOccurred())
 			operatorName = testobj.NamespacedName(operator)
@@ -279,6 +295,7 @@ var _ = Describe("Operator", func() {
 				return o, err
 			}).Should(ReferenceComponents([]*corev1.ObjectReference{
 				getReference(scheme, sub),
+				getReference(scheme, ip),
 				getReference(scheme, testobj.WithNamespacedName(
 					&types.NamespacedName{Namespace: sub.GetNamespace(), Name: "kiali-operator.v1.4.2"},
 					&operatorsv1alpha1.ClusterServiceVersion{},
