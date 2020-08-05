@@ -215,7 +215,7 @@ func apiSetToDependencies(crds, apis APISet) (out []*api.Dependency) {
 	return
 }
 
-func apiSetToProperties(crds, apis APISet) (out []*api.Property) {
+func apiSetToProperties(crds, apis APISet, deprecated bool) (out []*api.Property) {
 	out = make([]*api.Property, 0)
 	for a := range crds {
 		val, err := json.Marshal(opregistry.GVKProperty{
@@ -242,6 +242,16 @@ func apiSetToProperties(crds, apis APISet) (out []*api.Property) {
 		}
 		out = append(out, &api.Property{
 			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if deprecated {
+		val, err := json.Marshal(opregistry.DeprecatedProperty{})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.DeprecatedType,
 			Value: string(val),
 		})
 	}
@@ -297,7 +307,7 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		RequiredApis: apiSetToGVK(requiredCRDs, requiredAPIServices),
 		Replaces:     replaces,
 		Dependencies: apiSetToDependencies(requiredCRDs, requiredAPIServices),
-		Properties:   apiSetToProperties(providedCRDs, providedAPIServices),
+		Properties:   apiSetToProperties(providedCRDs, providedAPIServices, false),
 	}
 	for _, f := range opts {
 		f(b)

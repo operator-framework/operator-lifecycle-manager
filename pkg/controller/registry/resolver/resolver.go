@@ -297,6 +297,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			errs = append(errs, err)
 			continue
 		}
+
 		for _, d := range dependencyPredicates {
 			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
 			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, d))
