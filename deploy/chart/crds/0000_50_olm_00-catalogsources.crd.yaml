@@ -34,6 +34,10 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - description: The priority of the catalog
+      jsonPath: .spec.priority
+      name: Priority
+      type: integer
     name: v1alpha1
     schema:
       openAPIV3Schema:

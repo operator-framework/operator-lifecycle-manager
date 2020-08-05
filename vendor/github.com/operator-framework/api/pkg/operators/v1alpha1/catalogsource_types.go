@@ -153,6 +153,7 @@ func (r *ConfigMapResourceReference) IsAMatch(object *metav1.ObjectMeta) bool {
 // +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.sourceType`,description="The type of the catalog"
 // +kubebuilder:printcolumn:name="Publisher",type=string,JSONPath=`.spec.publisher`,description="The publisher of the catalog"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:printcolumn:name="Priority",type=integer,JSONPath=`.spec.priority`,description="The priority of the catalog"
 
 // CatalogSource is a repository of CSVs, CRDs, and operator packages.
 type CatalogSource struct {
