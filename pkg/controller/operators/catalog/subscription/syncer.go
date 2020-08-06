@@ -50,7 +50,7 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 		return err
 	}
 
-	s.recordMetrics(res)
+	metrics.EmitSubMetric(res)
 
 	logger := s.logger.WithFields(logrus.Fields{
 		"reconciling": fmt.Sprintf("%T", res),
@@ -68,8 +68,10 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 		initial = initial.Add()
 	case kubestate.ResourceUpdated:
 		initial = initial.Update()
+		metrics.UpdateSubsSyncCounterStorage(res)
 	case kubestate.ResourceDeleted:
 		initial = initial.Delete()
+		metrics.DeleteSubsMetric(res)
 	}
 
 	reconciled, err := s.reconcilers.Reconcile(ctx, initial)
@@ -83,15 +85,6 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 	}).Debug("reconciliation successful")
 
 	return nil
-}
-
-func (s *subscriptionSyncer) recordMetrics(sub *v1alpha1.Subscription) {
-	// sub.Spec is not a required field.
-	if sub.Spec == nil {
-		return
-	}
-
-	metrics.CounterForSubscription(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package).Inc()
 }
 
 func (s *subscriptionSyncer) Notify(event kubestate.ResourceEvent) {
