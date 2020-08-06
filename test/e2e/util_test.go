@@ -311,7 +311,7 @@ func registryPodHealthy(address string) bool {
 func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	registry := catalog.Status.RegistryServiceStatus
 	connState := catalog.Status.GRPCConnectionState
-	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY"{
+	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
 		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
 		return registryPodHealthy(registry.Address())
 	}
@@ -537,6 +537,43 @@ func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned
 		Spec: v1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
+		},
+	}
+	catalogSource.SetNamespace(namespace)
+
+	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
+	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		Expect(err).ToNot(HaveOccurred())
+	}
+	ctx.Ctx().Logf("Catalog source %s created", name)
+
+	cleanupInternalCatalogSource := func() {
+		configMapCleanup()
+		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
+	}
+	return catalogSource, cleanupInternalCatalogSource
+}
+
+func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface, crc versioned.Interface, name,
+	namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition,
+	csvs []v1alpha1.ClusterServiceVersion, priority int) (*v1alpha1.CatalogSource, cleanupFunc) {
+
+	configMap, configMapCleanup := createConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
+	// Create an internal CatalogSource custom resource pointing to the ConfigMap
+	catalogSource := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: "internal",
+			ConfigMap:  configMap.GetName(),
+			Priority:   priority,
 		},
 	}
 	catalogSource.SetNamespace(namespace)
