@@ -8,7 +8,7 @@ import (
 // OperatorSpec defines the desired state of Operator
 type OperatorSpec struct{}
 
-// OperatorStatus describes the observed state of an operator and its components.
+// OperatorStatus defines the observed state of an Operator and its components
 type OperatorStatus struct {
 	// Components describes resources that compose the operator.
 	// +optional

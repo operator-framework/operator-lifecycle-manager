@@ -38,8 +38,8 @@ spec:
             description: OperatorSpec defines the desired state of Operator
             type: object
           status:
-            description: OperatorStatus describes the observed state of an operator
-              and its components.
+            description: OperatorStatus defines the observed state of an Operator
+              and its components
             type: object
             properties:
               components:
