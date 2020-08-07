@@ -10,8 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: make -f x.mk e2e-local NODES=2 JUNIT_DIRECTORY=./artifacts/
-      - name: Archive Test Artifacts # test results are only uploaded if any of the e2e tests fails
-        if: ${{ failure() }}
+      - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
+        if: ${{ always() }}
         uses: actions/upload-artifact@v2
         with:
           name: e2e-test-output-${{(github.event.pull_request.head.sha||github.sha)}}-${{ github.run_id }}
