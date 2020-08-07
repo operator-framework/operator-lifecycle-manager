@@ -881,8 +881,8 @@ func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
 
 func getTailFromBundle(tx *sql.Tx, name string) (bundles []string, err error) {
 	getReplacesSkips := `SELECT replaces, skips FROM operatorbundle WHERE name=?`
-	isDefaultChannelHead := `SELECT head_operatorbundle_name FROM channel
-							INNER JOIN package ON channel.name = package.default_channel
+	isDefaultChannelHead := `SELECT head_operatorbundle_name FROM channel 
+							INNER JOIN package ON channel.name = package.default_channel 
 							WHERE channel.head_operatorbundle_name = ?`
 
 	tail := make(map[string]struct{})
