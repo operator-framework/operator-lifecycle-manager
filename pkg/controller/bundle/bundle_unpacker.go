@@ -106,9 +106,10 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							},
 						},
 						{
-							Name:    "pull",
-							Image:   bundlePath,
-							Command: []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
+							Name:            "pull",
+							Image:           bundlePath,
+							ImagePullPolicy: "Always",
+							Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "bundle",

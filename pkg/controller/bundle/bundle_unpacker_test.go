@@ -226,9 +226,10 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 										{
-											Name:    "pull",
-											Image:   bundlePath,
-											Command: []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
+											Name:            "pull",
+											Image:           bundlePath,
+											ImagePullPolicy: "Always",
+											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
 													Name:      "bundle",
@@ -382,9 +383,10 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 										{
-											Name:    "pull",
-											Image:   bundlePath,
-											Command: []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
+											Name:            "pull",
+											Image:           bundlePath,
+											ImagePullPolicy: "Always",
+											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
 													Name:      "bundle",
@@ -577,9 +579,10 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 										{
-											Name:    "pull",
-											Image:   bundlePath,
-											Command: []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
+											Name:            "pull",
+											Image:           bundlePath,
+											ImagePullPolicy: "Always",
+											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
 													Name:      "bundle",
