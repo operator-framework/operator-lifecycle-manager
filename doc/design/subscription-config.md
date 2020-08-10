@@ -16,7 +16,7 @@ The `env` field defines a list of [Environment Variables](https://kubernetes.io/
 
 Increase log verbosity on an Operator's container that utilizes the `ARGS` variable:
 
-```
+```yaml
 kind: Subscription
 metadata:
   name: prometheus
@@ -39,7 +39,7 @@ The `envFrom` field defines a [list of sources to populate Environment Variables
 
 Inject a license key residing in a Secret to unlock Operator features:
 
-```
+```yaml
 kind: Subscription
 metadata:
   name: my-operator
@@ -68,7 +68,7 @@ The `volumeMounts` field defines a list of [VolumeMounts](https://kubernetes.io/
 
 Mount a ConfigMap as a Volume that contains configuration information that can change default Operator behavior. Modifications to the content of the ConfigMap should appear within the container's VolumeMount.
 
-```
+```yaml
 kind: Subscription
 metadata:
   name: my-operator
@@ -95,7 +95,7 @@ The `tolerations` field defines a list of [Tolerations](https://kubernetes.io/do
 
 Inject toleration to tolerate all taints.
 
-```
+```yaml
 kind: Subscription
 metadata:
   name: my-operator
@@ -117,7 +117,7 @@ The `resources` field defines [Resource Constraints](https://kubernetes.io/docs/
 
 Inject a request of 0.25 cpu and 64 MiB of memory, and a limit of 0.5 cpu and 128MiB of memory in each container.
 
-```
+```yaml
 kind: Subscription
 metadata:
   name: my-operator
@@ -132,4 +132,24 @@ spec:
       limits:
         memory: "128Mi"
         cpu: "500m"
+```
+
+### NodeSelector
+
+The `nodeSelector` field defines a [NodeSelector](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/) for the Pod created by OLM.
+
+#### Example
+
+Inject `nodeSelector` key-values pairs.
+
+```yaml
+kind: Subscription
+metadata:
+  name: my-operator
+spec:
+  package: etcd
+  channel: alpha
+  config:
+    nodeSelector:
+      foo: bar
 ```
