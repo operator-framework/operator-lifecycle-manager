@@ -59,9 +59,14 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	enqueueCSV := &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(r.mapToClusterServiceVersions),
-	}
+	var (
+		enqueueCSV = &handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(r.mapToClusterServiceVersions),
+		}
+		enqueueProviders = &handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(r.mapToProviders),
+		}
+	)
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.ClusterServiceVersion{}).
 		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueCSV).
@@ -74,7 +79,7 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueCSV).
+		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueProviders).
 		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueCSV).
 		Complete(reconcile.Func(r.ReconcileClusterServiceVersion))
@@ -110,7 +115,7 @@ func NewAdoptionReconciler(cli client.Client, log logr.Logger, scheme *runtime.S
 func (r *AdoptionReconciler) ReconcileSubscription(req ctrl.Request) (reconcile.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
-	log.V(1).Info("reconciling subscription")
+	log.V(4).Info("reconciling subscription")
 
 	// Fetch the Subscription from the cache
 	ctx := context.TODO()
@@ -173,7 +178,7 @@ func (r *AdoptionReconciler) ReconcileSubscription(req ctrl.Request) (reconcile.
 func (r *AdoptionReconciler) ReconcileClusterServiceVersion(req ctrl.Request) (reconcile.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
-	log.V(1).Info("reconciling ClusterServiceVersion")
+	log.V(4).Info("reconciling csv")
 
 	// Fetch the CSV from the cache
 	ctx := context.TODO()
@@ -228,7 +233,6 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 				defer mu.Unlock()
 				errs = append(errs, err)
 			}()
-			continue
 		}
 
 		for _, component := range components {
@@ -371,11 +375,7 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 		components = append(components, crd)
 	}
 
-	if err := utilerrors.NewAggregate(errs); err != nil {
-		return nil, err
-	}
-
-	return components, nil
+	return components, utilerrors.NewAggregate(errs)
 }
 
 func (r *AdoptionReconciler) adoptInstallPlan(ctx context.Context, operator *decorators.Operator, latest *operatorsv1alpha1.InstallPlan) error {
@@ -423,12 +423,20 @@ func (r *AdoptionReconciler) mapToSubscriptions(obj handler.MapObject) (requests
 	ctx := context.TODO()
 	subs := &operatorsv1alpha1.SubscriptionList{}
 	if err := r.List(ctx, subs, client.InNamespace(obj.Meta.GetNamespace())); err != nil {
-		r.log.Error(err, "couldn't list subscriptions")
+		r.log.Error(err, "error listing subscriptions")
 	}
 
+	visited := map[types.NamespacedName]struct{}{}
 	for _, sub := range subs.Items {
 		nsn := types.NamespacedName{Namespace: sub.GetNamespace(), Name: sub.GetName()}
+
+		if _, ok := visited[nsn]; ok {
+			// Already requested
+			continue
+		}
+
 		requests = append(requests, reconcile.Request{NamespacedName: nsn})
+		visited[nsn] = struct{}{}
 	}
 
 	return
@@ -440,24 +448,51 @@ func (r *AdoptionReconciler) mapToClusterServiceVersions(obj handler.MapObject) 
 	}
 
 	// Get all owner CSV from owner labels if cluster scoped
-	if obj.Meta.GetNamespace() == metav1.NamespaceAll {
+	namespace := obj.Meta.GetNamespace()
+	if namespace == metav1.NamespaceAll {
 		name, ns, ok := ownerutil.GetOwnerByKindLabel(obj.Meta, operatorsv1alpha1.ClusterServiceVersionKind)
 		if ok {
 			nsn := types.NamespacedName{Namespace: ns, Name: name}
 			requests = append(requests, reconcile.Request{NamespacedName: nsn})
 		}
-
 		return
 	}
 
 	// Get all owner CSVs from OwnerReferences
 	owners := ownerutil.GetOwnersByKind(obj.Meta, operatorsv1alpha1.ClusterServiceVersionKind)
 	for _, owner := range owners {
-		nsn := types.NamespacedName{Namespace: obj.Meta.GetNamespace(), Name: owner.Name}
+		nsn := types.NamespacedName{Namespace: namespace, Name: owner.Name}
 		requests = append(requests, reconcile.Request{NamespacedName: nsn})
 	}
 
-	// TODO(njhale): Requeue CSVs on CRD changes
+	return
+}
+
+func (r *AdoptionReconciler) mapToProviders(obj handler.MapObject) (requests []reconcile.Request) {
+	if obj.Meta == nil {
+		return nil
+	}
+
+	var (
+		ctx  = context.TODO()
+		csvs = &operatorsv1alpha1.ClusterServiceVersionList{}
+	)
+	if err := r.List(ctx, csvs); err != nil {
+		r.log.Error(err, "error listing csvs")
+		return
+	}
+
+	for _, csv := range csvs.Items {
+		request := reconcile.Request{
+			NamespacedName: types.NamespacedName{Namespace: csv.GetNamespace(), Name: csv.GetName()},
+		}
+		for _, provided := range csv.Spec.CustomResourceDefinitions.Owned {
+			if provided.Name == obj.Meta.GetName() {
+				requests = append(requests, request)
+				break
+			}
+		}
+	}
 
 	return
 }
