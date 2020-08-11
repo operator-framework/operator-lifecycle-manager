@@ -3,8 +3,11 @@ package reconciler
 import (
 	"context"
 	"fmt"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"time"
+
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
+
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -17,11 +20,23 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const CatalogSourceUpdateKey = "catalogsource.operators.coreos.com/update"
+const (
+	CatalogSourceUpdateKey      = "catalogsource.operators.coreos.com/update"
+	CatalogPollingRequeuePeriod = 30 * time.Second
+)
 
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
 type grpcCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
+}
+
+type UpdateNotReadyErr struct {
+	catalogName string
+	podName     string
+}
+
+func (u UpdateNotReadyErr) Error() string {
+	return fmt.Sprintf("catalog polling: %s not ready for update: update pod %s has not yet reported ready", u.catalogName, u.podName)
 }
 
 func (s *grpcCatalogSourceDecorator) Selector() labels.Selector {
@@ -141,6 +156,9 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod().GetName())
 	}
 	if err := c.ensureUpdatePod(source); err != nil {
+		if _, ok := err.(UpdateNotReadyErr); ok {
+			return err
+		}
 		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod().GetName())
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
@@ -181,63 +199,54 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, ov
 	return nil
 }
 
-// ensureUpdatePod checks that for the same catalog source version the same imageID is running
+// ensureUpdatePod checks that for the same catalog source version the same container imageID is running
 func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorator) error {
 	if !source.Poll() {
 		return nil
 	}
-	var updateFlag bool
+
 	currentLivePods := c.currentPods(source)
 	currentUpdatePods := c.currentUpdatePods(source)
 
-	for _, updatePod := range currentUpdatePods {
-		if updatePodByDigest(updatePod, currentLivePods) {
-			logrus.WithField("CatalogSource", source.GetName()).Info("detect image update for catalogsource pod")
-
-			updateFlag = true
-
-			// Update the update pod to promote it to serving pod
-			err := c.SSAClient.Apply(context.TODO(), updatePod, func(p *v1.Pod) error {
-				p.Labels[CatalogSourceLabelKey] = source.GetName()
-				p.Labels[CatalogSourceUpdateKey] = ""
-				return nil
-			})()
-
-			if err != nil {
-				return errors.Wrapf(err, "error updating catalog source pod: %s", source.Pod().GetName())
-			}
-		}
-	}
-
-	if updateFlag {
-		// Clean up outdated serving pod(s)
-		err := c.removePods(currentLivePods, source.GetNamespace())
+	if source.Update() && len(currentUpdatePods) == 0 {
+		logrus.WithField("CatalogSource", source.GetName()).Infof("catalog update required at %s", time.Now().String())
+		pod, err := c.createUpdatePod(source)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "creating update catalog source pod")
 		}
-
-		return nil
-	} else {
-		logrus.WithField("CatalogSource", source.GetName()).Info("no image update for catalogsource pod")
-	}
-
-	if source.Update() {
-		logrus.WithField("CatalogSource", source.GetName()).Info("creating new catalog source update pod")
-		// Clean up outdated update pod(s) before creating a new update pod
-		currentUpdatePods = c.currentUpdatePods(source)
-		err := c.removePods(currentUpdatePods, source.GetNamespace())
-		if err != nil {
-			return err
-		}
-
 		source.SetLastUpdateTime()
-		err = c.createUpdatePod(source)
-		if err != nil {
-			return errors.Wrapf(err, "error creating update catalog source pod")
+		return UpdateNotReadyErr{catalogName: source.GetName(), podName: pod.GetName()}
+	}
+
+	// check if update pod is ready - if not requeue the sync
+	for _, p := range currentUpdatePods {
+		if !podReady(p) {
+			return UpdateNotReadyErr{catalogName: source.GetName(), podName: p.GetName()}
 		}
-	} else {
-		logrus.WithField("CatalogSource", source.GetName()).Info("not ready to update catalog source")
-		logrus.WithField("CatalogSource", source.GetName()).Infof("last updated %v", source.Status.LatestImageRegistryPoll)
+	}
+
+	for _, updatePod := range currentUpdatePods {
+		// if container imageID IDs are different, switch the serving pods
+		if imageChanged(updatePod, currentLivePods) {
+			err := c.promoteCatalog(updatePod, source.GetName())
+			if err != nil {
+				return fmt.Errorf("detected imageID change: error during update: %s", err)
+			}
+			// remove old catalog source pod
+			err = c.removePods(currentLivePods, source.GetNamespace())
+			if err != nil {
+				return errors.Wrapf(err, "detected imageID change: error deleting old catalog source pod")
+			}
+			// done syncing
+			logrus.WithField("CatalogSource", source.GetName()).Infof("detected imageID change: catalogsource pod updated at %s", time.Now().String())
+			return nil
+		}
+		// delete update pod right away, since the digest match, to prevent long-lived duplicate catalog pods
+		logrus.WithField("CatalogSource", source.GetName()).Info("catalog polling result: no update")
+		err := c.removePods([]*corev1.Pod{updatePod}, source.GetNamespace())
+		if err != nil {
+			return errors.Wrapf(err, "error deleting duplicate catalog polling pod: %s", updatePod.GetName())
+		}
 	}
 
 	return nil
@@ -258,30 +267,28 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 }
 
 // createUpdatePod is an internal method that creates a pod using the latest catalog source.
-func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator) error {
-	// remove label from pod to ensure service does accidentally route traffic to the pod
+func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator) (*corev1.Pod, error) {
+	// remove label from pod to ensure service does not accidentally route traffic to the pod
 	p := source.Pod()
-	p.Labels[CatalogSourceLabelKey] = ""
-	p.Labels[CatalogSourceUpdateKey] = source.Name
+	p = swapLabels(p, "", source.Name)
 
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), p, metav1.CreateOptions{})
+	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), p, metav1.CreateOptions{})
 	if err != nil {
 		logrus.WithField("pod", source.Pod().GetName()).Warn("couldn't create new catalogsource pod")
-		return err
+		return nil, err
 	}
 
-	return nil
+	return pod, nil
 }
 
 // checkUpdatePodDigest checks update pod to get Image ID and see if it matches the serving (live) pod ImageID
-func updatePodByDigest(updatePod *corev1.Pod, servingPods []*corev1.Pod) bool {
-	updatedCatalogSourcePodImageID := getPodImageID(updatePod)
-	logrus.WithField("CatalogSource", updatePod.GetName()).Infof("Update Pod ImageID %s", updatedCatalogSourcePodImageID)
+func imageChanged(updatePod *corev1.Pod, servingPods []*corev1.Pod) bool {
+	updatedCatalogSourcePodImageID := imageID(updatePod)
 
 	for _, servingPod := range servingPods {
-		servingCatalogSourcePodImageID := getPodImageID(servingPod)
-		logrus.WithField("CatalogSource", servingPod.GetName()).Infof("Serving Pod ImageID %s", servingCatalogSourcePodImageID)
+		servingCatalogSourcePodImageID := imageID(servingPod)
 		if updatedCatalogSourcePodImageID != servingCatalogSourcePodImageID {
+			logrus.WithField("CatalogSource", servingPod.GetName()).Infof("catalog image changed: serving pod %s update pod %s", servingCatalogSourcePodImageID, updatedCatalogSourcePodImageID)
 			return true
 		}
 	}
@@ -289,17 +296,10 @@ func updatePodByDigest(updatePod *corev1.Pod, servingPods []*corev1.Pod) bool {
 	return false
 }
 
-func getPodImageID(pod *corev1.Pod) string {
-	var podImageID string
-
-	if pod.Status.ContainerStatuses != nil && len(pod.Status.ContainerStatuses) > 0 {
-		podImageID = pod.Status.ContainerStatuses[0].ImageID
-	} else {
-		logrus.WithField("CatalogSource", pod.GetName()).Warn("pod status unknown")
-	}
-
-	logrus.WithField("CatalogSource", pod.GetName()).Infof("ImageID %s", podImageID)
-	return podImageID
+// imageID returns the ImageID of the primary catalog source container.
+// Note: the pod must be running and the container in a ready status to return a valid ImageID.
+func imageID(pod *corev1.Pod) string {
+	return pod.Status.ContainerStatuses[0].ImageID
 }
 
 func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string) error {
@@ -326,4 +326,36 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.Cat
 
 	healthy = true
 	return
+}
+
+// promoteCatalog swaps the labels on the update pod so that the update pod is now reachable by the catalog service.
+// By updating the catalog on cluster it promotes the update pod to act as the new version of the catalog on-cluster.
+func (c *GrpcRegistryReconciler) promoteCatalog(updatePod *corev1.Pod, key string) error {
+	// Update the update pod to promote it to serving pod via the SSA client
+	err := c.SSAClient.Apply(context.TODO(), updatePod, func(p *v1.Pod) error {
+		p.Labels[CatalogSourceLabelKey] = key
+		p.Labels[CatalogSourceUpdateKey] = ""
+		return nil
+	})()
+
+	return err
+}
+
+// podReady returns true if the given Pod has a ready status condition.
+func podReady(pod *corev1.Pod) bool {
+	if pod.Status.Conditions == nil {
+		return false
+	}
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func swapLabels(pod *corev1.Pod, labelKey, updateKey string) *corev1.Pod {
+	pod.Labels[CatalogSourceLabelKey] = labelKey
+	pod.Labels[CatalogSourceUpdateKey] = updateKey
+	return pod
 }
