@@ -40,6 +40,11 @@ func Step(level int, text string, callbacks ...func()) {
 	By(strings.Repeat(" ", level*2)+text, callbacks...)
 }
 
+const (
+	timeout  = time.Second * 20
+	interval = time.Millisecond * 100
+)
+
 var _ = By
 
 var _ = Describe("Subscription", func() {
@@ -1185,6 +1190,60 @@ var _ = Describe("Subscription", func() {
 		expected = append(expected, proxyEnv...)
 
 		checkDeploymentWithPodConfiguration(GinkgoT(), kubeClient, csv, podConfig.Env, podConfig.Volumes, podConfig.VolumeMounts, podConfig.Tolerations, podConfig.Resources)
+	})
+
+	It("creation with nodeSelector config", func() {
+		kubeClient := newKubeClient()
+		crClient := newCRClient()
+
+		// Create a ConfigMap that is mounted to the operator via the subscription
+		testConfigMapName := genName("test-configmap-")
+		testConfigMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: testConfigMapName,
+			},
+		}
+
+		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.Background(), testConfigMap, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
+			require.NoError(GinkgoT(), err)
+		}()
+
+		// Configure the Subscription.
+		podNodeSelector := map[string]string{
+			"foo": "bar",
+		}
+
+		podConfig := v1alpha1.SubscriptionConfig{
+			NodeSelector: podNodeSelector,
+		}
+
+		permissions := deploymentPermissions()
+		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), kubeClient, crClient, "podconfig", testNamespace, permissions)
+		defer catsrcCleanup()
+
+		// Ensure that the catalog source is resolved before we create a subscription.
+		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		require.NoError(GinkgoT(), err)
+
+		subscriptionName := genName("podconfig-sub-")
+		subSpec.Config = podConfig
+		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subSpec)
+		defer cleanupSubscription()
+
+		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), subscription)
+
+		csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseInstalling))
+		require.NoError(GinkgoT(), err)
+
+		Eventually(func() error {
+			return checkDeploymentHasPodConfigNodeSelector(GinkgoT(), kubeClient, csv, podNodeSelector)
+		}, timeout, interval).Should(Succeed())
+
 	})
 
 	It("creation with dependencies", func() {
@@ -2336,6 +2395,31 @@ func createSubscriptionForCatalogWithSpec(t GinkgoTInterface, crc versioned.Inte
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.Background(), subscription, metav1.CreateOptions{})
 	require.NoError(t, err)
 	return buildSubscriptionCleanupFunc(crc, subscription)
+}
+
+func checkDeploymentHasPodConfigNodeSelector(t GinkgoTInterface, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, nodeSelector map[string]string) error {
+	resolver := install.StrategyResolver{}
+
+	strategy, err := resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+	if err != nil {
+		return err
+	}
+
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
+	require.Truef(t, ok, "could not cast install strategy as type %T", strategyDetailsDeployment)
+
+	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(csv.GetNamespace()).Get(context.Background(), deploymentSpec.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		isEqual := reflect.DeepEqual(nodeSelector, deployment.Spec.Template.Spec.NodeSelector)
+		if !isEqual {
+			err = fmt.Errorf("actual nodeSelector=%v does not match expected nodeSelector=%v", deploymentSpec.Spec.Template.Spec.NodeSelector, nodeSelector)
+		}
+	}
+	return nil
 }
 
 func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration, resources corev1.ResourceRequirements) {

@@ -206,3 +206,17 @@ func InjectResourcesIntoDeployment(podSpec *corev1.PodSpec, resources corev1.Res
 
 	return nil
 }
+
+// InjectNodeSelectorIntoDeployment injects the provided NodeSelector
+// into the container(s) of the given PodSpec.
+//
+// If any Container in PodSpec already defines a NodeSelector it will
+// be overwritten.
+func InjectNodeSelectorIntoDeployment(podSpec *corev1.PodSpec, nodeSelector map[string]string) error {
+	if podSpec == nil {
+		return errors.New("no pod spec provided")
+	}
+
+	podSpec.NodeSelector = nodeSelector
+	return nil
+}

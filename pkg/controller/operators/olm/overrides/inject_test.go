@@ -57,6 +57,13 @@ var (
 			corev1.ResourceMemory: resource.MustParse("128Mi"),
 		},
 	}
+
+	defaultNodeSelector = map[string]string{
+		"all":    "your",
+		"base":   "are",
+		"belong": "to",
+		"us":     "",
+	}
 )
 
 func TestInjectVolumeMountIntoDeployment(t *testing.T) {
@@ -693,6 +700,57 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			overrides.InjectResourcesIntoDeployment(tt.podSpec, tt.resources)
+
+			podSpecWant := tt.expected
+			podSpecGot := tt.podSpec
+
+			assert.Equal(t, podSpecWant, podSpecGot)
+		})
+	}
+}
+
+func TestInjectNodeSelectorIntoDeployment(t *testing.T) {
+	tests := []struct {
+		name         string
+		podSpec      *corev1.PodSpec
+		nodeSelector map[string]string
+		expected     *corev1.PodSpec
+	}{
+		{
+			// Nil PodSpec is injected with a nodeSelector
+			// Expected: PodSpec is nil
+			name:         "WithNilPodSpec",
+			podSpec:      nil,
+			nodeSelector: map[string]string{"foo": "bar"},
+			expected:     nil,
+		},
+		{
+			// PodSpec with no NodeSelector is injected with a nodeSelector
+			// Expected: NodeSelector is empty
+			name:         "WithEmptyNodeSelector",
+			podSpec:      &corev1.PodSpec{},
+			nodeSelector: map[string]string{"foo": "bar"},
+			expected: &corev1.PodSpec{
+				NodeSelector: map[string]string{"foo": "bar"},
+			},
+		},
+		{
+			// PodSpec with an existing NodeSelector is injected with a nodeSelector
+			// Expected: Existing NodeSelector is overwritten
+			name: "WithExistingNodeSelector",
+			podSpec: &corev1.PodSpec{
+				NodeSelector: defaultNodeSelector,
+			},
+			nodeSelector: map[string]string{"foo": "bar"},
+			expected: &corev1.PodSpec{
+				NodeSelector: map[string]string{"foo": "bar"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides.InjectNodeSelectorIntoDeployment(tt.podSpec, tt.nodeSelector)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
