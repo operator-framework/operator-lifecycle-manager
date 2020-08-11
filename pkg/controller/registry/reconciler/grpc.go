@@ -219,7 +219,15 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 	}
 
 	// check if update pod is ready - if not requeue the sync
+	// if update pod failed (potentially due to a bad catalog image) delete it
 	for _, p := range currentUpdatePods {
+		fail, err := c.podFailed(p)
+		if err != nil {
+			return err
+		}
+		if fail {
+			return fmt.Errorf("update pod %s in a %s state: deleted update pod", p.GetName(), p.Status.Phase)
+		}
 		if !podReady(p) {
 			return UpdateNotReadyErr{catalogName: source.GetName(), podName: p.GetName()}
 		}
@@ -358,4 +366,17 @@ func swapLabels(pod *corev1.Pod, labelKey, updateKey string) *corev1.Pod {
 	pod.Labels[CatalogSourceLabelKey] = labelKey
 	pod.Labels[CatalogSourceUpdateKey] = updateKey
 	return pod
+}
+
+// podFailed checks whether the pod status is in a failed or unknown state, and deletes the pod if so.
+func (c *GrpcRegistryReconciler) podFailed(pod *corev1.Pod) (bool, error) {
+	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodUnknown {
+		logrus.WithField("UpdatePod", pod.GetName()).Infof("catalog polling result: update pod %s failed to start", pod.GetName())
+		err := c.removePods([]*corev1.Pod{pod}, pod.GetNamespace())
+		if err != nil {
+			return true, errors.Wrapf(err, "error deleting failed catalog polling pod: %s", pod.GetName())
+		}
+		return true, nil
+	}
+	return false, nil
 }
