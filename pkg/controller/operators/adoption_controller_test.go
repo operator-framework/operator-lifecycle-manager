@@ -184,9 +184,23 @@ var _ = Describe("Adoption Controller", func() {
 
 				Context("that has an existing installed csv", func() {
 
+					var (
+						providedCRD *apiextensionsv1.CustomResourceDefinition
+					)
+
 					BeforeEach(func() {
+						providedCRD = fixtures.Fill(&apiextensionsv1.CustomResourceDefinition{}).(*apiextensionsv1.CustomResourceDefinition)
 						installed = &operatorsv1alpha1.ClusterServiceVersion{
 							Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+								CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+									Owned: []operatorsv1alpha1.CRDDescription{
+										{
+											Name:    providedCRD.GetName(),
+											Kind:    providedCRD.Spec.Names.Kind,
+											Version: providedCRD.Spec.Versions[0].Name,
+										},
+									},
+								},
 								InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
 									StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 									StrategySpec: operatorsv1alpha1.StrategyDetailsDeployment{
@@ -212,6 +226,49 @@ var _ = Describe("Adoption Controller", func() {
 
 								return latest.GetLabels(), err
 							}, timeout, interval).Should(HaveKey(componentLabelKey))
+						})
+					})
+
+					Context("with an existing provided CRD", func() {
+						BeforeEach(func() {
+							Eventually(func() error {
+								return k8sClient.Create(ctx, providedCRD)
+							}, timeout, interval).Should(Succeed())
+							created = append(created, providedCRD)
+
+							Eventually(func() (map[string]string, error) {
+								latest := &apiextensionsv1.CustomResourceDefinition{}
+								err := k8sClient.Get(ctx, testobj.NamespacedName(providedCRD), latest)
+
+								return latest.GetLabels(), err
+							}, timeout, interval).Should(HaveKey(componentLabelKey))
+						})
+
+						Context("when its component label is removed", func() {
+							BeforeEach(func() {
+								Eventually(func() error {
+									latest := &apiextensionsv1.CustomResourceDefinition{}
+									if err := k8sClient.Get(ctx, testobj.NamespacedName(providedCRD), latest); err != nil {
+										return err
+									}
+
+									if len(latest.GetLabels()) == 0 {
+										return nil
+									}
+									delete(latest.GetLabels(), componentLabelKey)
+
+									return k8sClient.Update(ctx, latest)
+								}, timeout, interval).Should(Succeed())
+							})
+
+							It("should be relabelled", func() {
+								Eventually(func() (map[string]string, error) {
+									latest := &apiextensionsv1.CustomResourceDefinition{}
+									err := k8sClient.Get(ctx, testobj.NamespacedName(providedCRD), latest)
+
+									return latest.GetLabels(), err
+								}, timeout, interval).Should(HaveKey(componentLabelKey))
+							})
 						})
 					})
 
@@ -291,10 +348,6 @@ var _ = Describe("Adoption Controller", func() {
 								),
 								testobj.WithLabels(
 									ownerLabels,
-									fixtures.Fill(&apiextensionsv1.CustomResourceDefinition{}),
-								),
-								testobj.WithLabels(
-									ownerLabels,
 									fixtures.Fill(&apiregistrationv1.APIService{}),
 								),
 							}
@@ -306,7 +359,7 @@ var _ = Describe("Adoption Controller", func() {
 							}
 						})
 
-						Specify("component label", func() {
+						Specify("a component label", func() {
 							for _, component := range components {
 								Eventually(func() (map[string]string, error) {
 									err := k8sClient.Get(ctx, testobj.NamespacedName(component), component)
