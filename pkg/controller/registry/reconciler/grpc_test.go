@@ -375,11 +375,6 @@ func TestGetPodImageID(t *testing.T) {
 		result      string
 	}{
 		{
-			description: "no pod status: return nothing",
-			pod:         &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{}}},
-			result:      "",
-		},
-		{
 			description: "pod has status: return status",
 			pod:         &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{ImageID: "xyz123"}}}},
 			result:      "xyz123",
@@ -387,7 +382,7 @@ func TestGetPodImageID(t *testing.T) {
 	}
 
 	for i, tt := range table {
-		require.Equal(t, tt.result, getPodImageID(tt.pod), table[i].description)
+		require.Equal(t, tt.result, imageID(tt.pod), table[i].description)
 	}
 }
 
@@ -405,7 +400,7 @@ func TestUpdatePodByDigest(t *testing.T) {
 			result:      false,
 		},
 		{
-			description: "pod image ids do not match:  updated image on the registry: return true",
+			description: "pod image ids do not match: update on the registry: return true",
 			updatePod:   &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{ImageID: "abc456"}}}},
 			servingPods: []*corev1.Pod{{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{ImageID: "xyz123"}}}}},
 			result:      true,
@@ -413,6 +408,6 @@ func TestUpdatePodByDigest(t *testing.T) {
 	}
 
 	for i, tt := range table {
-		require.Equal(t, tt.result, updatePodByDigest(tt.updatePod, tt.servingPods), table[i].description)
+		require.Equal(t, tt.result, imageChanged(tt.updatePod, tt.servingPods), table[i].description)
 	}
 }
