@@ -42,7 +42,7 @@ Operators can behave like managed service providers. Their user interface on the
 
 Install OLM on a Kubernetes or OpenShift cluster by following the [installation guide].
 
-For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started).
+For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started). Also, see [Getting Started on OperatorHub.io](https://operatorhub.io/getting-started).
 
 **NOTE:** OLM is installed by default in OpenShift 4.0 and above.
 
@@ -58,9 +58,6 @@ $ make run-console-local
 
 Then visit `http://localhost:9000` to view the console.
 
-## End-to-end example
-
-For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started). Also, see [Getting Started on OperatorHub.io](https://operatorhub.io/getting-started).
 
 ## Contributing your Operator
 
