@@ -67,6 +67,10 @@ func WithReason(reason string) MetricPredicate {
 	return WithLabel("reason", reason)
 }
 
+func WithApproval(approvalStrategy string) MetricPredicate {
+	return WithLabel("approval", approvalStrategy)
+}
+
 func WithVersion(version string) MetricPredicate {
 	return WithLabel("version", version)
 }

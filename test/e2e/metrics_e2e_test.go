@@ -136,6 +136,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					WithName("metric-subscription-for-create"),
 					WithChannel(stableChannel),
 					WithPackage(testPackageName),
+					WithApproval(string(v1alpha1.ApprovalManual)),
 				)))
 			})
 
@@ -187,12 +188,14 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						WithName("metric-subscription-for-update"),
 						WithChannel(stableChannel),
 						WithPackage(testPackageName),
+						WithApproval(string(v1alpha1.ApprovalManual)),
 					))),
 					ContainElement(LikeMetric(
 						WithFamily("subscription_sync_total"),
 						WithName("metric-subscription-for-update"),
 						WithChannel(betaChannel),
 						WithPackage(testPackageName),
+						WithApproval(string(v1alpha1.ApprovalManual)),
 					)),
 				))
 			})
@@ -224,12 +227,14 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 							WithName("metric-subscription-for-update"),
 							WithChannel(betaChannel),
 							WithPackage(testPackageName),
+							WithApproval(string(v1alpha1.ApprovalManual)),
 						))),
 						ContainElement(LikeMetric(
 							WithFamily("subscription_sync_total"),
 							WithName("metric-subscription-for-update"),
 							WithChannel(alphaChannel),
 							WithPackage(testPackageName),
+							WithApproval(string(v1alpha1.ApprovalManual)),
 						))))
 				})
 			})
