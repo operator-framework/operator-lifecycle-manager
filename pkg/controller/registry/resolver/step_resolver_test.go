@@ -62,7 +62,7 @@ type resolverTestOut struct {
 }
 
 func SharedResolverSpecs() []resolverTest {
-	namespace := "catsrc-namespace"
+	const namespace = "catsrc-namespace"
 	catalog := registry.CatalogKey{Name: "catsrc", Namespace: namespace}
 	nothing := resolverTestOut{
 		steps:   [][]*v1alpha1.Step{},
@@ -70,6 +70,25 @@ func SharedResolverSpecs() []resolverTest {
 		subs:    []*v1alpha1.Subscription{},
 	}
 	return []resolverTest{
+		{
+			name: "SubscriptionOmitsChannel",
+			clusterState: []runtime.Object{
+				newSub(namespace, "package", "", catalog),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("bundle", "package", "channel", "", nil, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("bundle", "package", "channel", "", nil, nil, nil, nil), namespace, "", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "bundle", "", "package", "", catalog),
+				},
+			},
+		},
 		{
 			name: "SingleNewSubscription/NoDeps",
 			clusterState: []runtime.Object{
