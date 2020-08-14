@@ -174,7 +174,14 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			stopc := make(chan struct{})
 			defer close(stopc)
 
-			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
+			utilImage := "util"
+			binImage := "bin"
+			factory, client := fakeReconcilerFactory(t, stopc,
+				withNow(now),
+				withK8sObjs(tt.in.cluster.k8sObjs...),
+				withK8sClientOptions(clientfake.WithNameGeneration(t)),
+				withUtilImage(utilImage),
+				withConfigMapServerImage(binImage))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
 			err := rec.EnsureRegistryServer(tt.in.catsrc)
@@ -187,7 +194,8 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			}
 
 			// Check for resource existence
-			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
+			// TODO: this test should not use the decorator
+			decorated := grpcCatalogSourceDecorator{CatalogSource: tt.in.catsrc, utilImage: utilImage, binImage: binImage}
 			pod := decorated.Pod()
 			service := decorated.Service()
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
@@ -352,7 +360,8 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			stopc := make(chan struct{})
 			defer close(stopc)
 
-			factory, _ := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...))
+			factory, _ := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...), withUtilImage("util"), withConfigMapServerImage("bin"))
+
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
 			healthy, err := rec.CheckRegistryServer(tt.in.catsrc)

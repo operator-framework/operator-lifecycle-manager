@@ -30,6 +30,7 @@ import (
 
 const (
 	registryImageName = "test:image"
+	utilImageName     = "util:image"
 	testNamespace     = "testns"
 )
 
@@ -38,6 +39,7 @@ type fakeReconcilerConfig struct {
 	k8sObjs              []runtime.Object
 	k8sClientOptions     []clientfake.Option
 	configMapServerImage string
+	utilImage            string
 }
 
 type fakeReconcilerOption func(*fakeReconcilerConfig)
@@ -66,10 +68,17 @@ func withConfigMapServerImage(configMapServerImage string) fakeReconcilerOption 
 	}
 }
 
+func withUtilImage(utilImage string) fakeReconcilerOption {
+	return func(config *fakeReconcilerConfig) {
+		config.utilImage = utilImage
+	}
+}
+
 func fakeReconcilerFactory(t *testing.T, stopc <-chan struct{}, options ...fakeReconcilerOption) (RegistryReconcilerFactory, operatorclient.ClientInterface) {
 	config := &fakeReconcilerConfig{
 		now:                  metav1.Now,
 		configMapServerImage: registryImageName,
+		utilImage:            utilImageName,
 	}
 
 	// Apply all config options
@@ -110,6 +119,7 @@ func fakeReconcilerFactory(t *testing.T, stopc <-chan struct{}, options ...fakeR
 		OpClient:             opClientFake,
 		Lister:               lister,
 		ConfigMapServerImage: config.configMapServerImage,
+		UtilImage:            config.utilImage,
 	}
 
 	var hasSyncedCheckFns []cache.InformerSynced
@@ -202,7 +212,7 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 		)
 	case v1alpha1.SourceTypeGrpc:
 		if catsrc.Spec.Image != "" {
-			decorated := grpcCatalogSourceDecorator{catsrc}
+			decorated := grpcCatalogSourceDecorator{CatalogSource: catsrc, utilImage: "util", binImage: "bin"}
 			objs = clientfake.AddSimpleGeneratedNames(
 				decorated.Pod(),
 				decorated.Service(),

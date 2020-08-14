@@ -162,7 +162,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient, dynamicClient),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, utilImage, op.now)
 	res := resolver.NewOperatorStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, op.sources, logger)
 	op.resolver = resolver.NewOperatorStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, op.sources, logger)
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)

@@ -1,0 +1,28 @@
+{{.Doc}}
+
+# Examples
+
+## Basic SELECT
+{{with .Example.DB_Select}}
+    {{- .Code}}
+
+    {{- .Output}}
+{{end}}
+
+## SELECT by primary key
+{{with .Example.DB_PKSelect}}
+    {{- .Code}}
+
+    {{- .Output}}
+{{end}}
+
+# &c.
+
+[![GoDoc](https://godoc.org/{{.Import}}?status.svg)](https://godoc.org/{{.Import}})
+[![Build Status](https://travis-ci.org/{{.RepoPath}}.png?branch=master)](https://travis-ci.org/{{.RepoPath}})
+
+`make fuzz` uses [go-fuzz](https://github.com/dvyukov/go-fuzz)
+
+The README is generated with [autoreadme](https://github.com/jimmyfrasche/autoreadme)
+
+See [sqlite2go](https://github.com/cznic/sqlite2go/) for another approach to pure Go SQLite

@@ -3,6 +3,7 @@ module github.com/operator-framework/operator-lifecycle-manager
 go 1.13
 
 require (
+	github.com/alicebob/sqlittle v1.4.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1

@@ -59,6 +59,10 @@ github.com/PuerkitoBio/purell
 github.com/PuerkitoBio/urlesc
 # github.com/alessio/shellescape v0.0.0-20190409004728-b115ca0f9053
 github.com/alessio/shellescape
+# github.com/alicebob/sqlittle v1.4.0
+github.com/alicebob/sqlittle
+github.com/alicebob/sqlittle/db
+github.com/alicebob/sqlittle/sql
 # github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496
 github.com/asaskevich/govalidator
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
@@ -590,6 +594,8 @@ golang.org/x/crypto/poly1305
 golang.org/x/crypto/salsa20/salsa
 golang.org/x/crypto/scrypt
 golang.org/x/crypto/ssh/terminal
+# golang.org/x/exp v0.0.0-20190419195159-b8972e603456
+golang.org/x/exp/mmap
 # golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f
 golang.org/x/lint
 golang.org/x/lint/golint

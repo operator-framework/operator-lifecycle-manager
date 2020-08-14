@@ -18,7 +18,7 @@ func TestPodNodeSelector(t *testing.T) {
 	key := "kubernetes.io/os"
 	value := "linux"
 
-	gotCatSrcPod := Pod(catsrc, "hello", "busybox", map[string]string{}, int32(0), int32(0))
+	gotCatSrcPod := Pod(catsrc, "hello", "busybox", "util", "bin", map[string]string{}, int32(0), int32(0))
 	gotCatSrcPodSelector := gotCatSrcPod.Spec.NodeSelector
 
 	if gotCatSrcPodSelector[key] != value {

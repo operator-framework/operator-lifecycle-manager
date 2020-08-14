@@ -3,19 +3,34 @@ package reconciler
 
 import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
 type nowFunc func() metav1.Time
 
 const (
 	// CatalogSourceLabelKey is the key for a label containing a CatalogSource name.
-	CatalogSourceLabelKey string = "olm.catalogSource"
+	CatalogSourceLabelKey = "olm.catalogSource"
+
+	// CopyIndexStatusLocation indicates where in a copy container the status can be found
+	CopyIndexStatusLocation = "/status.json"
+
+	// DataMount is the location the db will be copied to
+	DataMount = "/mounted/index.db"
+
+	DataMountPath = "/mounted"
+
 )
+
+// CopyIndexResult contains information about the index data from copying it
+type CopyIndexResult struct {
+	Digest string `json:"digest"`
+}
 
 // RegistryEnsurer describes methods for ensuring a registry exists.
 type RegistryEnsurer interface {
@@ -46,6 +61,7 @@ type registryReconcilerFactory struct {
 	Lister               operatorlister.OperatorLister
 	OpClient             operatorclient.ClientInterface
 	ConfigMapServerImage string
+	UtilImage            string
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -62,9 +78,11 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 	case v1alpha1.SourceTypeGrpc:
 		if source.Spec.Image != "" {
 			return &GrpcRegistryReconciler{
-				now:      r.now,
-				Lister:   r.Lister,
-				OpClient: r.OpClient,
+				now:       r.now,
+				Lister:    r.Lister,
+				OpClient:  r.OpClient,
+				utilImage: r.UtilImage,
+				binImage:  r.ConfigMapServerImage,
 			}
 		} else if source.Spec.Address != "" {
 			return &GrpcAddressRegistryReconciler{
@@ -76,65 +94,119 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage, utilImage string, now nowFunc) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		now:                  now,
 		Lister:               lister,
 		OpClient:             opClient,
 		ConfigMapServerImage: configMapServerImage,
+		UtilImage:            utilImage,
 	}
 }
 
-func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[string]string, readinessDelay int32, livenessDelay int32) *v1.Pod {
+func Pod(source *v1alpha1.CatalogSource, name, image, utilImage, binImage string, labels map[string]string, readinessDelay int32, livenessDelay int32) *corev1.Pod {
 	// ensure catalog image is pulled always if catalog polling is configured
-	var pullPolicy v1.PullPolicy
+	var pullPolicy corev1.PullPolicy
 	if source.Spec.UpdateStrategy != nil {
-		pullPolicy = v1.PullAlways
+		pullPolicy = corev1.PullAlways
 	} else {
-		pullPolicy = v1.PullIfNotPresent
+		pullPolicy = corev1.PullIfNotPresent
 	}
 
-	pod := &v1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: source.GetName() + "-",
 			Namespace:    source.GetNamespace(),
 			Labels:       labels,
 		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
+		Spec: corev1.PodSpec{
+			InitContainers: []corev1.Container{
 				{
-					Name:  name,
-					Image: image,
-					Ports: []v1.ContainerPort{
+					Name:    "util",
+					Image:   utilImage,
+					Command: []string{"/bin/cp", "-Rv", "/bin/cpb", "/util/cpb"}, // Copy tooling for the index container to use
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "util",
+							MountPath: "/util",
+						},
+					},
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				},
+				{
+					Name:    "pull",
+					Image:   image,
+					Command: []string{"/util/cpb", "index", DataMount}, // Copy index content to its mount
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "data",
+							MountPath: DataMountPath,
+						},
+						{
+							Name:      "util",
+							MountPath: "/util",
+						},
+					},
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+					TerminationMessagePath: CopyIndexStatusLocation,
+				},
+			},
+			Containers: []corev1.Container{
+				{
+					Name:    name,
+					Image:   binImage,
+					Command: []string{"/bin/opm", "registry", "serve", "-d", DataMount},
+					Ports: []corev1.ContainerPort{
 						{
 							Name:          "grpc",
 							ContainerPort: 50051,
 						},
 					},
-					ReadinessProbe: &v1.Probe{
-						Handler: v1.Handler{
-							Exec: &v1.ExecAction{
+					ReadinessProbe: &corev1.Probe{
+						Handler: corev1.Handler{
+							Exec: &corev1.ExecAction{
 								Command: []string{"grpc_health_probe", "-addr=:50051"},
 							},
 						},
 						InitialDelaySeconds: readinessDelay,
 						TimeoutSeconds:      5,
 					},
-					LivenessProbe: &v1.Probe{
-						Handler: v1.Handler{
-							Exec: &v1.ExecAction{
+					LivenessProbe: &corev1.Probe{
+						Handler: corev1.Handler{
+							Exec: &corev1.ExecAction{
 								Command: []string{"grpc_health_probe", "-addr=:50051"},
 							},
 						},
 						InitialDelaySeconds: livenessDelay,
 					},
-					Resources: v1.ResourceRequirements{
-						Requests: v1.ResourceList{
-							v1.ResourceCPU:    resource.MustParse("10m"),
-							v1.ResourceMemory: resource.MustParse("50Mi"),
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("10m"),
+							corev1.ResourceMemory: resource.MustParse("50Mi"),
 						},
 					},
 					ImagePullPolicy: pullPolicy,
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "data",
+							MountPath: DataMountPath,
+						},
+					},
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "data", // Used to share index content
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: "util", // Used to share utils
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
 				},
 			},
 			NodeSelector: map[string]string{

@@ -4,6 +4,7 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -90,9 +91,56 @@ func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
 }
 
 func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
-	pod := Pod(s.CatalogSource, "configmap-registry-server", image, s.Labels(), 5, 2)
-	pod.Spec.ServiceAccountName = s.GetName() + ConfigMapServerPostfix
-	pod.Spec.Containers[0].Command = []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()}
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: s.CatalogSource.GetName() + "-",
+			Namespace:    s.CatalogSource.GetNamespace(),
+			Labels:       s.Labels(),
+		},
+		Spec: v1.PodSpec{
+			ServiceAccountName: s.GetName() + ConfigMapServerPostfix,
+			Containers: []v1.Container{
+				{
+					Name:  "configmap-registry-server",
+					Image: image,
+					Command: []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()},
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "grpc",
+							ContainerPort: 50051,
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							Exec: &v1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=:50051"},
+							},
+						},
+						InitialDelaySeconds: 5,
+						TimeoutSeconds:      5,
+					},
+					LivenessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							Exec: &v1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=:50051"},
+							},
+						},
+						InitialDelaySeconds: 2,
+					},
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceCPU:    resource.MustParse("10m"),
+							v1.ResourceMemory: resource.MustParse("50Mi"),
+						},
+					},
+					ImagePullPolicy: v1.PullIfNotPresent,
+				},
+			},
+			NodeSelector: map[string]string{
+				"kubernetes.io/os": "linux",
+			},
+		},
+	}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
 	return pod
 }

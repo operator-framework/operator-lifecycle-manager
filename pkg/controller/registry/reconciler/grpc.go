@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -22,6 +23,8 @@ const CatalogSourceUpdateKey = "catalogsource.operators.coreos.com/update"
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
 type grpcCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
+	utilImage string
+	binImage string
 }
 
 func (s *grpcCatalogSourceDecorator) Selector() labels.Selector {
@@ -64,13 +67,15 @@ func (s *grpcCatalogSourceDecorator) Service() *v1.Service {
 }
 
 func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
-	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, s.Labels(), 5, 10)
+	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, s.utilImage, s.binImage, s.Labels(), 5, 10)
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
 	return pod
 }
 
 type GrpcRegistryReconciler struct {
 	now      nowFunc
+	utilImage string
+	binImage  string
 	Lister   operatorlister.OperatorLister
 	OpClient operatorclient.ClientInterface
 }
@@ -99,6 +104,23 @@ func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) 
 	return pods
 }
 
+func (c *GrpcRegistryReconciler) terminationMessage(source grpcCatalogSourceDecorator) error {
+	pods := c.currentPods(source)
+	for _, p := range pods {
+		for _, s := range p.Status.InitContainerStatuses {
+			if s.State.Terminated != nil {
+				return fmt.Errorf("%s: %s", s.State.Terminated.Reason, s.State.Terminated.Message)
+			}
+		}
+		for _, s := range p.Status.ContainerStatuses {
+			if s.State.Terminated != nil {
+				return fmt.Errorf("%s: %s", s.State.Terminated.Reason, s.State.Terminated.Message)
+			}
+		}
+	}
+	return nil
+}
+
 func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecorator) []*v1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.SelectorForUpdate())
 	if err != nil {
@@ -119,8 +141,10 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogS
 	}
 	found := []*v1.Pod{}
 	for _, p := range pods {
-		if p.Spec.Containers[0].Image == source.Spec.Image {
-			found = append(found, p)
+		for _, i := range p.Spec.InitContainers {
+			if i.Image == source.Spec.Image {
+				found = append(found, p)
+			}
 		}
 	}
 	return found
@@ -128,7 +152,7 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogS
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.CatalogSource) error {
-	source := grpcCatalogSourceDecorator{catalogSource}
+	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, utilImage: c.utilImage, binImage: c.binImage}
 
 	// if service status is nil, we force create every object to ensure they're created the first time
 	overwrite := source.Status.RegistryServiceStatus == nil
@@ -312,14 +336,41 @@ func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
-	source := grpcCatalogSourceDecorator{catalogSource}
+	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, utilImage: c.utilImage, binImage: c.binImage}
 
 	// Check on registry resources
-	// TODO: add gRPC health check
-	if len(c.currentPodsWithCorrectImage(source)) < 1 ||
-		c.currentService(source) == nil {
+	pods := c.currentPodsWithCorrectImage(source)
+	if len(pods) < 1 || c.currentService(source) == nil {
 		healthy = false
 		return
+	}
+
+	for _, p := range pods {
+		for _, s := range p.Status.InitContainerStatuses {
+			if s.Ready {
+				continue
+			}
+			if s.LastTerminationState.Terminated == nil {
+				continue
+			}
+			var r CopyIndexResult
+			if jerr := json.Unmarshal([]byte(s.LastTerminationState.Terminated.Message), &r); jerr != nil {
+				// got a terminated message that is not a successful copy
+				healthy = false
+				err = fmt.Errorf("%s: %s", s.LastTerminationState.Terminated.Reason, s.LastTerminationState.Terminated.Message)
+				return
+			}
+			fmt.Printf("digest of index: %s\n", r.Digest)
+		}
+		for _, s := range p.Status.ContainerStatuses {
+			if s.Ready {
+				continue
+			}
+			if s.LastTerminationState.Terminated != nil {
+				healthy = false
+				err = fmt.Errorf("%s: %s", s.LastTerminationState.Terminated.Reason, s.LastTerminationState.Terminated.Message)
+			}
+		}
 	}
 
 	healthy = true
