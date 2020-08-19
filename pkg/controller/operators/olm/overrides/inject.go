@@ -217,6 +217,9 @@ func InjectNodeSelectorIntoDeployment(podSpec *corev1.PodSpec, nodeSelector map[
 		return errors.New("no pod spec provided")
 	}
 
-	podSpec.NodeSelector = nodeSelector
+	if nodeSelector != nil {
+		podSpec.NodeSelector = nodeSelector
+	}
+
 	return nil
 }
