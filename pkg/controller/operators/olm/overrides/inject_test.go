@@ -746,6 +746,30 @@ func TestInjectNodeSelectorIntoDeployment(t *testing.T) {
 				NodeSelector: map[string]string{"foo": "bar"},
 			},
 		},
+		{
+			// Existing PodSpec is left alone if nodeSelector is nil
+			// Expected: PodSpec is not changed
+			name: "WithNilNodeSelector",
+			podSpec: &corev1.PodSpec{
+				NodeSelector: defaultNodeSelector,
+			},
+			nodeSelector: nil,
+			expected: &corev1.PodSpec{
+				NodeSelector: defaultNodeSelector,
+			},
+		},
+		{
+			// Existing PodSpec is set to an empty map if the nodeSelector is an empty map
+			// Expected: PodSpec nodeSelector is set to an empty map
+			name: "WithEmptyNodeSelector",
+			podSpec: &corev1.PodSpec{
+				NodeSelector: defaultNodeSelector,
+			},
+			nodeSelector: map[string]string{},
+			expected: &corev1.PodSpec{
+				NodeSelector: map[string]string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
