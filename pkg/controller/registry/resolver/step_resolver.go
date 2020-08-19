@@ -85,11 +85,6 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		return nil, nil, nil, err
 	}
 
-	// create a map of operatorsourceinfo (subscription+catalogsource data) to the original subscriptions
-	subMap := r.sourceInfoToSubscriptions(subs)
-	// get a list of new operators to add to the generation
-	add := r.sourceInfoForNewSubscriptions(namespace, subMap)
-
 	var operators OperatorSet
 	namespaces := []string{namespace, r.globalCatalogNamespace}
 	operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs)
@@ -103,21 +98,36 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	updatedSubs := []*v1alpha1.Subscription{}
 	bundleLookups := []v1alpha1.BundleLookup{}
 	for name, op := range operators {
-		// TODO: added "is default channel" to sourceinfo out
-		// of convenience, which breaks map key equality here
-		// because it requires information that can't be
-		// gleaned from subscriptions alone. need to revisit
-		// TODO: this check also doesn't properly account for
-		// subscriptions made without a catalog specified,
-		// which means the sourceinfo won't match for the
-		// realized operator
+		// Find an existing subscription that resolves to this operator.
+		var (
+			existingSubscription *v1alpha1.Subscription
+			alreadyExists        bool
+		)
 		sourceInfo := *op.SourceInfo()
-		sourceInfo.DefaultChannel = false
-		_, isAdded := add[sourceInfo]
-		existingSubscription, subExists := subMap[sourceInfo]
+		for _, sub := range subs {
+			if sub.Spec.Package != sourceInfo.Package {
+				continue
+			}
+			if sub.Spec.Channel != "" && sub.Spec.Channel != sourceInfo.Channel {
+				continue
+			}
+			subCatalogKey := registry.CatalogKey{
+				Name:      sub.Spec.CatalogSource,
+				Namespace: sub.Spec.CatalogSourceNamespace,
+			}
+			if !subCatalogKey.Empty() && !subCatalogKey.Equal(sourceInfo.Catalog) {
+				continue
+			}
+			alreadyExists, err = r.hasExistingCurrentCSV(sub)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("unable to determine whether subscription has a preexisting CSV")
+			}
+			existingSubscription = sub
+			break
+		}
 
 		// subscription exists and is up to date
-		if subExists && existingSubscription.Status.CurrentCSV == op.Identifier() && !isAdded {
+		if existingSubscription != nil && existingSubscription.Status.CurrentCSV == op.Identifier() && alreadyExists {
 			continue
 		}
 
@@ -155,7 +165,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 				})
 			}
 
-			if !subExists {
+			if existingSubscription == nil {
 				// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
 				op.SourceInfo().StartingCSV = op.Identifier()
 				subStep, err := NewSubscriptionStepResource(namespace, *op.SourceInfo())
@@ -171,7 +181,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		}
 
 		// add steps for subscriptions for bundles that were added through resolution
-		if subExists && existingSubscription.Status.CurrentCSV != op.Identifier() {
+		if existingSubscription != nil && existingSubscription.Status.CurrentCSV != op.Identifier() {
 			// update existing subscription status
 			existingSubscription.Status.CurrentCSV = op.Identifier()
 			updatedSubs = append(updatedSubs, existingSubscription)
@@ -183,56 +193,30 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	return steps, bundleLookups, updatedSubs, nil
 }
 
-func (r *OperatorStepResolver) sourceInfoForNewSubscriptions(namespace string, subs map[OperatorSourceInfo]*v1alpha1.Subscription) (add map[OperatorSourceInfo]struct{}) {
-	add = make(map[OperatorSourceInfo]struct{})
-	for key, sub := range subs {
-		if sub.Status.CurrentCSV == "" {
-			add[key] = struct{}{}
-			continue
-		}
-		csv, err := r.csvLister.ClusterServiceVersions(namespace).Get(sub.Status.CurrentCSV)
-		if csv == nil || errors.IsNotFound(err) {
-			add[key] = struct{}{}
-		}
+func (r *OperatorStepResolver) hasExistingCurrentCSV(sub *v1alpha1.Subscription) (bool, error) {
+	if sub.Status.CurrentCSV == "" {
+		return false, nil
 	}
-	return
+	_, err := r.csvLister.ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV)
+	if err == nil {
+		return true, nil
+	}
+	if errors.IsNotFound(err) {
+		return false, nil
+	}
+	return false, err // Can't answer this question right now.
 }
 
-func (r *OperatorStepResolver) sourceInfoToSubscriptions(subs []*v1alpha1.Subscription) (add map[OperatorSourceInfo]*v1alpha1.Subscription) {
-	add = make(map[OperatorSourceInfo]*v1alpha1.Subscription)
-	var sourceNamespace string
-	for _, s := range subs {
-		startingCSV := s.Spec.StartingCSV
-		if s.Status.CurrentCSV != "" {
-			// If a csv has previously been resolved for the operator, don't enable
-			// a starting csv search.
-			startingCSV = ""
-		}
-		if s.Spec.CatalogSourceNamespace == "" {
-			sourceNamespace = s.GetNamespace()
-		} else {
-			sourceNamespace = s.Spec.CatalogSourceNamespace
-		}
-		add[OperatorSourceInfo{
-			Package:     s.Spec.Package,
-			Channel:     s.Spec.Channel,
-			StartingCSV: startingCSV,
-			Catalog:     registry.CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
-		}] = s.DeepCopy()
-	}
-	return
-}
-
-func (r *OperatorStepResolver) listSubscriptions(namespace string) (subs []*v1alpha1.Subscription, err error) {
+func (r *OperatorStepResolver) listSubscriptions(namespace string) ([]*v1alpha1.Subscription, error) {
 	list, err := r.client.OperatorsV1alpha1().Subscriptions(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	subs = make([]*v1alpha1.Subscription, 0)
+	var subs []*v1alpha1.Subscription
 	for i := range list.Items {
 		subs = append(subs, &list.Items[i])
 	}
 
-	return
+	return subs, nil
 }

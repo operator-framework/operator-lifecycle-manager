@@ -77,12 +77,5 @@ func (r SubscriptionInstallable) Constraints() []solver.Constraint {
 func (r *SubscriptionInstallable) AddDependency(dependencies []solver.Identifier) {
 	if len(dependencies) > 0 {
 		r.constraints = append(r.constraints, solver.Dependency(dependencies...))
-		// "dependencies" may contain bundles that are not mutually exclusive
-		// currently, the constraint types:
-		// - packagename+version range
-		// - provided gvk
-		// - ANDs of either of the above
-		// all happen to be mutually exclusive, but this won't always be the case
-		r.constraints = append(r.constraints, solver.AtMost(1, dependencies...))
 	}
 }

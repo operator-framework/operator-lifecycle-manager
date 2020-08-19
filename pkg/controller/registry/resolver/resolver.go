@@ -38,7 +38,7 @@ type debugWriter struct {
 
 func (w *debugWriter) Write(b []byte) (int, error) {
 	n := len(b)
-	w.Debug(b)
+	w.Debug(string(b))
 	return n, nil
 }
 
