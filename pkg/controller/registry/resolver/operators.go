@@ -218,6 +218,7 @@ type OperatorSurface interface {
 	Inline() bool
 	Dependencies() []*api.Dependency
 	Properties() []*api.Property
+	Skips() []string
 }
 
 type Operator struct {
@@ -230,6 +231,7 @@ type Operator struct {
 	sourceInfo   *OperatorSourceInfo
 	dependencies []*api.Dependency
 	properties   []*api.Property
+	skips        []string
 }
 
 var _ OperatorSurface = &Operator{}
@@ -307,6 +309,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		sourceInfo:   sourceInfo,
 		dependencies: dependencies,
 		properties:   properties,
+		skips:        bundle.Skips,
 	}, nil
 }
 
@@ -370,6 +373,10 @@ func (o *Operator) Identifier() string {
 
 func (o *Operator) Replaces() string {
 	return o.replaces
+}
+
+func (o *Operator) Skips() []string {
+	return o.skips
 }
 
 func (o *Operator) SetReplaces(replacing string) {
