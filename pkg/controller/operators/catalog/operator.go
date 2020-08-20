@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/runtime"
 	"reflect"
 	"sort"
 	"strings"
@@ -25,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -629,6 +629,15 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 	}
 
 	logger.Debug("ensured registry server")
+
+	// if catalog polling is enabled, and the polling interval is less than the default OLM sync cycle (15 minutes)
+	// requeue the catalog sync based on the polling interval, so the next check comes ahead of the default sync
+	if out.Spec.UpdateStrategy != nil && out.Spec.UpdateStrategy.Interval.Duration < queueinformer.DefaultResyncPeriod {
+		logger.Debugf("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
+		resyncPeriod := queueinformer.ResyncWithJitter(out.Spec.UpdateStrategy.Interval.Duration, 0.1)
+		o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), resyncPeriod())
+		return
+	}
 
 	if err := o.sources.Remove(sourceKey); err != nil {
 		o.logger.WithError(err).Debug("error closing client connection")
