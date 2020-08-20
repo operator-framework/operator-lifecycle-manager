@@ -64,15 +64,13 @@ var _ = Describe("Installing bundles with new object types", func() {
 			err = json.Unmarshal(data, &vpaCRD)
 			Expect(err).ToNot(HaveOccurred(), "could not convert vpa crd to unstructured")
 
-			Eventually(func() error {
+			Eventually(func() bool {
 				err := ctx.Ctx().Client().Create(context.TODO(), &vpaCRD)
 				if err != nil {
-					if !k8serrors.IsAlreadyExists(err) {
-						return err
-					}
+					return k8serrors.IsAlreadyExists(err)
 				}
-				return nil
-			}).Should(Succeed())
+				return true
+			}).Should(BeTrue())
 
 			// ensure vpa crd is established and accepted on the cluster before continuing
 			Eventually(func() (bool, error) {

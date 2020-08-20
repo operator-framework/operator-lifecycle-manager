@@ -3,11 +3,14 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"runtime"
+	"strings"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/operator-framework/operator-lifecycle-manager/test/e2e/dsl"
+	"github.com/onsi/gomega/types"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -21,7 +24,10 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+	. "github.com/operator-framework/operator-lifecycle-manager/test/e2e/dsl"
 )
+
+const k8ErrorImportPath = "k8s.io/apimachinery/pkg/api/errors."
 
 var _ = Describe("Garbage collection for dependent resources", func() {
 	var (
@@ -276,7 +282,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			It("should have deleted the dependent since both the owners were deleted", func() {
 				_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), dependent.GetName(), metav1.GetOptions{})
 				Expect(err).To(HaveOccurred())
-				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+				Expect(k8serrors.IsNotFound).Should(assertOnk8Error("IsNotFound", err))
 				ctx.Ctx().Logf("dependent successfully garbage collected after both owners were deleted")
 			})
 
@@ -602,3 +608,16 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		})
 	})
 })
+
+// assertOnk8Error validates that the actual error passed in matches the expected k8 error
+// using gomega's matcher
+func assertOnk8Error(expectedk8Error string, actualError error) types.GomegaMatcher {
+	return WithTransform(func(f func(e error) bool) string {
+		var errFuncName string
+		if f(actualError) {
+			errFuncName = runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
+			errFuncName = strings.Split(errFuncName, k8ErrorImportPath)[1]
+		}
+		return errFuncName
+	}, Equal(expectedk8Error))
+}

@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -61,7 +62,7 @@ var _ = Describe("Scoped Client", func() {
 			// lack of permission.
 			name: "ServiceAccountDoesNotHaveAnyPermission",
 			assertFunc: func(errGot error) {
-				require.True(GinkgoT(), k8serrors.IsForbidden(errGot))
+				Expect(k8serrors.IsForbidden).Should(assertOnk8Error("IsForbidden", errGot))
 			},
 		}),
 		table.Entry("ServiceAccountHasPermission", testParameter{
@@ -73,7 +74,7 @@ var _ = Describe("Scoped Client", func() {
 				return
 			},
 			assertFunc: func(errGot error) {
-				require.True(GinkgoT(), k8serrors.IsNotFound(errGot))
+				Expect(k8serrors.IsNotFound).Should(assertOnk8Error("IsNotFound", errGot))
 			},
 		}),
 	}
