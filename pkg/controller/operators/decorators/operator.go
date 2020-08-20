@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/itchyny/gojq"
 	"github.com/mitchellh/mapstructure"
-	"github.com/yalp/jsonpath"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,18 +16,34 @@ import (
 	"k8s.io/client-go/tools/reference"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/codec"
 )
 
 const (
-	newOperatorError            = "Cannot create new Operator: %s"
-	newComponentError           = "Cannot create new Component: %s"
-	componentLabelKeyError      = "Cannot generate component label key: %s"
-	componentConditionsJSONPath = "$.status.conditions"
+	newOperatorError       = "Cannot create new Operator: %s"
+	newComponentError      = "Cannot create new Component: %s"
+	componentLabelKeyError = "Cannot generate component label key: %s"
 
 	// ComponentLabelKeyPrefix is the key prefix used for labels marking operator component resources.
 	ComponentLabelKeyPrefix = "operators.coreos.com/"
 )
+
+var (
+	csvGVK                = operatorsv1alpha1.SchemeGroupVersion.WithKind(operatorsv1alpha1.ClusterServiceVersionKind)
+	componentConditionsJQ *gojq.Query
+	csvConditionsJQ       *gojq.Query
+)
+
+func init() {
+	var err error
+	if componentConditionsJQ, err = gojq.Parse(".status.conditions"); err != nil {
+		panic(fmt.Errorf("failed to parse component conditions jq: %s", err))
+	}
+	if csvConditionsJQ, err = gojq.Parse(".status | [{\"type\": .phase, \"status\": \"True\", \"reason\": .reason, \"message\": .message, \"lastUpdateTime\": .lastUpdateTime,\"lastTransitionTime\": .lastTransitionTime}]"); err != nil {
+		panic(fmt.Errorf("failed to parse csv conditions jq: %s", err))
+	}
+}
 
 // OperatorNames returns a list of operator names extracted from the given labels.
 func OperatorNames(labels map[string]string) (names []types.NamespacedName) {
@@ -356,9 +372,23 @@ func (c *Component) Reference() (ref *operatorsv1.RichReference, err error) {
 		ObjectReference: truncated,
 	}
 
-	out, _ := jsonpath.Read(c.UnstructuredContent(), componentConditionsJSONPath)
-	if out == nil {
-		return
+	query := componentConditionsJQ
+	switch c.GroupVersionKind() {
+	case csvGVK:
+		query = csvConditionsJQ
+	}
+	iter := query.Run(c.UnstructuredContent())
+
+	var out interface{}
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, ok = v.(error); ok {
+			return
+		}
+		out = v
 	}
 
 	var decoder *mapstructure.Decoder
