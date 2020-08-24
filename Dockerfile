@@ -1,4 +1,4 @@
-FROM openshift/origin-release:golang-1.13 as builder
+FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-openshift-4.6 as builder
 
 ENV GO111MODULE auto
 ENV GOPATH /go
@@ -23,7 +23,7 @@ COPY go.sum go.sum
 RUN CGO_ENABLED=1 make build
 RUN make build-util
 
-FROM openshift/origin-base
+FROM registry.svc.ci.openshift.org/ocp/4.6:base
 
 ADD manifests/ /manifests
 LABEL io.openshift.release.operator=true
