@@ -101,6 +101,8 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 			Controller:         &ownerutil.NotController,
 			BlockOwnerDeletion: &ownerutil.DontBlockOwnerDeletion,
 		}}
+		expectedRevisionHistoryLimit = int32(1)
+		defaultRevisionHistoryLimit  = int32(10)
 	)
 
 	type inputs struct {
@@ -126,11 +128,15 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 				strategyDeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 					{
 						Name: "test-deployment-1",
-						Spec: appsv1.DeploymentSpec{},
+						Spec: appsv1.DeploymentSpec{
+							RevisionHistoryLimit: &defaultRevisionHistoryLimit,
+						},
 					},
 					{
 						Name: "test-deployment-2",
-						Spec: appsv1.DeploymentSpec{},
+						Spec: appsv1.DeploymentSpec{
+							RevisionHistoryLimit: nil,
+						},
 					},
 					{
 						Name: "test-deployment-3",
@@ -168,6 +174,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 							},
 						},
 						Spec: appsv1.DeploymentSpec{
+							RevisionHistoryLimit: &expectedRevisionHistoryLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Annotations: map[string]string{},
@@ -189,6 +196,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 							},
 						},
 						Spec: appsv1.DeploymentSpec{
+							RevisionHistoryLimit: &expectedRevisionHistoryLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Annotations: map[string]string{},
@@ -210,6 +218,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 							},
 						},
 						Spec: appsv1.DeploymentSpec{
+							RevisionHistoryLimit: &expectedRevisionHistoryLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Annotations: map[string]string{},
@@ -234,6 +243,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					dep := fakeClient.CreateOrUpdateDeploymentArgsForCall(i)
 					expectedDeployment.Spec.Template.Annotations = map[string]string{}
 					require.Equal(t, expectedDeployment.OwnerReferences, dep.OwnerReferences)
+					require.Equal(t, expectedDeployment.Spec.RevisionHistoryLimit, dep.Spec.RevisionHistoryLimit)
 				}(i, m.expectedDeployment)
 			}
 
