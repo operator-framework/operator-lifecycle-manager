@@ -335,7 +335,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 				},
 				operators: []*Operator{
 					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", namespace, nil,
-						nil, opToAddVersionDeps, "",false),
+						nil, opToAddVersionDeps, "", false),
 				},
 			},
 			registry.CatalogKey{
@@ -348,7 +348,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 				},
 				operators: []*Operator{
 					genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
-						namespace, nil, nil, nil, "",false),
+						namespace, nil, nil, nil, "", false),
 				},
 			},
 			registry.CatalogKey{
@@ -362,7 +362,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 				priority: catalogSourcePriority(100),
 				operators: []*Operator{
 					genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "high-priority-operator",
-						namespace, nil, nil, nil, "",false),
+						namespace, nil, nil, nil, "", false),
 				},
 			},
 		},
@@ -377,9 +377,9 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	assert.NoError(t, err)
 	expected := OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm",
-			nil, nil, opToAddVersionDeps, "",false),
+			nil, nil, opToAddVersionDeps, "", false),
 		"packageB.v1": genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "high-priority-operator", "olm",
-			nil, nil, nil, "",false),
+			nil, nil, nil, "", false),
 	}
 	assert.Equal(t, 2, len(operators))
 	for k, e := range expected {
@@ -398,7 +398,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		priority: catalogSourcePriority(100),
 		operators: []*Operator{
 			genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
-				namespace, nil, nil, nil, "",false),
+				namespace, nil, nil, nil, "", false),
 		},
 	}
 
@@ -410,9 +410,9 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	assert.NoError(t, err)
 	expected = OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm",
-			nil, nil, opToAddVersionDeps, "",false),
+			nil, nil, opToAddVersionDeps, "", false),
 		"packageB.v1": genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator", "olm",
-			nil, nil, nil, "",false),
+			nil, nil, nil, "", false),
 	}
 	assert.Equal(t, 2, len(operators))
 	for k, e := range expected {
@@ -430,9 +430,9 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		},
 		operators: []*Operator{
 			genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", namespace, nil,
-				nil, opToAddVersionDeps, "",false),
+				nil, opToAddVersionDeps, "", false),
 			genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community",
-				namespace, nil, nil, nil, "",false),
+				namespace, nil, nil, nil, "", false),
 		},
 	}
 
@@ -444,9 +444,9 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	assert.NoError(t, err)
 	expected = OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm",
-			nil, nil, opToAddVersionDeps, "",false),
+			nil, nil, opToAddVersionDeps, "", false),
 		"packageB.v1": genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community", "olm",
-			nil, nil, nil, "",false),
+			nil, nil, nil, "", false),
 	}
 	assert.Equal(t, 2, len(operators))
 	for k, e := range expected {
@@ -1340,6 +1340,64 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 
 	expected := OperatorSet{
 		"packageB.v1": genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
+	}
+	require.EqualValues(t, expected, operators)
+}
+
+func TestSolveOperators_WithSkips(t *testing.T) {
+	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides := APISet
+
+	namespace := "olm"
+	catalog := registry.CatalogKey{"community", namespace}
+
+	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	opToAddVersionDeps := []*api.Dependency{
+		{
+			Type:  "olm.gvk",
+			Value: `{"group":"g","kind":"k","version":"v"}`,
+		},
+	}
+
+	opB := genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false)
+	op1 := genOperator("packageA.v1", "1.0.0", "", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op2 := genOperator("packageA.v2", "2.0.0", "packageA.v1", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op3 := genOperator("packageA.v3", "3.0.0", "packageA.v2", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op4 := genOperator("packageA.v4", "4.0.0", "packageA.v2", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op4.skips = []string{"packageA.v3"}
+	op5 := genOperator("packageA.v5", "5.0.0", "packageA.v1", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op5.skips = []string{"packageA.v2", "packageA.v3", "packageA.v4"}
+	op6 := genOperator("packageA.v6", "6.0.0", "packageA.v5", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			registry.CatalogKey{
+				Namespace: "olm",
+				Name:      "community",
+			}: {
+				key: registry.CatalogKey{
+					Namespace: "olm",
+					Name:      "community",
+				},
+				operators: []*Operator{
+					opB, op1, op2, op3, op4, op5, op6,
+				},
+			},
+		},
+	}
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	assert.NoError(t, err)
+
+	expected := OperatorSet{
+		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+		"packageA.v6": genOperator("packageA.v6", "6.0.0", "packageA.v5", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false),
 	}
 	require.EqualValues(t, expected, operators)
 }

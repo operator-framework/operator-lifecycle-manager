@@ -525,6 +525,7 @@ func (r *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
 	// if a replaces b, then replacedBy[b] = a
 	replacedBy := map[*Operator]*Operator{}
 	replaces := map[*Operator]*Operator{}
+	skipped := map[string]*Operator{}
 
 	for _, b := range bundles {
 		bundleLookup[b.Identifier()] = b
@@ -540,6 +541,7 @@ func (r *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
 		for _, skip := range b.skips {
 			if r, ok := bundleLookup[skip]; ok {
 				replacedBy[r] = b
+				skipped[skip] = r
 			}
 		}
 	}
@@ -559,11 +561,18 @@ func (r *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
 
 	head := headCandidates[0]
 	current := head
+	skip := false
 	for {
-		channel = append(channel, current)
+		if skip == false {
+			channel = append(channel, current)
+		}
+		skip = false
 		next, ok := replaces[current]
 		if !ok {
 			break
+		}
+		if _, ok := skipped[current.Identifier()]; ok {
+			skip = true
 		}
 		current = next
 	}
