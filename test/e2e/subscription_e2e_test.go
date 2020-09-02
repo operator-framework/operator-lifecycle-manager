@@ -386,7 +386,7 @@ func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscri
 	}
 }
 
-func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, packageName, channel string, approval v1alpha1.Approval) cleanupFunc {
+func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, packageName, channel string, approval v1alpha1.Approval) (cleanupFunc, *v1alpha1.Subscription) {
 	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.SubscriptionKind,
@@ -407,7 +407,12 @@ func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, 
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
 	require.NoError(t, err)
-	return buildSubscriptionCleanupFunc(t, crc, subscription)
+	return buildSubscriptionCleanupFunc(t, crc, subscription), subscription
+}
+
+func updateSubscription(t *testing.T, crc versioned.Interface, subscription *v1alpha1.Subscription) {
+	_, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Update(subscription)
+	require.NoError(t, err)
 }
 
 func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespace, name, catalog, packageName, channel, startingCSV string, approval v1alpha1.Approval) cleanupFunc {
@@ -465,7 +470,7 @@ func TestCreateNewSubscriptionNotInstalled(t *testing.T) {
 	}()
 	require.NoError(t, initCatalog(t, c, crc))
 
-	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
+	cleanup, _ := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
 	defer cleanup()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
@@ -493,7 +498,7 @@ func TestCreateNewSubscriptionExistingCSV(t *testing.T) {
 	_, err := createCSV(t, c, crc, stableCSV, testNamespace, false, false)
 	require.NoError(t, err)
 
-	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
+	subscriptionCleanup, _ := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
 	defer subscriptionCleanup()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
@@ -600,7 +605,7 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	}()
 	require.NoError(t, initCatalog(t, c, crc))
 
-	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+	subscriptionCleanup, _ := createSubscription(t, crc, testNamespace, "manual-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 	defer subscriptionCleanup()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
