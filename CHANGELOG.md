@@ -1,5 +1,165 @@
 # Changelog
 
+## [0.16.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.16.1) (2020-09-04)
+
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.16.1...0.16.1)
+
+**Other changes:**
+
+- 0.16.1 Release: Generate Manifests [\#1750](https://github.com/operator-framework/operator-lifecycle-manager/pull/1750) ([awgreene](https://github.com/awgreene))
+
+## [0.16.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.16.1) (2020-09-03)
+
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.16.0...0.16.1)
+
+**Closed issues:**
+
+- Issue Installing OLM in Openshift Namespace [\#1683](https://github.com/operator-framework/operator-lifecycle-manager/issues/1683)
+- Evicted CatalogSource pod causes failure [\#1677](https://github.com/operator-framework/operator-lifecycle-manager/issues/1677)
+- Unable to use OLM to create operator in kubernetes native cluster [\#1660](https://github.com/operator-framework/operator-lifecycle-manager/issues/1660)
+- An old version of a dependent package is installed [\#1620](https://github.com/operator-framework/operator-lifecycle-manager/issues/1620)
+- Can't recreate operator if the installplan exist in 4.4 [\#1570](https://github.com/operator-framework/operator-lifecycle-manager/issues/1570)
+- What is the significance of "internalversion" package? Is it advisable to use it? [\#1527](https://github.com/operator-framework/operator-lifecycle-manager/issues/1527)
+- Leader election for olm-operator and catalog-operator [\#1405](https://github.com/operator-framework/operator-lifecycle-manager/issues/1405)
+- How to make operator installation method in OCP 4.2+ compatible with OCP 4.1 [\#1320](https://github.com/operator-framework/operator-lifecycle-manager/issues/1320)
+- Question: optional dependency [\#819](https://github.com/operator-framework/operator-lifecycle-manager/issues/819)
+
+**Other changes:**
+
+- Bump OLM Version [\#1749](https://github.com/operator-framework/operator-lifecycle-manager/pull/1749) ([awgreene](https://github.com/awgreene))
+- Update OWNERS [\#1739](https://github.com/operator-framework/operator-lifecycle-manager/pull/1739) ([kevinrizza](https://github.com/kevinrizza))
+- Bug 1872080: Updating Dockerfile baseimages to mach ocp-build-data config [\#1738](https://github.com/operator-framework/operator-lifecycle-manager/pull/1738) ([openshift-bot](https://github.com/openshift-bot))
+- Bug 1869523: Fix nodeSelector subscription config override [\#1728](https://github.com/operator-framework/operator-lifecycle-manager/pull/1728) ([awgreene](https://github.com/awgreene))
+- Update Owners file [\#1727](https://github.com/operator-framework/operator-lifecycle-manager/pull/1727) ([awgreene](https://github.com/awgreene))
+- Bug 1868497: Fix install plan creation for subscriptions that omit channel. [\#1725](https://github.com/operator-framework/operator-lifecycle-manager/pull/1725) ([benluddy](https://github.com/benluddy))
+- Bug 1861636: fix\(operator\): re-adopt manually disowned crds [\#1721](https://github.com/operator-framework/operator-lifecycle-manager/pull/1721) ([njhale](https://github.com/njhale))
+- Bug 1861605: Update manifests to include the bug fix [\#1720](https://github.com/operator-framework/operator-lifecycle-manager/pull/1720) ([simrandhaliw](https://github.com/simrandhaliw))
+- Add Total Test Number to report [\#1717](https://github.com/operator-framework/operator-lifecycle-manager/pull/1717) ([Bowenislandsong](https://github.com/Bowenislandsong))
+- Bug 1860035: Fix SubscriptionConfig NodeSelector field [\#1716](https://github.com/operator-framework/operator-lifecycle-manager/pull/1716) ([awgreene](https://github.com/awgreene))
+- Bug 1867169: Fix stale content in configmap due to stale bundle image in the node [\#1715](https://github.com/operator-framework/operator-lifecycle-manager/pull/1715) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- Bug 1861605: Reduce length of explanation of status of Operator resource [\#1713](https://github.com/operator-framework/operator-lifecycle-manager/pull/1713) ([simrandhaliw](https://github.com/simrandhaliw))
+- Add Catalog Source priority for dependency resolution [\#1706](https://github.com/operator-framework/operator-lifecycle-manager/pull/1706) ([Bowenislandsong](https://github.com/Bowenislandsong))
+- Remove spurious check for duplicate operators in resolver. [\#1702](https://github.com/operator-framework/operator-lifecycle-manager/pull/1702) ([benluddy](https://github.com/benluddy))
+- feat\(resolver\): filtering deprecated bundles in resolver [\#1699](https://github.com/operator-framework/operator-lifecycle-manager/pull/1699) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- chore\(clean\): Remove legacy resolver [\#1696](https://github.com/operator-framework/operator-lifecycle-manager/pull/1696) ([ecordell](https://github.com/ecordell))
+- change default catalog to index image [\#1695](https://github.com/operator-framework/operator-lifecycle-manager/pull/1695) ([dmesser](https://github.com/dmesser))
+- Enable the Operator API by default [\#1694](https://github.com/operator-framework/operator-lifecycle-manager/pull/1694) ([njhale](https://github.com/njhale))
+- Remove unnecessary ENV directives from base.Dockerfile. [\#1692](https://github.com/operator-framework/operator-lifecycle-manager/pull/1692) ([benluddy](https://github.com/benluddy))
+- feat\(resolver\): Add label dependency type to new resolver [\#1687](https://github.com/operator-framework/operator-lifecycle-manager/pull/1687) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- Bug 1860185: fix\(install\): account for installplans when calculating generation [\#1684](https://github.com/operator-framework/operator-lifecycle-manager/pull/1684) ([njhale](https://github.com/njhale))
+- Remove unneeded toleration from catalog source pod [\#1680](https://github.com/operator-framework/operator-lifecycle-manager/pull/1680) ([kramvan1](https://github.com/kramvan1))
+- Rebuild busybox operator index image [\#1678](https://github.com/operator-framework/operator-lifecycle-manager/pull/1678) ([awgreene](https://github.com/awgreene))
+- feat\(operator\): adopt referenced installplans [\#1661](https://github.com/operator-framework/operator-lifecycle-manager/pull/1661) ([njhale](https://github.com/njhale))
+- \[metrics\] Dependency resolution metrics [\#1657](https://github.com/operator-framework/operator-lifecycle-manager/pull/1657) ([anik120](https://github.com/anik120))
+-  New SAT-based dependency resolver [\#1652](https://github.com/operator-framework/operator-lifecycle-manager/pull/1652) ([ecordell](https://github.com/ecordell))
+- Add Conversion Webhook support for OLM [\#1649](https://github.com/operator-framework/operator-lifecycle-manager/pull/1649) ([simrandhaliw](https://github.com/simrandhaliw))
+- Bug 1853601: use server-side-apply for catalog source pod update [\#1624](https://github.com/operator-framework/operator-lifecycle-manager/pull/1624) ([ankitathomas](https://github.com/ankitathomas))
+- add InstallplanApproval \(automatic/manual\) to OLM metrics [\#1613](https://github.com/operator-framework/operator-lifecycle-manager/pull/1613) ([konsotirop](https://github.com/konsotirop))
+
+## [0.16.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.16.0) (2020-07-23)
+
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.15.1...0.16.0)
+
+**Closed issues:**
+
+- Is it possible to run OLM on clusters without OpenShift [\#1658](https://github.com/operator-framework/operator-lifecycle-manager/issues/1658)
+- OLM doesn't create roles corresponding to the `permissions` defined in the CSV file [\#1625](https://github.com/operator-framework/operator-lifecycle-manager/issues/1625)
+- The required operator from ClusterServiceVersion isn't installed from the default channel. [\#1612](https://github.com/operator-framework/operator-lifecycle-manager/issues/1612)
+- Unable to install OLM 0.15.1 on MicroK8s 1.17/stable [\#1584](https://github.com/operator-framework/operator-lifecycle-manager/issues/1584)
+- Request respin 0.14.3 release as 0.14.1 CVE and 0.15.1 has kubectl hang issue [\#1576](https://github.com/operator-framework/operator-lifecycle-manager/issues/1576)
+- Duplicate apply of 0.15.1 clusterserviceversions.crd.yaml hangs [\#1574](https://github.com/operator-framework/operator-lifecycle-manager/issues/1574)
+- webhook alternate port [\#1573](https://github.com/operator-framework/operator-lifecycle-manager/issues/1573)
+- 0.15.0 install hang [\#1534](https://github.com/operator-framework/operator-lifecycle-manager/issues/1534)
+- OLM 0.14.2 ignores subscription channel changes. [\#1510](https://github.com/operator-framework/operator-lifecycle-manager/issues/1510)
+- OOM catalog [\#1497](https://github.com/operator-framework/operator-lifecycle-manager/issues/1497)
+- Use Kubeadm instead of Minikube to Support Local Power Build [\#1477](https://github.com/operator-framework/operator-lifecycle-manager/issues/1477)
+- Include StatefulSet as Resource owned by Operand [\#1449](https://github.com/operator-framework/operator-lifecycle-manager/issues/1449)
+- Operator installed via OLM removes `nullable` from CRD [\#1433](https://github.com/operator-framework/operator-lifecycle-manager/issues/1433)
+- How often releases cut? [\#1415](https://github.com/operator-framework/operator-lifecycle-manager/issues/1415)
+- install.sh 0.14.1 - CSV "packageserver" failed to reach phase succeeded [\#1360](https://github.com/operator-framework/operator-lifecycle-manager/issues/1360)
+- Subscription emits InstallPlan containing update to unrelated operator/clusterServiceVersion [\#1082](https://github.com/operator-framework/operator-lifecycle-manager/issues/1082)
+- How to add 3rd party CRD to my operator CSV [\#1060](https://github.com/operator-framework/operator-lifecycle-manager/issues/1060)
+- deleting CSV does not delete operator's RBAC related resources [\#1041](https://github.com/operator-framework/operator-lifecycle-manager/issues/1041)
+- Update / Patch to deployment during "replace" rejected by kubernetes, fails in a loop [\#952](https://github.com/operator-framework/operator-lifecycle-manager/issues/952)
+- CSV not found for CS in other namespace [\#944](https://github.com/operator-framework/operator-lifecycle-manager/issues/944)
+- How to tell if OLM is ready after OpenShift install? [\#934](https://github.com/operator-framework/operator-lifecycle-manager/issues/934)
+- Don't use readiness condition to detect if updates are in progress [\#922](https://github.com/operator-framework/operator-lifecycle-manager/issues/922)
+- Documentation clarification [\#908](https://github.com/operator-framework/operator-lifecycle-manager/issues/908)
+- \[doc\] - Installation and configuration process are not clear [\#896](https://github.com/operator-framework/operator-lifecycle-manager/issues/896)
+- Deploying an operator without using a subscription object [\#891](https://github.com/operator-framework/operator-lifecycle-manager/issues/891)
+- Unable to install 2 operators in mixed installation modes [\#873](https://github.com/operator-framework/operator-lifecycle-manager/issues/873)
+- Feature Request: NodeAffinity for Operators [\#840](https://github.com/operator-framework/operator-lifecycle-manager/issues/840)
+- Unable to uninstall OLM [\#789](https://github.com/operator-framework/operator-lifecycle-manager/issues/789)
+
+**Other changes:**
+
+- Bug 1859178: fix\(installplans\): GC older installplans [\#1669](https://github.com/operator-framework/operator-lifecycle-manager/pull/1669) ([ecordell](https://github.com/ecordell))
+- Bug: Fix incorrect deployment annotations [\#1662](https://github.com/operator-framework/operator-lifecycle-manager/pull/1662) ([awgreene](https://github.com/awgreene))
+- Bug 1859717: Fix validate CRD compatibility check and deprecated CRD test case [\#1659](https://github.com/operator-framework/operator-lifecycle-manager/pull/1659) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- fix: explicitly delete collection of catalog source pods in grpc e2e test [\#1656](https://github.com/operator-framework/operator-lifecycle-manager/pull/1656) ([exdx](https://github.com/exdx))
+- Omit \(hopefully\) redundant yum update from downstream builder stage. [\#1655](https://github.com/operator-framework/operator-lifecycle-manager/pull/1655) ([benluddy](https://github.com/benluddy))
+- Return an error when solver input contains duplicate identifiers. [\#1654](https://github.com/operator-framework/operator-lifecycle-manager/pull/1654) ([benluddy](https://github.com/benluddy))
+- Refactor solver preference searching. [\#1650](https://github.com/operator-framework/operator-lifecycle-manager/pull/1650) ([benluddy](https://github.com/benluddy))
+- fix: remove bundle e2e test skip [\#1647](https://github.com/operator-framework/operator-lifecycle-manager/pull/1647) ([exdx](https://github.com/exdx))
+- Add flake analyzer periodics [\#1645](https://github.com/operator-framework/operator-lifecycle-manager/pull/1645) ([Bowenislandsong](https://github.com/Bowenislandsong))
+- fix: Use PR head commit in artifact naming instead of merge commit [\#1643](https://github.com/operator-framework/operator-lifecycle-manager/pull/1643) ([Bowenislandsong](https://github.com/Bowenislandsong))
+- Bug 1857424: fix\(resolver\): Exclude all installed packages in dependency search [\#1642](https://github.com/operator-framework/operator-lifecycle-manager/pull/1642) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- fix: use server-side apply in crd e2e test  [\#1641](https://github.com/operator-framework/operator-lifecycle-manager/pull/1641) ([exdx](https://github.com/exdx))
+- test\(e2e\): skip bundle cr install test [\#1640](https://github.com/operator-framework/operator-lifecycle-manager/pull/1640) ([njhale](https://github.com/njhale))
+- fix\(metrics\): query cache for object count metrics [\#1639](https://github.com/operator-framework/operator-lifecycle-manager/pull/1639) ([ecordell](https://github.com/ecordell))
+- fix: install VPA CRD directly on clusterfor bundle e2e test [\#1637](https://github.com/operator-framework/operator-lifecycle-manager/pull/1637) ([exdx](https://github.com/exdx))
+- fix: add installplan status check after subscription status check for gc e2e tests [\#1636](https://github.com/operator-framework/operator-lifecycle-manager/pull/1636) ([exdx](https://github.com/exdx))
+- test\(e2e\): delete all subs, installplans, catalogs, and csvs in test teardown [\#1635](https://github.com/operator-framework/operator-lifecycle-manager/pull/1635) ([njhale](https://github.com/njhale))
+- Add an AtMost cardinality constraint to the solver package. [\#1632](https://github.com/operator-framework/operator-lifecycle-manager/pull/1632) ([benluddy](https://github.com/benluddy))
+- fix: check installplan status in bundle e2e test [\#1631](https://github.com/operator-framework/operator-lifecycle-manager/pull/1631) ([exdx](https://github.com/exdx))
+- Documentation improvements - PR template and DEVELOPMENT.md [\#1630](https://github.com/operator-framework/operator-lifecycle-manager/pull/1630) ([matskiv](https://github.com/matskiv))
+- Bug 1855088: generate unique \(Cluster\)RoleBinding names [\#1629](https://github.com/operator-framework/operator-lifecycle-manager/pull/1629) ([matskiv](https://github.com/matskiv))
+- Bug 1851213: Set Resource to plural in CSV RelatedObjects field [\#1623](https://github.com/operator-framework/operator-lifecycle-manager/pull/1623) ([ankitathomas](https://github.com/ankitathomas))
+- Introduce preference order for solver. [\#1619](https://github.com/operator-framework/operator-lifecycle-manager/pull/1619) ([benluddy](https://github.com/benluddy))
+- Add workflow to save e2e test artifacts [\#1618](https://github.com/operator-framework/operator-lifecycle-manager/pull/1618) ([Bowenislandsong](https://github.com/Bowenislandsong))
+- test\(e2e\): patch installplans w/ server-side apply [\#1617](https://github.com/operator-framework/operator-lifecycle-manager/pull/1617) ([njhale](https://github.com/njhale))
+- fix: update README to point to the OLM book website  [\#1611](https://github.com/operator-framework/operator-lifecycle-manager/pull/1611) ([exdx](https://github.com/exdx))
+- Add more precise matching to the metric end-to-end tests. [\#1610](https://github.com/operator-framework/operator-lifecycle-manager/pull/1610) ([benluddy](https://github.com/benluddy))
+- feat\(operator\): automatically adopt generated resources [\#1607](https://github.com/operator-framework/operator-lifecycle-manager/pull/1607) ([njhale](https://github.com/njhale))
+- Retry update in flaky test of CSV w/owned API Service. [\#1604](https://github.com/operator-framework/operator-lifecycle-manager/pull/1604) ([benluddy](https://github.com/benluddy))
+- Bug 1822396: Update metric when Subscription is updated [\#1603](https://github.com/operator-framework/operator-lifecycle-manager/pull/1603) ([anik120](https://github.com/anik120))
+- bump olm version to 0.16.0 [\#1601](https://github.com/operator-framework/operator-lifecycle-manager/pull/1601) ([kevinrizza](https://github.com/kevinrizza))
+- Update ocp manifests with latest template [\#1600](https://github.com/operator-framework/operator-lifecycle-manager/pull/1600) ([kevinrizza](https://github.com/kevinrizza))
+- Disable parallel e2e-local runs by default. [\#1598](https://github.com/operator-framework/operator-lifecycle-manager/pull/1598) ([benluddy](https://github.com/benluddy))
+- Replace assertions within async assertions. [\#1596](https://github.com/operator-framework/operator-lifecycle-manager/pull/1596) ([benluddy](https://github.com/benluddy))
+- Bug 1850709: Remove failfast from operator e2e test [\#1592](https://github.com/operator-framework/operator-lifecycle-manager/pull/1592) ([Bowenislandsong](https://github.com/Bowenislandsong))
+- Bug 1849164: don't store full manifests in installplan status \(for bundle images\) [\#1589](https://github.com/operator-framework/operator-lifecycle-manager/pull/1589) ([ecordell](https://github.com/ecordell))
+- Bug 1847540: resolve only default channels [\#1583](https://github.com/operator-framework/operator-lifecycle-manager/pull/1583) ([kevinrizza](https://github.com/kevinrizza))
+- Bug 1843652: fix\(package-server\): get icons from default channel [\#1579](https://github.com/operator-framework/operator-lifecycle-manager/pull/1579) ([njhale](https://github.com/njhale))
+- chore\(modules\): bump api dep to v0.3.7 [\#1578](https://github.com/operator-framework/operator-lifecycle-manager/pull/1578) ([njhale](https://github.com/njhale))
+- feat: support priorityclass, poddisruptionbudget, and vpa objects [\#1577](https://github.com/operator-framework/operator-lifecycle-manager/pull/1577) ([exdx](https://github.com/exdx))
+- docs: add design docs for including additional objects in bundles [\#1564](https://github.com/operator-framework/operator-lifecycle-manager/pull/1564) ([exdx](https://github.com/exdx))
+- feat\(resolver\): don't build new clauses for weights [\#1563](https://github.com/operator-framework/operator-lifecycle-manager/pull/1563) ([ecordell](https://github.com/ecordell))
+- beta.kubernetes.io/os deprecated since v1.14, removed in v1.19 [\#1562](https://github.com/operator-framework/operator-lifecycle-manager/pull/1562) ([kramvan1](https://github.com/kramvan1))
+- Reduce install.sh flakiness. [\#1558](https://github.com/operator-framework/operator-lifecycle-manager/pull/1558) ([benluddy](https://github.com/benluddy))
+- Bug 1822040: Fix delay when OLM applies label to Namespaces [\#1550](https://github.com/operator-framework/operator-lifecycle-manager/pull/1550) ([harishsurf](https://github.com/harishsurf))
+- Bug 1838054: fix\(catalog\): no operatorgroups in a namespace should be an error when resolving [\#1549](https://github.com/operator-framework/operator-lifecycle-manager/pull/1549) ([ecordell](https://github.com/ecordell))
+- Fix duplicated CRDs in quickstart manifests. [\#1542](https://github.com/operator-framework/operator-lifecycle-manager/pull/1542) ([benluddy](https://github.com/benluddy))
+- Bug 1838705: fix\(webhook\): Wire ContainerPort to Webhook [\#1540](https://github.com/operator-framework/operator-lifecycle-manager/pull/1540) ([awgreene](https://github.com/awgreene))
+- Changelog for 0.15.1 [\#1539](https://github.com/operator-framework/operator-lifecycle-manager/pull/1539) ([anik120](https://github.com/anik120))
+- Manifests for OLM 0.15.1 [\#1538](https://github.com/operator-framework/operator-lifecycle-manager/pull/1538) ([anik120](https://github.com/anik120))
+- Bump OLM to 0.15.1 [\#1537](https://github.com/operator-framework/operator-lifecycle-manager/pull/1537) ([anik120](https://github.com/anik120))
+- Bug 1828550: add check for storage version changes when installing CRDs [\#1535](https://github.com/operator-framework/operator-lifecycle-manager/pull/1535) ([exdx](https://github.com/exdx))
+- Bug 1834936: fix\(resolver\): don't pick operator from same package when resolve requiredAPI [\#1521](https://github.com/operator-framework/operator-lifecycle-manager/pull/1521) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- Bug 1822396: Delete subscription metric when an operator is uninstalled [\#1519](https://github.com/operator-framework/operator-lifecycle-manager/pull/1519) ([anik120](https://github.com/anik120))
+- Bug 1833195: delete bundle objects after CSV gets deleted [\#1516](https://github.com/operator-framework/operator-lifecycle-manager/pull/1516) ([exdx](https://github.com/exdx))
+- Update prow ci logging for e2e tests [\#1512](https://github.com/operator-framework/operator-lifecycle-manager/pull/1512) ([harishsurf](https://github.com/harishsurf))
+- cleanup: delete duplicated import in olm [\#1501](https://github.com/operator-framework/operator-lifecycle-manager/pull/1501) ([beautytiger](https://github.com/beautytiger))
+- Bug 1823714: Update PkgManifest upon catsrc update [\#1482](https://github.com/operator-framework/operator-lifecycle-manager/pull/1482) ([Bowenislandsong](https://github.com/Bowenislandsong))
+- doc: add CONTRIBUTING.md [\#1479](https://github.com/operator-framework/operator-lifecycle-manager/pull/1479) ([camilamacedo86](https://github.com/camilamacedo86))
+- Changed address for readiness and liveness probes on registry-server [\#1478](https://github.com/operator-framework/operator-lifecycle-manager/pull/1478) ([marcusportmann](https://github.com/marcusportmann))
+- Catch failed Ginkgo assertion in test goroutine. [\#1465](https://github.com/operator-framework/operator-lifecycle-manager/pull/1465) ([benluddy](https://github.com/benluddy))
+- Convert metrics\_e2e\_test to ginkgo [\#1443](https://github.com/operator-framework/operator-lifecycle-manager/pull/1443) ([harishsurf](https://github.com/harishsurf))
+- feat: add uninstall makefile target [\#1438](https://github.com/operator-framework/operator-lifecycle-manager/pull/1438) ([camilamacedo86](https://github.com/camilamacedo86))
+- Doc: Remove legacy webhook proposal [\#1379](https://github.com/operator-framework/operator-lifecycle-manager/pull/1379) ([awgreene](https://github.com/awgreene))
+
+# Changelog
+
 ## [0.15.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.15.1) (2020-05-21)
 
 [Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.15.0...0.15.1)
@@ -990,3 +1150,6 @@ Other changes:
 
 \* *This Changelog was automatically generated by [github_changelog_generator](https://github.com/github-changelog-generator/github-changelog-generator)*
 
+
+
+\* *This Changelog was automatically generated by [github_changelog_generator](https://github.com/github-changelog-generator/github-changelog-generator)*
