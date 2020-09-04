@@ -1,11 +1,12 @@
+---
+# Source: olm/templates/0000_50_olm_15-packageserver.clusterserviceversion.yaml
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   name: packageserver
-  namespace: openshift-operator-lifecycle-manager
+  namespace: olm
   labels:
     olm.version: 0.16.1
-    olm.clusteroperator.name: operator-lifecycle-manager-packageserver
 spec:
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
@@ -79,22 +80,8 @@ spec:
                 app: packageserver
             spec:
               serviceAccountName: olm-operator-serviceaccount
-              priorityClassName: "system-cluster-critical"
               nodeSelector:
                 kubernetes.io/os: linux
-                node-role.kubernetes.io/master: ""
-              tolerations:
-              - effect: NoSchedule
-                key: node-role.kubernetes.io/master
-                operator: Exists
-              - effect: NoExecute
-                key: node.kubernetes.io/unreachable
-                operator: Exists
-                tolerationSeconds: 120
-              - effect: NoExecute
-                key: node.kubernetes.io/not-ready
-                operator: Exists
-                tolerationSeconds: 120
               containers:
               - name: packageserver
                 command:
@@ -103,9 +90,9 @@ spec:
                 - --secure-port
                 - "5443"
                 - --global-namespace
-                - openshift-marketplace
+                - olm
                 image: quay.io/operator-framework/olm@sha256:b9d011c0fbfb65b387904f8fafc47ee1a9479d28d395473341288ee126ed993b
-                imagePullPolicy: IfNotPresent
+                imagePullPolicy: Always
                 ports:
                 - containerPort: 5443
                 livenessProbe:
@@ -123,6 +110,8 @@ spec:
                   requests:
                     cpu: 10m
                     memory: 50Mi
+                securityContext:
+                  runAsUser: 1000
                 volumeMounts:
                 - name: tmpfs
                   mountPath: /tmp
