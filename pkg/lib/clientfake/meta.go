@@ -2,6 +2,7 @@ package clientfake
 
 import (
 	"fmt"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,4 +43,33 @@ func AddSimpleGeneratedNames(objs ...runtime.Object) []runtime.Object {
 	}
 
 	return objs
+}
+
+var (
+	nextNameIndex int
+	mu            sync.Mutex
+)
+
+// AddNextNameInList returns the given object with a generated name selected from the given list sequentially -- in call order -- and cycles when exhausted.
+func AddNextNameInList(obj runtime.Object, names []string) runtime.Object {
+	if len(names) == 0 {
+		return obj
+	}
+
+	accessor, err := meta.Accessor(obj)
+	if err != nil {
+		return obj
+	}
+	if accessor.GetName() == "" && accessor.GetGenerateName() != "" {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if nextNameIndex >= len(names) {
+			nextNameIndex = 0
+		}
+		accessor.SetName(names[nextNameIndex])
+		nextNameIndex++
+	}
+
+	return obj
 }
