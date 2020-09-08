@@ -150,15 +150,15 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 		return
 	}
 
-	hash = HashDeploymentSpec(dep.Spec)
-	dep.Labels[DeploymentSpecHashLabelKey] = hash
-
 	// OLM does not support Rollbacks.
 	// By default, each deployment created by OLM could spawn up to 10 replicaSets.
 	// By setting the deployments revisionHistoryLimit to 1, OLM will only create up
 	// to 2 ReplicaSets per deployment it manages, saving memory.
 	revisionHistoryLimit := int32(1)
 	dep.Spec.RevisionHistoryLimit = &revisionHistoryLimit
+
+	hash = HashDeploymentSpec(dep.Spec)
+	dep.Labels[DeploymentSpecHashLabelKey] = hash
 
 	deployment = dep
 	return

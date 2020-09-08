@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"math"
 	"math/big"
 	"reflect"
@@ -62,6 +61,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 type TestStrategy struct{}
@@ -326,7 +326,10 @@ func buildFakeAPIIntersectionReconcilerThatReturns(result resolver.APIReconcilia
 }
 
 func deployment(deploymentName, namespace, serviceAccountName string, templateAnnotations map[string]string) *appsv1.Deployment {
-	var singleInstance = int32(1)
+	var (
+		singleInstance       = int32(1)
+		revisionHistoryLimit = int32(1)
+	)
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
@@ -338,7 +341,8 @@ func deployment(deploymentName, namespace, serviceAccountName string, templateAn
 					"app": deploymentName,
 				},
 			},
-			Replicas: &singleInstance,
+			RevisionHistoryLimit: &revisionHistoryLimit,
+			Replicas:             &singleInstance,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
