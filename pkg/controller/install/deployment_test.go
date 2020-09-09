@@ -309,6 +309,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 		},
 	}
 
+	revisionHistoryLimit := int32(1)
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
@@ -317,6 +318,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 			dep := testDeployment("olm-dep-1", namespace, &mockOwner)
 			dep.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
+			dep.Spec.RevisionHistoryLimit = &revisionHistoryLimit
 			dep.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, HashDeploymentSpec(dep.Spec)))
 			fakeClient.FindAnyDeploymentsMatchingLabelsReturns(
 				[]*appsv1.Deployment{
@@ -333,6 +335,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 			deployment := testDeployment("olm-dep-1", namespace, &mockOwner)
 			deployment.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
+			deployment.Spec.RevisionHistoryLimit = &revisionHistoryLimit
 			deployment.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, HashDeploymentSpec(deployment.Spec)))
 			fakeClient.CreateOrUpdateDeploymentReturns(&deployment, tt.createDeploymentErr)
 			defer func() {
@@ -342,7 +345,6 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			if tt.createDeploymentErr != nil {
 				err := installer.Install(strategy)
 				require.Error(t, err)
-				return
 			}
 		})
 	}
