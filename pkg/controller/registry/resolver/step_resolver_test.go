@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -57,7 +58,7 @@ type resolverTestOut struct {
 	steps       [][]*v1alpha1.Step
 	lookups     []v1alpha1.BundleLookup
 	subs        []*v1alpha1.Subscription
-	err         error
+	errAssert   func(*testing.T, error)
 	solverError solver.NotSatisfiable
 }
 
@@ -86,6 +87,36 @@ func SharedResolverSpecs() []resolverTest {
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "bundle", "", "package", "", catalog),
+				},
+			},
+		},
+		{
+			name: "SubscriptionWithNoCandidates/Error",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+			},
+			out: resolverTestOut{
+				solverError: solver.NotSatisfiable{
+					{
+						Installable: &SubscriptionInstallable{
+							identifier: "a",
+							constraints: []solver.Constraint{
+								solver.Mandatory(),
+								solver.Dependency(),
+							},
+						},
+						Constraint: solver.Mandatory(),
+					},
+					{
+						Installable: &SubscriptionInstallable{
+							identifier: "a",
+							constraints: []solver.Constraint{
+								solver.Mandatory(),
+								solver.Dependency(),
+							},
+						},
+						Constraint: solver.Dependency(),
+					},
 				},
 			},
 		},
@@ -276,6 +307,33 @@ func SharedResolverSpecs() []resolverTest {
 				catalog: {
 					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
 				},
+			},
+			out: nothing,
+		},
+		{
+			name: "SecondSubscriptionConflictsWithExistingResolvedSubscription",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingSub(namespace, "b.v1", "b", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+					bundle("b.v1", "b", "alpha", "", Provides1, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				errAssert: func(t *testing.T, err error) {
+					assert.IsType(t, solver.NotSatisfiable{}, err)
+				},
+			},
+		},
+		{
+			name: "TwoExistingOperatorsWithSameName/NoError",
+			clusterState: []runtime.Object{
+				existingOperator("ns1", "a.v1", "a", "alpha", "", nil, nil, nil, nil),
+				existingOperator("ns2", "a.v1", "a", "alpha", "", nil, nil, nil, nil),
 			},
 			out: nothing,
 		},
@@ -707,15 +765,21 @@ func TestResolver(t *testing.T) {
 					},
 				},
 			}
+			log := logrus.New()
 			satresolver := &SatResolver{
 				cache: stubCache,
+				log:   log,
 			}
-			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, logrus.New())
+			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
 			resolver.satResolver = satresolver
 
 			steps, lookups, subs, err := resolver.ResolveSteps(namespace, nil)
 			if tt.out.solverError == nil {
-				require.Equal(t, tt.out.err, err, "%s", err)
+				if tt.out.errAssert == nil {
+					assert.Nil(t, err)
+				} else {
+					tt.out.errAssert(t, err)
+				}
 			} else {
 				// the solver outputs useful information on a failed resolution, which is different from the old resolver
 				require.NotNil(t, err)
