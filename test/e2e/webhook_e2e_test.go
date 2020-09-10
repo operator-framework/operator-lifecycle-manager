@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
@@ -573,6 +574,114 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			return
 		}).Should(Equal(2))
+	})
+	When("Installed from a catalog Source", func() {
+		var cleanupCSV cleanupFunc
+		var cleanupCatSrc cleanupFunc
+		var cleanupSubscription cleanupFunc
+		BeforeEach(func() {
+
+			// Create a catalogSource which has the webhook-operator
+			sourceName := genName("catalog-")
+			packageName := "webhook-operator"
+			channelName := "alpha"
+
+			catSrcImage := "quay.io/agreene/webhook-operator-index"
+
+			// Create gRPC CatalogSource
+			source := &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceName,
+					Namespace: testNamespace,
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      catSrcImage + ":0.0.1",
+				},
+			}
+
+			crc := newCRClient()
+			source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			require.NoError(GinkgoT(), err)
+			cleanupCatSrc = func() {
+				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
+			}
+
+			// Create a Subscription for the webhook-operator
+			subscriptionName := genName("sub-")
+			cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+			defer cleanupSubscription()
+
+			// Wait for webhook-operator v2 csv to succeed
+			csv, err := awaitCSV(GinkgoT(), crc, testNamespace, "webhook-operator.v0.0.1", csvSucceededChecker)
+			require.NoError(GinkgoT(), err)
+
+			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, testNamespace, true, true)
+		})
+		AfterEach(func() {
+			if cleanupCSV != nil {
+				cleanupCSV()
+			}
+			if cleanupCatSrc != nil {
+				cleanupCatSrc()
+			}
+			if cleanupSubscription != nil {
+				cleanupSubscription()
+			}
+		})
+		It("Intercepts invalid configurations and sets default fields", func() {
+			// An invalid custom resource is rejected by the validating webhook
+			invalidCR := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "webhook.operators.coreos.io/v1",
+					"kind":       "webhooktests",
+					"metadata": map[string]interface{}{
+						"namespace": testNamespace,
+						"name":      "my-cr-1",
+					},
+					"spec": map[string]interface{}{
+						"valid": false,
+					},
+				},
+			}
+			expectedErrorMessage := "admission webhook \"vwebhooktest.kb.io\" denied the request: WebhookTest.test.operators.coreos.com \"my-cr-1\" is invalid: spec.schedule: Invalid value: false: Spec.Valid must be true"
+			Eventually(func() bool {
+				err := c.CreateCustomResource(invalidCR)
+				if err == nil || expectedErrorMessage != err.Error() {
+					return false
+				}
+				return true
+			}).Should(BeTrue(), "The admission webhook should have rejected the invalid resource")
+
+			// An valid custom resource is acceoted by the validating webhook and the mutating webhook sets the CR's spec.mutate field to true.
+			validCR := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "webhook.operators.coreos.io/v1",
+					"kind":       "webhooktests",
+					"metadata": map[string]interface{}{
+						"namespace": testNamespace,
+						"name":      "my-cr-1",
+					},
+					"spec": map[string]interface{}{
+						"valid": true,
+					},
+				},
+			}
+			crCleanupFunc, err := createCR(c, validCR, "webhook.operators.coreos.io", "v1", testNamespace, "webhooktests", "my-cr-1")
+			defer crCleanupFunc()
+			require.NoError(GinkgoT(), err, "The valid CR should have been approved by the validating webhook")
+
+			unstructuredObject, err := c.GetCustomResource("webhook.operators.coreos.io", "v1", testNamespace, "webhooktests", "my-cr-1")
+			object := unstructuredObject.Object
+			objectSpec := object["spec"].(map[string]interface{})
+			mutatedValue := objectSpec["mutate"].(bool)
+
+			require.True(GinkgoT(), mutatedValue, "The mutating webhook should have set the valid CR's spec.mutate field to true")
+		})
 	})
 	When("WebhookDescription has conversionCRDs field", func() {
 		var cleanupCSV cleanupFunc
