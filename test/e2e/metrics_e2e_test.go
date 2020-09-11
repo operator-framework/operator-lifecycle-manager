@@ -3,19 +3,33 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
-// TestMetrics tests the metrics endpoint of the OLM pod.
-func TestMetricsEndpoint(t *testing.T) {
+const (
+	// RetryInterval defines the frequency at which we check for updates against the
+	// k8s api when waiting for a specific condition to be true.
+	RetryInterval = time.Second * 5
+
+	// Timeout defines the amount of time we should spend querying the k8s api
+	// when waiting for a specific condition to be true.
+	Timeout = time.Minute * 5
+)
+
+// TestCSVMetrics tests the metrics endpoint of the OLM pod for metrics emitted by CSVs.
+func TestCSVMetrics(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
@@ -41,7 +55,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	_, err = fetchCSV(t, crc, failingCSV.Name, testNamespace, csvFailedChecker)
 	require.NoError(t, err)
 
-	rawOutput, err := getMetricsFromPod(t, c, getOLMPodName(t, c), operatorNamespace, "8081")
+	rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=olm-operator"), operatorNamespace, "8081")
 	if err != nil {
 		t.Fatalf("Metrics test failed: %v\n", err)
 	}
@@ -56,7 +70,7 @@ func TestMetricsEndpoint(t *testing.T) {
 
 	cleanupCSV()
 
-	rawOutput, err = getMetricsFromPod(t, c, getOLMPodName(t, c), operatorNamespace, "8081")
+	rawOutput, err = getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=olm-operator"), operatorNamespace, "8081")
 	if err != nil {
 		t.Fatalf("Failed to retrieve metrics from OLM pod because of: %v\n", err)
 	}
@@ -64,8 +78,120 @@ func TestMetricsEndpoint(t *testing.T) {
 	require.NotContains(t, rawOutput, "csv_succeeded{name=\""+failingCSV.Name+"\"")
 }
 
-func getOLMPodName(t *testing.T, client operatorclient.ClientInterface) string {
-	listOptions := metav1.ListOptions{LabelSelector: "app=olm-operator"}
+func TestSubscriptionMetrics(t *testing.T) {
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	subscriptionCleanup, subscription := createSubscription(t, crc, testNamespace, "metric-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+
+	err := wait.PollImmediate(RetryInterval, Timeout, func() (done bool, err error) {
+		rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=catalog-operator"), operatorNamespace, "8081")
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(rawOutput, "subscription_sync_total") &&
+			strings.Contains(rawOutput, "name=\"metric-subscription\"") &&
+			strings.Contains(rawOutput, "channel=\""+stableChannel+"\"") &&
+			strings.Contains(rawOutput, "package=\""+testPackageName+"\"") {
+			return true, nil
+		}
+		return false, nil
+	})
+	require.NoError(t, err)
+
+	updatedSubscription, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(subscription.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+
+	updatedSubscription.Spec.Channel = betaChannel
+	updateSubscription(t, crc, updatedSubscription)
+
+	err = wait.PollImmediate(RetryInterval, Timeout, func() (done bool, err error) {
+		rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=catalog-operator"), operatorNamespace, "8081")
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(rawOutput, "subscription_sync_total") &&
+			strings.Contains(rawOutput, "name=\"metric-subscription\"") &&
+			strings.Contains(rawOutput, "channel=\""+stableChannel+"\"") &&
+			strings.Contains(rawOutput, "package=\""+testPackageName+"\"") {
+			return false, nil
+		}
+		return true, nil
+	})
+	require.NoError(t, err)
+
+	err = wait.PollImmediate(RetryInterval, Timeout, func() (done bool, err error) {
+		rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=catalog-operator"), operatorNamespace, "8081")
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(rawOutput, "subscription_sync_total") &&
+			strings.Contains(rawOutput, "name=\"metric-subscription\"") &&
+			strings.Contains(rawOutput, "channel=\""+betaChannel+"\"") &&
+			strings.Contains(rawOutput, "package=\""+testPackageName+"\"") {
+			return true, nil
+		}
+		return false, nil
+	})
+	require.NoError(t, err)
+
+	updatedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(subscription.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+
+	updatedSubscription.Spec.Channel = alphaChannel
+	updateSubscription(t, crc, updatedSubscription)
+
+	err = wait.PollImmediate(RetryInterval, Timeout, func() (done bool, err error) {
+		rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=catalog-operator"), operatorNamespace, "8081")
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(rawOutput, "subscription_sync_total") &&
+			strings.Contains(rawOutput, "name=\"metric-subscription\"") &&
+			strings.Contains(rawOutput, "channel=\""+betaChannel+"\"") &&
+			strings.Contains(rawOutput, "package=\""+testPackageName+"\"") {
+			return false, nil
+		}
+		return true, nil
+	})
+	require.NoError(t, err)
+
+	err = wait.PollImmediate(RetryInterval, Timeout, func() (done bool, err error) {
+		rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=catalog-operator"), operatorNamespace, "8081")
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(rawOutput, "subscription_sync_total") &&
+			strings.Contains(rawOutput, "name=\"metric-subscription\"") &&
+			strings.Contains(rawOutput, "channel=\""+alphaChannel+"\"") &&
+			strings.Contains(rawOutput, "package=\""+testPackageName+"\"") {
+			return true, nil
+		}
+		return false, nil
+	})
+	require.NoError(t, err)
+
+	if subscriptionCleanup != nil {
+		subscriptionCleanup()
+	}
+	err = wait.PollImmediate(RetryInterval, Timeout, func() (done bool, err error) {
+		rawOutput, err := getMetricsFromPod(t, c, getPodWithLabel(t, c, "app=catalog-operator"), operatorNamespace, "8081")
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(rawOutput, "subscription_sync_total") &&
+			strings.Contains(rawOutput, "name=metric-subscription") &&
+			strings.Contains(rawOutput, "channel=\""+alphaChannel+"\"") &&
+			strings.Contains(rawOutput, "package=\""+testPackageName+"\"") {
+			return false, nil
+		}
+		return true, nil
+	})
+	require.NoError(t, err)
+}
+
+func getPodWithLabel(t *testing.T, client operatorclient.ClientInterface, label string) *corev1.Pod {
+	listOptions := metav1.ListOptions{LabelSelector: label}
 	podList, err := client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(listOptions)
 	if err != nil {
 		log.Infof("Error %v\n", err)
@@ -74,15 +200,11 @@ func getOLMPodName(t *testing.T, client operatorclient.ClientInterface) string {
 	if len(podList.Items) != 1 {
 		t.Fatalf("Expected 1 olm-operator pod, got %v", len(podList.Items))
 	}
-
-	podName := podList.Items[0].GetName()
-	log.Infof("Looking at pod %v in namespace %v", podName, operatorNamespace)
-	return podName
-
+	return &podList.Items[0]
 }
 
-func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podName string, namespace string, port string) (string, error) {
-	olmPod, err := client.KubernetesInterface().CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, pod *corev1.Pod, namespace string, port string) (string, error) {
+	olmPod, err := client.KubernetesInterface().CoreV1().Pods(namespace).Get(pod.GetName(), metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +235,7 @@ func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podN
 		Namespace(namespace).
 		Resource("pods").
 		SubResource("proxy").
-		Name(net.JoinSchemeNamePort(scheme, podName, port)).
+		Name(net.JoinSchemeNamePort(scheme, pod.GetName(), port)).
 		Suffix("metrics").
 		Do().Raw()
 	if err != nil {
