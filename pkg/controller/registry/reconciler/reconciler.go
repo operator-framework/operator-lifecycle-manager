@@ -3,6 +3,7 @@ package reconciler
 
 import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	v1 "k8s.io/api/core/v1"
@@ -46,6 +47,7 @@ type registryReconcilerFactory struct {
 	Lister               operatorlister.OperatorLister
 	OpClient             operatorclient.ClientInterface
 	ConfigMapServerImage string
+	SSAClient            *controllerclient.ServerSideApplier
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -62,9 +64,10 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 	case v1alpha1.SourceTypeGrpc:
 		if source.Spec.Image != "" {
 			return &GrpcRegistryReconciler{
-				now:      r.now,
-				Lister:   r.Lister,
-				OpClient: r.OpClient,
+				now:       r.now,
+				Lister:    r.Lister,
+				OpClient:  r.OpClient,
+				SSAClient: r.SSAClient,
 			}
 		} else if source.Spec.Address != "" {
 			return &GrpcAddressRegistryReconciler{
@@ -76,12 +79,13 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		now:                  now,
 		Lister:               lister,
 		OpClient:             opClient,
 		ConfigMapServerImage: configMapServerImage,
+		SSAClient:            ssaClient,
 	}
 }
 

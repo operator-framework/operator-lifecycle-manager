@@ -5,10 +5,16 @@ import (
 	"strings"
 
 	. "github.com/onsi/ginkgo"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 )
@@ -23,6 +29,9 @@ type TestContext struct {
 	operatorClient versioned.Interface
 	dynamicClient  dynamic.Interface
 	packageClient  pversioned.Interface
+	ssaClient      *controllerclient.ServerSideApplier
+
+	scheme *runtime.Scheme
 }
 
 // Ctx returns a pointer to the global test context. During parallel
@@ -60,6 +69,9 @@ func (ctx TestContext) PackageClient() pversioned.Interface {
 	return ctx.packageClient
 }
 
+func (ctx TestContext) SSAClient() *controllerclient.ServerSideApplier {
+	return ctx.ssaClient
+}
 func setDerivedFields(ctx *TestContext) error {
 	if ctx == nil {
 		return fmt.Errorf("nil test context")
@@ -93,5 +105,22 @@ func setDerivedFields(ctx *TestContext) error {
 	}
 	ctx.packageClient = packageClient
 
+	ctx.scheme = runtime.NewScheme()
+	localSchemeBuilder := runtime.NewSchemeBuilder(
+		apiextensionsv1.AddToScheme,
+		kscheme.AddToScheme,
+		operatorsv1alpha1.AddToScheme,
+		operatorsv1.AddToScheme,
+		apiextensionsv1.AddToScheme,
+	)
+
+	if err := localSchemeBuilder.AddToScheme(ctx.scheme); err != nil {
+		return err
+	}
+
+	ctx.ssaClient, err = controllerclient.NewForConfig(ctx.restConfig, ctx.scheme, "test.olm.registry")
+	if err != nil {
+		return err
+	}
 	return nil
 }

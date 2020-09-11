@@ -3,8 +3,8 @@ package reconciler
 import (
 	"context"
 	"fmt"
-
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -70,9 +70,10 @@ func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
 }
 
 type GrpcRegistryReconciler struct {
-	now      nowFunc
-	Lister   operatorlister.OperatorLister
-	OpClient operatorclient.ClientInterface
+	now       nowFunc
+	Lister    operatorlister.OperatorLister
+	OpClient  operatorclient.ClientInterface
+	SSAClient *controllerclient.ServerSideApplier
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
@@ -194,16 +195,17 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 			logrus.WithField("CatalogSource", source.GetName()).Info("detect image update for catalogsource pod")
 
 			updateFlag = true
-			updatePod.Labels[CatalogSourceLabelKey] = source.GetName()
-			updatePod.Labels[CatalogSourceUpdateKey] = ""
 
 			// Update the update pod to promote it to serving pod
-			_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Update(context.TODO(), updatePod, metav1.UpdateOptions{})
-			if err != nil {
-				return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetName())
-			}
+			err := c.SSAClient.Apply(context.TODO(), updatePod, func(p *v1.Pod) error {
+				p.Labels[CatalogSourceLabelKey] = source.GetName()
+				p.Labels[CatalogSourceUpdateKey] = ""
+				return nil
+			})()
 
-			break
+			if err != nil {
+				return errors.Wrapf(err, "error updating catalog source pod: %s", source.Pod().GetName())
+			}
 		}
 	}
 
