@@ -11,6 +11,7 @@ import (
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 func TestOperatorNames(t *testing.T) {
@@ -86,6 +87,7 @@ func TestOperatorNames(t *testing.T) {
 func TestAddComponents(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, k8sscheme.AddToScheme(scheme))
+	require.NoError(t, operatorsv1alpha1.AddToScheme(scheme))
 
 	type fields struct {
 		operator *operatorsv1.Operator
@@ -141,6 +143,19 @@ func TestAddComponents(t *testing.T) {
 
 						return pod
 					}(),
+					func() runtime.Object {
+						csv := &operatorsv1alpha1.ClusterServiceVersion{}
+						csv.SetNamespace("atlantic")
+						csv.SetName("puffin")
+						csv.SetLabels(map[string]string{
+							ComponentLabelKeyPrefix + "puffin": "",
+						})
+						csv.Status.Phase = operatorsv1alpha1.CSVPhaseSucceeded
+						csv.Status.Reason = operatorsv1alpha1.CSVReasonInstallSuccessful
+						csv.Status.Message = "this puffin is happy"
+
+						return csv
+					}(),
 				},
 			},
 			results: results{
@@ -176,6 +191,22 @@ func TestAddComponents(t *testing.T) {
 								{
 									Type:   operatorsv1.ConditionType(corev1.PodReady),
 									Status: corev1.ConditionTrue,
+								},
+							},
+						},
+						{
+							ObjectReference: &corev1.ObjectReference{
+								APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
+								Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+								Namespace:  "atlantic",
+								Name:       "puffin",
+							},
+							Conditions: []operatorsv1.Condition{
+								{
+									Type:    operatorsv1.ConditionType(operatorsv1alpha1.CSVPhaseSucceeded),
+									Status:  corev1.ConditionTrue,
+									Reason:  string(operatorsv1alpha1.CSVReasonInstallSuccessful),
+									Message: "this puffin is happy",
 								},
 							},
 						},

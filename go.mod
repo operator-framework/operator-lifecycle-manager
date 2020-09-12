@@ -14,6 +14,7 @@ require (
 	github.com/golang/mock v1.3.1
 	github.com/google/go-cmp v0.5.0
 	github.com/irifrance/gini v1.0.1
+	github.com/itchyny/gojq v0.11.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 	github.com/mikefarah/yq/v2 v2.4.1
 	github.com/mitchellh/hashstructure v1.0.0
@@ -33,7 +34,6 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.5.1
-	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	google.golang.org/grpc v1.30.0
 	gopkg.in/yaml.v2 v2.2.8
