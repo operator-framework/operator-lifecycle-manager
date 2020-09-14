@@ -292,7 +292,10 @@ func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorat
 // checkUpdatePodDigest checks update pod to get Image ID and see if it matches the serving (live) pod ImageID
 func imageChanged(updatePod *corev1.Pod, servingPods []*corev1.Pod) bool {
 	updatedCatalogSourcePodImageID := imageID(updatePod)
-
+	if updatedCatalogSourcePodImageID == "" {
+		logrus.WithField("CatalogSource", updatePod.GetName()).Warn("pod status unknown, cannot get the pod's imageID")
+		return false
+	}
 	for _, servingPod := range servingPods {
 		servingCatalogSourcePodImageID := imageID(servingPod)
 		if updatedCatalogSourcePodImageID != servingCatalogSourcePodImageID {
