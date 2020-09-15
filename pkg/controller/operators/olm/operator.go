@@ -1564,7 +1564,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check if it's time to refresh owned APIService certs
-		if a.shouldRotateCerts(out) {
+		if install.ShouldRotateCerts(out) {
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now, a.recorder)
 			return
 		}
@@ -1654,7 +1654,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check if it's time to refresh owned APIService certs
-		if a.shouldRotateCerts(out) {
+		if install.ShouldRotateCerts(out) {
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now, a.recorder)
 			return
 		}
