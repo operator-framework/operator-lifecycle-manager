@@ -25,15 +25,6 @@ const (
 	PackageserverName = "v1.packages.operators.coreos.com"
 )
 
-func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
-	now := metav1.Now()
-	if !csv.Status.CertsRotateAt.IsZero() && csv.Status.CertsRotateAt.Before(&now) {
-		return true
-	}
-
-	return false
-}
-
 // apiServiceResourceErrorActionable returns true if OLM can do something about any one
 // of the apiService errors in errs; otherwise returns false
 //
