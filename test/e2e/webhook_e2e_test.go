@@ -177,6 +177,57 @@ var _ = Describe("CSVs with a Webhook", func() {
 				return true
 			}, time.Minute, 5*time.Second).Should(BeTrue())
 		})
+		It("Reuses existing valid certs", func() {
+			sideEffect := admissionregistrationv1.SideEffectClassNone
+			webhook := v1alpha1.WebhookDescription{
+				GenerateName:            webhookName,
+				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				DeploymentName:          genName("webhook-dep-"),
+				ContainerPort:           443,
+				AdmissionReviewVersions: []string{"v1beta1", "v1"},
+				SideEffects:             &sideEffect,
+			}
+			csv := createCSVWithWebhook(namespace.GetName(), webhook)
+
+			var err error
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.GetName(), false, false)
+			Expect(err).Should(BeNil())
+
+			_, err = fetchCSV(crc, csv.Name, namespace.GetName(), csvSucceededChecker)
+			Expect(err).Should(BeNil())
+
+			// Get the existing secret
+			webhookSecretName := webhook.DeploymentName + "-service-cert"
+			existingSecret, err := c.KubernetesInterface().CoreV1().Secrets(namespace.GetName()).Get(context.TODO(), webhookSecretName, metav1.GetOptions{})
+			require.NoError(GinkgoT(), err)
+
+			// Modify the phase
+			Eventually(func() bool {
+				fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.GetName()).Get(context.TODO(), csv.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+
+				fetchedCSV.Status.Phase = v1alpha1.CSVPhasePending
+
+				_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.GetName()).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
+				if err != nil {
+					return false
+				}
+				return true
+			}).Should(BeTrue(), "Unable to set CSV phase to Pending")
+
+			// Wait for webhook-operator to succeed
+			_, err = awaitCSV(GinkgoT(), crc, namespace.GetName(), csv.GetName(), csvSucceededChecker)
+			require.NoError(GinkgoT(), err)
+
+			// Get the updated secret
+			updatedSecret, err := c.KubernetesInterface().CoreV1().Secrets(namespace.GetName()).Get(context.TODO(), webhookSecretName, metav1.GetOptions{})
+			require.NoError(GinkgoT(), err)
+
+			require.Equal(GinkgoT(), existingSecret.GetAnnotations()[install.OLMCAHashAnnotationKey], updatedSecret.GetAnnotations()[install.OLMCAHashAnnotationKey])
+			require.Equal(GinkgoT(), existingSecret.Data[install.OLMCAPEMKey], updatedSecret.Data[install.OLMCAPEMKey])
+		})
 		It("Fails to install a CSV if multiple Webhooks share the same name", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
 			webhook := v1alpha1.WebhookDescription{
