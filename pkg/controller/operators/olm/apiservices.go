@@ -553,9 +553,22 @@ func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion) (bo
 				return false, err
 			}
 			webhookCount = len(webhookList.Items)
+		case v1alpha1.ConversionWebhook:
+			for _, conversionCRD := range desc.ConversionCRDs {
+				// check if CRD exists on cluster
+				crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD, metav1.GetOptions{})
+				if err != nil {
+					log.Infof("CRD not found %v, error: %s", desc, err.Error())
+					return false, err
+				}
+
+				if crd.Spec.Conversion.Strategy != "Webhook" || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil && crd.Spec.Conversion.Webhook.ClientConfig.CABundle == nil {
+					return false, fmt.Errorf("ConversionWebhook not ready")
+				}
+				webhookCount++
+			}
 		}
 		if webhookCount == 0 {
-			a.logger.Info("Expected Webhook does not exist")
 			return false, nil
 		}
 	}
