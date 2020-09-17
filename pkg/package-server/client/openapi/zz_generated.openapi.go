@@ -643,6 +643,11 @@ func schema_api_pkg_operators_v1alpha1_WebhookDescription(ref common.ReferenceCa
 							Format: "int32",
 						},
 					},
+					"targetPort": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
 					"rules": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
@@ -727,7 +732,7 @@ func schema_api_pkg_operators_v1alpha1_WebhookDescription(ref common.ReferenceCa
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/admissionregistration/v1.RuleWithOperations", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+			"k8s.io/api/admissionregistration/v1.RuleWithOperations", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector", "k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
 	}
 }
 
