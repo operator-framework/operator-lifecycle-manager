@@ -2,6 +2,8 @@
 package reconciler
 
 import (
+	"strings"
+
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -90,12 +92,14 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 }
 
 func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[string]string, readinessDelay int32, livenessDelay int32) *v1.Pod {
-	// ensure catalog image is pulled always if catalog polling is configured
+	// Ensure the catalog image is always pulled if the image is not based on a digest, measured by whether an "@" is included.
+	// See https://github.com/docker/distribution/blob/master/reference/reference.go for more info.
+	// This means recreating non-digest based catalog pods will result in the latest version of the catalog content being delivered on-cluster.
 	var pullPolicy v1.PullPolicy
-	if source.Spec.UpdateStrategy != nil {
-		pullPolicy = v1.PullAlways
-	} else {
+	if strings.Contains(image, "@") {
 		pullPolicy = v1.PullIfNotPresent
+	} else {
+		pullPolicy = v1.PullAlways
 	}
 
 	pod := &v1.Pod{
