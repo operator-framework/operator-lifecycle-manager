@@ -555,11 +555,11 @@ func (r *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
 	}
 
 	if len(headCandidates) > 1 {
-		errInfo := "found more than one head for channel: "
+		var names []string
 		for _, v := range headCandidates {
-			errInfo = errInfo + fmt.Sprintf("%s.%s-", v.sourceInfo.Channel, v.sourceInfo.Package)
+			names = append(names, v.Identifier())
 		}
-		return nil, fmt.Errorf(fmt.Sprintf("%s, please check the `replaces`/`skipRange` fields of the operator bundles", errInfo))
+		return nil, fmt.Errorf("found multiple channel heads: %v, please check the `replaces`/`skipRange` fields of the operator bundles", names)
 
 	} else if len(headCandidates) < 1 {
 		return nil, fmt.Errorf("head of channel not found")
