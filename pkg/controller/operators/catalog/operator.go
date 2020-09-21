@@ -613,8 +613,8 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 	if healthy && in.Status.RegistryServiceStatus != nil {
 		logger.Debug("registry state good")
 		continueSync = true
-		// Check if registryService is ready for polling update
-		if !out.Update() {
+		// return here if catalog does not have polling enabled
+		if !out.Poll() {
 			return
 		}
 	}
