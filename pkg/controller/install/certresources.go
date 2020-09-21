@@ -125,10 +125,18 @@ func (i *webhookDescriptionWithCAPEM) getServicePort() corev1.ServicePort {
 	if i.webhookDescription.ContainerPort > 0 {
 		containerPort = int(i.webhookDescription.ContainerPort)
 	}
+
+	// Before users could set TargetPort in the CSV, OLM just set its
+	// value to the containerPort. This change keeps OLM backwards compatible
+	// if the TargetPort is not set in the CSV.
+	targetPort := intstr.FromInt(containerPort)
+	if i.webhookDescription.TargetPort != nil {
+		targetPort = *i.webhookDescription.TargetPort
+	}
 	return corev1.ServicePort{
 		Name:       strconv.Itoa(containerPort),
 		Port:       int32(containerPort),
-		TargetPort: intstr.FromInt(containerPort),
+		TargetPort: targetPort,
 	}
 }
 

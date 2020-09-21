@@ -69,7 +69,8 @@ func (i *StrategyDeploymentInstaller) createOrUpdateWebhook(caPEM []byte, desc v
 		i.createOrUpdateValidatingWebhook(ogNamespacelabelSelector, caPEM, desc)
 	case v1alpha1.MutatingAdmissionWebhook:
 		i.createOrUpdateMutatingWebhook(ogNamespacelabelSelector, caPEM, desc)
-
+	case v1alpha1.ConversionWebhook:
+		i.createOrUpdateConversionWebhook(caPEM, desc)
 	}
 	return nil
 }
@@ -102,14 +103,6 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 			log.Errorf("Webhooks: Error creating MutatingWebhookConfiguration: %v", err)
 			return err
 		}
-
-		// If dealing with a Conversion Webhook, make sure that the operator only supports the AllNamespace installMode.
-		if len(desc.ConversionCRDs) != 0 && isSingletonOperator(i) {
-			if err := createOrUpdateConversionCRDs(desc, webhook.Webhooks[0].ClientConfig, i); err != nil {
-				return err
-			}
-		}
-		return nil
 	}
 	for _, webhook := range existingWebhooks.Items {
 		// Update the list of webhooks
@@ -122,13 +115,6 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Update(context.TODO(), &webhook, metav1.UpdateOptions{}); err != nil {
 			log.Warnf("could not update MutatingWebhookConfiguration %s", webhook.GetName())
 			return err
-		}
-
-		// If dealing with a Conversion Webhook, make sure that the operator only supports the AllNamespace installMode.
-		if len(desc.ConversionCRDs) != 0 && isSingletonOperator(i) {
-			if err := createOrUpdateConversionCRDs(desc, webhook.Webhooks[0].ClientConfig, i); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -164,13 +150,6 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 			return err
 		}
 
-		// If dealing with a Conversion Webhook, make sure that the operator only supports the AllNamespace installMode.
-		if len(desc.ConversionCRDs) != 0 && isSingletonOperator(i) {
-			if err := createOrUpdateConversionCRDs(desc, webhook.Webhooks[0].ClientConfig, i); err != nil {
-				return err
-			}
-		}
-
 		return nil
 	}
 	for _, webhook := range existingWebhooks.Items {
@@ -185,25 +164,13 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 			log.Warnf("could not update ValidatingWebhookConfiguration %s", webhook.GetName())
 			return err
 		}
-
-		// If dealing with a Conversion Webhook, make sure that the operator only supports the AllNamespace installMode.
-		if len(desc.ConversionCRDs) != 0 && isSingletonOperator(i) {
-			if err := createOrUpdateConversionCRDs(desc, webhook.Webhooks[0].ClientConfig, i); err != nil {
-				return err
-			}
-		}
 	}
 
 	return nil
 }
 
 // check if csv supports only AllNamespaces install mode
-func isSingletonOperator(i *StrategyDeploymentInstaller) bool {
-	// get csv
-	csv, err := i.strategyClient.GetOpLister().OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(i.owner.GetNamespace()).Get(i.owner.GetName())
-	if err != nil {
-		log.Infof("CSV not found, error: %s", err.Error())
-	}
+func isSingletonOperator(csv v1alpha1.ClusterServiceVersion) bool {
 	// check if AllNamespaces is supported and other install modes are not supported
 	for _, installMode := range csv.Spec.InstallModes {
 		if installMode.Type == v1alpha1.InstallModeTypeAllNamespaces && !installMode.Supported {
@@ -216,34 +183,39 @@ func isSingletonOperator(i *StrategyDeploymentInstaller) bool {
 	return true
 }
 
-func createOrUpdateConversionCRDs(desc v1alpha1.WebhookDescription, clientConfig admissionregistrationv1.WebhookClientConfig, i *StrategyDeploymentInstaller) error {
+func (i *StrategyDeploymentInstaller) createOrUpdateConversionWebhook(caPEM []byte, desc v1alpha1.WebhookDescription) error {
 	// get a list of owned CRDs
-	csv, err := i.strategyClient.GetOpLister().OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(i.owner.GetNamespace()).Get(i.owner.GetName())
-	if err != nil {
-		log.Infof("CSV not found, error: %s", err.Error())
+	csv, ok := i.owner.(*v1alpha1.ClusterServiceVersion)
+	if !ok {
+		return fmt.Errorf("ConversionWebhook owner must be a ClusterServiceVersion")
 	}
-	ownedCRDs := csv.Spec.CustomResourceDefinitions.Owned
+
+	if !isSingletonOperator(*csv) {
+		return fmt.Errorf("CSVs with conversion webhooks must support only AllNamespaces")
+	}
+
+	if len(desc.ConversionCRDs) == 0 {
+		return fmt.Errorf("Conversion Webhook must have at least one CRD specified")
+	}
 
 	// iterate over all the ConversionCRDs
-	for _, ConversionCRD := range desc.ConversionCRDs {
-		// check if CRD exists on cluster
-		crd, err := i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), ConversionCRD, metav1.GetOptions{})
+	for _, conversionCRD := range desc.ConversionCRDs {
+		// Get existing CRD on cluster
+		crd, err := i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD, metav1.GetOptions{})
 		if err != nil {
-			log.Infof("CRD not found %s, error: %s", ConversionCRD, err.Error())
+			return fmt.Errorf("Unable to get CRD %s specified in Conversion Webhook: %v", conversionCRD, err)
 		}
-		log.Infof("Found conversionCRDs %s", ConversionCRD)
 
 		// check if this CRD is an owned CRD
 		foundCRD := false
-		for _, ownedCRD := range ownedCRDs {
-			if ownedCRD.Name == crd.GetName() {
-				log.Infof("CSV %q owns CRD %q", csv.GetName(), crd.GetName())
+		for _, ownedCRD := range csv.Spec.CustomResourceDefinitions.Owned {
+			if ownedCRD.Name == conversionCRD {
 				foundCRD = true
+				break
 			}
 		}
 		if !foundCRD {
-			log.Infof("CSV %q does not own CRD %q", csv.GetName(), crd.GetName())
-			return nil
+			return fmt.Errorf("CSV %s does not own CRD %s", csv.GetName(), conversionCRD)
 		}
 
 		// crd.Spec.Conversion.Strategy specifies how custom resources are converted between versions.
@@ -256,54 +228,41 @@ func createOrUpdateConversionCRDs(desc v1alpha1.WebhookDescription, clientConfig
 		// By default the strategy is none
 		// Reference:
 		// 	- https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#specify-multiple-versions
-		if crd.Spec.PreserveUnknownFields == true && crd.Spec.Conversion.Strategy == "Webhook" {
-			log.Infof("crd.Spec.PreserveUnknownFields must be false to let API Server call webhook to do the conversion.")
-			return nil
+		if crd.Spec.PreserveUnknownFields != false {
+			return fmt.Errorf("crd.Spec.PreserveUnknownFields must be false to let API Server call webhook to do the conversion")
 		}
 
 		// Conversion WebhookClientConfig should not be set when Strategy is None
 		// https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#specify-multiple-versions
 		// Conversion WebhookClientConfig needs to be set when Strategy is None
 		// https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#configure-customresourcedefinition-to-use-conversion-webhooks
-		if crd.Spec.Conversion.Strategy == "Webhook" {
-			log.Infof("Updating CRD")
 
-			// use user defined path for CRD conversion webhook, else set default value
-			conversionWebhookPath := "/"
-			if crd.Spec.Conversion.Webhook.ClientConfig.Service.Path != nil {
-				conversionWebhookPath = *crd.Spec.Conversion.Webhook.ClientConfig.Service.Path
-			}
+		// use user defined path for CRD conversion webhook, else set default value
+		conversionWebhookPath := "/"
+		if desc.WebhookPath != nil {
+			conversionWebhookPath = *desc.WebhookPath
+		}
 
-			// use user defined port, else set it to admission webhook's port
-			conversionWebhookPort := *clientConfig.Service.Port
-			if crd.Spec.Conversion.Webhook.ClientConfig.Service.Port != nil {
-				conversionWebhookPort = *crd.Spec.Conversion.Webhook.ClientConfig.Service.Port
-			}
-
-			// use user defined ConversionReviewVersions
-			conversionWebhookConversionReviewVersions := crd.Spec.Conversion.Webhook.ConversionReviewVersions
-
-			// Override Name, Namespace, and CABundle
-			crd.Spec.Conversion = &apiextensionsv1.CustomResourceConversion{
-				Strategy: "Webhook",
-				Webhook: &apiextensionsv1.WebhookConversion{
-					ClientConfig: &apiextensionsv1.WebhookClientConfig{
-						Service: &apiextensionsv1.ServiceReference{
-							Namespace: clientConfig.Service.Namespace,
-							Name:      clientConfig.Service.Name,
-							Path:      &conversionWebhookPath,
-							Port:      &conversionWebhookPort,
-						},
-						CABundle: clientConfig.CABundle,
+		// Override Name, Namespace, and CABundle
+		crd.Spec.Conversion = &apiextensionsv1.CustomResourceConversion{
+			Strategy: "Webhook",
+			Webhook: &apiextensionsv1.WebhookConversion{
+				ClientConfig: &apiextensionsv1.WebhookClientConfig{
+					Service: &apiextensionsv1.ServiceReference{
+						Namespace: i.owner.GetNamespace(),
+						Name:      desc.DomainName() + "-service",
+						Path:      &conversionWebhookPath,
+						Port:      &desc.ContainerPort,
 					},
-					ConversionReviewVersions: conversionWebhookConversionReviewVersions,
+					CABundle: caPEM,
 				},
-			}
+				ConversionReviewVersions: desc.AdmissionReviewVersions,
+			},
+		}
 
-			// update CRD conversion Specs
-			if _, err = i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{}); err != nil {
-				log.Infof("CRD %s could not be updated, error: %s", ConversionCRD, err.Error())
-			}
+		// update CRD conversion Specs
+		if _, err = i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{}); err != nil {
+			return fmt.Errorf("Error updating CRD with Conversion info: %v", err)
 		}
 	}
 

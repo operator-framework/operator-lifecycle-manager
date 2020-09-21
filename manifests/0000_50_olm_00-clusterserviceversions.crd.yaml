@@ -8824,6 +8824,11 @@ spec:
                             type: string
                     sideEffects:
                       type: string
+                    targetPort:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      x-kubernetes-int-or-string: true
                     timeoutSeconds:
                       type: integer
                       format: int32
@@ -8834,6 +8839,7 @@ spec:
                       enum:
                       - ValidatingAdmissionWebhook
                       - MutatingAdmissionWebhook
+                      - ConversionWebhook
                     webhookPath:
                       type: string
           status:
