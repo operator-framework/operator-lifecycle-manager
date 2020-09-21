@@ -13,6 +13,7 @@ import (
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -1045,6 +1046,77 @@ var _ = Describe("Catalog", func() {
 		csv, err = fetchCSV(GinkgoT(), crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), "busybox-dependency.v1.0.0", csv.Spec.Replaces)
+	})
+	It("registry polls on the correct interval", func() {
+		// Create a catalog source with polling enabled
+		// Confirm the following
+		//   a) the new update pod is spun up roughly in line with the registry polling interval
+		//   b) the update pod is removed quickly when the image is found to not have changed
+		// This is more of a behavioral test that ensures the feature is working as designed.
+
+		c := newKubeClient()
+		crc := newCRClient()
+
+		sourceName := genName("catalog-")
+		source := &v1alpha1.CatalogSource{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.CatalogSourceKind,
+				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourceName,
+				Namespace: testNamespace,
+				Labels:    map[string]string{"olm.catalogSource": sourceName},
+			},
+			Spec: v1alpha1.CatalogSourceSpec{
+				SourceType: v1alpha1.SourceTypeGrpc,
+				Image:      "quay.io/olmtest/catsrc-update-test:new",
+				UpdateStrategy: &v1alpha1.UpdateStrategy{
+					RegistryPoll: &v1alpha1.RegistryPoll{
+						Interval: &metav1.Duration{Duration: 45 * time.Second},
+					},
+				},
+			},
+		}
+
+		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// wait for new catalog source pod to be created and report ready
+		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
+		singlePod := podCount(1)
+		catalogPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(catalogPods).ToNot(BeNil())
+
+		Eventually(func() (bool, error) {
+			podList, err := c.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+			if err != nil {
+				return false, err
+			}
+
+			for _, p := range podList.Items {
+				if podReady(&p) {
+					return true, nil
+				}
+				return false, nil
+			}
+
+			return false, nil
+		}).Should(BeTrue())
+
+		// Wait roughly the polling interval for update pod to show up
+		updateSelector := labels.SelectorFromSet(map[string]string{"catalogsource.operators.coreos.com/update": source.GetName()})
+		updatePods, err := awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 5*time.Second, 2*time.Minute, singlePod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(updatePods).ToNot(BeNil())
+		Expect(updatePods.Items).To(HaveLen(1))
+
+		// No update to image: update pod should be deleted quickly
+		noPod := podCount(0)
+		updatePods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 1*time.Second, 30*time.Second, noPod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(updatePods.Items).To(HaveLen(0))
 	})
 })
 
