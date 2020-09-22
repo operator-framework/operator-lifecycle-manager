@@ -101,7 +101,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 
 		// find operators, in channel order, that can skip from the current version or list the current in "replaces"
-		subInstallables, err := r.getSubscriptionInstallables(pkg, current, catalog, predicates, channelFilter, namespacedCache, visited)
+		subInstallables, err := r.getSubscriptionInstallables(pkg, sub.Namespace, current, catalog, predicates, channelFilter, namespacedCache, visited)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -122,7 +122,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	if len(errs) > 0 {
 		return nil, utilerrors.NewAggregate(errs)
 	}
-	s, err := solver.New(solver.WithInput(input), solver.WithTracer(solver.LoggingTracer{&debugWriter{r.log}}))
+	s, err := solver.New(solver.WithInput(input), solver.WithTracer(solver.LoggingTracer{Writer: &debugWriter{r.log}}))
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +135,14 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	operatorInstallables := make([]BundleInstallable, 0)
 	for _, installable := range solvedInstallables {
 		if bundleInstallable, ok := installable.(*BundleInstallable); ok {
+			_, _, catalog, err := bundleInstallable.BundleSourceInfo()
+			if err != nil {
+				return nil, fmt.Errorf("error determining origin of operator: %w", err)
+			}
+			if catalog.Virtual() {
+				// Result is expected to contain only new things.
+				continue
+			}
 			operatorInstallables = append(operatorInstallables, *bundleInstallable)
 		}
 	}
@@ -171,7 +179,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+func (r *SatResolver) getSubscriptionInstallables(pkg, namespace string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
 	installables := make(map[solver.Identifier]solver.Installable, 0)
 	candidates := make([]*BundleInstallable, 0)
 
@@ -179,12 +187,6 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 	installables[subInstallable.Identifier()] = &subInstallable
 
 	bundles := namespacedCache.Catalog(catalog).Find(cachePredicates...)
-
-	// there are no options for this package, return early
-	if len(bundles) == 0 {
-		// should this condition fail resolution altogether?
-		return installables, nil
-	}
 
 	// bundles in the default channel appear first, then lexicographically order by channel name
 	sort.SliceStable(bundles, func(i, j int) bool {
@@ -243,8 +245,18 @@ func (r *SatResolver) getSubscriptionInstallables(pkg string, current *Operator,
 		// track which operator this is replacing, so that it can be realized when creating the resources on cluster
 		if current != nil {
 			c.Replaces = current.Identifier()
+			// Until properties are projected onto CSVs,
+			// an installed operator can't be confidently
+			// folded into the existing package uniqueness
+			// constraints, so for the replacement case, a
+			// one-to-one conflict is created between the
+			// replacer and the replacee.
+			c.AddConflict(bundleId(current.Identifier(), current.Channel(), registry.NewVirtualCatalogKey(namespace)))
 		}
 		depIds = append(depIds, c.Identifier())
+	}
+	if current != nil {
+		depIds = append(depIds, bundleId(current.Identifier(), current.Channel(), registry.NewVirtualCatalogKey(namespace)))
 	}
 
 	// all candidates added as options for this constraint
@@ -363,8 +375,12 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 	}
 	standaloneOperators := make([]*Operator, 0)
 	for _, csv := range csvs {
-		if _, ok := csvsWithSubscriptions[csv]; ok {
-			continue
+		var constraints []solver.Constraint
+		if _, ok := csvsWithSubscriptions[csv]; !ok {
+			// CSVs already associated with a Subscription
+			// may be replaced, but freestanding CSVs must
+			// appear in any solution.
+			constraints = append(constraints, solver.Mandatory())
 		}
 
 		op, err := NewOperatorFromV1Alpha1CSV(csv)
@@ -377,7 +393,7 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 		standaloneOperators = append(standaloneOperators, op)
 
 		// all standalone operators are mandatory
-		i := NewBundleInstallable(op.Identifier(), "", existingOperatorCatalog, solver.Mandatory())
+		i := NewBundleInstallable(op.Identifier(), "", existingOperatorCatalog, constraints...)
 		installables = append(installables, &i)
 	}
 

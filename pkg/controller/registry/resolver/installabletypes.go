@@ -28,6 +28,10 @@ func (i *BundleInstallable) MakeProhibited() {
 	i.constraints = append(i.constraints, solver.Prohibited())
 }
 
+func (i *BundleInstallable) AddConflict(id solver.Identifier) {
+	i.constraints = append(i.constraints, solver.Conflict(id))
+}
+
 func (i *BundleInstallable) AddDependency(dependencies []solver.Identifier) {
 	i.constraints = append(i.constraints, solver.Dependency(dependencies...))
 }
@@ -47,9 +51,13 @@ func (i *BundleInstallable) BundleSourceInfo() (string, string, registry.Catalog
 	return csvName, channel, catalog, nil
 }
 
+func bundleId(bundle, channel string, catalog registry.CatalogKey) solver.Identifier {
+	return solver.Identifier(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
+}
+
 func NewBundleInstallable(bundle, channel string, catalog registry.CatalogKey, constraints ...solver.Constraint) BundleInstallable {
 	return BundleInstallable{
-		identifier:  solver.Identifier(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle)),
+		identifier:  bundleId(bundle, channel, catalog),
 		constraints: constraints,
 	}
 }
@@ -75,7 +83,5 @@ func (r SubscriptionInstallable) Constraints() []solver.Constraint {
 }
 
 func (r *SubscriptionInstallable) AddDependency(dependencies []solver.Identifier) {
-	if len(dependencies) > 0 {
-		r.constraints = append(r.constraints, solver.Dependency(dependencies...))
-	}
+	r.constraints = append(r.constraints, solver.Dependency(dependencies...))
 }

@@ -74,9 +74,9 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	// TODO: build this index ahead of time
 	// omit copied csvs from generation - they indicate that apis are provided to the namespace, not by the namespace
 	var csvs []*v1alpha1.ClusterServiceVersion
-	for _, c := range allCSVs {
-		if !c.IsCopied() {
-			csvs = append(csvs, c)
+	for i := range allCSVs {
+		if !allCSVs[i].IsCopied() {
+			csvs = append(csvs, allCSVs[i])
 		}
 	}
 
