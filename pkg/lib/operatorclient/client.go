@@ -1,4 +1,4 @@
-//go:generate mockgen -source client.go -destination operatorclientmocks/mock_client.go -package operatorclientmocks
+//go:generate go run github.com/golang/mock/mockgen -source client.go -destination operatorclientmocks/mock_client.go -package operatorclientmocks
 package operatorclient
 
 import (

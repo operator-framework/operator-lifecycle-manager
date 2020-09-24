@@ -68,7 +68,7 @@ type APIRegistrationV1Lister interface {
 	APIServiceLister() aregv1.APIServiceLister
 }
 
-//go:generate counterfeiter . APIExtensionsV1Lister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . APIExtensionsV1Lister
 type APIExtensionsV1Lister interface {
 	RegisterCustomResourceDefinitionLister(lister aextv1.CustomResourceDefinitionLister)
 	CustomResourceDefinitionLister() aextv1.CustomResourceDefinitionLister
@@ -190,13 +190,13 @@ func newOperatorsV1Lister() *operatorsV1Lister {
 var _ OperatorLister = &lister{}
 
 type lister struct {
-	appsV1Lister               *appsV1Lister
-	coreV1Lister               *coreV1Lister
-	rbacV1Lister               *rbacV1Lister
-	apiRegistrationV1Lister    *apiRegistrationV1Lister
-	apiExtensionsV1Lister      *apiExtensionsV1Lister
-	operatorsV1alpha1Lister    *operatorsV1alpha1Lister
-	operatorsV1Lister          *operatorsV1Lister
+	appsV1Lister            *appsV1Lister
+	coreV1Lister            *coreV1Lister
+	rbacV1Lister            *rbacV1Lister
+	apiRegistrationV1Lister *apiRegistrationV1Lister
+	apiExtensionsV1Lister   *apiExtensionsV1Lister
+	operatorsV1alpha1Lister *operatorsV1alpha1Lister
+	operatorsV1Lister       *operatorsV1Lister
 }
 
 func (l *lister) AppsV1() AppsV1Lister {
@@ -230,12 +230,12 @@ func (l *lister) OperatorsV1() OperatorsV1Lister {
 func NewLister() OperatorLister {
 	// TODO: better initialization
 	return &lister{
-		appsV1Lister:               newAppsV1Lister(),
-		coreV1Lister:               newCoreV1Lister(),
-		rbacV1Lister:               newRbacV1Lister(),
-		apiRegistrationV1Lister:    newAPIRegistrationV1Lister(),
-		apiExtensionsV1Lister:      newAPIExtensionsV1Lister(),
-		operatorsV1alpha1Lister:    newOperatorsV1alpha1Lister(),
-		operatorsV1Lister:          newOperatorsV1Lister(),
+		appsV1Lister:            newAppsV1Lister(),
+		coreV1Lister:            newCoreV1Lister(),
+		rbacV1Lister:            newRbacV1Lister(),
+		apiRegistrationV1Lister: newAPIRegistrationV1Lister(),
+		apiExtensionsV1Lister:   newAPIExtensionsV1Lister(),
+		operatorsV1alpha1Lister: newOperatorsV1alpha1Lister(),
+		operatorsV1Lister:       newOperatorsV1Lister(),
 	}
 }
