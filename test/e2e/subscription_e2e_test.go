@@ -31,9 +31,11 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+	registryapi "github.com/operator-framework/operator-registry/pkg/api"
 )
 
 func Step(level int, text string, callbacks ...func()) {
@@ -70,8 +72,16 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
+
+		// Check for the olm.package property as a proxy for
+		// verifying that the annotation value is reasonable.
+		Expect(
+			projection.PropertyListFromPropertiesAnnotation(csv.GetAnnotations()["operatorframework.io/properties"]),
+		).To(ContainElement(
+			&registryapi.Property{Type: "olm.package", Value: `{"packageName":"myapp","version":"0.1.1"}`},
+		))
 	})
 
 	//   I. Creating a new subscription

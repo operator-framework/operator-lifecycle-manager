@@ -61,6 +61,43 @@ func TestSolveOperators(t *testing.T) {
 	require.EqualValues(t, expected, operators)
 }
 
+func TestPropertiesAnnotationHonored(t *testing.T) {
+	const (
+		namespace = "olm"
+	)
+	community := registry.CatalogKey{"community", namespace}
+
+	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", nil, nil, nil, nil)
+	csv.Annotations = map[string]string{"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"packageA","version":"1.0.0"}}]}`}
+	csvs := []*v1alpha1.ClusterServiceVersion{csv}
+
+	sub := newSub(namespace, "packageB", "alpha", community)
+	subs := []*v1alpha1.Subscription{sub}
+
+	b := genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, []*api.Dependency{{Type: "olm.package", Value: `{"packageName":"packageA","version":"1.0.0"}`}}, "", false)
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			community: {
+				key:       community,
+				operators: []*Operator{b},
+			},
+		},
+	}
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
+	}
+
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	assert.NoError(t, err)
+
+	expected := OperatorSet{
+		"packageB.v1": b,
+	}
+	require.EqualValues(t, expected, operators)
+}
+
 func TestSolveOperators_MultipleChannels(t *testing.T) {
 	APISet := APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides := APISet

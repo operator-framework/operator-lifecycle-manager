@@ -12,6 +12,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -245,12 +246,14 @@ func (r *SatResolver) getSubscriptionInstallables(pkg, namespace string, current
 		// track which operator this is replacing, so that it can be realized when creating the resources on cluster
 		if current != nil {
 			c.Replaces = current.Identifier()
-			// Until properties are projected onto CSVs,
-			// an installed operator can't be confidently
-			// folded into the existing package uniqueness
-			// constraints, so for the replacement case, a
+			// Package name can't be reliably inferred
+			// from a CSV without a projected package
+			// property, so for the replacement case, a
 			// one-to-one conflict is created between the
-			// replacer and the replacee.
+			// replacer and the replacee. It should be
+			// safe to remove this conflict if properties
+			// annotations are made mandatory for
+			// resolution.
 			c.AddConflict(bundleId(current.Identifier(), current.Channel(), registry.NewVirtualCatalogKey(namespace)))
 		}
 		depIds = append(depIds, c.Identifier())
@@ -373,6 +376,7 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 			}
 		}
 	}
+	var csvsMissingProperties []*v1alpha1.ClusterServiceVersion
 	standaloneOperators := make([]*Operator, 0)
 	for _, csv := range csvs {
 		var constraints []solver.Constraint
@@ -387,6 +391,15 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 		if err != nil {
 			return nil, nil, err
 		}
+
+		if anno, ok := csv.GetAnnotations()[projection.PropertiesAnnotationKey]; !ok {
+			csvsMissingProperties = append(csvsMissingProperties, csv)
+		} else if props, err := projection.PropertyListFromPropertiesAnnotation(anno); err != nil {
+			return nil, nil, fmt.Errorf("failed to retrieve properties of csv %q: %w", csv.GetName(), err)
+		} else {
+			op.properties = props
+		}
+
 		op.sourceInfo = &OperatorSourceInfo{
 			Catalog: existingOperatorCatalog,
 		}
@@ -395,6 +408,14 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 		// all standalone operators are mandatory
 		i := NewBundleInstallable(op.Identifier(), "", existingOperatorCatalog, constraints...)
 		installables = append(installables, &i)
+	}
+
+	if len(csvsMissingProperties) > 0 {
+		names := make([]string, len(csvsMissingProperties))
+		for i, csv := range csvsMissingProperties {
+			names[i] = csv.GetName()
+		}
+		r.log.Infof("considered csvs without properties annotation during resolution: %v", names)
 	}
 
 	return NewRunningOperatorSnapshot(r.log, existingOperatorCatalog, standaloneOperators), installables, nil
