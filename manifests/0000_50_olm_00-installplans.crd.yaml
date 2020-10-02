@@ -214,6 +214,9 @@ spec:
                       description: Path refers to the location of a bundle to pull.
                         It's typically an image reference.
                       type: string
+                    properties:
+                      description: The effective properties of the unpacked bundle.
+                      type: string
                     replaces:
                       description: Replaces is the name of the bundle to replace with
                         the one found at Path.
