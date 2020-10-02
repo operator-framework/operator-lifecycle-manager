@@ -19,6 +19,7 @@ import (
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	controllerbundle "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
@@ -140,7 +141,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 				}
 				steps = append(steps, bundleSteps...)
 			} else {
-				bundleLookups = append(bundleLookups, v1alpha1.BundleLookup{
+				lookup := v1alpha1.BundleLookup{
 					Path:       op.Bundle().GetBundlePath(),
 					Identifier: op.Identifier(),
 					Replaces:   op.Replaces(),
@@ -162,7 +163,13 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 							Message: controllerbundle.JobNotStartedMessage,
 						},
 					},
-				})
+				}
+				if anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties()); err != nil {
+					return nil, nil, nil, fmt.Errorf("failed to serialize operator properties for %q: %w", op.Identifier(), err)
+				} else {
+					lookup.Properties = anno
+				}
+				bundleLookups = append(bundleLookups, lookup)
 			}
 
 			if existingSubscription == nil {

@@ -1169,6 +1169,7 @@ type UnpackedBundleReference struct {
 	CatalogSourceName      string `json:"catalogSourceName"`
 	CatalogSourceNamespace string `json:"catalogSourceNamespace"`
 	Replaces               string `json:"replaces"`
+	Properties             string `json:"properties"`
 }
 
 // unpackBundles makes one walk through the bundlelookups and attempts to progress them
@@ -1214,6 +1215,7 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 				CatalogSourceName:      res.CatalogSourceRef.Name,
 				CatalogSourceNamespace: res.CatalogSourceRef.Namespace,
 				Replaces:               res.Replaces,
+				Properties:             res.Properties,
 			}
 			r, err := json.Marshal(&ref)
 			if err != nil {

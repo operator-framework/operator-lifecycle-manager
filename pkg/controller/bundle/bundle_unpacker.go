@@ -21,6 +21,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/reference"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 )
 
 type BundleUnpackResult struct {
@@ -353,6 +354,14 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 
 	if result.Bundle() == nil || len(result.Bundle().GetObject()) == 0 {
 		return
+	}
+
+	if result.BundleLookup.Properties != "" {
+		props, err := projection.PropertyListFromPropertiesAnnotation(lookup.Properties)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load bundle properties for %q: %w", lookup.Identifier, err)
+		}
+		result.bundle.Properties = props
 	}
 
 	// A successful load should remove the pending condition

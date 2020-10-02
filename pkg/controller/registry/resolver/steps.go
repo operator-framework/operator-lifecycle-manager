@@ -17,11 +17,12 @@ import (
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
-	secretKind = "Secret"
+	secretKind       = "Secret"
 	BundleSecretKind = "BundleSecret"
 )
 
@@ -118,6 +119,16 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 
 	csv.SetNamespace(namespace)
 	csv.Spec.Replaces = replaces
+	if anno, err := projection.PropertiesAnnotationFromPropertyList(bundle.Properties); err != nil {
+		return nil, fmt.Errorf("failed to construct properties annotation for %q: %w", csv.GetName(), err)
+	} else {
+		annos := csv.GetAnnotations()
+		if annos == nil {
+			annos = make(map[string]string)
+		}
+		annos[projection.PropertiesAnnotationKey] = anno
+		csv.SetAnnotations(annos)
+	}
 
 	step, err := NewStepResourceFromObject(csv, catalogSourceName, catalogSourceNamespace)
 	if err != nil {

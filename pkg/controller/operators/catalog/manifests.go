@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/client-go/listers/core/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 )
 
 // ManifestResolver can dereference a manifest for a step. Steps may embed manifests directly or reference content
@@ -49,7 +50,7 @@ func (r *manifestResolver) ManifestForStep(step *v1alpha1.Step) (string, error) 
 	log.WithField("ref", ref).Debug("step is a reference to configmap")
 
 	usteps, err := r.unpackedStepsForBundle(step.Resolving, ref)
-	if err != nil  {
+	if err != nil {
 		return "", err
 	}
 
@@ -85,6 +86,15 @@ func (r *manifestResolver) unpackedStepsForBundle(bundleName string, ref *Unpack
 	if err != nil {
 		return nil, errorwrap.Wrapf(err, "error loading unpacked bundle configmap for ref %v", *ref)
 	}
+
+	if ref.Properties != "" {
+		props, err := projection.PropertyListFromPropertiesAnnotation(ref.Properties)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load bundle properties for %q: %w", bundle.CsvName, err)
+		}
+		bundle.Properties = props
+	}
+
 	steps, err := resolver.NewStepResourceFromBundle(bundle, r.namespace, ref.Replaces, ref.CatalogSourceName, ref.CatalogSourceNamespace)
 	if err != nil {
 		return nil, errorwrap.Wrapf(err, "error calculating steps for ref %v", *ref)
