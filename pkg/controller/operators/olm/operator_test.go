@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -3091,6 +3092,217 @@ func TestTransitionCSV(t *testing.T) {
 	}
 }
 
+func TestCaBundleRetrevial(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+	namespace := "ns"
+	missingCAError := fmt.Errorf("Unable to find ca")
+	caBundle := []byte("Foo")
+
+	type initial struct {
+		csvs []runtime.Object
+		crds []runtime.Object
+		objs []runtime.Object
+	}
+	type expected struct {
+		caBundle []byte
+		err      error
+	}
+	tests := []struct {
+		name     string
+		initial  initial
+		expected expected
+	}{
+		{
+			name: "MissingCAResource",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					),
+				},
+			},
+			expected: expected{
+				caBundle: nil,
+				err:      missingCAError,
+			},
+		},
+		{
+			name: "RetrieveCAFromConversionWebhook",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithConversionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				crds: []runtime.Object{
+					crdWithConversionWebhook(crd("c1", "v1", "g1"), caBundle),
+				},
+			},
+			expected: expected{
+				caBundle: caBundle,
+				err:      nil,
+			},
+		},
+		{
+			name: "FailToRetrieveCAFromConversionWebhook",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithConversionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1", "g1"),
+				},
+			},
+			expected: expected{
+				caBundle: nil,
+				err:      missingCAError,
+			},
+		},
+		{
+			name: "RetrieveFromValidatingAdmissionWebhook",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithValidatingAdmissionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				objs: []runtime.Object{
+					&admissionregistrationv1.ValidatingWebhookConfiguration{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "webhook",
+							Namespace: namespace,
+							Labels: map[string]string{
+								"olm.owner":                             "csv1",
+								"olm.owner.namespace":                   namespace,
+								"olm.owner.kind":                        v1alpha1.ClusterServiceVersionKind,
+								"olm.webhook-description-generate-name": "",
+							},
+						},
+						Webhooks: []admissionregistrationv1.ValidatingWebhook{
+							{
+								Name: "Webhook",
+								ClientConfig: admissionregistrationv1.WebhookClientConfig{
+									CABundle: caBundle,
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: expected{
+				caBundle: caBundle,
+				err:      nil,
+			},
+		},
+		{
+			name: "RetrieveFromMutatingAdmissionWebhook",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithMutatingAdmissionWebhook(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]v1alpha1.StrategyDeploymentPermissions{},
+						),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					), "csv1-dep1", []string{"c1.g1"}),
+				},
+				objs: []runtime.Object{
+					&admissionregistrationv1.MutatingWebhookConfiguration{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "webhook",
+							Namespace: namespace,
+							Labels: map[string]string{
+								"olm.owner":                             "csv1",
+								"olm.owner.namespace":                   namespace,
+								"olm.owner.kind":                        v1alpha1.ClusterServiceVersionKind,
+								"olm.webhook-description-generate-name": "",
+							},
+						},
+						Webhooks: []admissionregistrationv1.MutatingWebhook{
+							{
+								Name: "Webhook",
+								ClientConfig: admissionregistrationv1.WebhookClientConfig{
+									CABundle: caBundle,
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: expected{
+				caBundle: caBundle,
+				err:      nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(
+				ctx,
+				withNamespaces(namespace, "kube-system"),
+				withClientObjs(tt.initial.csvs...),
+				withK8sObjs(tt.initial.objs...),
+				withExtObjs(tt.initial.crds...),
+				withOperatorNamespace(namespace),
+			)
+			require.NoError(t, err)
+
+			// run csv sync for each CSV
+			for _, csv := range tt.initial.csvs {
+				caBundle, err := op.getCABundle(csv.(*v1alpha1.ClusterServiceVersion))
+				require.Equal(t, tt.expected.err, err)
+				require.Equal(t, tt.expected.caBundle, caBundle)
+			}
+		})
+	}
+}
+
 // TestUpdates verifies that a set of expected phase transitions occur when multiple CSVs are present
 // and that they do not depend on sync order or event order
 func TestUpdates(t *testing.T) {
@@ -4530,4 +4742,46 @@ func TestAPIServiceResourceErrorActionable(t *testing.T) {
 		})
 	}
 
+}
+
+func crdWithConversionWebhook(crd *apiextensionsv1.CustomResourceDefinition, caBundle []byte) *apiextensionsv1.CustomResourceDefinition {
+	crd.Spec.Conversion = &apiextensionsv1.CustomResourceConversion{
+		Strategy: "Webhook",
+		Webhook: &apiextensionsv1.WebhookConversion{
+			ConversionReviewVersions: []string{"v1beta1"},
+			ClientConfig: &apiextensionsv1.WebhookClientConfig{
+				CABundle: caBundle,
+			},
+		},
+	}
+	return crd
+}
+
+func csvWithConversionWebhook(csv *v1alpha1.ClusterServiceVersion, deploymentName string, conversionCRDs []string) *v1alpha1.ClusterServiceVersion {
+	return csvWithWebhook(csv, deploymentName, conversionCRDs, v1alpha1.ConversionWebhook)
+}
+
+func csvWithValidatingAdmissionWebhook(csv *v1alpha1.ClusterServiceVersion, deploymentName string, conversionCRDs []string) *v1alpha1.ClusterServiceVersion {
+	return csvWithWebhook(csv, deploymentName, conversionCRDs, v1alpha1.ValidatingAdmissionWebhook)
+}
+
+func csvWithMutatingAdmissionWebhook(csv *v1alpha1.ClusterServiceVersion, deploymentName string, conversionCRDs []string) *v1alpha1.ClusterServiceVersion {
+	return csvWithWebhook(csv, deploymentName, conversionCRDs, v1alpha1.MutatingAdmissionWebhook)
+}
+
+func csvWithWebhook(csv *v1alpha1.ClusterServiceVersion, deploymentName string, conversionCRDs []string, webhookType v1alpha1.WebhookAdmissionType) *v1alpha1.ClusterServiceVersion {
+	sideEffectNone := admissionregistrationv1.SideEffectClassNone
+	targetPort := intstr.FromInt(443)
+	csv.Spec.WebhookDefinitions = []v1alpha1.WebhookDescription{
+		{
+			Type:                    webhookType,
+			DeploymentName:          deploymentName,
+			ContainerPort:           443,
+			TargetPort:              &targetPort,
+			SideEffects:             &sideEffectNone,
+			ConversionCRDs:          conversionCRDs,
+			AdmissionReviewVersions: []string{"v1beta1"},
+		},
+	}
+	return csv
 }
