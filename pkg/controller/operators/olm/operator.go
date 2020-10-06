@@ -1532,7 +1532,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 		strategy, err := a.updateDeploymentSpecsWithApiServiceData(out, strategy)
 		if err != nil {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, fmt.Sprintf("calculated deployment install is bad: %s", err.Error()), now, a.recorder)
 			return
 		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonWaiting); installErr == nil {
@@ -1584,7 +1584,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check install status
 		strategy, err = a.updateDeploymentSpecsWithApiServiceData(out, strategy)
 		if err != nil {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, fmt.Sprintf("calculated deployment install is bad: %s", err.Error()), now, a.recorder)
 			return
 		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
@@ -1662,7 +1662,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check install status
 		strategy, err = a.updateDeploymentSpecsWithApiServiceData(out, strategy)
 		if err != nil {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, fmt.Sprintf("calculated deployment install is bad: %s", err.Error()), now, a.recorder)
 			return
 		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall); installErr != nil {
