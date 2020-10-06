@@ -265,7 +265,9 @@ func (a *Operator) getCABundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, err
 		webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
 		webhookLabels[install.WebhookDescKey] = desc.GenerateName
 		webhookSelector := labels.SelectorFromSet(webhookLabels).String()
-		if desc.Type == v1alpha1.MutatingAdmissionWebhook {
+
+		switch desc.Type {
+		case v1alpha1.MutatingAdmissionWebhook:
 			existingWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
 			if err != nil {
 				return nil, fmt.Errorf("could not retrieve generated MutatingWebhookConfiguration: %v", err)
@@ -274,8 +276,7 @@ func (a *Operator) getCABundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, err
 			if len(existingWebhooks.Items) > 0 {
 				return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
 			}
-
-		} else if desc.Type == v1alpha1.ValidatingAdmissionWebhook {
+		case v1alpha1.ValidatingAdmissionWebhook:
 			existingWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
 			if err != nil {
 				return nil, fmt.Errorf("could not retrieve generated ValidatingWebhookConfiguration: %v", err)
@@ -283,6 +284,18 @@ func (a *Operator) getCABundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, err
 
 			if len(existingWebhooks.Items) > 0 {
 				return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
+			}
+		case v1alpha1.ConversionWebhook:
+			for _, conversionCRD := range desc.ConversionCRDs {
+				// check if CRD exists on cluster
+				crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD, metav1.GetOptions{})
+				if err != nil {
+					continue
+				}
+				if crd.Spec.Conversion == nil || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil && crd.Spec.Conversion.Webhook.ClientConfig.CABundle == nil {
+					continue
+				}
+				return crd.Spec.Conversion.Webhook.ClientConfig.CABundle, nil
 			}
 		}
 	}
@@ -480,7 +493,6 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 
 func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) error {
 	webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
-	webhookLabels = ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
 	webhookSelector := labels.SelectorFromSet(webhookLabels).String()
 
 	csvWebhookGenerateNames := make(map[string]struct{}, len(csv.Spec.WebhookDefinitions))
@@ -562,7 +574,7 @@ func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion) (bo
 					return false, err
 				}
 
-				if crd.Spec.Conversion.Strategy != "Webhook" || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil && crd.Spec.Conversion.Webhook.ClientConfig.CABundle == nil {
+				if crd.Spec.Conversion == nil || crd.Spec.Conversion.Strategy != "Webhook" || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil && crd.Spec.Conversion.Webhook.ClientConfig.CABundle == nil {
 					return false, fmt.Errorf("ConversionWebhook not ready")
 				}
 				webhookCount++
