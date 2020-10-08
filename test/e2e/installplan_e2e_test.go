@@ -2,17 +2,21 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
+
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -2622,6 +2626,94 @@ var _ = Describe("Install Plan", func() {
 		fetchedInstallPlan, err = fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
 		require.NoError(GinkgoT(), err)
 		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+	})
+
+	It("compresses installplan step resource manifests to configmap references", func() {
+		// Test ensures that all steps for index-based catalogs are references to configmaps. This avoids the problem
+		// of installplans growing beyond the etcd size limit when manifests are written to the ip status.
+
+		c := newKubeClient()
+		crc := newCRClient()
+
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("ns-"),
+			},
+		}, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		og := &operatorsv1.OperatorGroup{}
+		og.SetName("og")
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		deleteOpts := &metav1.DeleteOptions{}
+		defer c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+
+		catsrc := &operatorsv1alpha1.CatalogSource{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("kiali-"),
+				Namespace: ns.GetName(),
+				Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
+			},
+			Spec: operatorsv1alpha1.CatalogSourceSpec{
+				Image:      "quay.io/olmtest/single-bundle-index:1.0.0",
+				SourceType: operatorsv1alpha1.SourceTypeGrpc,
+			},
+		}
+		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Wait for the CatalogSource to be ready
+		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Generate a Subscription
+		subName := genName("kiali-")
+		createSubscriptionForCatalog(crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+
+		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Wait for the expected InstallPlan's execution to either fail or succeed
+		ipName := sub.Status.InstallPlanRef.Name
+		ip, err := waitForInstallPlan(crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(operatorsv1alpha1.InstallPlanPhaseComplete).To(Equal(ip.Status.Phase), "InstallPlan not complete")
+
+		// Ensure the InstallPlan contains the steps resolved from the bundle image
+		operatorName := "kiali-operator"
+		expectedSteps := map[registry.ResourceKey]struct{}{
+			{Name: operatorName, Kind: "ClusterServiceVersion"}:                                  {},
+			{Name: "kialis.kiali.io", Kind: "CustomResourceDefinition"}:                          {},
+			{Name: "monitoringdashboards.monitoring.kiali.io", Kind: "CustomResourceDefinition"}: {},
+			{Name: operatorName, Kind: "ServiceAccount"}:                                         {},
+			{Name: operatorName, Kind: "ClusterRole"}:                                            {},
+			{Name: operatorName, Kind: "ClusterRoleBinding"}:                                     {},
+		}
+		Expect(ip.Status.Plan).To(HaveLen(len(expectedSteps)), "number of expected steps does not match installed: %v", ip.Status.Plan)
+
+		for _, step := range ip.Status.Plan {
+			key := registry.ResourceKey{
+				Name: step.Resource.Name,
+				Kind: step.Resource.Kind,
+			}
+			for expected := range expectedSteps {
+				if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
+					delete(expectedSteps, expected)
+				}
+			}
+		}
+		Expect(expectedSteps).To(HaveLen(0), "Actual resource steps do not match expected: %#v", expectedSteps)
+
+		// Ensure that all the steps have a configmap based reference
+		for _, step := range ip.Status.Plan {
+			manifest := step.Resource.Manifest
+			var ref catalog.UnpackedBundleReference
+			err := json.Unmarshal([]byte(manifest), &ref)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ref.Kind).To(Equal("ConfigMap"))
+		}
 	})
 })
 
