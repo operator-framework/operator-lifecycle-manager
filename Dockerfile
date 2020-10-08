@@ -1,4 +1,4 @@
-FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-1.15-openshift-4.6 as builder
+FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-1.15-openshift-4.7 AS builder
 
 ENV GO111MODULE auto
 ENV GOPATH /go
@@ -23,7 +23,7 @@ COPY go.sum go.sum
 RUN CGO_ENABLED=1 make build
 RUN make build-util
 
-FROM registry.svc.ci.openshift.org/ocp/4.6:base
+FROM registry.svc.ci.openshift.org/ocp/4.7:base
 
 ADD manifests/ /manifests
 LABEL io.openshift.release.operator=true
