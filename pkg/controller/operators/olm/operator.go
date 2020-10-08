@@ -1278,6 +1278,7 @@ func (a *Operator) operatorGroupForCSV(csv *v1alpha1.ClusterServiceVersion, logg
 }
 
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster state.
+// SyncError should be returned when an additional reconcile of the CSV might fix the issue.
 func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v1alpha1.ClusterServiceVersion, syncError error) {
 	logger := a.logger.WithFields(logrus.Fields{
 		"id":        queueinformer.NewLoopID(),
@@ -1297,8 +1298,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 	operatorSurface, err := resolver.NewOperatorFromV1Alpha1CSV(out)
 	if err != nil {
-		// TODO: Add failure status to CSV
-		syncError = err
+		// If the resolver is unable to retrieve the operator info from the CSV the CSV requires changes, a syncError should not be returned.
+		logger.WithError(err).Warn("Unable to retrieve operator information from CSV")
 		return
 	}
 
@@ -1327,9 +1328,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 	modeSet, err := v1alpha1.NewInstallModeSet(out.Spec.InstallModes)
 	if err != nil {
-		syncError = err
 		logger.WithError(err).Warn("csv has invalid installmodes")
-		out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidInstallModes, syncError.Error(), now, a.recorder)
+		out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidInstallModes, err.Error(), now, a.recorder)
 		return
 	}
 
@@ -1454,15 +1454,18 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Create a map to track unique names
 		webhookNames := map[string]struct{}{}
 		// Check if Webhooks have valid rules and unique names
+		// TODO: Move this to validating library
 		for _, desc := range out.Spec.WebhookDefinitions {
 			_, present := webhookNames[desc.GenerateName]
 			if present {
+				logger.WithError(fmt.Errorf("Repeated WebhookDescription name %s", desc.GenerateName)).Warn("CSV is invalid")
 				out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidWebhookDescription, "CSV contains repeated WebhookDescription name", now, a.recorder)
 				return
 			}
 			webhookNames[desc.GenerateName] = struct{}{}
-			if syncError = install.ValidWebhookRules(desc.Rules); syncError != nil {
-				out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidWebhookDescription, syncError.Error(), now, a.recorder)
+			if err = install.ValidWebhookRules(desc.Rules); err != nil {
+				logger.WithError(err).Warnf("WebhookDescription %s includes invalid rules", desc.GenerateName)
+				out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidWebhookDescription, err.Error(), now, a.recorder)
 				return
 			}
 		}
@@ -1486,6 +1489,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check if we're not ready to install part of the replacement chain yet
 		if prev := a.isReplacing(out); prev != nil {
 			if prev.Status.Phase != v1alpha1.CSVPhaseReplacing {
+				logger.WithError(fmt.Errorf("CSV being replaced is in phase %s instead of %s", prev.Status.Phase, v1alpha1.CSVPhaseReplacing)).Debug("Unable to replace previous CSV")
 				return
 			}
 		}
@@ -1532,6 +1536,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 		strategy, err := a.updateDeploymentSpecsWithApiServiceData(out, strategy)
 		if err != nil {
+			logger.WithError(err).Debug("Unable to calculate expected deployment")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
 			return
 		}
@@ -1559,13 +1564,15 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 		// Check if any generated resources are missing
 		if err := a.checkAPIServiceResources(out, certs.PEMSHA256); err != nil {
+			logger.WithError(err).Debug("API Resources are unavailable")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceResourceIssue, err.Error(), now, a.recorder)
 			return
 		}
 
 		// Check if it's time to refresh owned APIService certs
 		if install.ShouldRotateCerts(out) {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now, a.recorder)
+			logger.Debug("CSV owns resources that require a cert refresh")
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "CSV owns resources that require a cert refresh", now, a.recorder)
 			return
 		}
 
@@ -1576,6 +1583,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()), now, a.recorder)
 			return
 		} else if !met {
+			logger.Debug("CSV Requirements are no longer met")
 			out.SetRequirementStatus(statuses)
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonRequirementsNotMet, fmt.Sprintf("requirements no longer met"), now, a.recorder)
 			return
@@ -1584,6 +1592,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check install status
 		strategy, err = a.updateDeploymentSpecsWithApiServiceData(out, strategy)
 		if err != nil {
+			logger.WithError(err).Debug("Unable to calculate expected deployment")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
 			return
 		}
@@ -1639,6 +1648,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()), now, a.recorder)
 			return
 		} else if !met {
+			logger.Debug("CSV Requirements are not met")
 			out.SetRequirementStatus(statuses)
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, fmt.Sprintf("requirements not met"), now, a.recorder)
 			return
@@ -1647,6 +1657,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check if any generated resources are missing and that OLM can action on them
 		if err := a.checkAPIServiceResources(out, certs.PEMSHA256); err != nil {
 			if a.apiServiceResourceErrorActionable(err) {
+				logger.WithError(err).Debug("API Resources are unavailable")
 				// Check if API services are adoptable. If not, keep CSV as Failed state
 				out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall, err.Error(), now, a.recorder)
 			}
@@ -1655,6 +1666,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 		// Check if it's time to refresh owned APIService certs
 		if install.ShouldRotateCerts(out) {
+			logger.Debug("CSV owns resources that require a cert refresh")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now, a.recorder)
 			return
 		}
@@ -1662,6 +1674,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check install status
 		strategy, err = a.updateDeploymentSpecsWithApiServiceData(out, strategy)
 		if err != nil {
+			logger.WithError(err).Debug("Unable to calculate expected deployment")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
 			return
 		}
