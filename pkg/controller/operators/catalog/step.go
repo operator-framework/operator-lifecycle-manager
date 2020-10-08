@@ -141,7 +141,7 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 					logger.Debugf("Found multiple owners for CRD %v", crd)
 
 					if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
 					}
 				}
 
@@ -229,7 +229,7 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 					logger.Debugf("Found multiple owners for CRD %v", crd)
 
 					if err = validateV1Beta1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
+						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
 					}
 				}
 
