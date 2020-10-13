@@ -64,12 +64,11 @@ func (n notSupportedStepperErr) Error() string {
 }
 
 // step is a factory that creates StepperFuncs based on the install plan step Kind.
-func (b *builder) create(step *v1alpha1.Step) (Stepper, error) {
-	manifest, err := b.manifestResolver.ManifestForStep(step)
+func (b *builder) create(step v1alpha1.Step) (Stepper, error) {
+	manifest, err := b.manifestResolver.ManifestForStep(&step)
 	if err != nil {
 		return nil, err
 	}
-	step.Resource.Manifest = manifest
 
 	switch step.Resource.Kind {
 	case crdKind:
@@ -79,15 +78,15 @@ func (b *builder) create(step *v1alpha1.Step) (Stepper, error) {
 		}
 		switch version {
 		case crdlib.V1Version:
-			return b.NewCRDV1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1(), step), nil
+			return b.NewCRDV1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1(), &step, manifest), nil
 		case crdlib.V1Beta1Version:
-			return b.NewCRDV1Beta1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1beta1(), step), nil
+			return b.NewCRDV1Beta1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1beta1(), &step, manifest), nil
 		}
 	}
 	return nil, notSupportedStepperErr{fmt.Sprintf("stepper interface does not support %s", step.Resource.Kind)}
 }
 
-func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Interface, step *v1alpha1.Step) StepperFunc {
+func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Interface, step *v1alpha1.Step, manifest string) StepperFunc {
 	return func() (v1alpha1.StepStatus, error) {
 		switch step.Status {
 		case v1alpha1.StepStatusPresent:
@@ -120,16 +119,14 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 				return v1alpha1.StepStatusCreated, nil
 			}
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
-			crd, err := crdlib.UnmarshalV1(step.Resource.Manifest)
+			crd, err := crdlib.UnmarshalV1(manifest)
 			if err != nil {
 				return v1alpha1.StepStatusUnknown, err
 			}
-			b.logger.Debugf("creating v1 CRD %#v", crd)
 
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(createError) {
 				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				b.logger.Debugf("\n current crd: %#v \n new crd: %#v \n", currentCRD, crd)
 				// Verify CRD ownership, only attempt to update if
 				// CRD has only one owner
 				// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
@@ -177,7 +174,7 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 	}
 }
 
-func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.ApiextensionsV1beta1Interface, step *v1alpha1.Step) StepperFunc {
+func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.ApiextensionsV1beta1Interface, step *v1alpha1.Step, manifest string) StepperFunc {
 	return func() (v1alpha1.StepStatus, error) {
 		switch step.Status {
 		case v1alpha1.StepStatusPresent:
@@ -210,16 +207,14 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 				return v1alpha1.StepStatusCreated, nil
 			}
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
-			crd, err := crdlib.UnmarshalV1Beta1(step.Resource.Manifest)
+			crd, err := crdlib.UnmarshalV1Beta1(manifest)
 			if err != nil {
 				return v1alpha1.StepStatusUnknown, err
 			}
-			b.logger.Debugf("creating v1beta1 CRD %#v", crd)
 
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(createError) {
 				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				b.logger.Debugf("\n current crd: %#v \n new crd: %#v \n", currentCRD, crd)
 				// Verify CRD ownership, only attempt to update if
 				// CRD has only one owner
 				// Example: provided=database.coreos.com/v1alpha1/EtcdCluster

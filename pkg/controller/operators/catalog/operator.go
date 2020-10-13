@@ -1582,7 +1582,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 	for i, step := range plan.Status.Plan {
 		doStep := true
-		s, err := b.create(step)
+		s, err := b.create(*step)
 		if err != nil {
 			if _, ok := err.(notSupportedStepperErr); ok {
 				// stepper not implemented for this type yet
