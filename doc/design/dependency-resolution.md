@@ -1,6 +1,6 @@
 # Dependency Resolution and Upgrades
 
-OLM manages the dependency resolution and upgrade lifecycle of running operators. In many ways, thes problems OLM faces are similar to other OS package managers like `apt`/`dkpg` and `yum`/`rpm`.
+OLM manages the dependency resolution and upgrade lifecycle of running operators. In many ways, these problems OLM faces are similar to other OS package managers like `apt`/`dkpg` and `yum`/`rpm`.
 
 However, there is one constraint that similar systems don't generally have that OLM does: because operators are always running, OLM attempts to ensure that at no point in time are you left with a set of operators that do not work with each other.
 
