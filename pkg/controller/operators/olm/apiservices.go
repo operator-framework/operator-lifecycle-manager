@@ -6,7 +6,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -344,62 +343,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 			return nil, fmt.Errorf("Unable to get secret %s", install.SecretName(install.ServiceName(desc.DeploymentName)))
 		}
 
-		volume := corev1.Volume{
-			Name: "apiservice-cert",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: secret.GetName(),
-					Items: []corev1.KeyToPath{
-						{
-							Key:  "tls.crt",
-							Path: "apiserver.crt",
-						},
-						{
-							Key:  "tls.key",
-							Path: "apiserver.key",
-						},
-					},
-				},
-			},
-		}
-
-		replaced := false
-		for i, v := range depSpec.Template.Spec.Volumes {
-			if v.Name == volume.Name {
-				depSpec.Template.Spec.Volumes[i] = volume
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			depSpec.Template.Spec.Volumes = append(depSpec.Template.Spec.Volumes, volume)
-		}
-
-		mount := corev1.VolumeMount{
-			Name:      volume.Name,
-			MountPath: "/apiserver.local.config/certificates",
-		}
-		for i, container := range depSpec.Template.Spec.Containers {
-			found := false
-			for j, m := range container.VolumeMounts {
-				if m.Name == mount.Name {
-					found = true
-					break
-				}
-
-				// Replace if mounting to the same location.
-				if m.MountPath == mount.MountPath {
-					container.VolumeMounts[j] = mount
-					found = true
-					break
-				}
-			}
-			if !found {
-				container.VolumeMounts = append(container.VolumeMounts, mount)
-			}
-
-			depSpec.Template.Spec.Containers[i] = container
-		}
+		install.AddDefaultCertVolumeAndVolumeMounts(&depSpec, secret.GetName())
 		depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{install.OLMCAHashAnnotationKey: caHash})
 		depSpecs[desc.DeploymentName] = depSpec
 	}
@@ -421,63 +365,8 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		if err != nil {
 			return nil, fmt.Errorf("Unable to get secret %s", install.SecretName(install.ServiceName(desc.DeploymentName)))
 		}
+		install.AddDefaultCertVolumeAndVolumeMounts(&depSpec, secret.GetName())
 
-		volume := corev1.Volume{
-			Name: "apiservice-cert",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: secret.GetName(),
-					Items: []corev1.KeyToPath{
-						{
-							Key:  "tls.crt",
-							Path: "apiserver.crt",
-						},
-						{
-							Key:  "tls.key",
-							Path: "apiserver.key",
-						},
-					},
-				},
-			},
-		}
-
-		replaced := false
-		for i, v := range depSpec.Template.Spec.Volumes {
-			if v.Name == volume.Name {
-				depSpec.Template.Spec.Volumes[i] = volume
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			depSpec.Template.Spec.Volumes = append(depSpec.Template.Spec.Volumes, volume)
-		}
-
-		mount := corev1.VolumeMount{
-			Name:      volume.Name,
-			MountPath: "/apiserver.local.config/certificates",
-		}
-		for i, container := range depSpec.Template.Spec.Containers {
-			found := false
-			for j, m := range container.VolumeMounts {
-				if m.Name == mount.Name {
-					found = true
-					break
-				}
-
-				// Replace if mounting to the same location.
-				if m.MountPath == mount.MountPath {
-					container.VolumeMounts[j] = mount
-					found = true
-					break
-				}
-			}
-			if !found {
-				container.VolumeMounts = append(container.VolumeMounts, mount)
-			}
-
-			depSpec.Template.Spec.Containers[i] = container
-		}
 		depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{install.OLMCAHashAnnotationKey: caHash})
 		depSpecs[desc.DeploymentName] = depSpec
 	}
