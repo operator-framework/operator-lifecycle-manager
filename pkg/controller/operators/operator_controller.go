@@ -223,6 +223,7 @@ func (r *OperatorReconciler) mapComponentRequests(obj handler.MapObject) (reques
 	for _, name := range decorators.OperatorNames(obj.Meta.GetLabels()) {
 		// Only enqueue if we can find the operator in our cache
 		if r.observed(name) {
+			r.log.V(1).Info("SETHDEBUG reconciling due to change", "component", obj.Meta.GetName())
 			requests = append(requests, reconcile.Request{NamespacedName: name})
 			continue
 		}
