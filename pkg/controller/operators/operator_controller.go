@@ -45,11 +45,11 @@ type OperatorReconciler struct {
 	client.Client
 
 	log     logr.Logger
-	mu      sync.RWMutex
 	factory decorators.OperatorFactory
 
-	// operators contains the names of Operators the OperatorReconciler has observed exist.
-	operators map[types.NamespacedName]struct{}
+	// last observed resourceVersion for known Operators
+	lastResourceVersion map[types.NamespacedName]string
+	mu                  sync.RWMutex
 }
 
 // +kubebuilder:rbac:groups=operators.coreos.com,resources=operators,verbs=create;update;patch;delete
@@ -101,9 +101,9 @@ func NewOperatorReconciler(cli client.Client, log logr.Logger, scheme *runtime.S
 	return &OperatorReconciler{
 		Client: cli,
 
-		log:       log,
-		factory:   factory,
-		operators: map[types.NamespacedName]struct{}{},
+		log:                 log,
+		factory:             factory,
+		lastResourceVersion: map[types.NamespacedName]string{},
 	}, nil
 }
 
@@ -115,39 +115,54 @@ func (r *OperatorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	log := r.log.WithValues("request", req)
 	log.V(1).Info("reconciling operator")
 
-	// Fetch the Operator from the cache
+	// Get the Operator
 	ctx := context.TODO()
+	create := false
+	name := req.NamespacedName.Name
 	in := &operatorsv1.Operator{}
 	if err := r.Get(ctx, req.NamespacedName, in); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Info("Could not find Operator")
-			r.unobserve(req.NamespacedName)
-			// TODO(njhale): Recreate operator if we can find any components.
+			create = true
+			in.SetName(name)
 		} else {
-			log.Error(err, "Error finding Operator")
+			log.Error(err, "Error requesting Operator")
+			return reconcile.Result{Requeue: true}, nil
 		}
-
-		return reconcile.Result{}, nil
 	}
-	r.observe(req.NamespacedName)
+
+	if !create {
+		if rv, ok := r.getLastResourceVersion(req.NamespacedName); ok && rv == in.ResourceVersion {
+			log.V(1).Info("Operator is already up-to-date")
+			return reconcile.Result{}, nil
+		}
+	}
 
 	// Wrap with convenience decorator
 	operator, err := r.factory.NewOperator(in)
 	if err != nil {
 		log.Error(err, "Could not wrap Operator with convenience decorator")
-		return reconcile.Result{}, nil
+		return reconcile.Result{Requeue: true}, nil
 	}
 
 	if err = r.updateComponents(ctx, operator); err != nil {
 		log.Error(err, "Could not update components")
-		return reconcile.Result{}, nil
+		return reconcile.Result{Requeue: true}, nil
 
 	}
 
-	if err := r.Status().Update(ctx, operator.Operator); err != nil {
-		log.Error(err, "Could not update Operator status")
-		return ctrl.Result{}, err
+	if create {
+		if err := r.Create(context.Background(), operator.Operator); err != nil && !apierrors.IsAlreadyExists(err) {
+			r.log.Error(err, "Could not create Operator", "operator", name)
+			return ctrl.Result{Requeue: true}, nil
+		}
+	} else {
+		if err := r.Status().Update(ctx, operator.Operator); err != nil {
+			log.Error(err, "Could not update Operator status")
+			return ctrl.Result{Requeue: true}, nil
+		}
 	}
+
+	r.setLastResourceVersion(req.NamespacedName, operator.GetResourceVersion())
 
 	return ctrl.Result{}, nil
 }
@@ -196,45 +211,36 @@ func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels
 	return componentLists, nil
 }
 
-func (r *OperatorReconciler) observed(name types.NamespacedName) bool {
+func (r *OperatorReconciler) getLastResourceVersion(name types.NamespacedName) (string, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	_, ok := r.operators[name]
-	return ok
+	rv, ok := r.lastResourceVersion[name]
+	return rv, ok
 }
 
-func (r *OperatorReconciler) observe(name types.NamespacedName) {
+func (r *OperatorReconciler) setLastResourceVersion(name types.NamespacedName, rv string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.operators[name] = struct{}{}
+	r.lastResourceVersion[name] = rv
 }
 
-func (r *OperatorReconciler) unobserve(name types.NamespacedName) {
+func (r *OperatorReconciler) unsetLastResourceVersion(name types.NamespacedName) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.operators, name)
+	delete(r.lastResourceVersion, name)
 }
 
-func (r *OperatorReconciler) mapComponentRequests(obj handler.MapObject) (requests []reconcile.Request) {
+func (r *OperatorReconciler) mapComponentRequests(obj handler.MapObject) []reconcile.Request {
+	var requests []reconcile.Request
 	if obj.Meta == nil {
-		return
+		return requests
 	}
 
 	for _, name := range decorators.OperatorNames(obj.Meta.GetLabels()) {
-		// Only enqueue if we can find the operator in our cache
-		if r.observed(name) {
-			requests = append(requests, reconcile.Request{NamespacedName: name})
-			continue
-		}
-
-		// Otherwise, best-effort generate a new operator
-		// TODO(njhale): Implement verification that the operator-discovery admission webhook accepted this label (JWT or maybe sign a set of fields?)
-		operator := &operatorsv1.Operator{}
-		operator.SetName(name.Name)
-		if err := r.Create(context.Background(), operator); err != nil && !apierrors.IsAlreadyExists(err) {
-			r.log.Error(err, "couldn't generate operator", "operator", name, "component", obj.Meta.GetSelfLink())
-		}
+		// unset the last recorded resource version so the Operator will reconcile
+		r.unsetLastResourceVersion(name)
+		requests = append(requests, reconcile.Request{NamespacedName: name})
 	}
 
-	return
+	return requests
 }
