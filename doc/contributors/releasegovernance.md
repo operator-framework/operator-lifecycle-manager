@@ -43,4 +43,4 @@ The high level objective for Operator Lifecycle Manager releases is to release a
 ## Release Support
 Minor releases currently do not have any support guarantees on top of them. While the project may agree to increment the patch version in order to fix any outstanding issues with the latest release, there are no guarantees that a non latest version will be patched with a fix from a later version.
 
-In the event that a true breaking issue is found that prevents the existing version from working, the 
+In the event that a true breaking issue is found that prevents the existing version from working, the project approvers may vote to pull a patch down to an existing minor version and cut a new patch release.
