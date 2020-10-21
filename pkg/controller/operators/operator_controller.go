@@ -130,12 +130,15 @@ func (r *OperatorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
-	if !create {
-		if rv, ok := r.getLastResourceVersion(req.NamespacedName); ok && rv == in.ResourceVersion {
-			log.V(1).Info("Operator is already up-to-date")
-			return reconcile.Result{}, nil
-		}
+	rv, ok := r.getLastResourceVersion(req.NamespacedName)
+	if !create && ok && rv == in.ResourceVersion {
+		log.V(1).Info("Operator is already up-to-date")
+		return reconcile.Result{}, nil
 	}
+
+	// Set the cached resource version to 0 so we can handle
+	// the race with requests enqueuing via mapComponentRequests
+	r.setLastResourceVersion(req.NamespacedName, "0")
 
 	// Wrap with convenience decorator
 	operator, err := r.factory.NewOperator(in)
@@ -162,7 +165,10 @@ func (r *OperatorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
-	r.setLastResourceVersion(req.NamespacedName, operator.GetResourceVersion())
+	// Only set the resource version if it already exists.
+	// If it does not exist, it means mapComponentRequests was called
+	// while we were reconciling and we need to reconcile again
+	r.setLastResourceVersionIfExists(req.NamespacedName, operator.GetResourceVersion())
 
 	return ctrl.Result{}, nil
 }
@@ -222,6 +228,14 @@ func (r *OperatorReconciler) setLastResourceVersion(name types.NamespacedName, r
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.lastResourceVersion[name] = rv
+}
+
+func (r *OperatorReconciler) setLastResourceVersionIfExists(name types.NamespacedName, rv string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.lastResourceVersion[name]; ok {
+		r.lastResourceVersion[name] = rv
+	}
 }
 
 func (r *OperatorReconciler) unsetLastResourceVersion(name types.NamespacedName) {
