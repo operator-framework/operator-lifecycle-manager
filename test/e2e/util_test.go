@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -30,16 +31,21 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/dynamic"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pmclient "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 )
+
+
 
 const (
 	pollInterval = 1 * time.Second
@@ -625,3 +631,25 @@ func Local(client operatorclient.ClientInterface) (bool, error) {
 
 	return true, nil
 }
+
+func newSSAClient(t *testing.T, config *rest.Config) *controllerclient.ServerSideApplier {
+	scheme := runtime.NewScheme()
+	localSchemeBuilder := runtime.NewSchemeBuilder(
+		apiextensionsv1.AddToScheme,
+		kscheme.AddToScheme,
+		v1alpha1.AddToScheme,
+		operatorsv1.AddToScheme,
+	)
+
+	err := localSchemeBuilder.AddToScheme(scheme)
+	require.NoError(t, err)
+
+	ssaClient, err := controllerclient.NewForConfig(config, scheme, "test.olm.registry")
+	require.NoError(t, err)
+	return ssaClient
+}
+
+func Apply(ssaClient *controllerclient.ServerSideApplier, obj controllerclient.Object, changeFunc interface{}) func() error {
+	return ssaClient.Apply(context.Background(), obj, changeFunc)
+}
+
