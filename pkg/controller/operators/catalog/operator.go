@@ -610,10 +610,17 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 	// Registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
 	logger.Debug("ensuring registry server")
 
-	if err := srcReconciler.EnsureRegistryServer(out); err != nil {
-		syncError = fmt.Errorf("couldn't ensure registry server - %v", err)
-		out.SetError(v1alpha1.CatalogSourceRegistryServerError, syncError)
-		return
+	err = srcReconciler.EnsureRegistryServer(out)
+	if err != nil {
+		if _, ok := err.(reconciler.UpdateNotReadyErr); ok {
+			logger.Debug("requeueing registry server for catalog update check: update pod not yet ready")
+			o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), reconciler.CatalogPollingRequeuePeriod)
+			return
+		} else {
+			syncError = fmt.Errorf("couldn't ensure registry server - %v", err)
+			out.SetError(v1alpha1.CatalogSourceRegistryServerError, syncError)
+			return
+		}
 	}
 
 	logger.Debug("ensured registry server")
