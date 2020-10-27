@@ -1,9 +1,13 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/mail"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/blang/semver"
@@ -148,12 +152,57 @@ func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) []error {
 	if categories, ok := csv.ObjectMeta.Annotations["categories"]; ok {
 		categorySlice := strings.Split(categories, ",")
 
-		for _, category := range categorySlice {
-			if _, ok := validCategories[category]; !ok {
-				errs = append(errs, fmt.Errorf("csv.Metadata.Annotations.Categories %s is not a valid category", category))
+		// use custom categories for validation if provided
+		customCategoriesPath := os.Getenv("OPERATOR_BUNDLE_CATEGORIES")
+		if customCategoriesPath != "" {
+			customCategories, err := extractCategories(customCategoriesPath)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("could not extract custom categories from categories %#v: %s", customCategories, err))
+				return errs
+			}
+			for _, category := range categorySlice {
+				if _, ok := customCategories[category]; !ok {
+					errs = append(errs, fmt.Errorf("csv.Metadata.Annotations.Categories %s is not a valid custom category", category))
+				}
+			}
+		} else {
+			// use default categories
+			for _, category := range categorySlice {
+				if _, ok := validCategories[category]; !ok {
+					errs = append(errs, fmt.Errorf("csv.Metadata.Annotations.Categories %s is not a valid category", category))
+				}
 			}
 		}
 	}
 
 	return errs
+}
+
+type categories struct {
+	Contents []string `json:"categories"`
+}
+
+// extractCategories reads a custom categories file and returns the contents in a map[string]struct{}
+func extractCategories(path string) (map[string]struct{}, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("finding category file: %w", err)
+	}
+
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading category file: %w", err)
+	}
+
+	cat := categories{}
+	err = json.Unmarshal(data, &cat)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshaling category file: %w", err)
+	}
+
+	customCategories := make(map[string]struct{})
+	for _, c := range cat.Contents {
+		customCategories[c] = struct{}{}
+	}
+	return customCategories, nil
 }
