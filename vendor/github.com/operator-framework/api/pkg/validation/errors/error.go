@@ -100,6 +100,7 @@ const (
 	ErrorInvalidManifestStructure ErrorType = "ManifestStructureNotValid"
 	ErrorInvalidBundle            ErrorType = "BundleNotValid"
 	ErrorInvalidPackageManifest   ErrorType = "PackageManifestNotValid"
+	ErrorObjectFailedValidation   ErrorType = "ObjectFailedValidation"
 )
 
 func NewError(t ErrorType, detail, field string, v interface{}) Error {
@@ -229,4 +230,16 @@ func WarnInvalidOperation(detail string, value interface{}) Error {
 
 func invalidOperation(lvl Level, detail string, value interface{}) Error {
 	return Error{ErrorInvalidOperation, lvl, "", value, detail}
+}
+
+func ErrInvalidObject(value interface{}, detail string) Error {
+	return invalidObject(LevelError, detail, value)
+}
+
+func invalidObject(lvl Level, detail string, value interface{}) Error {
+	return Error{ErrorObjectFailedValidation, lvl, "", value, detail}
+}
+
+func WarnInvalidObject(detail string, value interface{}) Error {
+	return failedValidation(LevelWarn, detail, value)
 }
