@@ -831,6 +831,12 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
+	ips, err := o.listInstallPlansMap(namespace)
+	if err != nil {
+		logger.WithError(err).Debug("couldn't list installplan")
+		return err
+	}
+
 	// TODO: parallel
 	maxGeneration := 0
 	subscriptionUpdated := false
@@ -847,7 +853,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		}
 
 		// ensure the installplan reference is correct
-		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub)
+		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub, ips)
 		if err != nil {
 			logger.Debugf("error ensuring installplan state: %v", err)
 			return err
@@ -952,9 +958,29 @@ func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscript
 	return false
 }
 
-func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
-	if sub.Status.InstallPlanRef != nil {
-		return sub, false, nil
+// checkMissingInstallPlan checks if the installplan is missing or not when
+// the subscription is in pending upgrade state
+func (o *Operator) checkMissingInstallPlan(sub *v1alpha1.Subscription, ips map[string]struct{}) (*v1alpha1.Subscription, bool, error) {
+	_, ok := ips[sub.Status.InstallPlanRef.Name]
+	if !ok && sub.Status.State == v1alpha1.SubscriptionStateUpgradePending {
+		out := sub.DeepCopy()
+		out.Status.InstallPlanRef = nil
+		out.Status.Install = nil
+		out.Status.CurrentCSV = ""
+		out.Status.State = v1alpha1.SubscriptionStateNone
+		out.Status.LastUpdated = o.now()
+		updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
+		if err != nil {
+			return out, false, nil
+		}
+		return updated, true, nil
+	}
+	return sub, false, nil
+}
+
+func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription, ips map[string]struct{}) (*v1alpha1.Subscription, bool, error) {
+	if sub.Status.InstallPlanRef != nil || sub.Status.Install != nil {
+		return o.checkMissingInstallPlan(sub, ips)
 	}
 
 	logger.Debug("checking for existing installplan")
@@ -2015,6 +2041,20 @@ func (o *Operator) listInstallPlans(namespace string) (ips []*v1alpha1.InstallPl
 	ips = make([]*v1alpha1.InstallPlan, 0)
 	for i := range list.Items {
 		ips = append(ips, &list.Items[i])
+	}
+
+	return
+}
+
+func (o *Operator) listInstallPlansMap(namespace string) (ips map[string]struct{}, err error) {
+	list, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+
+	ips = make(map[string]struct{})
+	for i := range list.Items {
+		ips[list.Items[i].GetName()] = struct{}{}
 	}
 
 	return
