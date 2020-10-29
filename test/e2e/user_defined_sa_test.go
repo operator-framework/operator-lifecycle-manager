@@ -38,12 +38,12 @@ var _ = Describe("User defined service account", func() {
 
 		// Create a service account, but add no permission to it.
 		saName := genName("scoped-sa-")
-		_, cleanupSA := newServiceAccount(GinkgoT(), kubeclient, namespace, saName)
+		_, cleanupSA := newServiceAccount(kubeclient, namespace, saName)
 		defer cleanupSA()
 
 		// Add an OperatorGroup and specify the service account.
 		ogName := genName("scoped-og-")
-		_, cleanupOG := newOperatorGroupWithServiceAccount(GinkgoT(), crclient, namespace, ogName, saName)
+		_, cleanupOG := newOperatorGroupWithServiceAccount(crclient, namespace, ogName, saName)
 		defer cleanupOG()
 
 		permissions := deploymentPermissions()
@@ -91,14 +91,14 @@ var _ = Describe("User defined service account", func() {
 
 		// Create a service account, add enough permission to it so that operator install is successful.
 		saName := genName("scoped-sa")
-		_, cleanupSA := newServiceAccount(GinkgoT(), kubeclient, namespace, saName)
+		_, cleanupSA := newServiceAccount(kubeclient, namespace, saName)
 		defer cleanupSA()
 		cleanupPerm := grantPermission(GinkgoT(), kubeclient, namespace, saName)
 		defer cleanupPerm()
 
 		// Add an OperatorGroup and specify the service account.
 		ogName := genName("scoped-og-")
-		_, cleanupOG := newOperatorGroupWithServiceAccount(GinkgoT(), crclient, namespace, ogName, saName)
+		_, cleanupOG := newOperatorGroupWithServiceAccount(crclient, namespace, ogName, saName)
 		defer cleanupOG()
 
 		permissions := deploymentPermissions()
@@ -147,12 +147,12 @@ var _ = Describe("User defined service account", func() {
 
 		// Create a service account, but add no permission to it.
 		saName := genName("scoped-sa-")
-		_, cleanupSA := newServiceAccount(GinkgoT(), kubeclient, namespace, saName)
+		_, cleanupSA := newServiceAccount(kubeclient, namespace, saName)
 		defer cleanupSA()
 
 		// Add an OperatorGroup and specify the service account.
 		ogName := genName("scoped-og-")
-		_, cleanupOG := newOperatorGroupWithServiceAccount(GinkgoT(), crclient, namespace, ogName, saName)
+		_, cleanupOG := newOperatorGroupWithServiceAccount(crclient, namespace, ogName, saName)
 		defer cleanupOG()
 
 		permissions := deploymentPermissions()
@@ -216,7 +216,7 @@ func newNamespace(client operatorclient.ClientInterface, name string) (ns *corev
 	return
 }
 
-func newServiceAccount(t GinkgoTInterface, client operatorclient.ClientInterface, namespace, name string) (sa *corev1.ServiceAccount, cleanup cleanupFunc) {
+func newServiceAccount(client operatorclient.ClientInterface, namespace, name string) (sa *corev1.ServiceAccount, cleanup cleanupFunc) {
 	request := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -225,18 +225,18 @@ func newServiceAccount(t GinkgoTInterface, client operatorclient.ClientInterface
 	}
 
 	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Create(context.TODO(), request, metav1.CreateOptions{})
-	require.NoError(t, err)
-	require.NotNil(t, sa)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(sa).ToNot(BeNil())
 
 	cleanup = func() {
 		err := client.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Delete(context.TODO(), sa.GetName(), metav1.DeleteOptions{})
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 	}
 
 	return
 }
 
-func newOperatorGroupWithServiceAccount(t GinkgoTInterface, client versioned.Interface, namespace, name, serviceAccountName string) (og *v1.OperatorGroup, cleanup cleanupFunc) {
+func newOperatorGroupWithServiceAccount(client versioned.Interface, namespace, name, serviceAccountName string) (og *v1.OperatorGroup, cleanup cleanupFunc) {
 	request := &v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -251,12 +251,12 @@ func newOperatorGroupWithServiceAccount(t GinkgoTInterface, client versioned.Int
 	}
 
 	og, err := client.OperatorsV1().OperatorGroups(namespace).Create(context.TODO(), request, metav1.CreateOptions{})
-	require.NoError(t, err)
-	require.NotNil(t, og)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(og).ToNot(BeNil())
 
 	cleanup = func() {
 		err := client.OperatorsV1().OperatorGroups(og.GetNamespace()).Delete(context.TODO(), og.GetName(), metav1.DeleteOptions{})
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 	}
 
 	return
