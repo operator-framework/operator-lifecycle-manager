@@ -1,3 +1,5 @@
+---
+# Source: olm/templates/image-references
 kind: ImageStream
 apiVersion: image.openshift.io/v1
 spec:
