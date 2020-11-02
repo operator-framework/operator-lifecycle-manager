@@ -1,0 +1,48 @@
+- increment version in version.go
+- increment version in snapcraft.yaml
+- commit
+- tag git with same version number
+- make sure local build passes
+- push tag to git
+  - 3.4.0, v3
+  - git push --tags
+- make local xcompile (builds binaries for all platforms)
+
+- git release
+  ./scripts/publish.sh
+
+- snapcraft
+  - will auto create a candidate, test it works then promote
+  - see https://build.snapcraft.io/user/mikefarah/yq
+  
+  sudo snap remove yq
+  sudo snap install --edge yq
+  
+  then use the UI (https://snapcraft.io/yq/release)
+
+- go get
+  - update the readme instructions
+
+- brew
+  - brew bump-formula-pr --url=https://github.com/mikefarah/yq/archive/2.2.0.tar.gz yq
+  - if that fails with random ruby errors try:
+    - clearing out the gems rm -rf .gem/ruby/2.3.0
+    - export HOMEBREW_FORCE_VENDOR_RUBY=1
+
+- docker
+  - build and push latest and new version tag
+  - docker build .  -t mikefarah/yq:latest -t mikefarah/yq:3 -t mikefarah/yq:3.X
+
+- debian package
+  - ensure you get all vendor dependencies before packaging
+	```go mod vendor```
+  - execute 
+    ```dch -i```
+  - fill debian/changelog with changes from last version
+  - build the package sources 
+    ```debuild -i -I -S -sa```
+    (signing with gpg key is required in order to put it to ppa)
+  - put to PPA
+    ```dput ppa:<REPOSITORY> ../yq_<VERSION>_source.changes```
+    (current distro repository is ppa:rmescandon/yq. In case that a new version
+    is released, please contact rmescandon@gmail.com to bump debian package)

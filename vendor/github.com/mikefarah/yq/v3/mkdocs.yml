@@ -1,0 +1,7 @@
+docs_dir: mkdocs
+site_dir: docs
+site_name: Yq
+theme: 'material'
+repo_name: 'mikefarah/yq'
+repo_url: 'https://github.com/mikefarah/yq'
+
