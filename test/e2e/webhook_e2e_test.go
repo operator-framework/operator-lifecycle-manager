@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/errors"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -219,7 +220,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			}).Should(BeTrue(), "Unable to set CSV phase to Pending")
 
 			// Wait for webhook-operator to succeed
-			_, err = awaitCSV(GinkgoT(), crc, namespace.GetName(), csv.GetName(), csvSucceededChecker)
+			_, err = awaitCSV(crc, namespace.GetName(), csv.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Get the updated secret
@@ -425,14 +426,21 @@ var _ = Describe("CSVs with a Webhook", func() {
 			Expect(err).Should(BeNil())
 
 			// Make sure old resources are cleaned up.
-			err = waitForCSVToDelete(GinkgoT(), crc, csv.Spec.Replaces)
-			Expect(err).Should(BeNil())
+			Eventually(func() bool {
+				return csvExists(crc, csv.Spec.Replaces)
+			}).Should(BeFalse())
 
-			err = waitForNotFound(GinkgoT(), func() error {
-				_, err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), previousWebhookName, metav1.GetOptions{})
-				return err
-			})
-			Expect(err).Should(BeNil())
+			// Wait until previous webhook is cleaned up
+			Eventually(func() (bool, error) {
+				_, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), previousWebhookName, metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					return true, nil
+				}
+				if err != nil {
+					return false, err
+				}
+				return false, nil
+			}).Should(BeTrue())
 		})
 		It("Is updated when the CAs expire", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
@@ -478,11 +486,15 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err = fetchCSV(crc, csv.Name, namespace.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
 				// Should create deployment
 				dep, err = c.GetDeployment(namespace.Name, csv.Spec.WebhookDefinitions[0].DeploymentName)
-				Expect(err).Should(BeNil())
+				if err != nil {
+					return false
+				}
 
 				// Should have a new ca hash annotation
 				newCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey]
-				Expect(ok).Should(BeTrue())
+				if !ok {
+					return false
+				}
 
 				if newCAAnnotation != oldCAAnnotation {
 					// Check for success
@@ -668,7 +680,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			defer cleanupSubscription()
 
 			// Wait for webhook-operator v2 csv to succeed
-			csv, err := awaitCSV(GinkgoT(), crc, testNamespace, "webhook-operator.v0.0.1", csvSucceededChecker)
+			csv, err := awaitCSV(crc, testNamespace, "webhook-operator.v0.0.1", csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, testNamespace, true, true)

@@ -13,14 +13,14 @@ import (
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/operator-framework/api/pkg/lib/version"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	"github.com/operator-framework/api/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -165,7 +165,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), fetchedInstallPlan, metav1.UpdateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update manifest
@@ -503,7 +503,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Wait for the replacement CSV to be installed
-		_, err = awaitCSV(GinkgoT(), crc, testNamespace, replacementCSV.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, testNamespace, replacementCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
