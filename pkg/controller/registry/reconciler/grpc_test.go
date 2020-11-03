@@ -115,6 +115,24 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 		},
 		{
+			testName: "Grpc/ExistingRegistry/BadServiceWithWrongHash",
+			in: in{
+				cluster: cluster{
+					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Service{}, ServiceHashLabelKey, "wrongHash"),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        now(),
+					Protocol:         "grpc",
+					ServiceName:      "img-catalog",
+					ServiceNamespace: testNamespace,
+					Port:             "50051",
+				},
+			},
+		},
+		{
 			testName: "Grpc/ExistingRegistry/BadService",
 			in: in{
 				cluster: cluster{
