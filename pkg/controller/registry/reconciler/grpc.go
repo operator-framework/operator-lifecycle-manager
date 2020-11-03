@@ -3,25 +3,28 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"time"
 
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 const (
 	CatalogSourceUpdateKey      = "catalogsource.operators.coreos.com/update"
+	ServiceHashLabelKey         = "olm.service-spec-hash"
 	CatalogPollingRequeuePeriod = 30 * time.Second
 )
 
@@ -57,14 +60,14 @@ func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
 	}
 }
 
-func (s *grpcCatalogSourceDecorator) Service() *v1.Service {
-	svc := &v1.Service{
+func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
+	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.GetName(),
 			Namespace: s.GetNamespace(),
 		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
 				{
 					Name:       "grpc",
 					Port:       50051,
@@ -74,11 +77,16 @@ func (s *grpcCatalogSourceDecorator) Service() *v1.Service {
 			Selector: s.Labels(),
 		},
 	}
+
+	labels := map[string]string{}
+	hash := HashServiceSpec(svc.Spec)
+	labels[ServiceHashLabelKey] = hash
+	svc.SetLabels(labels)
 	ownerutil.AddOwner(svc, s.CatalogSource, false, false)
 	return svc
 }
 
-func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
+func (s *grpcCatalogSourceDecorator) Pod() *corev1.Pod {
 	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, s.Labels(), 5, 10)
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
 	return pod
@@ -93,7 +101,7 @@ type GrpcRegistryReconciler struct {
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
 
-func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorator) *v1.Service {
+func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorator) *corev1.Service {
 	serviceName := source.Service().GetName()
 	service, err := c.Lister.CoreV1().ServiceLister().Services(source.GetNamespace()).Get(serviceName)
 	if err != nil {
@@ -103,7 +111,7 @@ func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorato
 	return service
 }
 
-func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) []*v1.Pod {
+func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) []*corev1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.Selector())
 	if err != nil {
 		logrus.WithError(err).Warn("couldn't find pod in cache")
@@ -115,7 +123,7 @@ func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) 
 	return pods
 }
 
-func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecorator) []*v1.Pod {
+func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecorator) []*corev1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.SelectorForUpdate())
 	if err != nil {
 		logrus.WithError(err).Warn("couldn't find pod in cache")
@@ -127,13 +135,13 @@ func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecor
 	return pods
 }
 
-func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogSourceDecorator) []*v1.Pod {
+func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogSourceDecorator) []*corev1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
 		logrus.WithError(err).Warn("couldn't find pod in cache")
 		return nil
 	}
-	found := []*v1.Pod{}
+	found := []*corev1.Pod{}
 	for _, p := range pods {
 		if p.Spec.Containers[0].Image == source.Spec.Image {
 			found = append(found, p)
@@ -262,8 +270,9 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 
 func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator, overwrite bool) error {
 	service := source.Service()
-	if c.currentService(source) != nil {
-		if !overwrite {
+	svc := c.currentService(source)
+	if svc != nil {
+		if !overwrite && ServiceHashMatch(svc, service) {
 			return nil
 		}
 		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil {
@@ -272,6 +281,39 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 	}
 	_, err := c.OpClient.CreateService(service)
 	return err
+}
+
+// ServiceHashMatch will check the hash info in existing Service to ensure its
+// hash info matches the desired Service's hash.
+func ServiceHashMatch(existing, new *corev1.Service) bool {
+	labels := existing.GetLabels()
+	newLabels := new.GetLabels()
+	if len(labels) == 0 || len(newLabels) == 0 {
+		return false
+	}
+
+	existingSvcSpecHash, ok := labels[ServiceHashLabelKey]
+	if !ok {
+		return false
+	}
+
+	newSvcSpecHash, ok := newLabels[ServiceHashLabelKey]
+	if !ok {
+		return false
+	}
+
+	if existingSvcSpecHash != newSvcSpecHash {
+		return false
+	}
+
+	return true
+}
+
+// HashServiceSpec calculates a hash given a copy of the service spec
+func HashServiceSpec(spec corev1.ServiceSpec) string {
+	hasher := fnv.New32a()
+	hashutil.DeepHashObject(hasher, &spec)
+	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
 }
 
 // createUpdatePod is an internal method that creates a pod using the latest catalog source.
@@ -343,7 +385,7 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.Cat
 // By updating the catalog on cluster it promotes the update pod to act as the new version of the catalog on-cluster.
 func (c *GrpcRegistryReconciler) promoteCatalog(updatePod *corev1.Pod, key string) error {
 	// Update the update pod to promote it to serving pod via the SSA client
-	err := c.SSAClient.Apply(context.TODO(), updatePod, func(p *v1.Pod) error {
+	err := c.SSAClient.Apply(context.TODO(), updatePod, func(p *corev1.Pod) error {
 		p.Labels[CatalogSourceLabelKey] = key
 		p.Labels[CatalogSourceUpdateKey] = ""
 		return nil

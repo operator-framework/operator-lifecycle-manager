@@ -85,6 +85,11 @@ func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
 			Selector: s.Selector(),
 		},
 	}
+
+	labels := map[string]string{}
+	hash := HashServiceSpec(svc.Spec)
+	labels[ServiceHashLabelKey] = hash
+	svc.SetLabels(labels)
 	ownerutil.AddOwner(svc, s.CatalogSource, false, false)
 	return svc
 }
@@ -363,8 +368,9 @@ func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDec
 
 func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourceDecorator, overwrite bool) error {
 	service := source.Service()
-	if c.currentService(source) != nil {
-		if !overwrite {
+	svc := c.currentService(source)
+	if svc != nil {
+		if !overwrite && ServiceHashMatch(svc, service) {
 			return nil
 		}
 		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil {
