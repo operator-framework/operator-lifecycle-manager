@@ -1,5 +1,62 @@
 # Changelog
 
+## [v0.17.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/v0.17.0) (2020-10-30)
+
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.16.1...v0.17.0)
+
+**Closed issues:**
+
+- packagemanifests not created [\#1831](https://github.com/operator-framework/operator-lifecycle-manager/issues/1831)
+- Origin Console: http: proxy error: dial tcp 127.0.0.1:59041: connect: connection refused [\#1825](https://github.com/operator-framework/operator-lifecycle-manager/issues/1825)
+- no matches for kind "CustomResourceDefinition" in version "apiextensions.k8s.io/v1" [\#1818](https://github.com/operator-framework/operator-lifecycle-manager/issues/1818)
+- Catalogsource of type internal are going into crashloopbackoff state [\#1806](https://github.com/operator-framework/operator-lifecycle-manager/issues/1806)
+- OLM 0.16.1 allows downgrading a dependency to older version by switching channels. [\#1772](https://github.com/operator-framework/operator-lifecycle-manager/issues/1772)
+- olm spin loop when trying to install operator [\#1757](https://github.com/operator-framework/operator-lifecycle-manager/issues/1757)
+- Find a typo in the installplan error message [\#1740](https://github.com/operator-framework/operator-lifecycle-manager/issues/1740)
+- New release 0.16.1 request for kube 1.19 fixes [\#1663](https://github.com/operator-framework/operator-lifecycle-manager/issues/1663)
+- Questions about the all namespaces and single namespace install mode [\#1506](https://github.com/operator-framework/operator-lifecycle-manager/issues/1506)
+- Method to trigger catalog container refresh [\#1469](https://github.com/operator-framework/operator-lifecycle-manager/issues/1469)
+- TestCatalogImageUpdate e2e test does not work locally on kind clusters [\#1380](https://github.com/operator-framework/operator-lifecycle-manager/issues/1380)
+- What is the best practice to upgrade operator nightly builds using OLM? [\#1321](https://github.com/operator-framework/operator-lifecycle-manager/issues/1321)
+
+**Other changes:**
+
+- Generate manifests for v0.17.0. [\#1849](https://github.com/operator-framework/operator-lifecycle-manager/pull/1849) ([benluddy](https://github.com/benluddy))
+- Bump version to 0.17.0. [\#1842](https://github.com/operator-framework/operator-lifecycle-manager/pull/1842) ([benluddy](https://github.com/benluddy))
+- Bug 1891898: Set default, min, and max values on Webhook ports [\#1835](https://github.com/operator-framework/operator-lifecycle-manager/pull/1835) ([awgreene](https://github.com/awgreene))
+- Bug 1889838: fix race in Operator reconcilation [\#1823](https://github.com/operator-framework/operator-lifecycle-manager/pull/1823) ([sjenning](https://github.com/sjenning))
+- Bug 1888073: prevent no-op hotlooping on Operators [\#1816](https://github.com/operator-framework/operator-lifecycle-manager/pull/1816) ([sjenning](https://github.com/sjenning))
+- \[release-4.5\] Bug 1887944: ensure installplan step resource manifests reference configmaps [\#1809](https://github.com/operator-framework/operator-lifecycle-manager/pull/1809) ([exdx](https://github.com/exdx))
+- Bug 1879248: OLM mounts CA Certs where Kubebuilder expects [\#1808](https://github.com/operator-framework/operator-lifecycle-manager/pull/1808) ([awgreene](https://github.com/awgreene))
+- fix typo [\#1807](https://github.com/operator-framework/operator-lifecycle-manager/pull/1807) ([dongwenjuan](https://github.com/dongwenjuan))
+- Bug 1885403: Improve transitionCSVState error logs [\#1803](https://github.com/operator-framework/operator-lifecycle-manager/pull/1803) ([awgreene](https://github.com/awgreene))
+- Updating operator-lifecycle-manager builder & base images to be consistent with ART [\#1799](https://github.com/operator-framework/operator-lifecycle-manager/pull/1799) ([jupierce](https://github.com/jupierce))
+- Bug 1880473: remove extraneous manifests in installplan  [\#1798](https://github.com/operator-framework/operator-lifecycle-manager/pull/1798) ([exdx](https://github.com/exdx))
+- Bug 1885398: Retrieve CA from conversion webhooks for CA Hash [\#1797](https://github.com/operator-framework/operator-lifecycle-manager/pull/1797) ([awgreene](https://github.com/awgreene))
+- Bug 1884641: Regenerate downstream InstallPlan CRD manifest. [\#1791](https://github.com/operator-framework/operator-lifecycle-manager/pull/1791) ([benluddy](https://github.com/benluddy))
+- Bug 1881222: Annotate CSVs with the properties used during dependency resolution. [\#1781](https://github.com/operator-framework/operator-lifecycle-manager/pull/1781) ([benluddy](https://github.com/benluddy))
+- Bug 1882077: Bump k8s dependencies to v0.18.9 [\#1775](https://github.com/operator-framework/operator-lifecycle-manager/pull/1775) ([njhale](https://github.com/njhale))
+- Bug 1881584: fix check from previous polling implementation [\#1773](https://github.com/operator-framework/operator-lifecycle-manager/pull/1773) ([exdx](https://github.com/exdx))
+- BUG 1872584: Fix conversion webhooks [\#1767](https://github.com/operator-framework/operator-lifecycle-manager/pull/1767) ([awgreene](https://github.com/awgreene))
+- Bug 1873030: Make a subscription without at least one candidate fail resolution. [\#1766](https://github.com/operator-framework/operator-lifecycle-manager/pull/1766) ([benluddy](https://github.com/benluddy))
+- Bug 1878163: Updating Dockerfile baseimages to mach ocp-build-data config [\#1763](https://github.com/operator-framework/operator-lifecycle-manager/pull/1763) ([openshift-bot](https://github.com/openshift-bot))
+- Bug 1868712: OLM should reuse existing CA if they have not expired [\#1761](https://github.com/operator-framework/operator-lifecycle-manager/pull/1761) ([awgreene](https://github.com/awgreene))
+- doc: default polling behavior  [\#1756](https://github.com/operator-framework/operator-lifecycle-manager/pull/1756) ([exdx](https://github.com/exdx))
+- Bug 1877835: update catalog image pull policy [\#1755](https://github.com/operator-framework/operator-lifecycle-manager/pull/1755) ([exdx](https://github.com/exdx))
+- Genereate 0.16.1 changelog [\#1751](https://github.com/operator-framework/operator-lifecycle-manager/pull/1751) ([awgreene](https://github.com/awgreene))
+- 0.16.1 Release: Generate Manifests [\#1750](https://github.com/operator-framework/operator-lifecycle-manager/pull/1750) ([awgreene](https://github.com/awgreene))
+- Bug 1875247: Add package check for the channel head querying [\#1748](https://github.com/operator-framework/operator-lifecycle-manager/pull/1748) ([jianzhangbjz](https://github.com/jianzhangbjz))
+- Bug 1874938: Set RevisionHistoryLimit per Deployment [\#1745](https://github.com/operator-framework/operator-lifecycle-manager/pull/1745) ([awgreene](https://github.com/awgreene))
+- fix typo in the error message [\#1741](https://github.com/operator-framework/operator-lifecycle-manager/pull/1741) ([horis233](https://github.com/horis233))
+- Bug 1869441: Add skips information to Operator representation [\#1735](https://github.com/operator-framework/operator-lifecycle-manager/pull/1735) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- Bug 1829735: fix\(operator\): map top-level csv phase to component conditions  [\#1732](https://github.com/operator-framework/operator-lifecycle-manager/pull/1732) ([njhale](https://github.com/njhale))
+- Bug 1867802: shorten catalog sync interval if polling is enabled [\#1731](https://github.com/operator-framework/operator-lifecycle-manager/pull/1731) ([exdx](https://github.com/exdx))
+- Bug 1870453: Should not compare the digest if cannot the new update pod's imageID [\#1729](https://github.com/operator-framework/operator-lifecycle-manager/pull/1729) ([jianzhangbjz](https://github.com/jianzhangbjz))
+- Bug 1866444: remove duplicate catalog source pod when polling [\#1723](https://github.com/operator-framework/operator-lifecycle-manager/pull/1723) ([exdx](https://github.com/exdx))
+- Replace assertions in Catalog-e2e to use Gomega's Matcher library [\#1502](https://github.com/operator-framework/operator-lifecycle-manager/pull/1502) ([harishsurf](https://github.com/harishsurf))
+- Convert scoped\_client\_test to ginkgo [\#1500](https://github.com/operator-framework/operator-lifecycle-manager/pull/1500) ([harishsurf](https://github.com/harishsurf))
+- doc: add reporting bugs doc and small nit improvements in the README [\#1480](https://github.com/operator-framework/operator-lifecycle-manager/pull/1480) ([camilamacedo86](https://github.com/camilamacedo86))
+
 ## [0.16.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.16.1) (2020-09-04)
 
 [Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.16.1...0.16.1)
@@ -158,8 +215,6 @@
 - feat: add uninstall makefile target [\#1438](https://github.com/operator-framework/operator-lifecycle-manager/pull/1438) ([camilamacedo86](https://github.com/camilamacedo86))
 - Doc: Remove legacy webhook proposal [\#1379](https://github.com/operator-framework/operator-lifecycle-manager/pull/1379) ([awgreene](https://github.com/awgreene))
 
-# Changelog
-
 ## [0.15.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.15.1) (2020-05-21)
 
 [Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.15.0...0.15.1)
@@ -282,8 +337,6 @@
 - Bug 1762769: Prioritize APIs from same CatSrc [\#1080](https://github.com/operator-framework/operator-lifecycle-manager/pull/1080) ([awgreene](https://github.com/awgreene))
 - Lock down package server runtime environment [\#1073](https://github.com/operator-framework/operator-lifecycle-manager/pull/1073) ([javanthropus](https://github.com/javanthropus))
 
-# Changelog
-
 ## [0.14.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.14.1) (2020-01-30)
 
 [Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.14.0...0.14.1)
@@ -378,8 +431,6 @@
 - Use the grpc response as the source of truth for update graph data [\#1105](https://github.com/operator-framework/operator-lifecycle-manager/pull/1105) ([ecordell](https://github.com/ecordell))
 - doc: add internal image proposal [\#1097](https://github.com/operator-framework/operator-lifecycle-manager/pull/1097) ([robszumski](https://github.com/robszumski))
 - Bug 1763749: Prioritize APIs from same CatSrc [\#1091](https://github.com/operator-framework/operator-lifecycle-manager/pull/1091) ([awgreene](https://github.com/awgreene))
-
-# Changelog
 
 ## [0.13.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.13.0) (2019-11-15)
 
