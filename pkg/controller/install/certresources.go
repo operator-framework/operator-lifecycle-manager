@@ -22,6 +22,10 @@ var _ certResource = &apiServiceDescriptionsWithCAPEM{}
 
 var _ certResource = &webhookDescriptionWithCAPEM{}
 
+// TODO: to keep refactoring minimal for backports, this is factored out here so that it can be replaced
+// during tests. but it should be properly injected instead.
+var certGenerator certs.CertGenerator = certs.CertGeneratorFunc(certs.CreateSignedServingPair)
+
 const (
 	// DefaultCertMinFresh is the default min-fresh value - 1 day
 	DefaultCertMinFresh = time.Hour * 24
@@ -256,7 +260,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		fmt.Sprintf("%s.%s", service.GetName(), i.owner.GetNamespace()),
 		fmt.Sprintf("%s.%s.svc", service.GetName(), i.owner.GetNamespace()),
 	}
-	servingPair, err := certs.CreateSignedServingPair(rotateAt, Organization, ca, hosts)
+	servingPair, err := certGenerator.Generate(rotateAt, Organization, ca, hosts)
 	if err != nil {
 		logger.Warnf("could not generate signed certs for hosts %v", hosts)
 		return nil, nil, err
