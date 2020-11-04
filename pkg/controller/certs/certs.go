@@ -15,6 +15,18 @@ import (
 	"time"
 )
 
+type CertGenerator interface {
+  Generate(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error)
+}
+
+type CertGeneratorFunc func(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error)
+
+func (f CertGeneratorFunc) Generate(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error)  {
+	return f(notAfter, organization, ca, hosts)
+}
+
+var _ CertGenerator = CertGeneratorFunc(CreateSignedServingPair)
+
 // KeyPair stores an x509 certificate and its ECDSA private key
 type KeyPair struct {
 	Cert *x509.Certificate

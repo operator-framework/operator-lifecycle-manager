@@ -13,6 +13,15 @@ import (
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_service_account_lister.go k8s.io/client-go/listers/core/v1.ServiceAccountLister
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_service_account_namespace_lister.go k8s.io/client-go/listers/core/v1.ServiceAccountNamespaceLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_service_lister.go k8s.io/client-go/listers/core/v1.ServiceLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_service_namespace_lister.go k8s.io/client-go/listers/core/v1.ServiceNamespaceLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_secret_lister.go k8s.io/client-go/listers/core/v1.SecretLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_secret_namespace_lister.go k8s.io/client-go/listers/core/v1.SecretNamespaceLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_rbac_v1_role_lister.go k8s.io/client-go/listers/rbac/v1.RoleLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_rbac_v1_role_namespace_lister.go k8s.io/client-go/listers/rbac/v1.RoleNamespaceLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_rbac_v1_rolebinding_lister.go k8s.io/client-go/listers/rbac/v1.RoleBindingLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_rbac_v1_rolebinding_namespace_lister.go k8s.io/client-go/listers/rbac/v1.RoleBindingNamespaceLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_rbac_v1_clusterrolebinding_lister.go k8s.io/client-go/listers/rbac/v1.ClusterRoleBindingLister
 
 // OperatorLister is a union of versioned informer listers
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorLister
