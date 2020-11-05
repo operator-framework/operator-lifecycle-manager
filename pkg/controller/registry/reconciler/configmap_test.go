@@ -348,6 +348,24 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 		},
 		{
+			testName: "ExistingRegistry/BadServiceWithWrongHash",
+			in: in{
+				cluster: cluster{
+					k8sObjs: append(setLabel(objectsForCatalogSource(validCatalogSource), &corev1.Service{}, ServiceHashLabelKey, "wrongHash"), validConfigMap),
+				},
+				catsrc: validCatalogSource,
+			},
+			out: out{
+				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        now(),
+					Protocol:         "grpc",
+					ServiceName:      "cool-catalog",
+					ServiceNamespace: testNamespace,
+					Port:             "50051",
+				},
+			},
+		},
+		{
 			testName: "ExistingRegistry/BadPod",
 			in: in{
 				cluster: cluster{
