@@ -26,7 +26,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/version"
 )
 
-// Config contains configuration for launching an instance of metrics-server.
+// Config contains configuration for launching an instance of package-server.
 type Config struct {
 	GenericConfig  *genericapiserver.Config
 	ProviderConfig generic.ProviderConfig
