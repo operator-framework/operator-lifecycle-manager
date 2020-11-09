@@ -11,6 +11,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 )
 
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_service_account_lister.go k8s.io/client-go/listers/core/v1.ServiceAccountLister
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_service_account_namespace_lister.go k8s.io/client-go/listers/core/v1.ServiceAccountNamespaceLister
+
 // OperatorLister is a union of versioned informer listers
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorLister
 type OperatorLister interface {
