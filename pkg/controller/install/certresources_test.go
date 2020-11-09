@@ -106,6 +106,17 @@ func newFakeLister(state fakeState) *operatorlisterfakes.FakeOperatorLister {
 }
 
 func TestInstallCertRequirementsForDeployment(t *testing.T) {
+	owner := ownerutil.Owner(&v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "owner",
+			Namespace: "test-namespace",
+			UID:       "123-uid",
+		},
+	})
 	ca := keyPair(t, time.Now().Add(time.Hour))
 	caPEM, _, err := ca.ToPEM()
 	assert.NoError(t, err)
@@ -143,7 +154,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				mockOpClient.EXPECT().DeleteService(namespace, "test-service", &metav1.DeleteOptions{}).Return(nil)
 				service := corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:            "test-service",
+						Name: "test-service",
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(&v1alpha1.ClusterServiceVersion{}),
 						},
@@ -168,13 +179,14 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 
 				secret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service-cert",
-						Namespace: namespace,
+						Name:        "test-service-cert",
+						Namespace:   namespace,
 						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
 					},
 					Data: map[string][]byte{
-						"tls.crt": certPEM,
-						"tls.key": privPEM,
+						"tls.crt":   certPEM,
+						"tls.key":   privPEM,
+						OLMCAPEMKey: caPEM,
 					},
 					Type: corev1.SecretTypeTLS,
 				}
@@ -328,6 +340,241 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 									},
 								},
 							},
+							{
+								Name: "webhook-cert",
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
+										SecretName: "test-service-cert",
+										Items: []corev1.KeyToPath{
+											{
+												Key:  "tls.crt",
+												Path: "tls.crt",
+											},
+											{
+												Key:  "tls.key",
+												Path: "tls.key",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "doesn't add duplicate service ownerrefs",
+			mockExternal: func(mockOpClient *operatorclientmocks.MockClientInterface, fakeLister *operatorlisterfakes.FakeOperatorLister, namespace string, args args) {
+				mockOpClient.EXPECT().DeleteService(namespace, "test-service", &metav1.DeleteOptions{}).Return(nil)
+				service := corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-service",
+						Namespace: owner.GetNamespace(),
+						OwnerReferences: []metav1.OwnerReference{
+							ownerutil.NonBlockingOwner(owner),
+						},
+					},
+					Spec: corev1.ServiceSpec{
+						Ports:    args.ports,
+						Selector: selector(t, "test=label").MatchLabels,
+					},
+				}
+				mockOpClient.EXPECT().CreateService(&service).Return(&service, nil)
+
+				hosts := []string{
+					fmt.Sprintf("%s.%s", service.GetName(), namespace),
+					fmt.Sprintf("%s.%s.svc", service.GetName(), namespace),
+				}
+				servingPair, err := certGenerator.Generate(args.rotateAt, Organization, args.ca, hosts)
+				require.NoError(t, err)
+
+				// Create Secret for serving cert
+				certPEM, privPEM, err := servingPair.ToPEM()
+				require.NoError(t, err)
+
+				secret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-service-cert",
+						Namespace:   namespace,
+						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
+					},
+					Data: map[string][]byte{
+						"tls.crt":   certPEM,
+						"tls.key":   privPEM,
+						OLMCAPEMKey: caPEM,
+					},
+					Type: corev1.SecretTypeTLS,
+				}
+				mockOpClient.EXPECT().UpdateSecret(secret).Return(secret, nil)
+
+				secretRole := &rbacv1.Role{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secret.GetName(),
+						Namespace: namespace,
+					},
+					Rules: []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{secret.GetName()},
+						},
+					},
+				}
+				mockOpClient.EXPECT().UpdateRole(secretRole).Return(secretRole, nil)
+
+				roleBinding := &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secret.GetName(),
+						Namespace: namespace,
+					},
+					Subjects: []rbacv1.Subject{
+						{
+							Kind:      "ServiceAccount",
+							APIGroup:  "",
+							Name:      "test-sa",
+							Namespace: namespace,
+						},
+					},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "Role",
+						Name:     secretRole.GetName(),
+					},
+				}
+				mockOpClient.EXPECT().UpdateRoleBinding(roleBinding).Return(roleBinding, nil)
+
+				authDelegatorClusterRoleBinding := &rbacv1.ClusterRoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: service.GetName() + "-system:auth-delegator",
+					},
+					Subjects: []rbacv1.Subject{
+						{
+							Kind:      "ServiceAccount",
+							APIGroup:  "",
+							Name:      "test-sa",
+							Namespace: namespace,
+						},
+					},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "ClusterRole",
+						Name:     "system:auth-delegator",
+					},
+				}
+
+				mockOpClient.EXPECT().UpdateClusterRoleBinding(authDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, nil)
+
+				authReaderRoleBinding := &rbacv1.RoleBinding{
+					Subjects: []rbacv1.Subject{
+						{
+							Kind:      "ServiceAccount",
+							APIGroup:  "",
+							Name:      args.depSpec.Template.Spec.ServiceAccountName,
+							Namespace: namespace,
+						},
+					},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "Role",
+						Name:     "extension-apiserver-authentication-reader",
+					},
+				}
+				authReaderRoleBinding.SetName(service.GetName() + "-auth-reader")
+				authReaderRoleBinding.SetNamespace(KubeSystem)
+
+				mockOpClient.EXPECT().UpdateRoleBinding(authReaderRoleBinding).Return(authReaderRoleBinding, nil)
+			},
+			state: fakeState{
+				existingService: &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: owner.GetNamespace(),
+						OwnerReferences: []metav1.OwnerReference{
+							ownerutil.NonBlockingOwner(owner),
+						},
+					},
+				},
+				existingSecret: &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{},
+				},
+				existingRole: &rbacv1.Role{
+					ObjectMeta: metav1.ObjectMeta{},
+				},
+				existingRoleBinding: &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{},
+				},
+				existingClusterRoleBinding: &rbacv1.ClusterRoleBinding{
+					ObjectMeta: metav1.ObjectMeta{},
+				},
+			},
+			fields: fields{
+				owner:                  owner,
+				previousStrategy:       nil,
+				templateAnnotations:    nil,
+				initializers:           nil,
+				apiServiceDescriptions: []certResource{},
+				webhookDescriptions:    []certResource{},
+			},
+			args: args{
+				deploymentName: "test",
+				ca:             ca,
+				rotateAt:       time.Now().Add(time.Hour),
+				ports:          []corev1.ServicePort{},
+				depSpec: appsv1.DeploymentSpec{
+					Selector: selector(t, "test=label"),
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							ServiceAccountName: "test-sa",
+						},
+					},
+				},
+			},
+			want: &appsv1.DeploymentSpec{
+				Selector: selector(t, "test=label"),
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
+					},
+					Spec: corev1.PodSpec{
+						ServiceAccountName: "test-sa",
+						Volumes: []corev1.Volume{
+							{
+								Name: "apiservice-cert",
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
+										SecretName: "test-service-cert",
+										Items: []corev1.KeyToPath{
+											{
+												Key:  "tls.crt",
+												Path: "apiserver.crt",
+											},
+											{
+												Key:  "tls.key",
+												Path: "apiserver.key",
+											},
+										},
+									},
+								},
+							},
+							{
+								Name: "webhook-cert",
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
+										SecretName: "test-service-cert",
+										Items: []corev1.KeyToPath{
+											{
+												Key:  "tls.crt",
+												Path: "tls.crt",
+											},
+											{
+												Key:  "tls.key",
+												Path: "tls.key",
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -355,13 +602,13 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				apiServiceDescriptions: tt.fields.apiServiceDescriptions,
 				webhookDescriptions:    tt.fields.webhookDescriptions,
 			}
-			got, err := i.installCertRequirementsForDeployment(tt.args.deploymentName, tt.args.ca, tt.args.rotateAt, tt.args.depSpec, tt.args.ports)
+			got, _, err := i.installCertRequirementsForDeployment(tt.args.deploymentName, tt.args.ca, tt.args.rotateAt, tt.args.depSpec, tt.args.ports)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("installCertRequirementsForDeployment() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("installCertRequirementsForDeployment() got = %v, want %v", got, tt.want)
+				t.Errorf("installCertRequirementsForDeployment() \n got  = %v \n want = %v", got, tt.want)
 			}
 		})
 	}

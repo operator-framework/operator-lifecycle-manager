@@ -566,6 +566,7 @@ func AddDefaultCertVolumeAndVolumeMounts(depSpec *appsv1.DeploymentSpec, secretN
 	}
 	addCertVolumeAndVolumeMount(depSpec, volume, mount)
 }
+
 func addCertVolumeAndVolumeMount(depSpec *appsv1.DeploymentSpec, volume corev1.Volume, volumeMount corev1.VolumeMount) {
 	replaced := false
 	for i, v := range depSpec.Template.Spec.Volumes {
