@@ -33,6 +33,7 @@ import (
 	"helm.sh/helm/v3/pkg/postrender"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/releaseutil"
+	"helm.sh/helm/v3/pkg/storage/driver"
 )
 
 // Upgrade is the action for upgrading releases.
@@ -114,7 +115,7 @@ func (u *Upgrade) Run(name string, chart *chart.Chart, vals map[string]interface
 	// the user doesn't have to specify both
 	u.Wait = u.Wait || u.Atomic
 
-	if err := validateReleaseName(name); err != nil {
+	if err := chartutil.ValidateReleaseName(name); err != nil {
 		return nil, errors.Errorf("release name is invalid: %s", name)
 	}
 	u.cfg.Log("preparing upgrade for %s", name)
@@ -141,28 +142,42 @@ func (u *Upgrade) Run(name string, chart *chart.Chart, vals map[string]interface
 	return res, nil
 }
 
-func validateReleaseName(releaseName string) error {
-	if releaseName == "" {
-		return errMissingRelease
-	}
-
-	if !ValidName.MatchString(releaseName) || (len(releaseName) > releaseNameMaxLen) {
-		return errInvalidName
-	}
-
-	return nil
-}
-
 // prepareUpgrade builds an upgraded release for an upgrade operation.
 func (u *Upgrade) prepareUpgrade(name string, chart *chart.Chart, vals map[string]interface{}) (*release.Release, *release.Release, error) {
 	if chart == nil {
 		return nil, nil, errMissingChart
 	}
 
-	// finds the deployed release with the given name
-	currentRelease, err := u.cfg.Releases.Deployed(name)
+	// finds the last non-deleted release with the given name
+	lastRelease, err := u.cfg.Releases.Last(name)
 	if err != nil {
+		// to keep existing behavior of returning the "%q has no deployed releases" error when an existing release does not exist
+		if errors.Is(err, driver.ErrReleaseNotFound) {
+			return nil, nil, driver.NewErrNoDeployedReleases(name)
+		}
 		return nil, nil, err
+	}
+
+	// Concurrent `helm upgrade`s will either fail here with `errPending` or when creating the release with "already exists". This should act as a pessimistic lock.
+	if lastRelease.Info.Status.IsPending() {
+		return nil, nil, errPending
+	}
+
+	var currentRelease *release.Release
+	if lastRelease.Info.Status == release.StatusDeployed {
+		// no need to retrieve the last deployed release from storage as the last release is deployed
+		currentRelease = lastRelease
+	} else {
+		// finds the deployed release with the given name
+		currentRelease, err = u.cfg.Releases.Deployed(name)
+		if err != nil {
+			if errors.Is(err, driver.ErrNoDeployedReleases) &&
+				(lastRelease.Info.Status == release.StatusFailed || lastRelease.Info.Status == release.StatusSuperseded) {
+				currentRelease = lastRelease
+			} else {
+				return nil, nil, err
+			}
+		}
 	}
 
 	// determine if values will be reused
@@ -172,12 +187,6 @@ func (u *Upgrade) prepareUpgrade(name string, chart *chart.Chart, vals map[strin
 	}
 
 	if err := chartutil.ProcessDependencies(chart, vals); err != nil {
-		return nil, nil, err
-	}
-
-	// finds the non-deleted release with the given name
-	lastRelease, err := u.cfg.Releases.Last(name)
-	if err != nil {
 		return nil, nil, err
 	}
 
@@ -201,7 +210,7 @@ func (u *Upgrade) prepareUpgrade(name string, chart *chart.Chart, vals map[strin
 		return nil, nil, err
 	}
 
-	hooks, manifestDoc, notesTxt, err := u.cfg.renderResources(chart, valuesToRender, "", "", u.SubNotes, false, false, u.PostRenderer)
+	hooks, manifestDoc, notesTxt, err := u.cfg.renderResources(chart, valuesToRender, "", "", u.SubNotes, false, false, u.PostRenderer, u.DryRun)
 	if err != nil {
 		return nil, nil, err
 	}
