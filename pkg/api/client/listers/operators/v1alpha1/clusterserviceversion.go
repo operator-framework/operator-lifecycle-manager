@@ -26,8 +26,10 @@ import (
 )
 
 // ClusterServiceVersionLister helps list ClusterServiceVersions.
+// All objects returned here must be treated as read-only.
 type ClusterServiceVersionLister interface {
 	// List lists all ClusterServiceVersions in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.ClusterServiceVersion, err error)
 	// ClusterServiceVersions returns an object that can list and get ClusterServiceVersions.
 	ClusterServiceVersions(namespace string) ClusterServiceVersionNamespaceLister
@@ -58,10 +60,13 @@ func (s *clusterServiceVersionLister) ClusterServiceVersions(namespace string) C
 }
 
 // ClusterServiceVersionNamespaceLister helps list and get ClusterServiceVersions.
+// All objects returned here must be treated as read-only.
 type ClusterServiceVersionNamespaceLister interface {
 	// List lists all ClusterServiceVersions in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.ClusterServiceVersion, err error)
 	// Get retrieves the ClusterServiceVersion from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.ClusterServiceVersion, error)
 	ClusterServiceVersionNamespaceListerExpansion
 }

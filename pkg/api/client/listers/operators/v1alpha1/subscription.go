@@ -26,8 +26,10 @@ import (
 )
 
 // SubscriptionLister helps list Subscriptions.
+// All objects returned here must be treated as read-only.
 type SubscriptionLister interface {
 	// List lists all Subscriptions in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Subscription, err error)
 	// Subscriptions returns an object that can list and get Subscriptions.
 	Subscriptions(namespace string) SubscriptionNamespaceLister
@@ -58,10 +60,13 @@ func (s *subscriptionLister) Subscriptions(namespace string) SubscriptionNamespa
 }
 
 // SubscriptionNamespaceLister helps list and get Subscriptions.
+// All objects returned here must be treated as read-only.
 type SubscriptionNamespaceLister interface {
 	// List lists all Subscriptions in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Subscription, err error)
 	// Get retrieves the Subscription from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.Subscription, error)
 	SubscriptionNamespaceListerExpansion
 }

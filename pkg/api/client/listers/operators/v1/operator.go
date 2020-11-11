@@ -26,10 +26,13 @@ import (
 )
 
 // OperatorLister helps list Operators.
+// All objects returned here must be treated as read-only.
 type OperatorLister interface {
 	// List lists all Operators in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.Operator, err error)
 	// Get retrieves the Operator from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.Operator, error)
 	OperatorListerExpansion
 }

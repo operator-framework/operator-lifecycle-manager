@@ -26,8 +26,10 @@ import (
 )
 
 // OperatorGroupLister helps list OperatorGroups.
+// All objects returned here must be treated as read-only.
 type OperatorGroupLister interface {
 	// List lists all OperatorGroups in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha2.OperatorGroup, err error)
 	// OperatorGroups returns an object that can list and get OperatorGroups.
 	OperatorGroups(namespace string) OperatorGroupNamespaceLister
@@ -58,10 +60,13 @@ func (s *operatorGroupLister) OperatorGroups(namespace string) OperatorGroupName
 }
 
 // OperatorGroupNamespaceLister helps list and get OperatorGroups.
+// All objects returned here must be treated as read-only.
 type OperatorGroupNamespaceLister interface {
 	// List lists all OperatorGroups in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha2.OperatorGroup, err error)
 	// Get retrieves the OperatorGroup from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha2.OperatorGroup, error)
 	OperatorGroupNamespaceListerExpansion
 }
