@@ -14,7 +14,6 @@ import (
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/apiserver/pkg/storage/names"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -90,10 +89,8 @@ func NewStepResourceFromObject(obj runtime.Object, catalogSourceName, catalogSou
 func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1alpha1.StepResource, error) {
 	return NewStepResourceFromObject(&v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name: names.SimpleNameGenerator.GenerateName(
-				strings.ToLower(
-					fmt.Sprintf("%s-%s-%s-%s-", info.Package, info.Channel, info.Catalog.Name, info.Catalog.Namespace))),
+			Namespace:    namespace,
+			GenerateName: strings.ToLower(fmt.Sprintf("%s-%s-%s-%s-", info.Package, info.Channel, info.Catalog.Name, info.Catalog.Namespace)),
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			CatalogSource:          info.Catalog.Name,

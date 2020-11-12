@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1031,8 +1032,8 @@ func bundleSteps(bundle *api.Bundle, ns, replaces string, catalog registry.Catal
 func subSteps(namespace, operatorName, pkgName, channelName string, catalog registry.CatalogKey) []*v1alpha1.Step {
 	sub := &v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      strings.Join([]string{pkgName, channelName, catalog.Name, catalog.Namespace}, "-"),
-			Namespace: namespace,
+			Namespace:    namespace,
+			GenerateName: strings.ToLower(fmt.Sprintf("%s-%s-%s-%s-", pkgName, channelName, catalog.Name, catalog.Namespace)),
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			Package:                pkgName,
