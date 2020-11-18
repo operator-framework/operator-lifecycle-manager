@@ -243,7 +243,12 @@ var _ = Describe("Subscription", func() {
 		require.Equal(GinkgoT(), v1alpha1.ApprovalManual, newInstallPlan.Spec.Approval)
 		require.Equal(GinkgoT(), v1alpha1.InstallPlanPhaseRequiresApproval, newInstallPlan.Status.Phase)
 
-		newInstallPlan.Spec.Approved = true
+		// Set the InstallPlan's approved to True
+		Eventually(Apply(newInstallPlan, func(p *v1alpha1.InstallPlan) error {
+			p.Spec.Approved = true
+			return nil
+		})).Should(Succeed())
+
 		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), newInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 

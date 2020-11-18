@@ -1172,6 +1172,63 @@ func TestInstallPlanReconcile(t *testing.T) {
 			},
 		},
 		{
+			description: "SubscriptionExistsToInstallPlanNotFound/SubscriptionStateUpgradePending/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									LastUpdated: earlier,
+									State:       v1alpha1.SubscriptionStateUpgradePending,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: earlier,
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+						},
+						State: v1alpha1.SubscriptionStateUpgradePending,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanMissingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						LastUpdated: now,
+						State:       v1alpha1.SubscriptionStateNone,
+					},
+				}),
+			},
+		},
+		{
 			description: "SubscriptionExistsToInstallPlanPending/Installing/Conditions/NoChanges",
 			fields: fields{
 				config: &fakeReconcilerConfig{

@@ -385,12 +385,22 @@ func (i *installPlanReferencedState) InstallPlanNotFound(now *metav1.Time, clien
 	// Remove pending and failed conditions
 	out.Status.RemoveConditions(v1alpha1.SubscriptionInstallPlanPending, v1alpha1.SubscriptionInstallPlanFailed)
 
-	// Set missing condition to true
-	missingCond := out.Status.GetCondition(v1alpha1.SubscriptionInstallPlanMissing)
-	missingCond.Status = corev1.ConditionTrue
-	missingCond.Reason = v1alpha1.ReferencedInstallPlanNotFound
-	missingCond.LastTransitionTime = now
-	out.Status.SetCondition(missingCond)
+	// If the installplan is missing when subscription is in pending upgrade,
+	// clear the installplan ref so the resolution can happen again
+	if in.Status.State == v1alpha1.SubscriptionStateUpgradePending {
+		out.Status.InstallPlanRef = nil
+		out.Status.Install = nil
+		out.Status.CurrentCSV = ""
+		out.Status.State = v1alpha1.SubscriptionStateNone
+		out.Status.LastUpdated = *now
+	} else {
+		// Set missing condition to true
+		cond := out.Status.GetCondition(v1alpha1.SubscriptionInstallPlanMissing)
+		cond.Status = corev1.ConditionTrue
+		cond.Reason = v1alpha1.ReferencedInstallPlanNotFound
+		cond.LastTransitionTime = now
+		out.Status.SetCondition(cond)
+	}
 
 	// Build missing state
 	missingState := &installPlanMissingState{
