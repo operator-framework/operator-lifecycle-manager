@@ -22,6 +22,14 @@ package v1
 // OperatorLister.
 type OperatorListerExpansion interface{}
 
+// OperatorConditionListerExpansion allows custom methods to be added to
+// OperatorConditionLister.
+type OperatorConditionListerExpansion interface{}
+
+// OperatorConditionNamespaceListerExpansion allows custom methods to be added to
+// OperatorConditionNamespaceLister.
+type OperatorConditionNamespaceListerExpansion interface{}
+
 // OperatorGroupListerExpansion allows custom methods to be added to
 // OperatorGroupLister.
 type OperatorGroupListerExpansion interface{}

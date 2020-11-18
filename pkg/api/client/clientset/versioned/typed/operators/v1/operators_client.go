@@ -27,6 +27,7 @@ import (
 type OperatorsV1Interface interface {
 	RESTClient() rest.Interface
 	OperatorsGetter
+	OperatorConditionsGetter
 	OperatorGroupsGetter
 }
 
@@ -37,6 +38,10 @@ type OperatorsV1Client struct {
 
 func (c *OperatorsV1Client) Operators() OperatorInterface {
 	return newOperators(c)
+}
+
+func (c *OperatorsV1Client) OperatorConditions(namespace string) OperatorConditionInterface {
+	return newOperatorConditions(c, namespace)
 }
 
 func (c *OperatorsV1Client) OperatorGroups(namespace string) OperatorGroupInterface {

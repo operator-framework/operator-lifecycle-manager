@@ -57,6 +57,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=operators.coreos.com, Version=v1
 	case v1.SchemeGroupVersion.WithResource("operators"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1().Operators().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("operatorconditions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1().OperatorConditions().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("operatorgroups"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1().OperatorGroups().Informer()}, nil
 

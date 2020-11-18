@@ -146,7 +146,7 @@ func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) []error {
 			}
 		}
 	} else {
-		errs = append(errs, fmt.Errorf("csv.Spec.Icon not specified"))
+		errs = append(errs, errors.WarnMissingIcon("csv.Spec.Icon not specified"))
 	}
 
 	if categories, ok := csv.ObjectMeta.Annotations["categories"]; ok {
@@ -161,14 +161,14 @@ func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) []error {
 				return errs
 			}
 			for _, category := range categorySlice {
-				if _, ok := customCategories[category]; !ok {
+				if _, ok := customCategories[strings.TrimSpace(category)]; !ok {
 					errs = append(errs, fmt.Errorf("csv.Metadata.Annotations.Categories %s is not a valid custom category", category))
 				}
 			}
 		} else {
 			// use default categories
 			for _, category := range categorySlice {
-				if _, ok := validCategories[category]; !ok {
+				if _, ok := validCategories[strings.TrimSpace(category)]; !ok {
 					errs = append(errs, fmt.Errorf("csv.Metadata.Annotations.Categories %s is not a valid category", category))
 				}
 			}
