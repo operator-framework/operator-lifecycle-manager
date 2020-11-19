@@ -953,7 +953,7 @@ func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscript
 }
 
 func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
-	if sub.Status.InstallPlanRef != nil {
+	if sub.Status.InstallPlanRef != nil || sub.Status.Install != nil {
 		return sub, false, nil
 	}
 
