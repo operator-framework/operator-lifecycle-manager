@@ -26,8 +26,10 @@ import (
 )
 
 // InstallPlanLister helps list InstallPlans.
+// All objects returned here must be treated as read-only.
 type InstallPlanLister interface {
 	// List lists all InstallPlans in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.InstallPlan, err error)
 	// InstallPlans returns an object that can list and get InstallPlans.
 	InstallPlans(namespace string) InstallPlanNamespaceLister
@@ -58,10 +60,13 @@ func (s *installPlanLister) InstallPlans(namespace string) InstallPlanNamespaceL
 }
 
 // InstallPlanNamespaceLister helps list and get InstallPlans.
+// All objects returned here must be treated as read-only.
 type InstallPlanNamespaceLister interface {
 	// List lists all InstallPlans in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.InstallPlan, err error)
 	// Get retrieves the InstallPlan from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.InstallPlan, error)
 	InstallPlanNamespaceListerExpansion
 }

@@ -26,8 +26,10 @@ import (
 )
 
 // CatalogSourceLister helps list CatalogSources.
+// All objects returned here must be treated as read-only.
 type CatalogSourceLister interface {
 	// List lists all CatalogSources in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.CatalogSource, err error)
 	// CatalogSources returns an object that can list and get CatalogSources.
 	CatalogSources(namespace string) CatalogSourceNamespaceLister
@@ -58,10 +60,13 @@ func (s *catalogSourceLister) CatalogSources(namespace string) CatalogSourceName
 }
 
 // CatalogSourceNamespaceLister helps list and get CatalogSources.
+// All objects returned here must be treated as read-only.
 type CatalogSourceNamespaceLister interface {
 	// List lists all CatalogSources in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.CatalogSource, err error)
 	// Get retrieves the CatalogSource from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.CatalogSource, error)
 	CatalogSourceNamespaceListerExpansion
 }

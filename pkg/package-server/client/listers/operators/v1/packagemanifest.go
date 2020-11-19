@@ -26,8 +26,10 @@ import (
 )
 
 // PackageManifestLister helps list PackageManifests.
+// All objects returned here must be treated as read-only.
 type PackageManifestLister interface {
 	// List lists all PackageManifests in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.PackageManifest, err error)
 	// PackageManifests returns an object that can list and get PackageManifests.
 	PackageManifests(namespace string) PackageManifestNamespaceLister
@@ -58,10 +60,13 @@ func (s *packageManifestLister) PackageManifests(namespace string) PackageManife
 }
 
 // PackageManifestNamespaceLister helps list and get PackageManifests.
+// All objects returned here must be treated as read-only.
 type PackageManifestNamespaceLister interface {
 	// List lists all PackageManifests in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.PackageManifest, err error)
 	// Get retrieves the PackageManifest from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.PackageManifest, error)
 	PackageManifestNamespaceListerExpansion
 }
