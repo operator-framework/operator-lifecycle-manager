@@ -9,10 +9,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/api/errors"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -907,6 +907,69 @@ var _ = Describe("CSVs with a Webhook", func() {
 			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Path).Should(Equal(&expectedConvertPath))
 			// CRD namespace would not be updated, hence conversion webhook won't work for objects of this CRD's Kind
 			Expect(tempCrdA.Spec.Conversion.Webhook.ClientConfig.Service.Namespace).ShouldNot(Equal(csv.GetNamespace()))
+		})
+	})
+	// Test for reported case where adding a webhook to a CSV overrides the deployment annotations set on the CSV
+	// See https://github.com/operator-framework/operator-lifecycle-manager/issues/1868 for more info.
+	When("The CSV has deployment annotations under spec.install.spec.deployments.spec.template.metadata.annotations", func() {
+		var cleanupCSV cleanupFunc
+		var ogSelector *metav1.LabelSelector
+		BeforeEach(func() {
+			ogSelector = &metav1.LabelSelector{
+				MatchLabels: nsLabels,
+			}
+
+			og := newOperatorGroup(namespace.Name, genName("selector-og-"), nil, ogSelector, nil, false)
+			_, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(context.TODO(), og, metav1.CreateOptions{})
+			Expect(err).Should(BeNil())
+		})
+		AfterEach(func() {
+			if cleanupCSV != nil {
+				cleanupCSV()
+			}
+		})
+		It("The presence of the webhook should not affect the deployment annotations", func() {
+			sideEffect := admissionregistrationv1.SideEffectClassNone
+			webhook := v1alpha1.WebhookDescription{
+				GenerateName:            webhookName,
+				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				DeploymentName:          genName("webhook-dep-"),
+				ContainerPort:           443,
+				AdmissionReviewVersions: []string{"v1beta1", "v1"},
+				SideEffects:             &sideEffect,
+			}
+
+			csv := createCSVWithWebhook(namespace.GetName(), webhook)
+			// add annotations to CSV deployment
+			annotations := make(map[string]string)
+			annotations["myAnnnotation1"] = "something"
+			annotations["myAnnotation2"] = "something-else"
+			csv.Spec.InstallStrategy.StrategySpec.DeploymentSpecs[0].Spec.Template.ObjectMeta.Annotations = annotations
+
+			var err error
+			cleanupCSV, err = createCSV(c, crc, csv, namespace.Name, false, false)
+			Expect(err).Should(BeNil())
+
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, csvSucceededChecker)
+			Expect(err).Should(BeNil())
+
+			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+			Expect(err).Should(BeNil())
+
+			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(ogSelector))
+
+			// wait for deployment to come up on cluster
+			Eventually(func() error {
+				_, err := c.GetDeployment(namespace.Name, webhook.DeploymentName)
+				return err
+			}).Should(Succeed())
+
+			// check that the annotations provided are on the deployment template and the deployment pods
+			deployment, err := c.GetDeployment(namespace.Name, webhook.DeploymentName)
+			Expect(err).To(BeNil())
+			for key, val := range annotations {
+				Expect(deployment.Annotations[key]).To(Equal(val), "expected %#v, got %#v", annotations, deployment.Annotations)
+			}
 		})
 	})
 })
