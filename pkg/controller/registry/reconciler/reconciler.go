@@ -91,7 +91,7 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 	}
 }
 
-func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[string]string, readinessDelay int32, livenessDelay int32) *v1.Pod {
+func Pod(source *v1alpha1.CatalogSource, name string, image string, saName string, labels map[string]string, readinessDelay int32, livenessDelay int32) *v1.Pod {
 	// Ensure the catalog image is always pulled if the image is not based on a digest, measured by whether an "@" is included.
 	// See https://github.com/docker/distribution/blob/master/reference/reference.go for more info.
 	// This means recreating non-digest based catalog pods will result in the latest version of the catalog content being delivered on-cluster.
@@ -148,6 +148,7 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 			NodeSelector: map[string]string{
 				"kubernetes.io/os": "linux",
 			},
+			ServiceAccountName: saName,
 		},
 	}
 	return pod

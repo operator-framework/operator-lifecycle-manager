@@ -204,7 +204,7 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 		if catsrc.Spec.Image != "" {
 			decorated := grpcCatalogSourceDecorator{catsrc}
 			objs = clientfake.AddSimpleGeneratedNames(
-				decorated.Pod(),
+				decorated.Pod(""),
 				decorated.Service(),
 			)
 		}
