@@ -397,6 +397,19 @@ func TestGetPodImageID(t *testing.T) {
 			pod:         &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{ImageID: "xyz123"}}}},
 			result:      "xyz123",
 		},
+		{
+			description: "pod has two containers: return first",
+			pod: &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{
+				{ImageID: "xyz123"},
+				{ImageID: "abc456"},
+			}}},
+			result: "xyz123",
+		},
+		{
+			description: "pod has no status",
+			pod:         &corev1.Pod{Status: corev1.PodStatus{}},
+			result:      "",
+		},
 	}
 
 	for i, tt := range table {
