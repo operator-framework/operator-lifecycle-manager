@@ -14,6 +14,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
@@ -237,7 +239,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 }
 
 // permissionStatus checks whether the given CSV's RBAC requirements are met in its namespace
-func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, ruleChecker install.RuleChecker, targetNamespace, serviceAccountNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
+func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, ruleChecker install.RuleChecker, targetNamespace string, csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus, error) {
 	statusesSet := map[string]v1alpha1.RequirementStatus{}
 
 	checkPermissions := func(permissions []v1alpha1.StrategyDeploymentPermissions, namespace string) (bool, error) {
@@ -261,11 +263,20 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.Strategy
 			}
 
 			// Ensure the ServiceAccount exists
-			sa, err := a.opClient.GetServiceAccount(serviceAccountNamespace, perm.ServiceAccountName)
+			sa, err := a.opClient.GetServiceAccount(csv.GetNamespace(), perm.ServiceAccountName)
 			if err != nil {
 				met = false
 				status.Status = v1alpha1.RequirementStatusReasonNotPresent
 				status.Message = "Service account does not exist"
+				statusesSet[saName] = status
+				continue
+			}
+
+			// Check if the ServiceAccount is owned by CSV
+			if !ownerutil.IsOwnedBy(sa, csv) {
+				met = false
+				status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
+				status.Message = "Service account is not owned by this ClusterServiceVersion"
 				statusesSet[saName] = status
 				continue
 			}
@@ -365,7 +376,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	clusterRoleBindingLister := rbacLister.ClusterRoleBindingLister()
 
 	ruleChecker := install.NewCSVRuleChecker(roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister, csv)
-	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace(), csv.GetNamespace())
+	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace(), csv)
 	if err != nil {
 		return false, nil, err
 	}
