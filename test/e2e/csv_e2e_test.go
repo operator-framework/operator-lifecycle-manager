@@ -461,15 +461,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 	// TODO: same test but create serviceaccount instead
 	It("create requirements met CRD", func() {
 
-		sa := corev1.ServiceAccount{}
-		sa.SetName(genName("sa-"))
-		sa.SetNamespace(testNamespace)
-		_, err := c.CreateServiceAccount(&sa)
-		Expect(err).ShouldNot(HaveOccurred(), "could not create ServiceAccount %#v", sa)
-
+		saName := genName("sa-")
 		permissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
-				ServiceAccountName: sa.GetName(),
+				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
 					{
 						Verbs:     []string{"create"},
@@ -482,7 +477,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
-				ServiceAccountName: sa.GetName(),
+				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
 					{
 						Verbs:     []string{"get"},
@@ -550,6 +545,18 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		fetchedCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvPendingChecker)
 		Expect(err).ShouldNot(HaveOccurred())
+
+		sa := corev1.ServiceAccount{}
+		sa.SetName(saName)
+		sa.SetNamespace(testNamespace)
+		sa.SetOwnerReferences([]metav1.OwnerReference{{
+			Name:       fetchedCSV.GetName(),
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			UID:        fetchedCSV.GetUID(),
+		}})
+		_, err = c.CreateServiceAccount(&sa)
+		Expect(err).ShouldNot(HaveOccurred(), "could not create ServiceAccount %#v", sa)
 
 		crd := apiextensions.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
