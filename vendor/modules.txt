@@ -235,6 +235,12 @@ github.com/gobwas/glob/syntax/ast
 github.com/gobwas/glob/syntax/lexer
 github.com/gobwas/glob/util/runes
 github.com/gobwas/glob/util/strings
+# github.com/goccy/go-yaml v1.8.1
+github.com/goccy/go-yaml/ast
+github.com/goccy/go-yaml/lexer
+github.com/goccy/go-yaml/printer
+github.com/goccy/go-yaml/scanner
+github.com/goccy/go-yaml/token
 # github.com/gofrs/flock v0.8.0
 github.com/gofrs/flock
 # github.com/gogo/protobuf v1.3.1
@@ -319,6 +325,8 @@ github.com/json-iterator/go
 # github.com/kisielk/errcheck v1.2.0
 github.com/kisielk/errcheck
 github.com/kisielk/errcheck/internal/errcheck
+# github.com/kylelemons/godebug v1.1.0
+github.com/kylelemons/godebug/diff
 # github.com/lann/builder v0.0.0-20180802200727-47ae307949d0
 github.com/lann/builder
 # github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0
@@ -335,7 +343,7 @@ github.com/liggitt/tabwriter
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
-# github.com/mattn/go-colorable v0.1.6
+# github.com/mattn/go-colorable v0.1.7
 github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.12
 github.com/mattn/go-isatty
@@ -350,10 +358,10 @@ github.com/maxbrunsfeld/counterfeiter/v6
 github.com/maxbrunsfeld/counterfeiter/v6/arguments
 github.com/maxbrunsfeld/counterfeiter/v6/command
 github.com/maxbrunsfeld/counterfeiter/v6/generator
-# github.com/mikefarah/yaml/v2 v2.4.0
-github.com/mikefarah/yaml/v2
-# github.com/mikefarah/yq/v2 v2.4.1
-github.com/mikefarah/yq/v2
+# github.com/mikefarah/yq/v3 v3.0.0-20201020025845-ccb718cd0f59
+github.com/mikefarah/yq/v3
+github.com/mikefarah/yq/v3/cmd
+github.com/mikefarah/yq/v3/pkg/yqlib
 # github.com/mitchellh/copystructure v1.0.0
 github.com/mitchellh/copystructure
 # github.com/mitchellh/go-wordwrap v1.0.0
@@ -625,7 +633,7 @@ golang.org/x/oauth2/jwt
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
+# golang.org/x/sys v0.0.0-20200905004654-be1d3432aa8f
 golang.org/x/sys/cpu
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
@@ -678,7 +686,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/packagesinternal
 golang.org/x/tools/internal/typesinternal
-# golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
+# golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
 # gomodules.xyz/jsonpatch/v2 v2.0.1
@@ -769,8 +777,6 @@ google.golang.org/protobuf/types/known/timestamppb
 gopkg.in/fsnotify.v1
 # gopkg.in/gorp.v1 v1.7.2
 gopkg.in/gorp.v1
-# gopkg.in/imdario/mergo.v0 v0.3.7
-gopkg.in/imdario/mergo.v0
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
 # gopkg.in/natefinch/lumberjack.v2 v2.0.0
@@ -781,7 +787,7 @@ gopkg.in/op/go-logging.v1
 gopkg.in/tomb.v1
 # gopkg.in/yaml.v2 v2.2.8
 gopkg.in/yaml.v2
-# gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c
+# gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 gopkg.in/yaml.v3
 # helm.sh/helm/v3 v3.4.0
 helm.sh/helm/v3/cmd/helm

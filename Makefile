@@ -22,7 +22,7 @@ SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 CONTROLLER_GEN := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
-YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v2/
+YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 
@@ -216,6 +216,9 @@ endif
 	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
+ifeq ($(target), ocp)
+	./scripts/add_release_annotation.sh deploy/$(target)/manifests/$(ver) "$(YQ_INTERNAL)"
+endif
 ifeq ($(quickstart), true)
 	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml deploy/$(target)/quickstart/crds.yaml deploy/$(target)/quickstart/install.sh
 endif

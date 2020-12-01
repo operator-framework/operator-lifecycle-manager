@@ -18,7 +18,7 @@ require (
 	github.com/irifrance/gini v1.0.1
 	github.com/itchyny/gojq v0.11.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
-	github.com/mikefarah/yq/v2 v2.4.1
+	github.com/mikefarah/yq/v3 v3.0.0-20201020025845-ccb718cd0f59
 	github.com/mitchellh/hashstructure v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/onsi/ginkgo v1.12.0
