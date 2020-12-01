@@ -1399,7 +1399,7 @@ var _ = Describe("Operator Group", func() {
 				Name: role.GetName(),
 			},
 		}
-		createdServiceAccount, err := c.CreateServiceAccount(serviceAccount)
+		_, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
 		defer func() {
 			c.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0))
@@ -1423,12 +1423,6 @@ var _ = Describe("Operator Group", func() {
 		// Use the It spec name as label after stripping whitespaces
 		aCSV.Labels = map[string]string{"label": strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1)}
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-
-		ownerutil.AddNonBlockingOwner(createdServiceAccount, createdCSV)
-		err = ownerutil.AddOwnerLabels(createdServiceAccount, createdCSV)
-		require.NoError(GinkgoT(), err)
-		_, err = c.UpdateServiceAccount(createdServiceAccount)
 		require.NoError(GinkgoT(), err)
 
 		err = ownerutil.AddOwnerLabels(createdRole, createdCSV)
