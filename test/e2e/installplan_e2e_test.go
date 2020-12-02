@@ -46,6 +46,95 @@ import (
 )
 
 var _ = Describe("Install Plan", func() {
+	When("a ClusterIP service exists", func() {
+		var (
+			service *corev1.Service
+		)
+
+		BeforeEach(func() {
+			service = &corev1.Service{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Service",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-service",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeClusterIP,
+					Ports: []corev1.ServicePort{
+						{
+							Port: 12345,
+						},
+					},
+				},
+			}
+
+			Expect(ctx.Ctx().Client().Create(context.Background(), service.DeepCopy())).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(ctx.Ctx().Client().Delete(context.Background(), service)).To(Succeed())
+		})
+
+		It("it can be updated by an InstallPlan step", func() {
+			defer cleaner.NotifyTestComplete(true)
+
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			var manifest bytes.Buffer
+			Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(service, &manifest)).To(Succeed())
+
+			plan := &operatorsv1alpha1.InstallPlan{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       operatorsv1alpha1.InstallPlanKind,
+					APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-plan",
+				},
+				Spec: operatorsv1alpha1.InstallPlanSpec{
+					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+					Approved:                   true,
+					ClusterServiceVersionNames: []string{},
+				},
+				Status: operatorsv1alpha1.InstallPlanStatus{
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+					CatalogSources: []string{},
+					Plan: []*operatorsv1alpha1.Step{
+						{
+							Status: operatorsv1alpha1.StepStatusUnknown,
+							Resource: operatorsv1alpha1.StepResource{
+								Name:     service.Name,
+								Version:  "v1",
+								Kind:     "Service",
+								Manifest: manifest.String(),
+							},
+						},
+					},
+				},
+			}
+
+			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
+
+			key, err := runtimeclient.ObjectKeyFromObject(plan)
+			Expect(err).ToNot(HaveOccurred())
+
+			HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
+				return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
+					return plan.Status.Phase
+				}, Equal(goal))
+			}
+
+			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+				return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
+			}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+		})
+	})
+
 	It("with CSVs across multiple catalog sources", func() {
 
 		defer cleaner.NotifyTestComplete(true)
