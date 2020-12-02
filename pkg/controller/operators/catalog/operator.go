@@ -1578,7 +1578,16 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 	ensurer := newStepEnsurer(kubeclient, crclient, dynamicClient)
 	r := newManifestResolver(plan.GetNamespace(), o.lister.CoreV1().ConfigMapLister(), o.logger)
-	b := newBuilder(kubeclient, dynamicClient, o.csvProvidedAPIsIndexer, r, o.logger)
+
+	// CRDs should be installed via the default OLM (cluster-admin) client and not the scoped client specified by the AttenuatedServiceAccount
+	// the StepBuilder is currently only implemented for CRD types
+	// TODO give the StepBuilder both OLM and scoped clients when it supports new scoped types
+	builderKubeClient, _, builderDynamicClient, err := o.clientAttenuator.AttenuateClientWithServiceAccount(nil)
+	if err != nil {
+		o.logger.Errorf("failed to get a client for plan execution- %v", err)
+		return err
+	}
+	b := newBuilder(builderKubeClient, builderDynamicClient, o.csvProvidedAPIsIndexer, r, o.logger)
 
 	for i, step := range plan.Status.Plan {
 		doStep := true

@@ -2803,6 +2803,267 @@ var _ = Describe("Install Plan", func() {
 			Expect(ref.Kind).To(Equal("ConfigMap"))
 		}
 	})
+	It("uses the OLM client when installing CRDs from a bundle", func() {
+		c := newKubeClient()
+		crc := newCRClient()
+
+		By("creating a scoped serviceaccount specifified in the operatorgroup")
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("ns-"),
+			},
+		}, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		defer c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), metav1.DeleteOptions{})
+
+		// create SA
+		sa := &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("sa-"),
+				Namespace: ns.GetName(),
+			},
+		}
+		_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(ns.GetName()).Create(context.TODO(), sa, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// create role that includes permission for installing the kiali operator, but not CRDs
+		// see https://github.com/operator-framework/operator-lifecycle-manager/blob/master/doc/design/scoped-operator-install.md
+		role := &rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("role-"),
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{"operators.coreos.com"},
+					Resources: []string{"subscriptions", "clusterserviceversions"},
+					Verbs:     []string{"get", "create", "update", "patch"},
+				},
+				{
+					APIGroups: []string{""},
+					Resources: []string{"services", "serviceaccounts", "configmaps", "endpoints", "events", "persistentvolumeclaims", "pods"},
+					Verbs:     []string{"create", "delete", "get", "list", "update", "patch", "watch"},
+				},
+				{
+					APIGroups: []string{""},
+					Resources: []string{"namespaces", "nodes", "pods/log", "replicationcontrollers"},
+					Verbs:     []string{"list", "get", "patch", "watch"},
+				},
+				{
+					APIGroups: []string{"apps"},
+					Resources: []string{"deployments", "replicasets", "statefulsets"},
+					Verbs:     []string{"list", "watch", "get", "create", "update", "patch", "delete"},
+				},
+				{
+					APIGroups: []string{"monitoring.coreos.com"},
+					Resources: []string{"servicemonitors"},
+					Verbs:     []string{"create", "get"},
+				},
+				{
+					APIGroups:     []string{"apps"},
+					Resources:     []string{"deployments/finalizers"},
+					ResourceNames: []string{"kiali-operator"},
+					Verbs:         []string{"update"},
+				},
+				{
+					APIGroups: []string{"kiali.io"},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"rbac.authorization.k8s.io"},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+				{
+					// ability to get and list CRDs, but not create CRDs
+					APIGroups: []string{"apiextensions.k8s.io"},
+					Resources: []string{"customresourcedefinitions"},
+					Verbs:     []string{"get", "list", "watch"},
+				},
+				{
+					APIGroups: []string{"extensions"},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"route.openshift.io"},
+					Resources: []string{"routes"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"oauth.openshift.io"},
+					Resources: []string{"oauthclients"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"monitoring.kiali.io"},
+					Resources: []string{"monitoringdashboards"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"autoscaling"},
+					Resources: []string{"horizontalpodautoscalers"},
+					Verbs:     []string{"get", "list", "watch"},
+				},
+				{
+					APIGroups: []string{"batch"},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"config.istio.io"},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"networking.istio.io"},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"authentication.istio.io"},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"rbac.istio.io"},
+					Resources: []string{"*"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"authentication.maistra.io"},
+					Resources: []string{"servicemeshpolicies"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"rbac.maistra.io"},
+					Resources: []string{"servicemeshrbacconfigs"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"apps.openshift.io"},
+					Resources: []string{"deploymentconfigs"},
+					Verbs:     []string{"*"},
+				},
+				{
+					APIGroups: []string{"project.openshift.io"},
+					Resources: []string{"projects"},
+					Verbs:     []string{"get"},
+				},
+				{
+					APIGroups: []string{"route.openshift.io"},
+					Resources: []string{"routes"},
+					Verbs:     []string{"get"},
+				},
+				{
+					APIGroups: []string{"monitoring.kiali.io"},
+					Resources: []string{"monitoringdashboards"},
+					Verbs:     []string{"get", "list"},
+				},
+			},
+		}
+
+		_, err = c.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), role, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// bind role to SA
+		rb := &rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("rb-"),
+			},
+			RoleRef: rbacv1.RoleRef{
+				Name:     role.GetName(),
+				Kind:     "ClusterRole",
+				APIGroup: "rbac.authorization.k8s.io",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      sa.GetName(),
+					APIGroup:  "",
+					Namespace: sa.GetNamespace(),
+				},
+			},
+		}
+
+		_, err = c.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(context.TODO(), rb, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		defer c.KubernetesInterface().RbacV1().ClusterRoles().Delete(context.TODO(), role.GetName(), metav1.DeleteOptions{})
+
+		// create operator group referencing the SA
+		og := &operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("og-"),
+				Namespace: ns.GetName(),
+			},
+			Spec: operatorsv1.OperatorGroupSpec{
+				ServiceAccountName: sa.GetName(),
+			},
+		}
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("using the OLM client to install CRDs from the bundle and the scoped client for other resources")
+		// create catalog and subscription
+		catsrc := &operatorsv1alpha1.CatalogSource{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("kiali-"),
+				Namespace: ns.GetName(),
+				Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
+			},
+			Spec: operatorsv1alpha1.CatalogSourceSpec{
+				Image:      "quay.io/olmtest/single-bundle-index:1.0.0",
+				SourceType: operatorsv1alpha1.SourceTypeGrpc,
+			},
+		}
+		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		defer crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(context.TODO(), catsrc.GetName(), metav1.DeleteOptions{})
+
+		// Wait for the CatalogSource to be ready
+		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Generate a Subscription
+		subName := genName("kiali-")
+		subCleanup := createSubscriptionForCatalog(crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		defer subCleanup()
+
+		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Wait for the expected InstallPlan's execution to succeed
+		ipName := sub.Status.InstallPlanRef.Name
+		ip, err := waitForInstallPlan(crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(operatorsv1alpha1.InstallPlanPhaseComplete).To(Equal(ip.Status.Phase), "InstallPlan not complete")
+
+		// ensure expected kiali CRDs are present on-cluster
+		expectedCRDs := []metav1.GroupVersionKind{
+			{
+				Group:   "kialis.kiali.io",
+				Version: "v1alpha1",
+				Kind:    "CustomResourceDefinition",
+			},
+			{
+				Group:   "monitoringdashboards.monitoring.kiali.io",
+				Version: "v1alpha1",
+				Kind:    "CustomResourceDefinition",
+			},
+		}
+
+		for _, crd := range expectedCRDs {
+			Eventually(func() error {
+				defer Eventually(func() bool {
+					err = c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.TODO(), crd.Group, metav1.DeleteOptions{GracePeriodSeconds: new(int64)})
+					return k8serrors.IsNotFound(err)
+				}).Should(BeTrue())
+
+				_, err = c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crd.Group, metav1.GetOptions{})
+				return err
+			}).ShouldNot(HaveOccurred())
+		}
+	})
 })
 
 type checkInstallPlanFunc func(fip *operatorsv1alpha1.InstallPlan) bool
