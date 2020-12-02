@@ -82,6 +82,7 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueProviders).
 		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueCSV).
+		Watches(&source.Kind{Type: &operatorsv1.OperatorCondition{}}, enqueueCSV).
 		Complete(reconcile.Func(r.ReconcileClusterServiceVersion))
 	if err != nil {
 		return err
@@ -324,6 +325,7 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 		&operatorsv1alpha1.SubscriptionList{},
 		&operatorsv1alpha1.InstallPlanList{},
 		&operatorsv1alpha1.ClusterServiceVersionList{},
+		&operatorsv1.OperatorConditionList{},
 	}
 
 	// Only resources that aren't already labelled are adoption candidates

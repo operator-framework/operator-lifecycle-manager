@@ -394,6 +394,12 @@ func InferGroupVersionKind(obj runtime.Object) error {
 			Version: operatorsv1.GroupVersion.Version,
 			Kind:    "OperatorGroup",
 		})
+	case *operatorsv1.OperatorCondition:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   operatorsv1.GroupVersion.Group,
+			Version: operatorsv1.GroupVersion.Version,
+			Kind:    "OperatorCondition",
+		})
 	case *apiregistrationv1.APIService:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
 			Group:   apiregistrationv1.GroupName,
