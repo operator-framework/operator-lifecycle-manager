@@ -452,6 +452,22 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
+	// Register OperatorCondition QueueInformer
+	opConditionInformer := extInformerFactory.Operators().V1().OperatorConditions()
+	op.lister.OperatorsV1().RegisterOperatorConditionLister(namespace, opConditionInformer.Lister())
+	opConditionQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithInformer(opConditionInformer.Informer()),
+		queueinformer.WithSyncer(k8sSyncer),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(opConditionInformer); err != nil {
+		return nil, err
+	}
+
 	// setup proxy env var injection policies
 	discovery := config.operatorClient.KubernetesInterface().Discovery()
 	proxyAPIExists, err := proxy.IsAPIAvailable(discovery)
@@ -1750,11 +1766,18 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 
 	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv)
 	webhooksInstalled, webhookErr := a.areWebhooksAvailable(csv)
+	operatorUpgradeable, condErr := a.isOperatorUpgradeable(csv)
 
-	if strategyInstalled && apiServicesInstalled && webhooksInstalled {
+	if strategyInstalled && apiServicesInstalled && webhooksInstalled && operatorUpgradeable {
 		// if there's no error, we're successfully running
 		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors", now, a.recorder)
 		return nil
+	}
+
+	// Only issue warning for OperatorCondition error for now
+	// TODO: Determine a new CSV reason to reflect OperatorCondition failure
+	if condErr != nil {
+		a.logger.Warn(condErr.Error())
 	}
 
 	// installcheck determined we can't progress (e.g. deployment failed to come up in time)
