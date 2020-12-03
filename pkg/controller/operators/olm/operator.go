@@ -1774,12 +1774,6 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		return nil
 	}
 
-	// Only issue warning for OperatorCondition error for now
-	// TODO: Determine a new CSV reason to reflect OperatorCondition failure
-	if condErr != nil {
-		a.logger.Warn(condErr.Error())
-	}
-
 	// installcheck determined we can't progress (e.g. deployment failed to come up in time)
 	if install.IsErrorUnrecoverable(strategyErr) {
 		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install failed: %s", strategyErr), now, a.recorder)
@@ -1822,6 +1816,12 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		}
 
 		return strategyErr
+	}
+
+	if condErr != nil {
+		a.logger.WithError(condErr).Debug("operator is not upgradeable")
+		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonOperatorConditionNotUpgradeable, "operator upgradeable condition is false", now, a.recorder)
+		return condErr
 	}
 
 	return nil

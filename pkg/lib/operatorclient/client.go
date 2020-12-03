@@ -47,6 +47,8 @@ type CustomResourceClient interface {
 	DeleteCustomResource(apiGroup, version, namespace, resourceKind, resourceName string) error
 	AtomicModifyCustomResource(apiGroup, version, namespace, resourceKind, resourceName string, f CustomResourceModifier, data interface{}) error
 	ListCustomResource(apiGroup, version, namespace, resourceKind string) (*CustomResourceList, error)
+	UpdateCustomResourceStatus(item *unstructured.Unstructured) error
+	UpdateCustomResourceStatusRaw(apiGroup, version, namespace, resourcePlural, resourceName string, data []byte) error
 }
 
 // APIServiceClient contains methods for manipulating APIServiceBindings.

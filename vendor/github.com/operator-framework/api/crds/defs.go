@@ -99,3 +99,8 @@ func Operator() *apiextensionsv1.CustomResourceDefinition {
 func Subscription() *apiextensionsv1.CustomResourceDefinition {
 	return getCRD("operators.coreos.com_subscriptions.yaml").DeepCopy()
 }
+
+// OperatorCondition returns a copy of the CustomResourceDefinition for the latest version of the OperatorCondition API.
+func OperatorCondition() *apiextensionsv1.CustomResourceDefinition {
+	return getCRD("operators.coreos.com_operatorconditions.yaml").DeepCopy()
+}

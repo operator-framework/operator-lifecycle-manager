@@ -19,11 +19,11 @@ type UnionOperatorConditionLister struct {
 
 // List lists all OperatorConditions in the indexer.
 func (uol *UnionOperatorConditionLister) List(selector labels.Selector) (ret []*v1.OperatorConditionOperatorCondition, err error) {
-	uol.csvLock.RLock()
-	defer uol.csvLock.RUnlock()
+	uol.opConditionLock.RLock()
+	defer uol.opConditionLock.RUnlock()
 
 	set := make(map[types.UID]*v1.OperatorCondition)
-	for _, cl := range uol.csvListers {
+	for _, cl := range uol.opConditionListers {
 		csvs, err := cl.List(selector)
 		if err != nil {
 			return nil, err
@@ -43,16 +43,16 @@ func (uol *UnionOperatorConditionLister) List(selector labels.Selector) (ret []*
 
 // OperatorConditions returns an object that can list and get OperatorConditions.
 func (uol *UnionOperatorConditionLister) OperatorConditions(namespace string) listers.OperatorConditionNamespaceLister {
-	uol.csvLock.RLock()
-	defer uol.csvLock.RUnlock()
+	uol.opConditionLock.RLock()
+	defer uol.opConditionLock.RUnlock()
 
 	// Check for specific namespace listers
-	if cl, ok := uol.csvListers[namespace]; ok {
+	if cl, ok := uol.opConditionListers[namespace]; ok {
 		return cl.OperatorConditions(namespace)
 	}
 
 	// Check for any namespace-all listers
-	if cl, ok := uol.csvListers[metav1.NamespaceAll]; ok {
+	if cl, ok := uol.opConditionListers[metav1.NamespaceAll]; ok {
 		return cl.OperatorConditions(namespace)
 	}
 
@@ -60,14 +60,14 @@ func (uol *UnionOperatorConditionLister) OperatorConditions(namespace string) li
 }
 
 func (uol *UnionOperatorConditionLister) RegisterOperatorConditionLister(namespace string, lister listers.OperatorConditionLister) {
-	uol.csvLock.Lock()
-	defer uol.csvLock.Unlock()
+	uol.opConditionLock.Lock()
+	defer uol.opConditionLock.Unlock()
 
-	if uol.csvListers == nil {
-		uol.csvListers = make(map[string]listers.OperatorConditionLister)
+	if uol.opConditionListers == nil {
+		uol.opConditionListers = make(map[string]listers.OperatorConditionLister)
 	}
 
-	uol.csvListers[namespace] = lister
+	uol.opConditionListers[namespace] = lister
 }
 
 func (l *operatorsV1Lister) RegisterOperatorConditionLister(namespace string, lister listers.OperatorConditionLister) {

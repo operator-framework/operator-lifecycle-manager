@@ -154,6 +154,49 @@ func (c *Client) UpdateCustomResourceRaw(apiGroup, version, namespace, resourceP
 	return nil
 }
 
+// UpdateCustomResourceStatus updates the custom resource's status.
+func (c *Client) UpdateCustomResourceStatus(item *unstructured.Unstructured) error {
+	klog.V(4).Infof("[UPDATE CUSTOM RESOURCE STATUS]: %s:%s", item.GetNamespace(), item.GetName())
+	kind := item.GetKind()
+	name := item.GetName()
+	namespace := item.GetNamespace()
+	apiVersion := item.GetAPIVersion()
+	apiGroup, version, err := parseAPIVersion(apiVersion)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(item)
+	if err != nil {
+		return err
+	}
+
+	return c.UpdateCustomResourceStatusRaw(apiGroup, version, namespace, kind, name, data)
+}
+
+// UpdateCustomResourceStatusRaw updates the thirdparty resource with the raw data.
+func (c *Client) UpdateCustomResourceStatusRaw(apiGroup, version, namespace, resourcePlural, resourceName string, data []byte) error {
+	klog.V(4).Infof("[UPDATE CUSTOM RESOURCE STATUS RAW]: %s:%s", namespace, resourceName)
+	var statusCode int
+
+	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
+	uri := customResourceStatusURI(apiGroup, version, namespace, resourcePlural, resourceName)
+	klog.V(4).Infof("[PUT]: %s", uri)
+	result := httpRestClient.Put().RequestURI(uri).Body(data).Do(context.TODO())
+
+	if result.Error() != nil {
+		return result.Error()
+	}
+
+	result.StatusCode(&statusCode)
+	klog.V(4).Infof("Updated %s, status: %d", uri, statusCode)
+
+	if statusCode != 200 {
+		return fmt.Errorf("unexpected status code %d, expecting 200", statusCode)
+	}
+	return nil
+}
+
 // CreateOrUpdateCustomeResourceRaw creates the custom resource if it doesn't exist.
 // If the custom resource exists, it updates the existing one.
 func (c *Client) CreateOrUpdateCustomeResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName string, data []byte) error {
@@ -247,6 +290,20 @@ func customResourceURI(apiGroup, version, namespace, resourcePlural, resourceNam
 	}
 
 	return fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s/%s",
+		strings.ToLower(apiGroup),
+		strings.ToLower(version),
+		strings.ToLower(namespace),
+		strings.ToLower(resourcePlural),
+		strings.ToLower(resourceName))
+}
+
+// customResourceStatusURI returns the URI for the thirdparty resource's status.
+func customResourceStatusURI(apiGroup, version, namespace, resourcePlural, resourceName string) string {
+	if namespace == "" {
+		namespace = metav1.NamespaceDefault
+	}
+
+	return fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s/%s/status",
 		strings.ToLower(apiGroup),
 		strings.ToLower(version),
 		strings.ToLower(namespace),
