@@ -8,6 +8,7 @@ metadata:
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
   - apiGroups: ["operators.coreos.com"]
     resources: ["subscriptions"]
@@ -27,6 +28,7 @@ metadata:
     rbac.authorization.k8s.io/aggregate-to-view: "true"
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
   - apiGroups: ["operators.coreos.com"]
     resources: ["clusterserviceversions", "catalogsources", "installplans", "subscriptions", "operatorgroups"]

@@ -7,6 +7,7 @@ metadata:
     app: catalog-operator
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 spec:
   strategy:
     type: RollingUpdate
