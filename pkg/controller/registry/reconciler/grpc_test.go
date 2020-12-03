@@ -33,8 +33,27 @@ func validGrpcCatalogSource(image, address string) *v1alpha1.CatalogSource {
 	}
 }
 
+func grpcCatalogSourceWithSecret(secretName string) *v1alpha1.CatalogSource {
+	return &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "private-catalog",
+			Namespace: testNamespace,
+			UID:       types.UID("catalog-uid"),
+			Labels:    map[string]string{"olm.catalogSource": "img-catalog"},
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			Image:      "private-image",
+			Address:    "",
+			SourceType: v1alpha1.SourceTypeGrpc,
+			Secrets:    []string{secretName},
+		},
+	}
+}
+
 func TestGrpcRegistryReconciler(t *testing.T) {
 	now := func() metav1.Time { return metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC) }
+	blockOwnerDeletion := true
+	isController := true
 
 	type cluster struct {
 		k8sObjs []runtime.Object
@@ -44,8 +63,9 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 		catsrc  *v1alpha1.CatalogSource
 	}
 	type out struct {
-		status *v1alpha1.RegistryServiceStatus
-		err    error
+		status  *v1alpha1.RegistryServiceStatus
+		cluster cluster
+		err     error
 	}
 	tests := []struct {
 		testName string
@@ -186,6 +206,56 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				},
 			},
 		},
+		{
+			testName: "Grpc/PrivateRegistry/SAHasSecrets",
+			in: in{
+				cluster: cluster{
+					k8sObjs: []runtime.Object{
+						&corev1.Secret{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "test-secret",
+								Namespace: testNamespace,
+							},
+						},
+					},
+				},
+				catsrc: grpcCatalogSourceWithSecret("test-secret"),
+			},
+			out: out{
+				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        now(),
+					Protocol:         "grpc",
+					ServiceName:      "private-catalog",
+					ServiceNamespace: testNamespace,
+					Port:             "50051",
+				},
+				cluster: cluster{
+					k8sObjs: []runtime.Object{
+						&corev1.ServiceAccount{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "private-catalog",
+								Namespace: testNamespace,
+								OwnerReferences: []metav1.OwnerReference{
+									{
+										Name:               "private-catalog",
+										UID:                types.UID("catalog-uid"),
+										Kind:               v1alpha1.CatalogSourceKind,
+										APIVersion:         v1alpha1.CatalogSourceCRDAPIVersion,
+										BlockOwnerDeletion: &blockOwnerDeletion,
+										Controller:         &isController,
+									},
+								},
+							},
+							ImagePullSecrets: []corev1.LocalObjectReference{
+								{
+									Name: "test-secret",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
@@ -206,12 +276,13 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
-			pod := decorated.Pod()
+			pod := decorated.Pod(tt.in.catsrc.GetName())
 			service := decorated.Service()
+			sa := decorated.ServiceAccount()
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
 			outService, serviceErr := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(context.TODO(), service.GetName(), metav1.GetOptions{})
-
+			outsa, saerr := client.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Get(context.TODO(), sa.GetName(), metav1.GetOptions{})
 			switch rec.(type) {
 			case *GrpcRegistryReconciler:
 				// Should be created by a GrpcRegistryReconciler
@@ -223,6 +294,10 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				require.Equal(t, pod.Spec, outPod.Spec)
 				require.NoError(t, serviceErr)
 				require.Equal(t, service, outService)
+				require.NoError(t, saerr)
+				if len(tt.in.catsrc.Spec.Secrets) > 0 {
+					require.Equal(t, tt.out.cluster.k8sObjs[0], outsa)
+				}
 			case *GrpcAddressRegistryReconciler:
 				// Should not be created by a GrpcAddressRegistryReconciler
 				require.NoError(t, podErr)
