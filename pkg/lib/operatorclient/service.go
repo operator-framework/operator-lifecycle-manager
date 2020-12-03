@@ -28,11 +28,22 @@ func (c *Client) DeleteService(namespace, name string, options *metav1.DeleteOpt
 // UpdateService will update the given Service resource.
 func (c *Client) UpdateService(service *v1.Service) (*v1.Service, error) {
 	klog.V(4).Infof("[UPDATE Service]: %s", service.GetName())
-	oldSa, err := c.GetService(service.GetNamespace(), service.GetName())
+	old, err := c.GetService(service.GetNamespace(), service.GetName())
 	if err != nil {
 		return nil, err
 	}
-	patchBytes, err := createPatch(oldSa, service)
+	normalized, err := cloneAndNormalizeObject(old)
+	if err != nil {
+		return nil, fmt.Errorf("failed to normalize existing Service resource for patch: %w", err)
+	}
+	if service.Spec.ClusterIP == old.Spec.ClusterIP {
+		// Support updating to manifests that specify a
+		// ClusterIP when its value is the same as that of the
+		// existing Service.
+		service = service.DeepCopy()
+		service.Spec.ClusterIP = ""
+	}
+	patchBytes, err := createPatch(normalized, service)
 	if err != nil {
 		return nil, fmt.Errorf("error creating patch for Service: %v", err)
 	}
