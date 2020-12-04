@@ -34,6 +34,7 @@ import (
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -513,6 +514,19 @@ func csvWithAnnotations(csv *v1alpha1.ClusterServiceVersion, annotations map[str
 	return withAnnotations(csv, annotations).(*v1alpha1.ClusterServiceVersion)
 }
 
+func withUID(obj runtime.Object, uid types.UID) runtime.Object {
+	meta, ok := obj.(metav1.Object)
+	if !ok {
+		panic("could not find metadata on object")
+	}
+	meta.SetUID(uid)
+	return meta.(runtime.Object)
+}
+
+func csvWithUID(csv *v1alpha1.ClusterServiceVersion, uid types.UID) *v1alpha1.ClusterServiceVersion {
+	return withUID(csv, uid).(*v1alpha1.ClusterServiceVersion)
+}
+
 func withLabels(obj runtime.Object, labels map[string]string) runtime.Object {
 	meta, ok := obj.(metav1.Object)
 	if !ok {
@@ -960,7 +974,7 @@ func TestTransitionCSV(t *testing.T) {
 			name: "SingleCSVPendingToFailed/BadStrategyPermissions",
 			initial: initial{
 				csvs: []runtime.Object{
-					csvWithAnnotations(csv("csv1",
+					csvWithUID(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
 						"",
@@ -981,7 +995,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*apiextensionsv1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-					), defaultTemplateAnnotations),
+					), defaultTemplateAnnotations), types.UID("csv-uid")),
 				},
 				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				crds: []runtime.Object{
@@ -992,6 +1006,12 @@ func TestTransitionCSV(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sa",
 							Namespace: namespace,
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									Kind: v1alpha1.ClusterServiceVersionKind,
+									UID:  "csv-uid",
+								},
+							},
 						},
 					},
 				},
