@@ -33,7 +33,6 @@ var (
 		apiregistrationv1.AddToScheme,
 		operatorsv1alpha1.AddToScheme,
 		operatorsv1.AddToScheme,
-		operatorsv1.AddToScheme,
 	)
 
 	// AddToScheme adds all types necessary for the controller to operate.
@@ -81,6 +80,7 @@ func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.InstallPlan{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueueOperator).
+		Watches(&source.Kind{Type: &operatorsv1.OperatorCondition{}}, enqueueOperator).
 		// TODO(njhale): Add WebhookConfigurations and ConfigMaps
 		Complete(r)
 }
@@ -205,6 +205,7 @@ func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels
 		&operatorsv1alpha1.SubscriptionList{},
 		&operatorsv1alpha1.InstallPlanList{},
 		&operatorsv1alpha1.ClusterServiceVersionList{},
+		&operatorsv1.OperatorConditionList{},
 	}
 
 	opt := client.MatchingLabelsSelector{Selector: selector}

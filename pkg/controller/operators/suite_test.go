@@ -95,6 +95,7 @@ var _ = BeforeSuite(func() {
 			crds.Subscription(),
 			crds.OperatorGroup(),
 			crds.Operator(),
+			crds.OperatorCondition(),
 		},
 	}
 
@@ -123,9 +124,25 @@ var _ = BeforeSuite(func() {
 	)
 	Expect(err).ToNot(HaveOccurred())
 
+	operatorConditionReconciler, err := NewOperatorConditionReconciler(
+		mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("OperatorCondition"),
+		mgr.GetScheme(),
+	)
+	Expect(err).ToNot(HaveOccurred())
+
+	operatorConditionGeneratorReconciler, err := NewOperatorConditionGeneratorReconciler(
+		mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("OperatorCondition"),
+		mgr.GetScheme(),
+	)
+	Expect(err).ToNot(HaveOccurred())
+
 	By("Adding controllers to the manager")
 	Expect(operatorReconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
 	Expect(adoptionReconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
+	Expect(operatorConditionReconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
+	Expect(operatorConditionGeneratorReconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
 
 	stop = make(chan struct{})
 	go func() {

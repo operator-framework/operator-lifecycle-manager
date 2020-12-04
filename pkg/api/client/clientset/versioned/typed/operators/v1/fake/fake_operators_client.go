@@ -32,6 +32,10 @@ func (c *FakeOperatorsV1) Operators() v1.OperatorInterface {
 	return &FakeOperators{c}
 }
 
+func (c *FakeOperatorsV1) OperatorConditions(namespace string) v1.OperatorConditionInterface {
+	return &FakeOperatorConditions{c, namespace}
+}
+
 func (c *FakeOperatorsV1) OperatorGroups(namespace string) v1.OperatorGroupInterface {
 	return &FakeOperatorGroups{c, namespace}
 }

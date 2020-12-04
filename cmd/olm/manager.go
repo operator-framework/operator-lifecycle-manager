@@ -23,6 +23,32 @@ func Manager(ctx context.Context) (ctrl.Manager, error) {
 		return nil, err
 	}
 
+	operatorConditionReconciler, err := operators.NewOperatorConditionReconciler(
+		mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("operatorcondition"),
+		mgr.GetScheme(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = operatorConditionReconciler.SetupWithManager(mgr); err != nil {
+		return nil, err
+	}
+
+	operatorConditionGeneratorReconciler, err := operators.NewOperatorConditionGeneratorReconciler(
+		mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("operatorcondition-generator"),
+		mgr.GetScheme(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = operatorConditionGeneratorReconciler.SetupWithManager(mgr); err != nil {
+		return nil, err
+	}
+
 	// Setup a new controller to reconcile Operators
 	setupLog.Info("configuring controller")
 	if feature.Gate.Enabled(feature.OperatorLifecycleManagerV1) {
