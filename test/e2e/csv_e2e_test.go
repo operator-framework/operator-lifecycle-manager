@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -45,6 +46,92 @@ var _ = Describe("ClusterServiceVersion", func() {
 	})
 	AfterEach(func() {
 		TearDown(testNamespace)
+	})
+
+	When("a copied csv exists", func() {
+		var (
+			target   corev1.Namespace
+			original v1alpha1.ClusterServiceVersion
+			copy     v1alpha1.ClusterServiceVersion
+		)
+
+		BeforeEach(func() {
+			target = corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "watched-",
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &target)).To(Succeed())
+
+			original = v1alpha1.ClusterServiceVersion{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.ClusterServiceVersionKind,
+					APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "csv-",
+					Namespace:    testNamespace,
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					InstallStrategy: newNginxInstallStrategy(genName("csv-"), nil, nil),
+					InstallModes: []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeAllNamespaces,
+							Supported: true,
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &original)).To(Succeed())
+
+			Eventually(func() error {
+				key, err := client.ObjectKeyFromObject(&original)
+				Expect(err).ToNot(HaveOccurred())
+				key.Namespace = target.GetName()
+				return ctx.Ctx().Client().Get(context.Background(), key, &copy)
+			}).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			if target.GetName() != "" {
+				Expect(ctx.Ctx().Client().Delete(context.Background(), &target)).To(Succeed())
+			}
+		})
+
+		It("is synchronized with the original csv", func() {
+			Eventually(func() error {
+				key, err := client.ObjectKeyFromObject(&copy)
+				if err != nil {
+					return err
+				}
+
+				key.Namespace = target.Name
+				if err := ctx.Ctx().Client().Get(context.Background(), key, &copy); err != nil {
+					return err
+				}
+
+				copy.Status.LastUpdateTime = &metav1.Time{Time: time.Unix(1, 0)}
+				return ctx.Ctx().Client().Status().Update(context.Background(), &copy)
+			}).Should(Succeed())
+
+			Eventually(func() (bool, error) {
+				key, err := client.ObjectKeyFromObject(&original)
+				if err != nil {
+					return false, err
+				}
+
+				if err := ctx.Ctx().Client().Get(context.Background(), key, &original); err != nil {
+					return false, err
+				}
+
+				key.Namespace = target.Name
+				if err := ctx.Ctx().Client().Get(context.Background(), key, &copy); err != nil {
+					return false, err
+				}
+
+				return original.Status.LastUpdateTime.Equal(copy.Status.LastUpdateTime), nil
+			}).Should(BeTrue(), "Change to status of copy should have been reverted")
+		})
 	})
 
 	It("create with unmet requirements min kube version", func() {
