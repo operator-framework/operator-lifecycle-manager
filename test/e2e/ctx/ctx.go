@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -32,6 +33,8 @@ type TestContext struct {
 	ssaClient      *controllerclient.ServerSideApplier
 
 	scheme *runtime.Scheme
+
+	client k8scontrollerclient.Client
 }
 
 // Ctx returns a pointer to the global test context. During parallel
@@ -72,6 +75,11 @@ func (ctx TestContext) PackageClient() pversioned.Interface {
 func (ctx TestContext) SSAClient() *controllerclient.ServerSideApplier {
 	return ctx.ssaClient
 }
+
+func (ctx TestContext) Client() k8scontrollerclient.Client {
+	return ctx.client
+}
+
 func setDerivedFields(ctx *TestContext) error {
 	if ctx == nil {
 		return fmt.Errorf("nil test context")
@@ -117,6 +125,14 @@ func setDerivedFields(ctx *TestContext) error {
 	if err := localSchemeBuilder.AddToScheme(ctx.scheme); err != nil {
 		return err
 	}
+
+	client, err := k8scontrollerclient.New(ctx.restConfig, k8scontrollerclient.Options{
+		Scheme: ctx.scheme,
+	})
+	if err != nil {
+		return err
+	}
+	ctx.client = client
 
 	ctx.ssaClient, err = controllerclient.NewForConfig(ctx.restConfig, ctx.scheme, "test.olm.registry")
 	if err != nil {
