@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/csvcopy"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
@@ -1142,8 +1144,6 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
 
-	logger.Debug("copying CSV")
-
 	operatorGroup := a.operatorGroupFromAnnotations(logger, clusterServiceVersion)
 	if operatorGroup == nil {
 		// since syncClusterServiceVersion is the only enqueuer, annotations should be present
@@ -1151,6 +1151,43 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		syncError = fmt.Errorf("operatorGroup for csv '%v' should have annotations", clusterServiceVersion.GetName())
 		return
 	}
+
+	// disable CSV copying if the proper annotation is set on the operatorgroup label
+	// CSV copying is enabled by default for backwards compatibility
+	// only check the original CSV for this behavior
+	if value, set := ogCSVCopyAnnotation(*operatorGroup); set {
+		doCopy := csvcopy.New().Set(value)
+		logger.Debugf("CSV copy setting %s found on operatorgroup", doCopy.String())
+
+		switch doCopy {
+		case csvcopy.Enabled:
+			// fallback to default behavior
+			break
+		case csvcopy.Disabled:
+			// csv copying disabled for this CSV -- return immediately
+			logger.Debugf("CSV copy setting %s found on operatorgroup, not copying CSV", doCopy.String())
+			return
+		case csvcopy.Spec:
+			// only copy if the specs have changed
+			logger.Debugf("CSV copy setting %s found on operatorgroup, copying CSV if spec has changed", doCopy.String())
+			csv, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).Get(clusterServiceVersion.GetName())
+			if err != nil {
+				logger.WithError(err).Info("couldn't copy CSV to target namespaces based on spec change")
+				syncError = err
+				return
+			}
+			if reflect.DeepEqual(csv.Spec, clusterServiceVersion.Spec) {
+				// spec has not changed
+				// finish sync
+				logger.Debug("CSV spec has not changed - done copying CSV")
+				return
+			}
+		default:
+			logger.Debugf("unknown CSV copy setting %s found on operatorgroup, fallback to default copy behavior", doCopy.String())
+		}
+	}
+
+	logger.Debug("copying CSV")
 
 	logger.WithFields(logrus.Fields{
 		"targetNamespaces": strings.Join(operatorGroup.Status.Namespaces, ","),
@@ -2071,4 +2108,16 @@ func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ..
 	out.SetLabels(merged)
 	out, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Update(context.TODO(), out, metav1.UpdateOptions{})
 	return out, err
+}
+
+func ogCSVCopyAnnotation(og v1.OperatorGroup) (string, bool) {
+	ogAnnotations := og.GetAnnotations()
+	if ogAnnotations != nil {
+		val, ok := ogAnnotations[csvcopy.DisableCSVCopyAnnotation]
+		if !ok {
+			return "", false
+		}
+		return val, true
+	}
+	return "", false
 }
