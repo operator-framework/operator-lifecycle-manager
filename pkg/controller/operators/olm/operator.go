@@ -220,6 +220,22 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			return nil, err
 		}
 
+		// Register OperatorCondition QueueInformer
+		opConditionInformer := extInformerFactory.Operators().V1().OperatorConditions()
+		op.lister.OperatorsV1().RegisterOperatorConditionLister(namespace, opConditionInformer.Lister())
+		opConditionQueueInformer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithInformer(opConditionInformer.Informer()),
+			queueinformer.WithSyncer(k8sSyncer),
+		)
+		if err != nil {
+			return nil, err
+		}
+		if err := op.RegisterQueueInformer(opConditionQueueInformer); err != nil {
+			return nil, err
+		}
+
 		subInformer := extInformerFactory.Operators().V1alpha1().Subscriptions()
 		op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())
 		subQueueInformer, err := queueinformer.NewQueueInformer(
@@ -1426,6 +1442,15 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		logger.Info("scheduling ClusterServiceVersion for requirement verification")
 		out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked", now, a.recorder)
 	case v1alpha1.CSVPhasePending:
+		// Check previous version's Upgradeable condition
+		replacedCSV := a.isReplacing(out)
+		if replacedCSV != nil {
+			operatorUpgradeable, condErr := a.isOperatorUpgradeable(replacedCSV)
+			if !operatorUpgradeable {
+				out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonOperatorConditionNotUpgradeable, fmt.Sprintf("operator is not upgradeable: %s", condErr), now, a.recorder)
+				return
+			}
+		}
 		met, statuses, err := a.requirementAndPermissionStatus(out)
 		if err != nil {
 			// TODO: account for Bad Rule as well
