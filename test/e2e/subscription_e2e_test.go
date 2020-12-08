@@ -249,9 +249,6 @@ var _ = Describe("Subscription", func() {
 			return nil
 		})).Should(Succeed())
 
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), newInstallPlan, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
-
 		subscription, err = fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
