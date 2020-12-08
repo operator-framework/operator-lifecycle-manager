@@ -4,6 +4,7 @@ metadata:
   name: openshift-operator-lifecycle-manager
   
   annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
     openshift.io/node-selector: ""
   labels:
     openshift.io/scc: "anyuid"
@@ -15,6 +16,7 @@ metadata:
   name: openshift-operators
   
   annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
     openshift.io/node-selector: ""
   labels:
     openshift.io/scc: "anyuid"

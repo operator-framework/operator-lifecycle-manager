@@ -4,6 +4,7 @@ metadata:
   name: {{ .Values.namespace }}
   {{ if and .Values.installType (eq .Values.installType "ocp") }}
   annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
     openshift.io/node-selector: ""
   labels:
     openshift.io/scc: "anyuid"
@@ -16,6 +17,7 @@ metadata:
   name: {{ .Values.operator_namespace }}
   {{ if and .Values.installType (eq .Values.installType "ocp") }}
   annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
     openshift.io/node-selector: ""
   labels:
     openshift.io/scc: "anyuid"

@@ -4,6 +4,10 @@ kind: CatalogSource
 metadata:
   name: operatorhubio-catalog
   namespace: {{ .Values.catalog_namespace }}
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 spec:
   sourceType: grpc
   image: quay.io/operatorhubio/catalog:latest

@@ -6,6 +6,8 @@ metadata:
   labels:
     prometheus: alert-rules
     role: alert-rules
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
 spec:
   groups:
     - name: olm.failing_operators.rules

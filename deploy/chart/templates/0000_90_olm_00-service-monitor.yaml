@@ -6,6 +6,10 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels:
     app: olm-operator
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 spec:
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -35,6 +39,10 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels:
     app: catalog-operator
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 spec:
   jobLabel: k8s-app
   endpoints:
@@ -63,6 +71,10 @@ kind: RoleBinding
 metadata:
   name: operator-lifecycle-manager-metrics
   namespace: {{ .Values.namespace }}
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -77,6 +89,10 @@ kind: Role
 metadata:
   name: operator-lifecycle-manager-metrics
   namespace: {{ .Values.namespace }}
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 rules:
 - apiGroups:
   - ""

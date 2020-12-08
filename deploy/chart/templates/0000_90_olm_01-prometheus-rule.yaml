@@ -7,6 +7,10 @@ metadata:
   labels:
     prometheus: alert-rules
     role: alert-rules
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 spec:
   groups:
     - name: olm.failing_operators.rules

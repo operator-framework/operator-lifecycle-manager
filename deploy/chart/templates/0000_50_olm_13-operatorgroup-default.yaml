@@ -3,12 +3,20 @@ kind: OperatorGroup
 metadata:
   name: global-operators
   namespace: {{ .Values.operator_namespace }}
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 ---
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: olm-operators
   namespace: {{ .Values.namespace }}
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 spec:
   targetNamespaces:
     - {{ .Values.namespace }}

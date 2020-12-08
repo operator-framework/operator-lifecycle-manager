@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels:
     app: catalog-operator
+  {{- if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+  {{- end }}
 spec:
   strategy:
     type: RollingUpdate
