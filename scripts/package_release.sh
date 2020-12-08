@@ -23,4 +23,4 @@ mkdir -p "${chartdir}"
 
 go run -mod=vendor helm.sh/helm/v3/cmd/helm template -n olm -f "${values}" --include-crds --output-dir "${charttmpdir}" "${charttmpdir}"
 
-cp -R "${charttmpdir}"/olm/{templates,crds}/. "${chartdir}"
+cp -R "${charttmpdir}"/olm/templates/. "${chartdir}"
