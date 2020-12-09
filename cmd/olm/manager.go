@@ -12,8 +12,8 @@ import (
 
 var log = ctrl.Log.WithName("manager")
 
-func Manager(ctx context.Context) (ctrl.Manager, error) {
-	ctrl.SetLogger(zap.Logger(true))
+func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
+	ctrl.SetLogger(zap.Logger(debug))
 	setupLog := log.WithName("setup").V(4)
 
 	// Setup a Manager
