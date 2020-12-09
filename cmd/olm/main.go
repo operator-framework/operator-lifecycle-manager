@@ -169,7 +169,7 @@ func main() {
 		}()
 	}
 
-	mgr, err := Manager(ctx)
+	mgr, err := Manager(ctx, *debug)
 	if err != nil {
 		logger.WithError(err).Fatalf("error configuring controller manager")
 	}
