@@ -9,8 +9,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -34,9 +37,35 @@ func (r *OperatorConditionGeneratorReconciler) SetupWithManager(mgr ctrl.Manager
 		IsController: true,
 		OwnerType:    &operatorsv1alpha1.ClusterServiceVersion{},
 	}
+	p := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			if _, ok := e.Meta.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
+				return false
+			}
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			if _, ok := e.Meta.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
+				return false
+			}
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if _, ok := e.MetaOld.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
+				return false
+			}
+			return true
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			if _, ok := e.Meta.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
+				return false
+			}
+			return true
+		},
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&operatorsv1alpha1.ClusterServiceVersion{}).
+		For(&operatorsv1alpha1.ClusterServiceVersion{}, builder.WithPredicates(p)).
 		Watches(&source.Kind{Type: &operatorsv1.OperatorCondition{}}, handler).
 		Complete(r)
 }
@@ -61,7 +90,6 @@ var _ reconcile.Reconciler = &OperatorConditionGeneratorReconciler{}
 func (r *OperatorConditionGeneratorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
-	log.V(2).Info("reconciling ClusterServiceVersion")
 
 	in := &operatorsv1alpha1.ClusterServiceVersion{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, in)
