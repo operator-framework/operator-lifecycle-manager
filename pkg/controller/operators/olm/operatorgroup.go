@@ -734,7 +734,6 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 			logger.Debug("updating status")
 			// Must use fetchedCSV because UpdateStatus(...) checks resource UID.
 			fetchedCSV.Status = newCSV.Status
-			fetchedCSV.Status.LastUpdateTime = a.now()
 			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
 				logger.WithError(err).Error("status update for target CSV failed")
 				return nil, err
@@ -756,7 +755,6 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 		}
 		createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
 		createdCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
-		createdCSV.Status.LastUpdateTime = a.now()
 		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(context.TODO(), createdCSV, metav1.UpdateOptions{}); err != nil {
 			a.logger.Errorf("Status update for CSV failed: %v", err)
 			return nil, err
