@@ -555,7 +555,7 @@ func (a *Operator) syncAPIService(obj interface{}) (syncError error) {
 		"id":         queueinformer.NewLoopID(),
 		"apiService": apiService.GetName(),
 	})
-	logger.Info("syncing APIService")
+	logger.Debug("syncing APIService")
 
 	if name, ns, ok := ownerutil.GetOwnerByKindLabel(apiService, v1alpha1.ClusterServiceVersionKind); ok {
 		_, err := a.lister.CoreV1().NamespaceLister().Get(ns)
@@ -1281,7 +1281,7 @@ func (a *Operator) operatorGroupForCSV(csv *v1alpha1.ClusterServiceVersion, logg
 			}
 			return nil, nil
 		}
-		logger.Info("csv in operatorgroup")
+		logger.Debug("csv in operatorgroup")
 		return operatorGroup, nil
 	default:
 		err = fmt.Errorf("csv created in namespace with multiple operatorgroups, can't pick one automatically")
