@@ -269,6 +269,14 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.Strategy
 				statusesSet[saName] = status
 				continue
 			}
+			// Check SA's ownership
+			if ownerutil.IsOwnedByKind(sa, v1alpha1.ClusterServiceVersionKind) && !ownerutil.IsOwnedBy(sa, csv) {
+				met = false
+				status.Status = v1alpha1.RequirementStatusReasonNotPresent
+				status.Message = "Service account is stale"
+				statusesSet[saName] = status
+				continue
+			}
 
 			// Check if the ServiceAccount is owned by CSV
 			if len(sa.GetOwnerReferences()) != 0 && !ownerutil.IsOwnedBy(sa, csv) {

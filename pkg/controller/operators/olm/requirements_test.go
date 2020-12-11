@@ -437,11 +437,11 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			met:             false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
 				{"", "v1", "ServiceAccount", "sa"}: {
-					Group:   "",
-					Version: "v1",
-					Kind:    "ServiceAccount",
-					Name:    "sa",
-					Status:  v1alpha1.RequirementStatusReasonPresentNotSatisfied,
+					Group:      "",
+					Version:    "v1",
+					Kind:       "ServiceAccount",
+					Name:       "sa",
+					Status:     v1alpha1.RequirementStatusReasonPresentNotSatisfied,
 					Dependents: []v1alpha1.DependentStatus{},
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
@@ -722,6 +722,100 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
+				},
+				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
+					Group:   "operators.coreos.com",
+					Version: "v1alpha1",
+					Kind:    "ClusterServiceVersion",
+					Name:    "csv1",
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			description: "RequirementNotMet/StaleServiceAccount",
+			csv: csvWithUID(csv("csv1",
+				namespace,
+				"0.0.0",
+				"",
+				installStrategy(
+					"csv1-dep",
+					[]v1alpha1.StrategyDeploymentPermissions{
+						{
+							ServiceAccountName: "sa",
+							Rules: []rbacv1.PolicyRule{
+								{
+									APIGroups: []string{""},
+									Verbs:     []string{"*"},
+									Resources: []string{"donuts"},
+								},
+							},
+						},
+					},
+					nil,
+				),
+				nil,
+				nil,
+				v1alpha1.CSVPhasePending,
+			), types.UID("csv-uid")),
+			existingObjs: []runtime.Object{
+				&corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sa",
+						Namespace: namespace,
+						UID:       types.UID("sa"),
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								Kind: v1alpha1.ClusterServiceVersionKind,
+								UID:  "csv-wrong",
+							},
+						},
+					},
+				},
+				&rbacv1.Role{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "role",
+						Namespace: namespace,
+					},
+					Rules: []rbacv1.PolicyRule{
+						{
+							APIGroups: []string{""},
+							Verbs:     []string{"*"},
+							Resources: []string{"donuts"},
+						},
+					},
+				},
+				&rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "roleBinding",
+						Namespace: namespace,
+					},
+					Subjects: []rbacv1.Subject{
+						{
+							Kind:      "ServiceAccount",
+							APIGroup:  "",
+							Name:      "sa",
+							Namespace: namespace,
+						},
+					},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "Role",
+						Name:     "role",
+					},
+				},
+			},
+			existingExtObjs: nil,
+			met:             false,
+			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
+				{"", "v1", "ServiceAccount", "sa"}: {
+					Group:      "",
+					Version:    "v1",
+					Kind:       "ServiceAccount",
+					Name:       "sa",
+					Status:     v1alpha1.RequirementStatusReasonNotPresent,
+					Dependents: []v1alpha1.DependentStatus{},
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
 					Group:   "operators.coreos.com",
