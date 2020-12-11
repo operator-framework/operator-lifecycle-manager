@@ -2,16 +2,6 @@
 
 This guide shows OLM users how to use and choose naming conventions for channels to manage their operator upgrades. 
 
-## GOALS
-
-
-Some goals of this document include:
-
- - Define what a channel is and how it is defined
- - Explain different naming conventions for channels and how it impacts operator upgrades
- - Describe how operators can be promoted from one channel to another
- - Describe future designs for OLM that alter the way channels are used
-
 ## CHANNELS
 
 Operator Lifecycle Manager (OLM) provides a channel concept that allows you 
@@ -26,6 +16,7 @@ For each version of an operator you can specify a channel that it will belong
 to. Since there can be multiple versions of an operator within a channel, 
 there is a notion of the latest version within a channel, or the channel head 
 version.  It's the channel head that OLM will install for most subscriptions.  
+
 There can also be multiple channels for a given operator package which is 
 used to offer different support models (e.g. pre-release, production).  Here 
 is a diagram that shows the relationship of operator versions to channels:
@@ -68,8 +59,8 @@ then be subscribed to.  If you mis-type the channel name, there is nothing
 that validates the channel value because the channel is known by whatever 
 you provide.
 
-Note that you can specify a default channel for a given operator package.  
-This default channel is used when an operator is being installed to fulfill 
+Note that you can specify a default channel for a given operator package. This 
+default channel is used when an operator is being installed to fulfill 
 a dependency requirement of another operator.  The dependent operator will 
 be installed from the dependent operator’s default channel as the first 
 choice, falling back to other channels the dependent operator provides as 
@@ -103,28 +94,15 @@ spec:
   sourceNamespace: my-operators
 ```
 
-The Subscription is providing hints to OLM which are used to determine 
-exactly which version of an operator will get deployed onto the cluster, in 
-this example OLM will look for an operator to deploy that belongs to the 
-preview channel within a specified catalog index source.  
+The Subscription is providing hints to OLM which are used to determine exactly which version of an operator will get deployed onto the cluster, in this example OLM will look for an operator to deploy that belongs to the preview channel within a specified catalog index source.  
 
-Note that exactly which operator version is deployed can depend on more than 
-what you specify in the Subscription.  On initial install, OLM will always 
-attempt to install whatever is the head of the specified channel by default.  
-Settings within the operator’s CSV also are used by OLM to determine exactly 
-which operator version OLM will deploy or upgrade.
+Note that exactly which operator version is deployed can depend on more than what you specify in the Subscription.  On initial install, OLM will always attempt to install whatever is the head of the specified channel by default.  Settings within the operator’s CSV also are used by OLM to determine exactly which operator version OLM will deploy or upgrade.
 
 ## NAMING
 
-Channel names are used to imply what form of upgrade you want to offer for 
-your operator.  For example, you might have an operator that has a preview or 
-alpha version which is not supported as well as a version where support is 
-offered.
+Channel names are used to imply what form of upgrade you want to offer for your operator.  For example, you might have an operator that has a preview or alpha version which is not supported as well as a version where support is offered.
 
-The names you choose are notional and up to you to decide, however, picking 
-good channel names requires some basic guidance.  What is described below 
-are different channel naming conventions that are commonly used by the 
-operator community to denote different operator upgrade use cases.
+The names you choose are notional and up to you to decide, however, picking good channel names requires some basic guidance.  What is described below are different channel naming conventions that are commonly used by the operator community to denote different operator upgrade use cases.
 
 ### Naming Convention Rules
 
@@ -140,9 +118,9 @@ operator community to denote different operator upgrade use cases.
 #### Example 1
 
 | Channel Name       | Purpose |
-| :------------- | -----------: |
-|  preview | Pre-release operators that would typically not have support offered and might be considered experimental. |
-|  fast | Released, supported operators which are still being monitored to assess stability/quality prior to promoting them as stable.  Generally used by early adopters or for testing in pre-production environments. | 
+| :------------- | :----------- |
+| preview | Pre-release operators that would typically not have support offered and might be considered experimental. |
+| fast | Released, supported operators which are still being monitored to assess stability/quality prior to promoting them as stable.  Generally used by early adopters or for testing in pre-production environments. | 
 | stable   | Released, supported operators that have been observed to be stable through usage by consumers of the fast channel.\| |
 
 With the above channel naming convention, you are always moving end users to 
@@ -162,9 +140,9 @@ the 1.3 versions.   In that case, you would end up with channels as
 recommended above but with major/minor version information applied as follows:
 
 | Channels for 1.3 | Channels for 2.4 |
-| :------------- | -----------: |
-|  preview-1.3 | preview-2.4 |
-|  fast-1.3 | fast-2.4 |
+| :------------- | :----------- |
+| preview-1.3 | preview-2.4 |
+| fast-1.3 | fast-2.4 |
 | stable-1.3 | stable-2.4 \| |
 
 #### Example 3
@@ -176,9 +154,9 @@ Version 13.  In this case, you might have the need to advertise your
 channels by the operand version as follows:
 
 | Channels for Postgres 12       | Channels for Postgres 13 |
-| :------------- | -----------: |
-|  preview-pg-12 | preview-pg-13 |
-|  fast-pg-12 | fast-pg-13 |
+| :------------- | :----------- |
+| preview-pg-12 | preview-pg-13 |
+| fast-pg-12 | fast-pg-13 |
 | stable-pg-12 | stable-pg-13 \| |
 
 In this example, subscribers know which database version they are subscribing 
