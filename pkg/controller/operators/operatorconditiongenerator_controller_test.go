@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/storage/names"
@@ -97,6 +98,57 @@ var _ = Describe("The OperatorConditionsGenerator Controller", func() {
 		Eventually(func() error {
 			return k8sClient.Get(ctx, namespacedName, operatorCondition)
 		}, timeout, interval).Should(Succeed())
+	})
+
+	It("does not create an OperatorCondition for a Copied CSV", func() {
+		depName := genName("dep-")
+		csv := &operatorsv1alpha1.ClusterServiceVersion{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("csv-"),
+				Namespace: namespace,
+				Labels: map[string]string{
+					operatorsv1alpha1.CopiedLabelKey: "",
+				},
+			},
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+				InstallModes: []operatorsv1alpha1.InstallMode{
+					{
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
+						Supported: true,
+					},
+					{
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
+						Supported: true,
+					},
+					{
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
+						Supported: true,
+					},
+					{
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					},
+				},
+				InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, csv)).To(Succeed())
+		namespacedName := types.NamespacedName{Name: csv.GetName(), Namespace: csv.GetNamespace()}
+		operatorCondition := &operatorsv1.OperatorCondition{}
+
+		// Wait 10 seconds
+		// Background: This test could pass simply because the controller hasn't reconciled the Copied CSV yet.
+		// However, this test does sound an alarm if the controller ever reconciles a copied CSV.
+		// TODO: Improve this test by identifying a way to identify that the controller has not reconciling a resource.
+		time.Sleep(time.Second * 10)
+		err := k8sClient.Get(ctx, namespacedName, operatorCondition)
+		Expect(err).ToNot(BeNil())
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 	})
 
 	It("creates an OperatorCondition for a CSV with multiple ServiceAccounts and Deployments", func() {
