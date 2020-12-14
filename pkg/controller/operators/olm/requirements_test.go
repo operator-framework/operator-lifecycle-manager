@@ -35,7 +35,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 	}{
 		{
 			description: "AllPermissionsMet",
-			csv: csv("csv1",
+			csv: csvWithUID(csv("csv1",
 				namespace,
 				"0.0.0",
 				"",
@@ -68,13 +68,19 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				nil,
 				nil,
 				v1alpha1.CSVPhasePending,
-			),
+			), types.UID("csv-uid")),
 			existingObjs: []runtime.Object{
 				&corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sa",
 						Namespace: namespace,
 						UID:       types.UID("sa"),
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								Kind: v1alpha1.ClusterServiceVersionKind,
+								UID:  "csv-uid",
+							},
+						},
 					},
 				},
 				&rbacv1.Role{
@@ -173,7 +179,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 		},
 		{
 			description: "OnePermissionNotMet",
-			csv: csv("csv1",
+			csv: csvWithUID(csv("csv1",
 				namespace,
 				"0.0.0",
 				"",
@@ -206,13 +212,19 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				nil,
 				nil,
 				v1alpha1.CSVPhasePending,
-			),
+			), types.UID("csv-uid")),
 			existingObjs: []runtime.Object{
 				&corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sa",
 						Namespace: namespace,
 						UID:       types.UID("sa"),
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								Kind: v1alpha1.ClusterServiceVersionKind,
+								UID:  "csv-uid",
+							},
+						},
 					},
 				},
 				&rbacv1.Role{
@@ -310,8 +322,141 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			description: "RequirementNotMet/ServiceAccountOwnerConflict",
+			csv: csvWithUID(csv("csv1",
+				namespace,
+				"0.0.0",
+				"",
+				installStrategy(
+					"csv1-dep",
+					[]v1alpha1.StrategyDeploymentPermissions{
+						{
+							ServiceAccountName: "sa",
+							Rules: []rbacv1.PolicyRule{
+								{
+									APIGroups: []string{""},
+									Verbs:     []string{"*"},
+									Resources: []string{"donuts"},
+								},
+							},
+						},
+					},
+					[]v1alpha1.StrategyDeploymentPermissions{
+						{
+							ServiceAccountName: "sa",
+							Rules: []rbacv1.PolicyRule{
+								{
+									Verbs:           []string{"get"},
+									NonResourceURLs: []string{"/osbs"},
+								},
+							},
+						},
+					},
+				),
+				nil,
+				nil,
+				v1alpha1.CSVPhasePending,
+			), types.UID("csv-uid")),
+			existingObjs: []runtime.Object{
+				&corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sa",
+						Namespace: namespace,
+						UID:       types.UID("sa"),
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								Kind: v1alpha1.ClusterServiceVersionKind,
+								UID:  "csv-uid-other",
+							},
+						},
+					},
+				},
+				&rbacv1.Role{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "role",
+						Namespace: namespace,
+					},
+					Rules: []rbacv1.PolicyRule{
+						{
+							APIGroups: []string{""},
+							Verbs:     []string{"*"},
+							Resources: []string{"donuts"},
+						},
+					},
+				},
+				&rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "roleBinding",
+						Namespace: namespace,
+					},
+					Subjects: []rbacv1.Subject{
+						{
+							Kind:      "ServiceAccount",
+							APIGroup:  "",
+							Name:      "sa",
+							Namespace: namespace,
+						},
+					},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "Role",
+						Name:     "role",
+					},
+				},
+				&rbacv1.ClusterRole{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "clusterRole",
+					},
+					Rules: []rbacv1.PolicyRule{
+						{
+							Verbs:           []string{"get"},
+							NonResourceURLs: []string{"/osbs"},
+						},
+					},
+				},
+				&rbacv1.ClusterRoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "clusterRoleBinding",
+					},
+					Subjects: []rbacv1.Subject{
+						{
+							Kind:      "ServiceAccount",
+							APIGroup:  "",
+							Name:      "sa",
+							Namespace: namespace,
+						},
+					},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "ClusterRole",
+						Name:     "clusterRole",
+					},
+				},
+			},
+			existingExtObjs: nil,
+			met:             false,
+			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
+				{"", "v1", "ServiceAccount", "sa"}: {
+					Group:   "",
+					Version: "v1",
+					Kind:    "ServiceAccount",
+					Name:    "sa",
+					Status:  v1alpha1.RequirementStatusReasonPresentNotSatisfied,
+					Dependents: []v1alpha1.DependentStatus{},
+				},
+				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
+					Group:   "operators.coreos.com",
+					Version: "v1alpha1",
+					Kind:    "ClusterServiceVersion",
+					Name:    "csv1",
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+				},
+			},
+			expectedError: nil,
+		},
+		{
 			description: "AllRequirementsMet",
-			csv: csv("csv1",
+			csv: csvWithUID(csv("csv1",
 				namespace,
 				"0.0.0",
 				"",
@@ -334,13 +479,19 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 				[]*apiextensionsv1.CustomResourceDefinition{crd("c2", "v1", "g2")},
 				v1alpha1.CSVPhasePending,
-			),
+			), types.UID("csv-uid")),
 			existingObjs: []runtime.Object{
 				&corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sa",
 						Namespace: namespace,
 						UID:       types.UID("sa"),
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								Kind: v1alpha1.ClusterServiceVersionKind,
+								UID:  "csv-uid",
+							},
+						},
 					},
 				},
 				&rbacv1.Role{

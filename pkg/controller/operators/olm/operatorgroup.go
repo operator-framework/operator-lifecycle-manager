@@ -432,7 +432,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 			strategyDetailsDeployment.ClusterPermissions = append(strategyDetailsDeployment.ClusterPermissions, p)
 		}
 		strategyDetailsDeployment.Permissions = nil
-		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, corev1.NamespaceAll, csv.GetNamespace())
+		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, corev1.NamespaceAll, csv)
 		if err != nil {
 			return err
 		}
@@ -669,7 +669,7 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 	}
 	for _, ns := range targetNamespaces {
 		// create roles/rolebindings for each target namespace
-		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, ns, csv.GetNamespace())
+		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, ns, csv)
 		if err != nil {
 			logger.WithError(err).Debug("permission status")
 			return err
