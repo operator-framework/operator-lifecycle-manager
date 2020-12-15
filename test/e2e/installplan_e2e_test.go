@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -117,8 +117,7 @@ var _ = Describe("Install Plan", func() {
 			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
-			key, err := runtimeclient.ObjectKeyFromObject(plan)
-			Expect(err).ToNot(HaveOccurred())
+			key := runtimeclient.ObjectKeyFromObject(plan)
 
 			HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
 				return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1029,23 +1029,23 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		ChannelName: "testChannel",
 		Version:     version.String(),
 		BundlePath:  "image",
-		Properties:  []*api.Property{
+		Properties: []*api.Property{
 			{
-				Type: "olm.gvk",
+				Type:  "olm.gvk",
 				Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
 			},
 			{
-				Type: "olm.gvk",
+				Type:  "olm.gvk",
 				Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
 			},
 		},
 		Dependencies: []*api.Dependency{
 			{
-				Type: "olm.gvk",
+				Type:  "olm.gvk",
 				Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
 			},
 			{
-				Type: "olm.gvk",
+				Type:  "olm.gvk",
 				Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
 			},
 		},
@@ -1128,23 +1128,23 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Plural:  "requiredapis",
 					}: struct{}{},
 				},
-				properties:  []*api.Property{
+				properties: []*api.Property{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
 					},
 				},
 				dependencies: []*api.Dependency{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
 					},
 				},
@@ -1212,23 +1212,23 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Plural:  "requiredapis",
 					}: struct{}{},
 				},
-				properties:  []*api.Property{
+				properties: []*api.Property{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
 					},
 				},
 				dependencies: []*api.Dependency{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
 					},
 				},
@@ -1289,27 +1289,27 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
-				name:    "testBundle",
-				version: &version.Version,
+				name:         "testBundle",
+				version:      &version.Version,
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
-				properties:  []*api.Property{
+				properties: []*api.Property{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
 					},
 				},
 				dependencies: []*api.Dependency{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
 					},
 				},
@@ -1328,7 +1328,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			require.Equal(t, tt.wantErr, err)
 			require.ElementsMatch(t, tt.want.dependencies, got.dependencies)
 			require.ElementsMatch(t, tt.want.properties, got.properties)
-			tt.want.properties, tt.want.dependencies, got.dependencies, got.properties = nil,nil,nil,nil
+			tt.want.properties, tt.want.dependencies, got.dependencies, got.properties = nil, nil, nil, nil
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -1404,11 +1404,11 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				},
 				properties: []*api.Property{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
 					},
 				},
@@ -1457,11 +1457,11 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				},
 				dependencies: []*api.Dependency{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
 					},
 				},
@@ -1527,21 +1527,21 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				},
 				properties: []*api.Property{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"g\",\"kind\":\"APIOwnedKind\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"g\",\"kind\":\"CRDOwnedKind\",\"version\":\"v1\"}",
 					},
 				},
 				dependencies: []*api.Dependency{
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"g2\",\"kind\":\"APIReqKind\",\"version\":\"v1\"}",
 					},
 					{
-						Type: "olm.gvk",
+						Type:  "olm.gvk",
 						Value: "{\"group\":\"g2\",\"kind\":\"CRDReqKind\",\"version\":\"v1\"}",
 					},
 				},
@@ -1556,7 +1556,7 @@ func TestNewOperatorFromCSV(t *testing.T) {
 			require.Equal(t, tt.wantErr, err)
 			require.ElementsMatch(t, tt.want.dependencies, got.dependencies)
 			require.ElementsMatch(t, tt.want.properties, got.properties)
-			tt.want.properties, tt.want.dependencies, got.dependencies, got.properties = nil,nil,nil,nil
+			tt.want.properties, tt.want.dependencies, got.dependencies, got.properties = nil, nil, nil, nil
 			require.Equal(t, tt.want, got)
 		})
 	}

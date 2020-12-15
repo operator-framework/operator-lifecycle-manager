@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/operator-framework/operator-lifecycle-manager/test/e2e/dsl"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -485,7 +485,6 @@ var _ = Describe("CRD Versions", func() {
 		// remove old csv
 		crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainPackageStable, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred(), "error deleting old subscription")
-
 
 		// recreate subscription
 		subscriptionNameNew := genName("sub-nginx-update2-new-")

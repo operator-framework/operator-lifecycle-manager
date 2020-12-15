@@ -85,8 +85,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(ctx.Ctx().Client().Create(context.Background(), &original)).To(Succeed())
 
 			Eventually(func() error {
-				key, err := client.ObjectKeyFromObject(&original)
-				Expect(err).ToNot(HaveOccurred())
+				key := client.ObjectKeyFromObject(&original)
 				key.Namespace = target.GetName()
 				return ctx.Ctx().Client().Get(context.Background(), key, &copy)
 			}).Should(Succeed())
@@ -100,10 +99,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		It("is synchronized with the original csv", func() {
 			Eventually(func() error {
-				key, err := client.ObjectKeyFromObject(&copy)
-				if err != nil {
-					return err
-				}
+				key := client.ObjectKeyFromObject(&copy)
 
 				key.Namespace = target.Name
 				if err := ctx.Ctx().Client().Get(context.Background(), key, &copy); err != nil {
@@ -115,10 +111,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}).Should(Succeed())
 
 			Eventually(func() (bool, error) {
-				key, err := client.ObjectKeyFromObject(&original)
-				if err != nil {
-					return false, err
-				}
+				key := client.ObjectKeyFromObject(&original)
 
 				if err := ctx.Ctx().Client().Get(context.Background(), key, &original); err != nil {
 					return false, err
