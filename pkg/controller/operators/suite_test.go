@@ -1,6 +1,7 @@
 package operators
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -45,7 +46,7 @@ var (
 	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
-	stop      chan struct{}
+	ctx       context.Context
 
 	scheme            = runtime.NewScheme()
 	gracePeriod int64 = 0
@@ -88,7 +89,7 @@ var _ = BeforeSuite(func() {
 	useExisting := false
 	testEnv = &envtest.Environment{
 		UseExistingCluster: &useExisting,
-		CRDs: []runtime.Object{
+		CRDs: []client.Object{
 			crds.CatalogSource(),
 			crds.ClusterServiceVersion(),
 			crds.InstallPlan(),
@@ -144,7 +145,7 @@ var _ = BeforeSuite(func() {
 	Expect(operatorConditionReconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
 	Expect(operatorConditionGeneratorReconciler.SetupWithManager(mgr)).ToNot(HaveOccurred())
 
-	stop = make(chan struct{})
+	ctx = ctrl.SetupSignalHandler()
 	go func() {
 		defer GinkgoRecover()
 
@@ -161,7 +162,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	By("stopping the controller manager")
-	close(stop)
+	ctx.Done()
 
 	By("tearing down the test environment")
 	err := testEnv.Stop()

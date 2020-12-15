@@ -11,13 +11,11 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apiserver/pkg/storage/names"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 )
 
 var _ = Describe("The OperatorConditionsGenerator Controller", func() {
@@ -27,17 +25,18 @@ var _ = Describe("The OperatorConditionsGenerator Controller", func() {
 	)
 
 	var (
-		genName = names.SimpleNameGenerator.GenerateName
-	)
-	var (
 		ctx       context.Context
-		namespace string
+		namespace *corev1.Namespace
 	)
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		namespace = genName("ns-")
-		Expect(k8sClient.Create(ctx, testobj.WithName(namespace, &corev1.Namespace{}))).To(Succeed())
+		namespace = &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("ns-"),
+			},
+		}
+		Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
 	})
 
 	It("creates an OperatorCondition for a CSV without a ServiceAccount", func() {
@@ -49,7 +48,7 @@ var _ = Describe("The OperatorConditionsGenerator Controller", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("csv-"),
-				Namespace: namespace,
+				Namespace: namespace.GetName(),
 			},
 			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				InstallModes: []operatorsv1alpha1.InstallMode{
@@ -109,7 +108,7 @@ var _ = Describe("The OperatorConditionsGenerator Controller", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("csv-"),
-				Namespace: namespace,
+				Namespace: namespace.GetName(),
 				Labels: map[string]string{
 					operatorsv1alpha1.CopiedLabelKey: "",
 				},
@@ -160,7 +159,7 @@ var _ = Describe("The OperatorConditionsGenerator Controller", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("csv-"),
-				Namespace: namespace,
+				Namespace: namespace.GetName(),
 			},
 			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				InstallModes: []operatorsv1alpha1.InstallMode{

@@ -39,25 +39,25 @@ func (r *OperatorConditionGeneratorReconciler) SetupWithManager(mgr ctrl.Manager
 	}
 	p := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			if _, ok := e.Meta.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
+			if _, ok := e.Object.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
 				return false
 			}
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			if _, ok := e.Meta.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
+			if _, ok := e.Object.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
 				return false
 			}
 			return true
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			if _, ok := e.MetaOld.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
+			if _, ok := e.ObjectOld.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
 				return false
 			}
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			if _, ok := e.Meta.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
+			if _, ok := e.Object.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
 				return false
 			}
 			return true
@@ -87,7 +87,7 @@ func NewOperatorConditionGeneratorReconciler(cli client.Client, log logr.Logger,
 // Implement reconcile.Reconciler so the controller can reconcile objects
 var _ reconcile.Reconciler = &OperatorConditionGeneratorReconciler{}
 
-func (r *OperatorConditionGeneratorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *OperatorConditionGeneratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 

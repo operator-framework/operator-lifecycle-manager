@@ -12,9 +12,9 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/reference"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
@@ -33,11 +33,11 @@ var _ = Describe("Adoption Controller", func() {
 
 	Describe("Component label generation", func() {
 		var (
-			created []runtime.Object
+			created []client.Object
 		)
 
 		BeforeEach(func() {
-			created = []runtime.Object{}
+			created = []client.Object{}
 		})
 
 		JustAfterEach(func() {
