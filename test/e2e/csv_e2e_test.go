@@ -1306,28 +1306,42 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred(), "error getting expected APIService")
 
 		// Should create Service
-		_, err = c.GetService(testNamespace, serviceName)
-		Expect(err).ShouldNot(HaveOccurred(), "error getting expected Service")
+		Eventually(func() error {
+			_, err := c.GetService(testNamespace, serviceName)
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
 
 		// Should create certificate Secret
 		secretName = fmt.Sprintf("%s-cert", serviceName)
-		_, err = c.GetSecret(testNamespace, secretName)
-		Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret")
+		Eventually(func() error {
+			_, err = c.GetSecret(testNamespace, secretName)
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
 
 		// Should create a Role for the Secret
 		_, err = c.GetRole(testNamespace, secretName)
-		Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret Role")
+		Eventually(func() error {
+			_, err = c.GetRole(testNamespace, secretName)
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
 
 		// Should create a RoleBinding for the Secret
-		_, err = c.GetRoleBinding(testNamespace, secretName)
-		Expect(err).ShouldNot(HaveOccurred(), "error getting exptected Secret RoleBinding")
+		Eventually(func() error {
+			_, err = c.GetRoleBinding(testNamespace, secretName)
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
 
 		// Should create a system:auth-delegator Cluster RoleBinding
-		_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", serviceName))
-		Expect(err).ShouldNot(HaveOccurred(), "error getting expected system:auth-delegator ClusterRoleBinding")
+		Eventually(func() error {
+			_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", serviceName))
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
 
 		// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
-		_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", serviceName))
+		Eventually(func() error {
+			_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", serviceName))
+			return err
+		}, timeout, interval).ShouldNot(HaveOccurred())
 		Expect(err).ShouldNot(HaveOccurred(), "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
 		// Should eventually GC the CSV

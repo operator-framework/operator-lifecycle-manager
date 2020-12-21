@@ -222,11 +222,12 @@ var _ = Describe("Install Plan", func() {
 
 		// Fetch installplan again to check for unnecessary control loops
 		fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-			compareResources(GinkgoT(), fetchedInstallPlan, fip)
+			// Don't compare object meta as labels can be applied by the operator controller.
+			compareResources(GinkgoT(), fetchedInstallPlan.Spec, fip.Spec)
+			compareResources(GinkgoT(), fetchedInstallPlan.Status, fip.Status)
 			return true
 		})
 		require.NoError(GinkgoT(), err)
-
 		require.Equal(GinkgoT(), len(expectedStepSources), len(fetchedInstallPlan.Status.Plan), "Number of resolved steps matches the number of expected steps")
 
 		// Ensure resolved step resources originate from the correct catalog sources
@@ -2111,6 +2112,12 @@ var _ = Describe("Install Plan", func() {
 						APIGroups: []string{"cluster.com"},
 						Resources: []string{crdPlural},
 					},
+					// Permissions must be different than ClusterPermissions defined below if OLM is going to lift role/rolebindings to cluster level.
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{corev1.GroupName},
+						Resources: []string{corev1.ResourceConfigMaps.String()},
+					},
 				},
 			},
 		}
@@ -2205,6 +2212,7 @@ var _ = Describe("Install Plan", func() {
 					}
 					return true, nil
 				})
+				require.NoError(GinkgoT(), err)
 			}
 			if step.Resource.Kind == "RoleBinding" {
 				err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -2217,6 +2225,7 @@ var _ = Describe("Install Plan", func() {
 					}
 					return true, nil
 				})
+				require.NoError(GinkgoT(), err)
 			}
 		}
 
@@ -2238,15 +2247,9 @@ var _ = Describe("Install Plan", func() {
 			GinkgoT().Logf("Monitoring cluster role binding %v", binding.GetName())
 		}
 
-		// can't query by owner reference, so just use the name we know is in the install plan
-		createdServiceAccountNames := map[string]struct{}{serviceAccountName: {}}
-		GinkgoT().Logf("Monitoring service account %v", serviceAccountName)
-
 		crWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoles().Watch(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 		require.NoError(GinkgoT(), err)
 		crbWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Watch(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
-		require.NoError(GinkgoT(), err)
-		saWatcher, err := c.KubernetesInterface().CoreV1().ServiceAccounts(testNamespace).Watch(context.TODO(), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 
 		done := make(chan struct{})
@@ -2266,7 +2269,7 @@ var _ = Describe("Install Plan", func() {
 							continue
 						}
 						delete(createdClusterRoleNames, cr.GetName())
-						if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
+						if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 {
 							done <- struct{}{}
 							return
 						}
@@ -2282,23 +2285,7 @@ var _ = Describe("Install Plan", func() {
 							continue
 						}
 						delete(createdClusterRoleBindingNames, crb.GetName())
-						if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
-							done <- struct{}{}
-							return
-						}
-					}
-				case evt, ok := <-saWatcher.ResultChan():
-					if !ok {
-						errExit <- errors.New("sa watch channel closed unexpectedly")
-						return
-					}
-					if evt.Type == watch.Deleted {
-						sa, ok := evt.Object.(*corev1.ServiceAccount)
-						if !ok {
-							continue
-						}
-						delete(createdServiceAccountNames, sa.GetName())
-						if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
+						if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 {
 							done <- struct{}{}
 							return
 						}
@@ -2320,7 +2307,17 @@ var _ = Describe("Install Plan", func() {
 
 		require.Emptyf(GinkgoT(), createdClusterRoleNames, "unexpected cluster role remain: %v", createdClusterRoleNames)
 		require.Emptyf(GinkgoT(), createdClusterRoleBindingNames, "unexpected cluster role binding remain: %v", createdClusterRoleBindingNames)
-		require.Emptyf(GinkgoT(), createdServiceAccountNames, "unexpected service account remain: %v", createdServiceAccountNames)
+
+		Eventually(func() error {
+			_, err := c.GetServiceAccount(testNamespace, serviceAccountName)
+			if err == nil {
+				return fmt.Errorf("The %v/%v ServiceAccount should have been deleted", testNamespace, serviceAccountName)
+			}
+			if !k8serrors.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}, timeout, interval).Should(BeNil())
 	})
 
 	It("CRD validation", func() {
@@ -2957,7 +2954,7 @@ func newCRD(plural string) apiextensions.CustomResourceDefinition {
 func newCSV(name, namespace, replaces string, version semver.Version, owned []apiextensions.CustomResourceDefinition, required []apiextensions.CustomResourceDefinition, namedStrategy *operatorsv1alpha1.NamedInstallStrategy) operatorsv1alpha1.ClusterServiceVersion {
 	csvType = metav1.TypeMeta{
 		Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
-		APIVersion: operatorsv1alpha1.GroupVersion,
+		APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
 	}
 
 	// set a simple default strategy if none given
