@@ -711,31 +711,29 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 
 	logger = logger.WithField("csv", csv.GetName())
 	if fetchedCSV != nil {
-		logger.Debug("checking annotations")
+		var doUpdate bool
 
+		logger.Debug("checking annotations")
 		if !reflect.DeepEqual(a.copyOperatorGroupAnnotations(&fetchedCSV.ObjectMeta), a.copyOperatorGroupAnnotations(&newCSV.ObjectMeta)) {
 			// TODO: only copy over the opgroup annotations, not _all_ annotations
 			fetchedCSV.Annotations = newCSV.Annotations
 			fetchedCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
-			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
-			logger.Debug("updating target CSV")
-			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
-				logger.WithError(err).Error("update target CSV failed")
-				return nil, err
-			}
+			doUpdate = true
 		}
 
-		logger.Debug("checking status")
-		newCSV.Status = csv.Status
-		newCSV.Status.Reason = v1alpha1.CSVReasonCopied
-		newCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
+		logger.Debug("checking spec")
+		if !reflect.DeepEqual(fetchedCSV.Spec, newCSV.Spec) {
+			// Update based on changes to the spec only
+			// Note: PUT verbs on objects (such as via Update()) ignore status values
+			fetchedCSV.Spec = newCSV.Spec
+			doUpdate = true
+		}
 
-		if !reflect.DeepEqual(fetchedCSV.Status, newCSV.Status) {
-			logger.Debug("updating status")
-			// Must use fetchedCSV because UpdateStatus(...) checks resource UID.
-			fetchedCSV.Status = newCSV.Status
-			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
-				logger.WithError(err).Error("status update for target CSV failed")
+		if doUpdate {
+			logger.Debug("updating target CSV")
+			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
+			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
+				logger.WithError(err).Error("update target CSV failed")
 				return nil, err
 			}
 		}
@@ -747,6 +745,9 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 		newCSV.SetResourceVersion("")
 		newCSV.SetLabels(utillabels.AddLabel(newCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
 
+		// The copied CSV should only contain the original CSV spec and a minimal amount of status indicating it's a copy
+		// Updating based on changes to the status causes performance issues on clusters with large numbers of CSVs across namespaces
+		// Note: POST verbs on objects (such as via Create()) ignore status values
 		logger.Debug("copying CSV to target")
 		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), newCSV, metav1.CreateOptions{})
 		if err != nil {

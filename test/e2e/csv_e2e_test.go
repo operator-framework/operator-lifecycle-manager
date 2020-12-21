@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -98,7 +99,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 		})
 
-		It("is synchronized with the original csv", func() {
+		It("is not synchronized with the original csv based on status changes", func() {
 			Eventually(func() error {
 				key, err := client.ObjectKeyFromObject(&copy)
 				if err != nil {
@@ -130,7 +131,43 @@ var _ = Describe("ClusterServiceVersion", func() {
 				}
 
 				return original.Status.LastUpdateTime.Equal(copy.Status.LastUpdateTime), nil
-			}).Should(BeTrue(), "Change to status of copy should have been reverted")
+			}).Should(BeFalse(), "Change to status of copy is not reverted")
+		})
+		It("is synchronized with the original CSV based on spec changes to the original", func() {
+			Eventually(func() error {
+				key, err := client.ObjectKeyFromObject(&original)
+				if err != nil {
+					return err
+				}
+
+				key.Namespace = target.Name
+				if err := ctx.Ctx().Client().Get(context.Background(), key, &original); err != nil {
+					return err
+				}
+
+				// add extra port (443) to the deployment spec on the CSV
+				original.Spec.InstallStrategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{{ContainerPort: 80}, {ContainerPort: 443}}
+				return ctx.Ctx().Client().Status().Update(context.Background(), &original)
+			}).Should(Succeed())
+
+			Eventually(func() (bool, error) {
+				key, err := client.ObjectKeyFromObject(&copy)
+				if err != nil {
+					return false, err
+				}
+
+				if err := ctx.Ctx().Client().Get(context.Background(), key, &copy); err != nil {
+					return false, err
+				}
+
+				key.Namespace = target.Name
+				if err := ctx.Ctx().Client().Get(context.Background(), key, &copy); err != nil {
+					return false, err
+				}
+
+				return reflect.DeepEqual(original.Spec.InstallStrategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Ports,
+					copy.Spec.InstallStrategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Ports), nil
+			}).Should(BeTrue(), "Change to spec in the original is updated in the copy")
 		})
 	})
 
