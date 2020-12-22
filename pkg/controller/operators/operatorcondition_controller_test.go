@@ -7,7 +7,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,17 +45,21 @@ var _ = Describe("OperatorCondition", func() {
 	Context("The OperatorCondition Reconciler", func() {
 		var (
 			ctx               context.Context
-			namespace         string
-			namespacedName    types.NamespacedName
 			operatorCondition *operatorsv1.OperatorCondition
+			namespace         *corev1.Namespace
+			namespacedName    types.NamespacedName
 		)
 
 		BeforeEach(func() {
 			ctx = context.Background()
-			namespace = genName("ns-")
-			Expect(k8sClient.Create(ctx, testobj.WithName(namespace, &corev1.Namespace{}))).To(Succeed())
+			namespace = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: genName("ns-"),
+				},
+			}
+			Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
 
-			namespacedName = types.NamespacedName{Name: "test", Namespace: namespace}
+			namespacedName = types.NamespacedName{Name: "test", Namespace: namespace.GetName()}
 
 			// Create  the deployment
 			labels := map[string]string{
@@ -64,7 +67,7 @@ var _ = Describe("OperatorCondition", func() {
 			}
 			deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
 				Name:      "deployment",
-				Namespace: namespacedName.Namespace,
+				Namespace: namespace.GetName(),
 			},
 				Spec: appsv1.DeploymentSpec{
 					Selector: &metav1.LabelSelector{
@@ -73,7 +76,7 @@ var _ = Describe("OperatorCondition", func() {
 					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							GenerateName: "nginx-",
-							Namespace:    namespacedName.Namespace,
+							Namespace:    namespace.GetName(),
 							Labels:       labels,
 						},
 						Spec: corev1.PodSpec{
@@ -188,7 +191,7 @@ var _ = Describe("OperatorCondition", func() {
 		It("appends the OPERATOR_CONDITION_NAME environment variable to the containers in the deployments", func() {
 			deployment := &appsv1.Deployment{}
 			Eventually(func() error {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace}, deployment)
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
 				if err != nil {
 					return err
 				}

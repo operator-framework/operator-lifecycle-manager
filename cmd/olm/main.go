@@ -231,7 +231,7 @@ func main() {
 	}
 
 	// Start the controller manager
-	if err := mgr.Start(ctx.Done()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		logger.WithError(err).Fatal("controller manager stopped")
 	}
 

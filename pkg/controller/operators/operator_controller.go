@@ -2,6 +2,7 @@ package operators
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -58,10 +59,7 @@ type OperatorReconciler struct {
 // SetupWithManager adds the operator reconciler to the given controller manager.
 func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Trigger operator events from the events of their compoenents.
-	enqueueOperator := &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(r.mapComponentRequests),
-	}
-
+	enqueueOperator := handler.EnqueueRequestsFromMapFunc(r.mapComponentRequests)
 	// Note: If we want to support resources composed of custom resources, we need to figure out how
 	// to dynamically add resource types to watch.
 	return ctrl.NewControllerManagedBy(mgr).
@@ -110,13 +108,12 @@ func NewOperatorReconciler(cli client.Client, log logr.Logger, scheme *runtime.S
 // Implement reconcile.Reconciler so the controller can reconcile objects
 var _ reconcile.Reconciler = &OperatorReconciler{}
 
-func (r *OperatorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *OperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(1).Info("reconciling operator")
 
 	// Get the Operator
-	ctx := context.TODO()
 	create := false
 	name := req.NamespacedName.Name
 	in := &operatorsv1.Operator{}
@@ -210,7 +207,11 @@ func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels
 
 	opt := client.MatchingLabelsSelector{Selector: selector}
 	for _, list := range componentLists {
-		if err := r.List(ctx, list, opt); err != nil {
+		cList, ok := list.(client.ObjectList)
+		if !ok {
+			return nil, fmt.Errorf("Unable to typecast runtime.Object to client.ObjectList")
+		}
+		if err := r.List(ctx, cList, opt); err != nil {
 			return nil, err
 		}
 	}
@@ -245,13 +246,14 @@ func (r *OperatorReconciler) unsetLastResourceVersion(name types.NamespacedName)
 	delete(r.lastResourceVersion, name)
 }
 
-func (r *OperatorReconciler) mapComponentRequests(obj handler.MapObject) []reconcile.Request {
+func (r *OperatorReconciler) mapComponentRequests(obj client.Object) []reconcile.Request {
 	var requests []reconcile.Request
-	if obj.Meta == nil {
+	if obj == nil {
 		return requests
 	}
 
-	for _, name := range decorators.OperatorNames(obj.Meta.GetLabels()) {
+	labels := decorators.OperatorNames(obj.GetLabels())
+	for _, name := range labels {
 		// unset the last recorded resource version so the Operator will reconcile
 		r.unsetLastResourceVersion(name)
 		requests = append(requests, reconcile.Request{NamespacedName: name})

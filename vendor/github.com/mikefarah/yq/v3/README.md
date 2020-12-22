@@ -45,11 +45,11 @@ rm /etc/myfile.tmp
 Use wget to download the pre-compiled binaries:
 
 ```bash
-wget https://github.com/mikefarah/yq/releases/download/{VERSION}/{BINARY} -O /usr/bin/yq &&\
+wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY} -O /usr/bin/yq &&\
     chmod +x /usr/bin/yq
 ```
 
-For instance, VERSION=3.4.0 and BINARY=yq_linux_amd64
+For instance, VERSION=3.4.1 and BINARY=yq_linux_amd64
 
 
 ### Run with Docker
@@ -171,11 +171,12 @@ Use "yq [command] --help" for more information about a command.
 If you've been using v2 and want/need to upgrade, checkout the [upgrade guide](https://mikefarah.gitbook.io/yq/upgrading-from-v2).
 
 ## V4 is in development!
-Beta will soon be released for community feedback!
-V4 will be quite different from V3 (sorry for the migration), however it will be much more similar to ```jq```, use a similar expression syntax and therefore support much more complex functionality!
+If you're keen - check out the alpha release [here](https://github.com/mikefarah/yq/releases/), or in docker `mikefarah/yq:4-beta1` and the docs (also in beta) [here](https://mikefarah.gitbook.io/yq/v/v4.x-alpha/).
+
+V4 is quite different from V3 (sorry for the migration), however it will be much more similar to ```jq```, use a similar expression syntax and therefore support much more complex functionality! 
 
 For now - new features will be held off from V3 in anticipation of the V4 build. Critical fixes / issues will still be released.
 
 ## Known Issues / Missing Features
 - `yq` attempts to preserve comment positions and whitespace as much as possible, but it does not handle all scenarios (see https://github.com/go-yaml/yaml/tree/v3 for details)
-- You cannot (yet) select multiple paths/keys from the yaml to be printed out (https://github.com/mikefarah/yq/issues/287)
+- You cannot (yet) select multiple paths/keys from the yaml to be printed out (https://github.com/mikefarah/yq/issues/287) (although you can in v4!)

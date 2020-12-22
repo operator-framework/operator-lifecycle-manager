@@ -2,6 +2,7 @@ package operators
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -45,9 +46,7 @@ type AdoptionReconciler struct {
 // SetupWithManager adds the operator reconciler to the given controller manager.
 func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Trigger operator events from the events of their compoenents.
-	enqueueSub := &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(r.mapToSubscriptions),
-	}
+	enqueueSub := handler.EnqueueRequestsFromMapFunc(r.mapToSubscriptions)
 
 	// Create multiple controllers for resource types that require automatic adoption
 	err := ctrl.NewControllerManagedBy(mgr).
@@ -60,12 +59,8 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	var (
-		enqueueCSV = &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(r.mapToClusterServiceVersions),
-		}
-		enqueueProviders = &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(r.mapToProviders),
-		}
+		enqueueCSV       = handler.EnqueueRequestsFromMapFunc(r.mapToClusterServiceVersions)
+		enqueueProviders = handler.EnqueueRequestsFromMapFunc(r.mapToProviders)
 	)
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.ClusterServiceVersion{}).
@@ -113,13 +108,12 @@ func NewAdoptionReconciler(cli client.Client, log logr.Logger, scheme *runtime.S
 }
 
 // ReconcileSubscription labels the CSVs installed by a Subscription as components of an operator named after the subscribed package and install namespace.
-func (r *AdoptionReconciler) ReconcileSubscription(req ctrl.Request) (reconcile.Result, error) {
+func (r *AdoptionReconciler) ReconcileSubscription(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(4).Info("reconciling subscription")
 
 	// Fetch the Subscription from the cache
-	ctx := context.TODO()
 	in := &operatorsv1alpha1.Subscription{}
 	if err := r.Get(ctx, req.NamespacedName, in); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -176,13 +170,12 @@ func (r *AdoptionReconciler) ReconcileSubscription(req ctrl.Request) (reconcile.
 }
 
 // ReconcileClusterServiceVersion projects the component labels of a given CSV onto all resources owned by it.
-func (r *AdoptionReconciler) ReconcileClusterServiceVersion(req ctrl.Request) (reconcile.Result, error) {
+func (r *AdoptionReconciler) ReconcileClusterServiceVersion(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(4).Info("reconciling csv")
 
 	// Fetch the CSV from the cache
-	ctx := context.TODO()
 	in := &operatorsv1alpha1.ClusterServiceVersion{}
 	if err := r.Get(ctx, req.NamespacedName, in); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -265,7 +258,12 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 		return nil
 	}
 
-	if err := r.Get(ctx, types.NamespacedName{Namespace: m.GetNamespace(), Name: m.GetName()}, component); err != nil {
+	cObj, ok := component.(client.Object)
+	if !ok {
+		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+	}
+
+	if err := r.Get(ctx, types.NamespacedName{Namespace: m.GetNamespace(), Name: m.GetName()}, cObj); err != nil {
 		if apierrors.IsNotFound(err) {
 			r.log.Error(err, "component not found")
 			err = nil
@@ -273,7 +271,7 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 
 		return err
 	}
-	candidate := component.DeepCopyObject()
+	candidate := cObj.DeepCopyObject()
 
 	adopted, err := operator.AdoptComponent(candidate)
 	if err != nil {
@@ -282,14 +280,21 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 
 	if adopted {
 		// Only update if freshly adopted
-		r.log.Info("component adopted", "component", candidate)
-		return r.Patch(ctx, candidate, client.MergeFrom(component))
+		pCObj, ok := candidate.(client.Object)
+		if !ok {
+			return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		}
+		return r.Patch(ctx, pCObj, client.MergeFrom(cObj))
 	}
 
 	return nil
 }
 
 func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Operator, component runtime.Object) error {
+	cObj, ok := component.(client.Object)
+	if !ok {
+		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+	}
 	candidate := component.DeepCopyObject()
 	disowned, err := operator.DisownComponent(candidate)
 	if err != nil {
@@ -303,7 +308,11 @@ func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Op
 
 	// Only update if freshly disowned
 	r.log.V(4).Info("component disowned", "component", candidate)
-	return r.Patch(ctx, candidate, client.MergeFrom(component))
+	uCObj, ok := candidate.(client.Object)
+	if !ok {
+		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+	}
+	return r.Patch(ctx, uCObj, client.MergeFrom(cObj))
 }
 
 func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.Operator, csv *operatorsv1alpha1.ClusterServiceVersion) ([]runtime.Object, error) {
@@ -335,7 +344,11 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 	}
 	opt := client.MatchingLabelsSelector{Selector: selector}
 	for _, list := range componentLists {
-		if err := r.List(ctx, list, opt); err != nil {
+		cList, ok := list.(client.ObjectList)
+		if !ok {
+			return nil, fmt.Errorf("Unable to typecast runtime.Object to client.ObjectList")
+		}
+		if err := r.List(ctx, cList, opt); err != nil {
 			return nil, err
 		}
 	}
@@ -415,8 +428,8 @@ func (r *AdoptionReconciler) adoptInstallPlan(ctx context.Context, operator *dec
 	return utilerrors.NewAggregate(errs)
 }
 
-func (r *AdoptionReconciler) mapToSubscriptions(obj handler.MapObject) (requests []reconcile.Request) {
-	if obj.Meta == nil {
+func (r *AdoptionReconciler) mapToSubscriptions(obj client.Object) (requests []reconcile.Request) {
+	if obj == nil {
 		return
 	}
 
@@ -424,7 +437,7 @@ func (r *AdoptionReconciler) mapToSubscriptions(obj handler.MapObject) (requests
 	// The Subscription reconciler will sort out the important changes
 	ctx := context.TODO()
 	subs := &operatorsv1alpha1.SubscriptionList{}
-	if err := r.List(ctx, subs, client.InNamespace(obj.Meta.GetNamespace())); err != nil {
+	if err := r.List(ctx, subs, client.InNamespace(obj.GetNamespace())); err != nil {
 		r.log.Error(err, "error listing subscriptions")
 	}
 
@@ -444,15 +457,15 @@ func (r *AdoptionReconciler) mapToSubscriptions(obj handler.MapObject) (requests
 	return
 }
 
-func (r *AdoptionReconciler) mapToClusterServiceVersions(obj handler.MapObject) (requests []reconcile.Request) {
-	if obj.Meta == nil {
+func (r *AdoptionReconciler) mapToClusterServiceVersions(obj client.Object) (requests []reconcile.Request) {
+	if obj == nil {
 		return
 	}
 
 	// Get all owner CSV from owner labels if cluster scoped
-	namespace := obj.Meta.GetNamespace()
+	namespace := obj.GetNamespace()
 	if namespace == metav1.NamespaceAll {
-		name, ns, ok := ownerutil.GetOwnerByKindLabel(obj.Meta, operatorsv1alpha1.ClusterServiceVersionKind)
+		name, ns, ok := ownerutil.GetOwnerByKindLabel(obj, operatorsv1alpha1.ClusterServiceVersionKind)
 		if ok {
 			nsn := types.NamespacedName{Namespace: ns, Name: name}
 			requests = append(requests, reconcile.Request{NamespacedName: nsn})
@@ -461,7 +474,7 @@ func (r *AdoptionReconciler) mapToClusterServiceVersions(obj handler.MapObject) 
 	}
 
 	// Get all owner CSVs from OwnerReferences
-	owners := ownerutil.GetOwnersByKind(obj.Meta, operatorsv1alpha1.ClusterServiceVersionKind)
+	owners := ownerutil.GetOwnersByKind(obj, operatorsv1alpha1.ClusterServiceVersionKind)
 	for _, owner := range owners {
 		nsn := types.NamespacedName{Namespace: namespace, Name: owner.Name}
 		requests = append(requests, reconcile.Request{NamespacedName: nsn})
@@ -470,8 +483,8 @@ func (r *AdoptionReconciler) mapToClusterServiceVersions(obj handler.MapObject) 
 	return
 }
 
-func (r *AdoptionReconciler) mapToProviders(obj handler.MapObject) (requests []reconcile.Request) {
-	if obj.Meta == nil {
+func (r *AdoptionReconciler) mapToProviders(obj client.Object) (requests []reconcile.Request) {
+	if obj == nil {
 		return nil
 	}
 
@@ -489,7 +502,7 @@ func (r *AdoptionReconciler) mapToProviders(obj handler.MapObject) (requests []r
 			NamespacedName: types.NamespacedName{Namespace: csv.GetNamespace(), Name: csv.GetName()},
 		}
 		for _, provided := range csv.Spec.CustomResourceDefinitions.Owned {
-			if provided.Name == obj.Meta.GetName() {
+			if provided.Name == obj.GetName() {
 				requests = append(requests, request)
 				break
 			}

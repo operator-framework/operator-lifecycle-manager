@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,7 +22,7 @@ type fakeApplier struct {
 	k8scontrollerclient.Client
 }
 
-func (c *fakeApplier) Patch(ctx context.Context, obj runtime.Object, patch k8scontrollerclient.Patch, opts ...k8scontrollerclient.PatchOption) error {
+func (c *fakeApplier) Patch(ctx context.Context, obj k8scontrollerclient.Object, patch k8scontrollerclient.Patch, opts ...k8scontrollerclient.PatchOption) error {
 	patch, opts = convertApplyToMergePatch(patch, opts...)
 	return c.Client.Patch(ctx, obj, patch, opts...)
 }
@@ -34,7 +35,7 @@ type fakeStatusWriter struct {
 	k8scontrollerclient.StatusWriter
 }
 
-func (c fakeStatusWriter) Patch(ctx context.Context, obj runtime.Object, patch k8scontrollerclient.Patch, opts ...k8scontrollerclient.PatchOption) error {
+func (c fakeStatusWriter) Patch(ctx context.Context, obj k8scontrollerclient.Object, patch k8scontrollerclient.Patch, opts ...k8scontrollerclient.PatchOption) error {
 	patch, opts = convertApplyToMergePatch(patch, opts...)
 	return c.StatusWriter.Patch(ctx, obj, patch, opts...)
 }

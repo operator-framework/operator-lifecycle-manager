@@ -1,12 +1,11 @@
 package envtest
 
 import (
-	"reflect"
-
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -40,7 +39,7 @@ func mergePaths(s1, s2 []string) []string {
 
 // mergeCRDs merges two CRD slices using their names.
 // This function makes no guarantees about order of the merged slice.
-func mergeCRDs(s1, s2 []runtime.Object) []runtime.Object {
+func mergeCRDs(s1, s2 []client.Object) []client.Object {
 	m := make(map[string]*unstructured.Unstructured)
 	for _, obj := range runtimeCRDListToUnstructured(s1) {
 		m[obj.GetName()] = obj
@@ -48,7 +47,7 @@ func mergeCRDs(s1, s2 []runtime.Object) []runtime.Object {
 	for _, obj := range runtimeCRDListToUnstructured(s2) {
 		m[obj.GetName()] = obj
 	}
-	merged := make([]runtime.Object, len(m))
+	merged := make([]client.Object, len(m))
 	i := 0
 	for _, obj := range m {
 		merged[i] = obj
@@ -57,19 +56,7 @@ func mergeCRDs(s1, s2 []runtime.Object) []runtime.Object {
 	return merged
 }
 
-// existsUnstructured verify if a any item is common between two lists.
-func existsUnstructured(s1, s2 []*unstructured.Unstructured) bool {
-	for _, s1obj := range s1 {
-		for _, s2obj := range s2 {
-			if reflect.DeepEqual(s1obj, s2obj) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func runtimeCRDListToUnstructured(l []runtime.Object) []*unstructured.Unstructured {
+func runtimeCRDListToUnstructured(l []client.Object) []*unstructured.Unstructured {
 	res := []*unstructured.Unstructured{}
 	for _, obj := range l {
 		u := &unstructured.Unstructured{}
@@ -78,14 +65,6 @@ func runtimeCRDListToUnstructured(l []runtime.Object) []*unstructured.Unstructur
 			continue
 		}
 		res = append(res, u)
-	}
-	return res
-}
-
-func unstructuredCRDListToRuntime(l []*unstructured.Unstructured) []runtime.Object {
-	res := []runtime.Object{}
-	for _, obj := range l {
-		res = append(res, obj.DeepCopy())
 	}
 	return res
 }

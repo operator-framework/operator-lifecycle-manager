@@ -66,7 +66,7 @@ func NewOperatorConditionReconciler(cli client.Client, log logr.Logger, scheme *
 // Implement reconcile.Reconciler so the controller can reconcile objects
 var _ reconcile.Reconciler = &OperatorConditionReconciler{}
 
-func (r *OperatorConditionReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *OperatorConditionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(2).Info("reconciling operatorcondition")
