@@ -1337,8 +1337,10 @@ var _ = Describe("CSV", func() {
 
 		// Should create certificate Secret
 		secretName = fmt.Sprintf("%s-cert", serviceName)
-		_, err = c.GetSecret(testNamespace, secretName)
-		require.NoError(GinkgoT(), err, "error getting expected Secret")
+		Eventually(func() error {
+			_, err = c.GetSecret(testNamespace, secretName)
+			return err
+		}, time.Minute, 5*time.Second).Should(Succeed())
 
 		// Should create a Role for the Secret
 		_, err = c.GetRole(testNamespace, secretName)
