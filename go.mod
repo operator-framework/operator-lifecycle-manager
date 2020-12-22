@@ -66,6 +66,9 @@ replace (
 
 	// pinned because latest etcd does not yet work with the latest grpc version (1.30.0)
 	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
+
+	// pinned due to undefined: unix.SYS_IOCTL on macOS error when running make-run local
+	golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6
 	google.golang.org/grpc => google.golang.org/grpc v1.27.0
 	google.golang.org/grpc/examples => google.golang.org/grpc/examples v0.0.0-20200709232328-d8193ee9cc3e
 
