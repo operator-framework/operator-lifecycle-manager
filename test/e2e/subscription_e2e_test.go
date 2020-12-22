@@ -202,9 +202,37 @@ var _ = Describe("Subscription", func() {
 		require.Equal(GinkgoT(), v1alpha1.ApprovalManual, installPlan.Spec.Approval)
 		require.Equal(GinkgoT(), v1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
 
-		installPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), installPlan, metav1.UpdateOptions{})
+		// Delete the current installplan
+		err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.Background(), installPlan.Name, metav1.DeleteOptions{})
 		require.NoError(GinkgoT(), err)
+
+		var ipName string
+		Eventually(func() bool {
+			fetched, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), "manual-subscription", metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			if fetched.Status.Install != nil {
+				ipName = fetched.Status.Install.Name
+				return fetched.Status.Install.Name != installPlan.Name
+			}
+			return false
+		}, 5*time.Minute, 10*time.Second).Should(BeTrue())
+
+		// Fetch new installplan
+		newInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, ipName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval))
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), newInstallPlan)
+
+		require.NotEqual(GinkgoT(), installPlan.Name, newInstallPlan.Name, "expected new installplan recreated")
+		require.Equal(GinkgoT(), v1alpha1.ApprovalManual, newInstallPlan.Spec.Approval)
+		require.Equal(GinkgoT(), v1alpha1.InstallPlanPhaseRequiresApproval, newInstallPlan.Status.Phase)
+
+		// Set the InstallPlan's approved to True
+		Eventually(Apply(newInstallPlan, func(p *v1alpha1.InstallPlan) error {
+			p.Spec.Approved = true
+			return nil
+		})).Should(Succeed())
 
 		subscription, err = fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
