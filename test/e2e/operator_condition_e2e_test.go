@@ -22,9 +22,9 @@ var _ = Describe("Operator Condition", func() {
 		TearDown(testNamespace)
 	})
 
-	It("OperatorUpgradeable condition and overrides", func() {
+	It("OperatorCondition Upgradeable type and overrides", func() {
 		By("This test proves that an operator can upgrade successfully when" +
-			"OperatorUpgrade condition is set in OperatorCondition CR. Plus, an operator" +
+			"Upgrade condition type is set in OperatorCondition CR. Plus, an operator" +
 			"chooses not to use OperatorCondition, the upgrade process will proceed as" +
 			" asexpected. The overrides specification in OperatorCondition can be used to" +
 			" override the status condition. The overrides spec will remain in place until" +
@@ -93,7 +93,7 @@ var _ = Describe("Operator Condition", func() {
 		// Get the OperatorCondition for csvA and report that it is not upgradeable
 		var cond *operatorsv1.OperatorCondition
 		upgradeableFalseCondition := metav1.Condition{
-			Type:               operatorsv1.OperatorUpgradeable,
+			Type:               operatorsv1.Upgradeable,
 			Status:             metav1.ConditionFalse,
 			Reason:             "test",
 			Message:            "test",
@@ -134,7 +134,7 @@ var _ = Describe("Operator Condition", func() {
 
 		// Get the OperatorCondition for csvA and report that it is upgradeable, unblocking csvB
 		upgradeableTrueCondition := metav1.Condition{
-			Type:               operatorsv1.OperatorUpgradeable,
+			Type:               operatorsv1.Upgradeable,
 			Status:             metav1.ConditionTrue,
 			Reason:             "test",
 			Message:            "test",
@@ -195,7 +195,7 @@ var _ = Describe("Operator Condition", func() {
 			// Set Condition overrides to True
 			cond.Spec = operatorsv1.OperatorConditionSpec{
 				Overrides: []metav1.Condition{{
-					Type:               operatorsv1.OperatorUpgradeable,
+					Type:               operatorsv1.Upgradeable,
 					Status:             metav1.ConditionTrue,
 					Reason:             "test",
 					Message:            "test",

@@ -26,7 +26,7 @@ func (a *Operator) isOperatorUpgradeable(csv *v1alpha1.ClusterServiceVersion) (b
 
 	// Check condition overrides
 	for _, override := range cond.Spec.Overrides {
-		if override.Type == operatorsv1.OperatorUpgradeable {
+		if override.Type == operatorsv1.Upgradeable {
 			if override.Status == metav1.ConditionTrue {
 				return true, nil
 			}
@@ -35,7 +35,7 @@ func (a *Operator) isOperatorUpgradeable(csv *v1alpha1.ClusterServiceVersion) (b
 	}
 
 	// Check for OperatorUpgradeable condition status
-	if c := meta.FindStatusCondition(cond.Status.Conditions, operatorsv1.OperatorUpgradeable); c != nil {
+	if c := meta.FindStatusCondition(cond.Status.Conditions, operatorsv1.Upgradeable); c != nil {
 		if c.Status == metav1.ConditionFalse {
 			return false, fmt.Errorf("The operator is not upgradeable: %s", c.Message)
 		}
