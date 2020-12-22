@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -201,6 +202,13 @@ func (r *OperatorConditionReconciler) ensureDeploymentEnvVars(operatorCondition 
 		if err != nil {
 			return err
 		}
+
+		// Check the deployment is owned by a CSV with the same name as the OperatorCondition.
+		deploymentOwner := ownerutil.GetOwnerByKind(deployment, operatorsv1alpha1.ClusterServiceVersionKind)
+		if deploymentOwner == nil || deploymentOwner.Name != operatorCondition.GetName() {
+			continue
+		}
+
 		deploymentNeedsUpdate := false
 		for i := range deployment.Spec.Template.Spec.Containers {
 			envVars, containedEnvVar := ensureEnvVarIsPresent(deployment.Spec.Template.Spec.Containers[i].Env, corev1.EnvVar{Name: OperatorConditionEnvVarKey, Value: operatorCondition.GetName()})

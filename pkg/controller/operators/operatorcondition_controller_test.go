@@ -7,6 +7,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -49,7 +51,6 @@ var _ = Describe("OperatorCondition", func() {
 			namespace         *corev1.Namespace
 			namespacedName    types.NamespacedName
 		)
-
 		BeforeEach(func() {
 			ctx = context.Background()
 			namespace = &corev1.Namespace{
@@ -60,160 +61,260 @@ var _ = Describe("OperatorCondition", func() {
 			Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
 
 			namespacedName = types.NamespacedName{Name: "test", Namespace: namespace.GetName()}
+		})
 
-			// Create  the deployment
-			labels := map[string]string{
-				"foo": "bar",
-			}
-			deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-				Name:      "deployment",
-				Namespace: namespace.GetName(),
-			},
-				Spec: appsv1.DeploymentSpec{
-					Selector: &metav1.LabelSelector{
-						MatchLabels: labels,
+		When("an operatorCondition is created that specifies an array of ServiceAccounts", func() {
+			BeforeEach(func() {
+				operatorCondition = &operatorsv1.OperatorCondition{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      namespacedName.Name,
+						Namespace: namespacedName.Namespace,
 					},
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							GenerateName: "nginx-",
-							Namespace:    namespace.GetName(),
-							Labels:       labels,
+					Spec: operatorsv1.OperatorConditionSpec{
+						ServiceAccounts: []string{"serviceaccount"},
+						Deployments:     []string{},
+					},
+				}
+				Expect(k8sClient.Create(ctx, operatorCondition)).To(Succeed())
+			})
+
+			It("creates and recreates the expected Role", func() {
+				role := &rbacv1.Role{}
+
+				Eventually(func() error {
+					return k8sClient.Get(ctx, namespacedName, role)
+				}, timeout, interval).Should(BeNil())
+
+				Expect(len(role.OwnerReferences)).Should(Equal(1))
+
+				falseBool := false
+				trueBool := true
+
+				Expect(role.OwnerReferences).Should(ContainElement(metav1.OwnerReference{
+					APIVersion:         "operators.coreos.com/v1",
+					Kind:               "OperatorCondition",
+					Name:               "test",
+					UID:                operatorCondition.UID,
+					Controller:         &trueBool,
+					BlockOwnerDeletion: &falseBool,
+				}))
+				Expect(role.Rules).Should(Equal([]rbacv1.PolicyRule{
+					{
+						Verbs:         []string{"get"},
+						APIGroups:     []string{"operators.coreos.com"},
+						Resources:     []string{"operatorconditions"},
+						ResourceNames: []string{namespacedName.Name},
+					},
+					{
+						Verbs:         []string{"get,update,patch"},
+						APIGroups:     []string{"operators.coreos.com"},
+						Resources:     []string{"operatorconditions/status"},
+						ResourceNames: []string{namespacedName.Name},
+					},
+				}))
+				Expect(k8sClient.Delete(ctx, role)).To(Succeed())
+				Eventually(func() error {
+					return k8sClient.Get(ctx, namespacedName, role)
+				}, timeout, interval).Should(Succeed())
+
+			})
+
+			It("creates and recreates the expected RoleBinding", func() {
+				roleBinding := &rbacv1.RoleBinding{}
+				falseBool := false
+				trueBool := true
+
+				Eventually(func() error {
+					return k8sClient.Get(ctx, namespacedName, roleBinding)
+				}, timeout, interval).Should(BeNil())
+				Expect(len(roleBinding.OwnerReferences)).To(Equal(1))
+				Expect(roleBinding.OwnerReferences).Should(ContainElement(metav1.OwnerReference{
+					APIVersion:         "operators.coreos.com/v1",
+					Kind:               "OperatorCondition",
+					Name:               "test",
+					UID:                operatorCondition.UID,
+					Controller:         &trueBool,
+					BlockOwnerDeletion: &falseBool,
+				}))
+				Expect(len(roleBinding.Subjects)).To(Equal(1))
+				Expect(roleBinding.Subjects).Should(ContainElement(rbacv1.Subject{
+					Kind: "ServiceAccount",
+					Name: operatorCondition.Spec.ServiceAccounts[0],
+				}))
+				Expect(roleBinding.RoleRef).To(Equal(rbacv1.RoleRef{
+					Kind:     "Role",
+					Name:     roleBinding.GetName(),
+					APIGroup: "rbac.authorization.k8s.io",
+				}))
+
+				Expect(k8sClient.Delete(ctx, roleBinding)).To(Succeed())
+				Eventually(func() error {
+					return k8sClient.Get(ctx, namespacedName, roleBinding)
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		When("a CSV exists that owns a deployment", func() {
+			var csv *operatorsv1alpha1.ClusterServiceVersion
+			BeforeEach(func() {
+				// Create a coppied csv used as an owner in the following tests.
+				// Copied CSVs are ignored by the OperatorConditionGenerator Reconciler, which we don't want to intervine in this test.
+				csv = &operatorsv1alpha1.ClusterServiceVersion{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+						APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      namespacedName.Name,
+						Namespace: namespace.GetName(),
+						Labels: map[string]string{
+							operatorsv1alpha1.CopiedLabelKey: "",
 						},
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
-								{
-									Name:  "web",
-									Image: "nginx",
-									Ports: []corev1.ContainerPort{
-										{
-											Name:          "web",
-											ContainerPort: 80,
-											Protocol:      corev1.ProtocolTCP,
+					},
+					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+						InstallModes: []operatorsv1alpha1.InstallMode{
+							{
+								Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
+								Supported: true,
+							},
+							{
+								Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
+								Supported: true,
+							},
+							{
+								Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
+								Supported: true,
+							},
+							{
+								Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
+								Supported: true,
+							},
+						},
+						InstallStrategy: newNginxInstallStrategy("deployment", nil, nil),
+					},
+				}
+				Expect(k8sClient.Create(ctx, csv)).To(Succeed())
+
+				// Create  the deployment
+				labels := map[string]string{
+					"foo": "bar",
+				}
+				deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+					Name:      "deployment",
+					Namespace: namespacedName.Namespace,
+				},
+					Spec: appsv1.DeploymentSpec{
+						Selector: &metav1.LabelSelector{
+							MatchLabels: labels,
+						},
+						Template: corev1.PodTemplateSpec{
+							ObjectMeta: metav1.ObjectMeta{
+								GenerateName: "nginx-",
+								Namespace:    namespacedName.Namespace,
+								Labels:       labels,
+							},
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "web",
+										Image: "nginx",
+										Ports: []corev1.ContainerPort{
+											{
+												Name:          "web",
+												ContainerPort: 80,
+												Protocol:      corev1.ProtocolTCP,
+											},
 										},
 									},
 								},
 							},
 						},
 					},
-				},
-			}
-
-			Expect(k8sClient.Create(ctx, deployment)).To(Succeed())
-
-			operatorCondition = &operatorsv1.OperatorCondition{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      namespacedName.Name,
-					Namespace: namespacedName.Namespace,
-				},
-				Spec: operatorsv1.OperatorConditionSpec{
-					ServiceAccounts: []string{"serviceaccount"},
-					Deployments:     []string{"deployment"},
-				},
-			}
-			Expect(k8sClient.Create(ctx, operatorCondition)).To(Succeed())
-		})
-
-		It("creates and recreates the expected Role", func() {
-			role := &rbacv1.Role{}
-
-			Eventually(func() error {
-				return k8sClient.Get(ctx, namespacedName, role)
-			}, timeout, interval).Should(BeNil())
-
-			Expect(len(role.OwnerReferences)).Should(Equal(1))
-
-			falseBool := false
-			trueBool := true
-
-			Expect(role.OwnerReferences).Should(ContainElement(metav1.OwnerReference{
-				APIVersion:         "operators.coreos.com/v1",
-				Kind:               "OperatorCondition",
-				Name:               "test",
-				UID:                operatorCondition.UID,
-				Controller:         &trueBool,
-				BlockOwnerDeletion: &falseBool,
-			}))
-			Expect(role.Rules).Should(Equal([]rbacv1.PolicyRule{
-				{
-					Verbs:         []string{"get"},
-					APIGroups:     []string{"operators.coreos.com"},
-					Resources:     []string{"operatorconditions"},
-					ResourceNames: []string{namespacedName.Name},
-				},
-				{
-					Verbs:         []string{"get,update,patch"},
-					APIGroups:     []string{"operators.coreos.com"},
-					Resources:     []string{"operatorconditions/status"},
-					ResourceNames: []string{namespacedName.Name},
-				},
-			}))
-			Expect(k8sClient.Delete(ctx, role)).To(Succeed())
-			Eventually(func() error {
-				return k8sClient.Get(ctx, namespacedName, role)
-			}, timeout, interval).Should(Succeed())
-
-		})
-
-		It("creates the expected RoleBinding", func() {
-			roleBinding := &rbacv1.RoleBinding{}
-			falseBool := false
-			trueBool := true
-
-			Eventually(func() error {
-				return k8sClient.Get(ctx, namespacedName, roleBinding)
-			}, timeout, interval).Should(BeNil())
-			Expect(len(roleBinding.OwnerReferences)).To(Equal(1))
-			Expect(roleBinding.OwnerReferences).Should(ContainElement(metav1.OwnerReference{
-				APIVersion:         "operators.coreos.com/v1",
-				Kind:               "OperatorCondition",
-				Name:               "test",
-				UID:                operatorCondition.UID,
-				Controller:         &trueBool,
-				BlockOwnerDeletion: &falseBool,
-			}))
-			Expect(len(roleBinding.Subjects)).To(Equal(1))
-			Expect(roleBinding.Subjects).Should(ContainElement(rbacv1.Subject{
-				Kind: "ServiceAccount",
-				Name: operatorCondition.Spec.ServiceAccounts[0],
-			}))
-			Expect(roleBinding.RoleRef).To(Equal(rbacv1.RoleRef{
-				Kind:     "Role",
-				Name:     roleBinding.GetName(),
-				APIGroup: "rbac.authorization.k8s.io",
-			}))
-
-			Expect(k8sClient.Delete(ctx, roleBinding)).To(Succeed())
-			Eventually(func() error {
-				return k8sClient.Get(ctx, namespacedName, roleBinding)
-			}, timeout, interval).Should(Succeed())
-
-		})
-		It("appends the OPERATOR_CONDITION_NAME environment variable to the containers in the deployments", func() {
-			deployment := &appsv1.Deployment{}
-			Eventually(func() error {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
-				if err != nil {
-					return err
 				}
-				if len(deployment.Spec.Template.Spec.Containers) != 1 {
-					return fmt.Errorf("Deployment should contain a single container")
-				}
-				for _, container := range deployment.Spec.Template.Spec.Containers {
-					if len(container.Env) == 0 {
-						return fmt.Errorf("env vars should exist")
+				ownerutil.AddNonBlockingOwner(deployment, csv)
+
+				Expect(k8sClient.Create(ctx, deployment)).To(Succeed())
+			})
+
+			Context("and an OperatorCondition with a different name than the CSV includes that deployment in its spec.Deployments array", func() {
+				BeforeEach(func() {
+					operatorCondition = &operatorsv1.OperatorCondition{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      namespacedName.Name + "different",
+							Namespace: namespacedName.Namespace,
+						},
+						Spec: operatorsv1.OperatorConditionSpec{
+							ServiceAccounts: []string{},
+							Deployments:     []string{"deployment"},
+						},
 					}
-				}
-				return nil
-			}, timeout, interval).Should(BeNil())
+					Expect(k8sClient.Create(ctx, operatorCondition)).To(Succeed())
+				})
+				It("does not injected the OperatorCondition name into the deployment's Environment Variables", func() {
+					deployment := &appsv1.Deployment{}
+					Consistently(func() error {
+						err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
+						if err != nil {
+							return err
+						}
+						if len(deployment.Spec.Template.Spec.Containers) != 1 {
+							return fmt.Errorf("Deployment should contain a single container")
+						}
+						for _, container := range deployment.Spec.Template.Spec.Containers {
+							if len(container.Env) != 0 {
 
-			Expect(len(deployment.Spec.Template.Spec.Containers)).Should(Equal(1))
-			for _, container := range deployment.Spec.Template.Spec.Containers {
-				Expect(len(container.Env)).Should(Equal(1))
-				Expect(container.Env).Should(ContainElement(corev1.EnvVar{
-					Name:  "OPERATOR_CONDITION_NAME",
-					Value: operatorCondition.GetName(),
-				}))
-			}
+								return fmt.Errorf("env vars should not exist: %v", container.Env)
+							}
+						}
+						return nil
+					}, timeout, interval).Should(BeNil())
+				})
+			})
+
+			Context("and an OperatorCondition with the same name as the CSV includes that deployment in its spec.Deployments array", func() {
+				BeforeEach(func() {
+					operatorCondition = &operatorsv1.OperatorCondition{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      namespacedName.Name,
+							Namespace: namespacedName.Namespace,
+						},
+						Spec: operatorsv1.OperatorConditionSpec{
+							ServiceAccounts: []string{},
+							Deployments:     []string{"deployment"},
+						},
+					}
+					ownerutil.AddNonBlockingOwner(operatorCondition, csv)
+					Expect(k8sClient.Create(ctx, operatorCondition)).To(Succeed())
+				})
+
+				It("injects the OperatorCondition name into the deployment's Environment Variables", func() {
+					deployment := &appsv1.Deployment{}
+					Eventually(func() error {
+						err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
+						if err != nil {
+							return err
+						}
+						if len(deployment.Spec.Template.Spec.Containers) != 1 {
+							return fmt.Errorf("Deployment should contain a single container")
+						}
+						for _, container := range deployment.Spec.Template.Spec.Containers {
+							if len(container.Env) == 0 {
+								return fmt.Errorf("env vars should exist")
+							}
+						}
+						return nil
+					}, timeout, interval).Should(BeNil())
+
+					Expect(len(deployment.Spec.Template.Spec.Containers)).Should(Equal(1))
+					for _, container := range deployment.Spec.Template.Spec.Containers {
+						Expect(len(container.Env)).Should(Equal(1))
+						Expect(container.Env).Should(ContainElement(corev1.EnvVar{
+							Name:  "OPERATOR_CONDITION_NAME",
+							Value: operatorCondition.GetName(),
+						}))
+					}
+				})
+			})
 		})
 	})
 })
