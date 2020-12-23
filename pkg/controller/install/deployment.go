@@ -134,10 +134,10 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 
 	// Merge annotations (to avoid losing info from pod template)
 	annotations := map[string]string{}
-	for k, v := range i.templateAnnotations {
+	for k, v := range dep.Spec.Template.GetAnnotations() {
 		annotations[k] = v
 	}
-	for k, v := range dep.Spec.Template.GetAnnotations() {
+	for k, v := range i.templateAnnotations {
 		annotations[k] = v
 	}
 	dep.Spec.Template.SetAnnotations(annotations)

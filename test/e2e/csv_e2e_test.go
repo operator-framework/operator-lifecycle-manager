@@ -1616,6 +1616,82 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred(), "error updating APIService")
 		<-deleted
 	})
+	It("CSV annotations overwrite pod template annotations defined in a StrategyDetailsDeployment", func() {
+		// Create a StrategyDetailsDeployment that defines the `foo1` and `foo2` annotations on a pod template
+		nginxName := genName("nginx-")
+		strategy := v1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+				{
+					Name: genName("dep-"),
+					Spec: newNginxDeployment(nginxName),
+				},
+			},
+		}
+		strategy.DeploymentSpecs[0].Spec.Template.Annotations = map[string]string{
+			"foo1": "notBar1",
+			"foo2": "bar2",
+		}
+
+		// Create a CSV that defines the `foo1` and `foo3` annotations
+		csv := v1alpha1.ClusterServiceVersion{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.ClusterServiceVersionKind,
+				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("csv"),
+				Annotations: map[string]string{
+					"foo1": "bar1",
+					"foo3": "bar3",
+				},
+			},
+			Spec: v1alpha1.ClusterServiceVersionSpec{
+				MinKubeVersion: "0.0.0",
+				InstallModes: []v1alpha1.InstallMode{
+					{
+						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					},
+				},
+				InstallStrategy: v1alpha1.NamedInstallStrategy{
+					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+					StrategySpec: strategy,
+				},
+			},
+		}
+
+		// Create the CSV and make sure to clean it up
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
+		Expect(err).ShouldNot(HaveOccurred())
+		defer cleanupCSV()
+
+		// Wait for current CSV to succeed
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// Should have created deployment
+		dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(dep).ShouldNot(BeNil())
+
+		// Make sure that the pods annotations are correct
+		annotations := dep.Spec.Template.Annotations
+		Expect(annotations["foo1"]).Should(Equal("bar1"))
+		Expect(annotations["foo2"]).Should(Equal("bar2"))
+		Expect(annotations["foo3"]).Should(Equal("bar3"))
+	})
 	It("update same deployment name", func() {
 
 		// Create dependency first (CRD)
