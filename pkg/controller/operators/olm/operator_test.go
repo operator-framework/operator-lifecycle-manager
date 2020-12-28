@@ -3112,7 +3112,7 @@ func TestTransitionCSV(t *testing.T) {
 	}
 }
 
-func TestCaBundleRetrevial(t *testing.T) {
+func TestWebhookCABundleRetrieval(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
 	missingCAError := fmt.Errorf("Unable to find ca")
@@ -3122,6 +3122,7 @@ func TestCaBundleRetrevial(t *testing.T) {
 		csvs []runtime.Object
 		crds []runtime.Object
 		objs []runtime.Object
+		desc v1alpha1.WebhookDescription
 	}
 	type expected struct {
 		caBundle []byte
@@ -3149,6 +3150,10 @@ func TestCaBundleRetrevial(t *testing.T) {
 						v1alpha1.CSVPhaseInstalling,
 					),
 				},
+				desc: v1alpha1.WebhookDescription{
+					GenerateName: "webhook",
+					Type: v1alpha1.ValidatingAdmissionWebhook,
+				},
 			},
 			expected: expected{
 				caBundle: nil,
@@ -3175,6 +3180,11 @@ func TestCaBundleRetrevial(t *testing.T) {
 				crds: []runtime.Object{
 					crdWithConversionWebhook(crd("c1", "v1", "g1"), caBundle),
 				},
+				desc: v1alpha1.WebhookDescription{
+					GenerateName: "webhook",
+					Type: v1alpha1.ConversionWebhook,
+					ConversionCRDs: []string{"c1.g1"},
+				},
 			},
 			expected: expected{
 				caBundle: caBundle,
@@ -3200,6 +3210,11 @@ func TestCaBundleRetrevial(t *testing.T) {
 				},
 				crds: []runtime.Object{
 					crd("c1", "v1", "g1"),
+				},
+				desc: v1alpha1.WebhookDescription{
+					GenerateName: "webhook",
+					Type: v1alpha1.ConversionWebhook,
+					ConversionCRDs: []string{"c1.g1"},
 				},
 			},
 			expected: expected{
@@ -3233,7 +3248,7 @@ func TestCaBundleRetrevial(t *testing.T) {
 								"olm.owner":                             "csv1",
 								"olm.owner.namespace":                   namespace,
 								"olm.owner.kind":                        v1alpha1.ClusterServiceVersionKind,
-								"olm.webhook-description-generate-name": "",
+								"olm.webhook-description-generate-name": "webhook",
 							},
 						},
 						Webhooks: []admissionregistrationv1.ValidatingWebhook{
@@ -3245,6 +3260,10 @@ func TestCaBundleRetrevial(t *testing.T) {
 							},
 						},
 					},
+				},
+				desc: v1alpha1.WebhookDescription{
+					GenerateName: "webhook",
+					Type: v1alpha1.ValidatingAdmissionWebhook,
 				},
 			},
 			expected: expected{
@@ -3278,7 +3297,7 @@ func TestCaBundleRetrevial(t *testing.T) {
 								"olm.owner":                             "csv1",
 								"olm.owner.namespace":                   namespace,
 								"olm.owner.kind":                        v1alpha1.ClusterServiceVersionKind,
-								"olm.webhook-description-generate-name": "",
+								"olm.webhook-description-generate-name": "webhook",
 							},
 						},
 						Webhooks: []admissionregistrationv1.MutatingWebhook{
@@ -3290,6 +3309,10 @@ func TestCaBundleRetrevial(t *testing.T) {
 							},
 						},
 					},
+				},
+				desc: v1alpha1.WebhookDescription{
+					GenerateName: "webhook",
+					Type: v1alpha1.MutatingAdmissionWebhook,
 				},
 			},
 			expected: expected{
@@ -3315,7 +3338,7 @@ func TestCaBundleRetrevial(t *testing.T) {
 
 			// run csv sync for each CSV
 			for _, csv := range tt.initial.csvs {
-				caBundle, err := op.getCABundle(csv.(*v1alpha1.ClusterServiceVersion))
+				caBundle, err := op.getWebhookCABundle(csv.(*v1alpha1.ClusterServiceVersion), &tt.initial.desc)
 				require.Equal(t, tt.expected.err, err)
 				require.Equal(t, tt.expected.caBundle, caBundle)
 			}
