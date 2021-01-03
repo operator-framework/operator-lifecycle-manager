@@ -13,9 +13,9 @@ Note: Make sure your branch is rebased to the latest upstream master.
 
 **Reviewer Checklist**
 - [ ] Implementation matches the proposed design, or proposal is updated to match implementation
-- [ ] Sufficient unit test coverage 
+- [ ] Sufficient unit test coverage
 - [ ] Sufficient end-to-end test coverage
-- [ ] Docs updated or added to `/docs` 
+- [ ] Docs updated or added to `/doc`
 - [ ] Commit messages sensible and descriptive
 
 
