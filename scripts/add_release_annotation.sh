@@ -8,5 +8,5 @@ chartdir=$1
 yq=$2
 
 for f in $chartdir/*.yaml; do
-   $yq w --inplace --style=double $f 'metadata.annotations['include.release.openshift.io/self-managed-high-availability']' true
+   $yq w -d'*' --inplace --style=double $f 'metadata.annotations['include.release.openshift.io/self-managed-high-availability']' true
 done

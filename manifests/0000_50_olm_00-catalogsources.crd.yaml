@@ -3,6 +3,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.1
+    include.release.openshift.io/self-managed-high-availability: "true"
   creationTimestamp: null
   name: catalogsources.operators.coreos.com
 spec:
@@ -164,4 +165,3 @@ spec:
       storage: true
       subresources:
         status: {}
-
