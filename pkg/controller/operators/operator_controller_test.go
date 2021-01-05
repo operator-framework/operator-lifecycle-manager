@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,9 +44,54 @@ var _ = Describe("Operator Controller", func() {
 		Expect(k8sClient.Create(ctx, operator)).To(Succeed())
 	})
 
-	AfterEach(func() {
-		Expect(k8sClient.Get(ctx, name, operator)).To(Succeed())
-		Expect(k8sClient.Delete(ctx, operator, deleteOpts)).To(Succeed())
+	Describe("operator deletion", func() {
+		BeforeEach(func() {
+			Expect(k8sClient.Delete(ctx, operator)).To(Succeed())
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, name, operator)
+				return apierrors.IsNotFound(err)
+			}, timeout, interval).Should(BeTrue())
+		})
+		Context("with components bearing its label", func() {
+			var (
+				objs      []runtime.Object
+				namespace string
+			)
+
+			BeforeEach(func() {
+				namespace = genName("ns-")
+				objs = testobj.WithLabel(expectedKey, "",
+					testobj.WithName(namespace, &corev1.Namespace{}),
+				)
+
+				for _, obj := range objs {
+					Expect(k8sClient.Create(ctx, obj.(client.Object))).To(Succeed())
+				}
+			})
+
+			AfterEach(func() {
+				for _, obj := range objs {
+					Expect(k8sClient.Get(ctx, testobj.NamespacedName(obj), obj.(client.Object))).To(Succeed())
+					Expect(k8sClient.Delete(ctx, obj.(client.Object), deleteOpts)).To(Succeed())
+				}
+				Expect(k8sClient.Get(ctx, name, operator)).To(Succeed())
+				Expect(k8sClient.Delete(ctx, operator, deleteOpts)).To(Succeed())
+			})
+
+			It("should re-create it", func() {
+				Eventually(func() error {
+					return k8sClient.Get(ctx, name, operator)
+				}).Should(Succeed())
+			})
+		})
+		Context("with no components bearing its label", func() {
+			It("should not re-create it", func() {
+				Consistently(func() bool {
+					err := k8sClient.Get(ctx, name, operator)
+					return apierrors.IsNotFound(err)
+				}, timeout, interval).Should(BeTrue())
+			})
+		})
 	})
 
 	Describe("component selection", func() {
@@ -59,6 +105,11 @@ var _ = Describe("Operator Controller", func() {
 				err := k8sClient.Get(ctx, name, operator)
 				return operator.Status.Components.LabelSelector, err
 			}, timeout, interval).Should(Equal(expectedComponentLabelSelector))
+		})
+
+		AfterEach(func() {
+			Expect(k8sClient.Get(ctx, name, operator)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, operator, deleteOpts)).To(Succeed())
 		})
 
 		Context("with no components bearing its label", func() {
