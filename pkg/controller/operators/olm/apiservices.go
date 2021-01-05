@@ -247,57 +247,62 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 	return true, nil
 }
 
-// getCABundle returns the CA associated with a deployment
-func (a *Operator) getCABundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, error) {
-	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
-		apiServiceName := desc.GetName()
-		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+// getAPIServiceCABundle returns the CA associated with an API service
+func (a *Operator) getAPIServiceCABundle(csv *v1alpha1.ClusterServiceVersion, desc *v1alpha1.APIServiceDescription) ([]byte, error) {
+	apiServiceName := desc.GetName()
+	apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
+	}
+
+	if len(apiService.Spec.CABundle) > 0 {
+		return apiService.Spec.CABundle, nil
+	}
+
+	return nil, fmt.Errorf("Unable to find ca")
+}
+
+// getWebhookCABundle returns the CA associated with a webhook
+func (a *Operator) getWebhookCABundle(csv *v1alpha1.ClusterServiceVersion, desc *v1alpha1.WebhookDescription) ([]byte, error) {
+	webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+	webhookLabels[install.WebhookDescKey] = desc.GenerateName
+	webhookSelector := labels.SelectorFromSet(webhookLabels).String()
+
+	switch desc.Type {
+	case v1alpha1.MutatingAdmissionWebhook:
+		existingWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
 		if err != nil {
-			return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
+			return nil, fmt.Errorf("could not retrieve generated MutatingWebhookConfiguration: %v", err)
 		}
-		if len(apiService.Spec.CABundle) > 0 {
-			return apiService.Spec.CABundle, nil
+
+		if len(existingWebhooks.Items) > 0 {
+			return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
+		}
+	case v1alpha1.ValidatingAdmissionWebhook:
+		existingWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
+		if err != nil {
+			return nil, fmt.Errorf("could not retrieve generated ValidatingWebhookConfiguration: %v", err)
+		}
+
+		if len(existingWebhooks.Items) > 0 {
+			return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
+		}
+	case v1alpha1.ConversionWebhook:
+		for _, conversionCRD := range desc.ConversionCRDs {
+			// check if CRD exists on cluster
+			crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD, metav1.GetOptions{})
+			if err != nil {
+				continue
+			}
+			if crd.Spec.Conversion == nil || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil && crd.Spec.Conversion.Webhook.ClientConfig.CABundle == nil {
+				continue
+			}
+
+			return crd.Spec.Conversion.Webhook.ClientConfig.CABundle, nil
 		}
 	}
 
-	for _, desc := range csv.Spec.WebhookDefinitions {
-		webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
-		webhookLabels[install.WebhookDescKey] = desc.GenerateName
-		webhookSelector := labels.SelectorFromSet(webhookLabels).String()
-
-		switch desc.Type {
-		case v1alpha1.MutatingAdmissionWebhook:
-			existingWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
-			if err != nil {
-				return nil, fmt.Errorf("could not retrieve generated MutatingWebhookConfiguration: %v", err)
-			}
-
-			if len(existingWebhooks.Items) > 0 {
-				return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
-			}
-		case v1alpha1.ValidatingAdmissionWebhook:
-			existingWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
-			if err != nil {
-				return nil, fmt.Errorf("could not retrieve generated ValidatingWebhookConfiguration: %v", err)
-			}
-
-			if len(existingWebhooks.Items) > 0 {
-				return existingWebhooks.Items[0].Webhooks[0].ClientConfig.CABundle, nil
-			}
-		case v1alpha1.ConversionWebhook:
-			for _, conversionCRD := range desc.ConversionCRDs {
-				// check if CRD exists on cluster
-				crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD, metav1.GetOptions{})
-				if err != nil {
-					continue
-				}
-				if crd.Spec.Conversion == nil || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil && crd.Spec.Conversion.Webhook.ClientConfig.CABundle == nil {
-					continue
-				}
-				return crd.Spec.Conversion.Webhook.ClientConfig.CABundle, nil
-			}
-		}
-	}
 	return nil, fmt.Errorf("Unable to find ca")
 }
 
@@ -321,13 +326,13 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		depSpecs[sddSpec.Name] = sddSpec.Spec
 	}
 
-	caBundle, err := a.getCABundle(csv)
-	if err != nil {
-		return nil, fmt.Errorf("could not retrieve caBundle: %v", err)
-	}
-	caHash := certs.PEMSHA256(caBundle)
-
 	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
+		caBundle, err := a.getAPIServiceCABundle(csv, &desc)
+		if err != nil {
+			return nil, fmt.Errorf("could not retrieve caBundle for owned APIServices %s: %v", fmt.Sprintf("%s.%s", desc.Version, desc.Group), err)
+		}
+		caHash := certs.PEMSHA256(caBundle)
+
 		depSpec, ok := depSpecs[desc.DeploymentName]
 		if !ok {
 			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIServices %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
@@ -349,6 +354,10 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 	}
 
 	for _, desc := range csv.Spec.WebhookDefinitions {
+		caBundle, err := a.getWebhookCABundle(csv, &desc)
+		if err != nil {
+			return nil, fmt.Errorf("could not retrieve caBundle for WebhookDescription %s: %v", desc.GenerateName, err)
+		}
 		caHash := certs.PEMSHA256(caBundle)
 
 		depSpec, ok := depSpecs[desc.DeploymentName]
