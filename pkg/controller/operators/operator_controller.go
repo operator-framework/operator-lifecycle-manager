@@ -2,6 +2,7 @@ package operators
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -10,6 +11,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -122,6 +124,12 @@ func (r *OperatorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	in := &operatorsv1.Operator{}
 	if err := r.Get(ctx, req.NamespacedName, in); err != nil {
 		if apierrors.IsNotFound(err) {
+			// If the Operator instance is not found, we're likely reconciling because
+			// of a DELETE event. Only recreate the Operator if any of its components
+			// still exist.
+			if exists, err := r.hasExistingComponents(ctx, name); err != nil || !exists {
+				return reconcile.Result{}, err
+			}
 			create = true
 			in.SetName(name)
 		} else {
@@ -215,6 +223,33 @@ func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels
 	}
 
 	return componentLists, nil
+}
+
+func (r *OperatorReconciler) hasExistingComponents(ctx context.Context, name string) (bool, error) {
+	op := &operatorsv1.Operator{}
+	op.SetName(name)
+	operator := decorators.Operator{Operator: op}
+
+	selector, err := operator.ComponentSelector()
+	if err != nil {
+		return false, err
+	}
+
+	components, err := r.listComponents(ctx, selector)
+	if err != nil {
+		return false, err
+	}
+
+	for _, list := range components {
+		items, err := meta.ExtractList(list)
+		if err != nil {
+			return false, fmt.Errorf("Unable to extract list from runtime.Object")
+		}
+		if len(items) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (r *OperatorReconciler) getLastResourceVersion(name types.NamespacedName) (string, bool) {
