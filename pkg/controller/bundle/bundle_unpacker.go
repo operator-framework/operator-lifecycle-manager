@@ -65,7 +65,7 @@ func newBundleUnpackResult(lookup *operatorsv1alpha1.BundleLookup) *BundleUnpack
 	}
 }
 
-func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string) *batchv1.Job {
+func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference) *batchv1.Job {
 	job := &batchv1.Job{
 		Spec: batchv1.JobSpec{
 			//ttlSecondsAfterFinished: 0 // can use in the future to not have to clean up job
@@ -74,7 +74,8 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					Name: cmRef.Name,
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyOnFailure,
+					RestartPolicy:    corev1.RestartPolicyOnFailure,
+					ImagePullSecrets: secrets,
 					Containers: []corev1.Container{
 						{
 							Name:    "extract",
@@ -331,8 +332,12 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 		return
 	}
 
+	secrets := make([]corev1.LocalObjectReference, 0)
+	for _, secretName := range cs.Spec.Secrets {
+		secrets = append(secrets, corev1.LocalObjectReference{Name: secretName})
+	}
 	var job *batchv1.Job
-	job, err = c.ensureJob(cmRef, result.Path)
+	job, err = c.ensureJob(cmRef, result.Path, secrets)
 	if err != nil {
 		return
 	}
@@ -384,8 +389,8 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 	return
 }
 
-func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string) (job *batchv1.Job, err error) {
-	fresh := c.job(cmRef, bundlePath)
+func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference) (job *batchv1.Job, err error) {
+	fresh := c.job(cmRef, bundlePath, secrets)
 	job, err = c.jobLister.Jobs(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
 		if apierrors.IsNotFound(err) {
