@@ -38,6 +38,7 @@ type OperatorConditionReconciler struct {
 
 // SetupWithManager adds the OperatorCondition Reconciler reconciler to the given controller manager.
 func (r *OperatorConditionReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	deploymentHandler := handler.EnqueueRequestsFromMapFunc(r.mapToOperatorCondition)
 	handler := &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &operatorsv1.OperatorCondition{},
@@ -47,7 +48,28 @@ func (r *OperatorConditionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&operatorsv1.OperatorCondition{}).
 		Watches(&source.Kind{Type: &rbacv1.Role{}}, handler).
 		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, handler).
+		Watches(&source.Kind{Type: &appsv1.Deployment{}}, deploymentHandler).
 		Complete(r)
+}
+
+func (r *OperatorConditionReconciler) mapToOperatorCondition(obj client.Object) (requests []reconcile.Request) {
+	if obj == nil {
+		return nil
+	}
+
+	owner := ownerutil.GetOwnerByKind(obj, operatorsv1alpha1.ClusterServiceVersionKind)
+	if owner == nil {
+		return nil
+	}
+
+	return []reconcile.Request{
+		{
+			NamespacedName: types.NamespacedName{
+				Name:      owner.Name,
+				Namespace: obj.GetNamespace(),
+			},
+		},
+	}
 }
 
 // NewOperatorConditionReconciler constructs and returns an OperatorConditionReconciler.
