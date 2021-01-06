@@ -1,9 +1,9 @@
-package overrides_test
+package inject_test
 
 import (
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides/inject"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -196,7 +196,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides.InjectVolumeMountsIntoDeployment(tt.podSpec, tt.volumeMounts)
+			inject.InjectVolumeMountsIntoDeployment(tt.podSpec, tt.volumeMounts)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
@@ -298,7 +298,7 @@ func TestInjectVolumeIntoDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides.InjectVolumesIntoDeployment(tt.podSpec, tt.volumes)
+			inject.InjectVolumesIntoDeployment(tt.podSpec, tt.volumes)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
@@ -511,7 +511,7 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides.InjectEnvIntoDeployment(tt.podSpec, tt.envVar)
+			inject.InjectEnvIntoDeployment(tt.podSpec, tt.envVar)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
@@ -617,7 +617,7 @@ func TestInjectTolerationsIntoDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides.InjectTolerationsIntoDeployment(tt.podSpec, tt.tolerations)
+			inject.InjectTolerationsIntoDeployment(tt.podSpec, tt.tolerations)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
@@ -699,7 +699,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides.InjectResourcesIntoDeployment(tt.podSpec, tt.resources)
+			inject.InjectResourcesIntoDeployment(tt.podSpec, tt.resources)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
@@ -774,7 +774,7 @@ func TestInjectNodeSelectorIntoDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides.InjectNodeSelectorIntoDeployment(tt.podSpec, tt.nodeSelector)
+			inject.InjectNodeSelectorIntoDeployment(tt.podSpec, tt.nodeSelector)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec

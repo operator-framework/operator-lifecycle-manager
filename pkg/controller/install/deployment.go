@@ -6,11 +6,13 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides/inject"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -149,6 +151,12 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 		err = applyErr
 		return
 	}
+
+	podSpec := &dep.Spec.Template.Spec
+	inject.InjectEnvIntoDeployment(podSpec, []corev1.EnvVar{{
+		Name:  "OPERATOR_CONDITION_NAME",
+		Value: i.owner.GetName(),
+	}})
 
 	// OLM does not support Rollbacks.
 	// By default, each deployment created by OLM could spawn up to 10 replicaSets.
