@@ -106,7 +106,7 @@ var _ = Describe("OperatorCondition", func() {
 						ResourceNames: []string{namespacedName.Name},
 					},
 					{
-						Verbs:         []string{"get,update,patch"},
+						Verbs:         []string{"get", "update", "patch"},
 						APIGroups:     []string{"operators.coreos.com"},
 						Resources:     []string{"operatorconditions/status"},
 						ResourceNames: []string{namespacedName.Name},

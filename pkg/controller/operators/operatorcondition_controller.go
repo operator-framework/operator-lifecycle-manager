@@ -115,7 +115,7 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondit
 				ResourceNames: []string{operatorCondition.GetName()},
 			},
 			{
-				Verbs:         []string{"get,update,patch"},
+				Verbs:         []string{"get", "update", "patch"},
 				APIGroups:     []string{"operators.coreos.com"},
 				Resources:     []string{"operatorconditions/status"},
 				ResourceNames: []string{operatorCondition.GetName()},
