@@ -45,7 +45,7 @@ var _ = Describe("Operator Controller", func() {
 	})
 
 	Describe("operator deletion", func() {
-		BeforeEach(func() {
+		JustBeforeEach(func() {
 			Expect(k8sClient.Delete(ctx, operator)).To(Succeed())
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, name, operator)
