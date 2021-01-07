@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -411,19 +412,17 @@ func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string
 }
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
-func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
+func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource, store *grpc.SourceStore) (healthy bool, err error) {
 	source := grpcCatalogSourceDecorator{catalogSource}
 
 	// Check on registry resources
-	// TODO: add gRPC health check
 	if len(c.currentPodsWithCorrectImage(source)) < 1 ||
 		c.currentService(source) == nil {
 		healthy = false
 		return
 	}
 
-	healthy = true
-	return
+	return healthCheck(catalogSource, store)
 }
 
 // promoteCatalog swaps the labels on the update pod so that the update pod is now reachable by the catalog service.

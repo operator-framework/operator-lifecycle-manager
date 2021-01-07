@@ -16,6 +16,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -56,6 +57,7 @@ type catalogHealthReconciler struct {
 	catalogLister             listers.CatalogSourceLister
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
+	store                     *grpc.SourceStore
 }
 
 // Reconcile reconciles subscription catalog health conditions.
@@ -193,7 +195,7 @@ func (c *catalogHealthReconciler) healthy(catalog *v1alpha1.CatalogSource) (bool
 		return false, fmt.Errorf("could not get reconciler for catalog: %#v", catalog)
 	}
 
-	return rec.CheckRegistryServer(catalog)
+	return rec.CheckRegistryServer(catalog, c.store)
 }
 
 // installPlanReconciler reconciles InstallPlan status for Subscriptions.

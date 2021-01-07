@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -382,7 +383,7 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 }
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
-func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
+func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource, store *grpc.SourceStore) (healthy bool, err error) {
 	source := configMapCatalogSourceDecorator{catalogSource}
 
 	image := c.Image
@@ -411,8 +412,6 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha
 	}
 
 	// Check on registry resources
-	// TODO: more complex checks for resources
-	// TODO: add gRPC health check
 	if c.currentServiceAccount(source) == nil ||
 		c.currentRole(source) == nil ||
 		c.currentRoleBinding(source) == nil ||
@@ -422,6 +421,5 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha
 		return
 	}
 
-	healthy = true
-	return
+	return healthCheck(catalogSource, store)
 }

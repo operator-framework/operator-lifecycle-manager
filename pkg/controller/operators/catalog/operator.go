@@ -255,6 +255,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		subscription.WithAppendedReconcilers(subscription.ReconcilerFromLegacySyncHandler(op.syncSubscriptions, nil)),
 		subscription.WithRegistryReconcilerFactory(op.reconciler),
 		subscription.WithGlobalCatalogNamespace(op.namespace),
+		subscription.WithRegistrySourceStore(op.sources),
 	)
 	if err != nil {
 		return nil, err
@@ -601,7 +602,7 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 		return
 	}
 
-	healthy, err := srcReconciler.CheckRegistryServer(in)
+	healthy, err := srcReconciler.CheckRegistryServer(in, o.sources)
 	if err != nil {
 		syncError = err
 		out.SetError(v1alpha1.CatalogSourceRegistryServerError, syncError)

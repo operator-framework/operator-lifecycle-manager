@@ -2,12 +2,17 @@
 package reconciler
 
 import (
+	"context"
 	"strings"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,7 +34,7 @@ type RegistryEnsurer interface {
 // RegistryChecker describes methods for checking a registry.
 type RegistryChecker interface {
 	// CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
-	CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error)
+	CheckRegistryServer(catalogSource *v1alpha1.CatalogSource, store *grpc.SourceStore) (healthy bool, err error)
 }
 
 // RegistryReconciler knows how to reconcile a registry.
@@ -152,4 +157,36 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 		},
 	}
 	return pod
+}
+
+// healthCheck probes the registry directly over gRPC using the existing open connection pool
+// Returns true if the registry returns a SERVING response from the healthcheck request
+// Note: healthCheck does not use the source.Status.GRPCConnectionState.LastObservedState as this churns frequently
+func healthCheck(source *v1alpha1.CatalogSource, store *grpc.SourceStore) (healthy bool, err error) {
+	if source.Status.GRPCConnectionState == nil || source.Status.GRPCConnectionState.Address == "" {
+		healthy = false
+		return
+	}
+	key := registry.CatalogKey{
+		Name:      source.GetName(),
+		Namespace: source.GetNamespace(),
+	}
+	client := store.Get(key)
+	if client == nil {
+		healthy = false
+		return
+	}
+	defer client.Conn.Close()
+
+	healthClient := grpc_health_v1.NewHealthClient(client.Conn)
+	req := grpc_health_v1.HealthCheckRequest{
+		Service: source.Status.GRPCConnectionState.Address,
+	}
+	resp, err := healthClient.Check(context.TODO(), &req)
+	if err != nil {
+		healthy = false
+		return
+	}
+
+	return resp.Status == grpc_health_v1.HealthCheckResponse_SERVING, nil
 }

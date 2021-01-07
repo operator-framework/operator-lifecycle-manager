@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 )
 
 type GrpcAddressRegistryReconciler struct {
@@ -24,8 +25,7 @@ func (g *GrpcAddressRegistryReconciler) EnsureRegistryServer(catalogSource *v1al
 }
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
-func (g *GrpcAddressRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
-	// TODO: add gRPC health check
-	healthy = true
-	return
+func (g *GrpcAddressRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource, store *grpc.SourceStore) (healthy bool, err error) {
+	return healthCheck(catalogSource, store)
+
 }

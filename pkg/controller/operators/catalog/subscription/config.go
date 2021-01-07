@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -26,6 +27,7 @@ type syncerConfig struct {
 	reconcilers               kubestate.ReconcilerChain
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
+	store                     *grpc.SourceStore
 }
 
 // SyncerOption is a configuration option for a subscription syncer.
@@ -128,6 +130,12 @@ func WithGlobalCatalogNamespace(namespace string) SyncerOption {
 	}
 }
 
+func WithRegistrySourceStore(source *grpc.SourceStore) SyncerOption {
+	return func(config *syncerConfig) {
+		config.store = source
+	}
+}
+
 func newInvalidConfigError(msg string) error {
 	return errors.Errorf("invalid subscription syncer config: %s", msg)
 }
@@ -156,6 +164,8 @@ func (s *syncerConfig) validate() (err error) {
 		err = newInvalidConfigError("nil reconciler factory")
 	case s.globalCatalogNamespace == metav1.NamespaceAll:
 		err = newInvalidConfigError("global catalog namespace cannot be namespace all")
+	case s.store == nil:
+		err = newInvalidConfigError("nil connection source store")
 	}
 
 	return
