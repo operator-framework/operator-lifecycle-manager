@@ -1650,7 +1650,7 @@ var _ = Describe("Install Plan", func() {
 			csv, err := awaitCSV(crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
-			modifiedEnv := []corev1.EnvVar{{Name: "EXAMPLE", Value: "value"}}
+			addedEnvVar := corev1.EnvVar{Name: "EXAMPLE", Value: "value"}
 			modifiedDetails := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -1670,7 +1670,7 @@ var _ = Describe("Install Plan", func() {
 										Image:           *dummyImage,
 										Ports:           []corev1.ContainerPort{{ContainerPort: 80}},
 										ImagePullPolicy: corev1.PullIfNotPresent,
-										Env:             modifiedEnv,
+										Env:             []corev1.EnvVar{addedEnvVar},
 									},
 								}},
 							},
@@ -1700,7 +1700,12 @@ var _ = Describe("Install Plan", func() {
 				if len(dep.Spec.Template.Spec.Containers[0].Env) == 0 {
 					return false, nil
 				}
-				return modifiedEnv[0] == dep.Spec.Template.Spec.Containers[0].Env[0], nil
+				for _, envVar := range dep.Spec.Template.Spec.Containers[0].Env {
+					if envVar == addedEnvVar {
+						return true, nil
+					}
+				}
+				return false, nil
 			})
 			require.NoError(GinkgoT(), err)
 
@@ -1740,8 +1745,9 @@ var _ = Describe("Install Plan", func() {
 			require.NotNil(GinkgoT(), updatedDep)
 
 			// Should have the updated env var
-			var emptyEnv []corev1.EnvVar = nil
-			require.Equal(GinkgoT(), emptyEnv, updatedDep.Spec.Template.Spec.Containers[0].Env)
+			for _, envVar := range updatedDep.Spec.Template.Spec.Containers[0].Env {
+				require.False(GinkgoT(), envVar == addedEnvVar)
+			}
 		})
 		It("UpdateSingleExistingCRDOwner", func() {
 
