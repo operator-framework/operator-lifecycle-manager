@@ -21,7 +21,7 @@ bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
 	$(GO) test -c -tags kind,helm -o $@ ./test/e2e
 
 test/e2e-local.image.tar: export GOOS=linux
-test/e2e-local.image.tar: export GOARCH=386
+test/e2e-local.image.tar: export GOARCH=amd64
 test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
 	docker save -o $@ quay.io/operator-framework/olm:local

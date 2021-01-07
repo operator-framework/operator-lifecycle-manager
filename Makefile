@@ -84,15 +84,15 @@ build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/..
 build-coverage: clean $(CMDS)
 
 build-linux: build_cmd=build
-build-linux: arch_flags=GOOS=linux GOARCH=386
+build-linux: arch_flags=GOOS=linux GOARCH=amd64
 build-linux: clean $(CMDS)
 
 build-wait: clean bin/wait
 
 bin/wait:
-	GOOS=linux GOARCH=386 go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
+	GOOS=linux GOARCH=amd64 go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
-build-util-linux: arch_flags=GOOS=linux GOARCH=386
+build-util-linux: arch_flags=GOOS=linux GOARCH=amd64
 build-util-linux: build-util
 
 build-util: bin/cpb
