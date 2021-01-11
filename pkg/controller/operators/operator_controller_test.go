@@ -70,10 +70,8 @@ var _ = Describe("Operator Controller", func() {
 
 			AfterEach(func() {
 				for _, obj := range objs {
-					Expect(k8sClient.Get(ctx, testobj.NamespacedName(obj), obj)).To(Succeed())
 					Expect(k8sClient.Delete(ctx, obj, deleteOpts)).To(Succeed())
 				}
-				Expect(k8sClient.Get(ctx, name, operator)).To(Succeed())
 				Expect(k8sClient.Delete(ctx, operator, deleteOpts)).To(Succeed())
 			})
 
@@ -107,7 +105,6 @@ var _ = Describe("Operator Controller", func() {
 		})
 
 		AfterEach(func() {
-			Expect(k8sClient.Get(ctx, name, operator)).To(Succeed())
 			Expect(k8sClient.Delete(ctx, operator, deleteOpts)).To(Succeed())
 		})
 
@@ -142,7 +139,6 @@ var _ = Describe("Operator Controller", func() {
 
 			AfterEach(func() {
 				for _, obj := range objs {
-					Expect(k8sClient.Get(ctx, testobj.NamespacedName(obj), obj)).To(Succeed())
 					Expect(k8sClient.Delete(ctx, obj, deleteOpts)).To(Succeed())
 				}
 			})

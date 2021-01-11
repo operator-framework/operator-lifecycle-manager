@@ -66,6 +66,10 @@ var _ = Describe("Operator", func() {
 	// 10. Ensure the reference to sa-b is eventually removed from o's status.components.refs field
 	// 11. Delete ns-a
 	// 12. Ensure the reference to ns-a is eventually removed from o's status.components.refs field
+	// 13. Delete o
+	// 14. Ensure o is re-created
+	// 15. Delete ns-b and o
+	// 16. Ensure o is not re-created
 	It("should surface components in its status", func() {
 		o := &operatorsv1.Operator{}
 		o.SetName(genName("o-"))
@@ -196,6 +200,39 @@ var _ = Describe("Operator", func() {
 		// Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 		By("removing a component's reference when it no longer exists")
 		componentRefEventuallyExists(w, false, getReference(scheme, nsA))
+
+		// Delete o
+		Eventually(func() error {
+			err := client.Delete(clientCtx, o)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}).Should(Succeed())
+
+		// Ensure that o is eventually recreated (because some of its components still exist).
+		By("recreating the Operator when any components still exist")
+		Eventually(func() error {
+			return client.Get(clientCtx, types.NamespacedName{Name: o.GetName()}, o)
+		}).Should(Succeed())
+
+		// Delete ns-b and o
+		Eventually(func() error {
+			if err := client.Delete(clientCtx, nsB); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			if err := client.Delete(clientCtx, o); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}).Should(Succeed())
+
+		// Ensure that o is consistently not found
+		By("verifying the Operator is permanently deleted if it has no components")
+		Consistently(func() bool {
+			err := client.Get(clientCtx, types.NamespacedName{Name: o.GetName()}, o)
+			return apierrors.IsNotFound(err)
+		}).Should(BeTrue())
 	})
 
 	Context("when a subscription to a package exists", func() {
