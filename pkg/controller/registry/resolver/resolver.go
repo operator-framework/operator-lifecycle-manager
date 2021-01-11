@@ -97,6 +97,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 
 		// if no operator is installed and we have a startingCSV, filter for it
 		if current == nil && len(sub.Spec.StartingCSV) > 0 {
+			predicates = append(predicates, WithCSVName(sub.Spec.StartingCSV))
 			channelFilter = append(channelFilter, WithCSVName(sub.Spec.StartingCSV))
 			startingCSVs[sub.Spec.StartingCSV] = struct{}{}
 		}
