@@ -62,6 +62,50 @@ func mergeEnvVars(containerEnvVars []corev1.EnvVar, newEnvVars []corev1.EnvVar) 
 	return merged
 }
 
+// InjectEnvFromIntoDeployment injects the envFrom variables
+// into the container(s) of the given PodSpec.
+//
+// If any Container in PodSpec already defines an envFrom variable
+// as any of the provided envFrom then it will be overwritten.
+func InjectEnvFromIntoDeployment(podSpec *corev1.PodSpec, envFromVars []corev1.EnvFromSource) error {
+	if podSpec == nil {
+		return errors.New("no pod spec provided")
+	}
+
+	for i := range podSpec.Containers {
+		container := &podSpec.Containers[i]
+		container.EnvFrom = mergeEnvFromVars(container.EnvFrom, envFromVars)
+	}
+
+	return nil
+}
+
+func mergeEnvFromVars(containerEnvFromVars []corev1.EnvFromSource, newEnvFromVars []corev1.EnvFromSource) (merged []corev1.EnvFromSource) {
+	merged = containerEnvFromVars
+
+	for _, newEnvFromVar := range newEnvFromVars {
+		found := findEnvFromVar(containerEnvFromVars, newEnvFromVar)
+		if found {
+			continue
+		}
+
+		merged = append(merged, newEnvFromVar)
+	}
+
+	return
+}
+
+func findEnvFromVar(EnvFromVar []corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) (found bool) {
+	for i := range EnvFromVar {
+		if newEnvFromVar == EnvFromVar[i] {
+			found = true
+			break
+		}
+	}
+
+	return
+}
+
 // InjectVolumesIntoDeployment injects the provided Volumes
 // into the container(s) of the given PodSpec.
 //

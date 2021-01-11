@@ -30,6 +30,26 @@ var (
 		},
 	}
 
+	defaultEnvFromVars = []corev1.EnvFromSource{
+		corev1.EnvFromSource{
+			Prefix: "test",
+		},
+		corev1.EnvFromSource{
+			ConfigMapRef: &corev1.ConfigMapEnvSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "configmapForTest",
+				},
+			},
+		},
+		corev1.EnvFromSource{
+			SecretRef: &corev1.SecretEnvSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "secretForTest",
+				},
+			},
+		},
+	}
+
 	defaultVolumeMounts = []corev1.VolumeMount{
 		{
 			Name:      "foo",
@@ -517,6 +537,120 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			inject.InjectEnvIntoDeployment(tt.podSpec, tt.envVar)
+
+			podSpecWant := tt.expected
+			podSpecGot := tt.podSpec
+
+			assert.Equal(t, podSpecWant, podSpecGot)
+		})
+	}
+}
+
+func TestInjectEnvFromIntoDeployment(t *testing.T) {
+	tests := []struct {
+		name       string
+		podSpec    *corev1.PodSpec
+		envFromVar []corev1.EnvFromSource
+		expected   *corev1.PodSpec
+	}{
+		{
+			// PodSpec has one container and `EnvFrom` is empty.
+			// Expected: All env variable(s) specified are injected.
+			name: "WithContainerHasNoEnvFromVar",
+			podSpec: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{},
+				},
+			},
+			envFromVar: defaultEnvFromVars,
+			expected: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						EnvFrom: defaultEnvFromVars,
+					},
+				},
+			},
+		},
+
+		{
+			// PodSpec has one container and it has non overlapping envFrom var(s).
+			// Expected: existing non overlapping env vars are intact.
+			name: "WithContainerHasNonOverlappingEnvFromVar",
+			podSpec: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						EnvFrom: []corev1.EnvFromSource{
+							corev1.EnvFromSource{
+								Prefix: "foo",
+							},
+						},
+					},
+				},
+			},
+			envFromVar: defaultEnvFromVars,
+			expected: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						EnvFrom: append([]corev1.EnvFromSource{
+							corev1.EnvFromSource{
+								Prefix: "foo",
+							},
+						}, defaultEnvFromVars...),
+					},
+				},
+			},
+		},
+		{
+			// PodSpec has more than one container(s)
+			// Expected: All container(s) should be updated as expected.
+			name: "WithMultipleContainers",
+			podSpec: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{},
+					corev1.Container{
+						EnvFrom: []corev1.EnvFromSource{
+							corev1.EnvFromSource{
+								Prefix: "foo",
+							},
+						},
+					},
+					corev1.Container{
+						EnvFrom: []corev1.EnvFromSource{
+							corev1.EnvFromSource{
+								Prefix: "bar",
+							},
+						},
+					},
+				},
+			},
+			envFromVar: defaultEnvFromVars,
+			expected: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						EnvFrom: defaultEnvFromVars,
+					},
+					corev1.Container{
+						EnvFrom: append([]corev1.EnvFromSource{
+							corev1.EnvFromSource{
+								Prefix: "foo",
+							},
+						}, defaultEnvFromVars...),
+					},
+					corev1.Container{
+						EnvFrom: append([]corev1.EnvFromSource{
+							corev1.EnvFromSource{
+								Prefix: "bar",
+							},
+						}, defaultEnvFromVars...),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inject.InjectEnvFromIntoDeployment(tt.podSpec, tt.envFromVar)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
