@@ -155,7 +155,22 @@ func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceA
 		err = errorwrap.Wrapf(getErr, "error getting older version of service account: %s", sa.GetName())
 		return
 	}
+	sa.Annotations = preSa.ObjectMeta.Annotations
+	sa.Labels = preSa.Labels
+
 	sa.Secrets = preSa.Secrets
+
+	// merge existing ImagePullSecrets
+	existings := make(map[string]struct{})
+	for _, secret := range sa.ImagePullSecrets {
+		existings[secret.Name] = struct{}{}
+	}
+	for _, secret := range preSa.ImagePullSecrets {
+		if _, exists := existings[secret.Name]; !exists {
+			sa.ImagePullSecrets = append(sa.ImagePullSecrets, secret)
+			existings[secret.Name] = struct{}{}
+		}
+	}
 
 	sa.SetNamespace(namespace)
 
