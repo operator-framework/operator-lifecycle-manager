@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -2803,7 +2804,8 @@ var _ = Describe("Install Plan", func() {
 			Expect(ref.Kind).To(Equal("ConfigMap"))
 		}
 	})
-	It("uses the OLM client when installing CRDs from a bundle", func() {
+
+	It("limits installed resources if the scoped serviceaccount has no permissions", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -2826,7 +2828,230 @@ var _ = Describe("Install Plan", func() {
 		_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(ns.GetName()).Create(context.TODO(), sa, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		// create role that includes permission for installing the kiali operator, but not CRDs
+		// role has no explicit permissions
+		role := &rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("role-"),
+			},
+			Rules: []rbacv1.PolicyRule{},
+		}
+
+		// bind role to SA
+		rb := &rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("rb-"),
+			},
+			RoleRef: rbacv1.RoleRef{
+				Name:     role.GetName(),
+				Kind:     "ClusterRole",
+				APIGroup: "rbac.authorization.k8s.io",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      sa.GetName(),
+					APIGroup:  "",
+					Namespace: sa.GetNamespace(),
+				},
+			},
+		}
+
+		_, err = c.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(context.TODO(), rb, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		defer c.KubernetesInterface().RbacV1().ClusterRoles().Delete(context.TODO(), role.GetName(), metav1.DeleteOptions{})
+
+		// create operator group referencing the SA
+		og := &operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("og-"),
+				Namespace: ns.GetName(),
+			},
+			Spec: operatorsv1.OperatorGroupSpec{
+				ServiceAccountName: sa.GetName(),
+			},
+		}
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		crd := apiextensionsv1.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "ins" + ".cluster.com",
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "CustomResourceDefinition",
+				APIVersion: "v1",
+			},
+			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Group: "cluster.com",
+				Names: apiextensionsv1.CustomResourceDefinitionNames{
+					Plural:   "ins",
+					Singular: "ins",
+					Kind:     "ins",
+					ListKind: "ins" + "list",
+				},
+				Scope: "Namespaced",
+				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensionsv1.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		scheme := runtime.NewScheme()
+		Expect(apiextensionsv1.AddToScheme(scheme)).To(Succeed())
+		var crdManifest bytes.Buffer
+		Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(&crd, &crdManifest)).To(Succeed())
+		By("using the OLM client to create the CRD")
+		plan := &operatorsv1alpha1.InstallPlan{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns.GetName(),
+				Name:      genName("ip-"),
+			},
+			Spec: operatorsv1alpha1.InstallPlanSpec{
+				Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+				Approved:                   true,
+				ClusterServiceVersionNames: []string{},
+			},
+			Status: operatorsv1alpha1.InstallPlanStatus{
+				AttenuatedServiceAccountRef: &corev1.ObjectReference{
+					Name:      sa.GetName(),
+					Namespace: sa.GetNamespace(),
+					Kind:      "ServiceAccount",
+				},
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Status: operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     crd.GetName(),
+							Version:  "v1",
+							Kind:     "CustomResourceDefinition",
+							Manifest: crdManifest.String(),
+						},
+					},
+				},
+			},
+		}
+
+		Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+		Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
+
+		key := runtimeclient.ObjectKeyFromObject(plan)
+
+		HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
+			return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
+				return plan.Status.Phase
+			}, Equal(goal))
+		}
+
+		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+			return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
+		}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+
+		// delete installplan, then create one with an additional resource that the SA does not have permissions to create
+		// expect installplan to fail
+		By("failing to install resources that are not explicitly allowed in the SA")
+		err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Delete(context.TODO(), plan.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		service := &corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: testNamespace,
+				Name:      "test-service",
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeClusterIP,
+				Ports: []corev1.ServicePort{
+					{
+						Port: 12345,
+					},
+				},
+			},
+		}
+
+		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		var manifest bytes.Buffer
+		Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(service, &manifest)).To(Succeed())
+
+		newPlan := &operatorsv1alpha1.InstallPlan{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns.GetName(),
+				Name:      genName("ip-"),
+			},
+			Spec: operatorsv1alpha1.InstallPlanSpec{
+				Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+				Approved:                   true,
+				ClusterServiceVersionNames: []string{},
+			},
+			Status: operatorsv1alpha1.InstallPlanStatus{
+				AttenuatedServiceAccountRef: &corev1.ObjectReference{
+					Name:      sa.GetName(),
+					Namespace: sa.GetNamespace(),
+					Kind:      "ServiceAccount",
+				},
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Status: operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     service.Name,
+							Version:  "v1",
+							Kind:     "Service",
+							Manifest: manifest.String(),
+						},
+					},
+				},
+			},
+		}
+
+		Expect(ctx.Ctx().Client().Create(context.Background(), newPlan)).To(Succeed())
+		Expect(ctx.Ctx().Client().Status().Update(context.Background(), newPlan)).To(Succeed())
+
+		newKey := runtimeclient.ObjectKeyFromObject(newPlan)
+
+		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+			return newPlan, ctx.Ctx().Client().Get(context.Background(), newKey, newPlan)
+		}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
+	})
+
+	It("uses the correct client when installing resources from an installplan", func() {
+		c := newKubeClient()
+		crc := newCRClient()
+
+		By("creating a scoped serviceaccount specifified in the operatorgroup")
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("ns-"),
+			},
+		}, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		defer c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), metav1.DeleteOptions{})
+
+		// create SA
+		sa := &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("sa-"),
+				Namespace: ns.GetName(),
+			},
+		}
+		_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(ns.GetName()).Create(context.TODO(), sa, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
 		// see https://github.com/operator-framework/operator-lifecycle-manager/blob/master/doc/design/scoped-operator-install.md
 		role := &rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
@@ -2844,121 +3069,15 @@ var _ = Describe("Install Plan", func() {
 					Verbs:     []string{"create", "delete", "get", "list", "update", "patch", "watch"},
 				},
 				{
-					APIGroups: []string{""},
-					Resources: []string{"namespaces", "nodes", "pods/log", "replicationcontrollers"},
-					Verbs:     []string{"list", "get", "patch", "watch"},
-				},
-				{
 					APIGroups: []string{"apps"},
 					Resources: []string{"deployments", "replicasets", "statefulsets"},
 					Verbs:     []string{"list", "watch", "get", "create", "update", "patch", "delete"},
-				},
-				{
-					APIGroups: []string{"monitoring.coreos.com"},
-					Resources: []string{"servicemonitors"},
-					Verbs:     []string{"create", "get"},
-				},
-				{
-					APIGroups:     []string{"apps"},
-					Resources:     []string{"deployments/finalizers"},
-					ResourceNames: []string{"kiali-operator"},
-					Verbs:         []string{"update"},
-				},
-				{
-					APIGroups: []string{"kiali.io"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"rbac.authorization.k8s.io"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
 				},
 				{
 					// ability to get and list CRDs, but not create CRDs
 					APIGroups: []string{"apiextensions.k8s.io"},
 					Resources: []string{"customresourcedefinitions"},
 					Verbs:     []string{"get", "list", "watch"},
-				},
-				{
-					APIGroups: []string{"extensions"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"route.openshift.io"},
-					Resources: []string{"routes"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"oauth.openshift.io"},
-					Resources: []string{"oauthclients"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"monitoring.kiali.io"},
-					Resources: []string{"monitoringdashboards"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"autoscaling"},
-					Resources: []string{"horizontalpodautoscalers"},
-					Verbs:     []string{"get", "list", "watch"},
-				},
-				{
-					APIGroups: []string{"batch"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"config.istio.io"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"networking.istio.io"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"authentication.istio.io"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"rbac.istio.io"},
-					Resources: []string{"*"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"authentication.maistra.io"},
-					Resources: []string{"servicemeshpolicies"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"rbac.maistra.io"},
-					Resources: []string{"servicemeshrbacconfigs"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"apps.openshift.io"},
-					Resources: []string{"deploymentconfigs"},
-					Verbs:     []string{"*"},
-				},
-				{
-					APIGroups: []string{"project.openshift.io"},
-					Resources: []string{"projects"},
-					Verbs:     []string{"get"},
-				},
-				{
-					APIGroups: []string{"route.openshift.io"},
-					Resources: []string{"routes"},
-					Verbs:     []string{"get"},
-				},
-				{
-					APIGroups: []string{"monitoring.kiali.io"},
-					Resources: []string{"monitoringdashboards"},
-					Verbs:     []string{"get", "list"},
 				},
 			},
 		}
@@ -3003,66 +3122,151 @@ var _ = Describe("Install Plan", func() {
 		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		By("using the OLM client to install CRDs from the bundle and the scoped client for other resources")
-		// create catalog and subscription
-		catsrc := &operatorsv1alpha1.CatalogSource{
+		By("using the OLM client to install CRDs from the installplan and the scoped client for other resources")
+
+		crd := apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      genName("kiali-"),
+				Name: "ins" + ".cluster.com",
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "CustomResourceDefinition",
+				APIVersion: "v1",
+			},
+			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Group: "cluster.com",
+				Names: apiextensionsv1.CustomResourceDefinitionNames{
+					Plural:   "ins",
+					Singular: "ins",
+					Kind:     "ins",
+					ListKind: "ins" + "list",
+				},
+				Scope: "Namespaced",
+				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensionsv1.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
+			},
+		}
+		csv := newCSV("stable", ns.GetName(), "", semver.MustParse("0.1.0"), nil, nil, nil)
+
+		scheme := runtime.NewScheme()
+		Expect(apiextensionsv1.AddToScheme(scheme)).To(Succeed())
+		Expect(operatorsv1alpha1.AddToScheme(scheme)).To(Succeed())
+		var crdManifest, csvManifest bytes.Buffer
+		Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(&crd, &crdManifest)).To(Succeed())
+		Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(&csv, &csvManifest)).To(Succeed())
+
+		plan := &operatorsv1alpha1.InstallPlan{
+			ObjectMeta: metav1.ObjectMeta{
 				Namespace: ns.GetName(),
-				Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
+				Name:      genName("ip-"),
 			},
-			Spec: operatorsv1alpha1.CatalogSourceSpec{
-				Image:      "quay.io/olmtest/single-bundle-index:1.0.0",
-				SourceType: operatorsv1alpha1.SourceTypeGrpc,
+			Spec: operatorsv1alpha1.InstallPlanSpec{
+				Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+				Approved:                   true,
+				ClusterServiceVersionNames: []string{csv.GetName()},
 			},
-		}
-		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		defer crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(context.TODO(), catsrc.GetName(), metav1.DeleteOptions{})
-
-		// Wait for the CatalogSource to be ready
-		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
-		Expect(err).ToNot(HaveOccurred())
-
-		// Generate a Subscription
-		subName := genName("kiali-")
-		subCleanup := createSubscriptionForCatalog(crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-		defer subCleanup()
-
-		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
-		Expect(err).ToNot(HaveOccurred())
-
-		// Wait for the expected InstallPlan's execution to succeed
-		ipName := sub.Status.InstallPlanRef.Name
-		ip, err := waitForInstallPlan(crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(operatorsv1alpha1.InstallPlanPhaseComplete).To(Equal(ip.Status.Phase), "InstallPlan not complete")
-
-		// ensure expected kiali CRDs are present on-cluster
-		expectedCRDs := []metav1.GroupVersionKind{
-			{
-				Group:   "kialis.kiali.io",
-				Version: "v1alpha1",
-				Kind:    "CustomResourceDefinition",
-			},
-			{
-				Group:   "monitoringdashboards.monitoring.kiali.io",
-				Version: "v1alpha1",
-				Kind:    "CustomResourceDefinition",
+			Status: operatorsv1alpha1.InstallPlanStatus{
+				AttenuatedServiceAccountRef: &corev1.ObjectReference{
+					Name:      sa.GetName(),
+					Namespace: sa.GetNamespace(),
+					Kind:      "ServiceAccount",
+				},
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Status: operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     csv.GetName(),
+							Version:  "v1alpha1",
+							Kind:     "ClusterServiceVersion",
+							Manifest: csvManifest.String(),
+						},
+					},
+					{
+						Status: operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     crd.GetName(),
+							Version:  "v1",
+							Kind:     "CustomResourceDefinition",
+							Manifest: crdManifest.String(),
+						},
+					},
+				},
 			},
 		}
 
-		for _, crd := range expectedCRDs {
-			Eventually(func() error {
-				defer Eventually(func() bool {
-					err = c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.TODO(), crd.Group, metav1.DeleteOptions{GracePeriodSeconds: new(int64)})
-					return k8serrors.IsNotFound(err)
-				}).Should(BeTrue())
+		Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+		Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
-				_, err = c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crd.Group, metav1.GetOptions{})
-				return err
-			}).ShouldNot(HaveOccurred())
+		key := runtimeclient.ObjectKeyFromObject(plan)
+
+		HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
+			return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
+				return plan.Status.Phase
+			}, Equal(goal))
 		}
+
+		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+			return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
+		}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+
+		// delete installplan, and create one with just a CSV resource which should succeed
+		By("installing additional resources that are allowed in the SA")
+		err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Delete(context.TODO(), plan.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		newPlan := &operatorsv1alpha1.InstallPlan{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns.GetName(),
+				Name:      genName("ip-"),
+			},
+			Spec: operatorsv1alpha1.InstallPlanSpec{
+				Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+				Approved:                   true,
+				ClusterServiceVersionNames: []string{csv.GetName()},
+			},
+			Status: operatorsv1alpha1.InstallPlanStatus{
+				AttenuatedServiceAccountRef: &corev1.ObjectReference{
+					Name:      sa.GetName(),
+					Namespace: sa.GetNamespace(),
+					Kind:      "ServiceAccount",
+				},
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Status: operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     csv.GetName(),
+							Version:  "v1alpha1",
+							Kind:     "ClusterServiceVersion",
+							Manifest: csvManifest.String(),
+						},
+					},
+				},
+			},
+		}
+
+		Expect(ctx.Ctx().Client().Create(context.Background(), newPlan)).To(Succeed())
+		Expect(ctx.Ctx().Client().Status().Update(context.Background(), newPlan)).To(Succeed())
+
+		newKey := runtimeclient.ObjectKeyFromObject(newPlan)
+
+		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+			return newPlan, ctx.Ctx().Client().Get(context.Background(), newKey, newPlan)
+		}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+
 	})
 })
 
