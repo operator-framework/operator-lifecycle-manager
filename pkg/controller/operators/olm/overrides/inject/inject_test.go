@@ -677,8 +677,44 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 		{
 			// PodSpec has one container with one resource and one resource config given
 			// Expected: Resources will be overwritten
-			// Here, overriding with empty resources
+			// Here, Resources will be overwritten
 			name: "WithDeploymentHasResources",
+			podSpec: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Resources: defaultResources,
+					},
+				},
+			},
+			resources: corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("110m"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("256Mi"),
+				},
+			},
+			expected: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU: resource.MustParse("110m"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("256Mi"),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// PodSpec has one container with one resource and one resource config given
+			// Expected: Resources won't be overwritten
+			// Here, Resources will remain since the config is empty
+			name: "WithDeploymentHasResourcesWithEmptyConfig",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{
@@ -690,7 +726,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{
-						Resources: corev1.ResourceRequirements{},
+						Resources: defaultResources,
 					},
 				},
 			},

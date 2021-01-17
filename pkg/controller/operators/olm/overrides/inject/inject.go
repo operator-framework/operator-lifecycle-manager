@@ -201,10 +201,28 @@ func InjectResourcesIntoDeployment(podSpec *corev1.PodSpec, resources corev1.Res
 
 	for i := range podSpec.Containers {
 		container := &podSpec.Containers[i]
-		container.Resources = resources
+		container.Resources = mergeResources(container.Resources, resources)
 	}
 
 	return nil
+}
+
+func mergeResources(containerResources, newResources corev1.ResourceRequirements) (mergedResources corev1.ResourceRequirements) {
+	mergedResources = containerResources
+	for newResourceName, newResourcesLimit := range newResources.Limits {
+		if mergedResources.Limits == nil {
+			mergedResources.Limits = make(corev1.ResourceList)
+		}
+		mergedResources.Limits[newResourceName] = newResourcesLimit
+	}
+	for newResourceName, newResourcesRequest := range newResources.Requests {
+		if mergedResources.Requests == nil {
+			mergedResources.Requests = make(corev1.ResourceList)
+		}
+		mergedResources.Requests[newResourceName] = newResourcesRequest
+	}
+
+	return
 }
 
 // InjectNodeSelectorIntoDeployment injects the provided NodeSelector
