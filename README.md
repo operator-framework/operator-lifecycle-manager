@@ -1,7 +1,6 @@
 <img src="/logo.svg" height="125px" alt="Operator Lifecycle Manager"></img>
 
-[![Docker Repository on Quay](https://quay.io/repository/coreos/alm/status?token=ccfd2fde-446d-4d82-88a8-4386f8deaab0 "Docker Repository on Quay")](https://quay.io/repository/coreos/alm) 
-[![Docker Repository on Quay](https://quay.io/repository/coreos/catalog/status?token=b5fc43ed-9f5f-408b-961b-c8493e983da5 "Docker Repository on Quay")](https://quay.io/repository/coreos/catalog) 
+[![Container Repository on Quay.io](https://quay.io/repository/operator-framework/olm/status "Container Repository on Quay.io")](https://quay.io/repository/operator-framework/olm)
 [![License](http://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 [![Go Report Card](https://goreportcard.com/badge/github.com/operator-framework/operator-lifecycle-manager)](https://goreportcard.com/report/github.com/operator-framework/operator-lifecycle-manager)
 
