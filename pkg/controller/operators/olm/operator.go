@@ -1874,6 +1874,9 @@ func (a *Operator) getReplacementChain(in *v1alpha1.ClusterServiceVersion, csvsI
 
 	next := replacement(current)
 	for next != nil {
+		if _, ok := csvsInChain[*next]; ok {
+			break // cycle
+		}
 		csvsInChain[*next] = struct{}{}
 		current = *next
 		next = replacement(current)
@@ -1885,6 +1888,9 @@ func (a *Operator) getReplacementChain(in *v1alpha1.ClusterServiceVersion, csvsI
 		csvsInChain[current] = struct{}{}
 	}
 	for prev != nil && *prev != "" {
+		if _, ok := csvsInChain[*prev]; ok {
+			break // cycle
+		}
 		current = *prev
 		csvsInChain[current] = struct{}{}
 		prev = replaces(current)
