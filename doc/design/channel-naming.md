@@ -27,7 +27,7 @@ In the diagram above you can see the following:
   
   - A catalog index named “redhat:v4.6”, this catalog is built by a cluster administrator typically
   - There are 2 operator packages found in the catalog, myoperator and otheroperator.
-  - The myoperator has 3 bundles (1.0.0, 1.0.1, 1.0.2).  Versions 1.0.1 and 1.0.1 are in multiple channels (fast, stable).  Whereas version 1.0.2 is only in the fast channel. 
+  - The myoperator has 3 bundles (1.0.0, 1.0.1, 1.0.2).  Versions 1.0.0 and 1.0.1 are in multiple channels (fast, stable).  Whereas version 1.0.2 is only in the fast channel.
   - The otheroperator has 2 bundles specifying 2 different channels (preview, stable).  Version 1.4.0 specifies it is within 2 channels, stable and preview.
 
 
