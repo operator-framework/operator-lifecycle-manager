@@ -25,6 +25,9 @@ CONTROLLER_GEN := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/controller-tools/cmd/
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
+GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
+GINKGO := $(GO) run github.com/onsi/ginkgo/ginkgo
+BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
@@ -89,7 +92,7 @@ build-linux: clean $(CMDS)
 
 build-wait: clean bin/wait
 
-bin/wait:
+bin/wait: FORCE
 	GOOS=linux GOARCH=386 go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
 build-util-linux: arch_flags=GOOS=linux GOARCH=386
@@ -97,7 +100,7 @@ build-util-linux: build-util
 
 build-util: bin/cpb
 
-bin/cpb:
+bin/cpb: FORCE
 	CGO_ENABLED=0 $(arch_flags) go build $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
 
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
@@ -128,9 +131,35 @@ setup-bare: clean e2e.namespace
 e2e:
 	go test -v $(MOD_FLAGS)  -failfast -timeout 150m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -ginkgo.flakeAttempts=3
 
-e2e-local: build-linux build-wait build-util-linux
-	. ./scripts/build_local.sh
-	. ./scripts/run_e2e_local.sh $(TEST)
+### Start: End To End Tests ###
+
+# Phony prerequisite for targets that rely on the go build cache to determine staleness.
+.PHONY: FORCE
+FORCE:
+
+# main entry point for running end to end tests. used by .github/workflows/e2e-tests.yml See test/e2e/README.md for details
+.PHONY: e2e-local
+e2e-local: bin/e2e-local.test test/e2e-local.image.tar
+	$(GINKGO) -nodes $(or $(NODES),1) -flakeAttempts 3 -randomizeAllSpecs $(if $(TEST),-focus '$(TEST)') -v -timeout 90m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=../test/e2e-local.image.tar
+
+# this target updates the zz_chart.go file with files found in deploy/chart
+# will only fire if a file in deploy/chart has been changed
+test/e2e/assets/chart/zz_chart.go: $(shell find deploy/chart -type f)
+	$(BINDATA) -o $@ -pkg chart -prefix deploy/chart/ $^
+
+# execute kind and helm end to end tests
+bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
+	$(GO) test -c -tags kind,helm -o $@ ./test/e2e
+
+# set go env and other vars, ensure that the dockerfile exists, and then build wait, cpb, and other command binaries and finally the kind image archive
+test/e2e-local.image.tar: export GOOS=linux
+test/e2e-local.image.tar: export GOARCH=386
+test/e2e-local.image.tar: build_cmd=build
+test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
+	docker build -t quay.io/operator-framework/olm:local -f $< bin
+	docker save -o $@ quay.io/operator-framework/olm:local
+
+### Finish: End To End Tests ###
 
 e2e-bare: setup-bare
 	. ./scripts/run_e2e_bare.sh $(TEST)
