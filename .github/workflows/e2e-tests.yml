@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - run: make -f Makefile e2e-local NODES=2 JUNIT_DIRECTORY=./artifacts/
+      - run: make e2e-local NODES=2 JUNIT_DIRECTORY=./artifacts/
       - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
         if: ${{ always() }}
         uses: actions/upload-artifact@v2
