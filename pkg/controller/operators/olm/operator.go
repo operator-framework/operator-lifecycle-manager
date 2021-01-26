@@ -1097,7 +1097,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	}
 
 	// status changed, update CSV
-	if !(outCSV.Status.LastUpdateTime == clusterServiceVersion.Status.LastUpdateTime &&
+	if !(outCSV.Status.LastUpdateTime.Equal(clusterServiceVersion.Status.LastUpdateTime) &&
 		outCSV.Status.Phase == clusterServiceVersion.Status.Phase &&
 		outCSV.Status.Reason == clusterServiceVersion.Status.Reason &&
 		outCSV.Status.Message == clusterServiceVersion.Status.Message) {
