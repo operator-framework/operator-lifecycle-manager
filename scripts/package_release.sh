@@ -18,13 +18,8 @@ charttmpdir=${charttmpdir}/chart
 
 cp -R deploy/chart/ "${charttmpdir}"
 
-# A space character is needed for -i argument in mac BSD sed.
-# GNU sed has a --version argument, and BSD sed does not. 
-# Check for both conditions to be safe for darwin users that override sed with gsed
-if [ -z "${OSTYPE##*"darwin"*}" ] && ! sed --version >/dev/null 2>&1; then
-    SP=" "
-fi
-sed -i"${SP}"'' "s/^[Vv]ersion:.*\$/version: ${version}/" "${charttmpdir}/Chart.yaml"
+# overwrite the destination Chart.yaml file with a modified copy containing the version
+sed "s/^[Vv]ersion:.*\$/version: ${version}/" deploy/chart/Chart.yaml > "${charttmpdir}/Chart.yaml"
 
 mkdir -p "${chartdir}"
 

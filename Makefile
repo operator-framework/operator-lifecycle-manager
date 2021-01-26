@@ -143,7 +143,8 @@ e2e-local: bin/e2e-local.test test/e2e-local.image.tar
 	$(GINKGO) -nodes $(or $(NODES),1) -flakeAttempts 3 -randomizeAllSpecs $(if $(TEST),-focus '$(TEST)') -v -timeout 90m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=../test/e2e-local.image.tar
 
 # this target updates the zz_chart.go file with files found in deploy/chart
-# will only fire if a file in deploy/chart has been changed
+# this will always fire since it has been marked as phony
+.PHONY: test/e2e/assets/chart/zz_chart.go
 test/e2e/assets/chart/zz_chart.go: $(shell find deploy/chart -type f)
 	$(BINDATA) -o $@ -pkg chart -prefix deploy/chart/ $^
 
