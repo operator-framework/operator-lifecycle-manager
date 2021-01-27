@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,14 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
-
-	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
-
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -27,23 +25,111 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/util/retry"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Install Plan", func() {
 	AfterEach(func() {
 		TearDown(testNamespace)
+	})
+
+	When("a ClusterIP service exists", func() {
+		var (
+			service *corev1.Service
+		)
+
+		BeforeEach(func() {
+			service = &corev1.Service{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Service",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-service",
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceTypeClusterIP,
+					Ports: []corev1.ServicePort{
+						{
+							Port: 12345,
+						},
+					},
+				},
+			}
+
+			Expect(ctx.Ctx().Client().Create(context.Background(), service.DeepCopy())).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(ctx.Ctx().Client().Delete(context.Background(), service)).To(Succeed())
+		})
+
+		It("it can be updated by an InstallPlan step", func() {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			var manifest bytes.Buffer
+			Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(service, &manifest)).To(Succeed())
+
+			plan := &operatorsv1alpha1.InstallPlan{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-plan",
+				},
+				Spec: operatorsv1alpha1.InstallPlanSpec{
+					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+					Approved:                   true,
+					ClusterServiceVersionNames: []string{},
+				},
+				Status: operatorsv1alpha1.InstallPlanStatus{
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+					CatalogSources: []string{},
+					Plan: []*operatorsv1alpha1.Step{
+						{
+							Status: operatorsv1alpha1.StepStatusUnknown,
+							Resource: operatorsv1alpha1.StepResource{
+								Name:     service.Name,
+								Version:  "v1",
+								Kind:     "Service",
+								Manifest: manifest.String(),
+							},
+						},
+					},
+				},
+			}
+
+			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
+
+			key, err := runtimeclient.ObjectKeyFromObject(plan)
+			Expect(err).ToNot(HaveOccurred())
+
+			HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
+				return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
+					return plan.Status.Phase
+				}, Equal(goal))
+			}
+
+			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+				return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
+			}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+		})
 	})
 
 	It("with CSVs across multiple catalog sources", func() {
