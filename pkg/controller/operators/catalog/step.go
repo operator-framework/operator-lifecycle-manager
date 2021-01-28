@@ -186,9 +186,8 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 			if err != nil {
 				if k8serrors.IsNotFound(err) {
 					return v1alpha1.StepStatusNotPresent, nil
-				} else {
-					return v1alpha1.StepStatusNotPresent, errorwrap.Wrapf(err, "error finding the %s CRD", crd.Name)
 				}
+				return v1alpha1.StepStatusNotPresent, errorwrap.Wrapf(err, "error finding the %s CRD", crd.Name)
 			}
 			established, namesAccepted := false, false
 			for _, cdt := range crd.Status.Conditions {

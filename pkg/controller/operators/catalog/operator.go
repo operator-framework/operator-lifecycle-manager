@@ -491,18 +491,16 @@ func (o *Operator) handleDeletion(obj interface{}) {
 func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 	catsrc, ok := obj.(metav1.Object)
 	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-			if !ok {
-				utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
-				return
-			}
+			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+			return
+		}
 
-			catsrc, ok = tombstone.Obj.(metav1.Object)
-			if !ok {
-				utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Namespace %#v", obj))
-				return
-			}
+		catsrc, ok = tombstone.Obj.(metav1.Object)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Namespace %#v", obj))
+			return
 		}
 	}
 	sourceKey := registry.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
@@ -628,11 +626,11 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 			logger.Debug("requeueing registry server for catalog update check: update pod not yet ready")
 			o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), reconciler.CatalogPollingRequeuePeriod)
 			return
-		} else {
-			syncError = fmt.Errorf("couldn't ensure registry server - %v", err)
-			out.SetError(v1alpha1.CatalogSourceRegistryServerError, syncError)
-			return
 		}
+
+		syncError = fmt.Errorf("couldn't ensure registry server - %v", err)
+		out.SetError(v1alpha1.CatalogSourceRegistryServerError, syncError)
+		return
 	}
 
 	logger.Debug("ensured registry server")
@@ -920,10 +918,10 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			logger.WithError(err).Debug("error ensuring subscription installplan state")
 			return err
 		}
-	} else {
-		logger.Debugf("no subscriptions were updated")
+		return nil
 	}
 
+	logger.Debugf("no subscriptions were updated")
 	return nil
 }
 
@@ -1593,13 +1591,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		doStep := true
 		s, err := b.create(*step)
 		if err != nil {
-			if _, ok := err.(notSupportedStepperErr); ok {
-				// stepper not implemented for this type yet
-				// stepper currently only implemented for CRD types
-				doStep = false
-			} else {
+			if _, ok := err.(notSupportedStepperErr); !ok {
 				return err
 			}
+			// stepper not implemented for this type yet
+			// stepper currently only implemented for CRD types
+			doStep = false
 		}
 		if doStep {
 			status, err := s.Status()
