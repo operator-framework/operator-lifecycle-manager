@@ -640,7 +640,7 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 	// requeue the catalog sync based on the polling interval, for accurate syncs of catalogs with polling enabled
 	if out.Spec.UpdateStrategy != nil {
 		logger.Debugf("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
-		resyncPeriod := reconciler.SyncRegistryUpdateInterval(out)
+		resyncPeriod := reconciler.SyncRegistryUpdateInterval(out, time.Now())
 		o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), queueinformer.ResyncWithJitter(resyncPeriod, 0.1)())
 		return
 	}
