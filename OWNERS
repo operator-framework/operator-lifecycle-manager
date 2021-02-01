@@ -17,10 +17,9 @@ reviewers:
   - anik120
   - exdx
   - awgreene
-  - Bowenislandsong
-  - benluddy
   - hasbro17
   - ankitathomas
   - joelanford
+  - @timflannagan1
 # Bugzilla component
 component: "OLM"
