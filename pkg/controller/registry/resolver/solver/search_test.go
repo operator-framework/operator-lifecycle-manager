@@ -88,7 +88,7 @@ func TestSearch(t *testing.T) {
 			}
 
 			var anchors []z.Lit
-			for _, id := range h.lits.MandatoryIdentifiers() {
+			for _, id := range h.lits.AnchorIdentifiers() {
 				anchors = append(anchors, h.lits.LitOf(id))
 			}
 
