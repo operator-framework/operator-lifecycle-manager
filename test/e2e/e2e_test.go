@@ -48,6 +48,8 @@ func TestEndToEnd(t *testing.T) {
 	RegisterFailHandler(Fail)
 	SetDefaultEventuallyTimeout(1 * time.Minute)
 	SetDefaultEventuallyPollingInterval(1 * time.Second)
+	SetDefaultConsistentlyDuration(30 * time.Second)
+	SetDefaultConsistentlyPollingInterval(1 * time.Second)
 
 	if junitDir := os.Getenv("JUNIT_DIRECTORY"); junitDir != "" {
 		junitReporter := reporters.NewJUnitReporter(path.Join(junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
