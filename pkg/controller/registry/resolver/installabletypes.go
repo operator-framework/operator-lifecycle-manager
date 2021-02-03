@@ -64,8 +64,10 @@ func NewBundleInstallable(bundle, channel string, catalog registry.CatalogKey, c
 
 func NewSubscriptionInstallable(pkg string) SubscriptionInstallable {
 	return SubscriptionInstallable{
-		identifier:  solver.Identifier(pkg),
-		constraints: []solver.Constraint{solver.Mandatory()},
+		identifier: solver.Identifier(pkg),
+		constraints: []solver.Constraint{
+			ConstraintSubscriptionExists,
+		},
 	}
 }
 
@@ -83,5 +85,35 @@ func (r SubscriptionInstallable) Constraints() []solver.Constraint {
 }
 
 func (r *SubscriptionInstallable) AddDependency(dependencies []solver.Identifier) {
-	r.constraints = append(r.constraints, solver.Dependency(dependencies...))
+	if len(dependencies) == 0 {
+		r.constraints = append(r.constraints, ConstraintSubscriptionWithoutCandidates)
+		return
+	}
+
+	s := make([]string, len(dependencies))
+	for i, each := range dependencies {
+		s[i] = string(each)
+	}
+	r.constraints = append(r.constraints, PrettyConstraint(solver.Dependency(dependencies...), fmt.Sprintf("subscription to %%s requires at least one of %s", strings.Join(s, ", "))))
 }
+
+func PrettyConstraint(c solver.Constraint, format string) solver.Constraint {
+	return prettyConstraint{
+		Constraint: c,
+		format:     format,
+	}
+}
+
+type prettyConstraint struct {
+	solver.Constraint
+	format string
+}
+
+func (pc prettyConstraint) String(subject solver.Identifier) string {
+	return fmt.Sprintf(pc.format, subject)
+}
+
+var (
+	ConstraintSubscriptionExists            = PrettyConstraint(solver.Mandatory(), "a subscription to package %s exists in the namespace")
+	ConstraintSubscriptionWithoutCandidates = PrettyConstraint(solver.Dependency(), "no operators found matching the subscription criteria for %s")
+)
