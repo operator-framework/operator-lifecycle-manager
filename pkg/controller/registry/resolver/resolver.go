@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
+	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
@@ -362,6 +364,51 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 	return ids, installables, nil
 }
 
+func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) ([]*api.Property, error) {
+	var properties []*api.Property
+
+	packages := make(map[string]struct{})
+	for _, sub := range subs {
+		if sub.Status.InstalledCSV != csv.Name {
+			continue
+		}
+		// Without sanity checking the Subscription spec's
+		// package against catalog contents, updates to the
+		// Subscription spec could result in a bad package
+		// inference.
+		for _, entry := range r.cache.Namespaced(sub.Namespace).Catalog(registry.CatalogKey{Namespace: sub.Spec.CatalogSourceNamespace, Name: sub.Spec.CatalogSource}).Find(And(WithCSVName(csv.Name), WithPackage(sub.Spec.Package))) {
+			if pkg := entry.Package(); pkg != "" {
+				packages[pkg] = struct{}{}
+			}
+		}
+	}
+	if l := len(packages); l != 1 {
+		r.log.Warnf("could not unambiguously infer package name for %q (found %d distinct package names)", csv.Name, l)
+		return properties, nil
+	}
+	var pkg string
+	for pkg = range packages {
+		// Assign the single key to pkg.
+	}
+	var version string // Emit empty string rather than "0.0.0" if .spec.version is zero-valued.
+	if !csv.Spec.Version.Version.Equals(semver.Version{}) {
+		version = csv.Spec.Version.String()
+	}
+	if pp, err := json.Marshal(opregistry.PackageProperty{
+		PackageName: pkg,
+		Version:     version,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to marshal inferred package property: %w", err)
+	} else {
+		properties = append(properties, &api.Property{
+			Type:  opregistry.PackageType,
+			Value: string(pp),
+		})
+	}
+
+	return properties, nil
+}
+
 func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*CatalogSnapshot, []solver.Installable, error) {
 	installables := make([]solver.Installable, 0)
 	existingOperatorCatalog := registry.NewVirtualCatalogKey(namespace)
@@ -393,6 +440,11 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 
 		if anno, ok := csv.GetAnnotations()[projection.PropertiesAnnotationKey]; !ok {
 			csvsMissingProperties = append(csvsMissingProperties, csv)
+			if inferred, err := r.inferProperties(csv, subs); err != nil {
+				r.log.Warnf("unable to infer properties for csv %q: %w", csv.Name, err)
+			} else {
+				op.properties = append(op.properties, inferred...)
+			}
 		} else if props, err := projection.PropertyListFromPropertiesAnnotation(anno); err != nil {
 			return nil, nil, fmt.Errorf("failed to retrieve properties of csv %q: %w", csv.GetName(), err)
 		} else {
