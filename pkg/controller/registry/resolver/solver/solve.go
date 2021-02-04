@@ -65,7 +65,7 @@ func (s *solver) Solve(ctx context.Context) (result []Installable, err error) {
 
 	// collect literals of all mandatory installables to assume as a baseline
 	var assumptions []z.Lit
-	for _, anchor := range s.litMap.MandatoryIdentifiers() {
+	for _, anchor := range s.litMap.AnchorIdentifiers() {
 		assumptions = append(assumptions, s.litMap.LitOf(anchor))
 	}
 

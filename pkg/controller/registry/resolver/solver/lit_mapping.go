@@ -158,14 +158,14 @@ func (d *litMapping) CardinalityConstrainer(g inter.Adder, ms []z.Lit) *logic.Ca
 	return cs
 }
 
-// MandatoryIdentifiers returns a slice containing the Identifiers of
-// every Installable with at least one "Mandatory" constraint, in the
+// AnchorIdentifiers returns a slice containing the Identifiers of
+// every Installable with at least one "anchor" constraint, in the
 // order they appear in the input.
-func (d *litMapping) MandatoryIdentifiers() []Identifier {
+func (d *litMapping) AnchorIdentifiers() []Identifier {
 	var ids []Identifier
 	for _, installable := range d.inorder {
 		for _, constraint := range installable.Constraints() {
-			if _, ok := constraint.(mandatory); ok {
+			if constraint.anchor() {
 				ids = append(ids, installable.Identifier())
 				break
 			}
