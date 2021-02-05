@@ -102,7 +102,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 
 		// find operators, in channel order, that can skip from the current version or list the current in "replaces"
-		subInstallables, err := r.getSubscriptionInstallables(pkg, sub.Namespace, current, catalog, predicates, channelFilter, namespacedCache, visited)
+		subInstallables, err := r.getSubscriptionInstallables(sub.Name, pkg, sub.Namespace, current, catalog, predicates, channelFilter, namespacedCache, visited)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -180,12 +180,9 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(pkg, namespace string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+func (r *SatResolver) getSubscriptionInstallables(name, pkg, namespace string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
 	installables := make(map[solver.Identifier]solver.Installable, 0)
 	candidates := make([]*BundleInstallable, 0)
-
-	subInstallable := NewSubscriptionInstallable(pkg)
-	installables[subInstallable.Identifier()] = &subInstallable
 
 	bundles := namespacedCache.Catalog(catalog).Find(cachePredicates...)
 
@@ -263,7 +260,8 @@ func (r *SatResolver) getSubscriptionInstallables(pkg, namespace string, current
 	}
 
 	// all candidates added as options for this constraint
-	subInstallable.AddDependency(depIds)
+	subInstallable := NewSubscriptionInstallable(name, depIds)
+	installables[subInstallable.Identifier()] = subInstallable
 
 	return installables, nil
 }
@@ -423,7 +421,8 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 
 func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, installables map[solver.Identifier]solver.Installable) {
 	// no two operators may provide the same GVK or Package in a namespace
-	conflictToInstallable := make(map[string][]solver.Installable)
+	gvkConflictToInstallable := make(map[opregistry.GVKProperty][]solver.Identifier)
+	packageConflictToInstallable := make(map[string][]solver.Identifier)
 	for _, installable := range installables {
 		bundleInstallable, ok := installable.(*BundleInstallable)
 		if !ok {
@@ -449,12 +448,7 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			if err != nil {
 				continue
 			}
-			key := fmt.Sprintf("gvkunique/%s/%s/%s", prop.Group, prop.Version, prop.Kind)
-			_, ok := conflictToInstallable[key]
-			if !ok {
-				conflictToInstallable[key] = make([]solver.Installable, 0)
-			}
-			conflictToInstallable[key] = append(conflictToInstallable[key], installable)
+			gvkConflictToInstallable[prop] = append(gvkConflictToInstallable[prop], installable.Identifier())
 		}
 
 		// cannot have the same package
@@ -467,27 +461,18 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			if err != nil {
 				continue
 			}
-			key := fmt.Sprintf("pkgunique/%s", prop.PackageName)
-			_, ok := conflictToInstallable[key]
-			if !ok {
-				conflictToInstallable[key] = make([]solver.Installable, 0)
-			}
-			conflictToInstallable[key] = append(conflictToInstallable[key], installable)
+			packageConflictToInstallable[prop.PackageName] = append(packageConflictToInstallable[prop.PackageName], installable.Identifier())
 		}
 	}
 
-	for key, is := range conflictToInstallable {
-		if len(is) <= 1 {
-			continue
-		}
+	for gvk, is := range gvkConflictToInstallable {
+		s := NewSingleAPIProviderInstallable(gvk.Group, gvk.Version, gvk.Kind, is)
+		installables[s.Identifier()] = s
+	}
 
-		ids := make([]solver.Identifier, 0)
-		for _, d := range is {
-			ids = append(ids, d.Identifier())
-		}
-		s := NewSubscriptionInstallable(key)
-		s.constraints = append(s.constraints, solver.AtMost(1, ids...))
-		installables[s.Identifier()] = &s
+	for pkg, is := range packageConflictToInstallable {
+		s := NewSinglePackageInstanceInstallable(pkg, is)
+		installables[s.Identifier()] = s
 	}
 }
 
