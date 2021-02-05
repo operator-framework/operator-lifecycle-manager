@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -1241,34 +1242,36 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 	}
 
 	var operators OperatorSet
-	for _, p := range phases {
-		fakeNamespacedOperatorCache := NamespacedOperatorCache{
-			snapshots: map[registry.CatalogKey]*CatalogSnapshot{
-				catalog: p.catalog,
-			},
-		}
-		satResolver := SatResolver{
-			cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-			log:   logrus.New(),
-		}
-		csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
-		for _, o := range operators {
-			var pkg, channel string
-			if b := o.Bundle(); b != nil {
-				pkg = b.PackageName
-				channel = b.ChannelName
+	for i, p := range phases {
+		t.Run(fmt.Sprintf("phase %d", i+1), func(t *testing.T) {
+			fakeNamespacedOperatorCache := NamespacedOperatorCache{
+				snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+					catalog: p.catalog,
+				},
 			}
-			csvs = append(csvs, existingOperator(namespace, o.Identifier(), pkg, channel, o.Replaces(), o.ProvidedAPIs(), o.RequiredAPIs(), nil, nil))
-		}
+			satResolver := SatResolver{
+				cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+				log:   logrus.New(),
+			}
+			csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
+			for _, o := range operators {
+				var pkg, channel string
+				if b := o.Bundle(); b != nil {
+					pkg = b.PackageName
+					channel = b.ChannelName
+				}
+				csvs = append(csvs, existingOperator(namespace, o.Identifier(), pkg, channel, o.Replaces(), o.ProvidedAPIs(), o.RequiredAPIs(), nil, nil))
+			}
 
-		var err error
-		operators, err = satResolver.SolveOperators([]string{"olm"}, csvs, p.subs)
-		assert.NoError(t, err)
-		for k := range p.expected {
-			require.NotNil(t, operators[k])
-			assert.EqualValues(t, k, operators[k].Identifier())
-		}
-		assert.Equal(t, len(p.expected), len(operators))
+			var err error
+			operators, err = satResolver.SolveOperators([]string{"olm"}, csvs, p.subs)
+			assert.NoError(t, err)
+			for k := range p.expected {
+				require.NotNil(t, operators[k])
+				assert.EqualValues(t, k, operators[k].Identifier())
+			}
+			assert.Equal(t, len(p.expected), len(operators))
+		})
 	}
 }
 
