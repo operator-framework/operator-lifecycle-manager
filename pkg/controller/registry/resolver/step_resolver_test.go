@@ -98,24 +98,12 @@ func SharedResolverSpecs() []resolverTest {
 			out: resolverTestOut{
 				solverError: solver.NotSatisfiable{
 					{
-						Installable: &SubscriptionInstallable{
-							identifier: "a",
-							constraints: []solver.Constraint{
-								solver.Mandatory(),
-								solver.Dependency(),
-							},
-						},
-						Constraint: ConstraintSubscriptionExists,
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 					{
-						Installable: &SubscriptionInstallable{
-							identifier: "a",
-							constraints: []solver.Constraint{
-								solver.Mandatory(),
-								solver.Dependency(),
-							},
-						},
-						Constraint: ConstraintSubscriptionWithoutCandidates,
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found matching the criteria of subscription a-alpha"),
 					},
 				},
 			},
@@ -267,14 +255,8 @@ func SharedResolverSpecs() []resolverTest {
 				subs:    []*v1alpha1.Subscription{},
 				solverError: solver.NotSatisfiable([]solver.AppliedConstraint{
 					{
-						Installable: &SubscriptionInstallable{
-							identifier: "a",
-							constraints: []solver.Constraint{
-								ConstraintSubscriptionExists,
-								PrettyConstraint(solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"), "subscription to %s requires at least one of catsrc/catsrc-namespace/alpha/a.v1"),
-							},
-						},
-						Constraint: PrettyConstraint(solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"), "subscription to %s requires at least one of catsrc/catsrc-namespace/alpha/a.v1"),
+						Installable: NewSubscriptionInstallable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),
+						Constraint:  PrettyConstraint(solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"), "subscription a-alpha requires catsrc/catsrc-namespace/alpha/a.v1"),
 					},
 					{
 						Installable: &BundleInstallable{
@@ -284,14 +266,8 @@ func SharedResolverSpecs() []resolverTest {
 						Constraint: solver.Dependency(),
 					},
 					{
-						Installable: &SubscriptionInstallable{
-							identifier: "a",
-							constraints: []solver.Constraint{
-								ConstraintSubscriptionExists,
-								PrettyConstraint(solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"), "subscription to %s requires at least one of catsrc/catsrc-namespace/alpha/a.v1"),
-							},
-						},
-						Constraint: ConstraintSubscriptionExists,
+						Installable: NewSubscriptionInstallable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),
+						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 				}),
 			},
