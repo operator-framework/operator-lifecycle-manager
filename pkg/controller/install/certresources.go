@@ -22,6 +22,10 @@ var _ certResource = &apiServiceDescriptionsWithCAPEM{}
 
 var _ certResource = &webhookDescriptionWithCAPEM{}
 
+// TODO: to keep refactoring minimal for backports, this is factored out here so that it can be replaced
+// during tests. but it should be properly injected instead.
+var certGenerator certs.CertGenerator = certs.CertGeneratorFunc(certs.CreateSignedServingPair)
+
 const (
 	// DefaultCertMinFresh is the default min-fresh value - 1 day
 	DefaultCertMinFresh = time.Hour * 24
@@ -227,7 +231,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		if !ownerutil.Adoptable(i.owner, existingService.GetOwnerReferences()) {
 			return nil, nil, fmt.Errorf("service %s not safe to replace: extraneous ownerreferences found", service.GetName())
 		}
-		service.SetOwnerReferences(append(service.GetOwnerReferences(), existingService.GetOwnerReferences()...))
+		service.SetOwnerReferences(existingService.GetOwnerReferences())
 
 		// Delete the Service to replace
 		deleteErr := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
@@ -248,7 +252,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		fmt.Sprintf("%s.%s", service.GetName(), i.owner.GetNamespace()),
 		fmt.Sprintf("%s.%s.svc", service.GetName(), i.owner.GetNamespace()),
 	}
-	servingPair, err := certs.CreateSignedServingPair(rotateAt, Organization, ca, hosts)
+	servingPair, err := certGenerator.Generate(rotateAt, Organization, ca, hosts)
 	if err != nil {
 		logger.Warnf("could not generate signed certs for hosts %v", hosts)
 		return nil, nil, err
