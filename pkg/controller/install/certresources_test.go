@@ -186,6 +186,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					Data: map[string][]byte{
 						"tls.crt":   certPEM,
 						"tls.key":   privPEM,
+						OLMCAPEMKey: caPEM,
 					},
 					Type: corev1.SecretTypeTLS,
 				}
@@ -383,6 +384,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					Data: map[string][]byte{
 						"tls.crt":   certPEM,
 						"tls.key":   privPEM,
+						OLMCAPEMKey: caPEM,
 					},
 					Type: corev1.SecretTypeTLS,
 				}
@@ -564,7 +566,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				apiServiceDescriptions: tt.fields.apiServiceDescriptions,
 				webhookDescriptions:    tt.fields.webhookDescriptions,
 			}
-			got, err := i.installCertRequirementsForDeployment(tt.args.deploymentName, tt.args.ca, tt.args.rotateAt, tt.args.depSpec, tt.args.ports)
+			got, _, err := i.installCertRequirementsForDeployment(tt.args.deploymentName, tt.args.ca, tt.args.rotateAt, tt.args.depSpec, tt.args.ports)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("installCertRequirementsForDeployment() error = %v, wantErr %v", err, tt.wantErr)
 				return
