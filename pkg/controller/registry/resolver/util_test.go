@@ -261,6 +261,21 @@ func apiSetToProperties(crds, apis APISet, deprecated bool) (out []*api.Property
 	return
 }
 
+func packageNameToProperty(packageName, version string) (out *api.Property) {
+	val, err := json.Marshal(opregistry.PackageProperty{
+		PackageName: packageName,
+		Version:     version,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	return &api.Property{
+		Type:  opregistry.PackageType,
+		Value: string(val),
+	}
+}
+
 type bundleOpt func(*api.Bundle)
 
 func withSkipRange(skipRange string) bundleOpt {
@@ -278,6 +293,13 @@ func withSkips(skips []string) bundleOpt {
 func withVersion(version string) bundleOpt {
 	return func(b *api.Bundle) {
 		b.Version = version
+		props := b.GetProperties()
+		for i, p := range props {
+			if p.Type == opregistry.PackageType {
+				props[i] = packageNameToProperty(b.PackageName, b.Version)
+			}
+		}
+		b.Properties = props
 	}
 }
 
@@ -307,7 +329,9 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		RequiredApis: apiSetToGVK(requiredCRDs, requiredAPIServices),
 		Replaces:     replaces,
 		Dependencies: apiSetToDependencies(requiredCRDs, requiredAPIServices),
-		Properties:   apiSetToProperties(providedCRDs, providedAPIServices, false),
+		Properties:   append(apiSetToProperties(providedCRDs, providedAPIServices, false),
+			packageNameToProperty(pkg, "0.0.0"),
+		),
 	}
 	for _, f := range opts {
 		f(b)
