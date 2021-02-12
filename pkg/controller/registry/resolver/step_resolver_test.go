@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -169,7 +170,7 @@ func TestResolver(t *testing.T) {
 					{
 						Path:       "quay.io/test/bundle@sha256:abcd",
 						Identifier: "b.v1",
-						Properties: `{"properties":[{"type":"olm.gvk","value":{"group":"g","kind":"k","version":"v"}}]}`,
+						Properties: `{"properties":[{"type":"olm.gvk","value":{"group":"g","kind":"k","version":"v"}},{"type":"olm.package","value":{"packageName":"b","version":"0.0.0"}}]}`,
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
 							Name:      catalog.Name,
@@ -349,7 +350,7 @@ func TestResolver(t *testing.T) {
 						Path:       "quay.io/test/bundle@sha256:abcd",
 						Identifier: "a.v2",
 						Replaces:   "a.v1",
-						Properties: `{"properties":[{"type":"olm.gvk","value":{"group":"g","kind":"k","version":"v"}}]}`,
+						Properties: `{"properties":[{"type":"olm.gvk","value":{"group":"g","kind":"k","version":"v"}},{"type":"olm.package","value":{"packageName":"a","version":"0.0.0"}}]}`,
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
 							Name:      catalog.Name,
@@ -596,7 +597,7 @@ func TestResolver(t *testing.T) {
 			}},
 			out: resolverTestOut{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil), namespace, "a.v1", catalog),
+					bundleSteps(bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil, withVersion("1.0.0"), withSkipRange("< 1.0.0")), namespace, "a.v1", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v3", "a.v1", "a", "alpha", catalog),
@@ -604,16 +605,6 @@ func TestResolver(t *testing.T) {
 			},
 		},
 		{
-			// This test uses logic that implements the FakeSourceQuerier to ensure
-			// that the required API is provided by the new Operator.
-			//
-			// Background:
-			// OLM used to add the new operator to the generation before removing
-			// the old operator from the generation. The logic that removes an operator
-			// from the current generation removes the APIs it provides from the list of
-			// "available" APIs. This caused OLM to search for an operator that provides the API.
-			// If the operator that provides the API uses a skipRange rather than the Spec.Replaces
-			// field, the Replaces field is set to an empty string, causing OLM to fail to upgrade.
 			name: "InstalledSubs/ExistingOperators/OldCSVsReplaced",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -653,7 +644,7 @@ func TestResolver(t *testing.T) {
 			}},
 			out: resolverTestOut{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil), namespace, "a.v1", catalog),
+					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil, withVersion("1.0.0"), withSkipRange("< 1.0.0")), namespace, "a.v1", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v3", "a.v1", "a", "alpha", catalog),
@@ -691,7 +682,7 @@ func TestResolver(t *testing.T) {
 			}},
 			out: resolverTestOut{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil), namespace, "a.v1", catalog),
+					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil, withVersion("1.0.0"), withSkips([]string{"a.v1"})), namespace, "a.v1", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v3", "a.v1", "a", "alpha", catalog),
