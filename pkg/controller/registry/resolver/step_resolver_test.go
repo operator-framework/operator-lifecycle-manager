@@ -306,6 +306,57 @@ func TestResolver(t *testing.T) {
 			},
 		},
 		{
+			name: "ConflictingSubscriptionsToSamePackage",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+				newSub(namespace, "a", "beta", catalog),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+					bundle("a.v2", "a", "beta", "", Provides1, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				errAssert: func(t *testing.T, err error) {
+					fmt.Println(err)
+					assert.IsType(t, solver.NotSatisfiable{}, err)
+				},
+			},
+		},
+		{
+			// No two operators from the same package may run at the same time, but it's possible to have two
+			// subscriptions to the same package as long as it's possible to find a bundle that satisfies both
+			// constraints
+			name: "SatisfiableSubscriptionsToSamePackage",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+				func() (s *v1alpha1.Subscription) {
+					s = newSub(namespace, "a", "alpha", catalog)
+					s.Name = s.Name+"-2"
+					return
+				}(),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, "", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "", "a", "alpha", catalog),
+					func() (s *v1alpha1.Subscription) {
+						s = updatedSub(namespace, "a.v1", "", "a", "alpha", catalog)
+						s.Name = s.Name+"-2"
+						return
+					}(),
+				},
+			},
+		},
+		{
 			name: "TwoExistingOperatorsWithSameName/NoError",
 			clusterState: []runtime.Object{
 				existingOperator("ns1", "a.v1", "a", "alpha", "", nil, nil, nil, nil),
