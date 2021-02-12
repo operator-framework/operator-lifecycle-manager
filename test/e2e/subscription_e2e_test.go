@@ -1327,8 +1327,6 @@ var _ = Describe("Subscription", func() {
 		kubeClient := newKubeClient()
 		crClient := newCRClient()
 
-		permissions := deploymentPermissions()
-
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
 		crdPlural2 := genName("ins")
@@ -1373,9 +1371,9 @@ var _ = Describe("Subscription", func() {
 		packageName2 := genName("bpackage")
 		packageName3 := genName("cpackage")
 
-		namedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
-		depNamedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
-		depNamedStrategy2 := newNginxInstallStrategy((genName("dep")), permissions, nil)
+		namedStrategy := newNginxInstallStrategy((genName("dep")), nil, nil)
+		depNamedStrategy := newNginxInstallStrategy((genName("dep")), nil, nil)
+		depNamedStrategy2 := newNginxInstallStrategy((genName("dep")), nil, nil)
 		// csvA requires CRD1 and CRD2
 		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd, crd2}, namedStrategy)
 		// csvABC provides CRD1 and CRD2 in the same catalogsource with csvA (apackage)
@@ -1464,22 +1462,14 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		// Check that a single catalog source was used to resolve the InstallPlan
-		_, err = fetchInstallPlan(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
-		require.NoError(GinkgoT(), err)
-		// Fetch CSVs A, B and C
-		_, err = fetchCSV(GinkgoT(), crClient, csvB.Name, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-		_, err = fetchCSV(GinkgoT(), crClient, csvE.Name, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-		_, err = fetchCSV(GinkgoT(), crClient, csvA.Name, testNamespace, csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
-		// Ensure csvABC is not installed
-		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvABC.Name, metav1.GetOptions{})
-		require.Error(GinkgoT(), err)
-		// Ensure csvD is not installed -- this implies the dependent subscription selected the default channel
-		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvD.Name, metav1.GetOptions{})
-		require.Error(GinkgoT(), err)
+		// ensure correct CSVs were picked
+		Eventually(func() ([]string, error) {
+			ip, err := crClient.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			return ip.Spec.ClusterServiceVersionNames, nil
+		}).Should(ConsistOf("nginx-a", "nginx-b-dep", "nginx-e-dep"))
 	})
 
 	// csvA owns CRD1 & csvB owns CRD2 and requires CRD1
@@ -1496,8 +1486,6 @@ var _ = Describe("Subscription", func() {
 
 		kubeClient := newKubeClient()
 		crClient := newCRClient()
-
-		permissions := deploymentPermissions()
 
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
@@ -1542,8 +1530,8 @@ var _ = Describe("Subscription", func() {
 		packageName1 := genName("apackage")
 		packageName2 := genName("bpackage")
 
-		namedStrategy := newNginxInstallStrategy((genName("dep")), permissions, nil)
-		namedStrategy2 := newNginxInstallStrategy((genName("dep")), permissions, nil)
+		namedStrategy := newNginxInstallStrategy((genName("dep")), nil, nil)
+		namedStrategy2 := newNginxInstallStrategy((genName("dep")), nil, nil)
 		// csvA provides CRD
 		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 		// csvB provides CRD2 and requires CRD

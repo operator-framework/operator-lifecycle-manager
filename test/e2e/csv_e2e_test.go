@@ -552,21 +552,12 @@ var _ = Describe("CSV", func() {
 	})
 	// TODO: same test but create serviceaccount instead
 	It("create requirements met CRD", func() {
-
-		defer cleaner.NotifyTestComplete(true)
-
 		c := newKubeClient()
 		crc := newCRClient()
-
-		sa := corev1.ServiceAccount{}
-		sa.SetName(genName("sa-"))
-		sa.SetNamespace(testNamespace)
-		_, err := c.CreateServiceAccount(&sa)
-		require.NoError(GinkgoT(), err, "could not create ServiceAccount %#v", sa)
-
+		saName := genName("sa-")
 		permissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
-				ServiceAccountName: sa.GetName(),
+				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
 					{
 						Verbs:     []string{"create"},
@@ -579,7 +570,7 @@ var _ = Describe("CSV", func() {
 
 		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
-				ServiceAccountName: sa.GetName(),
+				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
 					{
 						Verbs:     []string{"get"},
@@ -647,6 +638,18 @@ var _ = Describe("CSV", func() {
 
 		fetchedCSV, err := fetchCSV(GinkgoT(), crc, csv.Name, testNamespace, csvPendingChecker)
 		require.NoError(GinkgoT(), err)
+
+		sa := corev1.ServiceAccount{}
+		sa.SetName(saName)
+		sa.SetNamespace(testNamespace)
+		sa.SetOwnerReferences([]metav1.OwnerReference{{
+			Name:       fetchedCSV.GetName(),
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			UID:        fetchedCSV.GetUID(),
+		}})
+		_, err = c.CreateServiceAccount(&sa)
+		Expect(err).ShouldNot(HaveOccurred(), "could not create ServiceAccount %#v", sa)
 
 		crd := apiextensions.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1334,8 +1337,10 @@ var _ = Describe("CSV", func() {
 
 		// Should create certificate Secret
 		secretName = fmt.Sprintf("%s-cert", serviceName)
-		_, err = c.GetSecret(testNamespace, secretName)
-		require.NoError(GinkgoT(), err, "error getting expected Secret")
+		Eventually(func() error {
+			_, err = c.GetSecret(testNamespace, secretName)
+			return err
+		}, time.Minute, 5*time.Second).Should(Succeed())
 
 		// Should create a Role for the Secret
 		_, err = c.GetRole(testNamespace, secretName)
