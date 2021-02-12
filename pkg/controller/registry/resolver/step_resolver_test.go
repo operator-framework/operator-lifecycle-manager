@@ -46,31 +46,31 @@ var (
 	Requires4 = APISet4
 )
 
-type resolverTest struct {
-	name             string
-	clusterState     []runtime.Object
-	querier          SourceQuerier
-	bundlesByCatalog map[registry.CatalogKey][]*api.Bundle
-	out              resolverTestOut
-}
-
-type resolverTestOut struct {
-	steps       [][]*v1alpha1.Step
-	lookups     []v1alpha1.BundleLookup
-	subs        []*v1alpha1.Subscription
-	errAssert   func(*testing.T, error)
-	solverError solver.NotSatisfiable
-}
-
-func SharedResolverSpecs() []resolverTest {
+func TestResolver(t *testing.T) {
 	const namespace = "catsrc-namespace"
 	catalog := registry.CatalogKey{Name: "catsrc", Namespace: namespace}
+
+	type resolverTestOut struct {
+		steps       [][]*v1alpha1.Step
+		lookups     []v1alpha1.BundleLookup
+		subs        []*v1alpha1.Subscription
+		errAssert   func(*testing.T, error)
+		solverError solver.NotSatisfiable
+	}
+	type resolverTest struct {
+		name             string
+		clusterState     []runtime.Object
+		querier          SourceQuerier
+		bundlesByCatalog map[registry.CatalogKey][]*api.Bundle
+		out              resolverTestOut
+	}
+
 	nothing := resolverTestOut{
 		steps:   [][]*v1alpha1.Step{},
 		lookups: []v1alpha1.BundleLookup{},
 		subs:    []*v1alpha1.Subscription{},
 	}
-	return []resolverTest{
+	tests := []resolverTest{
 		{
 			name: "SubscriptionOmitsChannel",
 			clusterState: []runtime.Object{
@@ -640,15 +640,7 @@ func SharedResolverSpecs() []resolverTest {
 				},
 			},
 		},
-	}
-}
-
-func TestResolver(t *testing.T) {
-	namespace := "catsrc-namespace"
-	catalog := registry.CatalogKey{"catsrc", namespace}
-
-	tests := append(SharedResolverSpecs(),
-		resolverTest{
+		{
 			name: "InstalledSub/UpdatesAvailable/SkipRangeNotInHead",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -668,7 +660,7 @@ func TestResolver(t *testing.T) {
 				},
 			},
 		},
-		resolverTest{
+		{
 			name: "NewSub/StartingCSV",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog, withStartingCSV("a.v2")),
@@ -687,7 +679,7 @@ func TestResolver(t *testing.T) {
 				},
 			},
 		},
-		resolverTest{
+		{
 			name: "InstalledSub/UpdatesAvailable/SpecifiedSkips",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -706,7 +698,7 @@ func TestResolver(t *testing.T) {
 				},
 			},
 		},
-	)
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stopc := make(chan struct{})
