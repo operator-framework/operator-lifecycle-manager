@@ -20,6 +20,6 @@ reviewers:
   - hasbro17
   - ankitathomas
   - joelanford
-  - @timflannagan1
+  - timflannagan
 # Bugzilla component
 component: "OLM"
