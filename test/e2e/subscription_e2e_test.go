@@ -1190,7 +1190,7 @@ var _ = Describe("Subscription", func() {
 				Operator: corev1.TolerationOpEqual,
 			},
 		}
-		podResources := corev1.ResourceRequirements{
+		podResources := &corev1.ResourceRequirements{
 			Limits: corev1.ResourceList{
 				corev1.ResourceCPU: resource.MustParse("100m"),
 			},
@@ -1200,7 +1200,7 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 
-		podConfig := v1alpha1.SubscriptionConfig{
+		podConfig := &v1alpha1.SubscriptionConfig{
 			Env:          podEnv,
 			Volumes:      podVolumes,
 			VolumeMounts: podVolumeMounts,
@@ -1259,7 +1259,7 @@ var _ = Describe("Subscription", func() {
 			"foo": "bar",
 		}
 
-		podConfig := v1alpha1.SubscriptionConfig{
+		podConfig := &v1alpha1.SubscriptionConfig{
 			NodeSelector: podNodeSelector,
 		}
 
@@ -2510,7 +2510,7 @@ func checkDeploymentHasPodConfigNodeSelector(t GinkgoTInterface, client operator
 	return nil
 }
 
-func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration, resources corev1.ResourceRequirements) {
+func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration, resources *corev1.ResourceRequirements) {
 	resolver := install.StrategyResolver{}
 
 	strategy, err := resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
@@ -2571,10 +2571,10 @@ func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclie
 		return
 	}
 
-	findResources := func(existingResource corev1.ResourceRequirements, podResource corev1.ResourceRequirements) (foundResource *corev1.ResourceRequirements, found bool) {
+	findResources := func(existingResource *corev1.ResourceRequirements, podResource *corev1.ResourceRequirements) (foundResource *corev1.ResourceRequirements, found bool) {
 		if reflect.DeepEqual(existingResource, podResource) {
 			found = true
-			foundResource = &podResource
+			foundResource = podResource
 		}
 
 		return
@@ -2595,10 +2595,10 @@ func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclie
 			require.Equalf(t, v.MountPath, existing.MountPath, "VolumeMount MountPath does not match %s=%s", v.Name, v.MountPath)
 		}
 
-		existing, found := findResources(container.Resources, resources)
+		existing, found := findResources(&container.Resources, resources)
 		require.Truef(t, found, "Resources not injected. Resource=%v", resources)
 		require.NotNil(t, existing)
-		require.Equalf(t, *existing, resources, "Resource=%v does not match expected Resource=%v", existing, resources)
+		require.Equalf(t, existing, resources, "Resource=%v does not match expected Resource=%v", existing, resources)
 	}
 
 	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
