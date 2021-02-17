@@ -111,7 +111,7 @@ func NewAdoptionReconciler(cli client.Client, log logr.Logger, scheme *runtime.S
 func (r *AdoptionReconciler) ReconcileSubscription(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
-	log.V(4).Info("reconciling subscription")
+	log.V(1).Info("reconciling subscription")
 
 	// Fetch the Subscription from the cache
 	in := &operatorsv1alpha1.Subscription{}
@@ -173,7 +173,7 @@ func (r *AdoptionReconciler) ReconcileSubscription(ctx context.Context, req ctrl
 func (r *AdoptionReconciler) ReconcileClusterServiceVersion(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
-	log.V(4).Info("reconciling csv")
+	log.V(1).Info("reconciling csv")
 
 	// Fetch the CSV from the cache
 	in := &operatorsv1alpha1.ClusterServiceVersion{}
@@ -265,7 +265,7 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 
 	if err := r.Get(ctx, types.NamespacedName{Namespace: m.GetNamespace(), Name: m.GetName()}, cObj); err != nil {
 		if apierrors.IsNotFound(err) {
-			r.log.Error(err, "component not found")
+			r.log.V(1).Info("not found", "component", cObj)
 			err = nil
 		}
 
@@ -307,7 +307,7 @@ func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Op
 	}
 
 	// Only update if freshly disowned
-	r.log.V(4).Info("component disowned", "component", candidate)
+	r.log.V(1).Info("component disowned", "component", candidate)
 	uCObj, ok := candidate.(client.Object)
 	if !ok {
 		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
