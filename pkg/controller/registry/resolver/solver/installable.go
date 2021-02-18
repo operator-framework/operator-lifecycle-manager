@@ -8,6 +8,12 @@ func (id Identifier) String() string {
 	return string(id)
 }
 
+// IdentifierFromString returns an Identifier based on a provided
+// string.
+func IdentifierFromString(s string) Identifier {
+	return Identifier(s)
+}
+
 // Installable values are the basic unit of problems and solutions
 // understood by this package.
 type Installable interface {

@@ -45,7 +45,8 @@ metadata:
   namespace: my-namespace
 spec:
   selector:
-    cool.io/prod: "true"
+    matchLabels:
+      cool.io/prod: "true"
 ```
 
 or by explicitly naming target namespaces with the `spec.targetNamespaces` field:

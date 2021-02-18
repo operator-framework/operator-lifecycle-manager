@@ -9,6 +9,7 @@ This runs a series of tests against the Kubernetes API to verify that OLM is fun
 
 ## How to use
 
+
 Execute `make e2e-local` in the root of the repository, which will:
 
 - optionally update `test/e2e/assets/chart/zz_chart.go` as needed

@@ -99,11 +99,8 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	updatedSubs := []*v1alpha1.Subscription{}
 	bundleLookups := []v1alpha1.BundleLookup{}
 	for name, op := range operators {
-		// Find an existing subscription that resolves to this operator.
-		var (
-			existingSubscription *v1alpha1.Subscription
-			alreadyExists        bool
-		)
+		// Find any existing subscriptions that resolve to this operator.
+		existingSubscriptions := make(map[*v1alpha1.Subscription]bool)
 		sourceInfo := *op.SourceInfo()
 		for _, sub := range subs {
 			if sub.Spec.Package != sourceInfo.Package {
@@ -119,17 +116,24 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 			if !subCatalogKey.Empty() && !subCatalogKey.Equal(sourceInfo.Catalog) {
 				continue
 			}
-			alreadyExists, err = r.hasExistingCurrentCSV(sub)
+			alreadyExists, err := r.hasExistingCurrentCSV(sub)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("unable to determine whether subscription has a preexisting CSV")
+				return nil, nil, nil, fmt.Errorf("unable to determine whether subscription %s has a preexisting CSV", sub.GetName())
 			}
-			existingSubscription = sub
-			break
+			existingSubscriptions[sub] = alreadyExists
 		}
 
-		// subscription exists and is up to date
-		if existingSubscription != nil && existingSubscription.Status.CurrentCSV == op.Identifier() && alreadyExists {
-			continue
+		if len(existingSubscriptions) > 0 {
+			upToDate := true
+			for sub, exists := range existingSubscriptions {
+				if !exists || sub.Status.CurrentCSV != op.Identifier() {
+					upToDate = false
+				}
+			}
+			// all matching subscriptions are up to date
+			if upToDate {
+				continue
+			}
 		}
 
 		// add steps for any new bundle
@@ -172,7 +176,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 				bundleLookups = append(bundleLookups, lookup)
 			}
 
-			if existingSubscription == nil {
+			if len(existingSubscriptions) == 0 {
 				// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
 				op.SourceInfo().StartingCSV = op.Identifier()
 				subStep, err := NewSubscriptionStepResource(namespace, *op.SourceInfo())
@@ -188,10 +192,13 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		}
 
 		// add steps for subscriptions for bundles that were added through resolution
-		if existingSubscription != nil && existingSubscription.Status.CurrentCSV != op.Identifier() {
+		for sub := range existingSubscriptions {
+			if sub.Status.CurrentCSV == op.Identifier() {
+				continue
+			}
 			// update existing subscription status
-			existingSubscription.Status.CurrentCSV = op.Identifier()
-			updatedSubs = append(updatedSubs, existingSubscription)
+			sub.Status.CurrentCSV = op.Identifier()
+			updatedSubs = append(updatedSubs, sub)
 		}
 	}
 

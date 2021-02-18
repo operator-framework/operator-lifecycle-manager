@@ -64,8 +64,12 @@ var _ = Describe("Operator", func() {
 	// 8. Ensure o's status.components.refs field eventually contains references to sa-a and sa-b
 	// 9. Remove the component label from sa-b
 	// 10. Ensure the reference to sa-b is eventually removed from o's status.components.refs field
-	// 11. Delete ns-a
-	// 12. Ensure the reference to ns-a is eventually removed from o's status.components.refs field
+	// 11. Delete o
+	// 12. Ensure o is re-created
+	// 13. Delete ns-a
+	// 14. Ensure the reference to ns-a is eventually removed from o's status.components.refs field
+	// 15. Delete o
+	// 16. Ensure o is not re-created
 	It("should surface components in its status", func() {
 		o := &operatorsv1.Operator{}
 		o.SetName(genName("o-"))
@@ -184,6 +188,21 @@ var _ = Describe("Operator", func() {
 		By("removing a component's reference when it no longer bears the component label")
 		componentRefEventuallyExists(w, false, getReference(scheme, saB))
 
+		// Delete o
+		Eventually(func() error {
+			err := client.Delete(clientCtx, o)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}).Should(Succeed())
+
+		// Ensure that o is eventually recreated (because some of its components still exist).
+		By("recreating the Operator when any components still exist")
+		Eventually(func() error {
+			return client.Get(clientCtx, types.NamespacedName{Name: o.GetName()}, o)
+		}).Should(Succeed())
+
 		// Delete ns-a
 		Eventually(func() error {
 			err := client.Delete(clientCtx, nsA)
@@ -196,6 +215,25 @@ var _ = Describe("Operator", func() {
 		// Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 		By("removing a component's reference when it no longer exists")
 		componentRefEventuallyExists(w, false, getReference(scheme, nsA))
+
+		// Delete o
+		Eventually(func() error {
+			err := client.Delete(clientCtx, o)
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}).Should(Succeed())
+
+		// Ensure that o is consistently not found
+		By("verifying the Operator is permanently deleted if it has no components")
+		Consistently(func() error {
+			err := client.Get(clientCtx, types.NamespacedName{Name: o.GetName()}, o)
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}).Should(Succeed())
 	})
 
 	Context("when a subscription to a package exists", func() {
