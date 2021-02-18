@@ -1,6 +1,6 @@
 # Dockerfile to bootstrap build and test in openshift-ci
 
-FROM openshift/origin-release:golang-1.13
+FROM openshift/origin-release:golang-1.15
 
 # Install test dependencies
 RUN yum install -y skopeo && \
