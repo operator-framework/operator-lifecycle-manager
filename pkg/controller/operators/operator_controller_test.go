@@ -45,12 +45,10 @@ var _ = Describe("Operator Controller", func() {
 	})
 
 	Describe("operator deletion", func() {
+		var originalUID types.UID
 		JustBeforeEach(func() {
+			originalUID = operator.GetUID()
 			Expect(k8sClient.Delete(ctx, operator)).To(Succeed())
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, name, operator)
-				return apierrors.IsNotFound(err)
-			}, timeout, interval).Should(BeTrue())
 		})
 		Context("with components bearing its label", func() {
 			var (
@@ -77,16 +75,30 @@ var _ = Describe("Operator Controller", func() {
 			})
 
 			It("should re-create it", func() {
-				Eventually(func() error {
-					return k8sClient.Get(ctx, name, operator)
-				}).Should(Succeed())
+				// There's a race condition between this test and the controller. By the time,
+				// this function is running, we may be in one of three states.
+				//   1. The original deletion in the test setup has not yet finished, so the original
+				//      operator resource still exists.
+				//   2. The operator doesn't exist, and the controller has not yet re-created it.
+				//   3. The operator has already been deleted and re-created.
+				//
+				// To solve this problem, we simply compare the UIDs and expect to eventually see a
+				// a different UID.
+				Eventually(func() (types.UID, error) {
+					err := k8sClient.Get(ctx, name, operator)
+					return operator.GetUID(), err
+				}, timeout, interval).ShouldNot(Equal(originalUID))
 			})
 		})
 		Context("with no components bearing its label", func() {
 			It("should not re-create it", func() {
+				// We expect the operator deletion to eventually complete, and then we
+				// expect the operator to consistently never be found.
+				Eventually(func() bool {
+					return apierrors.IsNotFound(k8sClient.Get(ctx, name, operator))
+				}, timeout, interval).Should(BeTrue())
 				Consistently(func() bool {
-					err := k8sClient.Get(ctx, name, operator)
-					return apierrors.IsNotFound(err)
+					return apierrors.IsNotFound(k8sClient.Get(ctx, name, operator))
 				}, timeout, interval).Should(BeTrue())
 			})
 		})
@@ -204,5 +216,4 @@ var _ = Describe("Operator Controller", func() {
 			})
 		})
 	})
-
 })
