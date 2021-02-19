@@ -190,11 +190,13 @@ func NewServiceAccountStepResources(csv *v1alpha1.ClusterServiceVersion, catalog
 	}
 
 	for _, perms := range operatorPermissions {
-		step, err := NewStepResourceFromObject(perms.ServiceAccount, catalogSourceName, catalogSourceNamespace)
-		if err != nil {
-			return nil, err
+		if perms.ServiceAccount.Name != "default" {
+			step, err := NewStepResourceFromObject(perms.ServiceAccount, catalogSourceName, catalogSourceNamespace)
+			if err != nil {
+				return nil, err
+			}
+			rbacSteps = append(rbacSteps, step)
 		}
-		rbacSteps = append(rbacSteps, step)
 		for _, role := range perms.Roles {
 			step, err := NewStepResourceFromObject(role, catalogSourceName, catalogSourceNamespace)
 			if err != nil {
