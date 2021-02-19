@@ -5,6 +5,7 @@ metadata:
   namespace: openshift-operator-lifecycle-manager
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
   - apiGroups:
       - ""
@@ -24,6 +25,7 @@ metadata:
   namespace: openshift-operator-lifecycle-manager
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -42,6 +44,7 @@ metadata:
     app: olm-operator
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 spec:
   endpoints:
     - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -73,6 +76,7 @@ metadata:
     app: catalog-operator
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 spec:
   jobLabel: k8s-app
   endpoints:
