@@ -571,7 +571,62 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 				},
 			},
 		},
-
+		{
+			// PodSpec has one container and it has overlapping envFrom var(s).
+			// Expected: existing duplicate env vars won't be appended in the envFrom.
+			name: "WithContainerHasOverlappingEnvFromVar",
+			podSpec: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						EnvFrom: []corev1.EnvFromSource{
+							corev1.EnvFromSource{
+								Prefix: "test",
+							},
+							corev1.EnvFromSource{
+								ConfigMapRef: &corev1.ConfigMapEnvSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "configmapForTest",
+									},
+								},
+							},
+							corev1.EnvFromSource{
+								SecretRef: &corev1.SecretEnvSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "secretForTest",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			envFromVar: defaultEnvFromVars,
+			expected: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						EnvFrom: append([]corev1.EnvFromSource{
+							corev1.EnvFromSource{
+								Prefix: "test",
+							},
+							corev1.EnvFromSource{
+								ConfigMapRef: &corev1.ConfigMapEnvSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "configmapForTest",
+									},
+								},
+							},
+							corev1.EnvFromSource{
+								SecretRef: &corev1.SecretEnvSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "secretForTest",
+									},
+								},
+							},
+						}),
+					},
+				},
+			},
+		},
 		{
 			// PodSpec has one container and it has non overlapping envFrom var(s).
 			// Expected: existing non overlapping env vars are intact.

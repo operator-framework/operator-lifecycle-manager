@@ -97,13 +97,46 @@ func mergeEnvFromVars(containerEnvFromVars []corev1.EnvFromSource, newEnvFromVar
 
 func findEnvFromVar(EnvFromVar []corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) (found bool) {
 	for i := range EnvFromVar {
-		if newEnvFromVar == EnvFromVar[i] {
+		if compareEnvFromVar(EnvFromVar[i], newEnvFromVar) {
 			found = true
 			break
 		}
 	}
 
 	return
+}
+
+func compareEnvFromVar(envFromVar corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) (found bool) {
+
+	compareprefix := newEnvFromVar.Prefix == envFromVar.Prefix
+	var compareConfigMap, compareSecret bool
+
+	// Compare ConfigMapRef
+	if newEnvFromVar.ConfigMapRef == nil && envFromVar.ConfigMapRef == nil {
+		compareConfigMap = true
+	} else if newEnvFromVar.ConfigMapRef != nil && envFromVar.ConfigMapRef != nil {
+		if newEnvFromVar.ConfigMapRef.Optional == nil && envFromVar.ConfigMapRef.Optional == nil {
+			compareConfigMap = newEnvFromVar.ConfigMapRef.LocalObjectReference == envFromVar.ConfigMapRef.LocalObjectReference
+		} else if newEnvFromVar.ConfigMapRef.Optional != nil && envFromVar.ConfigMapRef.Optional != nil {
+			compareConfigMap = newEnvFromVar.ConfigMapRef.LocalObjectReference == envFromVar.ConfigMapRef.LocalObjectReference && *newEnvFromVar.ConfigMapRef.Optional == *envFromVar.ConfigMapRef.Optional
+		} else {
+			compareConfigMap = false
+		}
+
+	}
+	// Compare SecretRef
+	if newEnvFromVar.SecretRef == nil && envFromVar.SecretRef == nil {
+		compareSecret = true
+	} else if newEnvFromVar.SecretRef != nil && envFromVar.SecretRef != nil {
+		if newEnvFromVar.SecretRef.Optional == nil && envFromVar.SecretRef.Optional == nil {
+			compareSecret = newEnvFromVar.SecretRef.LocalObjectReference == envFromVar.SecretRef.LocalObjectReference
+		} else if newEnvFromVar.SecretRef.Optional != nil && envFromVar.SecretRef.Optional != nil {
+			compareSecret = newEnvFromVar.SecretRef.LocalObjectReference == envFromVar.SecretRef.LocalObjectReference && *newEnvFromVar.SecretRef.Optional == *envFromVar.ConfigMapRef.Optional
+		} else {
+			compareSecret = false
+		}
+	}
+	return compareprefix && compareConfigMap && compareSecret
 }
 
 // InjectVolumesIntoDeployment injects the provided Volumes
