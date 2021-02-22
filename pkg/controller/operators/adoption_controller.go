@@ -262,7 +262,7 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Operator, component client.Object) error {
 	if err := r.Get(ctx, types.NamespacedName{Namespace: component.GetNamespace(), Name: component.GetName()}, component); err != nil {
 		if apierrors.IsNotFound(err) {
-			r.log.V(1).Info("not found", "component", cObj)
+			r.log.V(1).Info("not found", "component", component)
 			err = nil
 		}
 
