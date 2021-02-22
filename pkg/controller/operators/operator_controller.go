@@ -185,18 +185,20 @@ func (r *OperatorReconciler) updateComponents(ctx context.Context, operator *dec
 		return err
 	}
 
-	components, err := r.listComponents(ctx, selector)
+	componentLists, err := r.listComponents(ctx, selector)
 	if err != nil {
 		return err
 	}
 
+	components := flatten(componentLists)
+
 	return operator.SetComponents(components...)
 }
 
-func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels.Selector) ([]runtime.Object, error) {
+func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels.Selector) ([]client.ObjectList, error) {
 	// Note: We need to figure out how to dynamically add new list types here (or some equivalent) in
 	// order to support operators composed of custom resources.
-	componentLists := []runtime.Object{
+	componentLists := []client.ObjectList{
 		&appsv1.DeploymentList{},
 		&corev1.NamespaceList{},
 		&corev1.ServiceAccountList{},

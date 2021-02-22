@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/reference"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -62,10 +63,10 @@ func OperatorNames(labels map[string]string) (names []types.NamespacedName) {
 
 type OperatorFactory interface {
 	// NewOperator returns an Operator decorator that wraps the given external Operator representation.
-	// An error is returned if the decorator cannon be instantiated.
+	// An error is returned if the decorator cannot be instantiated.
 	NewOperator(external *operatorsv1.Operator) (*Operator, error)
 
-	// NewPackageOperator returns an Operator decorator for a package and install namespace.
+	// NewPackageOperator returns an Operator decorator for a package and installs namespace.
 	NewPackageOperator(pkg, namespace string) (*Operator, error)
 }
 
@@ -269,8 +270,7 @@ func (o *Operator) DisownComponent(component runtime.Object) (disowned bool, err
 
 // AddComponents adds the given components to the operator's status and returns an error
 // if a component isn't associated with the operator by label.
-// List type arguments are flattened to their nested elements before being added.
-func (o *Operator) AddComponents(components ...runtime.Object) error {
+func (o *Operator) AddComponents(components ...client.Object) error {
 	selector, err := o.ComponentSelector()
 	if err != nil {
 		return err
@@ -278,15 +278,6 @@ func (o *Operator) AddComponents(components ...runtime.Object) error {
 
 	var refs []operatorsv1.RichReference
 	for _, obj := range components {
-		// Unpack nested components
-		if nested, err := meta.ExtractList(obj); err == nil {
-			if err = o.AddComponents(nested...); err != nil {
-				return err
-			}
-
-			continue
-		}
-
 		component, err := NewComponent(obj, o.scheme)
 		if err != nil {
 			return err
@@ -316,7 +307,7 @@ func (o *Operator) AddComponents(components ...runtime.Object) error {
 }
 
 // SetComponents sets the component references in the operator's status to the given components.
-func (o *Operator) SetComponents(components ...runtime.Object) error {
+func (o *Operator) SetComponents(components ...client.Object) error {
 	if err := o.ResetComponents(); err != nil {
 		return err
 	}

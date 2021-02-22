@@ -259,18 +259,8 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 	return utilerrors.NewAggregate(errs)
 }
 
-func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Operator, component runtime.Object) error {
-	m, err := meta.Accessor(component)
-	if err != nil {
-		return nil
-	}
-
-	cObj, ok := component.(client.Object)
-	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
-	}
-
-	if err := r.Get(ctx, types.NamespacedName{Namespace: m.GetNamespace(), Name: m.GetName()}, cObj); err != nil {
+func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Operator, component client.Object) error {
+	if err := r.Get(ctx, types.NamespacedName{Namespace: component.GetNamespace(), Name: component.GetName()}, component); err != nil {
 		if apierrors.IsNotFound(err) {
 			r.log.V(1).Info("not found", "component", cObj)
 			err = nil
@@ -278,7 +268,11 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 
 		return err
 	}
-	candidate := cObj.DeepCopyObject()
+
+	candidate, ok := component.DeepCopyObject().(client.Object)
+	if !ok {
+		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+	}
 
 	adopted, err := operator.AdoptComponent(candidate)
 	if err != nil {
@@ -287,22 +281,17 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 
 	if adopted {
 		// Only update if freshly adopted
-		pCObj, ok := candidate.(client.Object)
-		if !ok {
-			return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
-		}
-		return r.Patch(ctx, pCObj, client.MergeFrom(cObj))
+		return r.Patch(ctx, candidate, client.MergeFrom(component))
 	}
 
 	return nil
 }
 
-func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Operator, component runtime.Object) error {
-	cObj, ok := component.(client.Object)
+func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Operator, component client.Object) error {
+	candidate, ok := component.DeepCopyObject().(client.Object)
 	if !ok {
 		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
 	}
-	candidate := component.DeepCopyObject()
 	disowned, err := operator.DisownComponent(candidate)
 	if err != nil {
 		return err
@@ -314,21 +303,15 @@ func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Op
 	}
 
 	// Only update if freshly disowned
-	r.log.V(1).Info("component disowned", "component", candidate)
-	uCObj, ok := candidate.(client.Object)
-	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
-	}
-	return r.Patch(ctx, uCObj, client.MergeFrom(cObj))
+
+	r.log.V(4).Info("component disowned", "component", candidate)
+	return r.Patch(ctx, candidate, client.MergeFrom(component))
 }
 
-func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component runtime.Object) error {
-	cObj, ok := component.(client.Object)
-	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
-	}
+
+func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component client.Object) error {
 	var operators []decorators.Operator
-	for _, name := range decorators.OperatorNames(cObj.GetLabels()) {
+	for _, name := range decorators.OperatorNames(component.GetLabels()) {
 		o := &operatorsv1.Operator{}
 		o.SetName(name.Name)
 		operator, err := r.factory.NewOperator(o)
@@ -347,10 +330,10 @@ func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component runtim
 	return utilerrors.NewAggregate(errs)
 }
 
-func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.Operator, csv *operatorsv1alpha1.ClusterServiceVersion) ([]runtime.Object, error) {
+func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.Operator, csv *operatorsv1alpha1.ClusterServiceVersion) ([]client.Object, error) {
 	// Note: We need to figure out how to dynamically add new list types here (or some equivalent) in
 	// order to support operators composed of custom resources.
-	componentLists := []runtime.Object{
+	componentLists := []client.ObjectList{
 		&appsv1.DeploymentList{},
 		&corev1.ServiceList{},
 		&corev1.NamespaceList{},
@@ -376,17 +359,13 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 	}
 	opt := client.MatchingLabelsSelector{Selector: selector}
 	for _, list := range componentLists {
-		cList, ok := list.(client.ObjectList)
-		if !ok {
-			return nil, fmt.Errorf("Unable to typecast runtime.Object to client.ObjectList")
-		}
-		if err := r.List(ctx, cList, opt); err != nil {
+		if err := r.List(ctx, list, opt); err != nil {
 			return nil, err
 		}
 	}
 
 	var (
-		components []runtime.Object
+		components []client.Object
 		errs       []error
 	)
 	for _, candidate := range flatten(componentLists) {
@@ -544,15 +523,13 @@ func (r *AdoptionReconciler) mapToProviders(obj client.Object) (requests []recon
 	return
 }
 
-func flatten(objs []runtime.Object) (flattened []runtime.Object) {
-	for _, obj := range objs {
-		if nested, err := meta.ExtractList(obj); err == nil {
-			flattened = append(flattened, flatten(nested)...)
-			continue
-		}
-
-		flattened = append(flattened, obj)
+// flatten extracts slice of ObjectList to the slice of Object
+func flatten(lists []client.ObjectList) (flattened []client.Object) {
+	for _, list := range lists {
+		_ = meta.EachListItem(list, func(obj runtime.Object) error {
+			flattened = append(flattened, obj.(client.Object))
+			return nil
+		})
 	}
-
 	return
 }

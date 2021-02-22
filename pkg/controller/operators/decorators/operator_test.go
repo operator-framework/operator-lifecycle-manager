@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -93,7 +94,7 @@ func TestAddComponents(t *testing.T) {
 		operator *operatorsv1.Operator
 	}
 	type args struct {
-		components []runtime.Object
+		components []client.Object
 	}
 	type results struct {
 		operator *operatorsv1.Operator
@@ -117,8 +118,8 @@ func TestAddComponents(t *testing.T) {
 				}(),
 			},
 			args: args{
-				components: []runtime.Object{
-					func() runtime.Object {
+				components: []client.Object{
+					func() client.Object {
 						namespace := &corev1.Namespace{}
 						namespace.SetName("atlantic")
 						namespace.SetLabels(map[string]string{
@@ -127,7 +128,7 @@ func TestAddComponents(t *testing.T) {
 
 						return namespace
 					}(),
-					func() runtime.Object {
+					func() client.Object {
 						pod := &corev1.Pod{}
 						pod.SetNamespace("atlantic")
 						pod.SetName("puffin")
@@ -143,7 +144,7 @@ func TestAddComponents(t *testing.T) {
 
 						return pod
 					}(),
-					func() runtime.Object {
+					func() client.Object {
 						csv := &operatorsv1alpha1.ClusterServiceVersion{}
 						csv.SetNamespace("atlantic")
 						csv.SetName("puffin")
