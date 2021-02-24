@@ -39,6 +39,10 @@ var (
 		"bitnami/nginx:latest",
 		"dummy image to treat as an operator in tests")
 
+	toolsBin = flag.String(
+		"toolsBin",
+		"",
+		"absolute directory path that contains external command line tools needed to run certain tests")
 	testNamespace           = ""
 	operatorNamespace       = ""
 	communityOperatorsImage = ""

@@ -9,11 +9,14 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -516,3 +519,19 @@ var _ = Describe("CRD Versions", func() {
 		GinkgoT().Log("manually reconciled potentially unsafe CRD upgrade")
 	})
 })
+
+func fetchCRD(c operatorclient.ClientInterface, crc versioned.Interface, name string) (*v1beta1.CustomResourceDefinition, error) {
+	// TODO: add a fuction for v1.CRD
+	var fetchedCRD *v1beta1.CustomResourceDefinition
+	var err error
+
+	Eventually(func() (bool, error) {
+		fetchedCRD, err = c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}).Should(BeTrue())
+	// TODO add logging
+	return fetchedCRD, err
+}

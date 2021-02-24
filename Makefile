@@ -28,6 +28,7 @@ export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
+TOOLS_BIN ?= $(join $(dir $(abspath $(lastword $(MAKEFILE_LIST)))), tools/binary)
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
@@ -43,7 +44,7 @@ GIT_COMMIT := $(if $(SOURCE_GIT_COMMIT),$(SOURCE_GIT_COMMIT),$(shell git rev-par
 	kubebuilder .FORCE
 
 all: test build
-
+	
 test: clean cover.out
 
 unit: kubebuilder
@@ -140,7 +141,7 @@ FORCE:
 # main entry point for running end to end tests. used by .github/workflows/e2e-tests.yml See test/e2e/README.md for details
 .PHONY: e2e-local
 e2e-local: bin/e2e-local.test test/e2e-local.image.tar
-	$(GINKGO) -nodes $(or $(NODES),1) -flakeAttempts 3 -randomizeAllSpecs $(if $(TEST),-focus '$(TEST)') -v -timeout 90m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=../test/e2e-local.image.tar
+	$(GINKGO) -nodes $(or $(NODES),1) -flakeAttempts 3 -randomizeAllSpecs $(if $(TEST),-focus '$(TEST)') -v -timeout 90m $< -- -namespace=operators -olmNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -kind.images=../test/e2e-local.image.tar -toolsBin=$(TOOLS_BIN)
 
 # this target updates the zz_chart.go file with files found in deploy/chart
 # this will always fire since it has been marked as phony

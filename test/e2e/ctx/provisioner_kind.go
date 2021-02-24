@@ -3,18 +3,23 @@
 package ctx
 
 import (
+	golangContext "context"
 	"encoding/csv"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
 	"sigs.k8s.io/kind/pkg/cluster"
 	"sigs.k8s.io/kind/pkg/cluster/nodeutils"
 	"sigs.k8s.io/kind/pkg/log"
@@ -74,8 +79,22 @@ func Provision(ctx *TestContext) (func(), error) {
 		cluster.ProviderWithLogger(kindLogAdapter{ctx}),
 	)
 	name := fmt.Sprintf("kind-%s", rand.String(16))
+
+	// create cluster with configuration:
+	// 1. use local docker registry
+	// 2. wait for 5 minutes for control plane
+	// 3. use explicit kube config path
+	registry := "kind-registry"
+	// registry := "localhost"
+	registryPort := 5000
 	if err := provider.Create(
 		name,
+		cluster.CreateWithV1Alpha4Config(&v1alpha4.Cluster{
+			ContainerdConfigPatches: []string{
+				fmt.Sprintf(`[plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:%[2]d"]
+  endpoint = ["http://%[1]s:%[2]d"]`, registry, registryPort),
+			},
+		}),
 		cluster.CreateWithWaitForReady(5*time.Minute),
 		cluster.CreateWithKubeconfigPath(kubeconfigPath),
 	); err != nil {
@@ -129,6 +148,30 @@ func Provision(ctx *TestContext) (func(), error) {
 			provider.Delete(name, kubeconfigPath)
 		})
 	}
-
-	return deprovision, setDerivedFields(ctx)
+	derivedFieldsErr := setDerivedFields(ctx)
+	// make best attempt before we return to:
+	// 1) add local registry ConfigMap
+	// 2) connect "kind" network to the registry
+	if derivedFieldsErr == nil {
+		// add config map
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "local-registry-hosting",
+				Namespace: "kube-public",
+			},
+			Data: map[string]string{"localRegistryHosting.v1": fmt.Sprintf(`host: "localhost:%d"\nhelp: "https://kind.sigs.k8s.io/docs/user/local-registry/"`, registryPort)},
+		}
+		err := ctx.Client().Create(golangContext.TODO(), configMap)
+		if err != nil {
+			ctx.Logf("failed to create local-registry-hosting ConfigMap: %s", err.Error())
+		}
+		// connect the docker "kind" network to the registry so the local registry is resolvable
+		// we don't care about errors here since the connection might already exist
+		cmd := exec.Command("docker", "network", "connect", "kind", registry)
+		err = cmd.Start()
+		if err != nil {
+			ctx.Logf("failed to exec %#v: %v", cmd.Args, err)
+		}
+	}
+	return deprovision, derivedFieldsErr
 }
