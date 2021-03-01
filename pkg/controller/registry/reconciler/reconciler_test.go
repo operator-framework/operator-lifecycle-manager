@@ -74,3 +74,20 @@ func TestPullPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestPodRunAsUser(t *testing.T) {
+	source := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test-ns",
+		},
+	}
+
+	p := Pod(source, "hello", "busybox", "", map[string]string{}, int32(0), int32(0))
+	user := p.Spec.SecurityContext.RunAsUser
+	if user == nil {
+		t.Fatal("expected RunAsUser value for pod expected to not be nil")
+	} else if *user != int64(1001) {
+		t.Fatalf("expected RunAsUser value for pod expected to be %v, not %v", int64(1001), *user)
+	}
+}
