@@ -1782,6 +1782,11 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		return nil
 	}
 
+	if err := findFirstError(k8serrors.IsServiceUnavailable, strategyErr, apiServiceErr, webhookErr); err != nil {
+		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonDetectedClusterChange, err.Error(), now, a.recorder)
+		return err
+	}
+
 	// installcheck determined we can't progress (e.g. deployment failed to come up in time)
 	if install.IsErrorUnrecoverable(strategyErr) {
 		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install failed: %s", strategyErr), now, a.recorder)
@@ -1826,6 +1831,15 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		return strategyErr
 	}
 
+	return nil
+}
+
+func findFirstError(f func(error) bool, errs ...error) error {
+	for _, err := range errs {
+		if f(err) {
+			return err
+		}
+	}
 	return nil
 }
 
