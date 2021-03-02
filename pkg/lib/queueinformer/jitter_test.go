@@ -1,6 +1,7 @@
 package queueinformer
 
 import (
+	"math"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -10,34 +11,76 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type fakeFloat64er float64
+
+func (f fakeFloat64er) Float64() float64 {
+	return float64(f)
+}
+
 func TestResyncWithJitter(t *testing.T) {
 	type args struct {
 		resyncPeriod time.Duration
 		factor       float64
+		r            float64
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantMin time.Duration
-		wantMax time.Duration
+		name string
+		args args
+		want time.Duration
 	}{
 		{
-			name: "TypicalInput/Minutes",
+			name: "TypicalInput/15Minutes/Min",
 			args: args{
 				resyncPeriod: 15 * time.Minute,
 				factor:       0.2,
+				r:            0,
 			},
-			wantMin: 12 * time.Minute,
-			wantMax: 18 * time.Minute,
+			want: 12 * time.Minute,
 		},
 		{
-			name: "TypicalInput/Hours",
+			name: "TypicalInput/15Minutes/Mid",
+			args: args{
+				resyncPeriod: 15 * time.Minute,
+				factor:       0.2,
+				r:            0.5,
+			},
+			want: 15 * time.Minute,
+		},
+		{
+			name: "TypicalInput/15Minutes/Max",
+			args: args{
+				resyncPeriod: 15 * time.Minute,
+				factor:       0.2,
+				r:            1,
+			},
+			want: 18 * time.Minute,
+		},
+		{
+			name: "TypicalInput/10Hours/Min",
 			args: args{
 				resyncPeriod: 10 * time.Hour,
 				factor:       0.1,
+				r:            0,
 			},
-			wantMin: 9 * time.Hour,
-			wantMax: 11 * time.Hour,
+			want: 9 * time.Hour,
+		},
+		{
+			name: "TypicalInput/10Hours/Mid",
+			args: args{
+				resyncPeriod: 10 * time.Hour,
+				factor:       0.1,
+				r:            0.5,
+			},
+			want: 10 * time.Hour,
+		},
+		{
+			name: "TypicalInput/10Hours/Max",
+			args: args{
+				resyncPeriod: 10 * time.Hour,
+				factor:       0.1,
+				r:            1,
+			},
+			want: 11 * time.Hour,
 		},
 		{
 			name: "BadInput/BadFactor",
@@ -45,8 +88,7 @@ func TestResyncWithJitter(t *testing.T) {
 				resyncPeriod: 10 * time.Hour,
 				factor:       -0.1,
 			},
-			wantMin: 10 * time.Hour,
-			wantMax: 10 * time.Hour,
+			want: 10 * time.Hour,
 		},
 		{
 			name: "BadInput/BadResync",
@@ -54,16 +96,49 @@ func TestResyncWithJitter(t *testing.T) {
 				resyncPeriod: -10 * time.Hour,
 				factor:       0.1,
 			},
-			wantMin: DefaultResyncPeriod,
-			wantMax: DefaultResyncPeriod,
+			want: DefaultResyncPeriod,
+		},
+		{
+			name: "BadInput/Big",
+			args: args{
+				resyncPeriod: time.Duration(math.MaxInt64),
+				factor:       1,
+				r:            1,
+			},
+			want: time.Duration(math.MaxInt64),
+		},
+		{
+			name: "SmallInput/Min",
+			args: args{
+				resyncPeriod: 10 * time.Second,
+				factor:       0.5,
+				r:            0,
+			},
+			want: 5 * time.Second,
+		},
+		{
+			name: "SmallInput/Mid",
+			args: args{
+				resyncPeriod: 10 * time.Second,
+				factor:       0.5,
+				r:            0.5,
+			},
+			want: 10 * time.Second,
+		},
+		{
+			name: "SmallInput/Max",
+			args: args{
+				resyncPeriod: 10 * time.Second,
+				factor:       0.5,
+				r:            1,
+			},
+			want: 15 * time.Second,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ResyncWithJitter(tt.args.resyncPeriod, tt.args.factor)
-			require.True(t, got() >= tt.wantMin)
-			require.True(t, got() <= tt.wantMax)
-			require.True(t, got() != got() || tt.wantMax == tt.wantMin)
+			got := resyncWithJitter(tt.args.resyncPeriod, tt.args.factor, fakeFloat64er(tt.args.r))()
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
