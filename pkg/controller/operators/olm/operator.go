@@ -1565,15 +1565,21 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
 			return
 		}
-		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonWaiting); installErr == nil {
-			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("install strategy successful")
-		} else {
+		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonWaiting); installErr != nil {
+			// Re-sync if kube-apiserver was unavailable
+			if k8serrors.IsServiceUnavailable(installErr) {
+				logger.WithError(installErr).Info("could not update install status")
+				syncError = installErr
+				return
+			}
 			// Set phase to failed if it's been a long time since the last transition (5 minutes)
 			if out.Status.LastTransitionTime != nil && a.now().Sub(out.Status.LastTransitionTime.Time) >= 5*time.Minute {
 				logger.Warn("install timed out")
 				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install timeout"), now, a.recorder)
+				return
 			}
 		}
+		logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("install strategy successful")
 
 	case v1alpha1.CSVPhaseSucceeded:
 		// Check if the current CSV is being replaced, return with replacing status if so
@@ -1622,6 +1628,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
+			// Re-sync if kube-apiserver was unavailable
+			if k8serrors.IsServiceUnavailable(installErr) {
+				logger.WithError(installErr).Info("could not update install status")
+				syncError = installErr
+				return
+			}
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("unhealthy component: %s", installErr)
 			return
 		}
@@ -1704,6 +1716,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall); installErr != nil {
+			// Re-sync if kube-apiserver was unavailable
+			if k8serrors.IsServiceUnavailable(installErr) {
+				logger.WithError(installErr).Info("could not update install status")
+				syncError = installErr
+				return
+			}
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("needs reinstall: %s", installErr)
 		}
 
@@ -1783,7 +1801,6 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	}
 
 	if err := findFirstError(k8serrors.IsServiceUnavailable, strategyErr, apiServiceErr, webhookErr); err != nil {
-		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonDetectedClusterChange, err.Error(), now, a.recorder)
 		return err
 	}
 
