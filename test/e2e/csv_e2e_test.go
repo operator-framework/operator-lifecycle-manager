@@ -127,6 +127,113 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 	})
 
+	When("a csv requires a serviceaccount solely owned by a non-csv", func() {
+		var (
+			cm  corev1.ConfigMap
+			sa  corev1.ServiceAccount
+			csv v1alpha1.ClusterServiceVersion
+		)
+
+		BeforeEach(func() {
+			cm = corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "cm-",
+					Namespace:    testNamespace,
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &cm)).To(Succeed())
+
+			sa = corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "sa-",
+					Namespace:    testNamespace,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Name:       cm.GetName(),
+							APIVersion: corev1.SchemeGroupVersion.String(),
+							Kind:       "ConfigMap",
+							UID:        cm.GetUID(),
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &sa)).To(Succeed())
+
+			csv = v1alpha1.ClusterServiceVersion{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.ClusterServiceVersionKind,
+					APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "csv-",
+					Namespace:    testNamespace,
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					InstallStrategy: v1alpha1.NamedInstallStrategy{
+						StrategyName: v1alpha1.InstallStrategyNameDeployment,
+						StrategySpec: v1alpha1.StrategyDetailsDeployment{
+							DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+								{
+									Name: "foo",
+									Spec: appsv1.DeploymentSpec{
+										Selector: &metav1.LabelSelector{
+											MatchLabels: map[string]string{"app": "foo"},
+										},
+										Template: corev1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"app": "foo"},
+											},
+											Spec: corev1.PodSpec{Containers: []corev1.Container{
+												{
+													Name:  genName("foo"),
+													Image: *dummyImage,
+												},
+											}},
+										},
+									},
+								},
+							},
+							Permissions: []v1alpha1.StrategyDeploymentPermissions{
+								{
+									ServiceAccountName: sa.GetName(),
+									Rules:              []rbacv1.PolicyRule{},
+								},
+							},
+						},
+					},
+					InstallModes: []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeAllNamespaces,
+							Supported: true,
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &csv)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			if cm.GetName() != "" {
+				Expect(ctx.Ctx().Client().Delete(context.Background(), &cm)).To(Succeed())
+			}
+		})
+
+		It("considers the serviceaccount requirement satisfied", func() {
+			Eventually(func() (v1alpha1.StatusReason, error) {
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&csv), &csv); err != nil {
+					return "", err
+				}
+				for _, requirement := range csv.Status.RequirementStatus {
+					if requirement.Name != sa.GetName() {
+						continue
+					}
+					return requirement.Status, nil
+				}
+				return "", fmt.Errorf("missing expected requirement %q", sa.GetName())
+			}).Should(Equal(v1alpha1.RequirementStatusReasonPresent))
+		})
+	})
+
 	It("create with unmet requirements min kube version", func() {
 
 		depName := genName("dep-")
