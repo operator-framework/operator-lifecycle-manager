@@ -303,6 +303,14 @@ type ClusterServiceVersionSpec struct {
 	// Label selector for related resources.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty" protobuf:"bytes,2,opt,name=selector"`
+
+	// Cleanup specifies the cleanup behaviour when the CSV gets deleted
+	// +optional
+	Cleanup CleanupSpec `json:"cleanup,omitempty"`
+}
+
+type CleanupSpec struct {
+	Enabled bool `json:"enabled"`
 }
 
 type Maintainer struct {
@@ -467,7 +475,7 @@ type RequirementStatus struct {
 	Dependents []DependentStatus `json:"dependents,omitempty"`
 }
 
-// ClusterServiceVersionStatus represents information about the status of a pod. Status may trail the actual
+// ClusterServiceVersionStatus represents information about the status of a CSV. Status may trail the actual
 // state of a system.
 type ClusterServiceVersionStatus struct {
 	// Current condition of the ClusterServiceVersion
@@ -495,6 +503,59 @@ type ClusterServiceVersionStatus struct {
 	// Time the owned APIService certs will rotate next
 	// +optional
 	CertsRotateAt *metav1.Time `json:"certsRotateAt,omitempty"`
+	// CleanupStatus represents information about the status of cleanup while a CSV is pending deletion
+	// +optional
+	Cleanup CleanupStatus `json:"cleanup,omitempty"`
+}
+
+// CleanupStatus represents information about the status of cleanup while a CSV is pending deletion
+type CleanupStatus struct {
+	// PendingDeletion is the list of custom resource objects that are pending deletion and blocked on finalizers.
+	// This indicates the progress of cleanup that is blocking CSV deletion or operator uninstall.
+	// +optional
+	PendingDeletion []ResourceList `json:"pendingDeletion,omitempty"`
+}
+
+// ResourceList represents a list of resources which are of the same GVK
+type ResourceList struct {
+	Group     string           `json:"group"`
+	Version   string           `json:"version"`
+	Kind      string           `json:"kind"`
+	Instances []NamespacedName `json:"instances"`
+}
+
+// NamespacedName represents the name and namespace of a resource
+type NamespacedName struct {
+	Name string `json:"name"`
+	// Namespace can be empty for cluster-scoped resources
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// HasFinalizer returns true if the CSV has the specified finalizer string
+func (c *ClusterServiceVersion) HasFinalizer(finalizer string) bool {
+	for _, f := range c.Finalizers {
+		if f == finalizer {
+			return true
+		}
+	}
+	return false
+}
+
+// AppendFinalizer appends the specified finalizer to the CSV
+func (c *ClusterServiceVersion) AppendFinalizer(finalizer string) {
+	c.Finalizers = append(c.Finalizers, finalizer)
+}
+
+// RemoveFinalizer removes the specified finalizer from the CSV if it exists
+func (c *ClusterServiceVersion) RemoveFinalizer(finalizer string) {
+	result := []string{}
+	for _, f := range c.Finalizers {
+		if f == finalizer {
+			continue
+		}
+		result = append(result, f)
+	}
+	c.Finalizers = result
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

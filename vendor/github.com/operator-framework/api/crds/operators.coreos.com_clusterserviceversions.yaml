@@ -288,6 +288,14 @@ spec:
                                     type: string
                           version:
                             type: string
+                cleanup:
+                  description: Cleanup specifies the cleanup behaviour when the CSV gets deleted
+                  type: object
+                  required:
+                    - enabled
+                  properties:
+                    enabled:
+                      type: boolean
                 customresourcedefinitions:
                   description: "CustomResourceDefinitions declares all of the CRDs managed or required by an operator being ran by ClusterServiceVersion. \n If the CRD is present in the Owned list, it is implicitly required."
                   type: object
@@ -4671,7 +4679,7 @@ spec:
                       webhookPath:
                         type: string
             status:
-              description: ClusterServiceVersionStatus represents information about the status of a pod. Status may trail the actual state of a system.
+              description: ClusterServiceVersionStatus represents information about the status of a CSV. Status may trail the actual state of a system.
               type: object
               properties:
                 certsLastUpdated:
@@ -4682,6 +4690,41 @@ spec:
                   description: Time the owned APIService certs will rotate next
                   type: string
                   format: date-time
+                cleanup:
+                  description: CleanupStatus represents information about the status of cleanup while a CSV is pending deletion
+                  type: object
+                  properties:
+                    pendingDeletion:
+                      description: PendingDeletion is the list of custom resource objects that are pending deletion and blocked on finalizers. This indicates the progress of cleanup that is blocking CSV deletion or operator uninstall.
+                      type: array
+                      items:
+                        description: ResourceList represents a list of resources which are of the same GVK
+                        type: object
+                        required:
+                          - group
+                          - instances
+                          - kind
+                          - version
+                        properties:
+                          group:
+                            type: string
+                          instances:
+                            type: array
+                            items:
+                              description: NamespacedName represents the name and namespace of a resource
+                              type: object
+                              required:
+                                - name
+                              properties:
+                                name:
+                                  type: string
+                                namespace:
+                                  description: Namespace can be empty for cluster-scoped resources
+                                  type: string
+                          kind:
+                            type: string
+                          version:
+                            type: string
                 conditions:
                   description: List of conditions, a history of state transitions
                   type: array

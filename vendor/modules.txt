@@ -204,7 +204,7 @@ github.com/ghodss/yaml
 # github.com/go-bindata/go-bindata/v3 v3.1.3
 ## explicit
 github.com/go-bindata/go-bindata/v3
-github.com/go-bindata/go-bindata/v3/go-bindata/
+github.com/go-bindata/go-bindata/v3/go-bindata
 # github.com/go-logr/logr v0.3.0
 ## explicit
 github.com/go-logr/logr
@@ -463,7 +463,7 @@ github.com/openshift/client-go/config/informers/externalversions/config
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
-# github.com/operator-framework/api v0.6.0
+# github.com/operator-framework/api v0.6.0 => github.com/hasbro17/api v0.3.13-0.20210304212710-93ba7a75566c
 ## explicit
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/lib/version
@@ -1631,6 +1631,7 @@ sigs.k8s.io/yaml
 # github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1
 # github.com/openshift/api => github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
 # github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
+# github.com/operator-framework/api => github.com/hasbro17/api v0.3.13-0.20210304212710-93ba7a75566c
 # go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
 # google.golang.org/grpc => google.golang.org/grpc v1.27.0
 # google.golang.org/grpc/examples => google.golang.org/grpc/examples v0.0.0-20200709232328-d8193ee9cc3e

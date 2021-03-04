@@ -25,6 +25,7 @@ type CustomResourceList struct {
 }
 
 // GetCustomResource returns the custom resource as *unstructured.Unstructured by the given name.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) GetCustomResource(apiGroup, version, namespace, resourcePlural, resourceName string) (*unstructured.Unstructured, error) {
 	klog.V(4).Infof("[GET CUSTOM RESOURCE]: %s:%s", namespace, resourceName)
 	var object unstructured.Unstructured
@@ -41,6 +42,7 @@ func (c *Client) GetCustomResource(apiGroup, version, namespace, resourcePlural,
 }
 
 // GetCustomResourceRaw returns the custom resource's raw body data by the given name.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) GetCustomResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName string) ([]byte, error) {
 	klog.V(4).Infof("[GET CUSTOM RESOURCE RAW]: %s:%s", namespace, resourceName)
 	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
@@ -51,6 +53,7 @@ func (c *Client) GetCustomResourceRaw(apiGroup, version, namespace, resourcePlur
 }
 
 // CreateCustomResource creates the custom resource.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) CreateCustomResource(item *unstructured.Unstructured) error {
 	klog.V(4).Infof("[CREATE CUSTOM RESOURCE]: %s:%s", item.GetNamespace(), item.GetName())
 	kind := item.GetKind()
@@ -70,12 +73,13 @@ func (c *Client) CreateCustomResource(item *unstructured.Unstructured) error {
 }
 
 // CreateCustomResourceRaw creates the raw bytes of the custom resource.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) CreateCustomResourceRaw(apiGroup, version, namespace, kind string, data []byte) error {
 	klog.V(4).Infof("[CREATE CUSTOM RESOURCE RAW]: %s:%s", namespace, kind)
 	var statusCode int
 
 	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
-	uri := customResourceDefinitionURI(apiGroup, version, namespace, kind)
+	uri := customResourceListURI(apiGroup, version, namespace, kind)
 	klog.V(4).Infof("[POST]: %s", uri)
 	result := httpRestClient.Post().RequestURI(uri).Body(data).Do(context.TODO())
 
@@ -94,6 +98,7 @@ func (c *Client) CreateCustomResourceRaw(apiGroup, version, namespace, kind stri
 
 // CreateCustomResourceRawIfNotFound creates the raw bytes of the custom resource if it doesn't exist.
 // It also returns a boolean to indicate whether a new custom resource is created.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) CreateCustomResourceRawIfNotFound(apiGroup, version, namespace, kind, name string, data []byte) (bool, error) {
 	klog.V(4).Infof("[CREATE CUSTOM RESOURCE RAW if not found]: %s:%s", namespace, name)
 	_, err := c.GetCustomResource(apiGroup, version, namespace, kind, name)
@@ -112,6 +117,7 @@ func (c *Client) CreateCustomResourceRawIfNotFound(apiGroup, version, namespace,
 
 // UpdateCustomResource updates the custom resource.
 // To do an atomic update, use AtomicModifyCustomResource().
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) UpdateCustomResource(item *unstructured.Unstructured) error {
 	klog.V(4).Infof("[UPDATE CUSTOM RESOURCE]: %s:%s", item.GetNamespace(), item.GetName())
 	kind := item.GetKind()
@@ -132,6 +138,7 @@ func (c *Client) UpdateCustomResource(item *unstructured.Unstructured) error {
 }
 
 // UpdateCustomResourceRaw updates the thirdparty resource with the raw data.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) UpdateCustomResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName string, data []byte) error {
 	klog.V(4).Infof("[UPDATE CUSTOM RESOURCE RAW]: %s:%s", namespace, resourceName)
 	var statusCode int
@@ -156,6 +163,7 @@ func (c *Client) UpdateCustomResourceRaw(apiGroup, version, namespace, resourceP
 
 // CreateOrUpdateCustomeResourceRaw creates the custom resource if it doesn't exist.
 // If the custom resource exists, it updates the existing one.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) CreateOrUpdateCustomeResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName string, data []byte) error {
 	klog.V(4).Infof("[CREATE OR UPDATE UPDATE CUSTOM RESOURCE RAW]: %s:%s", namespace, resourceName)
 	old, err := c.GetCustomResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName)
@@ -186,6 +194,7 @@ func (c *Client) CreateOrUpdateCustomeResourceRaw(apiGroup, version, namespace, 
 }
 
 // DeleteCustomResource deletes the  with the given name.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) DeleteCustomResource(apiGroup, version, namespace, resourcePlural, resourceName string) error {
 	klog.V(4).Infof("[DELETE CUSTOM RESOURCE]: %s:%s", namespace, resourceName)
 	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
@@ -201,6 +210,7 @@ type CustomResourceModifier func(*unstructured.Unstructured, interface{}) error
 
 // AtomicModifyCustomResource gets the custom resource, modifies it and writes it back.
 // If it's modified by other writers, we will retry until it succeeds.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) AtomicModifyCustomResource(apiGroup, version, namespace, resourcePlural, resourceName string, f CustomResourceModifier, data interface{}) error {
 	klog.V(4).Infof("[ATOMIC MODIFY CUSTOM RESOURCE]: %s:%s", namespace, resourceName)
 	return wait.PollInfinite(time.Second, func() (bool, error) {
@@ -235,51 +245,69 @@ func (c *Client) AtomicModifyCustomResource(apiGroup, version, namespace, resour
 }
 
 // customResourceURI returns the URI for the thirdparty resource.
+// The URI is cluster-scoped if namespace=""
 //
 // Example of apiGroup: "tco.coreos.com"
 // Example of version: "v1"
 // Example of namespace: "default"
-// Example of resourcePlural: "ChannelOperatorConfigs"
+// Example of resourcePlural: "channeloperatorconfigs"
 // Example of resourceName: "test-config"
-func customResourceURI(apiGroup, version, namespace, resourcePlural, resourceName string) string {
+func customResourceURI(apiGroup, version, namespace, resourcePlural, resourceName string) (resourceURI string) {
 	if namespace == "" {
-		namespace = metav1.NamespaceDefault
+		// Cluster scoped: apis/<group>/<version>/<resource-plural>/<name>
+		resourceURI = fmt.Sprintf("/apis/%s/%s/%s/%s",
+			strings.ToLower(apiGroup),
+			strings.ToLower(version),
+			strings.ToLower(resourcePlural),
+			strings.ToLower(resourceName))
+	} else {
+		// Namespace scoped: apis/<group>/<version>/namespaces/<namespace>/<resource-plural>/<name>
+		resourceURI = fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s/%s",
+			strings.ToLower(apiGroup),
+			strings.ToLower(version),
+			strings.ToLower(namespace),
+			strings.ToLower(resourcePlural),
+			strings.ToLower(resourceName))
 	}
 
-	return fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s/%s",
-		strings.ToLower(apiGroup),
-		strings.ToLower(version),
-		strings.ToLower(namespace),
-		strings.ToLower(resourcePlural),
-		strings.ToLower(resourceName))
+	return
 }
 
-// customResourceDefinitionURI returns the URI for the CRD.
+// customResourceListURI returns the URI for listing all CRs in a namespace.
+// The URI is cluster-scoped if namespace=""
 //
 // Example of apiGroup: "tco.coreos.com"
 // Example of version: "v1"
 // Example of namespace: "default"
-// Example of resourcePlural: "ChannelOperatorConfigs"
-func customResourceDefinitionURI(apiGroup, version, namespace, resourcePlural string) string {
+// Example of resourcePlural: "channeloperatorconfigs"
+func customResourceListURI(apiGroup, version, namespace, resourcePlural string) (listURI string) {
 	if namespace == "" {
-		namespace = metav1.NamespaceDefault
+		// Cluster scoped: apis/<group>/<version>/<resource-plural>
+		listURI = fmt.Sprintf("/apis/%s/%s/%s",
+			strings.ToLower(apiGroup),
+			strings.ToLower(version),
+			strings.ToLower(resourcePlural))
+	} else {
+		// Namespace scoped: apis/<group>/<version>/namespaces/<namespace>/<resource-plural>
+		listURI = fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s",
+			strings.ToLower(apiGroup),
+			strings.ToLower(version),
+			strings.ToLower(namespace),
+			strings.ToLower(resourcePlural))
 	}
 
-	return fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s",
-		strings.ToLower(apiGroup),
-		strings.ToLower(version),
-		strings.ToLower(namespace),
-		strings.ToLower(resourcePlural))
+	return
 }
 
 // ListCustomResource lists all custom resources for the given namespace.
+// The resource is considered as cluster scoped when the namespace is unspecified
 func (c *Client) ListCustomResource(apiGroup, version, namespace, resourcePlural string) (*CustomResourceList, error) {
 	klog.V(4).Infof("LIST CUSTOM RESOURCE]: %s", resourcePlural)
 
 	var crList CustomResourceList
 
 	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
-	uri := customResourceDefinitionURI(apiGroup, version, namespace, resourcePlural)
+	uri := customResourceListURI(apiGroup, version, namespace, resourcePlural)
 	klog.V(4).Infof("[GET]: %s", uri)
 	bytes, err := httpRestClient.Get().RequestURI(uri).DoRaw(context.TODO())
 	if err != nil {

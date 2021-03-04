@@ -64,6 +64,10 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20200331152225-585af27e34fd // release-4.5
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0 // release-4.5
 
+	// TODO: Remove when operator-framework/api has the cleanup API in a tagged release
+	// pinned for using APIs from feature branch "add-csv-cleanup-api"
+	github.com/operator-framework/api => github.com/hasbro17/api v0.3.13-0.20210304212710-93ba7a75566c
+
 	// pinned because latest etcd does not yet work with the latest grpc version (1.30.0)
 	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
 	google.golang.org/grpc => google.golang.org/grpc v1.27.0

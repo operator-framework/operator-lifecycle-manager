@@ -36,17 +36,17 @@ type ClientInterface interface {
 
 // CustomResourceClient contains methods for the Custom Resource.
 type CustomResourceClient interface {
-	GetCustomResource(apiGroup, version, namespace, resourceKind, resourceName string) (*unstructured.Unstructured, error)
-	GetCustomResourceRaw(apiGroup, version, namespace, resourceKind, resourceName string) ([]byte, error)
+	GetCustomResource(apiGroup, version, namespace, resourcePlural, resourceName string) (*unstructured.Unstructured, error)
+	GetCustomResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName string) ([]byte, error)
 	CreateCustomResource(item *unstructured.Unstructured) error
 	CreateCustomResourceRaw(apiGroup, version, namespace, kind string, data []byte) error
 	CreateCustomResourceRawIfNotFound(apiGroup, version, namespace, kind, name string, data []byte) (bool, error)
 	UpdateCustomResource(item *unstructured.Unstructured) error
-	UpdateCustomResourceRaw(apiGroup, version, namespace, resourceKind, resourceName string, data []byte) error
-	CreateOrUpdateCustomeResourceRaw(apiGroup, version, namespace, resourceKind, resourceName string, data []byte) error
-	DeleteCustomResource(apiGroup, version, namespace, resourceKind, resourceName string) error
-	AtomicModifyCustomResource(apiGroup, version, namespace, resourceKind, resourceName string, f CustomResourceModifier, data interface{}) error
-	ListCustomResource(apiGroup, version, namespace, resourceKind string) (*CustomResourceList, error)
+	UpdateCustomResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName string, data []byte) error
+	CreateOrUpdateCustomeResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName string, data []byte) error
+	DeleteCustomResource(apiGroup, version, namespace, resourcePlural, resourceName string) error
+	AtomicModifyCustomResource(apiGroup, version, namespace, resourcePlural, resourceName string, f CustomResourceModifier, data interface{}) error
+	ListCustomResource(apiGroup, version, namespace, resourcePlural string) (*CustomResourceList, error)
 }
 
 // APIServiceClient contains methods for manipulating APIServiceBindings.
