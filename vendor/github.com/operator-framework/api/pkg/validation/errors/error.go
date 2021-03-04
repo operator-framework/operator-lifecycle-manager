@@ -243,7 +243,3 @@ func invalidObject(lvl Level, detail string, value interface{}) Error {
 func WarnInvalidObject(detail string, value interface{}) Error {
 	return failedValidation(LevelWarn, detail, value)
 }
-
-func WarnMissingIcon(detail string) Error {
-	return failedValidation(LevelWarn, detail, "")
-}

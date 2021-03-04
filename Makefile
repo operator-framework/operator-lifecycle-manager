@@ -266,7 +266,7 @@ run-console-local:
 uninstall:
 	@echo Uninstalling OLM:
 	- kubectl delete -f deploy/upstream/quickstart/crds.yaml
-	- kubectl delete -f deploy/upstream/quickstart/olm.yam
+	- kubectl delete -f deploy/upstream/quickstart/olm.yaml
 	- kubectl delete catalogsources.operators.coreos.com
 	- kubectl delete clusterserviceversions.operators.coreos.com
 	- kubectl delete installplans.operators.coreos.com
