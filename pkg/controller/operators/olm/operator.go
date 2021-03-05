@@ -1082,14 +1082,18 @@ func (a *Operator) updateCleanupFinalizer(inCSV *v1alpha1.ClusterServiceVersion)
 	outCSV := inCSV.DeepCopy()
 	hasFinalizer := inCSV.HasFinalizer(CleanupFinalizer)
 
-	// If being replaced, remove finalizer and opt-out to prevent cleanup of CRs
-	// when this replacing CSV gets deleted
-	if hasFinalizer && inCSV.Status.Phase == v1alpha1.CSVPhaseReplacing {
+	// If the CSV is being replaced, remove finalizer and opt-out to prevent cleanup of CRs
+	// before this CSV gets deleted
+	if inCSV.Status.Phase == v1alpha1.CSVPhaseReplacing {
+		if !inCSV.Spec.Cleanup.Enabled && !hasFinalizer {
+			// No update needed as cleanup is already disabled with no finalizer
+			return nil
+		}
+
 		outCSV.RemoveFinalizer(CleanupFinalizer)
-		// We forcefully opt-out of cleanup by updating spec.cleanup to prevent the cleanup finalizer
-		// from being attached again on the next reconcile.
-		// TODO: Having the controller update the spec is an anti-pattern. So we could avoid updating the spec
-		// and always treat a CSV with phase=Replacing as spec.cleanup.enabled=false.
+		// We forcefully opt-out of cleanup via the spec to prevent the cleanup finalizer
+		// from being attached again when this CSV moves into the Deleting phase.
+		// TODO: Having the controller update the spec is an anti-pattern.
 		outCSV.Spec.Cleanup.Enabled = false
 		return outCSV
 	}
