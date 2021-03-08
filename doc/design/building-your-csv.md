@@ -16,6 +16,7 @@
     - [Required APIServices](#required-apiservices)
   - [Operator Metadata](#operator-metadata)
   - [Operator Install](#operator-install)
+  - [Operator Cleanup](#operator-cleanup)
   - [Full Examples](#full-examples)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -395,6 +396,29 @@ Here’s a full example:
                 - list
     strategy: deployment
 ```
+## Operator Cleanup
+The CSV can opt-into cleanup of the Custom Resources (CRs) reconciled by the operator by a setting on the spec which OLM 
+will honor. 
+
+```yaml
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+...
+  spec:
+  ...
+    cleanup: 
+      enabled: true
+```
+
+When OLM sees that the CSV cleanup setting is set to `true` it will automatically put the `operatorframework.io/cleanup-apis`
+finalizer on the CSV. When the CSV is deleted by the user, kubernetes sets the deletion timestamp on the CSV but the finalizer prevents the 
+CSV from being deleted. OLM then finds and deletes all CRs managed by the operator by looking at the operator's `OwnedCRDs` section of the CSV
+and then finding these objects on-cluster. By deleting the CRs before removing the operator, OLM allows the operator to run custom cleanup logic
+on the CRs (via its own finalizers). Once all CRs have been deleted from the cluster, OLM removes the `operatorframework.io/cleanup-apis` finalizer 
+from the CSV which enables the operator to be deleted from the cluster. 
+
+For more detailed information see the [OLM doc site](https://olm.operatorframework.io/docs/advanced-tasks/operator-cleanup/). 
+
 
 ## Full Examples
 
