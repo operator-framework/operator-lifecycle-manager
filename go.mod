@@ -73,6 +73,9 @@ replace (
 	// https://github.com/kubernetes/kubernetes/pull/97820
 	k8s.io/apiserver => k8s.io/apiserver v0.0.0-20210107211418-525d1e3c959d
 
+	// pinned because of/api requires controller-runtime v0.8.0, which requires go1.15
+	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.7.0
+
 	// pinned because no tag supports 1.18 yet
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v1.0.1-0.20191108220359-b1b620dd3f06
 )

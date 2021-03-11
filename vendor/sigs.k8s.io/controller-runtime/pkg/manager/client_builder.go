@@ -17,13 +17,45 @@ limitations under the License.
 package manager
 
 import (
-	"sigs.k8s.io/controller-runtime/pkg/cluster"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ClientBuilder builder is the interface for the client builder.
-type ClientBuilder = cluster.ClientBuilder
+type ClientBuilder interface {
+	// WithUncached takes a list of runtime objects (plain or lists) that users don't want to cache
+	// for this client. This function can be called multiple times, it should append to an internal slice.
+	WithUncached(objs ...client.Object) ClientBuilder
+
+	// Build returns a new client.
+	Build(cache cache.Cache, config *rest.Config, options client.Options) (client.Client, error)
+}
 
 // NewClientBuilder returns a builder to build new clients to be passed when creating a Manager.
 func NewClientBuilder() ClientBuilder {
-	return cluster.NewClientBuilder()
+	return &newClientBuilder{}
+}
+
+type newClientBuilder struct {
+	uncached []client.Object
+}
+
+func (n *newClientBuilder) WithUncached(objs ...client.Object) ClientBuilder {
+	n.uncached = append(n.uncached, objs...)
+	return n
+}
+
+func (n *newClientBuilder) Build(cache cache.Cache, config *rest.Config, options client.Options) (client.Client, error) {
+	// Create the Client for Write operations.
+	c, err := client.New(config, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.NewDelegatingClient(client.NewDelegatingClientInput{
+		CacheReader:     cache,
+		Client:          c,
+		UncachedObjects: n.uncached,
+	})
 }

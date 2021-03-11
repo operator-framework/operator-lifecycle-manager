@@ -18,22 +18,19 @@ package client
 
 import (
 	"context"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 // NewDelegatingClientInput encapsulates the input parameters to create a new delegating client.
 type NewDelegatingClientInput struct {
-	CacheReader       Reader
-	Client            Client
-	UncachedObjects   []Object
-	CacheUnstructured bool
+	CacheReader     Reader
+	Client          Client
+	UncachedObjects []Object
 }
 
 // NewDelegatingClient creates a new delegating client.
@@ -55,11 +52,10 @@ func NewDelegatingClient(in NewDelegatingClientInput) (Client, error) {
 		scheme: in.Client.Scheme(),
 		mapper: in.Client.RESTMapper(),
 		Reader: &delegatingReader{
-			CacheReader:       in.CacheReader,
-			ClientReader:      in.Client,
-			scheme:            in.Client.Scheme(),
-			uncachedGVKs:      uncachedGVKs,
-			cacheUnstructured: in.CacheUnstructured,
+			CacheReader:  in.CacheReader,
+			ClientReader: in.Client,
+			scheme:       in.Client.Scheme(),
+			uncachedGVKs: uncachedGVKs,
 		},
 		Writer:       in.Client,
 		StatusClient: in.Client,
@@ -94,9 +90,8 @@ type delegatingReader struct {
 	CacheReader  Reader
 	ClientReader Reader
 
-	uncachedGVKs      map[schema.GroupVersionKind]struct{}
-	scheme            *runtime.Scheme
-	cacheUnstructured bool
+	uncachedGVKs map[schema.GroupVersionKind]struct{}
+	scheme       *runtime.Scheme
 }
 
 func (d *delegatingReader) shouldBypassCache(obj runtime.Object) (bool, error) {
@@ -104,20 +99,10 @@ func (d *delegatingReader) shouldBypassCache(obj runtime.Object) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// TODO: this is producing unsafe guesses that don't actually work,
-	// but it matches ~99% of the cases out there.
-	if meta.IsListType(obj) {
-		gvk.Kind = strings.TrimSuffix(gvk.Kind, "List")
-	}
-	if _, isUncached := d.uncachedGVKs[gvk]; isUncached {
-		return true, nil
-	}
-	if !d.cacheUnstructured {
-		_, isUnstructured := obj.(*unstructured.Unstructured)
-		_, isUnstructuredList := obj.(*unstructured.UnstructuredList)
-		return isUnstructured || isUnstructuredList, nil
-	}
-	return false, nil
+	_, isUncached := d.uncachedGVKs[gvk]
+	_, isUnstructured := obj.(*unstructured.Unstructured)
+	_, isUnstructuredList := obj.(*unstructured.UnstructuredList)
+	return isUncached || isUnstructured || isUnstructuredList, nil
 }
 
 // Get retrieves an obj for a given object key from the Kubernetes Cluster.

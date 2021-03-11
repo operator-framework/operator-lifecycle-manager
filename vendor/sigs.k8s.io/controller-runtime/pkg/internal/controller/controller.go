@@ -79,10 +79,6 @@ type Controller struct {
 	// undergo a major refactoring and redesign to allow for context to not be stored in a struct.
 	ctx context.Context
 
-	// CacheSyncTimeout refers to the time limit set on waiting for cache to sync
-	// Defaults to 2 minutes if not set.
-	CacheSyncTimeout time.Duration
-
 	// startWatches maintains a list of sources, handlers, and predicates to start when the controller is started.
 	startWatches []watchDescription
 
@@ -143,8 +139,6 @@ func (c *Controller) Start(ctx context.Context) error {
 		return errors.New("controller was started more than once. This is likely to be caused by being added to a manager multiple times")
 	}
 
-	c.initMetrics()
-
 	// Set the internal context.
 	c.ctx = ctx
 
@@ -162,10 +156,7 @@ func (c *Controller) Start(ctx context.Context) error {
 		// caches.
 		for _, watch := range c.startWatches {
 			c.Log.Info("Starting EventSource", "source", watch.src)
-
-			watchStartCtx, cancel := context.WithTimeout(ctx, c.CacheSyncTimeout)
-			defer cancel()
-			if err := watch.src.Start(watchStartCtx, watch.handler, c.Queue, watch.predicates...); err != nil {
+			if err := watch.src.Start(ctx, watch.handler, c.Queue, watch.predicates...); err != nil {
 				return err
 			}
 		}
@@ -178,14 +169,9 @@ func (c *Controller) Start(ctx context.Context) error {
 			if !ok {
 				continue
 			}
-
-			// use a context with timeout for launching sources and syncing caches.
-			sourceStartCtx, cancel := context.WithTimeout(ctx, c.CacheSyncTimeout)
-			defer cancel()
-
-			// WaitForSync waits for a definitive timeout, and returns if there
-			// is an error or a timeout
-			if err := syncingSource.WaitForSync(sourceStartCtx); err != nil {
+			if err := syncingSource.WaitForSync(ctx); err != nil {
+				// This code is unreachable in case of kube watches since WaitForCacheSync will never return an error
+				// Leaving it here because that could happen in the future
 				err := fmt.Errorf("failed to wait for %s caches to sync: %w", c.Name, err)
 				c.Log.Error(err, "Could not wait for Cache to sync")
 				return err
@@ -204,6 +190,7 @@ func (c *Controller) Start(ctx context.Context) error {
 
 		// Launch workers to process resources
 		c.Log.Info("Starting workers", "worker count", c.MaxConcurrentReconciles)
+		ctrlmetrics.WorkerCount.WithLabelValues(c.Name).Set(float64(c.MaxConcurrentReconciles))
 		for i := 0; i < c.MaxConcurrentReconciles; i++ {
 			go wait.UntilWithContext(ctx, func(ctx context.Context) {
 				// Run a worker thread that just dequeues items, processes them, and marks them done.
@@ -249,23 +236,6 @@ func (c *Controller) processNextWorkItem(ctx context.Context) bool {
 	return true
 }
 
-const (
-	labelError        = "error"
-	labelRequeueAfter = "requeue_after"
-	labelRequeue      = "requeue"
-	labelSuccess      = "success"
-)
-
-func (c *Controller) initMetrics() {
-	ctrlmetrics.ActiveWorkers.WithLabelValues(c.Name).Set(0)
-	ctrlmetrics.ReconcileErrors.WithLabelValues(c.Name).Add(0)
-	ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelError).Add(0)
-	ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelRequeueAfter).Add(0)
-	ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelRequeue).Add(0)
-	ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelSuccess).Add(0)
-	ctrlmetrics.WorkerCount.WithLabelValues(c.Name).Set(float64(c.MaxConcurrentReconciles))
-}
-
 func (c *Controller) reconcileHandler(ctx context.Context, obj interface{}) {
 	// Update metrics after processing each item
 	reconcileStartTS := time.Now()
@@ -293,7 +263,7 @@ func (c *Controller) reconcileHandler(ctx context.Context, obj interface{}) {
 	if result, err := c.Do.Reconcile(ctx, req); err != nil {
 		c.Queue.AddRateLimited(req)
 		ctrlmetrics.ReconcileErrors.WithLabelValues(c.Name).Inc()
-		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelError).Inc()
+		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, "error").Inc()
 		log.Error(err, "Reconciler error")
 		return
 	} else if result.RequeueAfter > 0 {
@@ -303,11 +273,11 @@ func (c *Controller) reconcileHandler(ctx context.Context, obj interface{}) {
 		// to result.RequestAfter
 		c.Queue.Forget(obj)
 		c.Queue.AddAfter(req, result.RequeueAfter)
-		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelRequeueAfter).Inc()
+		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, "requeue_after").Inc()
 		return
 	} else if result.Requeue {
 		c.Queue.AddRateLimited(req)
-		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelRequeue).Inc()
+		ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, "requeue").Inc()
 		return
 	}
 
@@ -315,7 +285,7 @@ func (c *Controller) reconcileHandler(ctx context.Context, obj interface{}) {
 	// get queued again until another change happens.
 	c.Queue.Forget(obj)
 
-	ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, labelSuccess).Inc()
+	ctrlmetrics.ReconcileTotal.WithLabelValues(c.Name, "success").Inc()
 }
 
 // GetLogger returns this controller's logger.

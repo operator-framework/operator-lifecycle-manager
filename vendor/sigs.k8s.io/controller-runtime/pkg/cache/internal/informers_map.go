@@ -212,13 +212,9 @@ func (ip *specificInformersMap) addInformerToMap(gvk schema.GroupVersionKind, ob
 	ni := cache.NewSharedIndexInformer(lw, obj, resyncPeriod(ip.resync)(), cache.Indexers{
 		cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
 	})
-	rm, err := ip.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return nil, false, err
-	}
 	i := &MapEntry{
 		Informer: ni,
-		Reader:   CacheReader{indexer: ni.GetIndexer(), groupVersionKind: gvk, scopeName: rm.Scope.Name()},
+		Reader:   CacheReader{indexer: ni.GetIndexer(), groupVersionKind: gvk},
 	}
 	ip.informersByGVK[gvk] = i
 
@@ -324,7 +320,7 @@ func createMetadataListWatch(gvk schema.GroupVersionKind, ip *specificInformersM
 	//  pass in their own contexts instead of relying on this fixed one here.
 	ctx := context.TODO()
 
-	// create the relevant listwatch
+	// create the relevant listwaatch
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			if ip.namespace != "" && mapping.Scope.Name() != meta.RESTScopeNameRoot {

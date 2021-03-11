@@ -90,14 +90,8 @@ func PatchResponseFromRaw(original, current []byte) Response {
 	return Response{
 		Patches: patches,
 		AdmissionResponse: admissionv1.AdmissionResponse{
-			Allowed: true,
-			PatchType: func() *admissionv1.PatchType {
-				if len(patches) == 0 {
-					return nil
-				}
-				pt := admissionv1.PatchTypeJSONPatch
-				return &pt
-			}(),
+			Allowed:   true,
+			PatchType: func() *admissionv1.PatchType { pt := admissionv1.PatchTypeJSONPatch; return &pt }(),
 		},
 	}
 }
