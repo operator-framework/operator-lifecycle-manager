@@ -24,9 +24,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
@@ -1999,14 +2001,6 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 		updateInternalCatalog(GinkgoT(), kubeClient, crClient, catalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{crd, crd2}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvNewA, csvNewB}, manifests)
-		//Eventually(func() bool {
-		//	s, err := crClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subscriptionName, metav1.GetOptions{})
-		//	if err != nil {
-		//		return false
-		//	}
-		//	if s.Status.CatalogHealth
-		//
-		//}).Should(BeTrue())
 
 		_, err = fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(subscription.Status.InstallPlanRef.Name))
 		require.NoError(GinkgoT(), err)
@@ -2016,6 +2010,59 @@ var _ = Describe("Subscription", func() {
 		// Ensure csvNewB is installed
 		_, err = fetchCSV(crClient, csvNewB.Name, testNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
+	})
+
+	When("an unannotated ClusterServiceVersion exists with an associated Subscription", func() {
+		var (
+			teardown func()
+		)
+
+		BeforeEach(func() {
+			teardown = func() {}
+
+			packages := []registry.PackageManifest{
+				{
+					PackageName: "package",
+					Channels: []registry.PackageChannel{
+						{Name: "channel-x", CurrentCSVName: "csv-x"},
+						{Name: "channel-y", CurrentCSVName: "csv-y"},
+					},
+					DefaultChannelName: "channel-x",
+				},
+			}
+
+			x := newCSV("csv-x", testNamespace, "", semver.MustParse("1.0.0"), nil, nil, nil)
+			y := newCSV("csv-y", testNamespace, "", semver.MustParse("1.0.0"), nil, nil, nil)
+
+			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", testNamespace, packages, nil, []operatorsv1alpha1.ClusterServiceVersion{x, y})
+
+			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription-x", "test-catalog", "package", "channel-x", "", operatorsv1alpha1.ApprovalAutomatic)
+
+			Eventually(func() error {
+				var unannotated operatorsv1alpha1.ClusterServiceVersion
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKey{Namespace: testNamespace, Name: "csv-x"}, &unannotated); err != nil {
+					return err
+				}
+				if _, ok := unannotated.Annotations["operatorframework.io/properties"]; !ok {
+					return nil
+				}
+				delete(unannotated.Annotations, "operatorframework.io/properties")
+				return ctx.Ctx().Client().Update(context.Background(), &unannotated)
+			}).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			teardown()
+		})
+
+		It("uses inferred properties to prevent a duplicate installation from the same package ", func() {
+			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription-y", "test-catalog", "package", "channel-y", "", operatorsv1alpha1.ApprovalAutomatic)
+
+			Consistently(func() error {
+				var no operatorsv1alpha1.ClusterServiceVersion
+				return ctx.Ctx().Client().Get(context.Background(), client.ObjectKey{Namespace: testNamespace, Name: "csv-y"}, &no)
+			}).ShouldNot(Succeed())
+		})
 	})
 })
 
