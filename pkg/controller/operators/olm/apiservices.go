@@ -239,8 +239,8 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 			return false, nil
 		}
 
-		if err := a.isGVKRegistered(desc.Group, desc.Version, desc.Kind); err != nil {
-			return false, nil
+		if ok, err := a.isGVKRegistered(desc.Group, desc.Version, desc.Kind); !ok || err != nil {
+			return false, err
 		}
 	}
 

@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -156,7 +155,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 		}
 
 		// Check if GVK exists
-		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
+		if ok, err := a.isGVKRegistered(r.Group, r.Version, r.Kind); !ok || err != nil {
 			status.Status = "NotPresent"
 			met = false
 			statuses = append(statuses, status)
@@ -219,7 +218,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 			Name:    name,
 		}
 
-		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
+		if ok, err := a.isGVKRegistered(r.Group, r.Version, r.Kind); !ok || err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			status.Message = "Native API does not exist"
 			met = false
@@ -388,7 +387,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	return met, statuses, nil
 }
 
-func (a *Operator) isGVKRegistered(group, version, kind string) error {
+func (a *Operator) isGVKRegistered(group, version, kind string) (bool, error) {
 	logger := a.logger.WithFields(logrus.Fields{
 		"group":   group,
 		"version": version,
@@ -399,15 +398,15 @@ func (a *Operator) isGVKRegistered(group, version, kind string) error {
 	resources, err := a.opClient.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gv.String())
 	if err != nil {
 		logger.WithField("err", err).Info("could not query for GVK in api discovery")
-		return err
+		return false, err
 	}
 
 	for _, r := range resources.APIResources {
 		if r.Kind == kind {
-			return nil
+			return true, nil
 		}
 	}
 
 	logger.Info("couldn't find GVK in api discovery")
-	return olmErrors.GroupVersionKindNotFoundError{group, version, kind}
+	return false, nil
 }
