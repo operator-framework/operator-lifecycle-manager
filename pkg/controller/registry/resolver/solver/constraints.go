@@ -14,6 +14,7 @@ type Constraint interface {
 	String(subject Identifier) string
 	apply(c *logic.C, lm *litMapping, subject Identifier) z.Lit
 	order() []Identifier
+	anchor() bool
 }
 
 // zeroConstraint is returned by ConstraintOf in error cases.
@@ -31,6 +32,10 @@ func (zeroConstraint) apply(c *logic.C, lm *litMapping, subject Identifier) z.Li
 
 func (zeroConstraint) order() []Identifier {
 	return nil
+}
+
+func (zeroConstraint) anchor() bool {
+	return false
 }
 
 // AppliedConstraint values compose a single Constraint with the
@@ -60,6 +65,10 @@ func (constraint mandatory) order() []Identifier {
 	return nil
 }
 
+func (constraint mandatory) anchor() bool {
+	return true
+}
+
 // Mandatory returns a Constraint that will permit only solutions that
 // contain a particular Installable.
 func Mandatory() Constraint {
@@ -78,6 +87,10 @@ func (constraint prohibited) apply(c *logic.C, lm *litMapping, subject Identifie
 
 func (constraint prohibited) order() []Identifier {
 	return nil
+}
+
+func (constraint prohibited) anchor() bool {
+	return false
 }
 
 // Prohibited returns a Constraint that will reject any solution that
@@ -113,6 +126,10 @@ func (constraint dependency) order() []Identifier {
 	return constraint
 }
 
+func (constraint dependency) anchor() bool {
+	return false
+}
+
 // Dependency returns a Constraint that will only permit solutions
 // containing a given Installable on the condition that at least one
 // of the Installables identified by the given Identifiers also
@@ -134,6 +151,10 @@ func (constraint conflict) apply(c *logic.C, lm *litMapping, subject Identifier)
 
 func (constraint conflict) order() []Identifier {
 	return nil
+}
+
+func (constraint conflict) anchor() bool {
+	return false
 }
 
 // Conflict returns a Constraint that will permit solutions containing
@@ -166,6 +187,10 @@ func (constraint leq) apply(c *logic.C, lm *litMapping, subject Identifier) z.Li
 
 func (constraint leq) order() []Identifier {
 	return nil
+}
+
+func (constraint leq) anchor() bool {
+	return false
 }
 
 // AtMost returns a Constraint that forbids solutions that contain
