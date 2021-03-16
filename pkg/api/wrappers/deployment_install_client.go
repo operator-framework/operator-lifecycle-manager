@@ -3,6 +3,7 @@ package wrappers
 
 import (
 	"context"
+
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -102,7 +103,8 @@ func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deploymen
 
 func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name string) error {
 	foregroundDelete := metav1.DeletePropagationForeground // cascading delete
-	immediate := int64(0)
+	// Note(tflannag): See https://bugzilla.redhat.com/show_bug.cgi?id=1939294.
+	immediate := int64(1)
 	immediateForegroundDelete := &metav1.DeleteOptions{GracePeriodSeconds: &immediate, PropagationPolicy: &foregroundDelete}
 	return c.opClient.DeleteDeployment(c.Namespace, name, immediateForegroundDelete)
 }

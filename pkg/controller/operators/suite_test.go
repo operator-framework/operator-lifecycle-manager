@@ -49,7 +49,7 @@ var (
 	ctx       context.Context
 
 	scheme            = runtime.NewScheme()
-	gracePeriod int64 = 0
+	gracePeriod int64 = 1
 	propagation       = metav1.DeletePropagationForeground
 	deleteOpts        = &client.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,

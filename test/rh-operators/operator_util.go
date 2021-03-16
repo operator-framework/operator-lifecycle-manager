@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/operator-framework/api/pkg/operators/v1"
+	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -26,7 +26,7 @@ var (
 	pollDuration        = 20 * time.Minute
 	terminationDuration = 5 * time.Minute
 
-	immediate             = int64(0)
+	immediate             = int64(1)
 	immediateDeleteOption = &metav1.DeleteOptions{GracePeriodSeconds: &immediate}
 )
 
