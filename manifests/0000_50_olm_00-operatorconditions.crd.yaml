@@ -10,9 +10,13 @@ metadata:
 spec:
   group: operators.coreos.com
   names:
+    categories:
+      - olm
     kind: OperatorCondition
     listKind: OperatorConditionList
     plural: operatorconditions
+    shortNames:
+      - condition
     singular: operatorcondition
   scope: Namespaced
   versions:
