@@ -69,6 +69,10 @@ replace (
 	google.golang.org/grpc => google.golang.org/grpc v1.27.0
 	google.golang.org/grpc/examples => google.golang.org/grpc/examples v0.0.0-20200709232328-d8193ee9cc3e
 
+	// pinned for webhook authorizer panic fix
+	// https://github.com/kubernetes/kubernetes/pull/97820
+	k8s.io/apiserver => k8s.io/apiserver v0.0.0-20210107211418-525d1e3c959d
+
 	// pinned because no tag supports 1.18 yet
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v1.0.1-0.20191108220359-b1b620dd3f06
 )
