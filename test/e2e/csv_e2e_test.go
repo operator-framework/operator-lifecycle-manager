@@ -15,7 +15,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -3695,7 +3694,7 @@ func waitForDeploymentToDelete(c operatorclient.ClientInterface, name string) er
 	Eventually(func() (bool, error) {
 		ctx.Ctx().Logf("waiting for deployment %s to delete", name)
 		_, err := c.GetDeployment(testNamespace, name)
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			ctx.Ctx().Logf("deleted %s", name)
 			return true, nil
 		}
@@ -3711,7 +3710,7 @@ func waitForDeploymentToDelete(c operatorclient.ClientInterface, name string) er
 func csvExists(c versioned.Interface, name string) bool {
 
 	fetched, err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		return false
 	}
 	ctx.Ctx().Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
@@ -3773,7 +3772,7 @@ func createLegacyAPIResources(csv *v1alpha1.ClusterServiceVersion, desc v1alpha1
 	}
 
 	_, err = c.CreateSecret(&secret)
-	if err != nil && !errors.IsAlreadyExists(err) {
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		Expect(err).ShouldNot(HaveOccurred())
 	}
 
@@ -3838,25 +3837,25 @@ func checkLegacyAPIResources(desc v1alpha1.APIServiceDescription, expectedIsNotF
 
 	// Attempt to create the legacy service
 	_, err := c.GetService(testNamespace, strings.Replace(apiServiceName, ".", "-", -1))
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret
 	_, err = c.GetSecret(testNamespace, apiServiceName+"-cert")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret role
 	_, err = c.GetRole(testNamespace, apiServiceName+"-cert")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret role binding
 	_, err = c.GetRoleBinding(testNamespace, apiServiceName+"-cert")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy authDelegatorClusterRoleBinding
 	_, err = c.GetClusterRoleBinding(apiServiceName + "-system:auth-delegator")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy authReadingRoleBinding
 	_, err = c.GetRoleBinding("kube-system", apiServiceName+"-auth-reader")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 }
