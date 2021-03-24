@@ -9,16 +9,15 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/api/errors"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -83,9 +82,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("The webhook is scoped to the selector", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -122,9 +121,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Creates Webhooks scoped to a single namespace", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -181,9 +180,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Reuses existing valid certs", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -210,7 +209,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 					return false
 				}
 
-				fetchedCSV.Status.Phase = v1alpha1.CSVPhasePending
+				fetchedCSV.Status.Phase = operatorsv1alpha1.CSVPhasePending
 
 				_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.GetName()).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 				if err != nil {
@@ -232,9 +231,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Fails to install a CSV if multiple Webhooks share the same name", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -252,9 +251,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Fails if the webhooks intercepts all resources", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -283,9 +282,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Fails if the webhook intercepts OLM resources", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -314,9 +313,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Fails if webhook intercepts Admission Webhook resources", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -345,9 +344,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Succeeds if the webhook intercepts non Admission Webhook resources in admissionregistration group", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -377,9 +376,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Can be installed and upgraded successfully", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            "webhook.test.com",
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -444,9 +443,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("Is updated when the CAs expire", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -483,7 +482,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				return nil
 			})).Should(Succeed())
 
-			_, err = fetchCSV(crc, csv.Name, namespace.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
+			_, err = fetchCSV(crc, csv.Name, namespace.Name, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 				// Should create deployment
 				dep, err = c.GetDeployment(namespace.Name, csv.Spec.WebhookDefinitions[0].DeploymentName)
 				if err != nil {
@@ -527,9 +526,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 		It("The webhook is scoped to all namespaces", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -586,9 +585,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		}).Should(Succeed())
 
 		sideEffect := admissionregistrationv1.SideEffectClassNone
-		webhook := v1alpha1.WebhookDescription{
+		webhook := operatorsv1alpha1.WebhookDescription{
 			GenerateName:            webhookName,
-			Type:                    v1alpha1.ValidatingAdmissionWebhook,
+			Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 			DeploymentName:          genName("webhook-dep-"),
 			ContainerPort:           443,
 			AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -652,17 +651,17 @@ var _ = Describe("CSVs with a Webhook", func() {
 			catSrcImage := "quay.io/olmtest/webhook-operator-index"
 
 			// Create gRPC CatalogSource
-			source := &v1alpha1.CatalogSource{
+			source := &operatorsv1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
-					Kind:       v1alpha1.CatalogSourceKind,
-					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+					Kind:       operatorsv1alpha1.CatalogSourceKind,
+					APIVersion: operatorsv1alpha1.CatalogSourceCRDAPIVersion,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      sourceName,
 					Namespace: testNamespace,
 				},
-				Spec: v1alpha1.CatalogSourceSpec{
-					SourceType: v1alpha1.SourceTypeGrpc,
+				Spec: operatorsv1alpha1.CatalogSourceSpec{
+					SourceType: operatorsv1alpha1.SourceTypeGrpc,
 					Image:      catSrcImage + ":0.0.3",
 				},
 			}
@@ -676,7 +675,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			// Create a Subscription for the webhook-operator
 			subscriptionName := genName("sub-")
-			cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+			cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, source.GetName(), packageName, channelName, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer cleanupSubscription()
 
 			// Wait for webhook-operator v2 csv to succeed
@@ -798,9 +797,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			// describe webhook
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -808,7 +807,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				ConversionCRDs:          []string{crdA.GetName(), crdB.GetName()},
 			}
 
-			ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
+			ownedCRDDescs := make([]operatorsv1alpha1.CRDDescription, 0)
 
 			// create CSV
 			csv := createCSVWithWebhookAndCrds(namespace.GetName(), webhook, ownedCRDDescs)
@@ -860,9 +859,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			// describe webhook
 			sideEffect := admissionregistrationv1.SideEffectClassNone
-			webhook := v1alpha1.WebhookDescription{
+			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,
-				Type:                    v1alpha1.ValidatingAdmissionWebhook,
+				Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
 				DeploymentName:          genName("webhook-dep-"),
 				ContainerPort:           443,
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
@@ -870,8 +869,8 @@ var _ = Describe("CSVs with a Webhook", func() {
 				ConversionCRDs:          []string{crdA.GetName()},
 			}
 
-			ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
-			ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: crdA.GetName(), Version: crdA.Spec.Versions[0].Name, Kind: crdA.Spec.Names.Kind})
+			ownedCRDDescs := make([]operatorsv1alpha1.CRDDescription, 0)
+			ownedCRDDescs = append(ownedCRDDescs, operatorsv1alpha1.CRDDescription{Name: crdA.GetName(), Version: crdA.Spec.Versions[0].Name, Kind: crdA.Spec.Names.Kind})
 
 			// create CSV
 			csv := createCSVWithWebhookAndCrdsAndInvalidInstallModes(namespace.GetName(), webhook, ownedCRDDescs)
@@ -924,35 +923,35 @@ func getWebhookWithGenerateName(c operatorclient.ClientInterface, generateName s
 	return nil, fmt.Errorf("NotFound")
 }
 
-func createCSVWithWebhook(namespace string, webhookDesc v1alpha1.WebhookDescription) v1alpha1.ClusterServiceVersion {
-	return v1alpha1.ClusterServiceVersion{
+func createCSVWithWebhook(namespace string, webhookDesc operatorsv1alpha1.WebhookDescription) operatorsv1alpha1.ClusterServiceVersion {
+	return operatorsv1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.ClusterServiceVersionKind,
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+			APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      genName("webhook-csv-"),
 			Namespace: namespace,
 		},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			WebhookDefinitions: []v1alpha1.WebhookDescription{
+		Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+			WebhookDefinitions: []operatorsv1alpha1.WebhookDescription{
 				webhookDesc,
 			},
-			InstallModes: []v1alpha1.InstallMode{
+			InstallModes: []operatorsv1alpha1.InstallMode{
 				{
-					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 					Supported: true,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 					Supported: true,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 					Supported: true,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 					Supported: true,
 				},
 			},
@@ -961,38 +960,38 @@ func createCSVWithWebhook(namespace string, webhookDesc v1alpha1.WebhookDescript
 	}
 }
 
-func createCSVWithWebhookAndCrds(namespace string, webhookDesc v1alpha1.WebhookDescription, ownedCRDDescs []v1alpha1.CRDDescription) v1alpha1.ClusterServiceVersion {
-	return v1alpha1.ClusterServiceVersion{
+func createCSVWithWebhookAndCrds(namespace string, webhookDesc operatorsv1alpha1.WebhookDescription, ownedCRDDescs []operatorsv1alpha1.CRDDescription) operatorsv1alpha1.ClusterServiceVersion {
+	return operatorsv1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.ClusterServiceVersionKind,
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+			APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      genName("webhook-csv-"),
 			Namespace: namespace,
 		},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			WebhookDefinitions: []v1alpha1.WebhookDescription{
+		Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+			WebhookDefinitions: []operatorsv1alpha1.WebhookDescription{
 				webhookDesc,
 			},
-			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+			CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 				Owned: ownedCRDDescs,
 			},
-			InstallModes: []v1alpha1.InstallMode{
+			InstallModes: []operatorsv1alpha1.InstallMode{
 				{
-					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 					Supported: false,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 					Supported: false,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 					Supported: false,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 					Supported: true,
 				},
 			},
@@ -1001,38 +1000,38 @@ func createCSVWithWebhookAndCrds(namespace string, webhookDesc v1alpha1.WebhookD
 	}
 }
 
-func createCSVWithWebhookAndCrdsAndInvalidInstallModes(namespace string, webhookDesc v1alpha1.WebhookDescription, ownedCRDDescs []v1alpha1.CRDDescription) v1alpha1.ClusterServiceVersion {
-	return v1alpha1.ClusterServiceVersion{
+func createCSVWithWebhookAndCrdsAndInvalidInstallModes(namespace string, webhookDesc operatorsv1alpha1.WebhookDescription, ownedCRDDescs []operatorsv1alpha1.CRDDescription) operatorsv1alpha1.ClusterServiceVersion {
+	return operatorsv1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.ClusterServiceVersionKind,
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+			APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      genName("webhook-csv-"),
 			Namespace: namespace,
 		},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			WebhookDefinitions: []v1alpha1.WebhookDescription{
+		Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+			WebhookDefinitions: []operatorsv1alpha1.WebhookDescription{
 				webhookDesc,
 			},
-			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+			CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 				Owned: ownedCRDDescs,
 			},
-			InstallModes: []v1alpha1.InstallMode{
+			InstallModes: []operatorsv1alpha1.InstallMode{
 				{
-					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 					Supported: true,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 					Supported: false,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 					Supported: false,
 				},
 				{
-					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 					Supported: true,
 				},
 			},
