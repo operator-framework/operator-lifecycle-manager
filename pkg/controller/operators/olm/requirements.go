@@ -270,11 +270,11 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.Strategy
 				continue
 			}
 
-			// Check if the ServiceAccount is owned by CSV
-			if len(sa.GetOwnerReferences()) != 0 && !ownerutil.IsOwnedBy(sa, csv) {
+			// Check SA's ownership
+			if ownerutil.IsOwnedByKind(sa, v1alpha1.ClusterServiceVersionKind) && !ownerutil.IsOwnedBy(sa, csv) {
 				met = false
 				status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
-				status.Message = "Service account is not owned by this ClusterServiceVersion"
+				status.Message = "Service account is owned by another ClusterServiceVersion"
 				statusesSet[saName] = status
 				continue
 			}
