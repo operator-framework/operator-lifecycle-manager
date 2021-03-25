@@ -74,16 +74,19 @@ func validateBundleOperatorHub(bundle *manifests.Bundle) errors.ManifestResult {
 		return result
 	}
 
-	errs := validateHubCSVSpec(*bundle.CSV)
+	errs, warns := validateHubCSVSpec(*bundle.CSV)
 	for _, err := range errs {
 		result.Add(errors.ErrInvalidCSV(err.Error(), bundle.CSV.GetName()))
 	}
-
+	for _, warn := range warns {
+		result.Add(errors.WarnInvalidCSV(warn.Error(), bundle.CSV.GetName()))
+	}
 	return result
 }
 
-func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) []error {
+func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) ([]error, []error) {
 	var errs []error
+	var warns []error
 
 	if csv.Spec.Provider.Name == "" {
 		errs = append(errs, fmt.Errorf("csv.Spec.Provider.Name not specified"))
@@ -146,7 +149,7 @@ func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) []error {
 			}
 		}
 	} else {
-		errs = append(errs, errors.WarnMissingIcon("csv.Spec.Icon not specified"))
+		warns = append(warns, fmt.Errorf("csv.Spec.Icon not specified"))
 	}
 
 	if categories, ok := csv.ObjectMeta.Annotations["categories"]; ok {
@@ -158,7 +161,7 @@ func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) []error {
 			customCategories, err := extractCategories(customCategoriesPath)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("could not extract custom categories from categories %#v: %s", customCategories, err))
-				return errs
+				return errs, warns
 			}
 			for _, category := range categorySlice {
 				if _, ok := customCategories[strings.TrimSpace(category)]; !ok {
@@ -175,7 +178,7 @@ func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) []error {
 		}
 	}
 
-	return errs
+	return errs, warns
 }
 
 type categories struct {
