@@ -4,16 +4,17 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	clientfakes "github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -142,6 +143,11 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 						Name: "test-deployment-3",
 						Spec: appsv1.DeploymentSpec{},
 					},
+					{
+						Name:  "test-deployment-4",
+						Spec:  appsv1.DeploymentSpec{},
+						Label: k8slabels.Set{"custom-label": "custom-label-value"},
+					},
 				},
 			},
 			setup: setup{
@@ -228,6 +234,29 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					},
 					returnError: nil,
 				},
+				{
+					expectedDeployment: appsv1.Deployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            "test-deployment-4",
+							Namespace:       mockOwner.GetNamespace(),
+							OwnerReferences: mockOwnerRefs,
+							Labels: map[string]string{
+								"olm.owner":           mockOwner.GetName(),
+								"olm.owner.namespace": mockOwner.GetNamespace(),
+								"custom-label":        "custom-label-value",
+							},
+						},
+						Spec: appsv1.DeploymentSpec{
+							RevisionHistoryLimit: &expectedRevisionHistoryLimit,
+							Template: corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Annotations: map[string]string{},
+								},
+							},
+						},
+					},
+					returnError: nil,
+				},
 			},
 			output: nil,
 		},
@@ -243,6 +272,10 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					dep := fakeClient.CreateOrUpdateDeploymentArgsForCall(i)
 					expectedDeployment.Spec.Template.Annotations = map[string]string{}
 					require.Equal(t, expectedDeployment.OwnerReferences, dep.OwnerReferences)
+					for labelKey, labelValue := range expectedDeployment.Labels {
+						require.Contains(t, dep.GetLabels(), labelKey)
+						require.Equal(t, dep.Labels[labelKey], labelValue)
+					}
 					require.Equal(t, expectedDeployment.Spec.RevisionHistoryLimit, dep.Spec.RevisionHistoryLimit)
 				}(i, m.expectedDeployment)
 			}

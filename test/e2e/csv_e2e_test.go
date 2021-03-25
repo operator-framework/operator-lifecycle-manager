@@ -17,6 +17,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -1797,6 +1798,78 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(annotations["foo1"]).Should(Equal("bar1"))
 		Expect(annotations["foo2"]).Should(Equal("bar2"))
 		Expect(annotations["foo3"]).Should(Equal("bar3"))
+	})
+	It("Set labels for the Deployment created via the ClusterServiceVersion", func() {
+		// Create a StrategyDetailsDeployment that defines labels for Deployment inside
+		nginxName := genName("nginx-")
+		strategy := v1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+				{
+					Name: genName("dep-"),
+					Spec: newNginxDeployment(nginxName),
+					Label: k8slabels.Set{
+						"application":      "nginx",
+						"application.type": "proxy",
+					},
+				},
+			},
+		}
+
+		csv := v1alpha1.ClusterServiceVersion{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.ClusterServiceVersionKind,
+				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("csv"),
+			},
+			Spec: v1alpha1.ClusterServiceVersionSpec{
+				MinKubeVersion: "0.0.0",
+				InstallModes: []v1alpha1.InstallMode{
+					{
+						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					},
+				},
+				InstallStrategy: v1alpha1.NamedInstallStrategy{
+					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+					StrategySpec: strategy,
+				},
+			},
+		}
+
+		// Create the CSV and make sure to clean it up
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
+		Expect(err).ShouldNot(HaveOccurred())
+		defer cleanupCSV()
+
+		// Wait for current CSV to succeed
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// Should have created deployment
+		dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(dep).ShouldNot(BeNil())
+
+		// Make sure that the deployment labels are correct
+		labels := dep.GetLabels()
+		Expect(labels["olm.owner"]).Should(Equal(csv.GetName()))
+		Expect(labels["olm.owner.namespace"]).Should(Equal(testNamespace))
+		Expect(labels["application"]).Should(Equal("nginx"))
+		Expect(labels["application.type"]).Should(Equal("proxy"))
 	})
 	It("update same deployment name", func() {
 

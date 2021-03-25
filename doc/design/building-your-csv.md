@@ -314,6 +314,8 @@ Ensure that the `serviceAccountName` used in the `deployment` spec matches one o
 
 Multiple Roles should be described to reduce the scope of any actions needed containers that the Operator may run on the cluster. For example, if you have a component that generates a TLS Secret upon start up, a Role that allows `create` but not `list` on Secrets is more secure than using a single all-powerful Service Account.
 
+It is also possible to set custom labels for Deployment in addition to the system labels set by the OLM. This labels should be present in the `labels` fields of the `deployments` section.  
+
 Here’s a full example:
 
 ```yaml
@@ -321,6 +323,9 @@ Here’s a full example:
     spec:
       deployments:
         - name: example-operator
+          labels:
+            application: example-operator
+            technology: general
           spec:
             replicas: 1
             selector:
