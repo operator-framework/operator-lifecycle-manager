@@ -8,7 +8,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/utils/pointer"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
@@ -87,7 +89,7 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 
 func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.StrategyDeploymentSpec) error {
 	for _, d := range deps {
-		deployment, _, err := i.deploymentForSpec(d.Name, d.Spec)
+		deployment, _, err := i.deploymentForSpec(d.Name, d.Spec, d.Label)
 		if err != nil {
 			return err
 		}
@@ -96,14 +98,14 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.Strateg
 			return err
 		}
 
-		if err := i.createOrUpdateCertResourcesForDeployment(deployment.GetName()); err != nil {
+		if err := i.createOrUpdateCertResourcesForDeployment(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment(deploymentName string) error {
+func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment() error {
 	for _, desc := range i.getCertResources() {
 		switch d := desc.(type) {
 		case *apiServiceDescriptionsWithCAPEM:
@@ -123,13 +125,13 @@ func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment(d
 				return err
 			}
 		default:
-			return fmt.Errorf("Unsupported CA Resource")
+			return fmt.Errorf("unsupported CA Resource")
 		}
 	}
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec) (deployment *appsv1.Deployment, hash string, err error) {
+func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec, specLabels k8slabels.Set) (deployment *appsv1.Deployment, hash string, err error) {
 	dep := &appsv1.Deployment{Spec: spec}
 	dep.SetName(name)
 	dep.SetNamespace(i.owner.GetNamespace())
@@ -144,6 +146,9 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 	}
 	dep.Spec.Template.SetAnnotations(annotations)
 
+	// Set custom labels before CSV owner labels
+	dep.SetLabels(specLabels)
+
 	ownerutil.AddNonBlockingOwner(dep, i.owner)
 	ownerutil.AddOwnerLabelsForKind(dep, i.owner, v1alpha1.ClusterServiceVersionKind)
 
@@ -153,17 +158,19 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 	}
 
 	podSpec := &dep.Spec.Template.Spec
-	inject.InjectEnvIntoDeployment(podSpec, []corev1.EnvVar{{
+	if injectErr := inject.InjectEnvIntoDeployment(podSpec, []corev1.EnvVar{{
 		Name:  "OPERATOR_CONDITION_NAME",
 		Value: i.owner.GetName(),
-	}})
+	}}); injectErr != nil {
+		err = injectErr
+		return
+	}
 
 	// OLM does not support Rollbacks.
 	// By default, each deployment created by OLM could spawn up to 10 replicaSets.
 	// By setting the deployments revisionHistoryLimit to 1, OLM will only create up
 	// to 2 ReplicaSets per deployment it manages, saving memory.
-	revisionHistoryLimit := int32(1)
-	dep.Spec.RevisionHistoryLimit = &revisionHistoryLimit
+	dep.Spec.RevisionHistoryLimit = pointer.Int32Ptr(1)
 
 	hash = HashDeploymentSpec(dep.Spec)
 	dep.Labels[DeploymentSpecHashLabelKey] = hash
@@ -286,7 +293,7 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1al
 			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment doesn't have a spec hash, update it")}
 		}
 
-		_, calculatedDeploymentHash, err := i.deploymentForSpec(spec.Name, spec.Spec)
+		_, calculatedDeploymentHash, err := i.deploymentForSpec(spec.Name, spec.Spec, labels)
 		if err != nil {
 			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("couldn't calculate deployment spec hash: %v", err)}
 		}

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 )
 
@@ -37,7 +36,7 @@ func (i *BundleInstallable) AddDependency(dependencies []solver.Identifier) {
 }
 
 func (i *BundleInstallable) BundleSourceInfo() (string, string, registry.CatalogKey, error) {
-	info := strings.Split(string(i.identifier), "/")
+	info := strings.Split(i.identifier.String(), "/")
 	// This should be enforced by Kube naming constraints
 	if len(info) != 4 {
 		return "", "", registry.CatalogKey{}, fmt.Errorf("Unable to parse identifier %s for source info", i.identifier)
@@ -52,7 +51,7 @@ func (i *BundleInstallable) BundleSourceInfo() (string, string, registry.Catalog
 }
 
 func bundleId(bundle, channel string, catalog registry.CatalogKey) solver.Identifier {
-	return solver.Identifier(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
+	return solver.IdentifierFromString(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
 }
 
 func NewBundleInstallable(bundle, channel string, catalog registry.CatalogKey, constraints ...solver.Constraint) BundleInstallable {
@@ -62,26 +61,100 @@ func NewBundleInstallable(bundle, channel string, catalog registry.CatalogKey, c
 	}
 }
 
-func NewSubscriptionInstallable(pkg string) SubscriptionInstallable {
-	return SubscriptionInstallable{
-		identifier:  solver.Identifier(pkg),
-		constraints: []solver.Constraint{solver.Mandatory()},
-	}
-}
-
-type SubscriptionInstallable struct {
+type GenericInstallable struct {
 	identifier  solver.Identifier
 	constraints []solver.Constraint
 }
 
-func (r SubscriptionInstallable) Identifier() solver.Identifier {
-	return r.identifier
+func (i GenericInstallable) Identifier() solver.Identifier {
+	return i.identifier
 }
 
-func (r SubscriptionInstallable) Constraints() []solver.Constraint {
-	return r.constraints
+func (i GenericInstallable) Constraints() []solver.Constraint {
+	return i.constraints
 }
 
-func (r *SubscriptionInstallable) AddDependency(dependencies []solver.Identifier) {
-	r.constraints = append(r.constraints, solver.Dependency(dependencies...))
+func NewSubscriptionInstallable(name string, dependencies []solver.Identifier) solver.Installable {
+	result := GenericInstallable{
+		identifier: solver.IdentifierFromString(fmt.Sprintf("subscription:%s", name)),
+		constraints: []solver.Constraint{
+			PrettyConstraint(solver.Mandatory(), fmt.Sprintf("subscription %s exists", name)),
+		},
+	}
+
+	if len(dependencies) == 0 {
+		result.constraints = append(result.constraints, PrettyConstraint(solver.Dependency(), fmt.Sprintf("no operators found matching the criteria of subscription %s", name)))
+		return result
+	}
+
+	s := make([]string, len(dependencies))
+	for i, each := range dependencies {
+		s[i] = each.String()
+	}
+	var req string
+	if len(s) == 1 {
+		req = s[0]
+	} else {
+		req = fmt.Sprintf("at least one of %s or %s", strings.Join(s[:len(s)-1], ", "), s[len(s)-1])
+	}
+	result.constraints = append(result.constraints, PrettyConstraint(solver.Dependency(dependencies...), fmt.Sprintf("subscription %s requires %s", name, req)))
+
+	return result
+}
+
+func NewSingleAPIProviderInstallable(group, version, kind string, providers []solver.Identifier) solver.Installable {
+	gvk := fmt.Sprintf("%s (%s/%s)", kind, group, version)
+	result := GenericInstallable{
+		identifier: solver.IdentifierFromString(gvk),
+	}
+	if len(providers) <= 1 {
+		// The constraints are pointless without more than one provider.
+		return result
+	}
+	result.constraints = append(result.constraints, PrettyConstraint(solver.Mandatory(), fmt.Sprintf("there can be only one provider of %s", gvk)))
+
+	var s []string
+	for _, p := range providers {
+		s = append(s, p.String())
+	}
+	msg := fmt.Sprintf("%s and %s provide %s", strings.Join(s[:len(s)-1], ", "), s[len(s)-1], gvk)
+	result.constraints = append(result.constraints, PrettyConstraint(solver.AtMost(1, providers...), msg))
+
+	return result
+}
+
+func NewSinglePackageInstanceInstallable(pkg string, providers []solver.Identifier) solver.Installable {
+	result := GenericInstallable{
+		identifier: solver.IdentifierFromString(pkg),
+	}
+	if len(providers) <= 1 {
+		// The constraints are pointless without more than one provider.
+		return result
+	}
+	result.constraints = append(result.constraints, PrettyConstraint(solver.Mandatory(), fmt.Sprintf("there can be only one operator from package %s", pkg)))
+
+	var s []string
+	for _, p := range providers {
+		s = append(s, p.String())
+	}
+	msg := fmt.Sprintf("%s and %s originate from package %s", strings.Join(s[:len(s)-1], ", "), s[len(s)-1], pkg)
+	result.constraints = append(result.constraints, PrettyConstraint(solver.AtMost(1, providers...), msg))
+
+	return result
+}
+
+func PrettyConstraint(c solver.Constraint, msg string) solver.Constraint {
+	return prettyConstraint{
+		Constraint: c,
+		msg:        msg,
+	}
+}
+
+type prettyConstraint struct {
+	solver.Constraint
+	msg string
+}
+
+func (pc prettyConstraint) String(_ solver.Identifier) string {
+	return pc.msg
 }

@@ -820,25 +820,25 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 	tests := []struct {
 		name      string
 		podSpec   *corev1.PodSpec
-		resources corev1.ResourceRequirements
+		resources *corev1.ResourceRequirements
 		expected  *corev1.PodSpec
 	}{
 		{
-			// PodSpec has one container and empty resources
-			// Expected: Resources will remain empty
-			name: "WithEmptyResources",
+			// PodSpec has one container and existing resources
+			// Expected: PodSpec resources will remain untouched
+			name: "WithNilResources",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{
-						Resources: corev1.ResourceRequirements{},
+						Resources: defaultResources,
 					},
 				},
 			},
-			resources: corev1.ResourceRequirements{},
+			resources: nil,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{
-						Resources: corev1.ResourceRequirements{},
+						Resources: defaultResources,
 					},
 				},
 			},
@@ -854,7 +854,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 					},
 				},
 			},
-			resources: defaultResources,
+			resources: &defaultResources,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{
@@ -875,7 +875,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 					},
 				},
 			},
-			resources: corev1.ResourceRequirements{},
+			resources: &corev1.ResourceRequirements{},
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{

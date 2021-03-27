@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRequirementAndPermissionStatus(t *testing.T) {
@@ -297,7 +298,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 					Version: "v1",
 					Kind:    "ServiceAccount",
 					Name:    "sa",
-					Status:  v1alpha1.RequirementStatusReasonPresent,
+					Status:  v1alpha1.RequirementStatusReasonPresentNotSatisfied,
 					Dependents: []v1alpha1.DependentStatus{
 						{
 							Group:   "rbac.authorization.k8s.io",
@@ -641,7 +642,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 					Version: "v1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1.g1",
-					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
+					Status:  v1alpha1.RequirementStatusReasonNotPresent,
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
 					Group:   "operators.coreos.com",
@@ -773,48 +774,15 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 						},
 					},
 				},
-				&rbacv1.Role{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "role",
-						Namespace: namespace,
-					},
-					Rules: []rbacv1.PolicyRule{
-						{
-							APIGroups: []string{""},
-							Verbs:     []string{"*"},
-							Resources: []string{"donuts"},
-						},
-					},
-				},
-				&rbacv1.RoleBinding{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "roleBinding",
-						Namespace: namespace,
-					},
-					Subjects: []rbacv1.Subject{
-						{
-							Kind:      "ServiceAccount",
-							APIGroup:  "",
-							Name:      "sa",
-							Namespace: namespace,
-						},
-					},
-					RoleRef: rbacv1.RoleRef{
-						APIGroup: "rbac.authorization.k8s.io",
-						Kind:     "Role",
-						Name:     "role",
-					},
-				},
 			},
 			existingExtObjs: nil,
 			met:             false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
 				{"", "v1", "ServiceAccount", "sa"}: {
-					Group:      "",
 					Version:    "v1",
 					Kind:       "ServiceAccount",
 					Name:       "sa",
-					Status:     v1alpha1.RequirementStatusReasonNotPresent,
+					Status:     v1alpha1.RequirementStatusReasonPresentNotSatisfied,
 					Dependents: []v1alpha1.DependentStatus{},
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
@@ -822,6 +790,108 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 					Version: "v1alpha1",
 					Kind:    "ClusterServiceVersion",
 					Name:    "csv1",
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			description: "RequirementMet/ServiceAccountOwnedByNonCSV",
+			csv: csvWithUID(csv("csv",
+				namespace,
+				"0.0.0",
+				"",
+				installStrategy(
+					"csv-dep",
+					[]v1alpha1.StrategyDeploymentPermissions{
+						{
+							ServiceAccountName: "sa",
+						},
+					},
+					nil,
+				),
+				nil,
+				nil,
+				v1alpha1.CSVPhasePending,
+			), types.UID("csv-uid")),
+			existingObjs: []runtime.Object{
+				&corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sa",
+						Namespace: namespace,
+						UID:       types.UID("sa"),
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								Kind: v1alpha1.SubscriptionKind, // arbitrary non-CSV kind
+								UID:  "non-csv",
+							},
+						},
+					},
+				},
+			},
+			existingExtObjs: nil,
+			met:             true,
+			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
+				{"", "v1", "ServiceAccount", "sa"}: {
+					Version:    "v1",
+					Kind:       "ServiceAccount",
+					Name:       "sa",
+					Status:     v1alpha1.RequirementStatusReasonPresent,
+					Dependents: []v1alpha1.DependentStatus{},
+				},
+				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv"}: {
+					Group:   "operators.coreos.com",
+					Version: "v1alpha1",
+					Kind:    "ClusterServiceVersion",
+					Name:    "csv",
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			description: "RequirementMet/ServiceAccountHasNoOwner",
+			csv: csvWithUID(csv("csv",
+				namespace,
+				"0.0.0",
+				"",
+				installStrategy(
+					"csv-dep",
+					[]v1alpha1.StrategyDeploymentPermissions{
+						{
+							ServiceAccountName: "sa",
+						},
+					},
+					nil,
+				),
+				nil,
+				nil,
+				v1alpha1.CSVPhasePending,
+			), types.UID("csv-uid")),
+			existingObjs: []runtime.Object{
+				&corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sa",
+						Namespace: namespace,
+						UID:       types.UID("sa"),
+					},
+				},
+			},
+			existingExtObjs: nil,
+			met:             true,
+			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
+				{"", "v1", "ServiceAccount", "sa"}: {
+					Version:    "v1",
+					Kind:       "ServiceAccount",
+					Name:       "sa",
+					Status:     v1alpha1.RequirementStatusReasonPresent,
+					Dependents: []v1alpha1.DependentStatus{},
+				},
+				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv"}: {
+					Group:   "operators.coreos.com",
+					Version: "v1alpha1",
+					Kind:    "ClusterServiceVersion",
+					Name:    "csv",
 					Status:  v1alpha1.RequirementStatusReasonPresent,
 				},
 			},
@@ -843,7 +913,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				require.Error(t, err)
 				require.EqualError(t, test.expectedError, err.Error())
 			}
-			require.Equal(t, test.met, met)
+			assert := assert.New(t)
+			assert.Equal(test.met, met)
 
 			for _, status := range statuses {
 				key := gvkn{
@@ -854,14 +925,15 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				}
 
 				expected, ok := test.expectedRequirementStatuses[key]
-				require.True(t, ok, fmt.Sprintf("permission requirement status %+v found but not expected", key))
-				require.Len(t, status.Dependents, len(expected.Dependents), "number of dependents is not what was expected")
+				assert.True(ok, fmt.Sprintf("permission requirement status %+v found but not expected", key))
+				assert.Equal(expected.Status, status.Status)
+				assert.Len(status.Dependents, len(expected.Dependents), "number of dependents is not what was expected")
 
 				// Delete the requirement status to mark as found
 				delete(test.expectedRequirementStatuses, key)
 			}
 
-			require.Len(t, test.expectedRequirementStatuses, 0, "not all expected permission requirement statuses were found")
+			assert.Len(test.expectedRequirementStatuses, 0, "not all expected permission requirement statuses were found")
 		})
 	}
 }

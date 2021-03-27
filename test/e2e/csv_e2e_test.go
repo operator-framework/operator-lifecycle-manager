@@ -15,9 +15,9 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -124,6 +124,113 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 				return original.Status.LastUpdateTime.Equal(copy.Status.LastUpdateTime), nil
 			}).Should(BeTrue(), "Change to status of copy should have been reverted")
+		})
+	})
+
+	When("a csv requires a serviceaccount solely owned by a non-csv", func() {
+		var (
+			cm  corev1.ConfigMap
+			sa  corev1.ServiceAccount
+			csv v1alpha1.ClusterServiceVersion
+		)
+
+		BeforeEach(func() {
+			cm = corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "cm-",
+					Namespace:    testNamespace,
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &cm)).To(Succeed())
+
+			sa = corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "sa-",
+					Namespace:    testNamespace,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Name:       cm.GetName(),
+							APIVersion: corev1.SchemeGroupVersion.String(),
+							Kind:       "ConfigMap",
+							UID:        cm.GetUID(),
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &sa)).To(Succeed())
+
+			csv = v1alpha1.ClusterServiceVersion{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.ClusterServiceVersionKind,
+					APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "csv-",
+					Namespace:    testNamespace,
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					InstallStrategy: v1alpha1.NamedInstallStrategy{
+						StrategyName: v1alpha1.InstallStrategyNameDeployment,
+						StrategySpec: v1alpha1.StrategyDetailsDeployment{
+							DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+								{
+									Name: "foo",
+									Spec: appsv1.DeploymentSpec{
+										Selector: &metav1.LabelSelector{
+											MatchLabels: map[string]string{"app": "foo"},
+										},
+										Template: corev1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"app": "foo"},
+											},
+											Spec: corev1.PodSpec{Containers: []corev1.Container{
+												{
+													Name:  genName("foo"),
+													Image: *dummyImage,
+												},
+											}},
+										},
+									},
+								},
+							},
+							Permissions: []v1alpha1.StrategyDeploymentPermissions{
+								{
+									ServiceAccountName: sa.GetName(),
+									Rules:              []rbacv1.PolicyRule{},
+								},
+							},
+						},
+					},
+					InstallModes: []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeAllNamespaces,
+							Supported: true,
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &csv)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			if cm.GetName() != "" {
+				Expect(ctx.Ctx().Client().Delete(context.Background(), &cm)).To(Succeed())
+			}
+		})
+
+		It("considers the serviceaccount requirement satisfied", func() {
+			Eventually(func() (v1alpha1.StatusReason, error) {
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&csv), &csv); err != nil {
+					return "", err
+				}
+				for _, requirement := range csv.Status.RequirementStatus {
+					if requirement.Name != sa.GetName() {
+						continue
+					}
+					return requirement.Status, nil
+				}
+				return "", fmt.Errorf("missing expected requirement %q", sa.GetName())
+			}).Should(Equal(v1alpha1.RequirementStatusReasonPresent))
 		})
 	})
 
@@ -1691,6 +1798,78 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(annotations["foo1"]).Should(Equal("bar1"))
 		Expect(annotations["foo2"]).Should(Equal("bar2"))
 		Expect(annotations["foo3"]).Should(Equal("bar3"))
+	})
+	It("Set labels for the Deployment created via the ClusterServiceVersion", func() {
+		// Create a StrategyDetailsDeployment that defines labels for Deployment inside
+		nginxName := genName("nginx-")
+		strategy := v1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+				{
+					Name: genName("dep-"),
+					Spec: newNginxDeployment(nginxName),
+					Label: k8slabels.Set{
+						"application":      "nginx",
+						"application.type": "proxy",
+					},
+				},
+			},
+		}
+
+		csv := v1alpha1.ClusterServiceVersion{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.ClusterServiceVersionKind,
+				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("csv"),
+			},
+			Spec: v1alpha1.ClusterServiceVersionSpec{
+				MinKubeVersion: "0.0.0",
+				InstallModes: []v1alpha1.InstallMode{
+					{
+						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					},
+				},
+				InstallStrategy: v1alpha1.NamedInstallStrategy{
+					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+					StrategySpec: strategy,
+				},
+			},
+		}
+
+		// Create the CSV and make sure to clean it up
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, false, false)
+		Expect(err).ShouldNot(HaveOccurred())
+		defer cleanupCSV()
+
+		// Wait for current CSV to succeed
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// Should have created deployment
+		dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(dep).ShouldNot(BeNil())
+
+		// Make sure that the deployment labels are correct
+		labels := dep.GetLabels()
+		Expect(labels["olm.owner"]).Should(Equal(csv.GetName()))
+		Expect(labels["olm.owner.namespace"]).Should(Equal(testNamespace))
+		Expect(labels["application"]).Should(Equal("nginx"))
+		Expect(labels["application.type"]).Should(Equal("proxy"))
 	})
 	It("update same deployment name", func() {
 
@@ -3588,7 +3767,7 @@ func waitForDeploymentToDelete(c operatorclient.ClientInterface, name string) er
 	Eventually(func() (bool, error) {
 		ctx.Ctx().Logf("waiting for deployment %s to delete", name)
 		_, err := c.GetDeployment(testNamespace, name)
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			ctx.Ctx().Logf("deleted %s", name)
 			return true, nil
 		}
@@ -3604,7 +3783,7 @@ func waitForDeploymentToDelete(c operatorclient.ClientInterface, name string) er
 func csvExists(c versioned.Interface, name string) bool {
 
 	fetched, err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		return false
 	}
 	ctx.Ctx().Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
@@ -3666,7 +3845,7 @@ func createLegacyAPIResources(csv *v1alpha1.ClusterServiceVersion, desc v1alpha1
 	}
 
 	_, err = c.CreateSecret(&secret)
-	if err != nil && !errors.IsAlreadyExists(err) {
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		Expect(err).ShouldNot(HaveOccurred())
 	}
 
@@ -3731,25 +3910,25 @@ func checkLegacyAPIResources(desc v1alpha1.APIServiceDescription, expectedIsNotF
 
 	// Attempt to create the legacy service
 	_, err := c.GetService(testNamespace, strings.Replace(apiServiceName, ".", "-", -1))
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret
 	_, err = c.GetSecret(testNamespace, apiServiceName+"-cert")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret role
 	_, err = c.GetRole(testNamespace, apiServiceName+"-cert")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret role binding
 	_, err = c.GetRoleBinding(testNamespace, apiServiceName+"-cert")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy authDelegatorClusterRoleBinding
 	_, err = c.GetClusterRoleBinding(apiServiceName + "-system:auth-delegator")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy authReadingRoleBinding
 	_, err = c.GetRoleBinding("kube-system", apiServiceName+"-auth-reader")
-	Expect(errors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 }

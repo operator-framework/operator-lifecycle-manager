@@ -640,7 +640,7 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 	// requeue the catalog sync based on the polling interval, for accurate syncs of catalogs with polling enabled
 	if out.Spec.UpdateStrategy != nil {
 		logger.Debugf("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
-		resyncPeriod := reconciler.SyncRegistryUpdateInterval(out)
+		resyncPeriod := reconciler.SyncRegistryUpdateInterval(out, time.Now())
 		o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), queueinformer.ResyncWithJitter(resyncPeriod, 0.1)())
 		return
 	}
@@ -1578,7 +1578,16 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 	ensurer := newStepEnsurer(kubeclient, crclient, dynamicClient)
 	r := newManifestResolver(plan.GetNamespace(), o.lister.CoreV1().ConfigMapLister(), o.logger)
-	b := newBuilder(kubeclient, dynamicClient, o.csvProvidedAPIsIndexer, r, o.logger)
+
+	// CRDs should be installed via the default OLM (cluster-admin) client and not the scoped client specified by the AttenuatedServiceAccount
+	// the StepBuilder is currently only implemented for CRD types
+	// TODO give the StepBuilder both OLM and scoped clients when it supports new scoped types
+	builderKubeClient, _, builderDynamicClient, err := o.clientAttenuator.AttenuateClientWithServiceAccount(nil)
+	if err != nil {
+		o.logger.Errorf("failed to get a client for plan execution- %v", err)
+		return err
+	}
+	b := newBuilder(builderKubeClient, builderDynamicClient, o.csvProvidedAPIsIndexer, r, o.logger)
 
 	for i, step := range plan.Status.Plan {
 		doStep := true

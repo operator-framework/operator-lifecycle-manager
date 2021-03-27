@@ -11,6 +11,16 @@
 [Docker for Mac]: https://store.docker.com/editions/community/docker-ce-desktop-mac
 [kubebuilder docs]: https://book.kubebuilder.io/quick-start.html#installation
 
+#### E2E test environments
+
+| Requirement | install docs         |
+|-------------|----------------------|
+| Minikube    | [Minikube docs]      |
+| Kind        | [Kind docs]          |
+
+[Minikube docs]: https://minikube.sigs.k8s.io/docs/start
+[Kind docs]: https://kind.sigs.k8s.io/docs/user/quick-start
+
 ### Usage
 
 #### Testing
@@ -27,6 +37,8 @@ To run the e2e tests locally:
 ```sh
 $ make e2e-local
 ```
+
+**NOTE:** Command `make e2e-local` supports Minikube and Kind environments. If you want to run the e2e tests on Minikube, you need to make sure Minikube is deployed in the local environment. If you want to run the e2e tests on Kind, you need to make sure Kind is deployed in the local environment and switch the kubeconfig to an existing Kind cluster.
 
 To run a specific e2e test locally:
 

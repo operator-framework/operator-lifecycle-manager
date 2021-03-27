@@ -17,7 +17,9 @@ charttmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t charttmpdir)
 charttmpdir=${charttmpdir}/chart
 
 cp -R deploy/chart/ "${charttmpdir}"
-sed -i "s/^[Vv]ersion:.*\$/version: ${version}/" "${charttmpdir}/Chart.yaml"
+
+# overwrite the destination Chart.yaml file with a modified copy containing the version
+sed "s/^[Vv]ersion:.*\$/version: ${version}/" deploy/chart/Chart.yaml > "${charttmpdir}/Chart.yaml"
 
 mkdir -p "${chartdir}"
 

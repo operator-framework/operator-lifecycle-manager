@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -46,31 +47,31 @@ var (
 	Requires4 = APISet4
 )
 
-type resolverTest struct {
-	name             string
-	clusterState     []runtime.Object
-	querier          SourceQuerier
-	bundlesByCatalog map[registry.CatalogKey][]*api.Bundle
-	out              resolverTestOut
-}
-
-type resolverTestOut struct {
-	steps       [][]*v1alpha1.Step
-	lookups     []v1alpha1.BundleLookup
-	subs        []*v1alpha1.Subscription
-	errAssert   func(*testing.T, error)
-	solverError solver.NotSatisfiable
-}
-
-func SharedResolverSpecs() []resolverTest {
+func TestResolver(t *testing.T) {
 	const namespace = "catsrc-namespace"
 	catalog := registry.CatalogKey{Name: "catsrc", Namespace: namespace}
+
+	type resolverTestOut struct {
+		steps       [][]*v1alpha1.Step
+		lookups     []v1alpha1.BundleLookup
+		subs        []*v1alpha1.Subscription
+		errAssert   func(*testing.T, error)
+		solverError solver.NotSatisfiable
+	}
+	type resolverTest struct {
+		name             string
+		clusterState     []runtime.Object
+		querier          SourceQuerier
+		bundlesByCatalog map[registry.CatalogKey][]*api.Bundle
+		out              resolverTestOut
+	}
+
 	nothing := resolverTestOut{
 		steps:   [][]*v1alpha1.Step{},
 		lookups: []v1alpha1.BundleLookup{},
 		subs:    []*v1alpha1.Subscription{},
 	}
-	return []resolverTest{
+	tests := []resolverTest{
 		{
 			name: "SubscriptionOmitsChannel",
 			clusterState: []runtime.Object{
@@ -98,24 +99,12 @@ func SharedResolverSpecs() []resolverTest {
 			out: resolverTestOut{
 				solverError: solver.NotSatisfiable{
 					{
-						Installable: &SubscriptionInstallable{
-							identifier: "a",
-							constraints: []solver.Constraint{
-								solver.Mandatory(),
-								solver.Dependency(),
-							},
-						},
-						Constraint: solver.Mandatory(),
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 					{
-						Installable: &SubscriptionInstallable{
-							identifier: "a",
-							constraints: []solver.Constraint{
-								solver.Mandatory(),
-								solver.Dependency(),
-							},
-						},
-						Constraint: solver.Dependency(),
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found matching the criteria of subscription a-alpha"),
 					},
 				},
 			},
@@ -181,7 +170,7 @@ func SharedResolverSpecs() []resolverTest {
 					{
 						Path:       "quay.io/test/bundle@sha256:abcd",
 						Identifier: "b.v1",
-						Properties: `{"properties":[{"type":"olm.gvk","value":{"group":"g","kind":"k","version":"v"}}]}`,
+						Properties: `{"properties":[{"type":"olm.gvk","value":{"group":"g","kind":"k","version":"v"}},{"type":"olm.package","value":{"packageName":"b","version":"0.0.0"}}]}`,
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
 							Name:      catalog.Name,
@@ -267,15 +256,8 @@ func SharedResolverSpecs() []resolverTest {
 				subs:    []*v1alpha1.Subscription{},
 				solverError: solver.NotSatisfiable([]solver.AppliedConstraint{
 					{
-						Installable: &SubscriptionInstallable{
-							identifier: "a",
-							constraints: []solver.Constraint{
-								solver.Mandatory(),
-								solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"),
-								solver.AtMost(1, "catsrc/catsrc-namespace/alpha/a.v1"),
-							},
-						},
-						Constraint: solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"),
+						Installable: NewSubscriptionInstallable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),
+						Constraint:  PrettyConstraint(solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"), "subscription a-alpha requires catsrc/catsrc-namespace/alpha/a.v1"),
 					},
 					{
 						Installable: &BundleInstallable{
@@ -285,15 +267,8 @@ func SharedResolverSpecs() []resolverTest {
 						Constraint: solver.Dependency(),
 					},
 					{
-						Installable: &SubscriptionInstallable{
-							identifier: "a",
-							constraints: []solver.Constraint{
-								solver.Mandatory(),
-								solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"),
-								solver.AtMost(1, "catsrc/catsrc-namespace/alpha/a.v1"),
-							},
-						},
-						Constraint: solver.Mandatory(),
+						Installable: NewSubscriptionInstallable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),
+						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 				}),
 			},
@@ -327,6 +302,57 @@ func SharedResolverSpecs() []resolverTest {
 			out: resolverTestOut{
 				errAssert: func(t *testing.T, err error) {
 					assert.IsType(t, solver.NotSatisfiable{}, err)
+				},
+			},
+		},
+		{
+			name: "ConflictingSubscriptionsToSamePackage",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+				newSub(namespace, "a", "beta", catalog),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+					bundle("a.v2", "a", "beta", "", Provides1, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				errAssert: func(t *testing.T, err error) {
+					fmt.Println(err)
+					assert.IsType(t, solver.NotSatisfiable{}, err)
+				},
+			},
+		},
+		{
+			// No two operators from the same package may run at the same time, but it's possible to have two
+			// subscriptions to the same package as long as it's possible to find a bundle that satisfies both
+			// constraints
+			name: "SatisfiableSubscriptionsToSamePackage",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+				func() (s *v1alpha1.Subscription) {
+					s = newSub(namespace, "a", "alpha", catalog)
+					s.Name = s.Name+"-2"
+					return
+				}(),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, "", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "", "a", "alpha", catalog),
+					func() (s *v1alpha1.Subscription) {
+						s = updatedSub(namespace, "a.v1", "", "a", "alpha", catalog)
+						s.Name = s.Name+"-2"
+						return
+					}(),
 				},
 			},
 		},
@@ -375,7 +401,7 @@ func SharedResolverSpecs() []resolverTest {
 						Path:       "quay.io/test/bundle@sha256:abcd",
 						Identifier: "a.v2",
 						Replaces:   "a.v1",
-						Properties: `{"properties":[{"type":"olm.gvk","value":{"group":"g","kind":"k","version":"v"}}]}`,
+						Properties: `{"properties":[{"type":"olm.gvk","value":{"group":"g","kind":"k","version":"v"}},{"type":"olm.package","value":{"packageName":"a","version":"0.0.0"}}]}`,
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
 							Name:      catalog.Name,
@@ -622,7 +648,7 @@ func SharedResolverSpecs() []resolverTest {
 			}},
 			out: resolverTestOut{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil), namespace, "a.v1", catalog),
+					bundleSteps(bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil, withVersion("1.0.0"), withSkipRange("< 1.0.0")), namespace, "a.v1", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v3", "a.v1", "a", "alpha", catalog),
@@ -630,16 +656,6 @@ func SharedResolverSpecs() []resolverTest {
 			},
 		},
 		{
-			// This test uses logic that implements the FakeSourceQuerier to ensure
-			// that the required API is provided by the new Operator.
-			//
-			// Background:
-			// OLM used to add the new operator to the generation before removing
-			// the old operator from the generation. The logic that removes an operator
-			// from the current generation removes the APIs it provides from the list of
-			// "available" APIs. This caused OLM to search for an operator that provides the API.
-			// If the operator that provides the API uses a skipRange rather than the Spec.Replaces
-			// field, the Replaces field is set to an empty string, causing OLM to fail to upgrade.
 			name: "InstalledSubs/ExistingOperators/OldCSVsReplaced",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -666,15 +682,7 @@ func SharedResolverSpecs() []resolverTest {
 				},
 			},
 		},
-	}
-}
-
-func TestResolver(t *testing.T) {
-	namespace := "catsrc-namespace"
-	catalog := registry.CatalogKey{"catsrc", namespace}
-
-	tests := append(SharedResolverSpecs(),
-		resolverTest{
+		{
 			name: "InstalledSub/UpdatesAvailable/SkipRangeNotInHead",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -687,14 +695,14 @@ func TestResolver(t *testing.T) {
 			}},
 			out: resolverTestOut{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil), namespace, "a.v1", catalog),
+					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil, withVersion("1.0.0"), withSkipRange("< 1.0.0")), namespace, "a.v1", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v3", "a.v1", "a", "alpha", catalog),
 				},
 			},
 		},
-		resolverTest{
+		{
 			name: "NewSub/StartingCSV",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog, withStartingCSV("a.v2")),
@@ -713,7 +721,7 @@ func TestResolver(t *testing.T) {
 				},
 			},
 		},
-		resolverTest{
+		{
 			name: "InstalledSub/UpdatesAvailable/SpecifiedSkips",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -725,14 +733,14 @@ func TestResolver(t *testing.T) {
 			}},
 			out: resolverTestOut{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil), namespace, "a.v1", catalog),
+					bundleSteps(bundle("a.v3", "a", "alpha", "", nil, nil, nil, nil, withVersion("1.0.0"), withSkips([]string{"a.v1"})), namespace, "a.v1", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v3", "a.v1", "a", "alpha", catalog),
 				},
 			},
 		},
-	)
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stopc := make(chan struct{})
@@ -831,6 +839,19 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 		},
 	}
 	bundle := bundleWithPermissions("a.v1", "a", "alpha", "", nil, nil, nil, nil, simplePermissions, simplePermissions)
+	defaultServiceAccountPermissions := []v1alpha1.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: "default",
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get", "list"},
+					APIGroups: []string{""},
+					Resources: []string{"configmaps"},
+				},
+			},
+		},
+	}
+	bundleWithDefaultServiceAccount := bundleWithPermissions("a.v1", "a", "alpha", "", nil, nil, nil, nil, defaultServiceAccountPermissions, defaultServiceAccountPermissions)
 	type out struct {
 		steps [][]*v1alpha1.Step
 		subs  []*v1alpha1.Subscription
@@ -851,6 +872,21 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			out: out{
 				steps: [][]*v1alpha1.Step{
 					bundleSteps(bundle, namespace, "", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "", "a", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "don't create default service accounts",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+			},
+			bundlesInCatalog: []*api.Bundle{bundleWithDefaultServiceAccount},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					withoutResourceKind("ServiceAccount", bundleSteps(bundleWithDefaultServiceAccount, namespace, "", catalog)),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v1", "", "a", "alpha", catalog),
@@ -1026,6 +1062,18 @@ func bundleSteps(bundle *api.Bundle, ns, replaces string, catalog registry.Catal
 		})
 	}
 	return steps
+}
+
+func withoutResourceKind(kind string, steps []*v1alpha1.Step) []*v1alpha1.Step {
+	filtered := make([]*v1alpha1.Step, 0)
+
+	for i, s := range steps {
+		if s.Resource.Kind != kind {
+			filtered = append(filtered, steps[i])
+		}
+	}
+
+	return filtered
 }
 
 func subSteps(namespace, operatorName, pkgName, channelName string, catalog registry.CatalogKey) []*v1alpha1.Step {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
+	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
@@ -97,12 +99,13 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 
 		// if no operator is installed and we have a startingCSV, filter for it
 		if current == nil && len(sub.Spec.StartingCSV) > 0 {
+			predicates = append(predicates, WithCSVName(sub.Spec.StartingCSV))
 			channelFilter = append(channelFilter, WithCSVName(sub.Spec.StartingCSV))
 			startingCSVs[sub.Spec.StartingCSV] = struct{}{}
 		}
 
 		// find operators, in channel order, that can skip from the current version or list the current in "replaces"
-		subInstallables, err := r.getSubscriptionInstallables(pkg, sub.Namespace, current, catalog, predicates, channelFilter, namespacedCache, visited)
+		subInstallables, err := r.getSubscriptionInstallables(sub.Name, pkg, sub.Namespace, current, catalog, predicates, channelFilter, namespacedCache, visited)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -180,12 +183,9 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(pkg, namespace string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+func (r *SatResolver) getSubscriptionInstallables(name, pkg, namespace string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
 	installables := make(map[solver.Identifier]solver.Installable, 0)
 	candidates := make([]*BundleInstallable, 0)
-
-	subInstallable := NewSubscriptionInstallable(pkg)
-	installables[subInstallable.Identifier()] = &subInstallable
 
 	bundles := namespacedCache.Catalog(catalog).Find(cachePredicates...)
 
@@ -263,7 +263,8 @@ func (r *SatResolver) getSubscriptionInstallables(pkg, namespace string, current
 	}
 
 	// all candidates added as options for this constraint
-	subInstallable.AddDependency(depIds)
+	subInstallable := NewSubscriptionInstallable(name, depIds)
+	installables[subInstallable.Identifier()] = subInstallable
 
 	return installables, nil
 }
@@ -363,6 +364,51 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 	return ids, installables, nil
 }
 
+func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) ([]*api.Property, error) {
+	var properties []*api.Property
+
+	packages := make(map[string]struct{})
+	for _, sub := range subs {
+		if sub.Status.InstalledCSV != csv.Name {
+			continue
+		}
+		// Without sanity checking the Subscription spec's
+		// package against catalog contents, updates to the
+		// Subscription spec could result in a bad package
+		// inference.
+		for _, entry := range r.cache.Namespaced(sub.Namespace).Catalog(registry.CatalogKey{Namespace: sub.Spec.CatalogSourceNamespace, Name: sub.Spec.CatalogSource}).Find(And(WithCSVName(csv.Name), WithPackage(sub.Spec.Package))) {
+			if pkg := entry.Package(); pkg != "" {
+				packages[pkg] = struct{}{}
+			}
+		}
+	}
+	if l := len(packages); l != 1 {
+		r.log.Warnf("could not unambiguously infer package name for %q (found %d distinct package names)", csv.Name, l)
+		return properties, nil
+	}
+	var pkg string
+	for pkg = range packages {
+		// Assign the single key to pkg.
+	}
+	var version string // Emit empty string rather than "0.0.0" if .spec.version is zero-valued.
+	if !csv.Spec.Version.Version.Equals(semver.Version{}) {
+		version = csv.Spec.Version.String()
+	}
+	if pp, err := json.Marshal(opregistry.PackageProperty{
+		PackageName: pkg,
+		Version:     version,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to marshal inferred package property: %w", err)
+	} else {
+		properties = append(properties, &api.Property{
+			Type:  opregistry.PackageType,
+			Value: string(pp),
+		})
+	}
+
+	return properties, nil
+}
+
 func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*CatalogSnapshot, []solver.Installable, error) {
 	installables := make([]solver.Installable, 0)
 	existingOperatorCatalog := registry.NewVirtualCatalogKey(namespace)
@@ -394,6 +440,11 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 
 		if anno, ok := csv.GetAnnotations()[projection.PropertiesAnnotationKey]; !ok {
 			csvsMissingProperties = append(csvsMissingProperties, csv)
+			if inferred, err := r.inferProperties(csv, subs); err != nil {
+				r.log.Warnf("unable to infer properties for csv %q: %w", csv.Name, err)
+			} else {
+				op.properties = append(op.properties, inferred...)
+			}
 		} else if props, err := projection.PropertyListFromPropertiesAnnotation(anno); err != nil {
 			return nil, nil, fmt.Errorf("failed to retrieve properties of csv %q: %w", csv.GetName(), err)
 		} else {
@@ -423,7 +474,8 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 
 func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, installables map[solver.Identifier]solver.Installable) {
 	// no two operators may provide the same GVK or Package in a namespace
-	conflictToInstallable := make(map[string][]solver.Installable)
+	gvkConflictToInstallable := make(map[opregistry.GVKProperty][]solver.Identifier)
+	packageConflictToInstallable := make(map[string][]solver.Identifier)
 	for _, installable := range installables {
 		bundleInstallable, ok := installable.(*BundleInstallable)
 		if !ok {
@@ -449,12 +501,7 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			if err != nil {
 				continue
 			}
-			key := fmt.Sprintf("gvkunique/%s/%s/%s", prop.Group, prop.Version, prop.Kind)
-			_, ok := conflictToInstallable[key]
-			if !ok {
-				conflictToInstallable[key] = make([]solver.Installable, 0)
-			}
-			conflictToInstallable[key] = append(conflictToInstallable[key], installable)
+			gvkConflictToInstallable[prop] = append(gvkConflictToInstallable[prop], installable.Identifier())
 		}
 
 		// cannot have the same package
@@ -467,27 +514,18 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			if err != nil {
 				continue
 			}
-			key := fmt.Sprintf("pkgunique/%s", prop.PackageName)
-			_, ok := conflictToInstallable[key]
-			if !ok {
-				conflictToInstallable[key] = make([]solver.Installable, 0)
-			}
-			conflictToInstallable[key] = append(conflictToInstallable[key], installable)
+			packageConflictToInstallable[prop.PackageName] = append(packageConflictToInstallable[prop.PackageName], installable.Identifier())
 		}
 	}
 
-	for key, is := range conflictToInstallable {
-		if len(is) <= 1 {
-			continue
-		}
+	for gvk, is := range gvkConflictToInstallable {
+		s := NewSingleAPIProviderInstallable(gvk.Group, gvk.Version, gvk.Kind, is)
+		installables[s.Identifier()] = s
+	}
 
-		ids := make([]solver.Identifier, 0)
-		for _, d := range is {
-			ids = append(ids, d.Identifier())
-		}
-		s := NewSubscriptionInstallable(key)
-		s.constraints = append(s.constraints, solver.AtMost(1, ids...))
-		installables[s.Identifier()] = &s
+	for pkg, is := range packageConflictToInstallable {
+		s := NewSinglePackageInstanceInstallable(pkg, is)
+		installables[s.Identifier()] = s
 	}
 }
 

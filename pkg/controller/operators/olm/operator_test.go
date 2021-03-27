@@ -4834,3 +4834,60 @@ func csvWithWebhook(csv *v1alpha1.ClusterServiceVersion, deploymentName string, 
 	}
 	return csv
 }
+
+func TestGetReplacementChain(t *testing.T) {
+	CSV := func(name, replaces string) *v1alpha1.ClusterServiceVersion {
+		return &v1alpha1.ClusterServiceVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+			Spec: v1alpha1.ClusterServiceVersionSpec{
+				Replaces: replaces,
+			},
+		}
+	}
+
+	for _, tc := range []struct {
+		Name     string
+		From     *v1alpha1.ClusterServiceVersion
+		All      map[string]*v1alpha1.ClusterServiceVersion
+		Expected []string
+	}{
+		{
+			Name: "csv replaces itself",
+			From: CSV("itself", "itself"),
+			All: map[string]*v1alpha1.ClusterServiceVersion{
+				"itself": CSV("itself", "itself"),
+			},
+			Expected: []string{"itself"},
+		},
+		{
+			Name: "two csvs replace each other",
+			From: CSV("a", "b"),
+			All: map[string]*v1alpha1.ClusterServiceVersion{
+				"a": CSV("a", "b"),
+				"b": CSV("b", "a"),
+			},
+			Expected: []string{"a", "b"},
+		},
+		{
+			Name: "starting from head of chain without cycles",
+			From: CSV("a", "b"),
+			All: map[string]*v1alpha1.ClusterServiceVersion{
+				"a": CSV("a", "b"),
+				"b": CSV("b", "c"),
+				"c": CSV("c", ""),
+			},
+			Expected: []string{"a", "b", "c"},
+		},
+	} {
+		t.Run(tc.Name, func(t *testing.T) {
+			assert := assert.New(t)
+			var actual []string
+			for name := range (&Operator{}).getReplacementChain(tc.From, tc.All) {
+				actual = append(actual, name)
+			}
+			assert.ElementsMatch(tc.Expected, actual)
+		})
+	}
+}

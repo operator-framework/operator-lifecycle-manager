@@ -287,8 +287,44 @@ var _ = Describe("OperatorCondition", func() {
 					Expect(k8sClient.Create(ctx, operatorCondition)).To(Succeed())
 				})
 
-				It("injects the OperatorCondition name into the deployment's Environment Variables", func() {
+				It("should always inject the OperatorCondition Environment Variable into containers defined in the deployment", func() {
 					deployment := &appsv1.Deployment{}
+					Eventually(func() error {
+						err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
+						if err != nil {
+							return err
+						}
+						if len(deployment.Spec.Template.Spec.Containers) != 1 {
+							return fmt.Errorf("Deployment should contain a single container")
+						}
+						for _, container := range deployment.Spec.Template.Spec.Containers {
+							if len(container.Env) == 0 {
+								return fmt.Errorf("env vars should exist")
+							}
+						}
+						return nil
+					}, timeout, interval).Should(BeNil())
+
+					Expect(len(deployment.Spec.Template.Spec.Containers)).Should(Equal(1))
+					for _, container := range deployment.Spec.Template.Spec.Containers {
+						Expect(len(container.Env)).Should(Equal(1))
+						Expect(container.Env).Should(ContainElement(corev1.EnvVar{
+							Name:  "OPERATOR_CONDITION_NAME",
+							Value: operatorCondition.GetName(),
+						}))
+					}
+
+					// Remove the container's Environment Variables defined in the deployment
+					Eventually(func() error {
+						err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
+						if err != nil {
+							return err
+						}
+						deployment.Spec.Template.Spec.Containers[0].Env = nil
+						return k8sClient.Update(ctx, deployment)
+					}, timeout, interval).Should(BeNil())
+
+					// Ensure that the OPERATOR_CONDITION_NAME Environment Variable is recreated
 					Eventually(func() error {
 						err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
 						if err != nil {
