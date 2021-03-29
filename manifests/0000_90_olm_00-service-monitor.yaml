@@ -4,6 +4,7 @@ metadata:
   name: operator-lifecycle-manager-metrics
   namespace: openshift-operator-lifecycle-manager
   annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
 rules:
@@ -24,6 +25,7 @@ metadata:
   name: operator-lifecycle-manager-metrics
   namespace: openshift-operator-lifecycle-manager
   annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
 roleRef:
@@ -43,6 +45,7 @@ metadata:
   labels:
     app: olm-operator
   annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
 spec:
@@ -75,6 +78,7 @@ metadata:
   labels:
     app: catalog-operator
   annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
 spec:
