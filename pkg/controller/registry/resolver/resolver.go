@@ -324,15 +324,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 				continue
 			}
 			bundleDependencies := make([]solver.Identifier, 0)
-			for _, dep := range sortedBundles {
-				found := namespacedCache.Catalog(dep.SourceInfo().Catalog).Find(WithCSVName(dep.Identifier()))
-				if len(found) == 0 {
-					err := fmt.Errorf("couldn't find %s in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
-					errs = append(errs, err)
-					r.log.Warnf("cache consistency error: %s not found in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
-					continue
-				}
-				b := found[0]
+			for _, b := range sortedBundles {
 				src := b.SourceInfo()
 				if src == nil {
 					err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
