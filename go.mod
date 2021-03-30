@@ -1,6 +1,6 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
-go 1.15
+go 1.16
 
 require (
 	github.com/blang/semver/v4 v4.0.0
@@ -51,6 +51,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.20.0
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.8.0
 	sigs.k8s.io/controller-tools v0.4.1
