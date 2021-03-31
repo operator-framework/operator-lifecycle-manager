@@ -194,14 +194,18 @@ func findToleration(tolerations []corev1.Toleration, toleration corev1.Toleratio
 // into given podSpec
 //
 // If podSpec already defines Resources, it will be overwritten
-func InjectResourcesIntoDeployment(podSpec *corev1.PodSpec, resources corev1.ResourceRequirements) error {
+func InjectResourcesIntoDeployment(podSpec *corev1.PodSpec, resources *corev1.ResourceRequirements) error {
 	if podSpec == nil {
 		return errors.New("no pod spec provided")
 	}
 
+	if resources == nil {
+		return nil
+	}
+
 	for i := range podSpec.Containers {
 		container := &podSpec.Containers[i]
-		container.Resources = resources
+		container.Resources = *resources
 	}
 
 	return nil
