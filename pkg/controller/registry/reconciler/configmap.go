@@ -354,7 +354,7 @@ func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDec
 			return nil
 		}
 		for _, p := range currentPods {
-			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0)); err != nil {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
 			}
 		}
