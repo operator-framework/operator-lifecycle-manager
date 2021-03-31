@@ -1,5 +1,5 @@
 # Dockerfile to bootstrap build and test in openshift-ci
-FROM openshift/origin-release:golang-1.15
+FROM openshift/origin-release:golang-1.16
 
 ARG KUBEBUILDER_RELEASE=2.3.1
 # Install test dependencies

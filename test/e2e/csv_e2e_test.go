@@ -2987,7 +2987,144 @@ var _ = Describe("ClusterServiceVersion", func() {
 		err = waitForDeploymentToDelete(c, strategy.DeploymentSpecs[0].Name)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
+	It("update deployment spec in an existing CSV for a hotfix", func() {
 
+		c := newKubeClient()
+		crc := newCRClient()
+
+		// Create dependency first (CRD)
+		crdPlural := genName("ins")
+		crdName := crdPlural + ".cluster.com"
+		cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName,
+			},
+			Spec: apiextensions.CustomResourceDefinitionSpec{
+				Group:   "cluster.com",
+				Version: "v1alpha1",
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+				Scope: "Namespaced",
+			},
+		})
+		defer cleanupCRD()
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// Create "current" CSV
+		nginxName := genName("nginx-")
+		strategy := v1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+				{
+					Name: genName("dep-"),
+					Spec: newNginxDeployment(nginxName),
+				},
+			},
+		}
+
+		csv := v1alpha1.ClusterServiceVersion{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.ClusterServiceVersionKind,
+				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("csv"),
+			},
+			Spec: v1alpha1.ClusterServiceVersionSpec{
+				MinKubeVersion: "0.0.0",
+				InstallModes: []v1alpha1.InstallMode{
+					{
+						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					},
+				},
+				InstallStrategy: v1alpha1.NamedInstallStrategy{
+					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+					StrategySpec: strategy,
+				},
+				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+					Owned: []v1alpha1.CRDDescription{
+						{
+							Name:        crdName,
+							Version:     "v1alpha1",
+							Kind:        crdPlural,
+							DisplayName: crdName,
+							Description: "In the cluster",
+						},
+					},
+				},
+			},
+		}
+
+		cleanupCSV, err := createCSV(c, crc, csv, testNamespace, true, false)
+		Expect(err).ShouldNot(HaveOccurred())
+		defer cleanupCSV()
+
+		// Wait for current CSV to succeed
+		_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// Should have created deployment
+		dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(dep).ShouldNot(BeNil())
+
+		// Create "updated" CSV
+		strategyNew := v1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+				{
+					// Same name
+					Name: strategy.DeploymentSpecs[0].Name,
+					// Different spec
+					Spec: newNginxDeployment(nginxName),
+				},
+			},
+		}
+
+		// Fetch the current csv
+		fetchedCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// Update csv with modified deployment spec
+		fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
+
+		Eventually(func() error {
+			// Update the current csv
+			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
+			return err
+		}).Should(Succeed())
+
+		// Wait for updated CSV to succeed
+		_, err = fetchCSV(crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+
+			// Should have updated existing deployment
+			depUpdated, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(depUpdated).ShouldNot(BeNil())
+			// container name has been updated and differs from initial CSV spec and updated CSV spec
+			Expect(depUpdated.Spec.Template.Spec.Containers[0].Name).ShouldNot(Equal(strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name))
+
+			// Check for success
+			return csvSucceededChecker(csv)
+		})
+		Expect(err).ShouldNot(HaveOccurred())
+
+	})
 	It("emits CSV requirement events", func() {
 
 		csv := &v1alpha1.ClusterServiceVersion{
