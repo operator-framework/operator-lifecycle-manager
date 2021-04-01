@@ -107,7 +107,10 @@ var _ = BeforeSuite(func() {
 	By("Setting up a controller manager")
 	err = AddToScheme(scheme)
 	Expect(err).ToNot(HaveOccurred())
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: scheme})
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		MetricsBindAddress: "0", // Prevents conflicts with other test suites that might bind metrics
+		Scheme:             scheme,
+	})
 	Expect(err).ToNot(HaveOccurred())
 
 	operatorReconciler, err := NewOperatorReconciler(
