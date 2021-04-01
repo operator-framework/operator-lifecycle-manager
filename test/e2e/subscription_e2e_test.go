@@ -2063,6 +2063,73 @@ var _ = Describe("Subscription", func() {
 			}).ShouldNot(Succeed())
 		})
 	})
+
+	When("there exists a Subscription to an operator having dependency candidates in both default and nondefault channels", func() {
+		var (
+			teardown func()
+		)
+
+		BeforeEach(func() {
+			teardown = func() {}
+
+			packages := []registry.PackageManifest{
+				{
+					PackageName: "dependency",
+					Channels: []registry.PackageChannel{
+						{Name: "default", CurrentCSVName: "csv-dependency"},
+						{Name: "nondefault", CurrentCSVName: "csv-dependency"},
+					},
+					DefaultChannelName: "default",
+				},
+				{
+					PackageName: "root",
+					Channels: []registry.PackageChannel{
+						{Name: "unimportant", CurrentCSVName: "csv-root"},
+					},
+					DefaultChannelName: "unimportant",
+				},
+			}
+
+			crds := []apiextensions.CustomResourceDefinition{newCRD(genName("crd-"))}
+			csvs := []operatorsv1alpha1.ClusterServiceVersion{
+				newCSV("csv-dependency", testNamespace, "", semver.MustParse("1.0.0"), crds, nil, nil),
+				newCSV("csv-root", testNamespace, "", semver.MustParse("1.0.0"), nil, crds, nil),
+			}
+
+			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", testNamespace, packages, crds, csvs)
+
+			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription", "test-catalog", "root", "unimportant", "", operatorsv1alpha1.ApprovalAutomatic)
+		})
+
+		AfterEach(func() {
+			teardown()
+		})
+
+		It("should create a Subscription using the candidate's default channel", func() {
+			Eventually(func() ([]operatorsv1alpha1.Subscription, error) {
+				var list operatorsv1alpha1.SubscriptionList
+				if err := ctx.Ctx().Client().List(context.TODO(), &list); err != nil {
+					return nil, err
+				}
+				return list.Items, nil
+			}).Should(ContainElement(WithTransform(
+				func(in operatorsv1alpha1.Subscription) operatorsv1alpha1.SubscriptionSpec {
+					return operatorsv1alpha1.SubscriptionSpec{
+						CatalogSource:          in.Spec.CatalogSource,
+						CatalogSourceNamespace: in.Spec.CatalogSourceNamespace,
+						Package:                in.Spec.Package,
+						Channel:                in.Spec.Channel,
+					}
+				},
+				Equal(operatorsv1alpha1.SubscriptionSpec{
+					CatalogSource:          "test-catalog",
+					CatalogSourceNamespace: testNamespace,
+					Package:                "dependency",
+					Channel:                "default",
+				}),
+			)))
+		})
+	})
 })
 
 const (
