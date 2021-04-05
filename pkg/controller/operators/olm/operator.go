@@ -1514,7 +1514,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check if we're not ready to install part of the replacement chain yet
 		if prev := a.isReplacing(out); prev != nil {
 			if prev.Status.Phase != v1alpha1.CSVPhaseReplacing {
-				logger.WithError(fmt.Errorf("CSV being replaced is in phase %s instead of %s", prev.Status.Phase, v1alpha1.CSVPhaseReplacing)).Debug("Unable to replace previous CSV")
+				logger.WithError(fmt.Errorf("CSV being replaced is in phase %s instead of %s", prev.Status.Phase, v1alpha1.CSVPhaseReplacing)).Warn("Unable to replace previous CSV")
 				return
 			}
 		}
