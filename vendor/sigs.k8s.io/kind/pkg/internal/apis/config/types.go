@@ -16,8 +16,18 @@ limitations under the License.
 
 package config
 
+/*
+NOTE: unlike the public types these should not have serialization tags and
+should stay 100% internal. These are used to pass around the processed public
+config for internal usage.
+*/
+
 // Cluster contains kind cluster configuration
 type Cluster struct {
+	// The cluster name.
+	// Optional, this will be overridden by --name / KIND_CLUSTER_NAME
+	Name string
+
 	// Nodes contains the list of nodes defined in the `kind` Cluster
 	// If unset this will default to a single control-plane node
 	// Note that if more than one control plane is specified, an external
@@ -28,6 +38,17 @@ type Cluster struct {
 
 	// Networking contains cluster wide network settings
 	Networking Networking
+
+	// FeatureGates contains a map of Kubernetes feature gates to whether they
+	// are enabled. The feature gates specified here are passed to all Kubernetes components as flags or in config.
+	//
+	// https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
+	FeatureGates map[string]bool
+
+	// RuntimeConfig Keys and values are translated into --runtime-config values for kube-apiserver, separated by commas.
+	//
+	// Use this to enable alpha APIs.
+	RuntimeConfig map[string]string
 
 	// KubeadmConfigPatches are applied to the generated kubeadm config as
 	// strategic merge patches to `kustomize build` internally
@@ -103,7 +124,12 @@ type Networking struct {
 	// IPFamily is the network cluster model, currently it can be ipv4 or ipv6
 	IPFamily ClusterIPFamily
 	// APIServerPort is the listen port on the host for the Kubernetes API Server
-	// Defaults to a random port on the host
+	// Defaults to a random port on the host obtained by kind
+	//
+	// NOTE: if you set the special value of `-1` then the node backend
+	// (docker, podman...) will be left to pick the port instead.
+	// This is potentially useful for remote hosts, BUT it means when the container
+	// is restarted it will be randomized. Leave this unset to allow kind to pick it.
 	APIServerPort int32
 	// APIServerAddress is the listen address on the host for the Kubernetes
 	// API Server. This should be an IP address.
@@ -119,6 +145,8 @@ type Networking struct {
 	// If DisableDefaultCNI is true, kind will not install the default CNI setup.
 	// Instead the user should install their own CNI after creating the cluster.
 	DisableDefaultCNI bool
+	// KubeProxyMode defines if kube-proxy should operate in iptables or ipvs mode
+	KubeProxyMode ProxyMode
 }
 
 // ClusterIPFamily defines cluster network IP family
@@ -129,6 +157,16 @@ const (
 	IPv4Family ClusterIPFamily = "ipv4"
 	// IPv6Family sets ClusterIPFamily to ipv6
 	IPv6Family ClusterIPFamily = "ipv6"
+)
+
+// ProxyMode defines a proxy mode for kube-proxy
+type ProxyMode string
+
+const (
+	// IPTablesMode sets ProxyMode to iptables
+	IPTablesMode ProxyMode = "iptables"
+	// IPVSMode sets ProxyMode to iptables
+	IPVSMode ProxyMode = "ipvs"
 )
 
 // PatchJSON6902 represents an inline kustomize json 6902 patch
@@ -146,7 +184,7 @@ type PatchJSON6902 struct {
 // This is a close copy of the upstream cri Mount type
 // see: k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2
 // It additionally serializes the "propagation" field with the string enum
-// names on disk as opposed to the int32 values, and the serlialzed field names
+// names on disk as opposed to the int32 values, and the serialized field names
 // have been made closer to core/v1 VolumeMount field names
 // In yaml this looks like:
 //  containerPath: /foo
@@ -180,6 +218,13 @@ type PortMapping struct {
 	// Port within the container.
 	ContainerPort int32
 	// Port on the host.
+	//
+	// If unset, a random port will be selected.
+	//
+	// NOTE: if you set the special value of `-1` then the node backend
+	// (docker, podman...) will be left to pick the port instead.
+	// This is potentially useful for remote hosts, BUT it means when the container
+	// is restarted it will be randomized. Leave this unset to allow kind to pick it.
 	HostPort int32
 	// TODO: add protocol (tcp/udp) and port-ranges
 	ListenAddress string

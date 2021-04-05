@@ -20,6 +20,10 @@ package v1alpha4
 type Cluster struct {
 	TypeMeta `yaml:",inline"`
 
+	// The cluster name.
+	// Optional, this will be overridden by --name / KIND_CLUSTER_NAME
+	Name string `yaml:"name,omitempty"`
+
 	// Nodes contains the list of nodes defined in the `kind` Cluster
 	// If unset this will default to a single control-plane node
 	// Note that if more than one control plane is specified, an external
@@ -31,6 +35,17 @@ type Cluster struct {
 	// Networking contains cluster wide network settings
 	Networking Networking `yaml:"networking,omitempty"`
 
+	// FeatureGates contains a map of Kubernetes feature gates to whether they
+	// are enabled. The feature gates specified here are passed to all Kubernetes components as flags or in config.
+	//
+	// https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
+	FeatureGates map[string]bool `yaml:"featureGates,omitempty"`
+
+	// RuntimeConfig Keys and values are translated into --runtime-config values for kube-apiserver, separated by commas.
+	//
+	// Use this to enable alpha APIs.
+	RuntimeConfig map[string]string `yaml:"runtimeConfig,omitempty"`
+
 	// KubeadmConfigPatches are applied to the generated kubeadm config as
 	// merge patches. The `kind` field must match the target object, and
 	// if `apiVersion` is specified it will only be applied to matching objects.
@@ -39,7 +54,7 @@ type Cluster struct {
 	//
 	// https://tools.ietf.org/html/rfc7386
 	//
-	// The cluster-level patches are appied before the node-level patches.
+	// The cluster-level patches are applied before the node-level patches.
 	KubeadmConfigPatches []string `yaml:"kubeadmConfigPatches,omitempty"`
 
 	// KubeadmConfigPatchesJSON6902 are applied to the generated kubeadm config
@@ -54,7 +69,7 @@ type Cluster struct {
 	//
 	// https://tools.ietf.org/html/rfc6902
 	//
-	// The cluster-level patches are appied before the node-level patches.
+	// The cluster-level patches are applied before the node-level patches.
 	KubeadmConfigPatchesJSON6902 []PatchJSON6902 `yaml:"kubeadmConfigPatchesJSON6902,omitempty"`
 
 	// ContainerdConfigPatches are applied to every node's containerd config
@@ -147,7 +162,12 @@ type Networking struct {
 	// IPFamily is the network cluster model, currently it can be ipv4 or ipv6
 	IPFamily ClusterIPFamily `yaml:"ipFamily,omitempty"`
 	// APIServerPort is the listen port on the host for the Kubernetes API Server
-	// Defaults to a random port on the host
+	// Defaults to a random port on the host obtained by kind
+	//
+	// NOTE: if you set the special value of `-1` then the node backend
+	// (docker, podman...) will be left to pick the port instead.
+	// This is potentially useful for remote hosts, BUT it means when the container
+	// is restarted it will be randomized. Leave this unset to allow kind to pick it.
 	APIServerPort int32 `yaml:"apiServerPort,omitempty"`
 	// APIServerAddress is the listen address on the host for the Kubernetes
 	// API Server. This should be an IP address.
@@ -163,6 +183,9 @@ type Networking struct {
 	// If DisableDefaultCNI is true, kind will not install the default CNI setup.
 	// Instead the user should install their own CNI after creating the cluster.
 	DisableDefaultCNI bool `yaml:"disableDefaultCNI,omitempty"`
+	// KubeProxyMode defines if kube-proxy should operate in iptables or ipvs mode
+	// Defaults to 'iptables' mode
+	KubeProxyMode ProxyMode `yaml:"kubeProxyMode,omitempty"`
 }
 
 // ClusterIPFamily defines cluster network IP family
@@ -173,6 +196,16 @@ const (
 	IPv4Family ClusterIPFamily = "ipv4"
 	// IPv6Family sets ClusterIPFamily to ipv6
 	IPv6Family ClusterIPFamily = "ipv6"
+)
+
+// ProxyMode defines a proxy mode for kube-proxy
+type ProxyMode string
+
+const (
+	// IPTablesMode sets ProxyMode to iptables
+	IPTablesMode ProxyMode = "iptables"
+	// IPVSMode sets ProxyMode to iptables
+	IPVSMode ProxyMode = "ipvs"
 )
 
 // PatchJSON6902 represents an inline kustomize json 6902 patch
@@ -195,7 +228,7 @@ https://github.com/kubernetes/kubernetes/blob/063e7ff358fdc8b0916e6f39beedc0d025
 // This is a close copy of the upstream cri Mount type
 // see: k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2
 // It additionally serializes the "propagation" field with the string enum
-// names on disk as opposed to the int32 values, and the serlialzed field names
+// names on disk as opposed to the int32 values, and the serialized field names
 // have been made closer to core/v1 VolumeMount field names
 // In yaml this looks like:
 //  containerPath: /foo
@@ -229,6 +262,13 @@ type PortMapping struct {
 	// Port within the container.
 	ContainerPort int32 `yaml:"containerPort,omitempty"`
 	// Port on the host.
+	//
+	// If unset, a random port will be selected.
+	//
+	// NOTE: if you set the special value of `-1` then the node backend
+	// (docker, podman...) will be left to pick the port instead.
+	// This is potentially useful for remote hosts, BUT it means when the container
+	// is restarted it will be randomized. Leave this unset to allow kind to pick it.
 	HostPort int32 `yaml:"hostPort,omitempty"`
 	// TODO: add protocol (tcp/udp) and port-ranges
 	ListenAddress string `yaml:"listenAddress,omitempty"`

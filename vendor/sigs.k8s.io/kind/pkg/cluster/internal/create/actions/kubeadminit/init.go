@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/kind/pkg/cluster/internal/create/actions"
 )
 
-// kubeadmInitAction implements action for executing the kubadm init
+// kubeadmInitAction implements action for executing the kubeadm init
 // and a set of default post init operations like e.g. install the
 // CNI network plugin.
 type action struct{}
@@ -60,9 +60,9 @@ func (a *action) Execute(ctx *actions.ActionContext) error {
 	cmd := node.Command(
 		// init because this is the control plane node
 		"kubeadm", "init",
-		// preflight errors are expected, in particular for swap being enabled
-		// TODO(bentheelder): limit the set of acceptable errors
-		"--ignore-preflight-errors=all",
+		// skip preflight checks, as these have undesirable side effects
+		// and don't tell us much. requires kubeadm 1.13+
+		"--skip-phases=preflight",
 		// specify our generated config file
 		"--config=/kind/kubeadm.conf",
 		"--skip-token-print",
