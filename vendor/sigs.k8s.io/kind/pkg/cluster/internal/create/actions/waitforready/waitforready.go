@@ -69,13 +69,13 @@ func (a *Action) Execute(ctx *actions.ActionContext) error {
 	isReady := waitForReady(node, startTime.Add(a.waitTime))
 	if !isReady {
 		ctx.Status.End(false)
-		fmt.Println(" • WARNING: Timed out waiting for Ready ⚠️")
+		ctx.Logger.V(0).Info(" • WARNING: Timed out waiting for Ready ⚠️")
 		return nil
 	}
 
 	// mark success
 	ctx.Status.End(true)
-	fmt.Printf(" • Ready after %s 💚\n", formatDuration(time.Since(startTime)))
+	ctx.Logger.V(0).Infof(" • Ready after %s 💚", formatDuration(time.Since(startTime)))
 	return nil
 }
 
@@ -93,7 +93,7 @@ func waitForReady(node nodes.Node, until time.Time) bool {
 			// to true.
 			"-o=jsonpath='{.items..status.conditions[-1:].status}'",
 		)
-		lines, err := exec.CombinedOutputLines(cmd)
+		lines, err := exec.OutputLines(cmd)
 		if err != nil {
 			return false
 		}
@@ -104,7 +104,7 @@ func waitForReady(node nodes.Node, until time.Time) bool {
 		status := strings.Fields(lines[0])
 		for _, s := range status {
 			// Check node status. If node is ready then this will be 'True',
-			// 'False' or 'Unkown' otherwise.
+			// 'False' or 'Unknown' otherwise.
 			if !strings.Contains(s, "True") {
 				return false
 			}

@@ -24,7 +24,10 @@ import (
 func Convertv1alpha4(in *v1alpha4.Cluster) *Cluster {
 	in = in.DeepCopy() // deep copy first to avoid touching the original
 	out := &Cluster{
+		Name:                            in.Name,
 		Nodes:                           make([]Node, len(in.Nodes)),
+		FeatureGates:                    in.FeatureGates,
+		RuntimeConfig:                   in.RuntimeConfig,
 		KubeadmConfigPatches:            in.KubeadmConfigPatches,
 		KubeadmConfigPatchesJSON6902:    make([]PatchJSON6902, len(in.KubeadmConfigPatchesJSON6902)),
 		ContainerdConfigPatches:         in.ContainerdConfigPatches,
@@ -78,6 +81,7 @@ func convertv1alpha4Networking(in *v1alpha4.Networking, out *Networking) {
 	out.APIServerPort = in.APIServerPort
 	out.APIServerAddress = in.APIServerAddress
 	out.PodSubnet = in.PodSubnet
+	out.KubeProxyMode = ProxyMode(in.KubeProxyMode)
 	out.ServiceSubnet = in.ServiceSubnet
 	out.DisableDefaultCNI = in.DisableDefaultCNI
 }

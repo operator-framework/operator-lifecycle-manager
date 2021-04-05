@@ -19,6 +19,8 @@ package docker
 import (
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -28,32 +30,51 @@ import (
 	"sigs.k8s.io/kind/pkg/exec"
 	"sigs.k8s.io/kind/pkg/log"
 
-	"sigs.k8s.io/kind/pkg/cluster/internal/providers/provider"
-	"sigs.k8s.io/kind/pkg/cluster/internal/providers/provider/common"
+	internallogs "sigs.k8s.io/kind/pkg/cluster/internal/logs"
+	"sigs.k8s.io/kind/pkg/cluster/internal/providers"
+	"sigs.k8s.io/kind/pkg/cluster/internal/providers/common"
 	"sigs.k8s.io/kind/pkg/cluster/nodeutils"
 	"sigs.k8s.io/kind/pkg/internal/apis/config"
 	"sigs.k8s.io/kind/pkg/internal/cli"
 )
 
 // NewProvider returns a new provider based on executing `docker ...`
-func NewProvider(logger log.Logger) provider.Provider {
-	return &Provider{
+func NewProvider(logger log.Logger) providers.Provider {
+	return &provider{
 		logger: logger,
 	}
 }
 
 // Provider implements provider.Provider
 // see NewProvider
-type Provider struct {
+type provider struct {
 	logger log.Logger
 }
 
+// String implements fmt.Stringer
+// NOTE: the value of this should not currently be relied upon for anything!
+// This is only used for setting the Node's providerID
+func (p *provider) String() string {
+	return "docker"
+}
+
 // Provision is part of the providers.Provider interface
-func (p *Provider) Provision(status *cli.Status, cluster string, cfg *config.Cluster) (err error) {
+func (p *provider) Provision(status *cli.Status, cfg *config.Cluster) (err error) {
 	// TODO: validate cfg
 	// ensure node images are pulled before actually provisioning
 	if err := ensureNodeImages(p.logger, status, cfg); err != nil {
 		return err
+	}
+
+	// ensure the pre-requisite network exists
+	networkName := fixedNetworkName
+	if n := os.Getenv("KIND_EXPERIMENTAL_DOCKER_NETWORK"); n != "" {
+		p.logger.Warn("WARNING: Overriding docker network due to KIND_EXPERIMENTAL_DOCKER_NETWORK")
+		p.logger.Warn("WARNING: Here be dragons! This is not supported currently.")
+		networkName = n
+	}
+	if err := ensureNetwork(networkName); err != nil {
+		return errors.Wrap(err, "failed to ensure docker network")
 	}
 
 	// actually provision the cluster
@@ -62,7 +83,7 @@ func (p *Provider) Provision(status *cli.Status, cluster string, cfg *config.Clu
 	defer func() { status.End(err == nil) }()
 
 	// plan creating the containers
-	createContainerFuncs, err := planCreation(cluster, cfg)
+	createContainerFuncs, err := planCreation(cfg, networkName)
 	if err != nil {
 		return err
 	}
@@ -72,12 +93,10 @@ func (p *Provider) Provision(status *cli.Status, cluster string, cfg *config.Clu
 }
 
 // ListClusters is part of the providers.Provider interface
-func (p *Provider) ListClusters() ([]string, error) {
+func (p *provider) ListClusters() ([]string, error) {
 	cmd := exec.Command("docker",
 		"ps",
-		"-q",         // quiet output for parsing
-		"-a",         // show stopped nodes
-		"--no-trunc", // don't truncate
+		"-a", // show stopped nodes
 		// filter for nodes with the cluster label
 		"--filter", "label="+clusterLabelKey,
 		// format to include the cluster name
@@ -91,12 +110,10 @@ func (p *Provider) ListClusters() ([]string, error) {
 }
 
 // ListNodes is part of the providers.Provider interface
-func (p *Provider) ListNodes(cluster string) ([]nodes.Node, error) {
+func (p *provider) ListNodes(cluster string) ([]nodes.Node, error) {
 	cmd := exec.Command("docker",
 		"ps",
-		"-q",         // quiet output for parsing
-		"-a",         // show stopped nodes
-		"--no-trunc", // don't truncate
+		"-a", // show stopped nodes
 		// filter for nodes with the cluster label
 		"--filter", fmt.Sprintf("label=%s=%s", clusterLabelKey, cluster),
 		// format to include the cluster name
@@ -115,7 +132,7 @@ func (p *Provider) ListNodes(cluster string) ([]nodes.Node, error) {
 }
 
 // DeleteNodes is part of the providers.Provider interface
-func (p *Provider) DeleteNodes(n []nodes.Node) error {
+func (p *provider) DeleteNodes(n []nodes.Node) error {
 	if len(n) == 0 {
 		return nil
 	}
@@ -136,7 +153,7 @@ func (p *Provider) DeleteNodes(n []nodes.Node) error {
 }
 
 // GetAPIServerEndpoint is part of the providers.Provider interface
-func (p *Provider) GetAPIServerEndpoint(cluster string) (string, error) {
+func (p *provider) GetAPIServerEndpoint(cluster string) (string, error) {
 	// locate the node that hosts this
 	allNodes, err := p.ListNodes(cluster)
 	if err != nil {
@@ -147,15 +164,37 @@ func (p *Provider) GetAPIServerEndpoint(cluster string) (string, error) {
 		return "", errors.Wrap(err, "failed to get api server endpoint")
 	}
 
-	// retrieve the specific port mapping using docker inspect
+	// if the 'desktop.docker.io/ports/<PORT>/tcp' label is present,
+	// defer to its value for the api server endpoint
+	//
+	// For example:
+	// "Labels": {
+	// 	"desktop.docker.io/ports/6443/tcp": "10.0.1.7:6443",
+	// }
 	cmd := exec.Command(
+		"docker", "inspect",
+		"--format", fmt.Sprintf(
+			"{{ index .Config.Labels \"desktop.docker.io/ports/%d/tcp\" }}", common.APIServerInternalPort,
+		),
+		n.String(),
+	)
+	lines, err := exec.OutputLines(cmd)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get api server port")
+	}
+	if len(lines) == 1 && lines[0] != "" {
+		return lines[0], nil
+	}
+
+	// else, retrieve the specific port mapping via NetworkSettings.Ports
+	cmd = exec.Command(
 		"docker", "inspect",
 		"--format", fmt.Sprintf(
 			"{{ with (index (index .NetworkSettings.Ports \"%d/tcp\") 0) }}{{ printf \"%%s\t%%s\" .HostIp .HostPort }}{{ end }}", common.APIServerInternalPort,
 		),
 		n.String(),
 	)
-	lines, err := exec.OutputLines(cmd)
+	lines, err = exec.OutputLines(cmd)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get api server port")
 	}
@@ -171,9 +210,74 @@ func (p *Provider) GetAPIServerEndpoint(cluster string) (string, error) {
 	return net.JoinHostPort(parts[0], parts[1]), nil
 }
 
+// GetAPIServerInternalEndpoint is part of the providers.Provider interface
+func (p *provider) GetAPIServerInternalEndpoint(cluster string) (string, error) {
+	// locate the node that hosts this
+	allNodes, err := p.ListNodes(cluster)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to list nodes")
+	}
+	n, err := nodeutils.APIServerEndpointNode(allNodes)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get api server endpoint")
+	}
+	// NOTE: we're using the nodes's hostnames which are their names
+	return net.JoinHostPort(n.String(), fmt.Sprintf("%d", common.APIServerInternalPort)), nil
+}
+
 // node returns a new node handle for this provider
-func (p *Provider) node(name string) nodes.Node {
+func (p *provider) node(name string) nodes.Node {
 	return &node{
 		name: name,
 	}
+}
+
+// CollectLogs will populate dir with cluster logs and other debug files
+func (p *provider) CollectLogs(dir string, nodes []nodes.Node) error {
+	execToPathFn := func(cmd exec.Cmd, path string) func() error {
+		return func() error {
+			f, err := common.FileOnHost(path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			return cmd.SetStdout(f).SetStderr(f).Run()
+		}
+	}
+	// construct a slice of methods to collect logs
+	fns := []func() error{
+		// record info about the host docker
+		execToPathFn(
+			exec.Command("docker", "info"),
+			filepath.Join(dir, "docker-info.txt"),
+		),
+	}
+
+	// collect /var/log for each node and plan collecting more logs
+	var errs []error
+	for _, n := range nodes {
+		node := n // https://golang.org/doc/faq#closures_and_goroutines
+		name := node.String()
+		path := filepath.Join(dir, name)
+		if err := internallogs.DumpDir(p.logger, node, "/var/log", path); err != nil {
+			errs = append(errs, err)
+		}
+
+		fns = append(fns,
+			func() error { return common.CollectLogs(node, path) },
+			execToPathFn(exec.Command("docker", "inspect", name), filepath.Join(path, "inspect.json")),
+			func() error {
+				f, err := common.FileOnHost(filepath.Join(path, "serial.log"))
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				return node.SerialLogs(f)
+			},
+		)
+	}
+
+	// run and collect up all errors
+	errs = append(errs, errors.AggregateConcurrent(fns))
+	return errors.NewAggregate(errs)
 }

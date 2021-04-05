@@ -25,17 +25,30 @@ import (
 	"sigs.k8s.io/kind/pkg/cluster/constants"
 	"sigs.k8s.io/kind/pkg/errors"
 	"sigs.k8s.io/kind/pkg/exec"
+	"sigs.k8s.io/kind/pkg/fs"
 
 	"sigs.k8s.io/kind/pkg/cluster/internal/loadbalancer"
-	"sigs.k8s.io/kind/pkg/cluster/internal/providers/provider/common"
+	"sigs.k8s.io/kind/pkg/cluster/internal/providers/common"
 	"sigs.k8s.io/kind/pkg/internal/apis/config"
 )
 
 // planCreation creates a slice of funcs that will create the containers
-func planCreation(cluster string, cfg *config.Cluster) (createContainerFuncs []func() error, err error) {
+func planCreation(cfg *config.Cluster, networkName string) (createContainerFuncs []func() error, err error) {
+	// we need to know all the names for NO_PROXY
+	// compute the names first before any actual node details
+	nodeNamer := common.MakeNodeNamer(cfg.Name)
+	names := make([]string, len(cfg.Nodes))
+	for i, node := range cfg.Nodes {
+		name := nodeNamer(string(node.Role)) // name the node
+		names[i] = name
+	}
+	haveLoadbalancer := clusterHasImplicitLoadBalancer(cfg)
+	if haveLoadbalancer {
+		names = append(names, nodeNamer(constants.ExternalLoadBalancerNodeRoleValue))
+	}
+
 	// these apply to all container creation
-	nodeNamer := common.MakeNodeNamer(cluster)
-	genericArgs, err := commonArgs(cluster, cfg)
+	genericArgs, err := commonArgs(cfg.Name, cfg, networkName, names)
 	if err != nil {
 		return nil, err
 	}
@@ -43,32 +56,42 @@ func planCreation(cluster string, cfg *config.Cluster) (createContainerFuncs []f
 	// only the external LB should reflect the port if we have multiple control planes
 	apiServerPort := cfg.Networking.APIServerPort
 	apiServerAddress := cfg.Networking.APIServerAddress
-	if clusterHasImplicitLoadBalancer(cfg) {
+	if haveLoadbalancer {
+		// TODO: picking ports locally is less than ideal with remote docker
+		// but this is supposed to be an implementation detail and NOT picking
+		// them breaks host reboot ...
+		// For now remote docker + multi control plane is not supported
 		apiServerPort = 0              // replaced with random ports
 		apiServerAddress = "127.0.0.1" // only the LB needs to be non-local
 		if clusterIsIPv6(cfg) {
 			apiServerAddress = "::1" // only the LB needs to be non-local
 		}
 		// plan loadbalancer node
-		name := nodeNamer(constants.ExternalLoadBalancerNodeRoleValue)
+		name := names[len(names)-1]
 		createContainerFuncs = append(createContainerFuncs, func() error {
-			return createContainer(runArgsForLoadBalancer(cfg, name, genericArgs))
+			args, err := runArgsForLoadBalancer(cfg, name, genericArgs)
+			if err != nil {
+				return err
+			}
+			return createContainer(args)
 		})
 	}
 
 	// plan normal nodes
-	for _, node := range cfg.Nodes {
-		node := node.DeepCopy()              // copy so we can modify
-		name := nodeNamer(string(node.Role)) // name the node
+	for i, node := range cfg.Nodes {
+		node := node.DeepCopy() // copy so we can modify
+		name := names[i]
 
 		// fixup relative paths, docker can only handle absolute paths
-		for i := range node.ExtraMounts {
-			hostPath := node.ExtraMounts[i].HostPath
-			absHostPath, err := filepath.Abs(hostPath)
-			if err != nil {
-				return nil, errors.Wrapf(err, "unable to resolve absolute path for hostPath: %q", hostPath)
+		for m := range node.ExtraMounts {
+			hostPath := node.ExtraMounts[m].HostPath
+			if !fs.IsAbs(hostPath) {
+				absHostPath, err := filepath.Abs(hostPath)
+				if err != nil {
+					return nil, errors.Wrapf(err, "unable to resolve absolute path for hostPath: %q", hostPath)
+				}
+				node.ExtraMounts[m].HostPath = absHostPath
 			}
-			node.ExtraMounts[i].HostPath = absHostPath
 		}
 
 		// plan actual creation based on role
@@ -82,11 +105,19 @@ func planCreation(cluster string, cfg *config.Cluster) (createContainerFuncs []f
 						ContainerPort: common.APIServerInternalPort,
 					},
 				)
-				return createContainer(runArgsForNode(node, name, genericArgs))
+				args, err := runArgsForNode(node, cfg.Networking.IPFamily, name, genericArgs)
+				if err != nil {
+					return err
+				}
+				return createContainer(args)
 			})
 		case config.WorkerRole:
 			createContainerFuncs = append(createContainerFuncs, func() error {
-				return createContainer(runArgsForNode(node, name, genericArgs))
+				args, err := runArgsForNode(node, cfg.Networking.IPFamily, name, genericArgs)
+				if err != nil {
+					return err
+				}
+				return createContainer(args)
 			})
 		default:
 			return nil, errors.Errorf("unknown node role: %q", node.Role)
@@ -118,13 +149,40 @@ func clusterHasImplicitLoadBalancer(cfg *config.Cluster) bool {
 }
 
 // commonArgs computes static arguments that apply to all containers
-func commonArgs(cluster string, cfg *config.Cluster) ([]string, error) {
+func commonArgs(cluster string, cfg *config.Cluster, networkName string, nodeNames []string) ([]string, error) {
 	// standard arguments all nodes containers need, computed once
 	args := []string{
 		"--detach", // run the container detached
 		"--tty",    // allocate a tty for entrypoint logs
 		// label the node with the cluster ID
 		"--label", fmt.Sprintf("%s=%s", clusterLabelKey, cluster),
+		// user a user defined docker network so we get embedded DNS
+		"--net", networkName,
+		// Docker supports the following restart modes:
+		// - no
+		// - on-failure[:max-retries]
+		// - unless-stopped
+		// - always
+		// https://docs.docker.com/engine/reference/commandline/run/#restart-policies---restart
+		//
+		// What we desire is:
+		// - restart on host / dockerd reboot
+		// - don't restart for any other reason
+		//
+		// This means:
+		// - no is out of the question ... it never restarts
+		// - always is a poor choice, we'll keep trying to restart nodes that were
+		// never going to work
+		// - unless-stopped will also retry failures indefinitely, similar to always
+		// except that it won't restart when the container is `docker stop`ed
+		// - on-failure is not great, we're only interested in restarting on
+		// reboots, not failures. *however* we can limit the number of retries
+		// *and* it forgets all state on dockerd restart and retries anyhow.
+		// - on-failure:0 is what we want .. restart on failures, except max
+		// retries is 0, so only restart on reboots.
+		// however this _actually_ means the same thing as always
+		// so the closest thing is on-failure:1, which will retry *once*
+		"--restart=on-failure:1",
 	}
 
 	// enable IPv6 if necessary
@@ -133,7 +191,7 @@ func commonArgs(cluster string, cfg *config.Cluster) ([]string, error) {
 	}
 
 	// pass proxy environment variables
-	proxyEnv, err := getProxyEnv(cfg)
+	proxyEnv, err := getProxyEnv(cfg, networkName, nodeNames)
 	if err != nil {
 		return nil, errors.Wrap(err, "proxy setup error")
 	}
@@ -145,10 +203,17 @@ func commonArgs(cluster string, cfg *config.Cluster) ([]string, error) {
 	if usernsRemap() {
 		args = append(args, "--userns=host")
 	}
+
+	// handle Docker on Btrfs or ZFS
+	// https://github.com/kubernetes-sigs/kind/issues/1416#issuecomment-606514724
+	if mountDevMapper() {
+		args = append(args, "--volume", "/dev/mapper:/dev/mapper")
+	}
+
 	return args, nil
 }
 
-func runArgsForNode(node *config.Node, name string, args []string) []string {
+func runArgsForNode(node *config.Node, clusterIPFamily config.ClusterIPFamily, name string, args []string) ([]string, error) {
 	args = append([]string{
 		"run",
 		"--hostname", name, // make hostname match container name
@@ -180,13 +245,17 @@ func runArgsForNode(node *config.Node, name string, args []string) []string {
 
 	// convert mounts and port mappings to container run args
 	args = append(args, generateMountBindings(node.ExtraMounts...)...)
-	args = append(args, generatePortMappings(node.ExtraPortMappings...)...)
+	mappingArgs, err := generatePortMappings(clusterIPFamily, node.ExtraPortMappings...)
+	if err != nil {
+		return nil, err
+	}
+	args = append(args, mappingArgs...)
 
 	// finally, specify the image to run
-	return append(args, node.Image)
+	return append(args, node.Image), nil
 }
 
-func runArgsForLoadBalancer(cfg *config.Cluster, name string, args []string) []string {
+func runArgsForLoadBalancer(cfg *config.Cluster, name string, args []string) ([]string, error) {
 	args = append([]string{
 		"run",
 		"--hostname", name, // make hostname match container name
@@ -198,28 +267,42 @@ func runArgsForLoadBalancer(cfg *config.Cluster, name string, args []string) []s
 	)
 
 	// load balancer port mapping
-	args = append(args, generatePortMappings(config.PortMapping{
-		ListenAddress: cfg.Networking.APIServerAddress,
-		HostPort:      cfg.Networking.APIServerPort,
-		ContainerPort: common.APIServerInternalPort,
-	})...)
+	mappingArgs, err := generatePortMappings(cfg.Networking.IPFamily,
+		config.PortMapping{
+			ListenAddress: cfg.Networking.APIServerAddress,
+			HostPort:      cfg.Networking.APIServerPort,
+			ContainerPort: common.APIServerInternalPort,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	args = append(args, mappingArgs...)
 
 	// finally, specify the image to run
-	return append(args, loadbalancer.Image)
+	return append(args, loadbalancer.Image), nil
 }
 
-func getProxyEnv(cfg *config.Cluster) (map[string]string, error) {
+func getProxyEnv(cfg *config.Cluster, networkName string, nodeNames []string) (map[string]string, error) {
 	envs := common.GetProxyEnvs(cfg)
 	// Specifically add the docker network subnets to NO_PROXY if we are using a proxy
 	if len(envs) > 0 {
-		// Docker default bridge network is named "bridge" (https://docs.docker.com/network/bridge/#use-the-default-bridge-network)
-		subnets, err := getSubnets("bridge")
+		subnets, err := getSubnets(networkName)
 		if err != nil {
 			return nil, err
 		}
-		noProxyList := strings.Join(append(subnets, envs[common.NOProxy]), ",")
-		envs[common.NOProxy] = noProxyList
-		envs[strings.ToLower(common.NOProxy)] = noProxyList
+
+		noProxyList := append(subnets, envs[common.NOProxy])
+		noProxyList = append(noProxyList, nodeNames...)
+		// Add pod and service dns names to no_proxy to allow in cluster
+		// Note: this is best effort based on the default CoreDNS spec
+		// https://github.com/kubernetes/dns/blob/master/docs/specification.md
+		// Any user created pod/service hostnames, namespaces, custom DNS services
+		// are expected to be no-proxied by the user explicitly.
+		noProxyList = append(noProxyList, ".svc", ".svc.cluster", ".svc.cluster.local")
+		noProxyJoined := strings.Join(noProxyList, ",")
+		envs[common.NOProxy] = noProxyJoined
+		envs[strings.ToLower(common.NOProxy)] = noProxyJoined
 	}
 	return envs, nil
 }
@@ -227,7 +310,7 @@ func getProxyEnv(cfg *config.Cluster) (map[string]string, error) {
 func getSubnets(networkName string) ([]string, error) {
 	format := `{{range (index (index . "IPAM") "Config")}}{{index . "Subnet"}} {{end}}`
 	cmd := exec.Command("docker", "network", "inspect", "-f", format, networkName)
-	lines, err := exec.CombinedOutputLines(cmd)
+	lines, err := exec.OutputLines(cmd)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get subnets")
 	}
@@ -272,24 +355,44 @@ func generateMountBindings(mounts ...config.Mount) []string {
 }
 
 // generatePortMappings converts the portMappings list to a list of args for docker
-func generatePortMappings(portMappings ...config.PortMapping) []string {
+func generatePortMappings(clusterIPFamily config.ClusterIPFamily, portMappings ...config.PortMapping) ([]string, error) {
 	args := make([]string, 0, len(portMappings))
 	for _, pm := range portMappings {
-		var hostPortBinding string
-		if pm.ListenAddress != "" {
-			hostPortBinding = net.JoinHostPort(pm.ListenAddress, fmt.Sprintf("%d", pm.HostPort))
-		} else {
-			hostPortBinding = fmt.Sprintf("%d", pm.HostPort)
+		// do provider internal defaulting
+		// in a future API revision we will handle this at the API level and remove this
+		if pm.ListenAddress == "" {
+			switch clusterIPFamily {
+			case config.IPv4Family:
+				pm.ListenAddress = "0.0.0.0" // this is the docker default anyhow
+			case config.IPv6Family:
+				pm.ListenAddress = "::"
+			default:
+				return nil, errors.Errorf("unknown cluster IP family: %v", clusterIPFamily)
+			}
 		}
-		protocol := "TCP" // TCP is the default
+		if string(pm.Protocol) == "" {
+			pm.Protocol = config.PortMappingProtocolTCP // TCP is the default
+		}
+
+		// validate that the provider can handle this binding
 		switch pm.Protocol {
+		case config.PortMappingProtocolTCP:
 		case config.PortMappingProtocolUDP:
-			protocol = "UDP"
 		case config.PortMappingProtocolSCTP:
-			protocol = "SCTP"
-		default: // also covers cri.PortMappingProtocolTCP
+		default:
+			return nil, errors.Errorf("unknown port mapping protocol: %v", pm.Protocol)
 		}
+
+		// get a random port if necessary (port = 0)
+		hostPort, err := common.PortOrGetFreePort(pm.HostPort, pm.ListenAddress)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get random host port for port mapping")
+		}
+
+		// generate the actual mapping arg
+		protocol := string(pm.Protocol)
+		hostPortBinding := net.JoinHostPort(pm.ListenAddress, fmt.Sprintf("%d", hostPort))
 		args = append(args, fmt.Sprintf("--publish=%s:%d/%s", hostPortBinding, pm.ContainerPort, protocol))
 	}
-	return args
+	return args, nil
 }
