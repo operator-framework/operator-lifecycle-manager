@@ -2650,7 +2650,7 @@ var _ = Describe("Install Plan", func() {
 		require.Equal(GinkgoT(), 1, len(ips.Items), "If this test fails it should be taken seriously and not treated as a flake. \n%v", ips.Items)
 	})
 
-	It("without an operatorgroup", func() {
+	It("should fail an InstallPlan when no operatorgroup is present", func() {
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
@@ -2708,13 +2708,96 @@ var _ = Describe("Install Plan", func() {
 
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
-		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
 		require.NoError(GinkgoT(), err)
-		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		log(fmt.Sprintf("Install plan %s fetched with phase %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		log(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
+	})
 
-		fetchedInstallPlan, err = fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
+	It("should fail an InstallPlan when multiple operatorgroups are present", func() {
+
+		log := func(s string) {
+			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+		}
+
+		ns := &corev1.Namespace{}
+		ns.SetName(genName("ns-"))
+
+		c := newKubeClient()
+		crc := newCRClient()
+
+		// Create a namespace
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		deleteOpts := &metav1.DeleteOptions{}
+		defer func() {
+			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
+		}()
+
+		mainPackageName := genName("nginx-")
+		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+		stableChannel := "stable"
+		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, nil, nil)
+
+		defer func() {
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+		}()
+
+		mainCatalogName := genName("mock-ocs-main-")
+		mainManifests := []registry.PackageManifest{
+			{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: mainPackageStable},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		// Create the main catalog source
+		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), mainManifests, nil, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
+		defer cleanupMainCatalogSource()
+
+		// Attempt to get the catalog source before creating install plan
+		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		require.NoError(GinkgoT(), err)
+
+		// Create 2 operatorgroups in the same namespace
+		og1 := &operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "og1",
+			},
+			Spec: operatorsv1.OperatorGroupSpec{
+				TargetNamespaces: []string{ns.GetName()},
+			},
+		}
+		og2 := &operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "og2",
+			},
+			Spec: operatorsv1.OperatorGroupSpec{
+				TargetNamespaces: []string{ns.GetName()},
+			},
+		}
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og1, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og2, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		subscriptionName := genName("sub-nginx-")
+		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		defer subscriptionCleanup()
+
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		require.NoError(GinkgoT(), err)
+		require.NotNil(GinkgoT(), subscription)
+
+		installPlanName := subscription.Status.InstallPlanRef.Name
+
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
 		require.NoError(GinkgoT(), err)
 		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		log(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
 	})
 
 	It("compresses installplan step resource manifests to configmap references", func() {
@@ -2809,7 +2892,7 @@ var _ = Describe("Install Plan", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 
-		By("creating a scoped serviceaccount specifified in the operatorgroup")
+		By("creating a scoped serviceaccount specified in the operatorgroup")
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("ns-"),
@@ -2872,6 +2955,18 @@ var _ = Describe("Install Plan", func() {
 		}
 		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
+
+		// Wait for the OperatorGroup to be synced and have a status.ServiceAccountRef
+		// before moving on. Otherwise the catalog operator treats it as an invalid OperatorGroup
+		// and fails the InstallPlan
+		Eventually(func() (bool, error) {
+			outOG, err := crc.OperatorsV1().OperatorGroups(ns.GetName()).Get(context.TODO(), og.Name, metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
+			fmt.Fprintf(GinkgoWriter, "[DEBUG] Operator Group Status: %+v\n", outOG.Status)
+			return outOG.Status.ServiceAccountRef != nil, nil
+		}).Should(BeTrue())
 
 		crd := apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
@@ -3121,6 +3216,18 @@ var _ = Describe("Install Plan", func() {
 		}
 		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
+
+		// Wait for the OperatorGroup to be synced and have a status.ServiceAccountRef
+		// before moving on. Otherwise the catalog operator treats it as an invalid OperatorGroup
+		// and fails the InstallPlan
+		Eventually(func() (bool, error) {
+			outOG, err := crc.OperatorsV1().OperatorGroups(ns.GetName()).Get(context.TODO(), og.Name, metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
+			fmt.Fprintf(GinkgoWriter, "[DEBUG] Operator Group Status: %+v\n", outOG.Status)
+			return outOG.Status.ServiceAccountRef != nil, nil
+		}).Should(BeTrue())
 
 		By("using the OLM client to install CRDs from the installplan and the scoped client for other resources")
 
