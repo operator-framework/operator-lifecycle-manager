@@ -1331,10 +1331,44 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		return
 	}
 
+	if plan.Status.Phase == v1alpha1.InstallPlanPhaseFailed {
+		return
+	}
+
 	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
 	ref, err := querier()
 	if err != nil {
-		syncError = fmt.Errorf("attenuated service account query failed - %v", err)
+
+		// Retry sync if non-fatal error
+		if !scoped.IsOperatorGroupError(err) {
+			syncError = fmt.Errorf("attenuated service account query failed - %v", err)
+			return
+		}
+
+		// Mark the InstallPlan as failed for a fatal Operator Group related error
+		ipFailError := fmt.Errorf("attenuated service account query failed - %v", err)
+		logger.Infof("InstallPlan failed: %v", ipFailError)
+
+		now := o.now()
+		out := plan.DeepCopy()
+		out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
+			v1alpha1.InstallPlanReasonInstallCheckFailed, ipFailError.Error(), &now))
+		out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+
+		logger.Info("Transitioning InstallPlan to failed")
+		if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
+			updateErr := errors.New("error updating InstallPlan status: " + err.Error())
+			logger = logger.WithField("updateError", updateErr)
+			logger.Info("error transitioning InstallPlan to failed")
+
+			// retry sync with error to update InstallPlan status
+			syncError = fmt.Errorf("InstallPlan failed: %s and error updating InstallPlan status as failed: %s", ipFailError, updateErr)
+			return
+		}
+
+		// Requeue subscription to propagate SubscriptionInstallPlanFailed condtion to subscription
+		o.requeueSubscriptionForInstallPlan(plan, logger)
+
 		return
 	}
 
@@ -1394,19 +1428,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		defer o.ipQueueSet.RequeueAfter(outInstallPlan.GetNamespace(), outInstallPlan.GetName(), time.Second*5)
 	}
 
-	defer func() {
-		// Notify subscription loop of installplan changes
-		if owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind); len(owners) > 0 {
-			for _, owner := range owners {
-				logger.WithField("owner", owner).Debug("requeueing installplan owner")
-				if err := o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name); err != nil {
-					logger.WithError(err).Warn("error requeuing installplan owner")
-				}
-			}
-			return
-		}
-		logger.Trace("no installplan owner subscriptions found to requeue")
-	}()
+	defer o.requeueSubscriptionForInstallPlan(plan, logger)
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
 	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), outInstallPlan, metav1.UpdateOptions{}); err != nil {
@@ -1421,6 +1443,20 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	}
 
 	return
+}
+
+func (o *Operator) requeueSubscriptionForInstallPlan(plan *v1alpha1.InstallPlan, logger *logrus.Entry) {
+	// Notify subscription loop of installplan changes
+	if owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind); len(owners) > 0 {
+		for _, owner := range owners {
+			logger.WithField("owner", owner).Debug("requeueing installplan owner")
+			if err := o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name); err != nil {
+				logger.WithError(err).Warn("error requeuing installplan owner")
+			}
+		}
+		return
+	}
+	logger.Trace("no installplan owner subscriptions found to requeue")
 }
 
 type installPlanTransitioner interface {

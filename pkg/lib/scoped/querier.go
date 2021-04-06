@@ -55,7 +55,7 @@ func queryServiceAccountFromNamespace(logger *logrus.Entry, crclient versioned.I
 	}
 
 	if len(list.Items) == 0 {
-		err = fmt.Errorf("no operator group found that is managing this namespace")
+		err = NewOperatorGroupError("no operator group found that is managing this namespace")
 		return
 	}
 
@@ -70,12 +70,12 @@ func queryServiceAccountFromNamespace(logger *logrus.Entry, crclient versioned.I
 	}
 
 	if len(groups) == 0 {
-		err = fmt.Errorf("no operator group found that is managing this namespace")
+		err = NewOperatorGroupError("no operator group found that is managing this namespace")
 		return
 	}
 
 	if len(groups) > 1 {
-		err = fmt.Errorf("more than one operator group(s) are managing this namespace count=%d", len(groups))
+		err = NewOperatorGroupError(fmt.Sprintf("more than one operator group(s) are managing this namespace count=%d", len(groups)))
 		return
 	}
 
@@ -86,7 +86,7 @@ func queryServiceAccountFromNamespace(logger *logrus.Entry, crclient versioned.I
 	}
 
 	if !group.HasServiceAccountSynced() {
-		err = fmt.Errorf("please make sure the service account exists. sa=%s operatorgroup=%s/%s", group.Spec.ServiceAccountName, group.GetNamespace(), group.GetName())
+		err = NewOperatorGroupError(fmt.Sprintf("please make sure the service account exists. sa=%s operatorgroup=%s/%s", group.Spec.ServiceAccountName, group.GetNamespace(), group.GetName()))
 		return
 	}
 

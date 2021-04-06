@@ -41,6 +41,7 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
@@ -142,38 +143,75 @@ func TestTransitionInstallPlan(t *testing.T) {
 
 func TestSyncInstallPlanUnhappy(t *testing.T) {
 	namespace := "ns"
+	ipWithSteps := withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+		[]*v1alpha1.Step{
+			{
+				Resource: v1alpha1.StepResource{
+					CatalogSource:          "catalog",
+					CatalogSourceNamespace: namespace,
+					Group:                  "",
+					Version:                "v1",
+					Kind:                   "ServiceAccount",
+					Name:                   "sa",
+					Manifest: toManifest(t, serviceAccount("sa", namespace, "",
+						objectReference("init secret"))),
+				},
+				Status: v1alpha1.StepStatusUnknown,
+			},
+		},
+	)
 
 	tests := []struct {
-		testName string
-		in       *v1alpha1.InstallPlan
-		err      error
+		testName       string
+		in             *v1alpha1.InstallPlan
+		err            error
+		expectedPhase  v1alpha1.InstallPlanPhase
+		operatorGroups []*operatorsv1.OperatorGroup
+		clientObjs     []runtime.Object
 	}{
 		{
-			testName: "NoStatus",
-			in:       installPlan("p", namespace, v1alpha1.InstallPlanPhaseNone),
-			err:      nil,
+			testName:      "NoStatus",
+			in:            installPlan("p", namespace, v1alpha1.InstallPlanPhaseNone),
+			err:           nil,
+			expectedPhase: v1alpha1.InstallPlanPhaseNone,
 		},
 		{
-			// This checks that installplans are not applied when no operatorgroup is present
-			testName: "HasSteps/NoOperatorGroup",
-			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
-				[]*v1alpha1.Step{
-					{
-						Resource: v1alpha1.StepResource{
-							CatalogSource:          "catalog",
-							CatalogSourceNamespace: namespace,
-							Group:                  "",
-							Version:                "v1",
-							Kind:                   "ServiceAccount",
-							Name:                   "sa",
-							Manifest: toManifest(t, serviceAccount("sa", namespace, "",
-								objectReference("init secret"))),
-						},
-						Status: v1alpha1.StepStatusUnknown,
-					},
-				},
-			),
-			err: fmt.Errorf("attenuated service account query failed - no operator group found that is managing this namespace"),
+			// This checks that an installplan is marked as failed when no operatorgroup is present
+			testName:      "HasSteps/NoOperatorGroup",
+			in:            ipWithSteps,
+			err:           nil,
+			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
+		},
+		{
+			// This checks that an installplan is marked as failed when multiple operator groups are present for the same namespace
+			testName:      "HasSteps/TooManyOperatorGroups",
+			in:            ipWithSteps,
+			err:           nil,
+			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				operatorGroup("og1", "sa", namespace,
+					&corev1.ObjectReference{
+						Kind:      "ServiceAccount",
+						Namespace: namespace,
+						Name:      "sa",
+					}),
+				operatorGroup("og2", "sa", namespace,
+					&corev1.ObjectReference{
+						Kind:      "ServiceAccount",
+						Namespace: namespace,
+						Name:      "sa",
+					}),
+			},
+		},
+		{
+			// This checks that an installplan is marked as failed when no service account is synced for the operator group, i.e the service account ref doesn't exist
+			testName:      "HasSteps/NonExistentServiceAccount",
+			in:            ipWithSteps,
+			err:           nil,
+			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				operatorGroup("og", "sa1", namespace, nil),
+			},
 		},
 	}
 
@@ -182,11 +220,21 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.in))
+			tt.clientObjs = append(tt.clientObjs, tt.in)
+			for _, og := range tt.operatorGroups {
+				tt.clientObjs = append(tt.clientObjs, og)
+			}
+
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.clientObjs...))
 			require.NoError(t, err)
 
 			err = op.syncInstallPlans(tt.in)
 			require.Equal(t, tt.err, err)
+
+			ip, err := op.client.OperatorsV1alpha1().InstallPlans(namespace).Get(ctx, tt.in.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectedPhase, ip.Status.Phase)
 		})
 	}
 }
@@ -1534,4 +1582,21 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 		}
 	}
 	return apis
+}
+
+func operatorGroup(ogName, saName, namespace string, saRef *corev1.ObjectReference) *operatorsv1.OperatorGroup {
+	return &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ogName,
+			Namespace: namespace,
+		},
+		Spec: operatorsv1.OperatorGroupSpec{
+			TargetNamespaces:   []string{namespace},
+			ServiceAccountName: saName,
+		},
+		Status: operatorsv1.OperatorGroupStatus{
+			Namespaces:        []string{namespace},
+			ServiceAccountRef: saRef,
+		},
+	}
 }
