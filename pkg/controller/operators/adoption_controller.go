@@ -193,6 +193,12 @@ func (r *AdoptionReconciler) ReconcileClusterServiceVersion(req ctrl.Request) (r
 		return reconcile.Result{}, err
 	}
 
+	// disown copied csvs - a previous release inadvertently adopted them, this cleans any up if they are adopted
+	if in.IsCopied() {
+		err := r.disownFromAll(ctx, in)
+		return reconcile.Result{}, err
+	}
+
 	// Adopt all resources owned by the CSV if necessary
 	return reconcile.Result{}, r.adoptComponents(ctx, in)
 }
@@ -303,6 +309,31 @@ func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Op
 	// Only update if freshly disowned
 	r.log.V(4).Info("component disowned", "component", candidate)
 	return r.Patch(ctx, candidate, client.MergeFrom(component))
+}
+
+func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component runtime.Object) error {
+	m, err := meta.Accessor(component)
+	if err != nil {
+		return nil
+	}
+	var operators []decorators.Operator
+	for _, name := range decorators.OperatorNames(m.GetLabels()) {
+		o := &operatorsv1.Operator{}
+		o.SetName(name.Name)
+		operator, err := r.factory.NewOperator(o)
+		if err != nil {
+			return err
+		}
+		operators = append(operators, *operator)
+	}
+	errs := make([]error,0)
+	for _, operator := range operators {
+		if err := r.disown(ctx, &operator, component); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
 }
 
 func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.Operator, csv *operatorsv1alpha1.ClusterServiceVersion) ([]runtime.Object, error) {
