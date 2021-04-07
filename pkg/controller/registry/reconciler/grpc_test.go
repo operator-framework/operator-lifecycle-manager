@@ -50,6 +50,12 @@ func grpcCatalogSourceWithSecret(secretName string) *v1alpha1.CatalogSource {
 	}
 }
 
+func grpcCatalogSourceWithAnnotations(annotations map[string]string) *v1alpha1.CatalogSource {
+	catsrc := validGrpcCatalogSource("image", "")
+	catsrc.ObjectMeta.Annotations = annotations
+	return catsrc
+}
+
 func TestGrpcRegistryReconciler(t *testing.T) {
 	now := func() metav1.Time { return metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC) }
 	blockOwnerDeletion := true
@@ -256,6 +262,24 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				},
 			},
 		},
+		{
+			testName: "Grpc/NoExistingRegistry/CreateWithAnnotations",
+			in: in{
+				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
+					"annotation1": "value1",
+					"annotation2": "value2",
+				}),
+			},
+			out: out{
+				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        now(),
+					Protocol:         "grpc",
+					ServiceName:      "img-catalog",
+					ServiceNamespace: testNamespace,
+					Port:             "50051",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
@@ -291,6 +315,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				outPod := outPods.Items[0]
 				require.Equal(t, pod.GetGenerateName(), outPod.GetGenerateName())
 				require.Equal(t, pod.GetLabels(), outPod.GetLabels())
+				require.Equal(t, pod.GetAnnotations(), outPod.GetAnnotations())
 				require.Equal(t, pod.Spec, outPod.Spec)
 				require.NoError(t, serviceErr)
 				require.Equal(t, service, outService)
