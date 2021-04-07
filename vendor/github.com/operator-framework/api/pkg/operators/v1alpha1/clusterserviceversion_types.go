@@ -307,6 +307,18 @@ type ClusterServiceVersionSpec struct {
 	// Cleanup specifies the cleanup behaviour when the CSV gets deleted
 	// +optional
 	Cleanup CleanupSpec `json:"cleanup,omitempty"`
+
+	// The name(s) of one or more CSV(s) that should be skipped in the upgrade graph.
+	// Should match the `metadata.Name` field of the CSV that should be skipped.
+	// This field is only used during catalog creation and plays no part in cluster runtime.
+	// +optional
+	Skips []string `json:"skips,omitempty"`
+
+	// List any related images, or other container images that your Operator might require to perform their functions.
+	// This list should also include operand images as well. All image references should be specified by
+	// digest (SHA) and not by tag. This field is only used during catalog creation and plays no part in cluster runtime.
+	// +optional
+	RelatedImages []RelatedImage `json:"relatedImages,omitempty"`
 }
 
 type CleanupSpec struct {
@@ -326,6 +338,11 @@ type AppLink struct {
 type Icon struct {
 	Data      string `json:"base64data"`
 	MediaType string `json:"mediatype"`
+}
+
+type RelatedImage struct {
+	Name  string `json:"name"`
+	Image string `json:"image"`
 }
 
 // ClusterServiceVersionPhase is a label for the condition of a ClusterServiceVersion at the current time.
