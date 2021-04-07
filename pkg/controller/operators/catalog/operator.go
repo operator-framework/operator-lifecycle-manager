@@ -1346,20 +1346,19 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		}
 
 		// Mark the InstallPlan as failed for a fatal Operator Group related error
-		ipFailError := fmt.Errorf("attenuated service account query failed - %v", err)
-		logger.Infof("InstallPlan failed: %v", ipFailError)
-
+		logger.Infof("attenuated service account query failed - %v", err)
+		ipFailError := fmt.Errorf("invalid operator group - %v", err)
 		now := o.now()
 		out := plan.DeepCopy()
 		out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
 			v1alpha1.InstallPlanReasonInstallCheckFailed, ipFailError.Error(), &now))
 		out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
 
-		logger.Info("Transitioning InstallPlan to failed")
+		logger.Info("transitioning InstallPlan to failed")
 		if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
 			updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 			logger = logger.WithField("updateError", updateErr)
-			logger.Info("error transitioning InstallPlan to failed")
+			logger.Errorf("error transitioning InstallPlan to failed")
 
 			// retry sync with error to update InstallPlan status
 			syncError = fmt.Errorf("InstallPlan failed: %s and error updating InstallPlan status as failed: %s", ipFailError, updateErr)
