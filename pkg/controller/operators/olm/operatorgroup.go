@@ -18,6 +18,7 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
@@ -708,15 +709,23 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 	delete(newCSV.Annotations, v1.OperatorGroupTargetsAnnotationKey)
 
 	fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(newCSV.GetName())
-
 	logger = logger.WithField("csv", csv.GetName())
 	if fetchedCSV != nil {
 		logger.Debug("checking annotations")
 
-		if !reflect.DeepEqual(a.copyOperatorGroupAnnotations(&fetchedCSV.ObjectMeta), a.copyOperatorGroupAnnotations(&newCSV.ObjectMeta)) {
+		if !reflect.DeepEqual(a.copyOperatorGroupAnnotations(&fetchedCSV.ObjectMeta), a.copyOperatorGroupAnnotations(&newCSV.ObjectMeta)) ||
+			len(decorators.OperatorNames(fetchedCSV.GetLabels())) > 0 {
 			// TODO: only copy over the opgroup annotations, not _all_ annotations
 			fetchedCSV.Annotations = newCSV.Annotations
 			fetchedCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
+
+			// remove Operator object component labels before copying so that copied CSVs do not show up in the component list
+			for k := range fetchedCSV.GetLabels() {
+				if strings.HasPrefix(k, decorators.ComponentLabelKeyPrefix) {
+					delete(fetchedCSV.Labels, k)
+				}
+			}
+
 			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			logger.Debug("updating target CSV")
 			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
