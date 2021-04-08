@@ -2673,6 +2673,7 @@ var _ = Describe("Install Plan", func() {
 		ip := newInstallPlanWithDummySteps(installPlanName, ns.GetName(), operatorsv1alpha1.InstallPlanPhaseNone)
 		outIP, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Create(context.TODO(), ip, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
+		Expect(outIP).NotTo(BeNil())
 
 		// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 		// InstallPlans without any steps or bundle lookups
@@ -2682,6 +2683,7 @@ var _ = Describe("Install Plan", func() {
 
 		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
 		Expect(err).NotTo(HaveOccurred())
+		Expect(fetchedInstallPlan).NotTo(BeNil())
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with phase %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
 	})
@@ -2699,7 +2701,8 @@ var _ = Describe("Install Plan", func() {
 		Expect(err).NotTo(HaveOccurred())
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+			Expect(err).ToNot(HaveOccurred())
 		}()
 
 		// Create 2 operatorgroups in the same namespace
@@ -2728,6 +2731,7 @@ var _ = Describe("Install Plan", func() {
 		ip := newInstallPlanWithDummySteps(installPlanName, ns.GetName(), operatorsv1alpha1.InstallPlanPhaseNone)
 		outIP, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Create(context.TODO(), ip, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
+		Expect(outIP).NotTo(BeNil())
 
 		// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 		// InstallPlans without any steps or bundle lookups
@@ -2736,7 +2740,8 @@ var _ = Describe("Install Plan", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
-		require.NoError(GinkgoT(), err)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(fetchedInstallPlan).NotTo(BeNil())
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
 	})
@@ -2754,7 +2759,8 @@ var _ = Describe("Install Plan", func() {
 		Expect(err).NotTo(HaveOccurred())
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+			Expect(err).ToNot(HaveOccurred())
 		}()
 
 		// OperatorGroup with serviceaccount specified
@@ -2769,6 +2775,7 @@ var _ = Describe("Install Plan", func() {
 		}
 		og, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		Expect(og).NotTo(BeNil())
 
 		// Update OperatorGroup status with namespace but no service account reference
 		now := metav1.Now()
@@ -2784,6 +2791,7 @@ var _ = Describe("Install Plan", func() {
 		ip := newInstallPlanWithDummySteps(installPlanName, ns.GetName(), operatorsv1alpha1.InstallPlanPhaseNone)
 		outIP, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Create(context.TODO(), ip, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
+		Expect(outIP).NotTo(BeNil())
 
 		// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 		// InstallPlans without any steps or bundle lookups
@@ -2793,6 +2801,7 @@ var _ = Describe("Install Plan", func() {
 
 		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
 		Expect(err).NotTo(HaveOccurred())
+		Expect(fetchedInstallPlan).NotTo(BeNil())
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
 	})
