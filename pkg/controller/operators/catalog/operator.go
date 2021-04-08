@@ -1331,7 +1331,8 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		return
 	}
 
-	if plan.Status.Phase == v1alpha1.InstallPlanPhaseFailed {
+	// Complete and Failed are terminal phases
+	if plan.Status.Phase == v1alpha1.InstallPlanPhaseFailed || plan.Status.Phase == v1alpha1.InstallPlanPhaseComplete {
 		return
 	}
 
@@ -1446,16 +1447,19 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 func (o *Operator) requeueSubscriptionForInstallPlan(plan *v1alpha1.InstallPlan, logger *logrus.Entry) {
 	// Notify subscription loop of installplan changes
-	if owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind); len(owners) > 0 {
-		for _, owner := range owners {
-			logger.WithField("owner", owner).Debug("requeueing installplan owner")
-			if err := o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name); err != nil {
-				logger.WithError(err).Warn("error requeuing installplan owner")
-			}
-		}
+	owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind)
+
+	if len(owners) == 0 {
+		logger.Trace("no installplan owner subscriptions found to requeue")
 		return
 	}
-	logger.Trace("no installplan owner subscriptions found to requeue")
+
+	for _, owner := range owners {
+		logger.WithField("owner", owner).Debug("requeueing installplan owner")
+		if err := o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name); err != nil {
+			logger.WithError(err).Warn("error requeuing installplan owner")
+		}
+	}
 }
 
 type installPlanTransitioner interface {

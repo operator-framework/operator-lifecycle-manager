@@ -162,33 +162,33 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 	)
 
 	tests := []struct {
-		testName       string
-		in             *v1alpha1.InstallPlan
-		err            error
-		expectedPhase  v1alpha1.InstallPlanPhase
-		operatorGroups []*operatorsv1.OperatorGroup
-		clientObjs     []runtime.Object
+		testName      string
+		err           error
+		in            *v1alpha1.InstallPlan
+		expectedPhase v1alpha1.InstallPlanPhase
+
+		clientObjs []runtime.Object
 	}{
 		{
 			testName:      "NoStatus",
-			in:            installPlan("p", namespace, v1alpha1.InstallPlanPhaseNone),
 			err:           nil,
 			expectedPhase: v1alpha1.InstallPlanPhaseNone,
+			in:            installPlan("p", namespace, v1alpha1.InstallPlanPhaseNone),
 		},
 		{
 			// This checks that an installplan is marked as failed when no operatorgroup is present
 			testName:      "HasSteps/NoOperatorGroup",
-			in:            ipWithSteps,
 			err:           nil,
 			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
+			in:            ipWithSteps,
 		},
 		{
 			// This checks that an installplan is marked as failed when multiple operator groups are present for the same namespace
 			testName:      "HasSteps/TooManyOperatorGroups",
-			in:            ipWithSteps,
 			err:           nil,
 			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
-			operatorGroups: []*operatorsv1.OperatorGroup{
+			in:            ipWithSteps,
+			clientObjs: []runtime.Object{
 				operatorGroup("og1", "sa", namespace,
 					&corev1.ObjectReference{
 						Kind:      "ServiceAccount",
@@ -206,10 +206,10 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 		{
 			// This checks that an installplan is marked as failed when no service account is synced for the operator group, i.e the service account ref doesn't exist
 			testName:      "HasSteps/NonExistentServiceAccount",
-			in:            ipWithSteps,
 			err:           nil,
 			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
-			operatorGroups: []*operatorsv1.OperatorGroup{
+			in:            ipWithSteps,
+			clientObjs: []runtime.Object{
 				operatorGroup("og", "sa1", namespace, nil),
 			},
 		},
@@ -221,9 +221,6 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 			defer cancel()
 
 			tt.clientObjs = append(tt.clientObjs, tt.in)
-			for _, og := range tt.operatorGroups {
-				tt.clientObjs = append(tt.clientObjs, og)
-			}
 
 			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.clientObjs...))
 			require.NoError(t, err)
