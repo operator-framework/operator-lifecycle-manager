@@ -224,7 +224,7 @@ func TestCatalogSnapshotExpired(t *testing.T) {
 func TestCatalogSnapshotFind(t *testing.T) {
 	type tc struct {
 		Name      string
-		Predicate func(*Operator) bool
+		Predicate OperatorPredicate
 		Operators []*Operator
 		Expected  []*Operator
 	}
@@ -232,9 +232,9 @@ func TestCatalogSnapshotFind(t *testing.T) {
 	for _, tt := range []tc{
 		{
 			Name: "nothing satisfies predicate",
-			Predicate: func(*Operator) bool {
+			Predicate: OperatorPredicateFunc(func(*Operator) bool {
 				return false
-			},
+			}),
 			Operators: []*Operator{
 				{name: "a"},
 				{name: "b"},
@@ -244,17 +244,17 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		},
 		{
 			Name: "no operators in snapshot",
-			Predicate: func(*Operator) bool {
+			Predicate: OperatorPredicateFunc(func(*Operator) bool {
 				return true
-			},
+			}),
 			Operators: nil,
 			Expected:  nil,
 		},
 		{
 			Name: "everything satisfies predicate",
-			Predicate: func(*Operator) bool {
+			Predicate: OperatorPredicateFunc(func(*Operator) bool {
 				return true
-			},
+			}),
 			Operators: []*Operator{
 				{name: "a"},
 				{name: "b"},
@@ -268,9 +268,9 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		},
 		{
 			Name: "some satisfy predicate",
-			Predicate: func(o *Operator) bool {
+			Predicate: OperatorPredicateFunc(func(o *Operator) bool {
 				return o.name != "a"
-			},
+			}),
 			Operators: []*Operator{
 				{name: "a"},
 				{name: "b"},
@@ -338,4 +338,50 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 	assert.Equal(t, 1, len(result))
 	assert.Equal(t, "K.v1.g", result[0].providedAPIs.String())
 	assert.Equal(t, "K2.v2.g2", result[0].requiredAPIs.String())
+}
+
+func TestCountingPredicate(t *testing.T) {
+	for _, tc := range []struct {
+		Name        string
+		TestResults []bool
+		Expected    int
+	}{
+		{
+			Name:        "no increment on failure",
+			TestResults: []bool{false},
+			Expected:    0,
+		},
+		{
+			Name:        "increment on success",
+			TestResults: []bool{true},
+			Expected:    1,
+		},
+		{
+			Name:        "multiple increments",
+			TestResults: []bool{true, true},
+			Expected:    2,
+		},
+		{
+			Name:        "no increment without test",
+			TestResults: nil,
+			Expected:    0,
+		},
+	} {
+		t.Run(tc.Name, func(t *testing.T) {
+			var (
+				n      int
+				result bool
+			)
+
+			p := CountingPredicate(OperatorPredicateFunc(func(*Operator) bool {
+				return result
+			}), &n)
+
+			for _, result = range tc.TestResults {
+				p.Test(nil)
+			}
+
+			assert.Equal(t, tc.Expected, n)
+		})
+	}
 }

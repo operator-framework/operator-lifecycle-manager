@@ -74,6 +74,16 @@ func (i GenericInstallable) Constraints() []solver.Constraint {
 	return i.constraints
 }
 
+func NewInvalidSubscriptionInstallable(name string, reason string) solver.Installable {
+	return GenericInstallable{
+		identifier: solver.IdentifierFromString(fmt.Sprintf("subscription:%s", name)),
+		constraints: []solver.Constraint{
+			PrettyConstraint(solver.Mandatory(), fmt.Sprintf("subscription %s exists", name)),
+			PrettyConstraint(solver.Prohibited(), reason),
+		},
+	}
+}
+
 func NewSubscriptionInstallable(name string, dependencies []solver.Identifier) solver.Installable {
 	result := GenericInstallable{
 		identifier: solver.IdentifierFromString(fmt.Sprintf("subscription:%s", name)),
