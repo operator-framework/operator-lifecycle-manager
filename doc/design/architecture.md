@@ -93,10 +93,10 @@ The OLM Operator will then pickup the installation and carry it through to compl
 ### InstallPlan Control Loop
 
 ```
-None --> Planning +------>------->------> Installing --> Complete
-                  |                       ^
-                  v                       |
-                  +--> RequiresApproval --+
+None --> Planning +------>------->------> Installing +---> Complete
+                  |                       ^          |
+                  v                       |          v
+                  +--> RequiresApproval --+          Failed
 ```
 
 | Phase            | Description                                                                                    |
@@ -106,6 +106,7 @@ None --> Planning +------>------->------> Installing --> Complete
 | RequiresApproval | occurs when using manual approval, will not transition phase until `approved` field is true    |
 | Installing       | resolved resources in the InstallPlan `Status` block are being created                      |
 | Complete         | all resolved resources in the `Status` block exist                                             |
+| Failed           | occurs when resources fail to install or there is an invalid OperatorGroup                     |
 
 ### Subscription Control Loop
 

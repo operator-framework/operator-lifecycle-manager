@@ -2757,11 +2757,7 @@ var _ = Describe("Install Plan", func() {
 		require.Equal(GinkgoT(), 1, len(ips.Items), "If this test fails it should be taken seriously and not treated as a flake. \n%v", ips.Items)
 	})
 
-	It("without an operatorgroup", func() {
-
-		log := func(s string) {
-			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
-		}
+	It("should fail an InstallPlan when no OperatorGroup is present", func() {
 
 		ns := &corev1.Namespace{}
 		ns.SetName(genName("ns-"))
@@ -2771,57 +2767,150 @@ var _ = Describe("Install Plan", func() {
 
 		// Create a namespace
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).NotTo(HaveOccurred())
+
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
+			err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+			Expect(err).NotTo(HaveOccurred())
 		}()
 
-		mainPackageName := genName("nginx-")
-		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
-		stableChannel := "stable"
-		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, nil, nil)
+		// Create InstallPlan
+		installPlanName := "ip"
+		ip := newInstallPlanWithDummySteps(installPlanName, ns.GetName(), operatorsv1alpha1.InstallPlanPhaseNone)
+		outIP, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Create(context.TODO(), ip, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outIP).NotTo(BeNil())
 
+		// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
+		// InstallPlans without any steps or bundle lookups
+		outIP.Status = ip.Status
+		_, err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).UpdateStatus(context.TODO(), outIP, metav1.UpdateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fetchedInstallPlan).NotTo(BeNil())
+		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with phase %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
+	})
+
+	It("should fail an InstallPlan when multiple OperatorGroups are present", func() {
+
+		ns := &corev1.Namespace{}
+		ns.SetName(genName("ns-"))
+
+		c := newKubeClient()
+		crc := newCRClient()
+
+		// Create a namespace
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+			Expect(err).ToNot(HaveOccurred())
 		}()
 
-		mainCatalogName := genName("mock-ocs-main-")
-		mainManifests := []registry.PackageManifest{
-			{
-				PackageName: mainPackageName,
-				Channels: []registry.PackageChannel{
-					{Name: stableChannel, CurrentCSVName: mainPackageStable},
-				},
-				DefaultChannelName: stableChannel,
+		// Create 2 operatorgroups in the same namespace
+		og1 := &operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "og1",
+			},
+			Spec: operatorsv1.OperatorGroupSpec{
+				TargetNamespaces: []string{ns.GetName()},
 			},
 		}
+		og2 := &operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "og2",
+			},
+			Spec: operatorsv1.OperatorGroupSpec{
+				TargetNamespaces: []string{ns.GetName()},
+			},
+		}
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og1, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og2, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
 
-		// Create the main catalog source
-		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), mainManifests, nil, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
-		defer cleanupMainCatalogSource()
+		installPlanName := "ip"
+		ip := newInstallPlanWithDummySteps(installPlanName, ns.GetName(), operatorsv1alpha1.InstallPlanPhaseNone)
+		outIP, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Create(context.TODO(), ip, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outIP).NotTo(BeNil())
 
-		// Attempt to get the catalog source before creating install plan
-		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
+		// InstallPlans without any steps or bundle lookups
+		outIP.Status = ip.Status
+		_, err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).UpdateStatus(context.TODO(), outIP, metav1.UpdateOptions{})
+		Expect(err).NotTo(HaveOccurred())
 
-		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-		defer subscriptionCleanup()
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(fetchedInstallPlan).NotTo(BeNil())
+		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
+	})
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+	It("should fail an InstallPlan when an OperatorGroup specifies an unsynced ServiceAccount with no ServiceAccountRef", func() {
 
-		installPlanName := subscription.Status.InstallPlanRef.Name
+		ns := &corev1.Namespace{}
+		ns.SetName(genName("ns-"))
 
-		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
-		require.NoError(GinkgoT(), err)
-		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		c := newKubeClient()
+		crc := newCRClient()
 
-		fetchedInstallPlan, err = fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
-		require.NoError(GinkgoT(), err)
-		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		// Create a namespace
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		deleteOpts := &metav1.DeleteOptions{}
+		defer func() {
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+			Expect(err).ToNot(HaveOccurred())
+		}()
+
+		// OperatorGroup with serviceaccount specified
+		og := &operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "og",
+			},
+			Spec: operatorsv1.OperatorGroupSpec{
+				TargetNamespaces:   []string{ns.GetName()},
+				ServiceAccountName: "foobar",
+			},
+		}
+		og, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(og).NotTo(BeNil())
+
+		// Update OperatorGroup status with namespace but no service account reference
+		now := metav1.Now()
+		og.Status = operatorsv1.OperatorGroupStatus{
+			Namespaces:        []string{ns.GetName()},
+			ServiceAccountRef: nil,
+			LastUpdated:       &now,
+		}
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).UpdateStatus(context.TODO(), og, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		installPlanName := "ip"
+		ip := newInstallPlanWithDummySteps(installPlanName, ns.GetName(), operatorsv1alpha1.InstallPlanPhaseNone)
+		outIP, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Create(context.TODO(), ip, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outIP).NotTo(BeNil())
+
+		// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
+		// InstallPlans without any steps or bundle lookups
+		outIP.Status = ip.Status
+		_, err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).UpdateStatus(context.TODO(), outIP, metav1.UpdateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fetchedInstallPlan).NotTo(BeNil())
+		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
 	})
 
 	It("compresses installplan step resource manifests to configmap references", func() {
@@ -2916,7 +3005,7 @@ var _ = Describe("Install Plan", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 
-		By("creating a scoped serviceaccount specifified in the operatorgroup")
+		By("creating a scoped serviceaccount specified in the operatorgroup")
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("ns-"),
@@ -2979,6 +3068,18 @@ var _ = Describe("Install Plan", func() {
 		}
 		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
+
+		// Wait for the OperatorGroup to be synced and have a status.ServiceAccountRef
+		// before moving on. Otherwise the catalog operator treats it as an invalid OperatorGroup
+		// and fails the InstallPlan
+		Eventually(func() (*corev1.ObjectReference, error) {
+			outOG, err := crc.OperatorsV1().OperatorGroups(ns.GetName()).Get(context.TODO(), og.Name, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			ctx.Ctx().Logf("[DEBUG] Operator Group Status: %+v\n", outOG.Status)
+			return outOG.Status.ServiceAccountRef, nil
+		}).ShouldNot(BeNil())
 
 		crd := apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
@@ -3228,6 +3329,18 @@ var _ = Describe("Install Plan", func() {
 		}
 		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
+
+		// Wait for the OperatorGroup to be synced and have a status.ServiceAccountRef
+		// before moving on. Otherwise the catalog operator treats it as an invalid OperatorGroup
+		// and fails the InstallPlan
+		Eventually(func() (*corev1.ObjectReference, error) {
+			outOG, err := crc.OperatorsV1().OperatorGroups(ns.GetName()).Get(context.TODO(), og.Name, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			ctx.Ctx().Logf("[DEBUG] Operator Group Status: %+v\n", outOG.Status)
+			return outOG.Status.ServiceAccountRef, nil
+		}).ShouldNot(BeNil())
 
 		By("using the OLM client to install CRDs from the installplan and the scoped client for other resources")
 
@@ -3625,4 +3738,35 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 	}
 
 	return csv
+}
+
+func newInstallPlanWithDummySteps(name, namespace string, phase operatorsv1alpha1.InstallPlanPhase) *operatorsv1alpha1.InstallPlan {
+	return &operatorsv1alpha1.InstallPlan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: operatorsv1alpha1.InstallPlanSpec{
+			ClusterServiceVersionNames: []string{"foobar"},
+			Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+			Approved:                   true,
+		},
+		Status: operatorsv1alpha1.InstallPlanStatus{
+			CatalogSources: []string{"catalog"},
+			Phase:          phase,
+			Plan: []*operatorsv1alpha1.Step{
+				{
+					Resource: operatorsv1alpha1.StepResource{
+						CatalogSource:          "catalog",
+						CatalogSourceNamespace: namespace,
+						Group:                  "",
+						Version:                "v1",
+						Kind:                   "Foo",
+						Name:                   "bar",
+					},
+					Status: operatorsv1alpha1.StepStatusUnknown,
+				},
+			},
+		},
+	}
 }

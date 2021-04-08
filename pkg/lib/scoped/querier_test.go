@@ -149,7 +149,7 @@ func TestUserDefinedServiceAccountQuerier(t *testing.T) {
 			}
 			gotReference, err := f.NamespaceQuerier(tt.namespace)()
 			if tt.wantErr {
-				require.Equal(t, tt.err, err)
+				require.Equal(t, tt.err.Error(), err.Error())
 			} else {
 				require.Nil(t, tt.err)
 			}
