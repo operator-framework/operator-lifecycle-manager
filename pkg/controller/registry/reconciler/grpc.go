@@ -62,6 +62,11 @@ func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
 	}
 }
 
+func (s *grpcCatalogSourceDecorator) Annotations() map[string]string {
+	// TODO: Maybe something better than just a copy of all annotations would be to have a specific 'podMetadata' section in the CatalogSource?
+	return s.GetAnnotations()
+}
+
 func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -115,7 +120,7 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 }
 
 func (s *grpcCatalogSourceDecorator) Pod(saName string) *corev1.Pod {
-	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, saName, s.Labels(), 5, 10)
+	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, saName, s.Labels(), s.Annotations(), 5, 10)
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
 	return pod
 }

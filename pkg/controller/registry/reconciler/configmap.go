@@ -58,6 +58,11 @@ func (s *configMapCatalogSourceDecorator) Labels() map[string]string {
 	return labels
 }
 
+func (s *configMapCatalogSourceDecorator) Annotations() map[string]string {
+	// TODO: Maybe something better than just a copy of all annotations would be to have a specific 'podMetadata' section in the CatalogSource?
+	return s.GetAnnotations()
+}
+
 func (s *configMapCatalogSourceDecorator) ConfigMapChanges(configMap *v1.ConfigMap) bool {
 	if s.Status.ConfigMapResource == nil {
 		return true
@@ -95,7 +100,7 @@ func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
 }
 
 func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
-	pod := Pod(s.CatalogSource, "configmap-registry-server", image, "", s.Labels(), 5, 2)
+	pod := Pod(s.CatalogSource, "configmap-registry-server", image, "", s.Labels(), s.Annotations(), 5, 2)
 	pod.Spec.ServiceAccountName = s.GetName() + ConfigMapServerPostfix
 	pod.Spec.Containers[0].Command = []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)

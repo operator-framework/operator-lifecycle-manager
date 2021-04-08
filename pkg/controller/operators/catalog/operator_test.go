@@ -1469,7 +1469,7 @@ func toManifest(t *testing.T, obj runtime.Object) string {
 }
 
 func pod(s v1alpha1.CatalogSource) *corev1.Pod {
-	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetName(), s.GetLabels(), 5, 10)
+	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetName(), s.GetLabels(), s.GetAnnotations(), 5, 10)
 	ownerutil.AddOwner(pod, &s, false, false)
 	return pod
 }
