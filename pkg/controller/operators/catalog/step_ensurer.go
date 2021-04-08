@@ -156,6 +156,7 @@ func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceA
 		return
 	}
 	sa.Secrets = preSa.Secrets
+	sa.OwnerReferences = mergedOwnerReferences(preSa.OwnerReferences, sa.OwnerReferences)
 
 	sa.SetNamespace(namespace)
 
@@ -348,4 +349,21 @@ func (o *StepEnsurer) EnsureConfigMap(namespace string, configmap *corev1.Config
 
 	status = v1alpha1.StepStatusPresent
 	return
+}
+
+func mergedOwnerReferences(in ...[]metav1.OwnerReference) []metav1.OwnerReference {
+	uniques := make(map[metav1.OwnerReference]struct{})
+	for _, refs := range in {
+		for _, ref := range refs {
+			uniques[ref] = struct{}{}
+		}
+	}
+	if len(uniques) == 0 {
+		return nil
+	}
+	merged := make([]metav1.OwnerReference, 0, len(uniques))
+	for ref := range uniques {
+		merged = append(merged, ref)
+	}
+	return merged
 }

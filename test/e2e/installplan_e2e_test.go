@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	opver "github.com/operator-framework/api/pkg/lib/version"
@@ -48,6 +49,112 @@ import (
 var _ = Describe("Install Plan", func() {
 	AfterEach(func() {
 		TearDown(testNamespace)
+	})
+
+	When("an InstallPlan transfers ownership of a ServiceAccount to a new ClusterServiceVersion", func() {
+		var (
+			csv1, csv2 operatorsv1alpha1.ClusterServiceVersion
+			sa         corev1.ServiceAccount
+			plan       operatorsv1alpha1.InstallPlan
+		)
+
+		BeforeEach(func() {
+			csv1 = newCSV("test-csv-old", testNamespace, "", semver.Version{}, nil, nil, nil)
+			Expect(ctx.Ctx().Client().Create(context.TODO(), &csv1)).To(Succeed())
+			csv2 = newCSV("test-csv-new", testNamespace, "", semver.Version{}, nil, nil, nil)
+			Expect(ctx.Ctx().Client().Create(context.TODO(), &csv2)).To(Succeed())
+
+			sa = corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-serviceaccount",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
+							Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+							Name:       csv1.GetName(),
+							UID:        csv1.GetUID(),
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.TODO(), &sa)).To(Succeed())
+
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			var manifest bytes.Buffer
+			Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(&corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-serviceaccount",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
+							Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+							Name:       csv2.GetName(),
+						},
+					},
+				},
+			}, &manifest)).To(Succeed())
+
+			plan = operatorsv1alpha1.InstallPlan{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-plan",
+				},
+				Spec: operatorsv1alpha1.InstallPlanSpec{
+					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+					Approved:                   true,
+					ClusterServiceVersionNames: []string{},
+				},
+				Status: operatorsv1alpha1.InstallPlanStatus{
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+					CatalogSources: []string{},
+					Plan: []*operatorsv1alpha1.Step{
+						{
+							Status: operatorsv1alpha1.StepStatusUnknown,
+							Resource: operatorsv1alpha1.StepResource{
+								Name:     sa.GetName(),
+								Version:  "v1",
+								Kind:     "ServiceAccount",
+								Manifest: manifest.String(),
+							},
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), &plan)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(ctx.Ctx().Client().Delete(context.TODO(), &sa)).To(Or(
+				Succeed(),
+				WithTransform(k8serrors.IsNotFound, BeTrue()),
+			))
+		})
+
+		It("preserves owner references to both the old and the new ClusterServiceVersion", func() {
+			Eventually(func() ([]metav1.OwnerReference, error) {
+				if err := ctx.Ctx().Client().Get(context.TODO(), client.ObjectKeyFromObject(&sa), &sa); err != nil {
+					return nil, err
+				}
+				return sa.GetOwnerReferences(), nil
+			}).Should(ContainElements([]metav1.OwnerReference{
+				{
+					APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
+					Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+					Name:       csv1.GetName(),
+					UID:        csv1.GetUID(),
+				},
+				{
+					APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
+					Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+					Name:       csv2.GetName(),
+					UID:        csv2.GetUID(),
+				},
+			}))
+		})
 	})
 
 	When("a ClusterIP service exists", func() {
