@@ -67,16 +67,6 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 
 	// build constraints for each Subscription
 	for _, sub := range subs {
-		pkg := sub.Spec.Package
-		catalog := registry.CatalogKey{
-			Name:      sub.Spec.CatalogSource,
-			Namespace: sub.Spec.CatalogSourceNamespace,
-		}
-		predicates := []OperatorPredicate{WithPackage(pkg)}
-		if sub.Spec.Channel != "" {
-			predicates = append(predicates, WithChannel(sub.Spec.Channel))
-		}
-
 		// find the currently installed operator (if it exists)
 		var current *Operator
 		for _, csv := range csvs {
@@ -90,22 +80,12 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			}
 		}
 
-		channelFilter := []OperatorPredicate{}
-
-		// if we found an existing installed operator, we should filter the channel by operators that can replace it
-		if current != nil {
-			channelFilter = append(channelFilter, Or(SkipRangeIncludes(*current.Version()), Replaces(current.Identifier())))
-		}
-
-		// if no operator is installed and we have a startingCSV, filter for it
-		if current == nil && len(sub.Spec.StartingCSV) > 0 {
-			predicates = append(predicates, WithCSVName(sub.Spec.StartingCSV))
-			channelFilter = append(channelFilter, WithCSVName(sub.Spec.StartingCSV))
+		if current == nil && sub.Spec.StartingCSV != "" {
 			startingCSVs[sub.Spec.StartingCSV] = struct{}{}
 		}
 
 		// find operators, in channel order, that can skip from the current version or list the current in "replaces"
-		subInstallables, err := r.getSubscriptionInstallables(sub.Name, pkg, sub.Namespace, current, catalog, predicates, channelFilter, namespacedCache, visited)
+		subInstallables, err := r.getSubscriptionInstallables(sub, current, namespacedCache, visited)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -183,11 +163,53 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(name, pkg, namespace string, current *Operator, catalog registry.CatalogKey, cachePredicates []OperatorPredicate, channelPredicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, current *Operator, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+	var cachePredicates, channelPredicates []OperatorPredicate
 	installables := make(map[solver.Identifier]solver.Installable, 0)
-	candidates := make([]*BundleInstallable, 0)
 
-	bundles := namespacedCache.Catalog(catalog).Find(cachePredicates...)
+	catalog := registry.CatalogKey{
+		Name:      sub.Spec.CatalogSource,
+		Namespace: sub.Spec.CatalogSourceNamespace,
+	}
+
+	var bundles []*Operator
+	{
+		var nall, npkg, nch, ncsv int
+
+		csvPredicate := True()
+		if current != nil {
+			// if we found an existing installed operator, we should filter the channel by operators that can replace it
+			channelPredicates = append(channelPredicates, Or(SkipRangeIncludes(*current.Version()), Replaces(current.Identifier())))
+		} else if sub.Spec.StartingCSV != "" {
+			// if no operator is installed and we have a startingCSV, filter for it
+			csvPredicate = WithCSVName(sub.Spec.StartingCSV)
+		}
+
+		cachePredicates = append(cachePredicates, And(
+			CountingPredicate(True(), &nall),
+			CountingPredicate(WithPackage(sub.Spec.Package), &npkg),
+			CountingPredicate(WithChannel(sub.Spec.Channel), &nch),
+			CountingPredicate(csvPredicate, &ncsv),
+		))
+		bundles = namespacedCache.Catalog(catalog).Find(cachePredicates...)
+
+		var si solver.Installable
+		switch {
+		case nall == 0:
+			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found from catalog %s in namespace %s referenced by subscription %s", sub.Spec.CatalogSource, sub.Spec.CatalogSourceNamespace, sub.GetName()))
+		case npkg == 0:
+			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found in package %s in the catalog referenced by subscription %s", sub.Spec.Package, sub.GetName()))
+		case nch == 0:
+			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found in channel %s of package %s in the catalog referenced by subscription %s", sub.Spec.Channel, sub.Spec.Package, sub.GetName()))
+		case ncsv == 0:
+			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found with name %s in channel %s of package %s in the catalog referenced by subscription %s", sub.Spec.StartingCSV, sub.Spec.Channel, sub.Spec.Package, sub.GetName()))
+		}
+
+		if si != nil {
+			installables[si.Identifier()] = si
+			return installables, nil
+		}
+	}
 
 	// bundles in the default channel appear first, then lexicographically order by channel name
 	sort.SliceStable(bundles, func(i, j int) bool {
@@ -223,6 +245,7 @@ func (r *SatResolver) getSubscriptionInstallables(name, pkg, namespace string, c
 		}
 	}
 
+	candidates := make([]*BundleInstallable, 0)
 	for _, o := range Filter(sortedBundles, channelPredicates...) {
 		predicates := append(cachePredicates, WithCSVName(o.Identifier()))
 		id, installable, err := r.getBundleInstallables(catalog, predicates, namespacedCache, visited)
@@ -230,7 +253,7 @@ func (r *SatResolver) getSubscriptionInstallables(name, pkg, namespace string, c
 			return nil, err
 		}
 		if len(id) < 1 {
-			return nil, fmt.Errorf("could not find any potential bundles for subscription: %s", pkg)
+			return nil, fmt.Errorf("could not find any potential bundles for subscription: %s", sub.Spec.Package)
 		}
 
 		for _, i := range installable {
@@ -254,16 +277,16 @@ func (r *SatResolver) getSubscriptionInstallables(name, pkg, namespace string, c
 			// safe to remove this conflict if properties
 			// annotations are made mandatory for
 			// resolution.
-			c.AddConflict(bundleId(current.Identifier(), current.Channel(), registry.NewVirtualCatalogKey(namespace)))
+			c.AddConflict(bundleId(current.Identifier(), current.Channel(), registry.NewVirtualCatalogKey(sub.GetNamespace())))
 		}
 		depIds = append(depIds, c.Identifier())
 	}
 	if current != nil {
-		depIds = append(depIds, bundleId(current.Identifier(), current.Channel(), registry.NewVirtualCatalogKey(namespace)))
+		depIds = append(depIds, bundleId(current.Identifier(), current.Channel(), registry.NewVirtualCatalogKey(sub.GetNamespace())))
 	}
 
 	// all candidates added as options for this constraint
-	subInstallable := NewSubscriptionInstallable(name, depIds)
+	subInstallable := NewSubscriptionInstallable(sub.GetName(), depIds)
 	installables[subInstallable.Identifier()] = subInstallable
 
 	return installables, nil

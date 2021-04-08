@@ -104,7 +104,76 @@ func TestResolver(t *testing.T) {
 					},
 					{
 						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found matching the criteria of subscription a-alpha"),
+						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found from catalog catsrc in namespace catsrc-namespace referenced by subscription a-alpha"),
+					},
+				},
+			},
+		},
+		{
+			name: "SubscriptionWithNoCandidatesInPackage/Error",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("bundle", "package", "channel", "", nil, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				solverError: solver.NotSatisfiable{
+					{
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
+					},
+					{
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found in package a in the catalog referenced by subscription a-alpha"),
+					},
+				},
+			},
+		},
+		{
+			name: "SubscriptionWithNoCandidatesInChannel/Error",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("bundle", "a", "channel", "", nil, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				solverError: solver.NotSatisfiable{
+					{
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
+					},
+					{
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found in channel alpha of package a in the catalog referenced by subscription a-alpha"),
+					},
+				},
+			},
+		},
+		{
+			name: "SubscriptionWithNoCandidatesWithStartingCSVName/Error",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog, withStartingCSV("notfound")),
+			},
+			bundlesByCatalog: map[registry.CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("bundle", "a", "alpha", "", nil, nil, nil, nil),
+				},
+			},
+			out: resolverTestOut{
+				solverError: solver.NotSatisfiable{
+					{
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
+					},
+					{
+						Installable: NewSubscriptionInstallable("a", nil),
+						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found with name notfound in channel alpha of package a in the catalog referenced by subscription a-alpha"),
 					},
 				},
 			},
@@ -333,7 +402,7 @@ func TestResolver(t *testing.T) {
 				newSub(namespace, "a", "alpha", catalog),
 				func() (s *v1alpha1.Subscription) {
 					s = newSub(namespace, "a", "alpha", catalog)
-					s.Name = s.Name+"-2"
+					s.Name = s.Name + "-2"
 					return
 				}(),
 			},
@@ -350,7 +419,7 @@ func TestResolver(t *testing.T) {
 					updatedSub(namespace, "a.v1", "", "a", "alpha", catalog),
 					func() (s *v1alpha1.Subscription) {
 						s = updatedSub(namespace, "a.v1", "", "a", "alpha", catalog)
-						s.Name = s.Name+"-2"
+						s.Name = s.Name + "-2"
 						return
 					}(),
 				},
