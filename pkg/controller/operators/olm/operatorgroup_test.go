@@ -121,6 +121,65 @@ func TestCopyToNamespace(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:      "component labels are stripped before copy",
+			Namespace: "bar",
+			Original: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "name",
+					Namespace: "foo",
+					Labels: map[string]string{
+						"operators.coreos.com/foo": "",
+						"operators.coreos.com/bar": "",
+						"untouched": "fine",
+					},
+				},
+			},
+			ExistingCopy: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "bar",
+					Labels: map[string]string{
+						"operators.coreos.com/foo": "",
+						"operators.coreos.com/bar": "",
+						"untouched": "fine",
+					},
+				},
+				Status: v1alpha1.ClusterServiceVersionStatus{
+					Message:        "The operator is running in foo but is managing this namespace",
+					Reason:         v1alpha1.CSVReasonCopied},
+			},
+			ExpectedResult: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "bar",
+					Labels: map[string]string{
+						"untouched": "fine",
+						"olm.copiedFrom": "foo",
+					},
+				},
+				Status: v1alpha1.ClusterServiceVersionStatus{
+					Message:        "The operator is running in foo but is managing this namespace",
+					Reason:         v1alpha1.CSVReasonCopied,
+				},
+			},
+			ExpectedActions: []ktesting.Action{
+				ktesting.NewUpdateAction(gvr, "bar", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "name",
+						Namespace: "bar",
+						Labels: map[string]string{
+							"untouched": "fine",
+							"olm.copiedFrom": "foo",
+						},
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Message:        "The operator is running in foo but is managing this namespace",
+						Reason:         v1alpha1.CSVReasonCopied,
+					},
+				}),
+			},
+		},
 	} {
 		t.Run(tc.Name, func(t *testing.T) {
 			lister := &operatorlisterfakes.FakeOperatorLister{}

@@ -250,7 +250,7 @@ var _ = Describe("OperatorCondition", func() {
 					}
 					Expect(k8sClient.Create(ctx, operatorCondition)).To(Succeed())
 				})
-				It("does not injected the OperatorCondition name into the deployment's Environment Variables", func() {
+				It("does not inject the OperatorCondition name into the deployment's Environment Variables", func() {
 					deployment := &appsv1.Deployment{}
 					Consistently(func() error {
 						err := k8sClient.Get(ctx, types.NamespacedName{Name: operatorCondition.Spec.Deployments[0], Namespace: namespace.GetName()}, deployment)
