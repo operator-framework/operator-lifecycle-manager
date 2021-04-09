@@ -9,7 +9,6 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	crdlib "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/crd"
-	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	errorwrap "github.com/pkg/errors"
 	logger "github.com/sirupsen/logrus"
@@ -127,22 +126,9 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(createError) {
 				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				// Verify CRD ownership, only attempt to update if
-				// CRD has only one owner
-				// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
-				matchedCSV, err := index.V1CRDProviderNames(b.csvToProvidedAPIs, crd)
-				if err != nil {
-					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
-				}
 				crd.SetResourceVersion(currentCRD.GetResourceVersion())
-				if len(matchedCSV) == 1 {
-					logger.Debugf("Found one owner for CRD %v", crd)
-				} else if len(matchedCSV) > 1 {
-					logger.Debugf("Found multiple owners for CRD %v", crd)
-
-					if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
-					}
+				if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
 				}
 
 				// check to see if stored versions changed and whether the upgrade could cause potential data loss
@@ -215,22 +201,10 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(createError) {
 				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				// Verify CRD ownership, only attempt to update if
-				// CRD has only one owner
-				// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
-				matchedCSV, err := index.V1Beta1CRDProviderNames(b.csvToProvidedAPIs, crd)
-				if err != nil {
-					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
-				}
 				crd.SetResourceVersion(currentCRD.GetResourceVersion())
-				if len(matchedCSV) == 1 {
-					logger.Debugf("Found one owner for CRD %v", crd)
-				} else if len(matchedCSV) > 1 {
-					logger.Debugf("Found multiple owners for CRD %v", crd)
 
-					if err = validateV1Beta1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-						return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
-					}
+				if err = validateV1Beta1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
+					return v1alpha1.StepStatusUnknown, errorwrap.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
 				}
 
 				// check to see if stored versions changed and whether the upgrade could cause potential data loss

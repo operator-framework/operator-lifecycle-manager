@@ -460,9 +460,12 @@ var _ = Describe("CRD Versions", func() {
 		Expect(catalogCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
 
 		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version (v1alpha1)
-		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
-			return crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
-		}).Should(WithTransform(
+		Eventually(
+			func() (*operatorsv1alpha1.InstallPlan, error) {
+				return crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			},
+			90*time.Second, // exhaust retries
+		).Should(WithTransform(
 			func(v *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase { return v.Status.Phase },
 			Equal(operatorsv1alpha1.InstallPlanPhaseFailed),
 		))

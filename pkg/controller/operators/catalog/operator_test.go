@@ -65,10 +65,6 @@ type mockTransitioner struct {
 
 var _ installPlanTransitioner = &mockTransitioner{}
 
-func (m *mockTransitioner) ResolvePlan(plan *v1alpha1.InstallPlan) error {
-	return m.err
-}
-
 func (m *mockTransitioner) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	return m.err
 }
@@ -97,14 +93,17 @@ func TestTransitionInstallPlan(t *testing.T) {
 		approved   bool
 		expected   v1alpha1.InstallPlanPhase
 		condition  *v1alpha1.InstallPlanCondition
+		timeout    time.Duration
 	}{
-		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseComplete, installed},
-		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseComplete, installed},
-		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseFailed, failed},
-		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseFailed, failed},
+		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseComplete, installed, 0},
+		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseComplete, installed, 0},
+		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseFailed, failed, 0},
+		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseFailed, failed, 0},
+		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseInstalling, nil, 1},
+		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseInstalling, nil, 1},
 
-		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, false, v1alpha1.InstallPlanPhaseRequiresApproval, nil},
-		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, true, v1alpha1.InstallPlanPhaseInstalling, nil},
+		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, false, v1alpha1.InstallPlanPhaseRequiresApproval, nil, 0},
+		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, true, v1alpha1.InstallPlanPhaseInstalling, nil, 0},
 	}
 	for _, tt := range tests {
 		// Create a plan in the provided initial phase.
@@ -123,7 +122,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 		transitioner := &mockTransitioner{tt.transError}
 
 		// Attempt to transition phases.
-		out, _ := transitionInstallPlanState(logrus.New(), transitioner, *plan, now)
+		out, _ := transitionInstallPlanState(logrus.New(), transitioner, *plan, now, tt.timeout)
 
 		// Assert that the final phase is as expected.
 		require.Equal(t, tt.expected, out.Status.Phase)

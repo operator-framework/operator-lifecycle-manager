@@ -30,4 +30,4 @@ package:
   securityContext:
     runAsUser: 1000
 catalog_sources:
-- rh-operators
+  - rh-operators

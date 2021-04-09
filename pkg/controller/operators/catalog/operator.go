@@ -105,12 +105,13 @@ type Operator struct {
 	clientAttenuator         *scoped.ClientAttenuator
 	serviceAccountQuerier    *scoped.UserDefinedServiceAccountQuerier
 	bundleUnpacker           bundle.Unpacker
+	installPlanTimeout       time.Duration
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme) (*Operator, error) {
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration) (*Operator, error) {
 	resyncPeriod := queueinformer.ResyncWithJitter(resync, 0.2)
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
@@ -168,6 +169,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient, dynamicClient),
+		installPlanTimeout:       installPlanTimeout,
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
@@ -1418,7 +1420,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		}
 	}
 
-	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan, o.now())
+	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan, o.now(), o.installPlanTimeout)
 
 	if syncError != nil {
 		logger = logger.WithField("syncError", syncError)
@@ -1463,47 +1465,50 @@ func (o *Operator) requeueSubscriptionForInstallPlan(plan *v1alpha1.InstallPlan,
 }
 
 type installPlanTransitioner interface {
-	ResolvePlan(*v1alpha1.InstallPlan) error
 	ExecutePlan(*v1alpha1.InstallPlan) error
 }
 
 var _ installPlanTransitioner = &Operator{}
 
-func transitionInstallPlanState(log *logrus.Logger, transitioner installPlanTransitioner, in v1alpha1.InstallPlan, now metav1.Time) (*v1alpha1.InstallPlan, error) {
+func transitionInstallPlanState(log logrus.FieldLogger, transitioner installPlanTransitioner, in v1alpha1.InstallPlan, now metav1.Time, timeout time.Duration) (*v1alpha1.InstallPlan, error) {
 	out := in.DeepCopy()
 
 	switch in.Status.Phase {
 	case v1alpha1.InstallPlanPhaseRequiresApproval:
 		if out.Spec.Approved {
-			log.Debugf("approved, setting to %s", v1alpha1.InstallPlanPhasePlanning)
 			out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+			out.Status.Message = ""
+			log.Debugf("approved, setting to %s", out.Status.Phase)
 		} else {
 			log.Debug("not approved, skipping sync")
 		}
 		return out, nil
 
 	case v1alpha1.InstallPlanPhaseInstalling:
+		if out.Status.StartTime == nil {
+			out.Status.StartTime = &now
+		}
 		log.Debug("attempting to install")
 		if err := transitioner.ExecutePlan(out); err != nil {
-			out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
-				v1alpha1.InstallPlanReasonComponentFailed, err.Error(), &now))
-			out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+			if now.Sub(out.Status.StartTime.Time) >= timeout {
+				out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
+					v1alpha1.InstallPlanReasonComponentFailed, err.Error(), &now))
+				out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+				out.Status.Message = err.Error()
+			} else {
+				out.Status.Message = fmt.Sprintf("retrying execution due to error: %s", err.Error())
+			}
 			return out, err
-		}
-		// Loop over one final time to check and see if everything is good.
-		if !out.Status.NeedsRequeue() {
+		} else if !out.Status.NeedsRequeue() {
+			// Loop over one final time to check and see if everything is good.
 			out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled, &now))
 			out.Status.Phase = v1alpha1.InstallPlanPhaseComplete
+			out.Status.Message = ""
 		}
 		return out, nil
 	default:
 		return out, nil
 	}
-}
-
-// ResolvePlan modifies an InstallPlan to contain a Plan in its Status field.
-func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
-	return nil
 }
 
 // Validate all existing served versions against new CRD's validation (if changed)

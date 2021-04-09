@@ -14,16 +14,15 @@ spec:
     - name: olm.csv_abnormal.rules
       rules:
         - alert: CsvAbnormalFailedOver2Min
-          expr: csv_abnormal{phase=~"^Failed$",exported_namespace=~"(^openshift.*|^kube.*|^redhat.*|^default$)"}
+          expr: csv_abnormal{phase=~"^Failed$"}
           for: 2m
           labels:
             severity: warning
             namespace: "{{ $labels.namespace }}"
           annotations:
             message: Failed to install Operator {{ $labels.name }} version {{ $labels.version }}. Reason-{{ $labels.reason }}
-
         - alert: CsvAbnormalOver30Min
-          expr: csv_abnormal{phase=~"(^Replacing$|^Pending$|^Deleting$|^Unknown$)",exported_namespace=~"(^openshift.*|^kube.*|^redhat.*|^default$)"}
+          expr: csv_abnormal{phase=~"(^Replacing$|^Pending$|^Deleting$|^Unknown$)"}
           for: 30m
           labels:
             severity: warning

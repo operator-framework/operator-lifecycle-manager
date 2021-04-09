@@ -5,14 +5,18 @@
 
 set -e
 
-if [[ ${#@} -ne 1 ]]; then
-    echo "Usage: $0 version"
+default_base_url=https://github.com/operator-framework/operator-lifecycle-manager/releases/download
+
+if [[ ${#@} -lt 1 || ${#@} -gt 2 ]]; then
+    echo "Usage: $0 version [base_url]"
     echo "* version: the github release version"
+    echo "* base_url: the github base URL (Default: $default_base_url)"
     exit 1
 fi
 
-release=$1
-url=https://github.com/operator-framework/operator-lifecycle-manager/releases/download/${release}
+release="$1"
+base_url="${2:-${default_base_url}}"
+url="${base_url}/${release}"
 namespace=olm
 
 kubectl apply -f "${url}/crds.yaml"

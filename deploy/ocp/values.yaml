@@ -18,17 +18,17 @@ olm:
     kubernetes.io/os: linux
     node-role.kubernetes.io/master: ""
   tolerations:
-  - key: node-role.kubernetes.io/master
-    operator: Exists
-    effect: NoSchedule
-  - key: node.kubernetes.io/unreachable
-    operator: Exists
-    effect: NoExecute
-    tolerationSeconds: 120
-  - key: node.kubernetes.io/not-ready
-    operator: Exists
-    effect: NoExecute
-    tolerationSeconds: 120
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
   tlsCertPath: /var/run/secrets/serving-cert/tls.crt
   tlsKeyPath: /var/run/secrets/serving-cert/tls.key
   resources:
@@ -46,17 +46,17 @@ catalog:
     kubernetes.io/os: linux
     node-role.kubernetes.io/master: ""
   tolerations:
-  - key: node-role.kubernetes.io/master
-    operator: Exists
-    effect: NoSchedule
-  - key: node.kubernetes.io/unreachable
-    operator: Exists
-    effect: NoExecute
-    tolerationSeconds: 120
-  - key: node.kubernetes.io/not-ready
-    operator: Exists
-    effect: NoExecute
-    tolerationSeconds: 120
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
   resources:
     requests:
       cpu: 10m
@@ -72,17 +72,17 @@ package:
     kubernetes.io/os: linux
     node-role.kubernetes.io/master: ""
   tolerations:
-  - key: node-role.kubernetes.io/master
-    operator: Exists
-    effect: NoSchedule
-  - key: node.kubernetes.io/unreachable
-    operator: Exists
-    effect: NoExecute
-    tolerationSeconds: 120
-  - key: node.kubernetes.io/not-ready
-    operator: Exists
-    effect: NoExecute
-    tolerationSeconds: 120
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 120
   resources:
     requests:
       cpu: 10m

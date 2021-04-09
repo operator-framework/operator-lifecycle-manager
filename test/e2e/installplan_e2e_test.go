@@ -47,8 +47,99 @@ import (
 )
 
 var _ = Describe("Install Plan", func() {
+	HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
+		return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
+			return plan.Status.Phase
+		}, Equal(goal))
+	}
+
 	AfterEach(func() {
 		TearDown(testNamespace)
+	})
+
+	When("an error is encountered during InstallPlan step execution", func() {
+		var (
+			plan  *operatorsv1alpha1.InstallPlan
+			owned *corev1.ConfigMap
+		)
+
+		BeforeEach(func() {
+			// It's hard to reliably generate transient
+			// errors in an uninstrumented end-to-end
+			// test, so simulate it by constructing an
+			// error state that can be easily corrected
+			// during a test.
+			owned = &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-owned",
+					OwnerReferences: []metav1.OwnerReference{{
+						APIVersion: "operators.coreos.com/v1alpha1",
+						Kind:       "ClusterServiceVersion",
+						Name:       "test-owner", // Does not exist!
+						UID:        "",           // catalog-operator populates this if the named CSV exists.
+					}},
+				},
+			}
+
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			var manifest bytes.Buffer
+			Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(owned, &manifest)).To(Succeed())
+
+			plan = &operatorsv1alpha1.InstallPlan{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-plan",
+				},
+				Spec: operatorsv1alpha1.InstallPlanSpec{
+					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+					Approved:                   true,
+					ClusterServiceVersionNames: []string{},
+				},
+				Status: operatorsv1alpha1.InstallPlanStatus{
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+					CatalogSources: []string{},
+					Plan: []*operatorsv1alpha1.Step{
+						{
+							Status: operatorsv1alpha1.StepStatusUnknown,
+							Resource: operatorsv1alpha1.StepResource{
+								Name:     owned.GetName(),
+								Version:  "v1",
+								Kind:     "ConfigMap",
+								Manifest: manifest.String(),
+							},
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(ctx.Ctx().Client().Delete(context.Background(), owned)).To(Or(
+				Succeed(),
+				WithTransform(k8serrors.IsNotFound, BeTrue()),
+			))
+		})
+
+		It("times out if the error persists", func() {
+			Eventually(
+				func() (*operatorsv1alpha1.InstallPlan, error) {
+					return plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(plan), plan)
+				},
+				90*time.Second,
+			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
+		})
+
+		It("succeeds if there is no error on a later attempt", func() {
+			owner := newCSV("test-owner", testNamespace, "", semver.Version{}, nil, nil, nil)
+			Expect(ctx.Ctx().Client().Create(context.Background(), &owner)).To(Succeed())
+			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+				return plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(plan), plan)
+			}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+		})
 	})
 
 	When("an InstallPlan transfers ownership of a ServiceAccount to a new ClusterServiceVersion", func() {
@@ -226,12 +317,6 @@ var _ = Describe("Install Plan", func() {
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
 			key := runtimeclient.ObjectKeyFromObject(plan)
-
-			HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
-				return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
-					return plan.Status.Phase
-				}, Equal(goal))
-			}
 
 			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 				return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
@@ -1016,7 +1101,7 @@ var _ = Describe("Install Plan", func() {
 			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(tt.expectedPhase))
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
@@ -3156,12 +3241,6 @@ var _ = Describe("Install Plan", func() {
 
 		key := runtimeclient.ObjectKeyFromObject(plan)
 
-		HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
-			return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
-				return plan.Status.Phase
-			}, Equal(goal))
-		}
-
 		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 			return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
 		}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
@@ -3206,6 +3285,7 @@ var _ = Describe("Install Plan", func() {
 				ClusterServiceVersionNames: []string{},
 			},
 			Status: operatorsv1alpha1.InstallPlanStatus{
+				StartTime: &metav1.Time{Time: time.Unix(0, 0)}, // disable retries
 				AttenuatedServiceAccountRef: &corev1.ObjectReference{
 					Name:      sa.GetName(),
 					Namespace: sa.GetNamespace(),
@@ -3430,12 +3510,6 @@ var _ = Describe("Install Plan", func() {
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
 		key := runtimeclient.ObjectKeyFromObject(plan)
-
-		HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
-			return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
-				return plan.Status.Phase
-			}, Equal(goal))
-		}
 
 		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 			return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
