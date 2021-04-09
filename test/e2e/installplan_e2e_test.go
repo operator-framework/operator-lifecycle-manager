@@ -36,6 +36,7 @@ import (
 
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
@@ -2996,6 +2997,111 @@ var _ = Describe("Install Plan", func() {
 		Expect(fetchedInstallPlan).NotTo(BeNil())
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
+	})
+
+	It("should fail an InstallPlan when an InstallPlan has a bundle unpack job timeout", func() {
+		ns := &corev1.Namespace{}
+		ns.SetName(genName("ns-"))
+
+		c := newKubeClient()
+		crc := newCRClient()
+		now := metav1.Now()
+
+		// Create a namespace
+		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		deleteOpts := &metav1.DeleteOptions{}
+		defer func() {
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+			Expect(err).ToNot(HaveOccurred())
+		}()
+
+		// Create the single (kiali) bundle catalog source
+		catsrc := &operatorsv1alpha1.CatalogSource{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("kiali-"),
+				Namespace: ns.GetName(),
+				Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
+			},
+			Spec: operatorsv1alpha1.CatalogSourceSpec{
+				Image:      "quay.io/olmtest/single-bundle-index:1.0.0",
+				SourceType: operatorsv1alpha1.SourceTypeGrpc,
+			},
+		}
+		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Wait for the CatalogSource to be ready
+		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Create the OperatorGroup
+		og := &operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "og",
+			},
+			Spec: operatorsv1.OperatorGroupSpec{
+				TargetNamespaces: []string{ns.GetName()},
+			},
+		}
+		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Create an InstallPlan in the Planning phase with status.bundleLookups specified for a non-existing bundle
+		ip := &operatorsv1alpha1.InstallPlan{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "ip",
+				Namespace: ns.GetName(),
+			},
+			Spec: operatorsv1alpha1.InstallPlanSpec{
+				ClusterServiceVersionNames: []string{"foobar"},
+				Approval:                   v1alpha1.ApprovalAutomatic,
+				Approved:                   true,
+				Generation:                 1,
+			},
+			Status: operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhasePlanning,
+				CatalogSources: []string{},
+				BundleLookups: []operatorsv1alpha1.BundleLookup{
+					{
+						Path:       "quay.io/foo/bar:v0.0.1",
+						Identifier: "foobar.v0.0.1",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: ns.GetName(),
+							Name:      catsrc.GetName(),
+						},
+						Conditions: []operatorsv1alpha1.BundleLookupCondition{
+							{
+								Type:               operatorsv1alpha1.BundleLookupPending,
+								Status:             corev1.ConditionTrue,
+								Reason:             "JobIncomplete",
+								Message:            "unpack job not completed",
+								LastTransitionTime: &now,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		outIP, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Create(context.TODO(), ip, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outIP).NotTo(BeNil())
+
+		// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
+		// InstallPlans without any steps or bundle lookups
+		outIP.Status = ip.Status
+		_, err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).UpdateStatus(context.TODO(), outIP, metav1.UpdateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		// The InstallPlan should be Failed due to the bundle unpack job timeout
+		// TODO(haseeb): Use Eventually() to set a Duration just over the default bundle-unpack-timeout duration. Else this could poll for a long time.
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ip.Name, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fetchedInstallPlan).NotTo(BeNil())
+		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with phase %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
+
 	})
 
 	It("compresses installplan step resource manifests to configmap references", func() {

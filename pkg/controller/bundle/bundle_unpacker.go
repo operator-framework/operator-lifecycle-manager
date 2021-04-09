@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"time"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/configmap"
@@ -165,6 +166,12 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 	job.SetName(cmRef.Name)
 	job.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
 
+	// Don't set a timeout if it is 0
+	if c.unpackTimeout != time.Duration(0) {
+		t := int64(c.unpackTimeout.Seconds())
+		job.Spec.ActiveDeadlineSeconds = &t
+	}
+
 	return job
 }
 
@@ -175,16 +182,17 @@ type Unpacker interface {
 }
 
 type ConfigMapUnpacker struct {
-	opmImage   string
-	utilImage  string
-	client     kubernetes.Interface
-	csLister   listersoperatorsv1alpha1.CatalogSourceLister
-	cmLister   listerscorev1.ConfigMapLister
-	jobLister  listersbatchv1.JobLister
-	roleLister listersrbacv1.RoleLister
-	rbLister   listersrbacv1.RoleBindingLister
-	loader     *configmap.BundleLoader
-	now        func() metav1.Time
+	opmImage      string
+	utilImage     string
+	client        kubernetes.Interface
+	csLister      listersoperatorsv1alpha1.CatalogSourceLister
+	cmLister      listerscorev1.ConfigMapLister
+	jobLister     listersbatchv1.JobLister
+	roleLister    listersrbacv1.RoleLister
+	rbLister      listersrbacv1.RoleBindingLister
+	loader        *configmap.BundleLoader
+	now           func() metav1.Time
+	unpackTimeout time.Duration
 }
 
 type ConfigMapUnpackerOption func(*ConfigMapUnpacker)
@@ -200,6 +208,12 @@ func NewConfigmapUnpacker(options ...ConfigMapUnpackerOption) (*ConfigMapUnpacke
 	}
 
 	return unpacker, nil
+}
+
+func WithUnpackTimeout(timeout time.Duration) ConfigMapUnpackerOption {
+	return func(unpacker *ConfigMapUnpacker) {
+		unpacker.unpackTimeout = timeout
+	}
 }
 
 func WithOPMImage(opmImage string) ConfigMapUnpackerOption {
@@ -361,7 +375,22 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 		return
 	}
 
-	if !jobConditionTrue(job, batchv1.JobComplete) && (cond.Status != corev1.ConditionTrue || cond.Reason != JobIncompleteReason) {
+	// Check if bundle unpack job has failed due a timeout
+	// Return a BundleJobError so we can mark the InstallPlan as Failed
+	isFailed, jobCond := jobConditionTrue(job, batchv1.JobFailed)
+	if isFailed {
+		cond.Status = corev1.ConditionTrue
+		cond.Reason = jobCond.Reason
+		cond.Message = jobCond.Message
+		cond.LastTransitionTime = &now
+		result.SetCondition(cond)
+
+		err = NewBundleJobError(fmt.Sprintf("Bundle extract Job failed with Reason: %v, and Message: %v", jobCond.Reason, jobCond.Message))
+		return
+	}
+
+	isComplete, _ := jobConditionTrue(job, batchv1.JobComplete)
+	if !isComplete && (cond.Status != corev1.ConditionTrue || cond.Reason != JobIncompleteReason) {
 		cond.Status = corev1.ConditionTrue
 		cond.Reason = JobIncompleteReason
 		cond.Message = JobIncompleteMessage
@@ -541,15 +570,16 @@ func ownerRef(ref *corev1.ObjectReference) metav1.OwnerReference {
 }
 
 // jobConditionTrue returns true if the given job has the given condition with the given condition type true, and returns false otherwise.
-func jobConditionTrue(job *batchv1.Job, conditionType batchv1.JobConditionType) bool {
+// Also returns the condition if true
+func jobConditionTrue(job *batchv1.Job, conditionType batchv1.JobConditionType) (bool, *batchv1.JobCondition) {
 	if job == nil {
-		return false
+		return false, nil
 	}
 
 	for _, cond := range job.Status.Conditions {
 		if cond.Type == conditionType && cond.Status == corev1.ConditionTrue {
-			return true
+			return true, &cond
 		}
 	}
-	return false
+	return false, nil
 }
