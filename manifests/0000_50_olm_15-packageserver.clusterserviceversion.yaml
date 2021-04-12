@@ -72,7 +72,7 @@ spec:
           spec:
             strategy:
               type: RollingUpdate
-            replicas: 1
+            replicas: 2
             selector:
               matchLabels:
                 app: packageserver
