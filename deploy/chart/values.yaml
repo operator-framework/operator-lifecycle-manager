@@ -37,7 +37,7 @@ catalog:
      memory: 80Mi
 
 package:
-  replicaCount: 1
+  replicaCount: 2
   image:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
