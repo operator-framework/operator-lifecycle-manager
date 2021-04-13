@@ -68,7 +68,7 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).ToNot(BeNil())
 
 	ctx = context.Background()
-	now := metav1.Now().Rfc3339Copy()
+	now := metav1.Date(2021, time.April, 13, 0, 0, 0, 0, time.Local)
 	fixedNow = func() metav1.Time {
 		return now
 	}
