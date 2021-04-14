@@ -25,37 +25,40 @@ func InjectEnvIntoDeployment(podSpec *corev1.PodSpec, envVars []corev1.EnvVar) e
 	return nil
 }
 
-func mergeEnvVars(containerEnvVars []corev1.EnvVar, newEnvVars []corev1.EnvVar) (merged []corev1.EnvVar) {
-	merged = containerEnvVars
+func mergeEnvVars(containerEnvVars []corev1.EnvVar, newEnvVars []corev1.EnvVar) []corev1.EnvVar {
+	// Build a map of environment variables.
+	// newEnvVars always overrides containerEnvVars.
+	mergedMap := map[string]corev1.EnvVar{}
+	for _, envVar := range containerEnvVars {
+		mergedMap[envVar.Name] = envVar
+	}
+	for _, envVar := range newEnvVars {
+		mergedMap[envVar.Name] = envVar
+	}
 
-	for _, newEnvVar := range newEnvVars {
-		existing, found := findEnvVar(containerEnvVars, newEnvVar.Name)
-		if found {
-			existing.Value = newEnvVar.Value
+	// To keep things in the expected order, always put the
+	// original environment variable names into the merged
+	// output in place first.
+	merged := make([]corev1.EnvVar, 0, len(mergedMap))
+	for _, e := range containerEnvVars {
+		envVar := mergedMap[e.Name]
+		merged = append(merged, envVar)
+		delete(mergedMap, e.Name)
+	}
+
+	// Then for any remaining newEnvVars (i.e. env vars
+	// that weren't present in the containerEnvVars), add
+	// them at the end in the order they were provided in
+	// the subscription.
+	for _, e := range newEnvVars {
+		envVar, ok := mergedMap[e.Name]
+		if !ok {
 			continue
 		}
-
-		merged = append(merged, corev1.EnvVar{
-			Name:  newEnvVar.Name,
-			Value: newEnvVar.Value,
-		})
+		merged = append(merged, envVar)
 	}
 
-	return
-}
-
-func findEnvVar(proxyEnvVar []corev1.EnvVar, name string) (foundEnvVar *corev1.EnvVar, found bool) {
-	for i := range proxyEnvVar {
-		if name == proxyEnvVar[i].Name {
-			// Environment variable names are case sensitive.
-			found = true
-			foundEnvVar = &proxyEnvVar[i]
-
-			break
-		}
-	}
-
-	return
+	return merged
 }
 
 // InjectVolumesIntoDeployment injects the provided Volumes

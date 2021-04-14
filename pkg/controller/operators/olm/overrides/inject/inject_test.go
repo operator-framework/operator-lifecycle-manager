@@ -3,10 +3,11 @@ package inject_test
 import (
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides/inject"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides/inject"
 )
 
 var (
@@ -387,6 +388,10 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 			},
 			envVar: []corev1.EnvVar{
 				corev1.EnvVar{
+					Name:  "extra",
+					Value: "extra_value",
+				},
+				corev1.EnvVar{
 					Name:  "foo",
 					Value: "new_foo_value",
 				},
@@ -406,6 +411,10 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 							corev1.EnvVar{
 								Name:  "bar",
 								Value: "new_bar_value",
+							},
+							corev1.EnvVar{
+								Name:  "extra",
+								Value: "extra_value",
 							},
 						},
 					},
