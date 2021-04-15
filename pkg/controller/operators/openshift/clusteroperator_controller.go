@@ -33,7 +33,7 @@ type ClusterOperatorReconciler struct {
 	*ReconcilerConfig
 
 	delayRequeue reconcile.Result
-	mutate       MutateFunc
+	mutator      Mutator
 	syncTracker  *SyncTracker
 	co           *ClusterOperator
 }
@@ -64,7 +64,7 @@ func NewClusterOperatorReconciler(opts ...ReconcilerOption) (*ClusterOperatorRec
 		MutateFunc(r.setDegraded),
 		MutateFunc(r.setUpgradeable),
 	)
-	r.mutate = mutations.Mutate
+	r.mutator = mutations
 
 	return r, nil
 }
@@ -124,6 +124,10 @@ func (r *ClusterOperatorReconciler) Reconcile(ctx context.Context, req reconcile
 	}
 
 	return res, utilerrors.NewAggregate(errs)
+}
+
+func (r *ClusterOperatorReconciler) mutate(ctx context.Context, co *ClusterOperator) error {
+	return r.mutator.Mutate(ctx, co)
 }
 
 func (r *ClusterOperatorReconciler) setVersions(_ context.Context, co *ClusterOperator) error {
