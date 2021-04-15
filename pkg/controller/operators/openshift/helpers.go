@@ -8,6 +8,8 @@ import (
 
 	semver "github.com/blang/semver/v4"
 	configv1 "github.com/openshift/api/config/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -230,17 +232,33 @@ func maxOpenShiftVersion(csv *operatorsv1alpha1.ClusterServiceVersion) (*semver.
 	return max, nil
 }
 
-func olmOperatorRelatedObjects(ctx context.Context, cli client.Client, namespace string) ([]configv1.ObjectReference, error) {
-	csvList := &operatorsv1alpha1.ClusterServiceVersionList{}
-	if err := cli.List(ctx, csvList, client.InNamespace(namespace)); err != nil {
+func notCopiedSelector() (labels.Selector, error) {
+	requirement, err := labels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.DoesNotExist, nil)
+	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Is there a better way to filter (server-side maybe)?
+	selector := labels.NewSelector()
+	selector.Add(*requirement)
+
+	return selector, nil
+}
+
+func olmOperatorRelatedObjects(ctx context.Context, cli client.Client, namespace string) ([]configv1.ObjectReference, error) {
+	selector, err := notCopiedSelector()
+	if err != nil {
+		return nil, err
+	}
+
+	csvList := &operatorsv1alpha1.ClusterServiceVersionList{}
+	if err := cli.List(ctx, csvList, client.InNamespace(namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
+		return nil, err
+	}
+
 	var refs []configv1.ObjectReference
 	for _, csv := range csvList.Items {
 		if csv.IsCopied() {
-			// Filter out copied CSVs
+			// Filter out copied CSVs that the label selector missed
 			continue
 		}
 
