@@ -47,9 +47,8 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 		return nil, err
 	}
 
-	// Setup a new controller to reconcile Operators
-	setupLog.Info("configuring controller")
 	if feature.Gate.Enabled(feature.OperatorLifecycleManagerV1) {
+		// Setup a new controller to reconcile Operators
 		operatorReconciler, err := operators.NewOperatorReconciler(
 			mgr.GetClient(),
 			ctrl.Log.WithName("controllers").WithName("operator"),
@@ -77,7 +76,6 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 		}
 
 	}
-
 	setupLog.Info("manager configured")
 
 	return mgr, nil

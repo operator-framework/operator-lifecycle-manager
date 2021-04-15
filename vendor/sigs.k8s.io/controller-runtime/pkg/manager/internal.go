@@ -117,6 +117,10 @@ type controllerManager struct {
 	// it must be deferred until after gracefulShutdown is done.
 	leaderElectionCancel context.CancelFunc
 
+	// leaderElectionStopped is an internal channel used to signal the stopping procedure that the
+	// LeaderElection.Run(...) function has returned and the shutdown can proceed.
+	leaderElectionStopped chan struct{}
+
 	// stop procedure engaged. In other words, we should not add anything else to the manager
 	stopProcedureEngaged bool
 
@@ -125,7 +129,7 @@ type controllerManager struct {
 	// election was configured.
 	elected chan struct{}
 
-	startCache func(ctx context.Context) error
+	caches []hasCache
 
 	// port is the port that the webhook server serves at.
 	port int
@@ -173,6 +177,11 @@ type controllerManager struct {
 	internalProceduresStop chan struct{}
 }
 
+type hasCache interface {
+	Runnable
+	GetCache() cache.Cache
+}
+
 // Add sets dependencies on i, and adds it to the list of Runnables to start.
 func (cm *controllerManager) Add(r Runnable) error {
 	cm.mu.Lock()
@@ -192,6 +201,8 @@ func (cm *controllerManager) Add(r Runnable) error {
 	if leRunnable, ok := r.(LeaderElectionRunnable); ok && !leRunnable.NeedLeaderElection() {
 		shouldStart = cm.started
 		cm.nonLeaderElectionRunnables = append(cm.nonLeaderElectionRunnables, r)
+	} else if hasCache, ok := r.(hasCache); ok {
+		cm.caches = append(cm.caches, hasCache)
 	} else {
 		shouldStart = cm.startedLeader
 		cm.leaderElectionRunnables = append(cm.leaderElectionRunnables, r)
@@ -205,6 +216,7 @@ func (cm *controllerManager) Add(r Runnable) error {
 	return nil
 }
 
+// Deprecated: use the equivalent Options field to set a field. This method will be removed in v0.10.
 func (cm *controllerManager) SetFields(i interface{}) error {
 	if _, err := inject.InjectorInto(cm.SetFields, i); err != nil {
 		return err
@@ -423,6 +435,9 @@ func (cm *controllerManager) serveHealthProbes() {
 }
 
 func (cm *controllerManager) Start(ctx context.Context) (err error) {
+	if err := cm.Add(cm.cluster); err != nil {
+		return fmt.Errorf("failed to add cluster to runnables: %w", err)
+	}
 	cm.internalCtx, cm.internalCancel = context.WithCancel(ctx)
 
 	// This chan indicates that stop is complete, in other words all runnables have returned or timeout on stop request
@@ -473,8 +488,8 @@ func (cm *controllerManager) Start(ctx context.Context) (err error) {
 			}
 		} else {
 			// Treat not having leader election enabled the same as being elected.
+			cm.startLeaderElectionRunnables()
 			close(cm.elected)
-			go cm.startLeaderElectionRunnables()
 		}
 	}()
 
@@ -535,11 +550,16 @@ func (cm *controllerManager) engageStopProcedure(stopComplete <-chan struct{}) e
 
 // waitForRunnableToEnd blocks until all runnables ended or the
 // tearDownTimeout was reached. In the latter case, an error is returned.
-func (cm *controllerManager) waitForRunnableToEnd(shutdownCancel context.CancelFunc) error {
+func (cm *controllerManager) waitForRunnableToEnd(shutdownCancel context.CancelFunc) (retErr error) {
 	// Cancel leader election only after we waited. It will os.Exit() the app for safety.
 	defer func() {
-		if cm.leaderElectionCancel != nil {
+		if retErr == nil && cm.leaderElectionCancel != nil {
+			// After asking the context to be cancelled, make sure
+			// we wait for the leader stopped channel to be closed, otherwise
+			// we might encounter race conditions between this code
+			// and the event recorder, which is used within leader election code.
 			cm.leaderElectionCancel()
+			<-cm.leaderElectionStopped
 		}
 	}()
 
@@ -590,17 +610,15 @@ func (cm *controllerManager) waitForCache(ctx context.Context) {
 		return
 	}
 
-	// Start the Cache. Allow the function to start the cache to be mocked out for testing
-	if cm.startCache == nil {
-		cm.startCache = cm.cluster.Start
+	for _, cache := range cm.caches {
+		cm.startRunnable(cache)
 	}
-	cm.startRunnable(RunnableFunc(func(ctx context.Context) error {
-		return cm.startCache(ctx)
-	}))
 
 	// Wait for the caches to sync.
 	// TODO(community): Check the return value and write a test
-	cm.cluster.GetCache().WaitForCacheSync(ctx)
+	for _, cache := range cm.caches {
+		cache.GetCache().WaitForCacheSync(ctx)
+	}
 	// TODO: This should be the return value of cm.cache.WaitForCacheSync but we abuse
 	// cm.started as check if we already started the cache so it must always become true.
 	// Making sure that the cache doesn't get started twice is needed to not get a "close
@@ -632,8 +650,8 @@ func (cm *controllerManager) startLeaderElection() (err error) {
 		RetryPeriod:   cm.retryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(_ context.Context) {
-				close(cm.elected)
 				cm.startLeaderElectionRunnables()
+				close(cm.elected)
 			},
 			OnStoppedLeading: cm.onStoppedLeading,
 		},
@@ -644,7 +662,11 @@ func (cm *controllerManager) startLeaderElection() (err error) {
 	}
 
 	// Start the leader elector process
-	go l.Run(ctx)
+	go func() {
+		l.Run(ctx)
+		<-ctx.Done()
+		close(cm.leaderElectionStopped)
+	}()
 	return nil
 }
 
