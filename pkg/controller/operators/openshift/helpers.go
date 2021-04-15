@@ -48,6 +48,33 @@ func conditionsEqual(a, b *configv1.ClusterOperatorStatusCondition) bool {
 	return a.Type == b.Type && a.Status == b.Status && a.Message == b.Message && a.Reason == b.Reason
 }
 
+func versionsMatch(a []configv1.OperandVersion, b []configv1.OperandVersion) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	counts := map[configv1.OperandVersion]int{}
+	for _, av := range a {
+		counts[av] += 1
+	}
+
+	for _, bv := range b {
+		remaining, ok := counts[bv]
+		if !ok {
+			return false
+		}
+
+		if remaining == 1 {
+			delete(counts, bv)
+			continue
+		}
+
+		counts[bv] -= 1
+	}
+
+	return len(counts) < 1
+}
+
 type skews []skew
 
 func (s skews) String() string {

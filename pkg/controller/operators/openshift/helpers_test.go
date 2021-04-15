@@ -77,7 +77,139 @@ func TestConditionsEqual(t *testing.T) {
 			require.Equal(t, tt.expect, conditionsEqual(tt.args.a, tt.args.b))
 		})
 	}
+}
 
+func TestVersionsMatch(t *testing.T) {
+	type in struct {
+		a, b []configv1.OperandVersion
+	}
+	for _, tt := range []struct {
+		description string
+		in          in
+		expect      bool
+	}{
+		{
+			description: "Different/Nil",
+			in: in{
+				a: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+				},
+				b: nil,
+			},
+			expect: false,
+		},
+		{
+			description: "Different/Names",
+			in: in{
+				a: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+				},
+				b: []configv1.OperandVersion{
+					{Name: "yutani", Version: "1.0.0"},
+				},
+			},
+			expect: false,
+		},
+		{
+			description: "Different/Versions",
+			in: in{
+				a: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+				},
+				b: []configv1.OperandVersion{
+					{Name: "weyland", Version: "2.0.0"},
+				},
+			},
+			expect: false,
+		},
+		{
+			description: "Different/Lengths",
+			in: in{
+				a: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+				},
+				b: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "yutani", Version: "1.0.0"},
+				},
+			},
+			expect: false,
+		},
+		{
+			description: "Different/Elements",
+			in: in{
+				a: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "yutani", Version: "1.0.0"},
+				},
+				b: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "yutani", Version: "1.0.0"},
+					{Name: "yutani", Version: "1.0.0"},
+				},
+			},
+			expect: false,
+		},
+		{
+			description: "Same/Nil",
+			in: in{
+				a: nil,
+				b: nil,
+			},
+			expect: true,
+		},
+		{
+			description: "Same/Empty",
+			in: in{
+				a: []configv1.OperandVersion{},
+				b: []configv1.OperandVersion{},
+			},
+			expect: true,
+		},
+		{
+			description: "Same/Empty/Nil",
+			in: in{
+				a: []configv1.OperandVersion{},
+				b: nil,
+			},
+			expect: true,
+		},
+		{
+			description: "Same",
+			in: in{
+				a: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "yutani", Version: "1.0.0"},
+				},
+				b: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "yutani", Version: "1.0.0"},
+				},
+			},
+			expect: true,
+		},
+		{
+			description: "Same/Unordered",
+			in: in{
+				a: []configv1.OperandVersion{
+					{Name: "weyland", Version: "1.0.0"},
+					{Name: "yutani", Version: "1.0.0"},
+				},
+				b: []configv1.OperandVersion{
+					{Name: "yutani", Version: "1.0.0"},
+					{Name: "weyland", Version: "1.0.0"},
+				},
+			},
+			expect: true,
+		},
+	} {
+		t.Run(tt.description, func(t *testing.T) {
+			require.Equal(t, tt.expect, versionsMatch(tt.in.a, tt.in.b))
+		})
+	}
 }
 
 func TestIncompatibleOperators(t *testing.T) {

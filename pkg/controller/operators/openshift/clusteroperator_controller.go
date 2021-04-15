@@ -128,7 +128,7 @@ func (r *ClusterOperatorReconciler) Reconcile(ctx context.Context, req reconcile
 
 func (r *ClusterOperatorReconciler) setVersions(_ context.Context, co *ClusterOperator) error {
 	// If we've successfully synced, we know our operator is working properly, so we can update the version
-	if r.syncTracker.SuccessfulSyncs() > 0 && !reflect.DeepEqual(co.Status.Versions, r.TargetVersions) {
+	if r.syncTracker.SuccessfulSyncs() > 0 && !versionsMatch(co.Status.Versions, r.TargetVersions) {
 		co.Status.Versions = r.TargetVersions
 	}
 
@@ -141,7 +141,7 @@ func (r *ClusterOperatorReconciler) setProgressing(_ context.Context, co *Cluste
 		LastTransitionTime: r.Now(),
 	}
 
-	if r.syncTracker.SuccessfulSyncs() > 0 && reflect.DeepEqual(co.Status.Versions, r.TargetVersions) {
+	if r.syncTracker.SuccessfulSyncs() > 0 && versionsMatch(co.Status.Versions, r.TargetVersions) {
 		desired.Status = configv1.ConditionFalse
 		desired.Message = fmt.Sprintf("Deployed %s", olmversion.OLMVersion)
 	} else {
@@ -165,7 +165,7 @@ func (r *ClusterOperatorReconciler) setAvailable(_ context.Context, co *ClusterO
 		LastTransitionTime: r.Now(),
 	}
 
-	if r.syncTracker.SuccessfulSyncs() > 0 && reflect.DeepEqual(co.Status.Versions, r.TargetVersions) {
+	if r.syncTracker.SuccessfulSyncs() > 0 && versionsMatch(co.Status.Versions, r.TargetVersions) {
 		desired.Status = configv1.ConditionTrue
 	} else {
 		desired.Status = configv1.ConditionFalse
@@ -187,7 +187,7 @@ func (r *ClusterOperatorReconciler) setDegraded(_ context.Context, co *ClusterOp
 		LastTransitionTime: r.Now(),
 	}
 
-	if r.syncTracker.SuccessfulSyncs() > 0 && reflect.DeepEqual(co.Status.Versions, r.TargetVersions) {
+	if r.syncTracker.SuccessfulSyncs() > 0 && versionsMatch(co.Status.Versions, r.TargetVersions) {
 		desired.Status = configv1.ConditionFalse
 	} else {
 		desired.Status = configv1.ConditionTrue
@@ -218,7 +218,7 @@ func (r *ClusterOperatorReconciler) setUpgradeable(ctx context.Context, co *Clus
 	// Set upgradeable=false if (either/or):
 	// 1. OLM currently upgrading (takes priorty in the status message)
 	// 2. Operators currently installed that are incompatible with the next OCP minor version
-	if r.syncTracker.SuccessfulSyncs() < 1 || !reflect.DeepEqual(co.Status.Versions, r.TargetVersions) {
+	if r.syncTracker.SuccessfulSyncs() < 1 || !versionsMatch(co.Status.Versions, r.TargetVersions) {
 		// OLM is still upgrading
 		desired.Status = configv1.ConditionFalse
 		desired.Message = "Waiting for updates to take effect"
