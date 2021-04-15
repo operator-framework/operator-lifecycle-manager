@@ -77,6 +77,8 @@ const (
 	maxInstallPlanCount    = 5
 	maxDeletesPerSweep     = 5
 	RegistryFieldManager   = "olm.registry"
+	// TODO(haseeb): Change to a more realistic timeout for bundle unpack jobs
+	DefaultBundleUnpackTimeout = 2 * time.Minute
 )
 
 // Operator represents a Kubernetes operator that executes InstallPlans by
