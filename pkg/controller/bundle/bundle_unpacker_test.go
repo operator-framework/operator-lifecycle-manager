@@ -11,6 +11,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
@@ -215,6 +216,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													MountPath: "/bundle",
 												},
 											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -226,6 +233,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												{
 													Name:      "util",
 													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
 										},
@@ -242,6 +255,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												{
 													Name:      "util",
 													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
 										},
@@ -372,6 +391,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													MountPath: "/bundle",
 												},
 											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -383,6 +408,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												{
 													Name:      "util",
 													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
 										},
@@ -399,6 +430,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												{
 													Name:      "util",
 													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
 										},
@@ -568,6 +605,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													MountPath: "/bundle",
 												},
 											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -579,6 +622,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												{
 													Name:      "util",
 													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
 										},
@@ -595,6 +644,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												{
 													Name:      "util",
 													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
 										},
