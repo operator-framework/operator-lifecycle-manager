@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	semver "github.com/blang/semver/v4"
 	configv1 "github.com/openshift/api/config/v1"
@@ -78,17 +79,12 @@ func versionsMatch(a []configv1.OperandVersion, b []configv1.OperandVersion) boo
 type skews []skew
 
 func (s skews) String() string {
-	// TODO: Use a string builder.
-	str := "The following operators block OpenShift upgrades: "
-	for i, sk := range s {
-		if i < len(s)-1 {
-			str += sk.String() + ", "
-			continue
-		}
-		str += sk.String()
+	var msg []string
+	for _, sk := range s {
+		msg = append(msg, sk.String())
 	}
 
-	return str
+	return "The following operators block OpenShift upgrades: " + strings.Join(msg, ",")
 }
 
 type skew struct {
