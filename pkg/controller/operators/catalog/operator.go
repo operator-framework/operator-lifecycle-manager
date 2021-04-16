@@ -50,6 +50,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
@@ -886,6 +887,16 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
 	if err != nil {
 		go o.recorder.Event(ns, corev1.EventTypeWarning, "ResolutionFailed", err.Error())
+		// If the error is constraints not satisfiable, then simply project the
+		// resolution failure event and move on without returning the error.
+		// Returning the error only triggers the namespace resync which is unnecessary
+		// given not-satisfiable error is terminal and most likely require intervention
+		// from users/admins. Resyncing the namespace again is unlikely to resolve
+		// not-satisfiable error
+		if errors.Is(err, solver.NotSatisfiable{}) {
+			logger.WithError(err).Debug("resolution failed")
+			return nil
+		}
 		return err
 	}
 
