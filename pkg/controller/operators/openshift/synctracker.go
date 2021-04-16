@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"sync"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
-func NewSyncTracker(syncCh <-chan error, co *ClusterOperator) *SyncTracker {
+func NewSyncTracker(syncCh <-chan error, co *configv1.ClusterOperator) *SyncTracker {
 	return &SyncTracker{
 		syncCh: syncCh,
 		events: make(chan event.GenericEvent),
@@ -22,7 +23,7 @@ type SyncTracker struct {
 	mutex  sync.RWMutex
 	once   sync.Once
 
-	co                          *ClusterOperator
+	co                          *configv1.ClusterOperator
 	totalSyncs, successfulSyncs int
 }
 

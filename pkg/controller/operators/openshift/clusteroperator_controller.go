@@ -50,7 +50,7 @@ func NewClusterOperatorReconciler(opts ...ReconcilerOption) (*ClusterOperatorRec
 		ReconcilerConfig: config,
 		delayRequeue:     reconcile.Result{RequeueAfter: config.RequeueDelay},
 		co:               co,
-		syncTracker:      NewSyncTracker(config.SyncCh, co),
+		syncTracker:      NewSyncTracker(config.SyncCh, co.DeepCopy()),
 	}
 
 	var mutations SerialMutations
