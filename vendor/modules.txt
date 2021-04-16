@@ -436,6 +436,7 @@ github.com/onsi/gomega
 github.com/onsi/gomega/format
 github.com/onsi/gomega/gbytes
 github.com/onsi/gomega/gexec
+github.com/onsi/gomega/gstruct
 github.com/onsi/gomega/gstruct/errors
 github.com/onsi/gomega/internal/assertion
 github.com/onsi/gomega/internal/asyncassertion

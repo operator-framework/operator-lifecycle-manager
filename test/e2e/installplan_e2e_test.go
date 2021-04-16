@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,6 +56,169 @@ var _ = Describe("Install Plan", func() {
 
 	AfterEach(func() {
 		TearDown(testNamespace)
+	})
+
+	When("a CustomResourceDefinition step resolved from a bundle is applied", func() {
+		var (
+			crd      apiextensionsv1.CustomResourceDefinition
+			manifest string
+		)
+
+		BeforeEach(func() {
+			csv := newCSV("test-csv", testNamespace, "", semver.Version{}, nil, nil, nil)
+			Expect(ctx.Ctx().Client().Create(context.TODO(), &csv)).To(Succeed())
+
+			crd = apiextensionsv1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "tests.example.com",
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "CustomResourceDefinition",
+					APIVersion: apiextensionsv1.SchemeGroupVersion.String(),
+				},
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+					Group: "example.com",
+					Scope: apiextensionsv1.ClusterScoped,
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
+						Plural:   "tests",
+						Singular: "test",
+						Kind:     "Test",
+						ListKind: "TestList",
+					},
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+						Name:    "v1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensionsv1.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+								Type: "object",
+							},
+						},
+					}},
+				},
+			}
+
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			{
+				var b bytes.Buffer
+				Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(&crd, &b)).To(Succeed())
+				manifest = b.String()
+			}
+
+			plan := operatorsv1alpha1.InstallPlan{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-plan",
+				},
+				Spec: operatorsv1alpha1.InstallPlanSpec{
+					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+					Approved:                   true,
+					ClusterServiceVersionNames: []string{},
+				},
+				Status: operatorsv1alpha1.InstallPlanStatus{
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+					CatalogSources: []string{},
+					Plan: []*operatorsv1alpha1.Step{
+						{
+							Resolving: "test-csv",
+							Status:    operatorsv1alpha1.StepStatusUnknown,
+							Resource: operatorsv1alpha1.StepResource{
+								Name:     crd.GetName(),
+								Version:  apiextensionsv1.SchemeGroupVersion.String(),
+								Kind:     "CustomResourceDefinition",
+								Manifest: manifest,
+							},
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), &plan)).To(Succeed())
+			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+				return &plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&plan), &plan)
+			}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+		})
+
+		AfterEach(func() {
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), &crd)
+			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+		})
+
+		It("is annotated with a reference to its associated ClusterServiceVersion", func() {
+			Eventually(func() (map[string]string, error) {
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&crd), &crd); err != nil {
+					return nil, err
+				}
+				return crd.GetAnnotations(), nil
+			}).Should(HaveKeyWithValue(
+				HavePrefix("operatorframework.io/installed-alongside-"),
+				fmt.Sprintf("%s/test-csv", testNamespace),
+			))
+		})
+
+		When("a second plan includes the same CustomResourceDefinition", func() {
+			BeforeEach(func() {
+				csv := newCSV("test-csv-two", testNamespace, "", semver.Version{}, nil, nil, nil)
+				Expect(ctx.Ctx().Client().Create(context.TODO(), &csv)).To(Succeed())
+
+				plan := operatorsv1alpha1.InstallPlan{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: testNamespace,
+						Name:      "test-plan-two",
+					},
+					Spec: operatorsv1alpha1.InstallPlanSpec{
+						Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+						Approved:                   true,
+						ClusterServiceVersionNames: []string{},
+					},
+					Status: operatorsv1alpha1.InstallPlanStatus{
+						Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+						CatalogSources: []string{},
+						Plan: []*operatorsv1alpha1.Step{
+							{
+								Resolving: "test-csv-two",
+								Status:    operatorsv1alpha1.StepStatusUnknown,
+								Resource: operatorsv1alpha1.StepResource{
+									Name:     crd.GetName(),
+									Version:  apiextensionsv1.SchemeGroupVersion.String(),
+									Kind:     "CustomResourceDefinition",
+									Manifest: manifest,
+								},
+							},
+						},
+					},
+				}
+				Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
+				Expect(ctx.Ctx().Client().Status().Update(context.Background(), &plan)).To(Succeed())
+				Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+					return &plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&plan), &plan)
+				}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+			})
+
+			It("has one annotation for each ClusterServiceVersion", func() {
+				Eventually(func() ([]struct{ Key, Value string }, error) {
+					if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&crd), &crd); err != nil {
+						return nil, err
+					}
+					var pairs []struct{ Key, Value string }
+					for k, v := range crd.GetAnnotations() {
+						pairs = append(pairs, struct{ Key, Value string }{Key: k, Value: v})
+					}
+					return pairs, nil
+				}).Should(ConsistOf(
+					MatchFields(IgnoreExtras, Fields{
+						"Key":   HavePrefix("operatorframework.io/installed-alongside-"),
+						"Value": Equal(fmt.Sprintf("%s/test-csv", testNamespace)),
+					}),
+					MatchFields(IgnoreExtras, Fields{
+						"Key":   HavePrefix("operatorframework.io/installed-alongside-"),
+						"Value": Equal(fmt.Sprintf("%s/test-csv-two", testNamespace)),
+					}),
+				))
+			})
+		})
 	})
 
 	When("an error is encountered during InstallPlan step execution", func() {
@@ -1108,7 +1272,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
-			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), testNamespace, csvAnyChecker)
 			require.NoError(GinkgoT(), err)
 
 			GinkgoT().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)

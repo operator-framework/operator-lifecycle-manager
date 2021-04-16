@@ -11,7 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/alongside"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -70,9 +72,16 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 	return
 }
 
-func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
-	ownedAPIServiceDescs []v1alpha1.APIServiceDescription, requiredAPIServiceDescs []v1alpha1.APIServiceDescription,
-	requiredNativeAPIs []metav1.GroupVersionKind) (met bool, statuses []v1alpha1.RequirementStatus) {
+func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, csv *v1alpha1.ClusterServiceVersion) (met bool, statuses []v1alpha1.RequirementStatus) {
+	ownedCRDNames := make(map[string]bool)
+	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
+		ownedCRDNames[owned.Name] = true
+	}
+
+	crdDescs := csv.GetAllCRDDescriptions()
+	ownedAPIServiceDescs := csv.GetOwnedAPIServiceDescriptions()
+	requiredAPIServiceDescs := csv.GetRequiredAPIServiceDescriptions()
+	requiredNativeAPIs := csv.Spec.NativeAPIs
 	met = true
 
 	// Check for CRDs
@@ -90,6 +99,14 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			status.Message = "CRD is not present"
 			a.logger.Debugf("Setting 'met' to false, %v with status %v, with err: %v", r.Name, status, err)
+			met = false
+			statuses = append(statuses, status)
+			continue
+		}
+
+		if others := othersInstalledAlongside(crd, csv, a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace())); len(others) > 0 && ownedCRDNames[crd.Name] {
+			status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
+			status.Message = fmt.Sprintf("CRD installed alongside other CSV(s): %s", strings.Join(others, ", "))
 			met = false
 			statuses = append(statuses, status)
 			continue
@@ -362,7 +379,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 		allReqStatuses = append(allReqStatuses, minKubeStatus...)
 	}
 
-	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
+	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv)
 	allReqStatuses = append(allReqStatuses, reqStatuses...)
 
 	rbacLister := a.lister.RbacV1()
@@ -409,4 +426,53 @@ func (a *Operator) isGVKRegistered(group, version, kind string) (bool, error) {
 
 	logger.Info("couldn't find GVK in api discovery")
 	return false, nil
+}
+
+// othersInstalledAlongside returns the names of all
+// ClusterServiceVersions alongside which the given object was
+// installed, that are not the named CSV and are directly or
+// transitively replaced by the named CSV.
+func othersInstalledAlongside(o metav1.Object, target *v1alpha1.ClusterServiceVersion, lister listersv1alpha1.ClusterServiceVersionNamespaceLister) []string {
+	csvsByName := make(map[string]*v1alpha1.ClusterServiceVersion)
+	for _, nn := range (alongside.Annotator{}).FromObject(o) {
+		if nn.Namespace != target.GetNamespace() {
+			continue
+		}
+		if nn.Name == target.GetName() {
+			return nil
+		}
+		csv, err := lister.Get(nn.Name)
+		if err != nil || csv.IsCopied() {
+			continue
+		}
+		csvsByName[csv.GetName()] = csv
+	}
+
+	replacees := make(map[string]string)
+	for current, csv := range csvsByName {
+		if _, ok := csvsByName[csv.Spec.Replaces]; ok {
+			replacees[current] = csv.Spec.Replaces
+		}
+	}
+	if target.Spec.Replaces != "" {
+		replacees[target.GetName()] = target.Spec.Replaces
+	}
+
+	ancestors := make(map[string]struct{})
+	for current := target.GetName(); current != ""; {
+		replacee, ok := replacees[current]
+		if ok {
+			ancestors[replacee] = struct{}{}
+		}
+		delete(replacees, current) // avoid cycles
+		current = replacee
+	}
+
+	var names []string
+	for each := range csvsByName {
+		if _, ok := ancestors[each]; ok && each != target.GetName() {
+			names = append(names, each)
+		}
+	}
+	return names
 }

@@ -9,11 +9,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/alongside"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1032,6 +1036,241 @@ func TestMinKubeVersionStatus(t *testing.T) {
 			} else {
 				require.Equal(t, status, []v1alpha1.RequirementStatus(nil))
 			}
+		})
+	}
+}
+
+func TestOthersInstalledAlongside(t *testing.T) {
+	for _, tc := range []struct {
+		Name        string
+		All         []alongside.NamespacedName
+		Target      v1alpha1.ClusterServiceVersion
+		InNamespace []v1alpha1.ClusterServiceVersion
+		Expected    []string
+	}{
+		{
+			Name: "csv in different namespace excluded",
+			All: []alongside.NamespacedName{
+				{Namespace: "namespace-2", Name: "a"},
+			},
+			Target: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "b",
+					Namespace: "namespace-1",
+				},
+			},
+			InNamespace: []v1alpha1.ClusterServiceVersion{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "a",
+					},
+				},
+			},
+			Expected: nil,
+		},
+		{
+			Name: "given csv excluded",
+			All: []alongside.NamespacedName{
+				{Namespace: "namespace", Name: "a"},
+			},
+			Target: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a",
+					Namespace: "namespace",
+				},
+			},
+			Expected: nil,
+		},
+		{
+			Name: "returns nil if given csv is included",
+			All: []alongside.NamespacedName{
+				{Namespace: "namespace", Name: "a"},
+				{Namespace: "namespace", Name: "b"},
+			},
+			Target: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a",
+					Namespace: "namespace",
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					Replaces: "b",
+				},
+			},
+			InNamespace: []v1alpha1.ClusterServiceVersion{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "b",
+					},
+				},
+			},
+			Expected: nil,
+		},
+		{
+			Name: "copied csv excluded",
+			All: []alongside.NamespacedName{
+				{Namespace: "namespace", Name: "b"},
+			},
+			Target: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a",
+					Namespace: "namespace",
+				},
+			},
+			InNamespace: []v1alpha1.ClusterServiceVersion{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "b",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Reason: v1alpha1.CSVReasonCopied,
+					},
+				},
+			},
+			Expected: nil,
+		},
+		{
+			Name: "non-ancestor csv excluded",
+			All: []alongside.NamespacedName{
+				{Namespace: "namespace", Name: "b"},
+			},
+			Target: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a",
+					Namespace: "namespace",
+				},
+			},
+			InNamespace: []v1alpha1.ClusterServiceVersion{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "b",
+					},
+				},
+			},
+			Expected: nil,
+		},
+		{
+			Name: "ancestor csvs included",
+			All: []alongside.NamespacedName{
+				{Namespace: "namespace", Name: "b"},
+				{Namespace: "namespace", Name: "c"},
+			},
+			Target: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a",
+					Namespace: "namespace",
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					Replaces: "b",
+				},
+			},
+			InNamespace: []v1alpha1.ClusterServiceVersion{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "b",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "c",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "c",
+					},
+				},
+			},
+			Expected: []string{"b", "c"},
+		},
+		{
+			Name: "descendant csvs excluded",
+			All: []alongside.NamespacedName{
+				{Namespace: "namespace", Name: "b"},
+				{Namespace: "namespace", Name: "c"},
+			},
+			Target: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a",
+					Namespace: "namespace",
+				},
+			},
+			InNamespace: []v1alpha1.ClusterServiceVersion{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "c",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "b",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "b",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "a",
+					},
+				},
+			},
+			Expected: nil,
+		},
+		{
+			Name: "ancestor csvs included with cycle",
+			All: []alongside.NamespacedName{
+				{Namespace: "namespace", Name: "b"},
+				{Namespace: "namespace", Name: "c"},
+			},
+			Target: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a",
+					Namespace: "namespace",
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					Replaces: "b",
+				},
+			},
+			InNamespace: []v1alpha1.ClusterServiceVersion{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "b",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "c",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "c",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "a",
+					},
+				},
+			},
+			Expected: []string{"b", "c"},
+		},
+	} {
+		t.Run(tc.Name, func(t *testing.T) {
+			var (
+				o        metav1.ObjectMeta
+				a        alongside.Annotator
+				nslister operatorlisterfakes.FakeClusterServiceVersionNamespaceLister
+			)
+
+			nslister.GetCalls(func(name string) (*v1alpha1.ClusterServiceVersion, error) {
+				if name == tc.Target.GetName() {
+					return tc.Target.DeepCopy(), nil
+				}
+
+				for _, csv := range tc.InNamespace {
+					if csv.GetName() == name {
+						return csv.DeepCopy(), nil
+					}
+				}
+				return nil, errors.NewNotFound(schema.GroupResource{}, name)
+			})
+
+			a.ToObject(&o, tc.All)
+			actual := othersInstalledAlongside(&o, tc.Target.DeepCopy(), &nslister)
+			assert.ElementsMatch(t, actual, tc.Expected)
 		})
 	}
 }
