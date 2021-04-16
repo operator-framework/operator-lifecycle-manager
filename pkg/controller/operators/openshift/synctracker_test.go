@@ -6,6 +6,7 @@ import (
 	"testing"
 	"testing/quick"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
@@ -22,7 +23,7 @@ func TestInvalidFields(t *testing.T) {
 	// Add missing fields, then try again
 	tracker.syncCh = make(chan error)
 	tracker.events = make(chan event.GenericEvent)
-	tracker.co = &ClusterOperator{}
+	tracker.co = &configv1.ClusterOperator{}
 	require.NoError(t, tracker.Start(cancelled))
 }
 
@@ -31,7 +32,7 @@ func TestSyncCount(t *testing.T) {
 		syncCh := make(chan error)
 		defer close(syncCh)
 
-		co := NewClusterOperator("operator")
+		co := NewClusterOperator("operator").DeepCopy()
 		tracker := NewSyncTracker(syncCh, co)
 
 		ctx, cancel := context.WithCancel(context.Background())
