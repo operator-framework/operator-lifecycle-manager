@@ -1319,6 +1319,8 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 				Namespace: catalogNamespace,
 			},
 			DefaultChannel: defaultChannel != "" && channel == defaultChannel,
+			Package:        pkg,
+			Channel:        channel,
 		},
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,
