@@ -893,7 +893,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// given not-satisfiable error is terminal and most likely require intervention
 		// from users/admins. Resyncing the namespace again is unlikely to resolve
 		// not-satisfiable error
-		if errors.Is(err, solver.NotSatisfiable{}) {
+		if _, ok := err.(solver.NotSatisfiable); ok {
 			logger.WithError(err).Debug("resolution failed")
 			return nil
 		}

@@ -37,6 +37,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
@@ -49,6 +50,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
@@ -1052,6 +1054,163 @@ func TestSyncCatalogSources(t *testing.T) {
 	}
 }
 
+func TestSyncResolvingNamespace(t *testing.T) {
+	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	testNamespace := "testNamespace"
+
+	type fields struct {
+		clientOptions     []clientfake.Option
+		sourcesLastUpdate metav1.Time
+		resolveErr        error
+		existingOLMObjs   []runtime.Object
+		existingObjects   []runtime.Object
+	}
+	type args struct {
+		obj interface{}
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr error
+	}{
+		{
+			name: "NoError",
+			fields: fields{
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
+				existingOLMObjs: []runtime.Object{
+					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      "",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "NotSatisfiableError",
+			fields: fields{
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
+				existingOLMObjs: []runtime.Object{
+					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      "",
+						},
+					},
+				},
+				resolveErr: solver.NotSatisfiable{
+					{
+						Installable: resolver.NewSubscriptionInstallable("a", nil),
+						Constraint:  resolver.PrettyConstraint(solver.Mandatory(), "something"),
+					},
+				},
+			},
+		},
+		{
+			name: "OtherError",
+			fields: fields{
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
+				existingOLMObjs: []runtime.Object{
+					&v1alpha1.ClusterServiceVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "csv.v.1",
+							Namespace: testNamespace,
+						},
+						Status: v1alpha1.ClusterServiceVersionStatus{
+							Phase: v1alpha1.CSVPhaseSucceeded,
+						},
+					},
+					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      "",
+						},
+					},
+				},
+				resolveErr: fmt.Errorf("some error"),
+			},
+			wantErr: fmt.Errorf("some error"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.clientOptions...))
+			require.NoError(t, err)
+
+			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
+				ReconcilerForSourceStub: func(source *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
+					return &fakes.FakeRegistryReconciler{
+						EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
+							return nil
+						},
+					}
+				},
+			}
+
+			o.sourcesLastUpdate.Set(tt.fields.sourcesLastUpdate.Time)
+			o.resolver = &fakes.FakeStepResolver{
+				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+					return nil, nil, nil, tt.fields.resolveErr
+				},
+			}
+
+			namespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: testNamespace,
+				},
+			}
+
+			err = o.syncResolvingNamespace(namespace)
+			if tt.wantErr != nil {
+				require.Equal(t, tt.wantErr, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestCompetingCRDOwnersExist(t *testing.T) {
 
 	testNamespace := "default"
@@ -1146,6 +1305,7 @@ type fakeOperatorConfig struct {
 	clientOptions []clientfake.Option
 	logger        *logrus.Logger
 	resolver      resolver.StepResolver
+	recorder      record.EventRecorder
 	reconciler    reconciler.RegistryReconcilerFactory
 }
 
@@ -1201,6 +1361,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		logger:   logrus.StandardLogger(),
 		clock:    utilclock.RealClock{},
 		resolver: &fakes.FakeStepResolver{},
+		recorder: &record.FakeRecorder{},
 	}
 	for _, option := range fakeOptions {
 		option(config)
@@ -1286,6 +1447,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 			), "resolver"),
 		resolver:              config.resolver,
 		reconciler:            config.reconciler,
+		recorder:              config.recorder,
 		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake, dynamicClientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
 		catsrcQueueSet:        queueinformer.NewEmptyResourceQueueSet(),
