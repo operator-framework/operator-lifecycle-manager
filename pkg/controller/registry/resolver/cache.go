@@ -506,6 +506,12 @@ func WithLabel(label string) OperatorPredicate {
 	}
 }
 
+func WithCatalog(key registry.CatalogKey) OperatorPredicate {
+	return func(o *Operator) bool {
+		return key.Equal(o.SourceInfo().Catalog)
+	}
+}
+
 func ProvidingAPI(api opregistry.APIKey) OperatorPredicate {
 	return func(o *Operator) bool {
 		for _, p := range o.Properties() {
@@ -595,4 +601,10 @@ func Filter(operators []*Operator, p ...OperatorPredicate) []*Operator {
 
 func Matches(o *Operator, p ...OperatorPredicate) bool {
 	return And(p...)(o)
+}
+
+func False() OperatorPredicate {
+	return func(*Operator) bool {
+		return false
+	}
 }

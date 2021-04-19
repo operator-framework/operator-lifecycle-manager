@@ -329,7 +329,7 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		RequiredApis: apiSetToGVK(requiredCRDs, requiredAPIServices),
 		Replaces:     replaces,
 		Dependencies: apiSetToDependencies(requiredCRDs, requiredAPIServices),
-		Properties:   append(apiSetToProperties(providedCRDs, providedAPIServices, false),
+		Properties: append(apiSetToProperties(providedCRDs, providedAPIServices, false),
 			packageNameToProperty(pkg, "0.0.0"),
 		),
 	}
