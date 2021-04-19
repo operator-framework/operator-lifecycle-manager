@@ -104,6 +104,10 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 	if err != nil {
 		return nil, err
 	}
+
+	if next == nil {
+		return nil, nil
+	}
 	next.Minor++
 
 	csvList := &operatorsv1alpha1.ClusterServiceVersionList{}

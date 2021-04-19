@@ -219,11 +219,22 @@ func TestIncompatibleOperators(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		description string
+		cv          configv1.ClusterVersion
 		in          skews
 		expect      expect
 	}{
 		{
 			description: "Compatible",
+			cv: configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "version",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Update{
+						Version: "1.0.0",
+					},
+				},
+			},
 			in: skews{
 				{
 					name:                "almond",
@@ -248,6 +259,16 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "Incompatible",
+			cv: configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "version",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Update{
+						Version: "1.0.0",
+					},
+				},
+			},
 			in: skews{
 				{
 					name:                "almond",
@@ -298,6 +319,16 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "Mixed",
+			cv: configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "version",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Update{
+						Version: "1.0.0",
+					},
+				},
+			},
 			in: skews{
 				{
 					name:                "almond",
@@ -323,6 +354,16 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "Mixed/BadVersion",
+			cv: configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "version",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Update{
+						Version: "1.0.0",
+					},
+				},
+			},
 			in: skews{
 				{
 					name:                "almond",
@@ -351,12 +392,38 @@ func TestIncompatibleOperators(t *testing.T) {
 				},
 			},
 		},
+		{
+			description: "Compatible/EmptyVersion",
+			cv: configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "version",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Update{
+						Version: "",
+					},
+				},
+			},
+			in: skews{
+				{
+					name:                "almond",
+					namespace:           "default",
+					maxOpenShiftVersion: "1.1.0",
+				},
+				{
+					name:                "beech",
+					namespace:           "default",
+					maxOpenShiftVersion: "1.0.0",
+				},
+			},
+			expect: expect{
+				err:          false,
+				incompatible: nil,
+			},
+		},
 	} {
 		t.Run(tt.description, func(t *testing.T) {
-			cv := &configv1.ClusterVersion{}
-			cv.SetName("version")
-			cv.Status.Desired.Version = "1.0.0"
-			objs := []client.Object{cv}
+			objs := []client.Object{tt.cv.DeepCopy()}
 
 			for _, s := range tt.in {
 				csv := &operatorsv1alpha1.ClusterServiceVersion{}
