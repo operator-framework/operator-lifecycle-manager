@@ -339,15 +339,38 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 		}
 
 		for _, d := range dependencyPredicates {
-			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
-			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, d))
-			sortedBundles, err := r.sortBundles(candidateBundles)
+			sourcePredicate := False()
+			// Build a filter matching all (catalog,
+			// package, channel) combinations that contain
+			// at least one candidate bundle, even if only
+			// a subset of those bundles actually satisfy
+			// the dependency.
+			sources := map[OperatorSourceInfo]struct{}{}
+			for _, b := range namespacedCache.Find(d) {
+				si := b.SourceInfo()
+
+				if _, ok := sources[*si]; ok {
+					// Predicate already covers this source.
+					continue
+				}
+				sources[*si] = struct{}{}
+
+				sourcePredicate = Or(sourcePredicate, And(
+					WithPackage(si.Package),
+					WithChannel(si.Channel),
+					WithCatalog(si.Catalog),
+				))
+			}
+			sortedBundles, err := r.sortBundles(namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, sourcePredicate))
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
 			bundleDependencies := make([]solver.Identifier, 0)
-			for _, b := range sortedBundles {
+			// The dependency predicate is applied here
+			// (after sorting) to remove all bundles that
+			// don't satisfy the dependency.
+			for _, b := range Filter(sortedBundles, d) {
 				src := b.SourceInfo()
 				if src == nil {
 					err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
@@ -360,7 +383,6 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 				bundleDependencies = append(bundleDependencies, i.Identifier())
 				bundleStack = append(bundleStack, b)
 			}
-
 			bundleInstallable.AddDependency(bundleDependencies)
 		}
 
@@ -469,6 +491,20 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 		op.sourceInfo = &OperatorSourceInfo{
 			Catalog: existingOperatorCatalog,
 		}
+		// Try to determine source package name from properties and add to SourceInfo.
+		for _, p := range op.properties {
+			if p.Type != opregistry.PackageType {
+				continue
+			}
+			var pp opregistry.PackageProperty
+			err := json.Unmarshal([]byte(p.Value), &pp)
+			if err != nil {
+				r.log.Warnf("failed to unmarshal package property of csv %q: %w", csv.Name, err)
+				continue
+			}
+			op.sourceInfo.Package = pp.PackageName
+		}
+
 		standaloneOperators = append(standaloneOperators, op)
 
 		// all standalone operators are mandatory

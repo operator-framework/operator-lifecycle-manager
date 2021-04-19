@@ -55,6 +55,76 @@ var _ = Describe("Subscription", func() {
 		TearDown(testNamespace)
 	})
 
+	When("an entry in the middle of a channel does not provide a required GVK", func() {
+		var (
+			teardown func()
+		)
+
+		BeforeEach(func() {
+			teardown = func() {}
+
+			packages := []registry.PackageManifest{
+				{
+					PackageName: "dependency",
+					Channels: []registry.PackageChannel{
+						{Name: "channel-dependency", CurrentCSVName: "csv-dependency-3"},
+					},
+					DefaultChannelName: "channel-dependency",
+				},
+				{
+					PackageName: "root",
+					Channels: []registry.PackageChannel{
+						{Name: "channel-root", CurrentCSVName: "csv-root"},
+					},
+					DefaultChannelName: "channel-root",
+				},
+			}
+
+			crds := []apiextensions.CustomResourceDefinition{newCRD(genName("crd-"))}
+			csvs := []operatorsv1alpha1.ClusterServiceVersion{
+				newCSV("csv-dependency-1", testNamespace, "", semver.MustParse("1.0.0"), crds, nil, nil),
+				newCSV("csv-dependency-2", testNamespace, "csv-dependency-1", semver.MustParse("2.0.0"), nil, nil, nil),
+				newCSV("csv-dependency-3", testNamespace, "csv-dependency-2", semver.MustParse("3.0.0"), crds, nil, nil),
+				newCSV("csv-root", testNamespace, "", semver.MustParse("1.0.0"), nil, crds, nil),
+			}
+
+			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", testNamespace, packages, crds, csvs)
+
+			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription", "test-catalog", "root", "channel-root", "", operatorsv1alpha1.ApprovalAutomatic)
+		})
+
+		AfterEach(func() {
+			teardown()
+		})
+
+		It("should create a Subscription for the latest entry providing the required GVK", func() {
+			Eventually(func() ([]operatorsv1alpha1.Subscription, error) {
+				var list operatorsv1alpha1.SubscriptionList
+				if err := ctx.Ctx().Client().List(context.TODO(), &list); err != nil {
+					return nil, err
+				}
+				return list.Items, nil
+			}).Should(ContainElement(WithTransform(
+				func(in operatorsv1alpha1.Subscription) operatorsv1alpha1.SubscriptionSpec {
+					return operatorsv1alpha1.SubscriptionSpec{
+						CatalogSource:          in.Spec.CatalogSource,
+						CatalogSourceNamespace: in.Spec.CatalogSourceNamespace,
+						Package:                in.Spec.Package,
+						Channel:                in.Spec.Channel,
+						StartingCSV:            in.Spec.StartingCSV,
+					}
+				},
+				Equal(operatorsv1alpha1.SubscriptionSpec{
+					CatalogSource:          "test-catalog",
+					CatalogSourceNamespace: testNamespace,
+					Package:                "dependency",
+					Channel:                "channel-dependency",
+					StartingCSV:            "csv-dependency-3",
+				}),
+			)))
+		})
+	})
+
 	//   I. Creating a new subscription
 	//      A. If package is not installed, creating a subscription should install latest version
 	It("creation if not installed", func() {

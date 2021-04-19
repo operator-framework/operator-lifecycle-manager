@@ -855,7 +855,7 @@ func TestResolver(t *testing.T) {
 			steps, lookups, subs, err := resolver.ResolveSteps(namespace, nil)
 			if tt.out.solverError == nil {
 				if tt.out.errAssert == nil {
-					assert.Nil(t, err)
+					assert.NoError(t, err)
 				} else {
 					tt.out.errAssert(t, err)
 				}
