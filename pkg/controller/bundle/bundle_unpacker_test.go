@@ -38,6 +38,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 	now := func() metav1.Time {
 		return start
 	}
+	backoffLimit := int32(3)
 
 	type fields struct {
 		objs []runtime.Object
@@ -192,12 +193,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
+							BackoffLimit: &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy:    corev1.RestartPolicyOnFailure,
+									RestartPolicy:    corev1.RestartPolicyNever,
 									ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-secret"}},
 									Containers: []corev1.Container{
 										{
@@ -368,12 +370,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
+							BackoffLimit: &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyOnFailure,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -582,12 +585,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
+							BackoffLimit: &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyOnFailure,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -761,6 +765,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			factory := informers.NewSharedInformerFactory(client, period)
 			cmLister := factory.Core().V1().ConfigMaps().Lister()
 			jobLister := factory.Batch().V1().Jobs().Lister()
+			podLister := factory.Core().V1().Pods().Lister()
 			roleLister := factory.Rbac().V1().Roles().Lister()
 			rbLister := factory.Rbac().V1().RoleBindings().Lister()
 
@@ -781,6 +786,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				WithCatalogSourceLister(csLister),
 				WithConfigMapLister(cmLister),
 				WithJobLister(jobLister),
+				WithPodLister(podLister),
 				WithRoleLister(roleLister),
 				WithRoleBindingLister(rbLister),
 				WithOPMImage(opmImage),

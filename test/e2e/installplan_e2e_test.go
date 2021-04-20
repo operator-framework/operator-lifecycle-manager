@@ -3056,7 +3056,7 @@ var _ = Describe("Install Plan", func() {
 					Approved:                   true,
 				},
 				Status: operatorsv1alpha1.InstallPlanStatus{
-					Phase:          operatorsv1alpha1.InstallPlanPhasePlanning,
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
 					CatalogSources: []string{},
 					BundleLookups: []operatorsv1alpha1.BundleLookup{
 						{
@@ -3084,7 +3084,7 @@ var _ = Describe("Install Plan", func() {
 			Expect(ctx.Ctx().Client().Delete(context.Background(), ns)).To(Succeed())
 		})
 
-		It("should timeout and fail the InstallPlan for a non-existent bundle image", func() {
+		It("should show an error on the bundlelookup condition for a non-existent bundle image", func() {
 			// Create an InstallPlan status.bundleLookups.Path specified for a non-existent bundle image
 			ip.Status.BundleLookups[0].Path = "quay.io/foo/bar:v0.0.1"
 
@@ -3097,16 +3097,27 @@ var _ = Describe("Install Plan", func() {
 			outIP.Status = ip.Status
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), outIP)).To(Succeed())
 
-			// The InstallPlan should be Failed due to the bundle unpack job timeout
-			// We wait for some time over the bundle unpack Job's timeout (i.e ActiveDeadlineSeconds) so that the Job can fail
-			waitFor := catalog.DefaultBundleUnpackTimeout + 30*time.Second
+			// The InstallPlan's status.bundleLookup.conditions should have a BundleLookupPending condition
+			// with the container status from unpack pod that mentions an image pull failure for the non-existent
+			// image, e.g ErrImagePull or ImagePullBackOff
 			Eventually(
-				func() (*operatorsv1alpha1.InstallPlan, error) {
+				func() (string, error) {
 					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(outIP), outIP)
-					return outIP, err
+					if err != nil {
+						return "", err
+					}
+					for _, bl := range outIP.Status.BundleLookups {
+						for _, cond := range bl.Conditions {
+							if cond.Type != operatorsv1alpha1.BundleLookupPending {
+								continue
+							}
+							return cond.Message, nil
+						}
+					}
+					return "", fmt.Errorf("%s condition not found", operatorsv1alpha1.BundleLookupPending)
 				},
-				waitFor,
-			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
+				1*time.Minute,
+			).Should(ContainSubstring("ErrImagePull"))
 		})
 
 		It("should timeout and fail the InstallPlan for an invalid bundle image", func() {
@@ -3123,8 +3134,9 @@ var _ = Describe("Install Plan", func() {
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), outIP)).To(Succeed())
 
 			// The InstallPlan should be Failed due to the bundle unpack job timeout
-			// We wait for some time over the bundle unpack Job's timeout (i.e ActiveDeadlineSeconds) so that the Job can fail
-			waitFor := catalog.DefaultBundleUnpackTimeout + 30*time.Second
+			// We wait for some time over the default --bundle-unpack-timeout (i.e ActiveDeadlineSeconds) so that the Job can fail
+			defaultBundleUnpackTimeout := 10 * time.Minute
+			waitFor := defaultBundleUnpackTimeout + 30*time.Second
 			Eventually(
 				func() (*operatorsv1alpha1.InstallPlan, error) {
 					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(outIP), outIP)

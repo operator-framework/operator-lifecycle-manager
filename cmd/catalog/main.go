@@ -71,7 +71,7 @@ var (
 		"profiling", false, "serve profiling data (on port 8080)")
 
 	installPlanTimeout  = flag.Duration("install-plan-retry-timeout", 1*time.Minute, "time since first attempt at which plan execution errors are considered fatal")
-	bundleUnpackTimeout = flag.Duration("bundle-unpack-timeout", catalog.DefaultBundleUnpackTimeout, "The time duration after which the bundle unpack Job for an installplan will be aborted and the installplan will be Failed. 0 is considered as having no timeout.")
+	bundleUnpackTimeout = flag.Duration("bundle-unpack-timeout", 10*time.Minute, "The time duration after which the bundle unpack Job for an installplan will be aborted and the installplan will be Failed. 0 is considered as having no timeout.")
 )
 
 func init() {
