@@ -143,7 +143,8 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 							v1.ResourceMemory: resource.MustParse("50Mi"),
 						},
 					},
-					ImagePullPolicy: pullPolicy,
+					ImagePullPolicy:          pullPolicy,
+					TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,
 				},
 			},
 			NodeSelector: map[string]string{
