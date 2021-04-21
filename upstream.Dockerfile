@@ -1,8 +1,9 @@
-FROM golang:1.16-alpine as builder
+FROM quay.io/fedora/fedora:34-x86_64 as builder
 LABEL stage=builder
 WORKDIR /build
 
-RUN apk update && apk add bash make git mercurial jq && apk upgrade
+# install dependencies and go 1.16
+RUN dnf update -y && dnf install -y bash make git mercurial jq wget golang && dnf upgrade -y
 
 # copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
 COPY .git/HEAD .git/HEAD
@@ -20,7 +21,8 @@ COPY test test
 RUN CGO_ENABLED=0 make build
 RUN make build-util
 
-FROM alpine:latest
+# use debug tag to keep a shell around for backwards compatibility with the previous alpine image
+FROM gcr.io/distroless/static:debug
 LABEL stage=olm
 WORKDIR /
 COPY --from=builder /build/bin/olm /bin/olm
