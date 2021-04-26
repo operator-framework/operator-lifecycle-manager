@@ -110,7 +110,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		secretName := install.SecretName(serviceName)
 		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName)
 		if err != nil {
-			logger.WithField("secret", secretName).Warnf("could not retrieve generated Secret")
+			logger.WithField("secret", secretName).Warnf("could not retrieve generated Secret: %v", err)
 			errs = append(errs, err)
 			continue
 		}
