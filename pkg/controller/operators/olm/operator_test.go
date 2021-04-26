@@ -1460,9 +1460,9 @@ func TestTransitionCSV(t *testing.T) {
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
 						install.OLMCAHashAnnotationKey: validCAHash,
 					})),
-					withAnnotations(keyPairToTLSSecret("a1-service-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"a1-service.ns", "a1-service.ns.svc"})), map[string]string{
+					withLabels(withAnnotations(keyPairToTLSSecret("a1-service-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"a1-service.ns", "a1-service.ns.svc"})), map[string]string{
 						install.OLMCAHashAnnotationKey: validCAHash,
-					}),
+					}), map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
 					service("a1-service", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
 					role("a1-service-cert", namespace, []rbacv1.PolicyRule{

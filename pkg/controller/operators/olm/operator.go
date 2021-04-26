@@ -303,7 +303,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		}
 
 		// Register Secret QueueInformer
-		secretInformer := k8sInformerFactory.Core().V1().Secrets()
+		secretInformer := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), config.resyncPeriod(), informers.WithNamespace(namespace), informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+			options.LabelSelector = labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}).String()
+		})).Core().V1().Secrets()
 		op.lister.CoreV1().RegisterSecretLister(namespace, secretInformer.Lister())
 		secretQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
