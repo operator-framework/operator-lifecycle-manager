@@ -795,7 +795,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			res, err := unpacker.UnpackBundle(tt.args.lookup)
+			res, err := unpacker.UnpackBundle(tt.args.lookup, map[string]string{})
 			require.Equal(t, tt.expected.err, err)
 
 			if tt.expected.res == nil {

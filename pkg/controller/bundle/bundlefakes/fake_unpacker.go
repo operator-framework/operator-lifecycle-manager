@@ -9,10 +9,11 @@ import (
 )
 
 type FakeUnpacker struct {
-	UnpackBundleStub        func(*v1alpha1.BundleLookup) (*bundle.BundleUnpackResult, error)
+	UnpackBundleStub        func(*v1alpha1.BundleLookup, map[string]string) (*bundle.BundleUnpackResult, error)
 	unpackBundleMutex       sync.RWMutex
 	unpackBundleArgsForCall []struct {
 		arg1 *v1alpha1.BundleLookup
+		arg2 map[string]string
 	}
 	unpackBundleReturns struct {
 		result1 *bundle.BundleUnpackResult
@@ -26,16 +27,17 @@ type FakeUnpacker struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeUnpacker) UnpackBundle(arg1 *v1alpha1.BundleLookup) (*bundle.BundleUnpackResult, error) {
+func (fake *FakeUnpacker) UnpackBundle(arg1 *v1alpha1.BundleLookup, arg2 map[string]string) (*bundle.BundleUnpackResult, error) {
 	fake.unpackBundleMutex.Lock()
 	ret, specificReturn := fake.unpackBundleReturnsOnCall[len(fake.unpackBundleArgsForCall)]
 	fake.unpackBundleArgsForCall = append(fake.unpackBundleArgsForCall, struct {
 		arg1 *v1alpha1.BundleLookup
-	}{arg1})
-	fake.recordInvocation("UnpackBundle", []interface{}{arg1})
+		arg2 map[string]string
+	}{arg1, arg2})
+	fake.recordInvocation("UnpackBundle", []interface{}{arg1, arg2})
 	fake.unpackBundleMutex.Unlock()
 	if fake.UnpackBundleStub != nil {
-		return fake.UnpackBundleStub(arg1)
+		return fake.UnpackBundleStub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -50,17 +52,17 @@ func (fake *FakeUnpacker) UnpackBundleCallCount() int {
 	return len(fake.unpackBundleArgsForCall)
 }
 
-func (fake *FakeUnpacker) UnpackBundleCalls(stub func(*v1alpha1.BundleLookup) (*bundle.BundleUnpackResult, error)) {
+func (fake *FakeUnpacker) UnpackBundleCalls(stub func(*v1alpha1.BundleLookup, map[string]string) (*bundle.BundleUnpackResult, error)) {
 	fake.unpackBundleMutex.Lock()
 	defer fake.unpackBundleMutex.Unlock()
 	fake.UnpackBundleStub = stub
 }
 
-func (fake *FakeUnpacker) UnpackBundleArgsForCall(i int) *v1alpha1.BundleLookup {
+func (fake *FakeUnpacker) UnpackBundleArgsForCall(i int) (*v1alpha1.BundleLookup, map[string]string) {
 	fake.unpackBundleMutex.RLock()
 	defer fake.unpackBundleMutex.RUnlock()
 	argsForCall := fake.unpackBundleArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeUnpacker) UnpackBundleReturns(result1 *bundle.BundleUnpackResult, result2 error) {

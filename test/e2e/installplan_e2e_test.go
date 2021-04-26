@@ -39,6 +39,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
@@ -3088,6 +3089,14 @@ var _ = Describe("Install Plan", func() {
 			// Create an InstallPlan status.bundleLookups.Path specified for a non-existent bundle image
 			ip.Status.BundleLookups[0].Path = "quay.io/foo/bar:v0.0.1"
 
+			// We wait for some time over the bundle unpack timeout (i.e ActiveDeadlineSeconds) so that the Job can eventually fail
+			// Since the default --bundle-unpack-timeout=10m, we override with a shorter timeout via the
+			// unpack timeout annotation on the InstallPlan
+			annotations := make(map[string]string)
+			annotations[bundle.BundleUnpackTimeoutAnnotationKey] = "1m"
+			ip.SetAnnotations(annotations)
+			waitFor := 1*time.Minute + 30*time.Second
+
 			outIP := ip.DeepCopy()
 
 			Expect(ctx.Ctx().Client().Create(context.Background(), outIP)).To(Succeed())
@@ -3118,6 +3127,15 @@ var _ = Describe("Install Plan", func() {
 				},
 				1*time.Minute,
 			).Should(ContainSubstring("ErrImagePull"))
+
+			// The InstallPlan should eventually fail due to the ActiveDeadlineSeconds limit
+			Eventually(
+				func() (*operatorsv1alpha1.InstallPlan, error) {
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(outIP), outIP)
+					return outIP, err
+				},
+				waitFor,
+			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
 		})
 
 		It("should timeout and fail the InstallPlan for an invalid bundle image", func() {
@@ -3133,16 +3151,15 @@ var _ = Describe("Install Plan", func() {
 			outIP.Status = ip.Status
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), outIP)).To(Succeed())
 
-			// The InstallPlan should be Failed due to the bundle unpack job timeout
-			// We wait for some time over the default --bundle-unpack-timeout (i.e ActiveDeadlineSeconds) so that the Job can fail
-			defaultBundleUnpackTimeout := 10 * time.Minute
-			waitFor := defaultBundleUnpackTimeout + 30*time.Second
+			// The InstallPlan should fail after the unpack pod keeps failing and exceeds the job's
+			// BackoffLimit(set to 3), which with an exponential backoff (10s + 20s + 40s)= 1m10s
+			// so we wait a little over that.
 			Eventually(
 				func() (*operatorsv1alpha1.InstallPlan, error) {
 					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(outIP), outIP)
 					return outIP, err
 				},
-				waitFor,
+				2*time.Minute,
 			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
 		})
 

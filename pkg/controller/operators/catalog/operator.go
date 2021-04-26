@@ -1186,7 +1186,7 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 	var errs []error
 	for i := 0; i < len(out.Status.BundleLookups); i++ {
 		lookup := out.Status.BundleLookups[i]
-		res, err := o.bundleUnpacker.UnpackBundle(&lookup)
+		res, err := o.bundleUnpacker.UnpackBundle(&lookup, plan.GetAnnotations())
 		if err != nil {
 			errs = append(errs, err)
 			continue

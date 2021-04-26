@@ -31,6 +31,13 @@ const (
 	// TODO: Move to operator-framework/api/pkg/operators/v1alpha1
 	// BundleLookupFailed describes conditions types for when BundleLookups fail
 	BundleLookupFailed operatorsv1alpha1.BundleLookupConditionType = "BundleLookupFailed"
+
+	// TODO: This can be a spec field
+	// BundleUnpackTimeoutAnnotationKey allows setting a bundle unpack timeout per InstallPlan
+	// and overrides the default specified by the --bundle-unpack-timeout flag
+	// The time duration should be in the same format as accepted by time.ParseDuration()
+	// e.g 1m30s
+	BundleUnpackTimeoutAnnotationKey = "bundle-unpack-timeout"
 )
 
 type BundleUnpackResult struct {
@@ -74,7 +81,7 @@ func newBundleUnpackResult(lookup *operatorsv1alpha1.BundleLookup) *BundleUnpack
 	}
 }
 
-func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference) *batchv1.Job {
+func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, ipAnnotations map[string]string) *batchv1.Job {
 	job := &batchv1.Job{
 		Spec: batchv1.JobSpec{
 			//ttlSecondsAfterFinished: 0 // can use in the future to not have to clean up job
@@ -178,12 +185,6 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 	job.SetName(cmRef.Name)
 	job.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
 
-	// Don't set a timeout if it is 0
-	if c.unpackTimeout != time.Duration(0) {
-		t := int64(c.unpackTimeout.Seconds())
-		job.Spec.ActiveDeadlineSeconds = &t
-	}
-
 	// By default the BackoffLimit is set to 6 which with exponential backoff 10s + 20s + 40s ...
 	// translates to ~10m of waiting time.
 	// We want to fail faster than that when we have repeated failures from the bundle unpack pod
@@ -193,13 +194,38 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 	backOffLimit := int32(3)
 	job.Spec.BackoffLimit = &backOffLimit
 
+	// Set ActiveDeadlineSeconds as the unpack timeout
+	// Don't set a timeout if it is 0
+	if c.unpackTimeout != time.Duration(0) {
+		t := int64(c.unpackTimeout.Seconds())
+		job.Spec.ActiveDeadlineSeconds = &t
+	}
+
+	// The bundle timeout annotation if specified overrides the --bundle-unpack-timeout flag value
+	timeoutStr, ok := ipAnnotations[BundleUnpackTimeoutAnnotationKey]
+	if !ok {
+		return job
+	}
+	d, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		// TODO(haseeb): log this error
+		return job
+	}
+	if d == time.Duration(0) {
+		// 0 means no timeout
+		return job
+	}
+
+	timeoutSeconds := int64(d.Seconds())
+	job.Spec.ActiveDeadlineSeconds = &timeoutSeconds
+
 	return job
 }
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . Unpacker
 
 type Unpacker interface {
-	UnpackBundle(lookup *operatorsv1alpha1.BundleLookup) (result *BundleUnpackResult, err error)
+	UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, ipAnnotations map[string]string) (result *BundleUnpackResult, err error)
 }
 
 type ConfigMapUnpacker struct {
@@ -346,7 +372,8 @@ const (
 	NotUnpackedMessage          = "bundle contents have not yet been persisted to installplan status"
 )
 
-func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup) (result *BundleUnpackResult, err error) {
+func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, ipAnnotations map[string]string) (result *BundleUnpackResult, err error) {
+
 	result = newBundleUnpackResult(lookup)
 
 	// if bundle lookup failed condition already present, then there is nothing more to do
@@ -355,13 +382,9 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 		return result, nil
 	}
 
-	// if pending condition is missing, bundle has already been unpacked
-	cond := result.GetCondition(operatorsv1alpha1.BundleLookupPending)
-	if cond.Status == corev1.ConditionUnknown {
-		return result, nil
-	}
-	// if pending condition is false, bundle unpack has already failed so nothing more to do
-	if cond.Status == corev1.ConditionFalse {
+	// if pending condition is not true then bundle has already been unpacked(unknown) or failed(false)
+	pendingCond := result.GetCondition(operatorsv1alpha1.BundleLookupPending)
+	if pendingCond.Status != corev1.ConditionTrue {
 		return result, nil
 	}
 
@@ -369,12 +392,12 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 
 	var cs *operatorsv1alpha1.CatalogSource
 	if cs, err = c.csLister.CatalogSources(result.CatalogSourceRef.Namespace).Get(result.CatalogSourceRef.Name); err != nil {
-		if apierrors.IsNotFound(err) && cond.Reason != CatalogSourceMissingReason {
-			cond.Status = corev1.ConditionTrue
-			cond.Reason = CatalogSourceMissingReason
-			cond.Message = CatalogSourceMissingMessage
-			cond.LastTransitionTime = &now
-			result.SetCondition(cond)
+		if apierrors.IsNotFound(err) && pendingCond.Reason != CatalogSourceMissingReason {
+			pendingCond.Status = corev1.ConditionTrue
+			pendingCond.Reason = CatalogSourceMissingReason
+			pendingCond.Message = CatalogSourceMissingMessage
+			pendingCond.LastTransitionTime = &now
+			result.SetCondition(pendingCond)
 			err = nil
 		}
 
@@ -412,7 +435,7 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 		secrets = append(secrets, corev1.LocalObjectReference{Name: secretName})
 	}
 	var job *batchv1.Job
-	job, err = c.ensureJob(cmRef, result.Path, secrets)
+	job, err = c.ensureJob(cmRef, result.Path, secrets, ipAnnotations)
 	if err != nil {
 		return
 	}
@@ -429,18 +452,16 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 		result.SetCondition(failedCond)
 
 		// BundleLookupPending is false with reason being job failed
-		cond.Status = corev1.ConditionFalse
-		cond.Reason = JobFailedReason
-		cond.Message = JobFailedMessage
-		cond.LastTransitionTime = &now
-		result.SetCondition(cond)
+		pendingCond.Status = corev1.ConditionFalse
+		pendingCond.Reason = JobFailedReason
+		pendingCond.Message = JobFailedMessage
+		pendingCond.LastTransitionTime = &now
+		result.SetCondition(pendingCond)
 
 		return
 	}
 
-	isComplete, _ := jobConditionTrue(job, batchv1.JobComplete)
-	if !isComplete {
-
+	if isComplete, _ := jobConditionTrue(job, batchv1.JobComplete); !isComplete {
 		// In the case of an image pull failure for a non-existent image the bundle unpack job
 		// can stay pending until the ActiveDeadlineSeconds timeout ~10m
 		// To indicate why it's pending we inspect the container statuses of the
@@ -457,12 +478,12 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup)
 		}
 
 		// Update BundleLookupPending condition if there are any changes
-		if cond.Status != corev1.ConditionTrue || cond.Reason != JobIncompleteReason || cond.Message != pendingMessage {
-			cond.Status = corev1.ConditionTrue
-			cond.Reason = JobIncompleteReason
-			cond.Message = pendingMessage
-			cond.LastTransitionTime = &now
-			result.SetCondition(cond)
+		if pendingCond.Status != corev1.ConditionTrue || pendingCond.Reason != JobIncompleteReason || pendingCond.Message != pendingMessage {
+			pendingCond.Status = corev1.ConditionTrue
+			pendingCond.Reason = JobIncompleteReason
+			pendingCond.Message = pendingMessage
+			pendingCond.LastTransitionTime = &now
+			result.SetCondition(pendingCond)
 		}
 
 		return
@@ -516,7 +537,7 @@ func (c *ConfigMapUnpacker) pendingContainerStatusMessages(job *batchv1.Job) (st
 
 			// Aggregate the wait reasons for all pending containers
 			containerStatusMessages = containerStatusMessages +
-				fmt.Sprintf("Unpack pod(%s/%s) container(%s) is pending. Reason: %s, Message: %s \n",
+				fmt.Sprintf("Unpack pod(%s/%s) container(%s) is pending. Reason: %s, Message: %s | ",
 					pod.Namespace, pod.Name, ic.Name, ic.State.Waiting.Reason, ic.State.Waiting.Message)
 		}
 	}
@@ -538,8 +559,8 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 	return
 }
 
-func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference) (job *batchv1.Job, err error) {
-	fresh := c.job(cmRef, bundlePath, secrets)
+func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, ipAnnotations map[string]string) (job *batchv1.Job, err error) {
+	fresh := c.job(cmRef, bundlePath, secrets, ipAnnotations)
 	job, err = c.jobLister.Jobs(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
 		if apierrors.IsNotFound(err) {
