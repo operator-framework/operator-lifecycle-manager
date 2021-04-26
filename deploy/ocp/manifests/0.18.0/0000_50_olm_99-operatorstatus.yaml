@@ -1,0 +1,38 @@
+# Source: olm/templates/0000_50_olm_99-operatorstatus.yaml
+apiVersion: config.openshift.io/v1
+kind: ClusterOperator
+metadata:
+  name: operator-lifecycle-manager
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+status:
+  versions:
+    - name: operator
+      version: "0.0.1-snapshot"
+---
+# Source: olm/templates/0000_50_olm_99-operatorstatus.yaml
+apiVersion: config.openshift.io/v1
+kind: ClusterOperator
+metadata:
+  name: operator-lifecycle-manager-catalog
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+status:
+  versions:
+    - name: operator
+      version: "0.0.1-snapshot"
+---
+# Source: olm/templates/0000_50_olm_99-operatorstatus.yaml
+apiVersion: config.openshift.io/v1
+kind: ClusterOperator
+metadata:
+  name: operator-lifecycle-manager-packageserver
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+status:
+  versions:
+    - name: operator
+      version: "0.0.1-snapshot"

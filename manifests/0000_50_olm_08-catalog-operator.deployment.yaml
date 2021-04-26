@@ -31,14 +31,14 @@ spec:
             - openshift-marketplace
             - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
             - -util-image
-            - quay.io/operator-framework/olm@sha256:de396b540b82219812061d0d753440d5655250c621c753ed1dc67d6154741607
+            - quay.io/operator-framework/olm@sha256:e9de77ac5c08643202ad42a0311d15c98ffbfd8a1dc2eab4e9f2dcaeed7110ac
             - -writeStatusName
             - operator-lifecycle-manager-catalog
             - -tls-cert
             - /var/run/secrets/serving-cert/tls.crt
             - -tls-key
             - /var/run/secrets/serving-cert/tls.key
-          image: quay.io/operator-framework/olm@sha256:de396b540b82219812061d0d753440d5655250c621c753ed1dc67d6154741607
+          image: quay.io/operator-framework/olm@sha256:e9de77ac5c08643202ad42a0311d15c98ffbfd8a1dc2eab4e9f2dcaeed7110ac
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
