@@ -3004,32 +3004,25 @@ var _ = Describe("Install Plan", func() {
 		var (
 			ns         *corev1.Namespace
 			catsrcName string
-			crc        versioned.Interface
 			ip         *operatorsv1alpha1.InstallPlan
 		)
 		BeforeEach(func() {
-			crc = newCRClient()
 			ns = &corev1.Namespace{}
 			ns.SetName(genName("ns-"))
 			Expect(ctx.Ctx().Client().Create(context.Background(), ns)).To(Succeed())
 
-			// Create the single (kiali) bundle catalog source
+			// Create a dummy CatalogSource to bypass the bundle unpacker's check for a CatalogSource
 			catsrc := &operatorsv1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      genName("kiali-"),
+					Name:      genName("dummy-catsrc-"),
 					Namespace: ns.GetName(),
-					Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
 				},
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
-					Image:      "quay.io/olmtest/single-bundle-index:1.0.0",
+					Image:      "localhost:0/not/exist:catsrc",
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
 				},
 			}
 			Expect(ctx.Ctx().Client().Create(context.Background(), catsrc)).To(Succeed())
-
-			// Wait for the CatalogSource to be ready
-			catsrc, err := fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
-			Expect(err).ToNot(HaveOccurred())
 
 			catsrcName = catsrc.GetName()
 
@@ -3044,6 +3037,16 @@ var _ = Describe("Install Plan", func() {
 				},
 			}
 			Expect(ctx.Ctx().Client().Create(context.Background(), og)).To(Succeed())
+
+			// Wait for the OperatorGroup to be synced so the InstallPlan doesn't fail due to an invalid OperatorGroup
+			Eventually(
+				func() ([]string, error) {
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(og), og)
+					ctx.Ctx().Logf("Waiting for OperatorGroup(%v) to be synced with status.namespaces: %v", og.Name, og.Status.Namespaces)
+					return og.Status.Namespaces, err
+				},
+				1*time.Minute,
+			).Should(ContainElement(ns.GetName()))
 
 			now := metav1.Now()
 			ip = &operatorsv1alpha1.InstallPlan{
@@ -3087,7 +3090,7 @@ var _ = Describe("Install Plan", func() {
 
 		It("should show an error on the bundlelookup condition for a non-existent bundle image", func() {
 			// Create an InstallPlan status.bundleLookups.Path specified for a non-existent bundle image
-			ip.Status.BundleLookups[0].Path = "quay.io/foo/bar:v0.0.1"
+			ip.Status.BundleLookups[0].Path = "localhost:0/not/exist:v0.0.1"
 
 			// We wait for some time over the bundle unpack timeout (i.e ActiveDeadlineSeconds) so that the Job can eventually fail
 			// Since the default --bundle-unpack-timeout=10m, we override with a shorter timeout via the
@@ -3097,25 +3100,22 @@ var _ = Describe("Install Plan", func() {
 			ip.SetAnnotations(annotations)
 			waitFor := 1*time.Minute + 30*time.Second
 
-			outIP := ip.DeepCopy()
-
-			Expect(ctx.Ctx().Client().Create(context.Background(), outIP)).To(Succeed())
+			Expect(ctx.Ctx().Client().Create(context.Background(), ip)).To(Succeed())
 
 			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 			// InstallPlans without any steps or bundle lookups
-			outIP.Status = ip.Status
-			Expect(ctx.Ctx().Client().Status().Update(context.Background(), outIP)).To(Succeed())
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), ip)).To(Succeed())
 
 			// The InstallPlan's status.bundleLookup.conditions should have a BundleLookupPending condition
 			// with the container status from unpack pod that mentions an image pull failure for the non-existent
 			// image, e.g ErrImagePull or ImagePullBackOff
 			Eventually(
 				func() (string, error) {
-					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(outIP), outIP)
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
 					if err != nil {
 						return "", err
 					}
-					for _, bl := range outIP.Status.BundleLookups {
+					for _, bl := range ip.Status.BundleLookups {
 						for _, cond := range bl.Conditions {
 							if cond.Type != operatorsv1alpha1.BundleLookupPending {
 								continue
@@ -3131,8 +3131,8 @@ var _ = Describe("Install Plan", func() {
 			// The InstallPlan should eventually fail due to the ActiveDeadlineSeconds limit
 			Eventually(
 				func() (*operatorsv1alpha1.InstallPlan, error) {
-					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(outIP), outIP)
-					return outIP, err
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
+					return ip, err
 				},
 				waitFor,
 			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
@@ -3142,22 +3142,19 @@ var _ = Describe("Install Plan", func() {
 			// Create an InstallPlan status.bundleLookups.Path specified for an invalid bundle image
 			ip.Status.BundleLookups[0].Path = "alpine:3.13"
 
-			outIP := ip.DeepCopy()
-
-			Expect(ctx.Ctx().Client().Create(context.Background(), outIP)).To(Succeed())
+			Expect(ctx.Ctx().Client().Create(context.Background(), ip)).To(Succeed())
 
 			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 			// InstallPlans without any steps or bundle lookups
-			outIP.Status = ip.Status
-			Expect(ctx.Ctx().Client().Status().Update(context.Background(), outIP)).To(Succeed())
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), ip)).To(Succeed())
 
 			// The InstallPlan should fail after the unpack pod keeps failing and exceeds the job's
 			// BackoffLimit(set to 3), which with an exponential backoff (10s + 20s + 40s)= 1m10s
 			// so we wait a little over that.
 			Eventually(
 				func() (*operatorsv1alpha1.InstallPlan, error) {
-					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(outIP), outIP)
-					return outIP, err
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
+					return ip, err
 				},
 				2*time.Minute,
 			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
