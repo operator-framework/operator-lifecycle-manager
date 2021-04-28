@@ -26,12 +26,12 @@ YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 
-# ART builds are performed in dist-git, with content (but not commits) copied 
+# ART builds are performed in dist-git, with content (but not commits) copied
 # from the source repo. Thus at build time if your code is inspecting the local
-# git repo it is getting unrelated commits and tags from the dist-git repo, 
+# git repo it is getting unrelated commits and tags from the dist-git repo,
 # not the source repo.
-# For ART image builds, SOURCE_GIT_COMMIT, SOURCE_GIT_TAG, SOURCE_DATE_EPOCH 
-# variables are inserted in Dockerfile to enable recovering the original git 
+# For ART image builds, SOURCE_GIT_COMMIT, SOURCE_GIT_TAG, SOURCE_DATE_EPOCH
+# variables are inserted in Dockerfile to enable recovering the original git
 # metadata at build time.
 GIT_COMMIT := $(if $(SOURCE_GIT_COMMIT),$(SOURCE_GIT_COMMIT),$(shell git rev-parse HEAD))
 
@@ -145,6 +145,7 @@ e2e-operator-metrics:
 vendor:
 	go mod tidy
 	go mod vendor
+	go mod verify
 
 container:
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
