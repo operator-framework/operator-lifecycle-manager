@@ -2,6 +2,9 @@
 spec:
   strategy:
     type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.package.maxUnavailable }}
+      maxSurge: {{ .Values.package.maxSurge }}
   replicas: {{ .Values.package.replicaCount }}
   selector:
     matchLabels:
