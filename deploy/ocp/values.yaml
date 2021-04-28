@@ -63,6 +63,8 @@ catalog:
       memory: 80Mi
 package:
   replicaCount: 2
+  maxUnavailable: 1
+  maxSurge: 1
   image:
     ref: quay.io/operator-framework/olm@sha256:e9de77ac5c08643202ad42a0311d15c98ffbfd8a1dc2eab4e9f2dcaeed7110ac
     pullPolicy: IfNotPresent
