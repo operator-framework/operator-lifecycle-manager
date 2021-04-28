@@ -28,7 +28,7 @@ import (
 )
 
 // Describes test specs for the Operator resource.
-var _ = Describe("Operator", func() {
+var _ = Describe("Operator API", func() {
 	var (
 		clientCtx       context.Context
 		scheme          *runtime.Scheme
@@ -73,6 +73,8 @@ var _ = Describe("Operator", func() {
 	It("should surface components in its status", func() {
 		o := &operatorsv1.Operator{}
 		o.SetName(genName("o-"))
+
+		Consistently(o).ShouldNot(ContainCopiedCSVReferences())
 
 		Eventually(func() error {
 			return client.Create(clientCtx, o)
@@ -327,6 +329,12 @@ var _ = Describe("Operator", func() {
 		})
 
 		It("should automatically adopt components", func() {
+			Consistently(func() (*operatorsv1.Operator, error) {
+				o := &operatorsv1.Operator{}
+				err := client.Get(clientCtx, operatorName, o)
+				return o, err
+			}).ShouldNot(ContainCopiedCSVReferences())
+
 			Eventually(func() (*operatorsv1.Operator, error) {
 				o := &operatorsv1.Operator{}
 				err := client.Get(clientCtx, operatorName, o)
@@ -346,8 +354,36 @@ var _ = Describe("Operator", func() {
 				getReference(scheme, testobj.WithName("monitoringdashboards.monitoring.kiali.io", &apiextensionsv1.CustomResourceDefinition{})),
 			}))
 		})
-	})
 
+		Context("when a namespace is added", func() {
+			var newNs  *corev1.Namespace
+
+			BeforeEach(func() {
+				// Subscribe to a package and await a successful install
+				newNs = &corev1.Namespace{}
+				newNs.SetName(genName("ns-"))
+				Eventually(func() error {
+					return client.Create(clientCtx, newNs)
+				}).Should(Succeed())
+			})
+			AfterEach(func() {
+				Eventually(func() error {
+					err := client.Delete(clientCtx, newNs)
+					if apierrors.IsNotFound(err) {
+						return nil
+					}
+					return err
+				}).Should(Succeed())
+			})
+			It("should not adopt copied csvs", func() {
+				Consistently(func() (*operatorsv1.Operator, error) {
+					o := &operatorsv1.Operator{}
+					err := client.Get(clientCtx, operatorName, o)
+					return o, err
+				}).ShouldNot(ContainCopiedCSVReferences())
+			})
+		})
+	})
 })
 
 func getReference(scheme *runtime.Scheme, obj runtime.Object) *corev1.ObjectReference {
@@ -378,6 +414,53 @@ func componentRefEventuallyExists(w watch.Interface, exists bool, ref *corev1.Ob
 
 		return !exists
 	}))
+}
+
+func ContainCopiedCSVReferences() gomegatypes.GomegaMatcher {
+	return &copiedCSVRefMatcher{}
+}
+
+type copiedCSVRefMatcher struct {
+}
+
+func (matcher *copiedCSVRefMatcher) Match(actual interface{}) (success bool, err error) {
+	if actual == nil {
+		return false, nil
+	}
+	operator, ok := actual.(*operatorsv1.Operator)
+	if !ok {
+		return false, fmt.Errorf("copiedCSVRefMatcher matcher expects an *Operator")
+	}
+	if operator.Status.Components == nil {
+		return false, nil
+	}
+	for _, ref := range operator.Status.Components.Refs {
+		if ref.Kind != operatorsv1alpha1.ClusterServiceVersionKind {
+			continue
+		}
+		for _, c := range ref.Conditions {
+			if c.Reason == string(operatorsv1alpha1.CSVReasonCopied) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func (matcher *copiedCSVRefMatcher) FailureMessage(actual interface{}) (message string) {
+	operator, ok := actual.(*operatorsv1.Operator)
+	if !ok {
+		return fmt.Sprintf("copiedCSVRefMatcher matcher expects an *Operator")
+	}
+	return fmt.Sprintf("Expected\n\t%#v\nto contain copied CSVs in components\n\t%#v\n", operator, operator.Status.Components)
+}
+
+func (matcher *copiedCSVRefMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	operator, ok := actual.(*operatorsv1.Operator)
+	if !ok {
+		return fmt.Sprintf("copiedCSVRefMatcher matcher expects an *Operator")
+	}
+	return fmt.Sprintf("Expected\n\t%#v\nto not contain copied CSVs in components\n\t%#v\n", operator, operator.Status.Components)
 }
 
 func operatorPredicate(fn func(*operatorsv1.Operator) bool) predicateFunc {
