@@ -372,6 +372,10 @@ func deployment(deploymentName, namespace, serviceAccountName string, templateAn
 			Replicas:          singleInstance,
 			AvailableReplicas: singleInstance,
 			UpdatedReplicas:   singleInstance,
+			Conditions: []appsv1.DeploymentCondition{{
+				Type:   appsv1.DeploymentAvailable,
+				Status: corev1.ConditionTrue,
+			}},
 		},
 	}
 }
@@ -3420,6 +3424,10 @@ func TestUpdates(t *testing.T) {
 		dep.Status.Replicas = 1
 		dep.Status.UpdatedReplicas = 1
 		dep.Status.AvailableReplicas = 1
+		dep.Status.Conditions = []appsv1.DeploymentCondition{{
+			Type:   appsv1.DeploymentAvailable,
+			Status: corev1.ConditionTrue,
+		}}
 		_, err = client.KubernetesInterface().AppsV1().Deployments(namespace).UpdateStatus(context.TODO(), dep, metav1.UpdateOptions{})
 		require.NoError(t, err)
 	}
@@ -4437,6 +4445,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 				dep.Status.Replicas = 1
 				dep.Status.UpdatedReplicas = 1
 				dep.Status.AvailableReplicas = 1
+				dep.Status.Conditions = []appsv1.DeploymentCondition{{
+					Type:   appsv1.DeploymentAvailable,
+					Status: corev1.ConditionTrue,
+				}}
 				_, err = client.KubernetesInterface().AppsV1().Deployments(tt.initial.operatorGroup.GetNamespace()).UpdateStatus(context.TODO(), dep, metav1.UpdateOptions{})
 				require.NoError(t, err)
 			}
