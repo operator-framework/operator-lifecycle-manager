@@ -3149,14 +3149,14 @@ var _ = Describe("Install Plan", func() {
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), ip)).To(Succeed())
 
 			// The InstallPlan should fail after the unpack pod keeps failing and exceeds the job's
-			// BackoffLimit(set to 3), which with an exponential backoff (10s + 20s + 40s)= 1m10s
+			// BackoffLimit(set to 3), which for 4 failures is an exponential backoff (10s + 20s + 40s + 80s)= 2m30s
 			// so we wait a little over that.
 			Eventually(
 				func() (*operatorsv1alpha1.InstallPlan, error) {
 					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
 					return ip, err
 				},
-				2*time.Minute,
+				5*time.Minute,
 			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
 		})
 

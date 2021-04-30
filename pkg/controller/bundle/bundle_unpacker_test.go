@@ -795,7 +795,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			res, err := unpacker.UnpackBundle(tt.args.lookup, map[string]string{})
+			// The annotationUnpackTimeout arg is negative so it is ignored for these tests
+			res, err := unpacker.UnpackBundle(tt.args.lookup, -1*time.Minute)
 			require.Equal(t, tt.expected.err, err)
 
 			if tt.expected.res == nil {

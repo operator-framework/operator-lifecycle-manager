@@ -81,7 +81,7 @@ func newBundleUnpackResult(lookup *operatorsv1alpha1.BundleLookup) *BundleUnpack
 	}
 }
 
-func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, ipAnnotations map[string]string) *batchv1.Job {
+func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, annotationUnpackTimeout time.Duration) *batchv1.Job {
 	job := &batchv1.Job{
 		Spec: batchv1.JobSpec{
 			//ttlSecondsAfterFinished: 0 // can use in the future to not have to clean up job
@@ -190,7 +190,6 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 	// We want to fail faster than that when we have repeated failures from the bundle unpack pod
 	// so we set it to 3 which is ~1m of waiting time
 	// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-backoff-failure-policy
-	// TODO (haseeb): Should this be configurable as well?
 	backOffLimit := int32(3)
 	job.Spec.BackoffLimit = &backOffLimit
 
@@ -201,22 +200,18 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 		job.Spec.ActiveDeadlineSeconds = &t
 	}
 
-	// The bundle timeout annotation if specified overrides the --bundle-unpack-timeout flag value
-	timeoutStr, ok := ipAnnotations[BundleUnpackTimeoutAnnotationKey]
-	if !ok {
+	// Check annotationUnpackTimeout which is the annotation override for the default unpack timeout
+	// A negative timeout means the annotation was unset or malformed so we ignore it
+	if annotationUnpackTimeout < time.Duration(0) {
 		return job
 	}
-	d, err := time.ParseDuration(timeoutStr)
-	if err != nil {
-		// TODO(haseeb): log this error
-		return job
-	}
-	if d == time.Duration(0) {
-		// 0 means no timeout
+	// // 0 means no timeout so we unset ActiveDeadlineSeconds
+	if annotationUnpackTimeout == time.Duration(0) {
+		job.Spec.ActiveDeadlineSeconds = nil
 		return job
 	}
 
-	timeoutSeconds := int64(d.Seconds())
+	timeoutSeconds := int64(annotationUnpackTimeout.Seconds())
 	job.Spec.ActiveDeadlineSeconds = &timeoutSeconds
 
 	return job
@@ -225,7 +220,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . Unpacker
 
 type Unpacker interface {
-	UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, ipAnnotations map[string]string) (result *BundleUnpackResult, err error)
+	UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, annotationUnpackTimeout time.Duration) (result *BundleUnpackResult, err error)
 }
 
 type ConfigMapUnpacker struct {
@@ -372,7 +367,7 @@ const (
 	NotUnpackedMessage          = "bundle contents have not yet been persisted to installplan status"
 )
 
-func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, ipAnnotations map[string]string) (result *BundleUnpackResult, err error) {
+func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, annotationUnpackTimeout time.Duration) (result *BundleUnpackResult, err error) {
 
 	result = newBundleUnpackResult(lookup)
 
@@ -435,7 +430,7 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 		secrets = append(secrets, corev1.LocalObjectReference{Name: secretName})
 	}
 	var job *batchv1.Job
-	job, err = c.ensureJob(cmRef, result.Path, secrets, ipAnnotations)
+	job, err = c.ensureJob(cmRef, result.Path, secrets, annotationUnpackTimeout)
 	if err != nil {
 		return
 	}
@@ -559,8 +554,8 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 	return
 }
 
-func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, ipAnnotations map[string]string) (job *batchv1.Job, err error) {
-	fresh := c.job(cmRef, bundlePath, secrets, ipAnnotations)
+func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, annotationUnpackTimeout time.Duration) (job *batchv1.Job, err error) {
+	fresh := c.job(cmRef, bundlePath, secrets, annotationUnpackTimeout)
 	job, err = c.jobLister.Jobs(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
 		if apierrors.IsNotFound(err) {

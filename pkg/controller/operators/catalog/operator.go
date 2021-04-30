@@ -1183,10 +1183,23 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 	out := plan.DeepCopy()
 	unpacked := true
 
+	// The bundle timeout annotation if specified overrides the --bundle-unpack-timeout flag value
+	// If the timeout cannot be parsed it's set to < 0 and subsequently ignored
+	unpackTimeout := -1 * time.Minute
+	timeoutStr, ok := plan.GetAnnotations()[bundle.BundleUnpackTimeoutAnnotationKey]
+	if ok {
+		d, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			o.logger.Errorf("failed to parse unpack timeout annotation(%s: %s): %v", bundle.BundleUnpackTimeoutAnnotationKey, timeoutStr, err)
+		} else {
+			unpackTimeout = d
+		}
+	}
+
 	var errs []error
 	for i := 0; i < len(out.Status.BundleLookups); i++ {
 		lookup := out.Status.BundleLookups[i]
-		res, err := o.bundleUnpacker.UnpackBundle(&lookup, plan.GetAnnotations())
+		res, err := o.bundleUnpacker.UnpackBundle(&lookup, unpackTimeout)
 		if err != nil {
 			errs = append(errs, err)
 			continue
