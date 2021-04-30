@@ -4,6 +4,10 @@
 [![License](http://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 [![Go Report Card](https://goreportcard.com/badge/github.com/operator-framework/operator-lifecycle-manager)](https://goreportcard.com/report/github.com/operator-framework/operator-lifecycle-manager)
 
+## Documentation
+
+User documentation can be found on the [OLM website][olm-docs].
+
 ## Overview
 
 This project is a component of the [Operator Framework](https://github.com/operator-framework), an open source toolkit to manage Kubernetes native applications, called Operators, in an effective, automated, and scalable way. Read more in the [introduction blog post](https://operatorhub.io/what-is-an-operator) and learn about practical use cases at [OLM-Book](https://operator-framework.github.io/olm-book/).
@@ -11,20 +15,24 @@ This project is a component of the [Operator Framework](https://github.com/opera
 OLM extends Kubernetes to provide a declarative way to install, manage, and upgrade Operators and their dependencies in a cluster. It provides the following features:
 
 ### Over-the-Air Updates and Catalogs
+
 Kubernetes clusters are being kept up to date using elaborate update mechanisms today, more often automatically and in the background. Operators, being cluster extensions, should follow that. OLM has a concept of catalogs from which Operators are available to install and being kept up to date. In this model OLM allows maintainers granular authoring of the update path and gives commercial vendors a flexible publishing mechanism using channels.
 
 ### Dependency Model
+
 With OLMs packaging format Operators can express dependencies on the platform and on other Operators. They can rely on OLM to respect these requirements as long as the cluster is up. In this way, OLMs dependency model ensures Operators stay working during their long lifecycle across multiple updates of the platform or other Operators.
 
 ### Discoverability
+
 OLM advertises installed Operators and their services into the namespaces of tenants. They can discover which managed services are available and which Operator provides them. Administrators can rely on catalog content projected into a cluster, enabling discovery of Operators available to install.
 
 ### Cluster Stability
+
 Operators must claim ownership of their APIs. OLM will prevent conflicting Operators owning the same APIs being installed, ensuring cluster stability.
 
 ### Declarative UI controls
-Operators can behave like managed service providers. Their user interface on the command line are APIs. For graphical consoles OLM annotates those APIs with descriptors that drive the creation of rich interfaces and forms for users to interact with the Operator in a natural, cloud-like way.
 
+Operators can behave like managed service providers. Their user interface on the command line are APIs. For graphical consoles OLM annotates those APIs with descriptors that drive the creation of rich interfaces and forms for users to interact with the Operator in a natural, cloud-like way.
 
 ## Prerequisites
 
@@ -37,17 +45,17 @@ Operators can behave like managed service providers. Their user interface on the
 
 ## Getting Started 
 
+Check the [Getting Started][olm-getting-started] section.
+
 ### Installation
 
-Install OLM on a Kubernetes or OpenShift cluster by following the [installation guide].
+Install OLM on a Kubernetes cluster by following the [installation guide][installation-guide].
 
 For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started). Also, see [Getting Started on OperatorHub.io](https://operatorhub.io/getting-started).
 
-**NOTE:** OLM is installed by default in OpenShift 4.0 and above.
-
 ## User Interface (Running the console Locally)
 
-Use the OpenShift admin console (compatible with upstream Kubernetes) to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
+Use the admin console to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
 
 Ensure `kubectl` is pointing at a cluster and run:
 
@@ -56,7 +64,6 @@ $ make run-console-local
 ```
 
 Then visit `http://localhost:9000` to view the console.
-
 
 ## Contributing your Operator
 
@@ -149,9 +156,15 @@ Catalogs are served internally over a grpc interface to OLM from [operator-regis
 
 To explore any operator samples using the OLM, see the [https://operatorhub.io/](https://operatorhub.io/) and its resources in [Community Operators](https://github.com/operator-framework/community-operators/tree/master/upstream-community-operators). 
 
+## Community and how to get involved
+
+- [Operator framework community][operator-framework-community]
+- [Communication channels][operator-framework-communication]
+- [Project meetings][operator-framework-meetings]
+
 ## Contributing
 
-See the [proposal docs][proposals_docs] and issues for ongoing or planned work.
+Check out the [contributor documentation][contributor-documentation]. Also, see the [proposal docs][proposals_docs] and issues for ongoing or planned work.
 
 ## Reporting bugs
 
@@ -163,13 +176,19 @@ Operator Lifecycle Manager is under Apache 2.0 license. See the [LICENSE][licens
 
 [architecture]: /doc/design/architecture.md
 [philosophy]: /doc/design/philosophy.md
-[installation guide]: /doc/install/install.md
+[proposals_docs]: ./doc/contributors/design-proposals
+[license_file]:./LICENSE
+[bug_guide]:./doc/dev/reporting_bugs.md
 [git_tool]:https://git-scm.com/downloads
 [go_tool]:https://golang.org/dl/
 [docker_tool]:https://docs.docker.com/install/
 [podman_tool]:https://github.com/containers/libpod/blob/master/install.md
 [buildah_tool]:https://github.com/containers/buildah/blob/master/install.md
 [kubectl_tool]:https://kubernetes.io/docs/tasks/tools/install-kubectl/
-[proposals_docs]: ./doc/contributors/design-proposals
-[license_file]:./LICENSE
-[bug_guide]:./doc/dev/reporting_bugs.md
+[olm-docs]: https://olm.operatorframework.io/
+[operator-framework-community]: https://github.com/operator-framework/community
+[operator-framework-communication]: https://github.com/operator-framework/community#get-involved
+[operator-framework-meetings]: https://github.com/operator-framework/community#meetings
+[contributor-documentation]: https://olm.operatorframework.io/docs/contribution-guidelines/
+[olm-getting-started]: https://olm.operatorframework.io/docs/getting-started/
+[installation-guide]: doc/install/install.md
