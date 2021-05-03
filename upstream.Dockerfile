@@ -3,9 +3,9 @@ LABEL stage=builder
 WORKDIR /build
 
 # install dependencies and go 1.16
-RUN dnf update -y && dnf install -y bash make git mercurial jq wget golang && dnf upgrade -y
 
 # copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
+RUN dnf update -y && dnf install -y bash make git mercurial jq wget golang && dnf upgrade -y
 COPY .git/HEAD .git/HEAD
 COPY .git/refs/heads/. .git/refs/heads
 RUN mkdir -p .git/objects
@@ -25,6 +25,8 @@ RUN make build-util
 FROM gcr.io/distroless/static:debug
 LABEL stage=olm
 WORKDIR /
+# bundle unpack Jobs require cp at /bin/cp
+RUN ["/busybox/ln", "-s", "/busybox/cp", "/bin/cp"]
 COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server
