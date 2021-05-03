@@ -83,7 +83,7 @@ func TestPodRunAsUser(t *testing.T) {
 		},
 	}
 
-	p := Pod(source, "hello", "busybox", "", map[string]string{}, int32(0), int32(0))
+	p := Pod(source, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0))
 	user := p.Spec.SecurityContext.RunAsUser
 	if user == nil {
 		t.Fatal("expected RunAsUser value for pod expected to not be nil")
