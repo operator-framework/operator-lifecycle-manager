@@ -1,7 +1,10 @@
 package reconciler
 
 import (
+	"fmt"
+
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -85,9 +88,7 @@ func TestPodRunAsUser(t *testing.T) {
 
 	p := Pod(source, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0))
 	user := p.Spec.SecurityContext.RunAsUser
-	if user == nil {
-		t.Fatal("expected RunAsUser value for pod expected to not be nil")
-	} else if *user != int64(1001) {
-		t.Fatalf("expected RunAsUser value for pod expected to be %v, not %v", int64(1001), *user)
-	}
+
+	require.NotNil(t, user, "expected RunAsUser value for pod expected to not be nil")
+	require.EqualValues(t, int64(1001), *user, fmt.Sprintf("expected RunAsUser value for pod expected to be %v, not %v", int64(1001), *user))
 }
