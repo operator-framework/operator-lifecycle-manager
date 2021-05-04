@@ -1,13 +1,12 @@
 package reconciler
 
 import (
-	"fmt"
-
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"fmt"
 	"testing"
 )
 
