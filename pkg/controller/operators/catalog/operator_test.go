@@ -1338,7 +1338,7 @@ func TestValidateExistingCRs(t *testing.T) {
 				Resource: "machinepools",
 			},
 			newCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
-			want:   fmt.Errorf("error validating custom resource against new schema: [[].spec.clusterDeploymentRef: Invalid value: \"null\": spec.clusterDeploymentRef in body must be of type object: \"null\", [].spec.name: Required value, [].spec.platform: Required value]"),
+			want:   fmt.Errorf("error validating custom resource against new schema for MachinePool /test: [[].spec.clusterDeploymentRef: Invalid value: \"null\": spec.clusterDeploymentRef in body must be of type object: \"null\", [].spec.name: Required value, [].spec.platform: Required value]"),
 		},
 	}
 	for _, tt := range tests {

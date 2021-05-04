@@ -1600,7 +1600,7 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gvr schema.GroupVersio
 		}
 		err = validation.ValidateCustomResource(field.NewPath(""), cr.UnstructuredContent(), validator).ToAggregate()
 		if err != nil {
-			return fmt.Errorf("error validating custom resource against new schema: %v", err)
+			return fmt.Errorf("error validating custom resource against new schema for %s %s/%s: %v", newCRD.Spec.Names.Kind, cr.GetNamespace(), cr.GetName(), err)
 		}
 	}
 	return nil
