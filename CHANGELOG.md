@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.18.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/v0.18.1) (2021-05-04)
+
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/v0.18.0...v0.18.1)
+
+**Closed issues:**
+
+- \[Feature\] Configure environment variables on Openshift console [\#2074](https://github.com/operator-framework/operator-lifecycle-manager/issues/2074)
+
+**Other changes:**
+
+- v0.18.1 version bump [\#2137](https://github.com/operator-framework/operator-lifecycle-manager/pull/2137) ([exdx](https://github.com/exdx))
+- Fix CR validation bug on go 1.16 [\#2136](https://github.com/operator-framework/operator-lifecycle-manager/pull/2136) ([ecordell](https://github.com/ecordell))
+- fix\(bundles\): symlink cp at expected path [\#2133](https://github.com/operator-framework/operator-lifecycle-manager/pull/2133) ([njhale](https://github.com/njhale))
+- Use DeploymentAvailable instead of custom test for CSV status. [\#2125](https://github.com/operator-framework/operator-lifecycle-manager/pull/2125) ([benluddy](https://github.com/benluddy))
+- Bump ginkgo to v1.16.1 and gomega to v1.11.0. [\#2122](https://github.com/operator-framework/operator-lifecycle-manager/pull/2122) ([benluddy](https://github.com/benluddy))
+- changelog for v.0.18.0 [\#2117](https://github.com/operator-framework/operator-lifecycle-manager/pull/2117) ([exdx](https://github.com/exdx))
+- v0.18.0 OLM release [\#2116](https://github.com/operator-framework/operator-lifecycle-manager/pull/2116) ([exdx](https://github.com/exdx))
+
 ## [v0.18.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/v0.18.0) (2021-04-26)
 
 [Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/v0.18.0...v0.18.0)
