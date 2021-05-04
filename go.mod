@@ -41,6 +41,7 @@ require (
 	google.golang.org/grpc v1.30.0
 	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.1.0-rc.1.0.20201215141456-e71d38b414eb
+	// can't update to 0.21 until https://github.com/kubernetes/apiserver/issues/65 is resolved
 	k8s.io/api v0.20.6
 	k8s.io/apiextensions-apiserver v0.20.6
 	k8s.io/apimachinery v0.20.6
@@ -50,7 +51,7 @@ require (
 	k8s.io/component-base v0.20.6
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.20.4
-	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
+	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/utils v0.0.0-20210111153108-fddb29f9d009
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.8.3
