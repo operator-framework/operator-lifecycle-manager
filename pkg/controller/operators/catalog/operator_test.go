@@ -13,6 +13,8 @@ import (
 	"testing/quick"
 	"time"
 
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
@@ -30,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apiserver/pkg/storage/names"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
@@ -1280,6 +1283,70 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 			}
 
 			require.Equal(t, competing, tt.expectedResult)
+		})
+	}
+}
+
+func TestValidateExistingCRs(t *testing.T) {
+	unstructuredForFile := func(file string) *unstructured.Unstructured {
+		data, err := ioutil.ReadFile(file)
+		require.NoError(t, err)
+		dec := k8syaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
+		k8sFile := &unstructured.Unstructured{}
+		require.NoError(t, dec.Decode(k8sFile))
+		return k8sFile
+	}
+
+	unversionedCRDForV1beta1File := func(file string) *apiextensions.CustomResourceDefinition {
+		data, err := ioutil.ReadFile(file)
+		require.NoError(t, err)
+		dec := k8syaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
+		k8sFile := &apiextensionsv1beta1.CustomResourceDefinition{}
+		require.NoError(t, dec.Decode(k8sFile))
+		convertedCRD := &apiextensions.CustomResourceDefinition{}
+		require.NoError(t, apiextensionsv1beta1.Convert_v1beta1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(k8sFile, convertedCRD, nil))
+		return convertedCRD
+	}
+
+	tests := []struct {
+		name            string
+		existingObjects []runtime.Object
+		gvr             schema.GroupVersionResource
+		newCRD          *apiextensions.CustomResourceDefinition
+		want            error
+	}{
+		{
+			name: "label validation",
+			existingObjects: []runtime.Object{
+				unstructuredForFile("testdata/hivebug/cr.yaml"),
+			},
+			gvr: schema.GroupVersionResource{
+				Group:    "hive.openshift.io",
+				Version:  "v1",
+				Resource: "machinepools",
+			},
+			newCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
+		},
+		{
+			name: "fail validation",
+			existingObjects: []runtime.Object{
+				unstructuredForFile("testdata/hivebug/fail.yaml"),
+			},
+			gvr: schema.GroupVersionResource{
+				Group:    "hive.openshift.io",
+				Version:  "v1",
+				Resource: "machinepools",
+			},
+			newCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
+			want:   fmt.Errorf("error validating custom resource against new schema: [[].spec.clusterDeploymentRef: Invalid value: \"null\": spec.clusterDeploymentRef in body must be of type object: \"null\", [].spec.name: Required value, [].spec.platform: Required value]"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+				tt.gvr: "UnstructuredList",
+			}, tt.existingObjects...)
+			require.Equal(t, tt.want, validateExistingCRs(client, tt.gvr, tt.newCRD))
 		})
 	}
 }
