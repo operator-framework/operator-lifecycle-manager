@@ -68,7 +68,7 @@ spec:
           - $(OPERATOR_NAMESPACE)
           - --writeStatusName
           - ""
-          image: quay.io/operator-framework/olm@sha256:e9de77ac5c08643202ad42a0311d15c98ffbfd8a1dc2eab4e9f2dcaeed7110ac
+          image: quay.io/operator-framework/olm@sha256:b706ee6583c4c3cf8059d44234c8a4505804adcc742bcddb3d1e2f6eff3d6519
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -130,8 +130,8 @@ spec:
           - olm
           - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
           - -util-image
-          -  quay.io/operator-framework/olm@sha256:e9de77ac5c08643202ad42a0311d15c98ffbfd8a1dc2eab4e9f2dcaeed7110ac
-          image: quay.io/operator-framework/olm@sha256:e9de77ac5c08643202ad42a0311d15c98ffbfd8a1dc2eab4e9f2dcaeed7110ac
+          -  quay.io/operator-framework/olm@sha256:b706ee6583c4c3cf8059d44234c8a4505804adcc742bcddb3d1e2f6eff3d6519
+          image: quay.io/operator-framework/olm@sha256:b706ee6583c4c3cf8059d44234c8a4505804adcc742bcddb3d1e2f6eff3d6519
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -210,7 +210,7 @@ metadata:
   name: packageserver
   namespace: olm
   labels:
-    olm.version: 0.18.0
+    olm.version: 0.18.1
 spec:
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
@@ -274,6 +274,9 @@ spec:
         spec:
           strategy:
             type: RollingUpdate
+            rollingUpdate:
+              maxUnavailable: 1
+              maxSurge: 1
           replicas: 2
           selector:
             matchLabels:
@@ -295,7 +298,7 @@ spec:
                 - "5443"
                 - --global-namespace
                 - olm
-                image: quay.io/operator-framework/olm@sha256:e9de77ac5c08643202ad42a0311d15c98ffbfd8a1dc2eab4e9f2dcaeed7110ac
+                image: quay.io/operator-framework/olm@sha256:b706ee6583c4c3cf8059d44234c8a4505804adcc742bcddb3d1e2f6eff3d6519
                 imagePullPolicy: Always
                 ports:
                 - containerPort: 5443
@@ -323,7 +326,7 @@ spec:
               - name: tmpfs
                 emptyDir: {}
   maturity: alpha
-  version: 0.18.0
+  version: 0.18.1
   apiservicedefinitions:
     owned:
     - group: packages.operators.coreos.com
