@@ -28,34 +28,37 @@ type kindLogAdapter struct {
 	*TestContext
 }
 
-var _ log.Logger = kindLogAdapter{}
+var (
+	_ log.Logger     = kindLogAdapter{}
+	_ log.InfoLogger = kindLogAdapter{}
+)
 
 func (kl kindLogAdapter) Enabled() bool {
 	return true
 }
 
 func (kl kindLogAdapter) Info(message string) {
-	kl.Infof(message)
+	kl.Infof("%s", message)
 }
 
 func (kl kindLogAdapter) Infof(format string, args ...interface{}) {
-	kl.Logf(format, args)
+	kl.Logf(format, args...)
 }
 
 func (kl kindLogAdapter) Warn(message string) {
-	kl.Warnf(message)
+	kl.Warnf("%s", message)
 }
 
 func (kl kindLogAdapter) Warnf(format string, args ...interface{}) {
-	kl.Logf(format, args)
+	kl.Logf(format, args...)
 }
 
 func (kl kindLogAdapter) Error(message string) {
-	kl.Errorf(message)
+	kl.Errorf("%s", message)
 }
 
 func (kl kindLogAdapter) Errorf(format string, args ...interface{}) {
-	kl.Logf(format, args)
+	kl.Logf(format, args...)
 }
 
 func (kl kindLogAdapter) V(log.Level) log.InfoLogger {
