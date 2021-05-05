@@ -22,7 +22,14 @@ import (
 
 var (
 	images = flag.String("kind.images", "", "comma-separated list of image archives to load on cluster nodes, relative to the test binary or test package path")
+
+	verbosity int
 )
+
+func init() {
+	// https://github.com/kubernetes-sigs/kind/blob/v0.10.0/pkg/log/types.go#L38-L45
+	flag.IntVar(&verbosity, "kind.verbosity", 0, "log verbosity level")
+}
 
 type kindLogAdapter struct {
 	*TestContext
@@ -61,7 +68,10 @@ func (kl kindLogAdapter) Errorf(format string, args ...interface{}) {
 	kl.Logf(format, args...)
 }
 
-func (kl kindLogAdapter) V(log.Level) log.InfoLogger {
+func (kl kindLogAdapter) V(level log.Level) log.InfoLogger {
+	if level > log.Level(verbosity) {
+		return log.NoopInfoLogger{}
+	}
 	return kl
 }
 
