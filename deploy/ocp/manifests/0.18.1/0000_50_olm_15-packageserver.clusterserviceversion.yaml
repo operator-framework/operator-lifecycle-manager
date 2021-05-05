@@ -1,3 +1,4 @@
+# Source: olm/templates/0000_50_olm_15-packageserver.clusterserviceversion.yaml
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
