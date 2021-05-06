@@ -1,0 +1,25 @@
+name: verify
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**'
+      - '!doc/**'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.16'
+
+        # Note(tflannag): We need to explicitly setup the GOPATH as the generate-internal-groups.sh
+        # codegen script still relies on $GOPATH being set and will return an error otherwise.
+        # The setup-go action does not set this value for us: https://github.com/actions/setup-go/issues/14.
+      - name: Run the verify target
+        run: |
+          export GOPATH=$(go env GOPATH)
+          make verify
