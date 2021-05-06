@@ -228,7 +228,7 @@ The Lifecycle Manager will ensure all required CSVs have an APIService that is a
 
 **Description**: A short description of how this APIService is used by the Operator or a description of the functionality provided by the APIService.
 
-**Group**: Group that the APIService provides, eg. database.example.com.
+**Group**: Group that the APIService provides, eg. database.example.com.
 
 **Version**: Version of the APIService, eg v1alpha1
 
