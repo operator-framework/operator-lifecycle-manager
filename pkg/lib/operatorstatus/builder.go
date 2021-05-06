@@ -57,12 +57,13 @@ func (b *Builder) WithDegraded(status configv1.ConditionStatus) *Builder {
 }
 
 // WithAvailable sets an OperatorAvailable type condition.
-func (b *Builder) WithAvailable(status configv1.ConditionStatus, message string) *Builder {
+func (b *Builder) WithAvailable(status configv1.ConditionStatus, message, reason string) *Builder {
 	b.init()
 	condition := &configv1.ClusterOperatorStatusCondition{
 		Type:               configv1.OperatorAvailable,
 		Status:             status,
 		Message:            message,
+		Reason:             reason,
 		LastTransitionTime: metav1.NewTime(b.clock.Now()),
 	}
 

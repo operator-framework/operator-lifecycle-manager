@@ -11,6 +11,12 @@ import (
 const (
 	// versionName reflects the name of the version CVO expects in Status.
 	versionName = "operator"
+
+	reasonCSVSucceeded = "ClusterServiceVersionSucceeded"
+
+	reasonCSVNotSucceeded = "ClusterServiceVersionNotSucceeded"
+
+	reasonCSVDeleted = "ClusterServiceVersionDeleted"
 )
 
 // newCSVStatusReporter returns a new instance of CSVStatusReporter
@@ -80,7 +86,7 @@ func (r *csvStatusReporter) GetNewStatus(existing *configv1.ClusterOperatorStatu
 
 		if context.WorkingToward == nil {
 			builder.WithProgressing(configv1.ConditionFalse, fmt.Sprintf("Uninstalled version %s", csv.Spec.Version)).
-				WithAvailable(configv1.ConditionFalse, "")
+				WithAvailable(configv1.ConditionFalse, fmt.Sprintf("Uninstalled version %s", csv.Spec.Version), reasonCSVDeleted)
 
 			return
 		}
@@ -98,9 +104,9 @@ func (r *csvStatusReporter) GetNewStatus(existing *configv1.ClusterOperatorStatu
 
 	switch phase {
 	case v1alpha1.CSVPhaseSucceeded:
-		builder.WithAvailable(configv1.ConditionTrue, "")
+		builder.WithAvailable(configv1.ConditionTrue, fmt.Sprintf("ClusterServiceVersion %v/%v is in phase %v", csv.Namespace, csv.Name, csv.Status.Phase), reasonCSVSucceeded)
 	default:
-		builder.WithAvailable(configv1.ConditionFalse, "")
+		builder.WithAvailable(configv1.ConditionFalse, fmt.Sprintf("ClusterServiceVersion %v/%v is in phase %v with reason: %v, message: %v", csv.Namespace, csv.Name, csv.Status.Phase, csv.Status.Reason, csv.Status.Message), reasonCSVNotSucceeded)
 	}
 
 	switch phase {
