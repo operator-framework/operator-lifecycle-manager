@@ -1,4 +1,4 @@
-package term
+package term // import "github.com/moby/term"
 
 import (
 	"fmt"

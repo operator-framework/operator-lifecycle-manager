@@ -1,6 +1,6 @@
 // +build windows
 
-package windowsconsole
+package windowsconsole // import "github.com/moby/term/windows"
 
 import (
 	"bytes"
@@ -31,6 +31,7 @@ type ansiReader struct {
 // NewAnsiReader returns an io.ReadCloser that provides VT100 terminal emulation on top of a
 // Windows console input handle.
 func NewAnsiReader(nFile int) io.ReadCloser {
+	initLogger()
 	file, fd := winterm.GetStdFile(nFile)
 	return &ansiReader{
 		file:    file,
@@ -58,6 +59,8 @@ func (ar *ansiReader) Read(p []byte) (int, error) {
 
 	// Previously read bytes exist, read as much as we can and return
 	if len(ar.buffer) > 0 {
+		logger.Debugf("Reading previously cached bytes")
+
 		originalLength := len(ar.buffer)
 		copiedLength := copy(p, ar.buffer)
 
@@ -67,14 +70,16 @@ func (ar *ansiReader) Read(p []byte) (int, error) {
 			ar.buffer = ar.buffer[copiedLength:]
 		}
 
+		logger.Debugf("Read from cache p[%d]: % x", copiedLength, p)
 		return copiedLength, nil
 	}
 
 	// Read and translate key events
-	events, err := readInputEvents(ar, len(p))
+	events, err := readInputEvents(ar.fd, len(p))
 	if err != nil {
 		return 0, err
 	} else if len(events) == 0 {
+		logger.Debug("No input events detected")
 		return 0, nil
 	}
 
@@ -82,9 +87,11 @@ func (ar *ansiReader) Read(p []byte) (int, error) {
 
 	// Save excess bytes and right-size keyBytes
 	if len(keyBytes) > len(p) {
+		logger.Debugf("Received %d keyBytes, only room for %d bytes", len(keyBytes), len(p))
 		ar.buffer = keyBytes[len(p):]
 		keyBytes = keyBytes[:len(p)]
 	} else if len(keyBytes) == 0 {
+		logger.Debug("No key bytes returned from the translator")
 		return 0, nil
 	}
 
@@ -93,11 +100,13 @@ func (ar *ansiReader) Read(p []byte) (int, error) {
 		return 0, errors.New("unexpected copy length encountered")
 	}
 
+	logger.Debugf("Read        p[%d]: % x", copiedLength, p)
+	logger.Debugf("Read keyBytes[%d]: % x", copiedLength, keyBytes)
 	return copiedLength, nil
 }
 
 // readInputEvents polls until at least one event is available.
-func readInputEvents(ar *ansiReader, maxBytes int) ([]winterm.INPUT_RECORD, error) {
+func readInputEvents(fd uintptr, maxBytes int) ([]winterm.INPUT_RECORD, error) {
 	// Determine the maximum number of records to retrieve
 	// -- Cast around the type system to obtain the size of a single INPUT_RECORD.
 	//    unsafe.Sizeof requires an expression vs. a type-reference; the casting
@@ -109,23 +118,25 @@ func readInputEvents(ar *ansiReader, maxBytes int) ([]winterm.INPUT_RECORD, erro
 	} else if countRecords == 0 {
 		countRecords = 1
 	}
+	logger.Debugf("[windows] readInputEvents: Reading %v records (buffer size %v, record size %v)", countRecords, maxBytes, recordSize)
 
 	// Wait for and read input events
 	events := make([]winterm.INPUT_RECORD, countRecords)
 	nEvents := uint32(0)
-	eventsExist, err := winterm.WaitForSingleObject(ar.fd, winterm.WAIT_INFINITE)
+	eventsExist, err := winterm.WaitForSingleObject(fd, winterm.WAIT_INFINITE)
 	if err != nil {
 		return nil, err
 	}
 
 	if eventsExist {
-		err = winterm.ReadConsoleInput(ar.fd, events, &nEvents)
+		err = winterm.ReadConsoleInput(fd, events, &nEvents)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// Return a slice restricted to the number of returned records
+	logger.Debugf("[windows] readInputEvents: Read %v events", nEvents)
 	return events[:nEvents], nil
 }
 
