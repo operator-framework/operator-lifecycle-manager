@@ -58,6 +58,340 @@ var _ = Describe("ClusterServiceVersion", func() {
 		TearDown(testNamespace)
 	})
 
+	When("a CustomResourceDefinition was installed alongside a ClusterServiceVersion", func() {
+		var (
+			ns  corev1.Namespace
+			crd apiextensionsv1.CustomResourceDefinition
+		)
+
+		BeforeEach(func() {
+			ns = corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-namespace-1",
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &ns)).To(Succeed())
+
+			og := v1.OperatorGroup{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s-operatorgroup", ns.GetName()),
+					Namespace: ns.GetName(),
+				},
+				Spec: v1.OperatorGroupSpec{
+					TargetNamespaces: []string{ns.GetName()},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.TODO(), &og)).To(Succeed())
+
+			crd = apiextensionsv1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "tests.example.com",
+					Annotations: map[string]string{
+						"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/associated-csv", ns.GetName()),
+					},
+				},
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+					Group: "example.com",
+					Scope: apiextensionsv1.ClusterScoped,
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
+						Plural:   "tests",
+						Singular: "test",
+						Kind:     "Test",
+						ListKind: "TestList",
+					},
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+						Name:    "v1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensionsv1.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+								Type: "object",
+							},
+						},
+					}},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &crd)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), &ns)
+			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), &crd)
+			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+		})
+
+		It("can satisfy an associated ClusterServiceVersion's ownership requirement", func() {
+			associated := v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "associated-csv",
+					Namespace: ns.GetName(),
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+						Owned: []v1alpha1.CRDDescription{{
+							Name:    "tests.example.com",
+							Version: "v1",
+							Kind:    "Test",
+						}},
+					},
+					InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
+					InstallModes: []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeOwnNamespace,
+							Supported: true,
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &associated)).To(Succeed())
+
+			Eventually(func() ([]v1alpha1.RequirementStatus, error) {
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&associated), &associated); err != nil {
+					return nil, err
+				}
+				var result []v1alpha1.RequirementStatus
+				for _, s := range associated.Status.RequirementStatus {
+					result = append(result, v1alpha1.RequirementStatus{
+						Group:   s.Group,
+						Version: s.Version,
+						Kind:    s.Kind,
+						Name:    s.Name,
+						Status:  s.Status,
+					})
+				}
+				return result, nil
+			}).Should(ContainElement(
+				v1alpha1.RequirementStatus{
+					Group:   apiextensionsv1.SchemeGroupVersion.Group,
+					Version: apiextensionsv1.SchemeGroupVersion.Version,
+					Kind:    "CustomResourceDefinition",
+					Name:    crd.GetName(),
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+				},
+			))
+		})
+
+		// Without this exception, upgrades can become blocked
+		// when the original CSV's CRD requirement becomes
+		// unsatisfied.
+		It("can satisfy an unassociated ClusterServiceVersion's ownership requirement if replaced by an associated ClusterServiceVersion", func() {
+			unassociated := v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "unassociated-csv",
+					Namespace: ns.GetName(),
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+						Owned: []v1alpha1.CRDDescription{{
+							Name:    "tests.example.com",
+							Version: "v1",
+							Kind:    "Test",
+						}},
+					},
+					InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
+					InstallModes: []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeOwnNamespace,
+							Supported: true,
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &unassociated)).To(Succeed())
+
+			associated := v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "associated-csv",
+					Namespace: ns.GetName(),
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+						Owned: []v1alpha1.CRDDescription{{
+							Name:    "tests.example.com",
+							Version: "v1",
+							Kind:    "Test",
+						}},
+					},
+					InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
+					InstallModes: []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeOwnNamespace,
+							Supported: true,
+						},
+					},
+					Replaces: unassociated.GetName(),
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &associated)).To(Succeed())
+
+			Eventually(func() error {
+				return ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated)
+			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+		})
+
+		It("can satisfy an unassociated ClusterServiceVersion's non-ownership requirement", func() {
+			unassociated := v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "unassociated-csv",
+					Namespace: ns.GetName(),
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+						Required: []v1alpha1.CRDDescription{{
+							Name:    "tests.example.com",
+							Version: "v1",
+							Kind:    "Test",
+						}},
+					},
+					InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
+					InstallModes: []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeOwnNamespace,
+							Supported: true,
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &unassociated)).To(Succeed())
+
+			Eventually(func() ([]v1alpha1.RequirementStatus, error) {
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated); err != nil {
+					return nil, err
+				}
+				var result []v1alpha1.RequirementStatus
+				for _, s := range unassociated.Status.RequirementStatus {
+					result = append(result, v1alpha1.RequirementStatus{
+						Group:   s.Group,
+						Version: s.Version,
+						Kind:    s.Kind,
+						Name:    s.Name,
+						Status:  s.Status,
+					})
+				}
+				return result, nil
+			}).Should(ContainElement(
+				v1alpha1.RequirementStatus{
+					Group:   apiextensionsv1.SchemeGroupVersion.Group,
+					Version: apiextensionsv1.SchemeGroupVersion.Version,
+					Kind:    "CustomResourceDefinition",
+					Name:    crd.GetName(),
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+				},
+			))
+		})
+
+		When("an unassociated ClusterServiceVersion in different namespace owns the same CRD", func() {
+			var (
+				ns corev1.Namespace
+			)
+
+			BeforeEach(func() {
+				ns = corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-namespace-2",
+					},
+				}
+				Expect(ctx.Ctx().Client().Create(context.Background(), &ns)).To(Succeed())
+
+				og := v1.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fmt.Sprintf("%s-operatorgroup", ns.GetName()),
+						Namespace: ns.GetName(),
+					},
+					Spec: v1.OperatorGroupSpec{
+						TargetNamespaces: []string{ns.GetName()},
+					},
+				}
+				Expect(ctx.Ctx().Client().Create(context.TODO(), &og)).To(Succeed())
+			})
+
+			AfterEach(func() {
+				Eventually(func() error {
+					return ctx.Ctx().Client().Delete(context.Background(), &ns)
+				}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+			})
+
+			It("can satisfy the unassociated ClusterServiceVersion's ownership requirement", func() {
+				associated := v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "associated-csv",
+						Namespace: ns.GetName(),
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+							Owned: []v1alpha1.CRDDescription{{
+								Name:    "tests.example.com",
+								Version: "v1",
+								Kind:    "Test",
+							}},
+						},
+						InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
+						InstallModes: []v1alpha1.InstallMode{
+							{
+								Type:      v1alpha1.InstallModeTypeOwnNamespace,
+								Supported: true,
+							},
+						},
+					},
+				}
+				Expect(ctx.Ctx().Client().Create(context.Background(), &associated)).To(Succeed())
+
+				unassociated := v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "unassociated-csv",
+						Namespace: ns.GetName(),
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+							Owned: []v1alpha1.CRDDescription{{
+								Name:    "tests.example.com",
+								Version: "v1",
+								Kind:    "Test",
+							}},
+						},
+						InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
+						InstallModes: []v1alpha1.InstallMode{
+							{
+								Type:      v1alpha1.InstallModeTypeOwnNamespace,
+								Supported: true,
+							},
+						},
+					},
+				}
+				Expect(ctx.Ctx().Client().Create(context.Background(), &unassociated)).To(Succeed())
+
+				Eventually(func() ([]v1alpha1.RequirementStatus, error) {
+					if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated); err != nil {
+						return nil, err
+					}
+					var result []v1alpha1.RequirementStatus
+					for _, s := range unassociated.Status.RequirementStatus {
+						result = append(result, v1alpha1.RequirementStatus{
+							Group:   s.Group,
+							Version: s.Version,
+							Kind:    s.Kind,
+							Name:    s.Name,
+							Status:  s.Status,
+						})
+					}
+					return result, nil
+				}).Should(ContainElement(
+					v1alpha1.RequirementStatus{
+						Group:   apiextensionsv1.SchemeGroupVersion.Group,
+						Version: apiextensionsv1.SchemeGroupVersion.Version,
+						Kind:    "CustomResourceDefinition",
+						Name:    crd.GetName(),
+						Status:  v1alpha1.RequirementStatusReasonPresent,
+					},
+				))
+			})
+		})
+	})
+
 	When("a csv exists specifying two replicas with one max unavailable", func() {
 		var (
 			csv v1alpha1.ClusterServiceVersion

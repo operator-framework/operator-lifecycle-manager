@@ -14,6 +14,7 @@ import (
 	"github.com/onsi/ginkgo/reporters"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -74,21 +75,33 @@ var _ = BeforeSuite(func() {
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 
-	groups, err := ctx.Ctx().OperatorClient().OperatorsV1().OperatorGroups(testNamespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		panic(err)
-	}
+	var groups v1.OperatorGroupList
+	Expect(ctx.Ctx().Client().List(context.Background(), &groups, client.InNamespace(testNamespace))).To(Succeed())
 	if len(groups.Items) == 0 {
-		_, err = ctx.Ctx().OperatorClient().OperatorsV1().OperatorGroups(testNamespace).Create(context.TODO(), &v1.OperatorGroup{
+		og := v1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "opgroup",
 				Namespace: testNamespace,
 			},
-		}, metav1.CreateOptions{})
-		if err != nil {
-			panic(err)
 		}
+		Expect(ctx.Ctx().Client().Create(context.TODO(), &og)).To(Succeed())
 	}
+
+	// Tests can assume the group in the test namespace has been reconciled at least once.
+	Eventually(func() ([]v1.OperatorGroupStatus, error) {
+		var groups v1.OperatorGroupList
+		if err := ctx.Ctx().Client().List(context.Background(), &groups, client.InNamespace(testNamespace)); err != nil {
+			return nil, err
+		}
+		var statuses []v1.OperatorGroupStatus
+		for _, group := range groups.Items {
+			statuses = append(statuses, group.Status)
+		}
+		return statuses, nil
+	}).Should(And(
+		HaveLen(1),
+		ContainElement(Not(BeZero())),
+	))
 })
 
 var _ = AfterSuite(func() {
