@@ -317,19 +317,17 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 		bundle := bundleStack[len(bundleStack)-1]
 		bundleStack = bundleStack[:len(bundleStack)-1]
 
-		bundleSource := bundle.SourceInfo()
-		if bundleSource == nil {
-			err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
-			errs = append(errs, err)
-			continue
-		}
-
 		if b, ok := visited[bundle]; ok {
 			installables[b.identifier] = b
 			continue
 		}
 
-		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.Channel(), bundleSource.Catalog)
+		bundleInstallable, err := NewBundleInstallableFromOperator(bundle)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
 		visited[bundle] = &bundleInstallable
 
 		dependencyPredicates, err := bundle.DependencyPredicates()
@@ -371,14 +369,11 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			// (after sorting) to remove all bundles that
 			// don't satisfy the dependency.
 			for _, b := range Filter(sortedBundles, d) {
-				src := b.SourceInfo()
-				if src == nil {
-					err := fmt.Errorf("unable to resolve the source of bundle %s, invalid cache", bundle.Identifier())
+				i, err := NewBundleInstallableFromOperator(b)
+				if err != nil {
 					errs = append(errs, err)
 					continue
 				}
-
-				i := NewBundleInstallable(b.Identifier(), b.Channel(), src.Catalog)
 				installables[i.Identifier()] = &i
 				bundleDependencies = append(bundleDependencies, i.Identifier())
 				bundleStack = append(bundleStack, b)
