@@ -1335,11 +1335,10 @@ func stripBundle(o *Operator) *Operator {
 }
 
 func TestSolveOperators_WithoutDeprecated(t *testing.T) {
-	namespace := "olm"
-	catalog := registry.CatalogKey{"community", namespace}
+	catalog := registry.CatalogKey{Name: "catalog", Namespace: "namespace"}
 
 	subs := []*v1alpha1.Subscription{
-		newSub(namespace, "packageA", "alpha", catalog),
+		newSub(catalog.Namespace, "packageA", "alpha", catalog),
 	}
 
 	fakeNamespacedOperatorCache := NamespacedOperatorCache{
@@ -1347,7 +1346,7 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 			catalog: {
 				key: catalog,
 				operators: []*Operator{
-					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", true),
+					genOperator("packageA.v1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", true),
 				},
 			},
 		},
@@ -1357,9 +1356,38 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{catalog.Namespace}, nil, subs)
 	assert.Empty(t, operators)
 	assert.IsType(t, solver.NotSatisfiable{}, err)
+}
+
+func TestSolveOperatorsWithDeprecatedInnerChannelEntry(t *testing.T) {
+	catalog := registry.CatalogKey{Name: "catalog", Namespace: "namespace"}
+
+	subs := []*v1alpha1.Subscription{
+		newSub(catalog.Namespace, "a", "c", catalog),
+	}
+	logger, _ := test.NewNullLogger()
+	resolver := SatResolver{
+		cache: getFakeOperatorCache(NamespacedOperatorCache{
+			snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+				catalog: {
+					key: catalog,
+					operators: []*Operator{
+						genOperator("a-1", "1.0.0", "", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+						genOperator("a-2", "2.0.0", "a-1", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", true),
+						genOperator("a-3", "3.0.0", "a-2", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					},
+				},
+			},
+		}),
+		log: logger,
+	}
+
+	operators, err := resolver.SolveOperators([]string{catalog.Namespace}, nil, subs)
+	assert.NoError(t, err)
+	assert.Len(t, operators, 1)
+	assert.Contains(t, operators, "a-3")
 }
 
 func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
