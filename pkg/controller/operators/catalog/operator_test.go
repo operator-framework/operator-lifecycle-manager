@@ -1515,9 +1515,14 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		resolver:              config.resolver,
 		reconciler:            config.reconciler,
 		recorder:              config.recorder,
-		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake, dynamicClientFake),
+		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
 		catsrcQueueSet:        queueinformer.NewEmptyResourceQueueSet(),
+		clientFactory: &stubClientFactory{
+			operatorClient:   opClientFake,
+			kubernetesClient: clientFake,
+			dynamicClient:    dynamicClientFake,
+		},
 	}
 	op.sources = grpc.NewSourceStore(config.logger, 1*time.Second, 5*time.Second, op.syncSourceState)
 	if op.reconciler == nil {

@@ -1,29 +1,19 @@
 package scoped
 
 import (
-	"errors"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scopedclient"
 	"github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
-)
 
-var (
-	errQuerierNotSpecified = errors.New("no service account querier func specified")
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 // NewClientAttenuator returns a new instance of ClientAttenuator.
-func NewClientAttenuator(logger *logrus.Logger, config *rest.Config, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, dynamicClient dynamic.Interface) *ClientAttenuator {
+func NewClientAttenuator(logger logrus.FieldLogger, config *rest.Config, kubeclient operatorclient.ClientInterface) *ClientAttenuator {
 	return &ClientAttenuator{
-		logger:        logger,
-		kubeclient:    kubeclient,
-		crclient:      crclient,
-		dynamicClient: dynamicClient,
-		factory:       scopedclient.NewFactory(config),
+		logger: logger,
 		retriever: &BearerTokenRetriever{
 			kubeclient: kubeclient,
 			logger:     logger,
@@ -38,109 +28,39 @@ func NewClientAttenuator(logger *logrus.Logger, config *rest.Config, kubeclient 
 // operator group, subscription and CSV.
 type ServiceAccountQuerierFunc func() (reference *corev1.ObjectReference, err error)
 
+func StaticQuerier(ref *corev1.ObjectReference) ServiceAccountQuerierFunc {
+	return func() (*corev1.ObjectReference, error) {
+		return ref, nil
+	}
+}
+
 // ClientAttenuator returns appropriately scoped client(s) to be used for an
 // operator that is being installed.
 type ClientAttenuator struct {
-	// default operator client used by the operator.
-	kubeclient operatorclient.ClientInterface
-
-	// default CR client used by the operator.
-	crclient versioned.Interface
-
-	// default Dynamic Client Runtime used by the operator.
-	dynamicClient dynamic.Interface
-
-	factory   *scopedclient.Factory
 	retriever *BearerTokenRetriever
-	logger    *logrus.Logger
+	logger    logrus.FieldLogger
 }
 
-// AttenuateClientWithServiceAccount returns appropriately scoped client(s) to the caller.
-//
-// client(s) that are bound to OLM cluster-admin role are returned if the querier
-// returns no error and reference to a service account is nil.
-// Otherwise an attempt is made to return attenuated client instance(s).
-func (s *ClientAttenuator) AttenuateClientWithServiceAccount(reference *corev1.ObjectReference) (kubeclient operatorclient.ClientInterface, crclient versioned.Interface, dynamicClient dynamic.Interface, err error) {
-	if reference == nil {
-		// No service account/token has been provided. Return the default client(s).
-		kubeclient = s.kubeclient
-		crclient = s.crclient
-		dynamicClient = s.dynamicClient
-		return
-	}
-
-	token, err := s.retriever.Retrieve(reference)
+func (a *ClientAttenuator) AttenuateToServiceAccount(querier ServiceAccountQuerierFunc) (clients.ConfigTransformer, error) {
+	ref, err := querier()
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	// Create client(s) bound to the user defined service account.
-	crclient, err = s.factory.NewKubernetesClient(token)
+	if ref == nil {
+		return clients.ConfigTransformerFunc(func(config *rest.Config) *rest.Config {
+			return config
+		}), nil
+	}
+
+	token, err := a.retriever.Retrieve(ref)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	kubeclient, err = s.factory.NewOperatorClient(token)
-	if err != nil {
-		return
-	}
-
-	dynamicClient, err = s.factory.NewDynamicClient(token)
-	if err != nil {
-		return
-	}
-
-	return
-}
-
-// AttenuateClient returns appropriately scoped client(s) to the caller.
-//
-// client(s) that are bound to OLM cluster-admin role are returned if the querier
-// returns no error and reference to a service account is nil.
-// Otherwise an attempt is made to return attenuated client instance(s).
-func (s *ClientAttenuator) AttenuateClient(querier ServiceAccountQuerierFunc) (kubeclient operatorclient.ClientInterface, crclient versioned.Interface, dynamicClient dynamic.Interface, err error) {
-	if querier == nil {
-		err = errQuerierNotSpecified
-		return
-	}
-
-	reference, err := querier()
-	if err != nil {
-		return
-	}
-
-	return s.AttenuateClientWithServiceAccount(reference)
-}
-
-// AttenuateOperatorClient returns a scoped operator client instance based on the
-// service account returned by the querier specified.
-func (s *ClientAttenuator) AttenuateOperatorClient(querier ServiceAccountQuerierFunc) (kubeclient operatorclient.ClientInterface, err error) {
-	if querier == nil {
-		err = errQuerierNotSpecified
-		return
-	}
-
-	reference, err := querier()
-	if err != nil {
-		return
-	}
-
-	if reference == nil {
-		// No service account/token has been provided. Return the default client(s).
-		kubeclient = s.kubeclient
-		return
-	}
-
-	token, err := s.retriever.Retrieve(reference)
-	if err != nil {
-		return
-	}
-
-	// Create client(s) bound to the user defined service account.
-	kubeclient, err = s.factory.NewOperatorClient(token)
-	if err != nil {
-		return
-	}
-
-	return
+	return clients.ConfigTransformerFunc(func(config *rest.Config) *rest.Config {
+		out := rest.AnonymousClientConfig(config)
+		out.BearerToken = token
+		return out
+	}), nil
 }

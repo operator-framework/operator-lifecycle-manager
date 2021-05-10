@@ -51,6 +51,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
@@ -108,6 +109,7 @@ type Operator struct {
 	bundleUnpacker           bundle.Unpacker
 	installPlanTimeout       time.Duration
 	bundleUnpackTimeout      time.Duration
+	clientFactory            clients.Factory
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -133,7 +135,11 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 
 	// Create a new queueinformer-based operator.
-	opClient := operatorclient.NewClientFromConfig(kubeconfigPath, logger)
+	opClient, err := operatorclient.NewClientFromRestConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
 	queueOperator, err := queueinformer.NewOperator(opClient.KubernetesInterface().Discovery(), queueinformer.WithOperatorLogger(logger))
 	if err != nil {
 		return nil, err
@@ -170,9 +176,10 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		csvProvidedAPIsIndexer:   map[string]cache.Indexer{},
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
-		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient, dynamicClient),
+		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient),
 		installPlanTimeout:       installPlanTimeout,
 		bundleUnpackTimeout:      bundleUnpackTimeout,
+		clientFactory:            clients.NewFactory(config),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
@@ -1677,6 +1684,29 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gvr schema.GroupVersio
 	return nil
 }
 
+type warningRecorder struct {
+	m        sync.Mutex
+	warnings []string
+}
+
+func (wr *warningRecorder) HandleWarningHeader(code int, agent string, text string) {
+	if code != 299 {
+		return
+	}
+	wr.m.Lock()
+	defer wr.m.Unlock()
+	wr.warnings = append(wr.warnings, text)
+}
+
+func (wr *warningRecorder) PopWarnings() []string {
+	wr.m.Lock()
+	defer wr.m.Unlock()
+
+	result := wr.warnings
+	wr.warnings = nil
+	return result
+}
+
 // ExecutePlan applies a planned InstallPlan to a namespace.
 func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	if plan.Status.Phase != v1alpha1.InstallPlanPhaseInstalling {
@@ -1693,12 +1723,31 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		return err
 	}
 
+	var wr warningRecorder
+	factory := o.clientFactory.WithConfigTransformer(clients.SetWarningHandler(&wr))
+
 	// Does the namespace have an operator group that specifies a user defined
 	// service account? If so, then we should use a scoped client for plan
 	// execution.
-	kubeclient, crclient, dynamicClient, err := o.clientAttenuator.AttenuateClientWithServiceAccount(plan.Status.AttenuatedServiceAccountRef)
+	attenuate, err := o.clientAttenuator.AttenuateToServiceAccount(scoped.StaticQuerier(plan.Status.AttenuatedServiceAccountRef))
 	if err != nil {
-		o.logger.Errorf("failed to get a client for plan execution- %v", err)
+		o.logger.Errorf("failed to get a client for plan execution: %v", err)
+		return err
+	}
+	attenuatedFactory := factory.WithConfigTransformer(attenuate)
+	kubeclient, err := attenuatedFactory.NewOperatorClient()
+	if err != nil {
+		o.logger.Errorf("failed to get a client for plan execution: %v", err)
+		return err
+	}
+	crclient, err := attenuatedFactory.NewKubernetesClient()
+	if err != nil {
+		o.logger.Errorf("failed to get a client for plan execution: %v", err)
+		return err
+	}
+	dynamicClient, err := attenuatedFactory.NewDynamicClient()
+	if err != nil {
+		o.logger.Errorf("failed to get a client for plan execution: %v", err)
 		return err
 	}
 
@@ -1708,7 +1757,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	// CRDs should be installed via the default OLM (cluster-admin) client and not the scoped client specified by the AttenuatedServiceAccount
 	// the StepBuilder is currently only implemented for CRD types
 	// TODO give the StepBuilder both OLM and scoped clients when it supports new scoped types
-	builderKubeClient, _, builderDynamicClient, err := o.clientAttenuator.AttenuateClientWithServiceAccount(nil)
+	builderKubeClient, err := factory.NewOperatorClient()
+	if err != nil {
+		o.logger.Errorf("failed to get a client for plan execution- %v", err)
+		return err
+	}
+	builderDynamicClient, err := factory.NewDynamicClient()
 	if err != nil {
 		o.logger.Errorf("failed to get a client for plan execution- %v", err)
 		return err
@@ -1716,363 +1770,390 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	b := newBuilder(plan, o.lister.OperatorsV1alpha1().ClusterServiceVersionLister(), builderKubeClient, builderDynamicClient, r, o.logger)
 
 	for i, step := range plan.Status.Plan {
-		doStep := true
-		s, err := b.create(*step)
-		if err != nil {
-			if _, ok := err.(notSupportedStepperErr); ok {
-				// stepper not implemented for this type yet
-				// stepper currently only implemented for CRD types
-				doStep = false
-			} else {
-				return err
-			}
-		}
-		if doStep {
-			status, err := s.Status()
-			if err != nil {
-				return err
-			}
-			plan.Status.Plan[i].Status = status
-			continue
-		}
-
-		switch step.Status {
-		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated, v1alpha1.StepStatusWaitingForAPI:
-			continue
-		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
-			manifest, err := r.ManifestForStep(step)
-			if err != nil {
-				return err
-			}
-			o.logger.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).Debug("execute resource")
-			switch step.Resource.Kind {
-			case v1alpha1.ClusterServiceVersionKind:
-				// Marshal the manifest into a CSV instance.
-				var csv v1alpha1.ClusterServiceVersion
-				err := json.Unmarshal([]byte(manifest), &csv)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+		if err := func(i int, step *v1alpha1.Step) error {
+			wr.PopWarnings()
+			defer func() {
+				warnings := wr.PopWarnings()
+				if len(warnings) == 0 {
+					return
 				}
+				var obj runtime.Object
+				if ref, err := reference.GetReference(plan); err != nil {
+					o.logger.WithError(err).Warnf("error getting plan reference")
+					obj = plan
+				} else {
+					ref.FieldPath = fmt.Sprintf("status.plan[%d]", i)
+					obj = ref
+				}
+				msg := fmt.Sprintf("%d warning(s) generated during operator installation (%s %q): %s", len(warnings), step.Resource.Kind, step.Resource.Name, strings.Join(warnings, ", "))
+				if step.Resolving != "" {
+					msg = fmt.Sprintf("%d warning(s) generated during installation of operator %q (%s %q): %s", len(warnings), step.Resolving, step.Resource.Kind, step.Resource.Name, strings.Join(warnings, ", "))
+				}
+				o.recorder.Event(obj, corev1.EventTypeWarning, "AppliedWithWarnings", msg)
+				metrics.EmitInstallPlanWarning()
+			}()
 
-				// Check if the resolved CSV is in the initial set
-				if _, ok := initialCSVNames[csv.GetName()]; !ok {
-					// Check for pre-existing CSVs that own the same CRDs
-					competingOwners, err := competingCRDOwnersExist(plan.GetNamespace(), &csv, existingCRDOwners)
+			doStep := true
+			s, err := b.create(*step)
+			if err != nil {
+				if _, ok := err.(notSupportedStepperErr); ok {
+					// stepper not implemented for this type yet
+					// stepper currently only implemented for CRD types
+					doStep = false
+				} else {
+					return err
+				}
+			}
+			if doStep {
+				status, err := s.Status()
+				if err != nil {
+					return err
+				}
+				plan.Status.Plan[i].Status = status
+				return nil
+			}
+
+			switch step.Status {
+			case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated, v1alpha1.StepStatusWaitingForAPI:
+				return nil
+			case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
+				manifest, err := r.ManifestForStep(step)
+				if err != nil {
+					return err
+				}
+				o.logger.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).Debug("execute resource")
+				switch step.Resource.Kind {
+				case v1alpha1.ClusterServiceVersionKind:
+					// Marshal the manifest into a CSV instance.
+					var csv v1alpha1.ClusterServiceVersion
+					err := json.Unmarshal([]byte(manifest), &csv)
 					if err != nil {
-						return errorwrap.Wrapf(err, "error checking crd owners for: %s", csv.GetName())
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 					}
 
-					// TODO: decide on fail/continue logic for pre-existing dependent CSVs that own the same CRD(s)
-					if competingOwners {
-						// For now, error out
-						return fmt.Errorf("pre-existing CRD owners found for owned CRD(s) of dependent CSV %s", csv.GetName())
-					}
-				}
-
-				// Attempt to create the CSV.
-				csv.SetNamespace(namespace)
-
-				status, err := ensurer.EnsureClusterServiceVersion(&csv)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case v1alpha1.SubscriptionKind:
-				// Marshal the manifest into a subscription instance.
-				var sub v1alpha1.Subscription
-				err := json.Unmarshal([]byte(manifest), &sub)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				// Add the InstallPlan's name as an annotation
-				if annotations := sub.GetAnnotations(); annotations != nil {
-					annotations[generatedByKey] = plan.GetName()
-				} else {
-					sub.SetAnnotations(map[string]string{generatedByKey: plan.GetName()})
-				}
-
-				// Attempt to create the Subscription
-				sub.SetNamespace(namespace)
-
-				status, err := ensurer.EnsureSubscription(&sub)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case resolver.BundleSecretKind:
-				var s corev1.Secret
-				err := json.Unmarshal([]byte(manifest), &s)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				// add ownerrefs on the secret that point to the CSV in the bundle
-				if step.Resolving != "" {
-					owner := &v1alpha1.ClusterServiceVersion{}
-					owner.SetNamespace(plan.GetNamespace())
-					owner.SetName(step.Resolving)
-					ownerutil.AddNonBlockingOwner(&s, owner)
-				}
-
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for secret %s", s.GetName())
-				}
-				s.SetOwnerReferences(updated)
-				s.SetNamespace(namespace)
-
-				status, err := ensurer.EnsureBundleSecret(plan.Namespace, &s)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case secretKind:
-				status, err := ensurer.EnsureSecret(o.namespace, plan.GetNamespace(), step.Resource.Name)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case clusterRoleKind:
-				// Marshal the manifest into a ClusterRole instance.
-				var cr rbacv1.ClusterRole
-				err := json.Unmarshal([]byte(manifest), &cr)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				status, err := ensurer.EnsureClusterRole(&cr, step)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case clusterRoleBindingKind:
-				// Marshal the manifest into a RoleBinding instance.
-				var rb rbacv1.ClusterRoleBinding
-				err := json.Unmarshal([]byte(manifest), &rb)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				status, err := ensurer.EnsureClusterRoleBinding(&rb, step)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case roleKind:
-				// Marshal the manifest into a Role instance.
-				var r rbacv1.Role
-				err := json.Unmarshal([]byte(manifest), &r)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(r.OwnerReferences, plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for role %s", r.GetName())
-				}
-				r.SetOwnerReferences(updated)
-				r.SetNamespace(namespace)
-
-				status, err := ensurer.EnsureRole(plan.Namespace, &r)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case roleBindingKind:
-				// Marshal the manifest into a RoleBinding instance.
-				var rb rbacv1.RoleBinding
-				err := json.Unmarshal([]byte(manifest), &rb)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(rb.OwnerReferences, plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for rolebinding %s", rb.GetName())
-				}
-				rb.SetOwnerReferences(updated)
-				rb.SetNamespace(namespace)
-
-				status, err := ensurer.EnsureRoleBinding(plan.Namespace, &rb)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case serviceAccountKind:
-				// Marshal the manifest into a ServiceAccount instance.
-				var sa corev1.ServiceAccount
-				err := json.Unmarshal([]byte(manifest), &sa)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(sa.OwnerReferences, plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for service account: %s", sa.GetName())
-				}
-				sa.SetOwnerReferences(updated)
-				sa.SetNamespace(namespace)
-
-				status, err := ensurer.EnsureServiceAccount(namespace, &sa)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case serviceKind:
-				// Marshal the manifest into a Service instance
-				var s corev1.Service
-				err := json.Unmarshal([]byte(manifest), &s)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				// add ownerrefs on the service that point to the CSV in the bundle
-				if step.Resolving != "" {
-					owner := &v1alpha1.ClusterServiceVersion{}
-					owner.SetNamespace(plan.GetNamespace())
-					owner.SetName(step.Resolving)
-					ownerutil.AddNonBlockingOwner(&s, owner)
-				}
-
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for service: %s", s.GetName())
-				}
-				s.SetOwnerReferences(updated)
-				s.SetNamespace(namespace)
-
-				status, err := ensurer.EnsureService(namespace, &s)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			case configMapKind:
-				var cfg corev1.ConfigMap
-				err := json.Unmarshal([]byte(manifest), &cfg)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
-				}
-
-				// add ownerrefs on the configmap that point to the CSV in the bundle
-				if step.Resolving != "" {
-					owner := &v1alpha1.ClusterServiceVersion{}
-					owner.SetNamespace(plan.GetNamespace())
-					owner.SetName(step.Resolving)
-					ownerutil.AddNonBlockingOwner(&cfg, owner)
-				}
-
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(cfg.OwnerReferences, plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for configmap: %s", cfg.GetName())
-				}
-				cfg.SetOwnerReferences(updated)
-				cfg.SetNamespace(namespace)
-
-				status, err := ensurer.EnsureConfigMap(plan.Namespace, &cfg)
-				if err != nil {
-					return err
-				}
-
-				plan.Status.Plan[i].Status = status
-
-			default:
-				if !isSupported(step.Resource.Kind) {
-					// Not a supported resource
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusUnsupportedResource
-					return v1alpha1.ErrInvalidInstallPlan
-				}
-
-				// Marshal the manifest into an unstructured object
-				dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(manifest), 10)
-				unstructuredObject := &unstructured.Unstructured{}
-				if err := dec.Decode(unstructuredObject); err != nil {
-					return errorwrap.Wrapf(err, "error decoding %s object to an unstructured object", step.Resource.Name)
-				}
-
-				// Get the resource from the GVK.
-				gvk := unstructuredObject.GroupVersionKind()
-				r, err := o.apiresourceFromGVK(gvk)
-				if err != nil {
-					return err
-				}
-
-				// Create the GVR
-				gvr := schema.GroupVersionResource{
-					Group:    gvk.Group,
-					Version:  gvk.Version,
-					Resource: r.Name,
-				}
-
-				if step.Resolving != "" {
-					owner := &v1alpha1.ClusterServiceVersion{}
-					owner.SetNamespace(plan.GetNamespace())
-					owner.SetName(step.Resolving)
-
-					if r.Namespaced {
-						// Set OwnerReferences for namespace-scoped resource
-						ownerutil.AddNonBlockingOwner(unstructuredObject, owner)
-
-						// Update UIDs on all CSV OwnerReferences
-						updated, err := o.getUpdatedOwnerReferences(unstructuredObject.GetOwnerReferences(), plan.Namespace)
+					// Check if the resolved CSV is in the initial set
+					if _, ok := initialCSVNames[csv.GetName()]; !ok {
+						// Check for pre-existing CSVs that own the same CRDs
+						competingOwners, err := competingCRDOwnersExist(plan.GetNamespace(), &csv, existingCRDOwners)
 						if err != nil {
-							return errorwrap.Wrapf(err, "error generating ownerrefs for unstructured object: %s", unstructuredObject.GetName())
+							return errorwrap.Wrapf(err, "error checking crd owners for: %s", csv.GetName())
 						}
 
-						unstructuredObject.SetOwnerReferences(updated)
-					} else {
-						// Add owner labels to cluster-scoped resource
-						if err := ownerutil.AddOwnerLabels(unstructuredObject, owner); err != nil {
-							return err
+						// TODO: decide on fail/continue logic for pre-existing dependent CSVs that own the same CRD(s)
+						if competingOwners {
+							// For now, error out
+							return fmt.Errorf("pre-existing CRD owners found for owned CRD(s) of dependent CSV %s", csv.GetName())
 						}
 					}
-				}
 
-				// Set up the dynamic client ResourceInterface and set ownerrefs
-				var resourceInterface dynamic.ResourceInterface
-				if r.Namespaced {
-					unstructuredObject.SetNamespace(namespace)
-					resourceInterface = o.dynamicClient.Resource(gvr).Namespace(namespace)
-				} else {
-					resourceInterface = o.dynamicClient.Resource(gvr)
-				}
+					// Attempt to create the CSV.
+					csv.SetNamespace(namespace)
 
-				// Ensure Unstructured Object
-				status, err := ensurer.EnsureUnstructuredObject(resourceInterface, unstructuredObject)
-				if err != nil {
-					return err
-				}
+					status, err := ensurer.EnsureClusterServiceVersion(&csv)
+					if err != nil {
+						return err
+					}
 
-				plan.Status.Plan[i].Status = status
+					plan.Status.Plan[i].Status = status
+
+				case v1alpha1.SubscriptionKind:
+					// Marshal the manifest into a subscription instance.
+					var sub v1alpha1.Subscription
+					err := json.Unmarshal([]byte(manifest), &sub)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// Add the InstallPlan's name as an annotation
+					if annotations := sub.GetAnnotations(); annotations != nil {
+						annotations[generatedByKey] = plan.GetName()
+					} else {
+						sub.SetAnnotations(map[string]string{generatedByKey: plan.GetName()})
+					}
+
+					// Attempt to create the Subscription
+					sub.SetNamespace(namespace)
+
+					status, err := ensurer.EnsureSubscription(&sub)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case resolver.BundleSecretKind:
+					var s corev1.Secret
+					err := json.Unmarshal([]byte(manifest), &s)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// add ownerrefs on the secret that point to the CSV in the bundle
+					if step.Resolving != "" {
+						owner := &v1alpha1.ClusterServiceVersion{}
+						owner.SetNamespace(plan.GetNamespace())
+						owner.SetName(step.Resolving)
+						ownerutil.AddNonBlockingOwner(&s, owner)
+					}
+
+					// Update UIDs on all CSV OwnerReferences
+					updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error generating ownerrefs for secret %s", s.GetName())
+					}
+					s.SetOwnerReferences(updated)
+					s.SetNamespace(namespace)
+
+					status, err := ensurer.EnsureBundleSecret(plan.Namespace, &s)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case secretKind:
+					status, err := ensurer.EnsureSecret(o.namespace, plan.GetNamespace(), step.Resource.Name)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case clusterRoleKind:
+					// Marshal the manifest into a ClusterRole instance.
+					var cr rbacv1.ClusterRole
+					err := json.Unmarshal([]byte(manifest), &cr)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					status, err := ensurer.EnsureClusterRole(&cr, step)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case clusterRoleBindingKind:
+					// Marshal the manifest into a RoleBinding instance.
+					var rb rbacv1.ClusterRoleBinding
+					err := json.Unmarshal([]byte(manifest), &rb)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					status, err := ensurer.EnsureClusterRoleBinding(&rb, step)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case roleKind:
+					// Marshal the manifest into a Role instance.
+					var r rbacv1.Role
+					err := json.Unmarshal([]byte(manifest), &r)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// Update UIDs on all CSV OwnerReferences
+					updated, err := o.getUpdatedOwnerReferences(r.OwnerReferences, plan.Namespace)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error generating ownerrefs for role %s", r.GetName())
+					}
+					r.SetOwnerReferences(updated)
+					r.SetNamespace(namespace)
+
+					status, err := ensurer.EnsureRole(plan.Namespace, &r)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case roleBindingKind:
+					// Marshal the manifest into a RoleBinding instance.
+					var rb rbacv1.RoleBinding
+					err := json.Unmarshal([]byte(manifest), &rb)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// Update UIDs on all CSV OwnerReferences
+					updated, err := o.getUpdatedOwnerReferences(rb.OwnerReferences, plan.Namespace)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error generating ownerrefs for rolebinding %s", rb.GetName())
+					}
+					rb.SetOwnerReferences(updated)
+					rb.SetNamespace(namespace)
+
+					status, err := ensurer.EnsureRoleBinding(plan.Namespace, &rb)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case serviceAccountKind:
+					// Marshal the manifest into a ServiceAccount instance.
+					var sa corev1.ServiceAccount
+					err := json.Unmarshal([]byte(manifest), &sa)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// Update UIDs on all CSV OwnerReferences
+					updated, err := o.getUpdatedOwnerReferences(sa.OwnerReferences, plan.Namespace)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error generating ownerrefs for service account: %s", sa.GetName())
+					}
+					sa.SetOwnerReferences(updated)
+					sa.SetNamespace(namespace)
+
+					status, err := ensurer.EnsureServiceAccount(namespace, &sa)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case serviceKind:
+					// Marshal the manifest into a Service instance
+					var s corev1.Service
+					err := json.Unmarshal([]byte(manifest), &s)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// add ownerrefs on the service that point to the CSV in the bundle
+					if step.Resolving != "" {
+						owner := &v1alpha1.ClusterServiceVersion{}
+						owner.SetNamespace(plan.GetNamespace())
+						owner.SetName(step.Resolving)
+						ownerutil.AddNonBlockingOwner(&s, owner)
+					}
+
+					// Update UIDs on all CSV OwnerReferences
+					updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error generating ownerrefs for service: %s", s.GetName())
+					}
+					s.SetOwnerReferences(updated)
+					s.SetNamespace(namespace)
+
+					status, err := ensurer.EnsureService(namespace, &s)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				case configMapKind:
+					var cfg corev1.ConfigMap
+					err := json.Unmarshal([]byte(manifest), &cfg)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// add ownerrefs on the configmap that point to the CSV in the bundle
+					if step.Resolving != "" {
+						owner := &v1alpha1.ClusterServiceVersion{}
+						owner.SetNamespace(plan.GetNamespace())
+						owner.SetName(step.Resolving)
+						ownerutil.AddNonBlockingOwner(&cfg, owner)
+					}
+
+					// Update UIDs on all CSV OwnerReferences
+					updated, err := o.getUpdatedOwnerReferences(cfg.OwnerReferences, plan.Namespace)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error generating ownerrefs for configmap: %s", cfg.GetName())
+					}
+					cfg.SetOwnerReferences(updated)
+					cfg.SetNamespace(namespace)
+
+					status, err := ensurer.EnsureConfigMap(plan.Namespace, &cfg)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+
+				default:
+					if !isSupported(step.Resource.Kind) {
+						// Not a supported resource
+						plan.Status.Plan[i].Status = v1alpha1.StepStatusUnsupportedResource
+						return v1alpha1.ErrInvalidInstallPlan
+					}
+
+					// Marshal the manifest into an unstructured object
+					dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(manifest), 10)
+					unstructuredObject := &unstructured.Unstructured{}
+					if err := dec.Decode(unstructuredObject); err != nil {
+						return errorwrap.Wrapf(err, "error decoding %s object to an unstructured object", step.Resource.Name)
+					}
+
+					// Get the resource from the GVK.
+					gvk := unstructuredObject.GroupVersionKind()
+					r, err := o.apiresourceFromGVK(gvk)
+					if err != nil {
+						return err
+					}
+
+					// Create the GVR
+					gvr := schema.GroupVersionResource{
+						Group:    gvk.Group,
+						Version:  gvk.Version,
+						Resource: r.Name,
+					}
+
+					if step.Resolving != "" {
+						owner := &v1alpha1.ClusterServiceVersion{}
+						owner.SetNamespace(plan.GetNamespace())
+						owner.SetName(step.Resolving)
+
+						if r.Namespaced {
+							// Set OwnerReferences for namespace-scoped resource
+							ownerutil.AddNonBlockingOwner(unstructuredObject, owner)
+
+							// Update UIDs on all CSV OwnerReferences
+							updated, err := o.getUpdatedOwnerReferences(unstructuredObject.GetOwnerReferences(), plan.Namespace)
+							if err != nil {
+								return errorwrap.Wrapf(err, "error generating ownerrefs for unstructured object: %s", unstructuredObject.GetName())
+							}
+
+							unstructuredObject.SetOwnerReferences(updated)
+						} else {
+							// Add owner labels to cluster-scoped resource
+							if err := ownerutil.AddOwnerLabels(unstructuredObject, owner); err != nil {
+								return err
+							}
+						}
+					}
+
+					// Set up the dynamic client ResourceInterface and set ownerrefs
+					var resourceInterface dynamic.ResourceInterface
+					if r.Namespaced {
+						unstructuredObject.SetNamespace(namespace)
+						resourceInterface = dynamicClient.Resource(gvr).Namespace(namespace)
+					} else {
+						resourceInterface = dynamicClient.Resource(gvr)
+					}
+
+					// Ensure Unstructured Object
+					status, err := ensurer.EnsureUnstructuredObject(resourceInterface, unstructuredObject)
+					if err != nil {
+						return err
+					}
+
+					plan.Status.Plan[i].Status = status
+				}
+			default:
+				return v1alpha1.ErrInvalidInstallPlan
 			}
-		default:
-			return v1alpha1.ErrInvalidInstallPlan
+			return nil
+		}(i, step); err != nil {
+			return err
 		}
 	}
 
