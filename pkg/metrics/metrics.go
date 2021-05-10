@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc/connectivity"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -141,6 +142,14 @@ var (
 		},
 	)
 
+	catalogSourceReady = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "catalogSource_ready",
+			Help: "State of a CatalogSource. 1 indicates that the CatalogSource is in a READY state. 0 indicates CatalogSource is in a Non READY state.",
+		},
+		[]string{NAMESPACE_LABEL, NAME_LABEL},
+	)
+
 	// exported since it's not handled by HandleMetrics
 	CSVUpgradeCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -206,12 +215,26 @@ func RegisterCatalog() {
 	prometheus.MustRegister(installPlanCount)
 	prometheus.MustRegister(subscriptionCount)
 	prometheus.MustRegister(catalogSourceCount)
+	prometheus.MustRegister(catalogSourceReady)
 	prometheus.MustRegister(SubscriptionSyncCount)
 	prometheus.MustRegister(dependencyResolutionSummary)
 }
 
 func CounterForSubscription(name, installedCSV, channelName, packageName, planApprovalStrategy string) prometheus.Counter {
 	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, packageName, planApprovalStrategy)
+}
+
+func RegisterCatalogSourceState(name, namespace string, state connectivity.State) {
+	switch state {
+	case connectivity.Ready:
+		catalogSourceReady.WithLabelValues(namespace, name).Set(1)
+	default:
+		catalogSourceReady.WithLabelValues(namespace, name).Set(0)
+	}
+}
+
+func DeleteCatalogSourceStateMetric(name, namespace string) {
+	catalogSourceReady.DeleteLabelValues(namespace, name)
 }
 
 func DeleteCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion) {

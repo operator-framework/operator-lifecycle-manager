@@ -5,19 +5,23 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
@@ -263,6 +267,109 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
 				}).ShouldNot(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithName("metric-subscription-for-delete"))))
+			})
+		})
+	})
+
+	Context("Metrics emitted by CatalogSources", func() {
+		When("A valid CatalogSource object is created", func() {
+			var (
+				name        = "metrics-catsrc-valid"
+				cleanup     func()
+				cleanupDone = false
+			)
+			BeforeEach(func() {
+				mainPackageName := genName("nginx-")
+
+				mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+
+				stableChannel := "stable"
+
+				mainCRD := newCRD(genName("ins-"))
+				mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+
+				mainManifests := []registry.PackageManifest{
+					{
+						PackageName: mainPackageName,
+						Channels: []registry.PackageChannel{
+							{Name: stableChannel, CurrentCSVName: mainPackageStable},
+						},
+						DefaultChannelName: stableChannel,
+					},
+				}
+				_, cleanup = createInternalCatalogSource(c, crc, name, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+			})
+			AfterEach(func() {
+				if !cleanupDone {
+					cleanup()
+				}
+			})
+			It("emits metrics for the catalogSource", func() {
+				Eventually(func() []Metric {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}).Should(And(
+					ContainElement(LikeMetric(
+						WithFamily("catalog_source_count"),
+						WithValueGreaterThan(0),
+					)),
+					ContainElement(LikeMetric(
+						WithFamily("catalogSource_ready"),
+						WithName(name),
+						WithNamespace(testNamespace),
+						WithValue(1),
+					)),
+				))
+			})
+			When("The CatalogSource object is deleted", func() {
+				BeforeEach(func() {
+					cleanup()
+					cleanupDone = true
+				})
+				It("deletes the metrics for the CatalogSource", func() {
+					Eventually(func() []Metric {
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					}).Should(And(
+						Not(ContainElement(LikeMetric(
+							WithFamily("catalogSource_ready"),
+							WithName(name),
+							WithNamespace(testNamespace),
+						)))))
+				})
+			})
+		})
+
+		When("A CatalogSource object is in an invalid state", func() {
+			var (
+				name    = "metrics-catsrc-invalid"
+				cleanup func()
+			)
+			BeforeEach(func() {
+				_, cleanup = createInvalidGRPCCatalogSource(crc, name, testNamespace)
+			})
+			AfterEach(func() {
+				cleanup()
+			})
+			It("emits metrics for the CatlogSource with a Value greater than 0", func() {
+				Eventually(func() []Metric {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}).Should(And(
+					ContainElement(LikeMetric(
+						WithFamily("catalogSource_ready"),
+						WithName(name),
+						WithNamespace(testNamespace),
+						WithValue(0),
+					)),
+				))
+				Consistently(func() []Metric {
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+				}, "3m").Should(And(
+					ContainElement(LikeMetric(
+						WithFamily("catalogSource_ready"),
+						WithName(name),
+						WithNamespace(testNamespace),
+						WithValue(0),
+					)),
+				))
 			})
 		})
 	})

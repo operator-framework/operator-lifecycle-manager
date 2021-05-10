@@ -521,6 +521,30 @@ func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientI
 	}
 }
 
+func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace string) (*v1alpha1.CatalogSource, cleanupFunc) {
+
+	catalogSource := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: "grpc",
+			Image:      "localhost:0/not/exists:catsrc",
+		},
+	}
+
+	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
+	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	ctx.Ctx().Logf("Catalog source %s created", name)
+	return catalogSource, buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)
+}
+
 func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
 	configMap, configMapCleanup := createConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
 
@@ -539,7 +563,6 @@ func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned
 			ConfigMap:  configMap.GetName(),
 		},
 	}
-	catalogSource.SetNamespace(namespace)
 
 	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
 	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
