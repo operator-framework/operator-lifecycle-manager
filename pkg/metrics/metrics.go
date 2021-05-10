@@ -24,6 +24,8 @@ const (
 	Succeeded       = "succeeded"
 	Failed          = "failed"
 	APPROVAL_LABEL  = "approval"
+	WARNING_LABEL   = "warning"
+	GVK_LABEL       = "gvk"
 )
 
 type MetricsProvider interface {
@@ -182,6 +184,14 @@ var (
 		[]string{Outcome},
 	)
 
+	installPlanWarningCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "install_plan_warnings_count",
+			Help: "monotonic count of resources created with warnings (for example, deprecation warnings)",
+		},
+		[]string{WARNING_LABEL, NAME_LABEL, NAMESPACE_LABEL, GVK_LABEL},
+	)
+
 	// subscriptionSyncCounters keeps a record of the promethues counters emitted by
 	// Subscription objects. The key of a record is the Subscription name, while the value
 	//  is struct containing label values used in the counter
@@ -208,6 +218,7 @@ func RegisterCatalog() {
 	prometheus.MustRegister(catalogSourceCount)
 	prometheus.MustRegister(SubscriptionSyncCount)
 	prometheus.MustRegister(dependencyResolutionSummary)
+	prometheus.MustRegister(installPlanWarningCount)
 }
 
 func CounterForSubscription(name, installedCSV, channelName, packageName, planApprovalStrategy string) prometheus.Counter {
@@ -296,4 +307,8 @@ func RegisterDependencyResolutionSuccess(duration time.Duration) {
 
 func RegisterDependencyResolutionFailure(duration time.Duration) {
 	dependencyResolutionSummary.WithLabelValues(Failed).Observe(duration.Seconds())
+}
+
+func EmitInstallPlanWarning(warning string, name, namespace, gvk string) {
+	installPlanWarningCount.WithLabelValues(warning, name, namespace, gvk).Inc()
 }

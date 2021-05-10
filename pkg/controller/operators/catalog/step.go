@@ -20,7 +20,11 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/alongside"
 	crdlib "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/crd"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
+
+const v1beta1DeprecationWarning string = `apiextensions.k8s.io/v1beta1 CustomResourceDefinition is deprecated in v1.16+, 
+unavailable in v1.22+; use apiextensions.k8s.io/v1 CustomResourceDefinition`
 
 // Stepper manages cluster interactions based on the step.
 type Stepper interface {
@@ -84,6 +88,10 @@ func (b *builder) create(step v1alpha1.Step) (Stepper, error) {
 		case crdlib.V1Version:
 			return b.NewCRDV1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1(), &step, manifest), nil
 		case crdlib.V1Beta1Version:
+			// Emit error about deprecated API
+			// This codepath will be removed entirely in 1.22
+			metrics.EmitInstallPlanWarning(v1beta1DeprecationWarning, step.Resource.Name, "",
+				fmt.Sprint(step.Resource.Group, "/", step.Resource.Version, ", Kind=", step.Resource.Kind))
 			return b.NewCRDV1Beta1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1beta1(), &step, manifest), nil
 		}
 	}

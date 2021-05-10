@@ -26,6 +26,7 @@ type Factory struct {
 // token specified.
 func (f *Factory) NewOperatorClient(token string) (client operatorclient.ClientInterface, err error) {
 	scoped := copy(f.config, token)
+	scoped = SetWarningRoundTripper(scoped)
 	client, err = operatorclient.NewClientFromRestConfig(scoped)
 
 	return
@@ -35,6 +36,7 @@ func (f *Factory) NewOperatorClient(token string) (client operatorclient.ClientI
 // token specified.
 func (f *Factory) NewKubernetesClient(token string) (client versioned.Interface, err error) {
 	scoped := copy(f.config, token)
+	scoped = SetWarningRoundTripper(scoped)
 	client, err = versioned.NewForConfig(scoped)
 
 	return
@@ -44,6 +46,7 @@ func (f *Factory) NewKubernetesClient(token string) (client versioned.Interface,
 // token specified.
 func (f *Factory) NewDynamicClient(token string) (dynamicClient dynamic.Interface, err error) {
 	scoped := copy(f.config, token)
+	scoped = SetWarningRoundTripper(scoped)
 	dynamicClient, err = dynamic.NewForConfig(scoped)
 	return
 }
