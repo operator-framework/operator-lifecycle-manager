@@ -1215,9 +1215,8 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 
 		// if the bundle lookup pending condition is present it means that the bundle has not been unpacked
 		// status=true means we're still waiting for the job to unpack to configmap
-		// status=false means the bundle unpack job has failed
 		pendingCondition := res.GetCondition(v1alpha1.BundleLookupPending)
-		if pendingCondition.Status == corev1.ConditionTrue || pendingCondition.Status == corev1.ConditionFalse {
+		if pendingCondition.Status == corev1.ConditionTrue {
 			unpacked = false
 			continue
 		}

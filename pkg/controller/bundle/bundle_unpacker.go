@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -37,7 +38,7 @@ const (
 	// and overrides the default specified by the --bundle-unpack-timeout flag
 	// The time duration should be in the same format as accepted by time.ParseDuration()
 	// e.g 1m30s
-	BundleUnpackTimeoutAnnotationKey = "bundle-unpack-timeout"
+	BundleUnpackTimeoutAnnotationKey = "operatorframework.io/bundle-unpack-timeout"
 )
 
 type BundleUnpackResult struct {
@@ -220,7 +221,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . Unpacker
 
 type Unpacker interface {
-	UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, annotationUnpackTimeout time.Duration) (result *BundleUnpackResult, err error)
+	UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, timeout time.Duration) (result *BundleUnpackResult, err error)
 }
 
 type ConfigMapUnpacker struct {
@@ -367,7 +368,7 @@ const (
 	NotUnpackedMessage          = "bundle contents have not yet been persisted to installplan status"
 )
 
-func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, annotationUnpackTimeout time.Duration) (result *BundleUnpackResult, err error) {
+func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, timeout time.Duration) (result *BundleUnpackResult, err error) {
 
 	result = newBundleUnpackResult(lookup)
 
@@ -377,7 +378,7 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 		return result, nil
 	}
 
-	// if pending condition is not true then bundle has already been unpacked(unknown) or failed(false)
+	// if pending condition is not true then bundle has already been unpacked(unknown)
 	pendingCond := result.GetCondition(operatorsv1alpha1.BundleLookupPending)
 	if pendingCond.Status != corev1.ConditionTrue {
 		return result, nil
@@ -430,15 +431,14 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 		secrets = append(secrets, corev1.LocalObjectReference{Name: secretName})
 	}
 	var job *batchv1.Job
-	job, err = c.ensureJob(cmRef, result.Path, secrets, annotationUnpackTimeout)
+	job, err = c.ensureJob(cmRef, result.Path, secrets, timeout)
 	if err != nil {
 		return
 	}
 
 	// Check if bundle unpack job has failed due a timeout
 	// Return a BundleJobError so we can mark the InstallPlan as Failed
-	isFailed, jobCond := jobConditionTrue(job, batchv1.JobFailed)
-	if isFailed {
+	if jobCond, isFailed := getCondition(job, batchv1.JobFailed); isFailed {
 		// Add the BundleLookupFailed condition with the message and reason from the job failure
 		failedCond.Status = corev1.ConditionTrue
 		failedCond.Reason = jobCond.Reason
@@ -446,17 +446,10 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 		failedCond.LastTransitionTime = &now
 		result.SetCondition(failedCond)
 
-		// BundleLookupPending is false with reason being job failed
-		pendingCond.Status = corev1.ConditionFalse
-		pendingCond.Reason = JobFailedReason
-		pendingCond.Message = JobFailedMessage
-		pendingCond.LastTransitionTime = &now
-		result.SetCondition(pendingCond)
-
 		return
 	}
 
-	if isComplete, _ := jobConditionTrue(job, batchv1.JobComplete); !isComplete {
+	if _, isComplete := getCondition(job, batchv1.JobComplete); !isComplete {
 		// In the case of an image pull failure for a non-existent image the bundle unpack job
 		// can stay pending until the ActiveDeadlineSeconds timeout ~10m
 		// To indicate why it's pending we inspect the container statuses of the
@@ -508,12 +501,12 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 }
 
 func (c *ConfigMapUnpacker) pendingContainerStatusMessages(job *batchv1.Job) (string, error) {
-	containerStatusMessages := ""
+	containerStatusMessages := []string{}
 	// List pods for unpack job
 	podLabel := map[string]string{"job-name": job.GetName()}
 	pods, listErr := c.podLister.Pods(job.GetNamespace()).List(k8slabels.SelectorFromSet(podLabel))
 	if listErr != nil {
-		return containerStatusMessages, fmt.Errorf("Failed to list pods for job(%s): %v", job.GetName(), listErr)
+		return "", fmt.Errorf("Failed to list pods for job(%s): %v", job.GetName(), listErr)
 	}
 
 	// Ideally there should be just 1 pod running but inspect all pods in the pending phase
@@ -531,13 +524,13 @@ func (c *ConfigMapUnpacker) pendingContainerStatusMessages(job *batchv1.Job) (st
 			}
 
 			// Aggregate the wait reasons for all pending containers
-			containerStatusMessages = containerStatusMessages +
+			containerStatusMessages = append(containerStatusMessages,
 				fmt.Sprintf("Unpack pod(%s/%s) container(%s) is pending. Reason: %s, Message: %s | ",
-					pod.Namespace, pod.Name, ic.Name, ic.State.Waiting.Reason, ic.State.Waiting.Message)
+					pod.Namespace, pod.Name, ic.Name, ic.State.Waiting.Reason, ic.State.Waiting.Message))
 		}
 	}
 
-	return containerStatusMessages, nil
+	return strings.Join(containerStatusMessages, " | "), nil
 }
 
 func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name string) (cm *corev1.ConfigMap, err error) {
@@ -554,8 +547,8 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 	return
 }
 
-func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, annotationUnpackTimeout time.Duration) (job *batchv1.Job, err error) {
-	fresh := c.job(cmRef, bundlePath, secrets, annotationUnpackTimeout)
+func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, timeout time.Duration) (job *batchv1.Job, err error) {
+	fresh := c.job(cmRef, bundlePath, secrets, timeout)
 	job, err = c.jobLister.Jobs(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -686,17 +679,19 @@ func ownerRef(ref *corev1.ObjectReference) metav1.OwnerReference {
 	}
 }
 
-// jobConditionTrue returns true if the given job has the given condition with the given condition type true, and returns false otherwise.
+// getCondition returns true if the given job has the given condition with the given condition type true, and returns false otherwise.
 // Also returns the condition if true
-func jobConditionTrue(job *batchv1.Job, conditionType batchv1.JobConditionType) (bool, *batchv1.JobCondition) {
+func getCondition(job *batchv1.Job, conditionType batchv1.JobConditionType) (condition *batchv1.JobCondition, isTrue bool) {
 	if job == nil {
-		return false, nil
+		return
 	}
 
 	for _, cond := range job.Status.Conditions {
 		if cond.Type == conditionType && cond.Status == corev1.ConditionTrue {
-			return true, &cond
+			condition = &cond
+			isTrue = true
+			return
 		}
 	}
-	return false, nil
+	return
 }
