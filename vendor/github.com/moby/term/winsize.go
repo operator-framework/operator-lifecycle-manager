@@ -1,6 +1,6 @@
 // +build !windows
 
-package term
+package term // import "github.com/moby/term"
 
 import (
 	"golang.org/x/sys/unix"
