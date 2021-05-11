@@ -2598,6 +2598,7 @@ func createSubscriptionForCatalog(crc versioned.Interface, namespace, name, cata
 		},
 	}
 
+	ctx.Ctx().Logf("Creating subscription %s in namespace %s...", name, namespace)
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.Background(), subscription, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
 	return buildSubscriptionCleanupFunc(crc, subscription)

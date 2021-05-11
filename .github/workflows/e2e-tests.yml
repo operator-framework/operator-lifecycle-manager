@@ -6,10 +6,33 @@ on:
   pull_request:
 jobs:
   run-e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
+    env:
+      TOOLS_BIN_RELATIVE_PATH: "tools/binary"
     steps:
       - uses: actions/checkout@v2
-      - run: make e2e-local NODES=2 JUNIT_DIRECTORY=./artifacts/
+
+      - name: Cache required binary files
+        uses: actions/cache@v2
+        id: cache
+        with:
+          path: ${{ env.TOOLS_BIN_RELATIVE_PATH }}
+          key: ${{ runner.os }}-${{ hashFiles(format('{0}/tools.md', env.TOOLS_BIN_RELATIVE_PATH)) }}
+      
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: "${GITHUB_WORKSPACE}/scripts/installDependencies.sh \"${GITHUB_WORKSPACE}/${TOOLS_BIN_RELATIVE_PATH}\""
+
+      - name: Test Installed
+        run: |
+          echo "[oc output] " && "${GITHUB_WORKSPACE}/${TOOLS_BIN_RELATIVE_PATH}/ocv4.5.0" version
+          echo "[opm upstream output] " && "${GITHUB_WORKSPACE}/${TOOLS_BIN_RELATIVE_PATH}/opmupv1.15.1" version
+
+      - name: start local registry and begin e2e-local tests
+        run: |
+          "${GITHUB_WORKSPACE}/scripts/start_registry.sh"
+          make e2e-local NODES=2 JUNIT_DIRECTORY=./artifacts/ TOOLS_BIN="${GITHUB_WORKSPACE}/${TOOLS_BIN_RELATIVE_PATH}"
+
       - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
         if: ${{ always() }}
         uses: actions/upload-artifact@v2

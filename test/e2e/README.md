@@ -9,20 +9,21 @@ This runs a series of tests against the Kubernetes API to verify that OLM is fun
 
 ## How to use
 
+1. Execute `scripts/start_registry.sh` to start a local docker registry that is used by the tests
 
-Execute `make e2e-local` in the root of the repository, which will:
+2. Execute `make e2e-local` in the root of the repository, which will:
 
-- optionally update `test/e2e/assets/chart/zz_chart.go` as needed
-- build local executables used during testing
-  - `bin/e2e-local.test`
-  - `bin/wait`
-  - `bin/cpb`
-  - `bin/catalog`
-  - `bin/olm`
-  - `bin/package-server`
-- build docker file `e2e.Dockerfile` which includes the local executables in a `kind` image archive `test/e2e-local.image.tar`
-- execute `ginkgo` to run the pre-compiled test package `bin/e2e-local.test` with the `kind` image archive. This runs BDD tests defined in `test/e2e`
-  - these tests are run in a kind cluster that is started fresh each time the test is executed
+   - optionally update `test/e2e/assets/chart/zz_chart.go` as needed
+   - build local executables used during testing
+     - `bin/e2e-local.test`
+     - `bin/wait`
+     - `bin/cpb`
+     - `bin/catalog`
+     - `bin/olm`
+     - `bin/package-server`
+   - build docker file `e2e.Dockerfile` which includes the local executables in a `kind` image archive `test/e2e-local.image.tar`
+   - execute `ginkgo` to run the pre-compiled test package `bin/e2e-local.test` with the `kind` image archive. This runs BDD tests defined in `test/e2e`
+     - these tests are run in a kind cluster that is started fresh each time the test is executed
 
 
 Examples:

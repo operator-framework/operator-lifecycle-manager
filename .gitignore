@@ -455,3 +455,7 @@ apiserver.key
 
 !vendor/**
 test/e2e-local.image.tar
+tools/binary/ocv4.5.0
+tools/binary/opmdownv1.14.3
+tools/binary/opmupv1.15.1
+tools/binary/opmupv1.15.2
