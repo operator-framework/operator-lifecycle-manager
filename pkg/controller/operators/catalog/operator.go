@@ -487,25 +487,21 @@ func (o *Operator) handleDeletion(obj interface{}) {
 	}).Debug("handling object deletion")
 
 	o.requeueOwners(metaObj)
-
-	return
 }
 
 func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 	catsrc, ok := obj.(metav1.Object)
 	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-			if !ok {
-				utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
-				return
-			}
+			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
+			return
+		}
 
-			catsrc, ok = tombstone.Obj.(metav1.Object)
-			if !ok {
-				utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Namespace %#v", obj))
-				return
-			}
+		catsrc, ok = tombstone.Obj.(metav1.Object)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Namespace %#v", obj))
+			return
 		}
 	}
 	sourceKey := registry.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
@@ -631,11 +627,10 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 			logger.Debug("requeueing registry server for catalog update check: update pod not yet ready")
 			o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), reconciler.CatalogPollingRequeuePeriod)
 			return
-		} else {
-			syncError = fmt.Errorf("couldn't ensure registry server - %v", err)
-			out.SetError(v1alpha1.CatalogSourceRegistryServerError, syncError)
-			return
 		}
+		syncError = fmt.Errorf("couldn't ensure registry server - %v", err)
+		out.SetError(v1alpha1.CatalogSourceRegistryServerError, syncError)
+		return
 	}
 
 	logger.Debug("ensured registry server")
@@ -700,6 +695,7 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 		return
 	}
 
+	// TODO(tflannag): This appears to be unused
 	logger = logger.WithField("address", address).WithField("currentSource", sourceKey)
 
 	if source.Address != address {
@@ -900,43 +896,43 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
-	// create installplan if anything updated
-	if len(updatedSubs) > 0 {
-		logger.Debug("resolution caused subscription changes, creating installplan")
-		// Finish calculating max generation by checking the existing installplans
-		installPlans, err := o.listInstallPlans(namespace)
-		if err != nil {
-			return err
-		}
-		for _, ip := range installPlans {
-			if gen := ip.Spec.Generation; gen > maxGeneration {
-				maxGeneration = gen
-			}
-		}
-
-		// any subscription in the namespace with manual approval will force generated installplans to be manual
-		// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
-		installPlanApproval := v1alpha1.ApprovalAutomatic
-		for _, sub := range subs {
-			if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
-				installPlanApproval = v1alpha1.ApprovalManual
-				break
-			}
-		}
-
-		installPlanReference, err := o.ensureInstallPlan(logger, namespace, maxGeneration+1, subs, installPlanApproval, steps, bundleLookups)
-		if err != nil {
-			logger.WithError(err).Debug("error ensuring installplan")
-			return err
-		}
-		if err := o.updateSubscriptionStatus(namespace, maxGeneration+1, updatedSubs, installPlanReference); err != nil {
-			logger.WithError(err).Debug("error ensuring subscription installplan state")
-			return err
-		}
-	} else {
+	if len(updatedSubs) <= 0 {
 		logger.Debugf("no subscriptions were updated")
+		return nil
 	}
 
+	// create installplan if anything updated
+	logger.Debug("resolution caused subscription changes, creating installplan")
+	// Finish calculating max generation by checking the existing installplans
+	installPlans, err := o.listInstallPlans(namespace)
+	if err != nil {
+		return err
+	}
+	for _, ip := range installPlans {
+		if gen := ip.Spec.Generation; gen > maxGeneration {
+			maxGeneration = gen
+		}
+	}
+
+	// any subscription in the namespace with manual approval will force generated installplans to be manual
+	// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
+	installPlanApproval := v1alpha1.ApprovalAutomatic
+	for _, sub := range subs {
+		if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
+			installPlanApproval = v1alpha1.ApprovalManual
+			break
+		}
+	}
+
+	installPlanReference, err := o.ensureInstallPlan(logger, namespace, maxGeneration+1, subs, installPlanApproval, steps, bundleLookups)
+	if err != nil {
+		logger.WithError(err).Debug("error ensuring installplan")
+		return err
+	}
+	if err := o.updateSubscriptionStatus(namespace, maxGeneration+1, updatedSubs, installPlanReference); err != nil {
+		logger.WithError(err).Debug("error ensuring subscription installplan state")
+		return err
+	}
 	return nil
 }
 
@@ -1648,13 +1644,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		doStep := true
 		s, err := b.create(*step)
 		if err != nil {
-			if _, ok := err.(notSupportedStepperErr); ok {
-				// stepper not implemented for this type yet
-				// stepper currently only implemented for CRD types
-				doStep = false
-			} else {
+			if _, ok := err.(notSupportedStepperErr); !ok {
 				return err
 			}
+			// stepper not implemented for this type yet
+			// stepper currently only implemented for CRD types
+			doStep = false
 		}
 		if doStep {
 			status, err := s.Status()
@@ -2132,7 +2127,7 @@ func (o *Operator) apiresourceFromGVK(gvk schema.GroupVersionKind) (metav1.APIRe
 		}
 	}
 	logger.Info("couldn't find GVK in api discovery")
-	return metav1.APIResource{}, olmerrors.GroupVersionKindNotFoundError{gvk.Group, gvk.Version, gvk.Kind}
+	return metav1.APIResource{}, olmerrors.GroupVersionKindNotFoundError{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}
 }
 
 const (

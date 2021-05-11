@@ -8,7 +8,7 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/configmap"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/client-go/listers/core/v1"
+	corev1 "k8s.io/client-go/listers/core/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
@@ -22,13 +22,13 @@ type ManifestResolver interface {
 
 // manifestResolver caches manifest from unpacked bundles (via configmaps)
 type manifestResolver struct {
-	configMapLister v1.ConfigMapLister
+	configMapLister corev1.ConfigMapLister
 	unpackedSteps   map[string][]v1alpha1.StepResource
 	namespace       string
 	logger          logrus.FieldLogger
 }
 
-func newManifestResolver(namespace string, configMapLister v1.ConfigMapLister, logger logrus.FieldLogger) *manifestResolver {
+func newManifestResolver(namespace string, configMapLister corev1.ConfigMapLister, logger logrus.FieldLogger) *manifestResolver {
 	return &manifestResolver{
 		namespace:       namespace,
 		configMapLister: configMapLister,
