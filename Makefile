@@ -29,12 +29,12 @@ GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 
-# ART builds are performed in dist-git, with content (but not commits) copied 
+# ART builds are performed in dist-git, with content (but not commits) copied
 # from the source repo. Thus at build time if your code is inspecting the local
-# git repo it is getting unrelated commits and tags from the dist-git repo, 
+# git repo it is getting unrelated commits and tags from the dist-git repo,
 # not the source repo.
-# For ART image builds, SOURCE_GIT_COMMIT, SOURCE_GIT_TAG, SOURCE_DATE_EPOCH 
-# variables are inserted in Dockerfile to enable recovering the original git 
+# For ART image builds, SOURCE_GIT_COMMIT, SOURCE_GIT_TAG, SOURCE_DATE_EPOCH
+# variables are inserted in Dockerfile to enable recovering the original git
 # metadata at build time.
 GIT_COMMIT := $(if $(SOURCE_GIT_COMMIT),$(SOURCE_GIT_COMMIT),$(shell git rev-parse HEAD))
 
@@ -223,7 +223,6 @@ release: ver=$(shell cat OLM_VERSION)
 release: manifests
 	docker pull quay.io/operator-framework/olm:v$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
-	$(MAKE) target=ocp ver=$(ver) package
 
 verify-release: release diff
 
@@ -240,9 +239,6 @@ endif
 	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
-ifeq ($(target), ocp)
-	./scripts/add_release_annotation.sh deploy/$(target)/manifests/$(ver) "$(YQ_INTERNAL)"
-endif
 ifeq ($(quickstart), true)
 	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml deploy/$(target)/quickstart/crds.yaml deploy/$(target)/quickstart/install.sh
 endif
