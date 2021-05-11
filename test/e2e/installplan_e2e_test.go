@@ -3009,7 +3009,9 @@ var _ = Describe("Install Plan", func() {
 		BeforeEach(func() {
 			ns = &corev1.Namespace{}
 			ns.SetName(genName("ns-"))
-			Expect(ctx.Ctx().Client().Create(context.Background(), ns)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), ns)
+			}, timeout, interval).Should(Succeed(), "could not create Namespace")
 
 			// Create a dummy CatalogSource to bypass the bundle unpacker's check for a CatalogSource
 			catsrc := &operatorsv1alpha1.CatalogSource{
@@ -3022,7 +3024,9 @@ var _ = Describe("Install Plan", func() {
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.Background(), catsrc)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), catsrc)
+			}, timeout, interval).Should(Succeed(), "could not create CatalogSource")
 
 			catsrcName = catsrc.GetName()
 
@@ -3036,7 +3040,9 @@ var _ = Describe("Install Plan", func() {
 					TargetNamespaces: []string{ns.GetName()},
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.Background(), og)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), og)
+			}, timeout, interval).Should(Succeed(), "could not create OperatorGroup")
 
 			// Wait for the OperatorGroup to be synced so the InstallPlan doesn't fail due to an invalid OperatorGroup
 			Eventually(
@@ -3046,6 +3052,7 @@ var _ = Describe("Install Plan", func() {
 					return og.Status.Namespaces, err
 				},
 				1*time.Minute,
+				interval,
 			).Should(ContainElement(ns.GetName()))
 
 			now := metav1.Now()
@@ -3085,7 +3092,9 @@ var _ = Describe("Install Plan", func() {
 		})
 
 		AfterEach(func() {
-			Expect(ctx.Ctx().Client().Delete(context.Background(), ns)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), ns)
+			}, timeout, interval).Should(Succeed(), "could not delete Namespace")
 		})
 
 		It("should show an error on the bundlelookup condition for a non-existent bundle image", func() {
@@ -3100,11 +3109,15 @@ var _ = Describe("Install Plan", func() {
 			ip.SetAnnotations(annotations)
 			waitFor := 1*time.Minute + 30*time.Second
 
-			Expect(ctx.Ctx().Client().Create(context.Background(), ip)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), ip)
+			}, timeout, interval).Should(Succeed(), "could not create InstallPlan")
 
 			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 			// InstallPlans without any steps or bundle lookups
-			Expect(ctx.Ctx().Client().Status().Update(context.Background(), ip)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Status().Update(context.Background(), ip)
+			}, timeout, interval).Should(Succeed(), "could not update InstallPlan status")
 
 			// The InstallPlan's status.bundleLookup.conditions should have a BundleLookupPending condition
 			// with the container status from unpack pod that mentions an image pull failure for the non-existent
@@ -3126,6 +3139,7 @@ var _ = Describe("Install Plan", func() {
 					return "", fmt.Errorf("%s condition not found", operatorsv1alpha1.BundleLookupPending)
 				},
 				1*time.Minute,
+				interval,
 			).Should(ContainSubstring("ErrImagePull"))
 
 			// The InstallPlan should eventually fail due to the ActiveDeadlineSeconds limit
@@ -3135,6 +3149,7 @@ var _ = Describe("Install Plan", func() {
 					return ip, err
 				},
 				waitFor,
+				interval,
 			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
 		})
 
@@ -3142,11 +3157,15 @@ var _ = Describe("Install Plan", func() {
 			// Create an InstallPlan status.bundleLookups.Path specified for an invalid bundle image
 			ip.Status.BundleLookups[0].Path = "alpine:3.13"
 
-			Expect(ctx.Ctx().Client().Create(context.Background(), ip)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), ip)
+			}, timeout, interval).Should(Succeed(), "could not create InstallPlan")
 
 			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 			// InstallPlans without any steps or bundle lookups
-			Expect(ctx.Ctx().Client().Status().Update(context.Background(), ip)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Status().Update(context.Background(), ip)
+			}, timeout, interval).Should(Succeed(), "could not update InstallPlan status")
 
 			// The InstallPlan should fail after the unpack pod keeps failing and exceeds the job's
 			// BackoffLimit(set to 3), which for 4 failures is an exponential backoff (10s + 20s + 40s + 80s)= 2m30s
@@ -3157,6 +3176,7 @@ var _ = Describe("Install Plan", func() {
 					return ip, err
 				},
 				5*time.Minute,
+				interval,
 			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
 		})
 
