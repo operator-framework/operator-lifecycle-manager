@@ -28,15 +28,7 @@ export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
-
-# ART builds are performed in dist-git, with content (but not commits) copied
-# from the source repo. Thus at build time if your code is inspecting the local
-# git repo it is getting unrelated commits and tags from the dist-git repo,
-# not the source repo.
-# For ART image builds, SOURCE_GIT_COMMIT, SOURCE_GIT_TAG, SOURCE_DATE_EPOCH
-# variables are inserted in Dockerfile to enable recovering the original git
-# metadata at build time.
-GIT_COMMIT := $(if $(SOURCE_GIT_COMMIT),$(SOURCE_GIT_COMMIT),$(shell git rev-parse HEAD))
+GIT_COMMIT := $(shell git rev-parse HEAD)
 
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e \
