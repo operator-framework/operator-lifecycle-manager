@@ -40,6 +40,14 @@ func TestConfigMapUnpacker(t *testing.T) {
 		return start
 	}
 	backoffLimit := int32(3)
+	// Used to set the default value for job.spec.ActiveDeadlineSeconds
+	// that would normally be passed from the cmdline flag
+	defaultUnpackDuration := 10 * time.Minute
+	defaultUnpackTimeoutSeconds := int64(defaultUnpackDuration.Seconds())
+
+	// Custom timeout to override the default cmdline flag ActiveDeadlineSeconds value
+	customAnnotationDuration := 2 * time.Minute
+	customAnnotationTimeoutSeconds := int64(customAnnotationDuration.Seconds())
 
 	type fields struct {
 		objs []runtime.Object
@@ -47,6 +55,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 	}
 	type args struct {
 		lookup *operatorsv1alpha1.BundleLookup
+		// A negative timeout duration arg means it will be ignored and the default flag timeout will be used
+		annotationTimeout time.Duration
 	}
 	type expected struct {
 		res          *BundleUnpackResult
@@ -67,6 +77,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			description: "NoCatalogSource/NoConfigMap/NoJob/NotCreated/Pending",
 			fields:      fields{},
 			args: args{
+				annotationTimeout: -1 * time.Minute,
 				lookup: &operatorsv1alpha1.BundleLookup{
 					Path:     bundlePath,
 					Replaces: "",
@@ -108,7 +119,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			},
 		},
 		{
-			description: "CatalogSourcePresent/NoConfigMap/NoJob/Created/Pending",
+			description: "CatalogSourcePresent/NoConfigMap/NoJob/JobCreated/Pending/WithCustomTimeout",
 			fields: fields{
 				crs: []runtime.Object{
 					&operatorsv1alpha1.CatalogSource{
@@ -123,6 +134,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 				},
 			},
 			args: args{
+				// We override the default timeout and expect to see the job created with
+				// the custom annotation based timeout value
+				annotationTimeout: customAnnotationDuration,
 				lookup: &operatorsv1alpha1.BundleLookup{
 					Path:     bundlePath,
 					Replaces: "",
@@ -194,7 +208,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
-							BackoffLimit: &backoffLimit,
+							// The expected job's timeout should be set to the custom annotation timeout
+							ActiveDeadlineSeconds: &customAnnotationTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
@@ -371,7 +387,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
-							BackoffLimit: &backoffLimit,
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
@@ -507,6 +524,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				},
 			},
 			args: args{
+				annotationTimeout: -1 * time.Minute,
 				lookup: &operatorsv1alpha1.BundleLookup{
 					Path:     bundlePath,
 					Replaces: "",
@@ -586,7 +604,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
-							BackoffLimit: &backoffLimit,
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
@@ -797,7 +816,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
-							BackoffLimit: &backoffLimit,
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
@@ -915,6 +935,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			},
 
 			args: args{
+				annotationTimeout: -1 * time.Minute,
 				lookup: &operatorsv1alpha1.BundleLookup{
 					Path:     bundlePath,
 					Replaces: "",
@@ -949,7 +970,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Type:   operatorsv1alpha1.BundleLookupPending,
 								Status: corev1.ConditionTrue,
 								Reason: JobIncompleteReason,
-								Message: fmt.Sprintf("%s: Unpack pod(ns-a/%s) container(pull) is pending. Reason: ErrImagePull, Message: pod pending for some reason | ",
+								Message: fmt.Sprintf("%s: Unpack pod(ns-a/%s) container(pull) is pending. Reason: ErrImagePull, Message: pod pending for some reason",
 									JobIncompleteMessage, pathHash+"-pod"),
 								LastTransitionTime: &start,
 							},
@@ -977,7 +998,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
-							BackoffLimit: &backoffLimit,
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
@@ -1106,6 +1128,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				},
 			},
 			args: args{
+				annotationTimeout: -1 * time.Minute,
 				lookup: &operatorsv1alpha1.BundleLookup{
 					Path:     bundlePath,
 					Replaces: "",
@@ -1168,7 +1191,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
-							BackoffLimit: &backoffLimit,
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
@@ -1310,11 +1334,11 @@ func TestConfigMapUnpacker(t *testing.T) {
 				WithOPMImage(opmImage),
 				WithUtilImage(utilImage),
 				WithNow(now),
+				WithUnpackTimeout(defaultUnpackDuration),
 			)
 			require.NoError(t, err)
 
-			// The annotation unpack timeout arg is negative so it is ignored for these tests
-			res, err := unpacker.UnpackBundle(tt.args.lookup, -1*time.Minute)
+			res, err := unpacker.UnpackBundle(tt.args.lookup, tt.args.annotationTimeout)
 			require.Equal(t, tt.expected.err, err)
 
 			if tt.expected.res == nil {

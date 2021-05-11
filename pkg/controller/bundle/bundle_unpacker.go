@@ -432,7 +432,9 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 	}
 	var job *batchv1.Job
 	job, err = c.ensureJob(cmRef, result.Path, secrets, timeout)
-	if err != nil {
+	if err != nil || job == nil {
+		// ensureJob can return nil if the job present does not match the expected job (spec and ownerefs)
+		// The current job is deleted in that case so UnpackBundle needs to be retried
 		return
 	}
 
@@ -525,7 +527,7 @@ func (c *ConfigMapUnpacker) pendingContainerStatusMessages(job *batchv1.Job) (st
 
 			// Aggregate the wait reasons for all pending containers
 			containerStatusMessages = append(containerStatusMessages,
-				fmt.Sprintf("Unpack pod(%s/%s) container(%s) is pending. Reason: %s, Message: %s | ",
+				fmt.Sprintf("Unpack pod(%s/%s) container(%s) is pending. Reason: %s, Message: %s",
 					pod.Namespace, pod.Name, ic.Name, ic.State.Waiting.Reason, ic.State.Waiting.Message))
 		}
 	}
