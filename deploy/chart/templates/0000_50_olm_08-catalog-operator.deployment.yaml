@@ -18,9 +18,6 @@ spec:
         app: catalog-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
-      {{- if and .Values.installType (eq .Values.installType "ocp") }}
-      priorityClassName: "system-cluster-critical"
-      {{- end }}
       containers:
         - name: catalog-operator
           command:
@@ -64,26 +61,10 @@ spec:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
           terminationMessagePolicy: FallbackToLogsOnError
-          env:
-          {{ if and .Values.installType (eq .Values.installType "ocp") }}
-          - name: RELEASE_VERSION
-            value: "0.0.1-snapshot"
-          {{ end }}
           {{- if .Values.catalog.resources }}
           resources:
 {{ toYaml .Values.catalog.resources | indent 12 }}
           {{- end}}
-          {{ if and .Values.installType (eq .Values.installType "ocp") }}
-          volumeMounts:
-          - mountPath: /var/run/secrets/serving-cert
-            name: serving-cert
-          {{ end }}
-      {{ if and .Values.installType (eq .Values.installType "ocp") }}
-      volumes:
-      - name: serving-cert
-        secret:
-          secretName: catalog-operator-serving-cert
-      {{ end }}
     {{- if .Values.catalog.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.catalog.nodeSelector | indent 8 }}
