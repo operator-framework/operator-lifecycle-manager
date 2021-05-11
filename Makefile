@@ -224,12 +224,6 @@ release: manifests
 	docker pull quay.io/operator-framework/olm:v$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 	$(MAKE) target=ocp ver=$(ver) package
-	rm -rf manifests
-	mkdir manifests
-	cp -R deploy/ocp/manifests/$(ver)/. manifests
-	# requires gnu sed if on mac
-	find ./manifests -type f -exec sed -i "/^#/d" {} \;
-	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 
 verify-release: release diff
 
