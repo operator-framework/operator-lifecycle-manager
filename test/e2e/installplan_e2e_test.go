@@ -37,8 +37,10 @@ import (
 
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
@@ -3160,6 +3162,188 @@ var _ = Describe("Install Plan", func() {
 		Expect(fetchedInstallPlan).NotTo(BeNil())
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
+	})
+
+	When("waiting on the bundle unpacking job", func() {
+		var (
+			ns         *corev1.Namespace
+			catsrcName string
+			ip         *operatorsv1alpha1.InstallPlan
+		)
+		BeforeEach(func() {
+			ns = &corev1.Namespace{}
+			ns.SetName(genName("ns-"))
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), ns)
+			}, timeout, interval).Should(Succeed(), "could not create Namespace")
+
+			// Create a dummy CatalogSource to bypass the bundle unpacker's check for a CatalogSource
+			catsrc := &operatorsv1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      genName("dummy-catsrc-"),
+					Namespace: ns.GetName(),
+				},
+				Spec: operatorsv1alpha1.CatalogSourceSpec{
+					Image:      "localhost:0/not/exist:catsrc",
+					SourceType: operatorsv1alpha1.SourceTypeGrpc,
+				},
+			}
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), catsrc)
+			}, timeout, interval).Should(Succeed(), "could not create CatalogSource")
+
+			catsrcName = catsrc.GetName()
+
+			// Create the OperatorGroup
+			og := &operatorsv1.OperatorGroup{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "og",
+					Namespace: ns.GetName(),
+				},
+				Spec: operatorsv1.OperatorGroupSpec{
+					TargetNamespaces: []string{ns.GetName()},
+				},
+			}
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), og)
+			}, timeout, interval).Should(Succeed(), "could not create OperatorGroup")
+
+			// Wait for the OperatorGroup to be synced so the InstallPlan doesn't fail due to an invalid OperatorGroup
+			Eventually(
+				func() ([]string, error) {
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(og), og)
+					ctx.Ctx().Logf("Waiting for OperatorGroup(%v) to be synced with status.namespaces: %v", og.Name, og.Status.Namespaces)
+					return og.Status.Namespaces, err
+				},
+				1*time.Minute,
+				interval,
+			).Should(ContainElement(ns.GetName()))
+
+			now := metav1.Now()
+			ip = &operatorsv1alpha1.InstallPlan{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ip",
+					Namespace: ns.GetName(),
+				},
+				Spec: operatorsv1alpha1.InstallPlanSpec{
+					ClusterServiceVersionNames: []string{"foobar"},
+					Approval:                   v1alpha1.ApprovalAutomatic,
+					Approved:                   true,
+				},
+				Status: operatorsv1alpha1.InstallPlanStatus{
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+					CatalogSources: []string{},
+					BundleLookups: []operatorsv1alpha1.BundleLookup{
+						{
+							Identifier: "foobar.v0.0.1",
+							CatalogSourceRef: &corev1.ObjectReference{
+								Namespace: ns.GetName(),
+								Name:      catsrcName,
+							},
+							Conditions: []operatorsv1alpha1.BundleLookupCondition{
+								{
+									Type:               operatorsv1alpha1.BundleLookupPending,
+									Status:             corev1.ConditionTrue,
+									Reason:             "JobIncomplete",
+									Message:            "unpack job not completed",
+									LastTransitionTime: &now,
+								},
+							},
+						},
+					},
+				},
+			}
+		})
+
+		AfterEach(func() {
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), ns)
+			}, timeout, interval).Should(Succeed(), "could not delete Namespace")
+		})
+
+		It("should show an error on the bundlelookup condition for a non-existent bundle image", func() {
+			// Create an InstallPlan status.bundleLookups.Path specified for a non-existent bundle image
+			ip.Status.BundleLookups[0].Path = "localhost:0/not/exist:v0.0.1"
+
+			// We wait for some time over the bundle unpack timeout (i.e ActiveDeadlineSeconds) so that the Job can eventually fail
+			// Since the default --bundle-unpack-timeout=10m, we override with a shorter timeout via the
+			// unpack timeout annotation on the InstallPlan
+			annotations := make(map[string]string)
+			annotations[bundle.BundleUnpackTimeoutAnnotationKey] = "1m"
+			ip.SetAnnotations(annotations)
+			waitFor := 1*time.Minute + 30*time.Second
+
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), ip)
+			}, timeout, interval).Should(Succeed(), "could not create InstallPlan")
+
+			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
+			// InstallPlans without any steps or bundle lookups
+			Eventually(func() error {
+				return ctx.Ctx().Client().Status().Update(context.Background(), ip)
+			}, timeout, interval).Should(Succeed(), "could not update InstallPlan status")
+
+			// The InstallPlan's status.bundleLookup.conditions should have a BundleLookupPending condition
+			// with the container status from unpack pod that mentions an image pull failure for the non-existent
+			// image, e.g ErrImagePull or ImagePullBackOff
+			Eventually(
+				func() (string, error) {
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
+					if err != nil {
+						return "", err
+					}
+					for _, bl := range ip.Status.BundleLookups {
+						for _, cond := range bl.Conditions {
+							if cond.Type != operatorsv1alpha1.BundleLookupPending {
+								continue
+							}
+							return cond.Message, nil
+						}
+					}
+					return "", fmt.Errorf("%s condition not found", operatorsv1alpha1.BundleLookupPending)
+				},
+				1*time.Minute,
+				interval,
+			).Should(ContainSubstring("ErrImagePull"))
+
+			// The InstallPlan should eventually fail due to the ActiveDeadlineSeconds limit
+			Eventually(
+				func() (*operatorsv1alpha1.InstallPlan, error) {
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
+					return ip, err
+				},
+				waitFor,
+				interval,
+			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
+		})
+
+		It("should timeout and fail the InstallPlan for an invalid bundle image", func() {
+			// Create an InstallPlan status.bundleLookups.Path specified for an invalid bundle image
+			ip.Status.BundleLookups[0].Path = "alpine:3.13"
+
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), ip)
+			}, timeout, interval).Should(Succeed(), "could not create InstallPlan")
+
+			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
+			// InstallPlans without any steps or bundle lookups
+			Eventually(func() error {
+				return ctx.Ctx().Client().Status().Update(context.Background(), ip)
+			}, timeout, interval).Should(Succeed(), "could not update InstallPlan status")
+
+			// The InstallPlan should fail after the unpack pod keeps failing and exceeds the job's
+			// BackoffLimit(set to 3), which for 4 failures is an exponential backoff (10s + 20s + 40s + 80s)= 2m30s
+			// so we wait a little over that.
+			Eventually(
+				func() (*operatorsv1alpha1.InstallPlan, error) {
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
+					return ip, err
+				},
+				5*time.Minute,
+				interval,
+			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
+		})
+
 	})
 
 	It("compresses installplan step resource manifests to configmap references", func() {

@@ -107,12 +107,13 @@ type Operator struct {
 	serviceAccountQuerier    *scoped.UserDefinedServiceAccountQuerier
 	bundleUnpacker           bundle.Unpacker
 	installPlanTimeout       time.Duration
+	bundleUnpackTimeout      time.Duration
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration) (*Operator, error) {
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration, bundleUnpackTimeout time.Duration) (*Operator, error) {
 	resyncPeriod := queueinformer.ResyncWithJitter(resync, 0.2)
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
@@ -171,6 +172,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient, dynamicClient),
 		installPlanTimeout:       installPlanTimeout,
+		bundleUnpackTimeout:      bundleUnpackTimeout,
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
@@ -339,11 +341,13 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		bundle.WithCatalogSourceLister(catsrcInformer.Lister()),
 		bundle.WithConfigMapLister(configMapInformer.Lister()),
 		bundle.WithJobLister(jobInformer.Lister()),
+		bundle.WithPodLister(podInformer.Lister()),
 		bundle.WithRoleLister(roleInformer.Lister()),
 		bundle.WithRoleBindingLister(roleBindingInformer.Lister()),
 		bundle.WithOPMImage(configmapRegistryImage),
 		bundle.WithUtilImage(utilImage),
 		bundle.WithNow(op.now),
+		bundle.WithUnpackTimeout(op.bundleUnpackTimeout),
 	)
 	if err != nil {
 		return nil, err
@@ -1190,18 +1194,40 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 	out := plan.DeepCopy()
 	unpacked := true
 
+	// The bundle timeout annotation if specified overrides the --bundle-unpack-timeout flag value
+	// If the timeout cannot be parsed it's set to < 0 and subsequently ignored
+	unpackTimeout := -1 * time.Minute
+	timeoutStr, ok := plan.GetAnnotations()[bundle.BundleUnpackTimeoutAnnotationKey]
+	if ok {
+		d, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			o.logger.Errorf("failed to parse unpack timeout annotation(%s: %s): %v", bundle.BundleUnpackTimeoutAnnotationKey, timeoutStr, err)
+		} else {
+			unpackTimeout = d
+		}
+	}
+
 	var errs []error
 	for i := 0; i < len(out.Status.BundleLookups); i++ {
 		lookup := out.Status.BundleLookups[i]
-		res, err := o.bundleUnpacker.UnpackBundle(&lookup)
+		res, err := o.bundleUnpacker.UnpackBundle(&lookup, unpackTimeout)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		out.Status.BundleLookups[i] = *res.BundleLookup
 
-		// if pending condition is present, still waiting for the job to unpack to configmap
-		if res.GetCondition(v1alpha1.BundleLookupPending).Status == corev1.ConditionTrue {
+		// if the failed condition is present it means the bundle unpacking has failed
+		failedCondition := res.GetCondition(bundle.BundleLookupFailed)
+		if failedCondition.Status == corev1.ConditionTrue {
+			unpacked = false
+			continue
+		}
+
+		// if the bundle lookup pending condition is present it means that the bundle has not been unpacked
+		// status=true means we're still waiting for the job to unpack to configmap
+		pendingCondition := res.GetCondition(v1alpha1.BundleLookupPending)
+		if pendingCondition.Status == corev1.ConditionTrue {
 			unpacked = false
 			continue
 		}
@@ -1362,20 +1388,10 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		// Mark the InstallPlan as failed for a fatal Operator Group related error
 		logger.Infof("attenuated service account query failed - %v", err)
 		ipFailError := fmt.Errorf("invalid operator group - %v", err)
-		now := o.now()
-		out := plan.DeepCopy()
-		out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
-			v1alpha1.InstallPlanReasonInstallCheckFailed, ipFailError.Error(), &now))
-		out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
 
-		logger.Info("transitioning InstallPlan to failed")
-		if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
-			updateErr := errors.New("error updating InstallPlan status: " + err.Error())
-			logger = logger.WithField("updateError", updateErr)
-			logger.Errorf("error transitioning InstallPlan to failed")
-
-			// retry sync with error to update InstallPlan status
-			syncError = fmt.Errorf("InstallPlan failed: %s and error updating InstallPlan status as failed: %s", ipFailError, updateErr)
+		if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, ipFailError.Error()); err != nil {
+			// retry for failure to update status
+			syncError = err
 			return
 		}
 
@@ -1405,6 +1421,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	if len(plan.Status.BundleLookups) > 0 {
 		unpacked, out, err := o.unpackBundles(plan)
 		if err != nil {
+			// Retry sync if non-fatal error
 			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
 			return
 		}
@@ -1415,6 +1432,25 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 				syncError = fmt.Errorf("failed to update installplan bundle lookups: %v", err)
 			}
 
+			return
+		}
+
+		// Check BundleLookup status conditions to see if the BundleLookupPending condtion is false
+		// which means bundle lookup has failed and the InstallPlan should be failed as well
+		isFailed, cond := hasBundleLookupFailureCondition(plan)
+		if isFailed {
+			err := fmt.Errorf("Bundle unpacking failed. Reason: %v, and Message: %v", cond.Reason, cond.Message)
+			// Mark the InstallPlan as failed for a fatal bundle unpack error
+			logger.Infof("%v", err)
+
+			if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, err.Error()); err != nil {
+				// retry for failure to update status
+				syncError = err
+				return
+			}
+
+			// Requeue subscription to propagate SubscriptionInstallPlanFailed condtion to subscription
+			o.requeueSubscriptionForInstallPlan(plan, logger)
 			return
 		}
 
@@ -1456,6 +1492,38 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	}
 
 	return
+}
+
+func hasBundleLookupFailureCondition(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.BundleLookupCondition) {
+	for _, bundleLookup := range plan.Status.BundleLookups {
+		for _, cond := range bundleLookup.Conditions {
+			if cond.Type == bundle.BundleLookupFailed && cond.Status == corev1.ConditionTrue {
+				return true, &cond
+			}
+		}
+	}
+	return false, nil
+}
+
+func (o *Operator) transitionInstallPlanToFailed(plan *v1alpha1.InstallPlan, logger logrus.FieldLogger, reason v1alpha1.InstallPlanConditionReason, message string) error {
+	now := o.now()
+	out := plan.DeepCopy()
+	out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
+		reason, message, &now))
+	out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+
+	logger.Info("transitioning InstallPlan to failed")
+	_, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
+	if err == nil {
+		return nil
+	}
+
+	updateErr := errors.New("error updating InstallPlan status: " + err.Error())
+	logger = logger.WithField("updateError", updateErr)
+	logger.Errorf("error transitioning InstallPlan to failed")
+
+	// retry sync with error to update InstallPlan status
+	return fmt.Errorf("InstallPlan failed: %s and error updating InstallPlan status as failed: %s", message, updateErr)
 }
 
 func (o *Operator) requeueSubscriptionForInstallPlan(plan *v1alpha1.InstallPlan, logger *logrus.Entry) {

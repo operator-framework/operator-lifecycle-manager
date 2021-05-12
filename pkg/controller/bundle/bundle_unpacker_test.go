@@ -2,11 +2,10 @@ package bundle
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/configmap"
 	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +19,8 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	crfake "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	crinformers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/pkg/configmap"
 )
 
 const (
@@ -38,6 +39,15 @@ func TestConfigMapUnpacker(t *testing.T) {
 	now := func() metav1.Time {
 		return start
 	}
+	backoffLimit := int32(3)
+	// Used to set the default value for job.spec.ActiveDeadlineSeconds
+	// that would normally be passed from the cmdline flag
+	defaultUnpackDuration := 10 * time.Minute
+	defaultUnpackTimeoutSeconds := int64(defaultUnpackDuration.Seconds())
+
+	// Custom timeout to override the default cmdline flag ActiveDeadlineSeconds value
+	customAnnotationDuration := 2 * time.Minute
+	customAnnotationTimeoutSeconds := int64(customAnnotationDuration.Seconds())
 
 	type fields struct {
 		objs []runtime.Object
@@ -45,6 +55,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 	}
 	type args struct {
 		lookup *operatorsv1alpha1.BundleLookup
+		// A negative timeout duration arg means it will be ignored and the default flag timeout will be used
+		annotationTimeout time.Duration
 	}
 	type expected struct {
 		res          *BundleUnpackResult
@@ -65,6 +77,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			description: "NoCatalogSource/NoConfigMap/NoJob/NotCreated/Pending",
 			fields:      fields{},
 			args: args{
+				annotationTimeout: -1 * time.Minute,
 				lookup: &operatorsv1alpha1.BundleLookup{
 					Path:     bundlePath,
 					Replaces: "",
@@ -106,7 +119,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			},
 		},
 		{
-			description: "CatalogSourcePresent/NoConfigMap/NoJob/Created/Pending",
+			description: "CatalogSourcePresent/NoConfigMap/NoJob/JobCreated/Pending/WithCustomTimeout",
 			fields: fields{
 				crs: []runtime.Object{
 					&operatorsv1alpha1.CatalogSource{
@@ -121,6 +134,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 				},
 			},
 			args: args{
+				// We override the default timeout and expect to see the job created with
+				// the custom annotation based timeout value
+				annotationTimeout: customAnnotationDuration,
 				lookup: &operatorsv1alpha1.BundleLookup{
 					Path:     bundlePath,
 					Replaces: "",
@@ -192,12 +208,15 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
+							// The expected job's timeout should be set to the custom annotation timeout
+							ActiveDeadlineSeconds: &customAnnotationTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy:    corev1.RestartPolicyOnFailure,
+									RestartPolicy:    corev1.RestartPolicyNever,
 									ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-secret"}},
 									Containers: []corev1.Container{
 										{
@@ -368,12 +387,14 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyOnFailure,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -503,6 +524,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				},
 			},
 			args: args{
+				annotationTimeout: -1 * time.Minute,
 				lookup: &operatorsv1alpha1.BundleLookup{
 					Path:     bundlePath,
 					Replaces: "",
@@ -582,12 +604,14 @@ func TestConfigMapUnpacker(t *testing.T) {
 							},
 						},
 						Spec: batchv1.JobSpec{
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy: corev1.RestartPolicyOnFailure,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -751,6 +775,528 @@ func TestConfigMapUnpacker(t *testing.T) {
 				},
 			},
 		},
+		{
+			description: "CatalogSourcePresent/JobPending/PodPending/BundlePending/WithContainerStatus",
+			fields: fields{
+				objs: []runtime.Object{
+					&corev1.Pod{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      pathHash + "-pod",
+							Namespace: "ns-a",
+							Labels:    map[string]string{"job-name": pathHash},
+						},
+						Status: corev1.PodStatus{
+							Phase: corev1.PodPending,
+							InitContainerStatuses: []corev1.ContainerStatus{
+								{
+									Name:  "pull",
+									Ready: false,
+									State: corev1.ContainerState{
+										Waiting: &corev1.ContainerStateWaiting{
+											Reason:  "ErrImagePull",
+											Message: "pod pending for some reason",
+										},
+									},
+								},
+							},
+						},
+					},
+					&batchv1.Job{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      pathHash,
+							Namespace: "ns-a",
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion:         "v1",
+									Kind:               "ConfigMap",
+									Name:               pathHash,
+									Controller:         &blockOwnerDeletion,
+									BlockOwnerDeletion: &blockOwnerDeletion,
+								},
+							},
+						},
+						Spec: batchv1.JobSpec{
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
+							Template: corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: pathHash,
+								},
+								Spec: corev1.PodSpec{
+									RestartPolicy: corev1.RestartPolicyNever,
+									Containers: []corev1.Container{
+										{
+											Name:    "extract",
+											Image:   opmImage,
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Env: []corev1.EnvVar{
+												{
+													Name:  configmap.EnvContainerImage,
+													Value: bundlePath,
+												},
+											},
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "bundle",
+													MountPath: "/bundle",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+									},
+									InitContainers: []corev1.Container{
+										{
+											Name:    "util",
+											Image:   utilImage,
+											Command: []string{"/bin/cp", "-Rv", "/bin/cpb", "/util/cpb"}, // Copy tooling for the bundle container to use
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "util",
+													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+										{
+											Name:            "pull",
+											Image:           bundlePath,
+											ImagePullPolicy: "Always",
+											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "bundle",
+													MountPath: "/bundle",
+												},
+												{
+													Name:      "util",
+													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+									},
+									Volumes: []corev1.Volume{
+										{
+											Name: "bundle",
+											VolumeSource: corev1.VolumeSource{
+												EmptyDir: &corev1.EmptyDirVolumeSource{},
+											},
+										},
+										{
+											Name: "util",
+											VolumeSource: corev1.VolumeSource{
+												EmptyDir: &corev1.EmptyDirVolumeSource{},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					&corev1.ConfigMap{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      pathHash,
+							Namespace: "ns-a",
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion:         "operators.coreos.com/v1alpha1",
+									Kind:               "CatalogSource",
+									Name:               "src-a",
+									Controller:         &blockOwnerDeletion,
+									BlockOwnerDeletion: &blockOwnerDeletion,
+								},
+							},
+						},
+					},
+				},
+				crs: []runtime.Object{
+					&operatorsv1alpha1.CatalogSource{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "ns-a",
+							Name:      "src-a",
+						},
+					},
+				},
+			},
+
+			args: args{
+				annotationTimeout: -1 * time.Minute,
+				lookup: &operatorsv1alpha1.BundleLookup{
+					Path:     bundlePath,
+					Replaces: "",
+					CatalogSourceRef: &corev1.ObjectReference{
+						Namespace: "ns-a",
+						Name:      "src-a",
+					},
+					Conditions: []operatorsv1alpha1.BundleLookupCondition{
+						{
+							Type:               operatorsv1alpha1.BundleLookupPending,
+							Status:             corev1.ConditionTrue,
+							Reason:             JobIncompleteReason,
+							Message:            JobIncompleteMessage,
+							LastTransitionTime: &start,
+						},
+					},
+				},
+			},
+
+			expected: expected{
+				res: &BundleUnpackResult{
+					name: pathHash,
+					BundleLookup: &operatorsv1alpha1.BundleLookup{
+						Path:     bundlePath,
+						Replaces: "",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: "ns-a",
+							Name:      "src-a",
+						},
+						Conditions: []operatorsv1alpha1.BundleLookupCondition{
+							{
+								Type:   operatorsv1alpha1.BundleLookupPending,
+								Status: corev1.ConditionTrue,
+								Reason: JobIncompleteReason,
+								Message: fmt.Sprintf("%s: Unpack pod(ns-a/%s) container(pull) is pending. Reason: ErrImagePull, Message: pod pending for some reason",
+									JobIncompleteMessage, pathHash+"-pod"),
+								LastTransitionTime: &start,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "CatalogSourcePresent/JobFailed/BundleLookupFailed/WithJobFailReason",
+			fields: fields{
+				objs: []runtime.Object{
+					&batchv1.Job{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      pathHash,
+							Namespace: "ns-a",
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion:         "v1",
+									Kind:               "ConfigMap",
+									Name:               pathHash,
+									Controller:         &blockOwnerDeletion,
+									BlockOwnerDeletion: &blockOwnerDeletion,
+								},
+							},
+						},
+						Spec: batchv1.JobSpec{
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
+							Template: corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: pathHash,
+								},
+								Spec: corev1.PodSpec{
+									RestartPolicy: corev1.RestartPolicyNever,
+									Containers: []corev1.Container{
+										{
+											Name:    "extract",
+											Image:   opmImage,
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Env: []corev1.EnvVar{
+												{
+													Name:  configmap.EnvContainerImage,
+													Value: bundlePath,
+												},
+											},
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "bundle",
+													MountPath: "/bundle",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+									},
+									InitContainers: []corev1.Container{
+										{
+											Name:    "util",
+											Image:   utilImage,
+											Command: []string{"/bin/cp", "-Rv", "/bin/cpb", "/util/cpb"}, // Copy tooling for the bundle container to use
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "util",
+													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+										{
+											Name:            "pull",
+											Image:           bundlePath,
+											ImagePullPolicy: "Always",
+											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "bundle",
+													MountPath: "/bundle",
+												},
+												{
+													Name:      "util",
+													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+									},
+									Volumes: []corev1.Volume{
+										{
+											Name: "bundle",
+											VolumeSource: corev1.VolumeSource{
+												EmptyDir: &corev1.EmptyDirVolumeSource{},
+											},
+										},
+										{
+											Name: "util",
+											VolumeSource: corev1.VolumeSource{
+												EmptyDir: &corev1.EmptyDirVolumeSource{},
+											},
+										},
+									},
+								},
+							},
+						},
+						Status: batchv1.JobStatus{
+							Failed: 1,
+							Conditions: []batchv1.JobCondition{
+								{
+
+									Type:    batchv1.JobFailed,
+									Status:  corev1.ConditionTrue,
+									Message: "Job was active longer than specified deadline",
+									Reason:  "DeadlineExceeded",
+								},
+							},
+						},
+					},
+					&corev1.ConfigMap{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      pathHash,
+							Namespace: "ns-a",
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion:         "operators.coreos.com/v1alpha1",
+									Kind:               "CatalogSource",
+									Name:               "src-a",
+									Controller:         &blockOwnerDeletion,
+									BlockOwnerDeletion: &blockOwnerDeletion,
+								},
+							},
+						},
+					},
+				},
+				crs: []runtime.Object{
+					&operatorsv1alpha1.CatalogSource{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "ns-a",
+							Name:      "src-a",
+						},
+					},
+				},
+			},
+			args: args{
+				annotationTimeout: -1 * time.Minute,
+				lookup: &operatorsv1alpha1.BundleLookup{
+					Path:     bundlePath,
+					Replaces: "",
+					CatalogSourceRef: &corev1.ObjectReference{
+						Namespace: "ns-a",
+						Name:      "src-a",
+					},
+					Conditions: []operatorsv1alpha1.BundleLookupCondition{
+						{
+							Type:               operatorsv1alpha1.BundleLookupPending,
+							Status:             corev1.ConditionTrue,
+							Reason:             JobIncompleteReason,
+							Message:            JobIncompleteMessage,
+							LastTransitionTime: &start,
+						},
+					},
+				},
+			},
+			expected: expected{
+				res: &BundleUnpackResult{
+					name: pathHash,
+					BundleLookup: &operatorsv1alpha1.BundleLookup{
+						Path:     bundlePath,
+						Replaces: "",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: "ns-a",
+							Name:      "src-a",
+						},
+						Conditions: []operatorsv1alpha1.BundleLookupCondition{
+							{
+								Type:               operatorsv1alpha1.BundleLookupPending,
+								Status:             corev1.ConditionTrue,
+								Reason:             JobIncompleteReason,
+								Message:            JobIncompleteMessage,
+								LastTransitionTime: &start,
+							},
+							{
+								Type:               BundleLookupFailed,
+								Status:             corev1.ConditionTrue,
+								Reason:             "DeadlineExceeded",
+								Message:            "Job was active longer than specified deadline",
+								LastTransitionTime: &start,
+							},
+						},
+					},
+				},
+				jobs: []*batchv1.Job{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      pathHash,
+							Namespace: "ns-a",
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									APIVersion:         "v1",
+									Kind:               "ConfigMap",
+									Name:               pathHash,
+									Controller:         &blockOwnerDeletion,
+									BlockOwnerDeletion: &blockOwnerDeletion,
+								},
+							},
+						},
+						Spec: batchv1.JobSpec{
+							ActiveDeadlineSeconds: &defaultUnpackTimeoutSeconds,
+							BackoffLimit:          &backoffLimit,
+							Template: corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: pathHash,
+								},
+								Spec: corev1.PodSpec{
+									RestartPolicy: corev1.RestartPolicyNever,
+									Containers: []corev1.Container{
+										{
+											Name:    "extract",
+											Image:   opmImage,
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Env: []corev1.EnvVar{
+												{
+													Name:  configmap.EnvContainerImage,
+													Value: bundlePath,
+												},
+											},
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "bundle",
+													MountPath: "/bundle",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+									},
+									InitContainers: []corev1.Container{
+										{
+											Name:    "util",
+											Image:   utilImage,
+											Command: []string{"/bin/cp", "-Rv", "/bin/cpb", "/util/cpb"}, // Copy tooling for the bundle container to use
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "util",
+													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+										{
+											Name:            "pull",
+											Image:           bundlePath,
+											ImagePullPolicy: "Always",
+											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "bundle",
+													MountPath: "/bundle",
+												},
+												{
+													Name:      "util",
+													MountPath: "/util",
+												},
+											},
+											Resources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													corev1.ResourceCPU:    resource.MustParse("10m"),
+													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+										},
+									},
+									Volumes: []corev1.Volume{
+										{
+											Name: "bundle",
+											VolumeSource: corev1.VolumeSource{
+												EmptyDir: &corev1.EmptyDirVolumeSource{},
+											},
+										},
+										{
+											Name: "util",
+											VolumeSource: corev1.VolumeSource{
+												EmptyDir: &corev1.EmptyDirVolumeSource{},
+											},
+										},
+									},
+								},
+							},
+						},
+						Status: batchv1.JobStatus{
+							Failed: 1,
+							Conditions: []batchv1.JobCondition{
+								{
+									Type:    batchv1.JobFailed,
+									Status:  corev1.ConditionTrue,
+									Message: "Job was active longer than specified deadline",
+									Reason:  "DeadlineExceeded",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -761,6 +1307,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			factory := informers.NewSharedInformerFactory(client, period)
 			cmLister := factory.Core().V1().ConfigMaps().Lister()
 			jobLister := factory.Batch().V1().Jobs().Lister()
+			podLister := factory.Core().V1().Pods().Lister()
 			roleLister := factory.Rbac().V1().Roles().Lister()
 			rbLister := factory.Rbac().V1().RoleBindings().Lister()
 
@@ -781,15 +1328,17 @@ func TestConfigMapUnpacker(t *testing.T) {
 				WithCatalogSourceLister(csLister),
 				WithConfigMapLister(cmLister),
 				WithJobLister(jobLister),
+				WithPodLister(podLister),
 				WithRoleLister(roleLister),
 				WithRoleBindingLister(rbLister),
 				WithOPMImage(opmImage),
 				WithUtilImage(utilImage),
 				WithNow(now),
+				WithUnpackTimeout(defaultUnpackDuration),
 			)
 			require.NoError(t, err)
 
-			res, err := unpacker.UnpackBundle(tt.args.lookup)
+			res, err := unpacker.UnpackBundle(tt.args.lookup, tt.args.annotationTimeout)
 			require.Equal(t, tt.expected.err, err)
 
 			if tt.expected.res == nil {

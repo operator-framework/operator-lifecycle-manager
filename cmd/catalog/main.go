@@ -70,7 +70,8 @@ var (
 	profiling = flag.Bool(
 		"profiling", false, "serve profiling data (on port 8080)")
 
-	installPlanTimeout = flag.Duration("install-plan-retry-timeout", 1*time.Minute, "time since first attempt at which plan execution errors are considered fatal")
+	installPlanTimeout  = flag.Duration("install-plan-retry-timeout", 1*time.Minute, "time since first attempt at which plan execution errors are considered fatal")
+	bundleUnpackTimeout = flag.Duration("bundle-unpack-timeout", 10*time.Minute, "The time limit for bundle unpacking, after which InstallPlan execution is considered to have failed. 0 is considered as having no timeout.")
 )
 
 func init() {
@@ -175,7 +176,7 @@ func main() {
 	}
 
 	// Create a new instance of the operator.
-	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout)
+	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
