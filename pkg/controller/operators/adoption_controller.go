@@ -27,7 +27,9 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/deprecated"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 // AdoptionReconciler automagically associates Operator components with their respective operator resource.
@@ -235,6 +237,14 @@ func (r *AdoptionReconciler) adoptComponents(ctx context.Context, csv *operators
 			}()
 		}
 
+		// alert on components that are deprecated in upcoming kubernetes versions
+		for _, component := range components {
+			if deprecated.Is(component.GetObjectKind().GroupVersionKind()) {
+				metrics.EmitComponentDeprecatedWarning("deprecation warning for operator component",
+					operator.Name, component.GetObjectKind().GroupVersionKind().String())
+			}
+		}
+
 		for _, component := range components {
 			var (
 				// Copy variables into iteration scope
@@ -336,7 +346,7 @@ func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component runtim
 		}
 		operators = append(operators, *operator)
 	}
-	errs := make([]error,0)
+	errs := make([]error, 0)
 	for _, operator := range operators {
 		if err := r.disown(ctx, &operator, component); err != nil {
 			errs = append(errs, err)

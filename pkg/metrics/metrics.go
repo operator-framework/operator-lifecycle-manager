@@ -192,6 +192,14 @@ var (
 		[]string{WARNING_LABEL, NAME_LABEL, NAMESPACE_LABEL, GVK_LABEL},
 	)
 
+	componentDeprecationWarningCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "operator_component_deprecation_warning_count",
+			Help: "monotonic count of operator components that are being deprecated in upcoming kubernetes versions",
+		},
+		[]string{WARNING_LABEL, "operator_name", GVK_LABEL},
+	)
+
 	// subscriptionSyncCounters keeps a record of the promethues counters emitted by
 	// Subscription objects. The key of a record is the Subscription name, while the value
 	//  is struct containing label values used in the counter
@@ -311,4 +319,8 @@ func RegisterDependencyResolutionFailure(duration time.Duration) {
 
 func EmitInstallPlanWarning(warning string, name, namespace, gvk string) {
 	installPlanWarningCount.WithLabelValues(warning, name, namespace, gvk).Inc()
+}
+
+func EmitComponentDeprecatedWarning(warning, operatorName, gvk string) {
+	componentDeprecationWarningCount.WithLabelValues(warning, operatorName, gvk).Inc()
 }
