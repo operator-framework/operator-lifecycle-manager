@@ -1,0 +1,19 @@
+name: build
+on:
+  pull_request:
+    paths:
+    - '**'
+    - '!doc/contributors/**'
+    - '!doc/design/**'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out the repo
+      uses: actions/checkout@v2
+    - name: Build the container image
+      uses: docker/build-push-action@v1
+      with:
+        repository: operator-framework/olm
+        dockerfile: ./Dockerfile
+        push: false

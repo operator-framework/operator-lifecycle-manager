@@ -1,0 +1,27 @@
+name: e2e
+on:
+  pull_request:
+    paths:
+    - '**'
+    - '!doc/contributors/**'
+    - '!doc/design/**'
+  schedule:
+  - cron: '0 0 * * *' # daily to pick up releases
+jobs:
+  run-local-minikube:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-go@v2
+      with:
+        go-version: '~1.16'
+    - name: Install minikube
+      run: |
+        sudo apt-get install conntrack
+        curl -sLo minikube "$(curl -sL https://api.github.com/repos/kubernetes/minikube/releases/latest | jq -r '[.assets[] | select(.name == "minikube-linux-amd64")] | first | .browser_download_url')"
+        chmod +x minikube
+        sudo mv minikube /bin/
+    - name: Setup minikube
+      run: minikube config set vm-driver docker
+    - name: Run e2e tests
+      run: make run-local
