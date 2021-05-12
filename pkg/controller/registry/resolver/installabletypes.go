@@ -6,6 +6,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
+	operatorregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 type BundleInstallable struct {
@@ -52,6 +53,24 @@ func (i *BundleInstallable) BundleSourceInfo() (string, string, registry.Catalog
 
 func bundleId(bundle, channel string, catalog registry.CatalogKey) solver.Identifier {
 	return solver.IdentifierFromString(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
+}
+
+func NewBundleInstallableFromOperator(o *Operator) (BundleInstallable, error) {
+	src := o.SourceInfo()
+	if src == nil {
+		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Identifier())
+	}
+	var constraints []solver.Constraint
+	for _, p := range o.bundle.GetProperties() {
+		if p.GetType() == operatorregistry.DeprecatedType {
+			constraints = append(constraints, PrettyConstraint(
+				solver.Prohibited(),
+				fmt.Sprintf("bundle %s is deprecated", bundleId(o.Identifier(), o.Channel(), src.Catalog)),
+			))
+			break
+		}
+	}
+	return NewBundleInstallable(o.Identifier(), o.Channel(), src.Catalog, constraints...), nil
 }
 
 func NewBundleInstallable(bundle, channel string, catalog registry.CatalogKey, constraints ...solver.Constraint) BundleInstallable {
