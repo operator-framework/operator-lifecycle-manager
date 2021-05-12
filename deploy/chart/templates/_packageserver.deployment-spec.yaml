@@ -15,9 +15,6 @@ spec:
         app: packageserver
     spec:
       serviceAccountName: olm-operator-serviceaccount
-      {{- if and .Values.installType (eq .Values.installType "ocp") }}
-      priorityClassName: "system-cluster-critical"
-      {{- end }}
       {{- if .Values.package.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.package.nodeSelector | nindent 8 }}

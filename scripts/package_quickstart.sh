@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-if [[ ${#@} < 3 ]]; then
+if [[ ${#@} -lt 3 ]]; then
     echo "Usage: $0 concatenate OLM's Kubernetes manifests into a single YAML stream and writes the result to a file"
     echo "* dir: the input directory that contains OLM's Kubernetes manifests"
     echo "* out: the output file for the combined OLM Kubernetes manifest"
@@ -32,4 +32,3 @@ done
 echo "Wrote manifests to ${out} and ${outcrds}"
 
 cp scripts/install.sh ${outscript}
-

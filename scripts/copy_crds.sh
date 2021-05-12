@@ -12,4 +12,3 @@ for f in "${CRD_PATH}"/*.yaml ; do
     echo "copying ${f}"
     cp "${f}" "${SCRIPT_ROOT}/deploy/chart/crds/0000_50_olm_00-$(basename "$f" | sed 's/^.*_\([^.]\+\)\.yaml/\1.crd.yaml/')"
 done
-

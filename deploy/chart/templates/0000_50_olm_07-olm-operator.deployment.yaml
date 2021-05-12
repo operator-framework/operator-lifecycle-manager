@@ -18,9 +18,6 @@ spec:
         app: olm-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
-      {{- if and .Values.installType (eq .Values.installType "ocp") }}
-      priorityClassName: "system-cluster-critical"
-      {{- end }}
       containers:
         - name: olm-operator
           command:
@@ -71,10 +68,6 @@ spec:
               port: {{ .Values.olm.service.internalPort }}
           terminationMessagePolicy: FallbackToLogsOnError
           env:
-        {{ if and .Values.installType (eq .Values.installType "ocp") }}
-          - name: RELEASE_VERSION
-            value: "0.0.1-snapshot"
-        {{ end }}
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
@@ -85,17 +78,6 @@ spec:
           resources:
 {{ toYaml .Values.olm.resources | indent 12 }}
           {{- end}}
-          {{ if and .Values.installType (eq .Values.installType "ocp") }}
-          volumeMounts:
-          - mountPath: /var/run/secrets/serving-cert
-            name: serving-cert
-          {{ end }}
-      {{ if and .Values.installType (eq .Values.installType "ocp") }}
-      volumes:
-      - name: serving-cert
-        secret:
-          secretName: olm-operator-serving-cert
-      {{ end }}
     {{- if .Values.olm.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.olm.nodeSelector | indent 8 }}
