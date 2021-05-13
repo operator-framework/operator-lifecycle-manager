@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
@@ -274,9 +275,8 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 	Context("Metrics emitted by CatalogSources", func() {
 		When("A valid CatalogSource object is created", func() {
 			var (
-				name        = "metrics-catsrc-valid"
-				cleanup     func()
-				cleanupDone = false
+				name    = "metrics-catsrc-valid"
+				cleanup func()
 			)
 			BeforeEach(func() {
 				mainPackageName := genName("nginx-")
@@ -297,12 +297,15 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						DefaultChannelName: stableChannel,
 					},
 				}
-				_, cleanup = createInternalCatalogSource(c, crc, name, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+				_, cleanupAll := createInternalCatalogSource(c, crc, name, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+
+				var once sync.Once
+				cleanup = func() {
+					once.Do(cleanupAll)
+				}
 			})
 			AfterEach(func() {
-				if !cleanupDone {
-					cleanup()
-				}
+				cleanup()
 			})
 			It("emits metrics for the catalogSource", func() {
 				Eventually(func() []Metric {
@@ -323,7 +326,6 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			When("The CatalogSource object is deleted", func() {
 				BeforeEach(func() {
 					cleanup()
-					cleanupDone = true
 				})
 				It("deletes the metrics for the CatalogSource", func() {
 					Eventually(func() []Metric {
