@@ -316,7 +316,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						WithValueGreaterThan(0),
 					)),
 					ContainElement(LikeMetric(
-						WithFamily("catalogSource_ready"),
+						WithFamily("catalogsource_ready"),
 						WithName(name),
 						WithNamespace(testNamespace),
 						WithValue(1),
@@ -332,7 +332,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
 					}).Should(And(
 						Not(ContainElement(LikeMetric(
-							WithFamily("catalogSource_ready"),
+							WithFamily("catalogsource_ready"),
 							WithName(name),
 							WithNamespace(testNamespace),
 						)))))
@@ -356,7 +356,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
 				}).Should(And(
 					ContainElement(LikeMetric(
-						WithFamily("catalogSource_ready"),
+						WithFamily("catalogsource_ready"),
 						WithName(name),
 						WithNamespace(testNamespace),
 						WithValue(0),
@@ -366,7 +366,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
 				}, "3m").Should(And(
 					ContainElement(LikeMetric(
-						WithFamily("catalogSource_ready"),
+						WithFamily("catalogsource_ready"),
 						WithName(name),
 						WithNamespace(testNamespace),
 						WithValue(0),

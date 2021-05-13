@@ -144,7 +144,7 @@ var (
 
 	catalogSourceReady = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "catalogSource_ready",
+			Name: "catalogsource_ready",
 			Help: "State of a CatalogSource. 1 indicates that the CatalogSource is in a READY state. 0 indicates CatalogSource is in a Non READY state.",
 		},
 		[]string{NAMESPACE_LABEL, NAME_LABEL},
