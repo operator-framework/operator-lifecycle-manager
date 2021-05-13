@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -116,6 +117,12 @@ func (r *OperatorConditionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	err = r.ensureDeploymentEnvVars(operatorCondition)
 	if err != nil {
 		log.V(1).Error(err, "Error ensuring OperatorCondition Deployment EnvVars")
+		return ctrl.Result{Requeue: true}, err
+	}
+
+	err = r.syncOperatorConditionStatus(operatorCondition)
+	if err != nil {
+		log.V(1).Error(err, "Error syncing OperatorCondition Status")
 		return ctrl.Result{Requeue: true}, err
 	}
 
@@ -248,6 +255,26 @@ func (r *OperatorConditionReconciler) ensureDeploymentEnvVars(operatorCondition 
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (r *OperatorConditionReconciler) syncOperatorConditionStatus(operatorCondition *operatorsv1.OperatorCondition) error {
+	r.log.V(4).Info("Sync operatorcondition status")
+	currentGen := operatorCondition.ObjectMeta.GetGeneration()
+	changed := false
+	for _, cond := range operatorCondition.Spec.Conditions {
+		if c := meta.FindStatusCondition(operatorCondition.Status.Conditions, cond.Type); c != nil {
+			if cond.Status == c.Status && c.ObservedGeneration == currentGen {
+				continue
+			}
+		}
+		meta.SetStatusCondition(&operatorCondition.Status.Conditions, cond)
+		changed = true
+	}
+
+	if changed {
+		return r.Client.Status().Update(context.TODO(), operatorCondition)
 	}
 	return nil
 }
