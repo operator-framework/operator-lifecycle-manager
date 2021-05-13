@@ -14,6 +14,7 @@ type OperatorConditionSpec struct {
 	ServiceAccounts []string           `json:"serviceAccounts,omitempty"`
 	Deployments     []string           `json:"deployments,omitempty"`
 	Overrides       []metav1.Condition `json:"overrides,omitempty"`
+	Conditions      []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // OperatorConditionStatus allows an operator to convey information its state to OLM. The status may trail the actual
