@@ -9,6 +9,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -27,6 +29,7 @@ import (
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -35,17 +38,137 @@ import (
 )
 
 var _ = Describe("ClusterServiceVersion", func() {
+	HavePhase := func(goal operatorsv1alpha1.ClusterServiceVersionPhase) types.GomegaMatcher {
+		return WithTransform(func(csv *operatorsv1alpha1.ClusterServiceVersion) operatorsv1alpha1.ClusterServiceVersionPhase {
+			return csv.Status.Phase
+		}, Equal(goal))
+	}
+
 	var (
 		c   operatorclient.ClientInterface
 		crc versioned.Interface
 	)
-	BeforeEach(func() {
 
+	BeforeEach(func() {
 		c = newKubeClient()
 		crc = newCRClient()
 	})
+
 	AfterEach(func() {
 		TearDown(testNamespace)
+	})
+
+	When("a csv exists specifying two replicas with one max unavailable", func() {
+		var (
+			csv v1alpha1.ClusterServiceVersion
+		)
+
+		const (
+			TestReadinessGate = "operatorframework.io/test-readiness-gate"
+		)
+
+		BeforeEach(func() {
+			csv = v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "test-csv",
+					Namespace:    testNamespace,
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+						StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
+						StrategySpec: operatorsv1alpha1.StrategyDetailsDeployment{
+							DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
+								{
+									Name: "deployment",
+									Spec: appsv1.DeploymentSpec{
+										Strategy: appsv1.DeploymentStrategy{
+											Type: appsv1.RollingUpdateDeploymentStrategyType,
+											RollingUpdate: &appsv1.RollingUpdateDeployment{
+												MaxUnavailable: &[]intstr.IntOrString{intstr.FromInt(1)}[0],
+											},
+										},
+										Selector: &metav1.LabelSelector{
+											MatchLabels: map[string]string{"app": "foobar"},
+										},
+										Replicas: &[]int32{2}[0],
+										Template: corev1.PodTemplateSpec{
+											ObjectMeta: metav1.ObjectMeta{
+												Labels: map[string]string{"app": "foobar"},
+											},
+											Spec: corev1.PodSpec{
+												Containers: []corev1.Container{
+													{
+														Name:  "foobar",
+														Image: *dummyImage,
+													},
+												},
+												ReadinessGates: []corev1.PodReadinessGate{
+													{ConditionType: TestReadinessGate},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					InstallModes: []v1alpha1.InstallMode{{
+						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					}},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &csv)).To(Succeed())
+
+			Eventually(func() (*v1alpha1.ClusterServiceVersion, error) {
+				var ps corev1.PodList
+				if err := ctx.Ctx().Client().List(context.Background(), &ps, client.MatchingLabels{"app": "foobar"}); err != nil {
+					return nil, err
+				}
+
+				if len(ps.Items) != 2 {
+					return nil, fmt.Errorf("%d pods match deployment selector, want %d", len(ps.Items), 2)
+				}
+
+				for _, pod := range ps.Items {
+					index := -1
+					for i, c := range pod.Status.Conditions {
+						if c.Type == TestReadinessGate {
+							index = i
+							break
+						}
+					}
+					if index == -1 {
+						index = len(pod.Status.Conditions)
+						pod.Status.Conditions = append(pod.Status.Conditions, corev1.PodCondition{Type: TestReadinessGate})
+					}
+					if pod.Status.Conditions[index].Status == corev1.ConditionTrue {
+						continue
+					}
+					pod.Status.Conditions[index].Status = corev1.ConditionTrue
+					if err := ctx.Ctx().Client().Status().Update(context.Background(), &pod); err != nil {
+						return nil, err
+					}
+				}
+
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&csv), &csv); err != nil {
+					return nil, err
+				}
+				return &csv, nil
+			}).Should(HavePhase(operatorsv1alpha1.CSVPhaseSucceeded))
+		})
+
+		It("remains in phase Succeeded when only one pod is available", func() {
+			var ps corev1.PodList
+			Expect(ctx.Ctx().Client().List(context.Background(), &ps, client.MatchingLabels{"app": "foobar"})).To(Succeed())
+			Expect(ps.Items).To(Not(BeEmpty()))
+
+			Expect(ctx.Ctx().Client().Delete(context.Background(), &ps.Items[0])).To(Succeed())
+
+			Consistently(func() (*operatorsv1alpha1.ClusterServiceVersion, error) {
+				return &csv, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&csv), &csv)
+			}).Should(HavePhase(operatorsv1alpha1.CSVPhaseSucceeded))
+		})
 	})
 
 	When("a copied csv exists", func() {

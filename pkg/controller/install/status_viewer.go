@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const TimedOutReason = "ProgressDeadlineExceeded"
@@ -26,9 +27,12 @@ func DeploymentStatus(deployment *appsv1.Deployment) (string, bool, error) {
 		if deployment.Status.Replicas > deployment.Status.UpdatedReplicas {
 			return fmt.Sprintf("Waiting for rollout to finish: %d old replicas are pending termination...\n", deployment.Status.Replicas-deployment.Status.UpdatedReplicas), false, nil
 		}
-		// waiting for new replicas to report as available
-		if deployment.Status.AvailableReplicas < deployment.Status.UpdatedReplicas {
-			return fmt.Sprintf("Waiting for rollout to finish: %d of %d updated replicas are available...\n", deployment.Status.AvailableReplicas, deployment.Status.UpdatedReplicas), false, nil
+		if c := getDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable); c == nil || c.Status != corev1.ConditionTrue {
+			msg := fmt.Sprintf("deployment %q missing condition %q", deployment.Name, appsv1.DeploymentAvailable)
+			if c != nil {
+				msg = fmt.Sprintf("deployment %q not available: %s", deployment.Name, c.Message)
+			}
+			return fmt.Sprintf("Waiting for rollout to finish: %s\n", msg), false, nil
 		}
 		// deployment is finished
 		return fmt.Sprintf("deployment %q successfully rolled out\n", deployment.Name), true, nil
