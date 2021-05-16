@@ -51,6 +51,10 @@ func WithName(name string) MetricPredicate {
 	return WithLabel("name", name)
 }
 
+func WithNamespace(namespace string) MetricPredicate {
+	return WithLabel("namespace", namespace)
+}
+
 func WithChannel(channel string) MetricPredicate {
 	return WithLabel("channel", channel)
 }
