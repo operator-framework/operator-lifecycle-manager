@@ -64,13 +64,6 @@ func TestGetNewStatus(t *testing.T) {
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
 					{
-						Type:               configv1.OperatorAvailable,
-						Status:             configv1.ConditionFalse,
-						Message:            "ClusterServiceVersion foo-namespace/foo is in phase Pending with reason: InstallWaiting, message: Progressing towards 1.0.0",
-						Reason:             "ClusterServiceVersionNotSucceeded",
-						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
-					},
-					{
 						Type:               configv1.OperatorProgressing,
 						Status:             configv1.ConditionTrue,
 						Message:            "Working toward 1.0.0",
@@ -95,7 +88,166 @@ func TestGetNewStatus(t *testing.T) {
 			},
 		},
 
-		// A CSV has successfully installed.
+		{
+			name: "WithCSVInProgressAlreadyAvailableTrue",
+			context: &csvEventContext{
+				Name:           "foo",
+				CurrentDeleted: false,
+				Current: &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foo",
+						Namespace: "foo-namespace",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version.OperatorVersion{
+							semver.Version{
+								Major: 1, Minor: 0, Patch: 0,
+							},
+						},
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase:   v1alpha1.CSVPhasePending,
+						Reason:  v1alpha1.CSVReasonWaiting,
+						Message: "Progressing towards 1.0.0",
+					},
+				},
+			},
+			existing: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorAvailable,
+						Status:             configv1.ConditionTrue,
+						Message:            "test message",
+						Reason:             "test reason",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+				},
+			},
+
+			expected: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorAvailable,
+						Status:             configv1.ConditionTrue,
+						Message:            "test message",
+						Reason:             "test reason",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					{
+						Type:               configv1.OperatorDegraded,
+						Status:             configv1.ConditionFalse,
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						Message:            "Safe to upgrade",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					{
+						Type:               configv1.OperatorProgressing,
+						Status:             configv1.ConditionTrue,
+						Message:            "Working toward 1.0.0",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+				},
+				RelatedObjects: []configv1.ObjectReference{
+					{
+						Group:     "",
+						Resource:  "namespaces",
+						Namespace: "",
+						Name:      "foo-namespace",
+					},
+					{
+						Group:     v1alpha1.GroupName,
+						Resource:  clusterServiceVersionResource,
+						Namespace: "foo-namespace",
+						Name:      "foo",
+					},
+				},
+			},
+		},
+
+		{
+			name: "WithCSVInProgressAlreadyAvailableFalse",
+			context: &csvEventContext{
+				Name:           "foo",
+				CurrentDeleted: false,
+				Current: &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foo",
+						Namespace: "foo-namespace",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version.OperatorVersion{
+							semver.Version{
+								Major: 1, Minor: 0, Patch: 0,
+							},
+						},
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase:   v1alpha1.CSVPhasePending,
+						Reason:  v1alpha1.CSVReasonWaiting,
+						Message: "Progressing towards 1.0.0",
+					},
+				},
+			},
+			existing: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorAvailable,
+						Status:             configv1.ConditionFalse,
+						Message:            "test message",
+						Reason:             "test reason",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+				},
+			},
+
+			expected: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorAvailable,
+						Status:             configv1.ConditionFalse,
+						Message:            "test message",
+						Reason:             "test reason",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					{
+						Type:               configv1.OperatorDegraded,
+						Status:             configv1.ConditionFalse,
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						Message:            "Safe to upgrade",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					{
+						Type:               configv1.OperatorProgressing,
+						Status:             configv1.ConditionTrue,
+						Message:            "Working toward 1.0.0",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+				},
+				RelatedObjects: []configv1.ObjectReference{
+					{
+						Group:     "",
+						Resource:  "namespaces",
+						Namespace: "",
+						Name:      "foo-namespace",
+					},
+					{
+						Group:     v1alpha1.GroupName,
+						Resource:  clusterServiceVersionResource,
+						Namespace: "foo-namespace",
+						Name:      "foo",
+					},
+				},
+			},
+		},
+
 		{
 			name: "WithCSVSuccessfullyInstalled",
 			context: &csvEventContext{
@@ -135,7 +287,7 @@ func TestGetNewStatus(t *testing.T) {
 					{
 						Type:               configv1.OperatorAvailable,
 						Status:             configv1.ConditionTrue,
-						Message:            "ClusterServiceVersion foo-namespace/foo is in phase Succeeded",
+						Message:            "ClusterServiceVersion foo-namespace/foo observed in phase Succeeded",
 						Reason:             "ClusterServiceVersionSucceeded",
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
