@@ -1,11 +1,10 @@
 package olm
 
 import (
-	"io/ioutil"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -126,12 +125,12 @@ func TestCopyToNamespace(t *testing.T) {
 			Namespace: "bar",
 			Original: &v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "name",
+					Name:      "name",
 					Namespace: "foo",
 					Labels: map[string]string{
 						"operators.coreos.com/foo": "",
 						"operators.coreos.com/bar": "",
-						"untouched": "fine",
+						"untouched":                "fine",
 					},
 				},
 			},
@@ -142,25 +141,25 @@ func TestCopyToNamespace(t *testing.T) {
 					Labels: map[string]string{
 						"operators.coreos.com/foo": "",
 						"operators.coreos.com/bar": "",
-						"untouched": "fine",
+						"untouched":                "fine",
 					},
 				},
 				Status: v1alpha1.ClusterServiceVersionStatus{
-					Message:        "The operator is running in foo but is managing this namespace",
-					Reason:         v1alpha1.CSVReasonCopied},
+					Message: "The operator is running in foo but is managing this namespace",
+					Reason:  v1alpha1.CSVReasonCopied},
 			},
 			ExpectedResult: &v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "name",
 					Namespace: "bar",
 					Labels: map[string]string{
-						"untouched": "fine",
+						"untouched":      "fine",
 						"olm.copiedFrom": "foo",
 					},
 				},
 				Status: v1alpha1.ClusterServiceVersionStatus{
-					Message:        "The operator is running in foo but is managing this namespace",
-					Reason:         v1alpha1.CSVReasonCopied,
+					Message: "The operator is running in foo but is managing this namespace",
+					Reason:  v1alpha1.CSVReasonCopied,
 				},
 			},
 			ExpectedActions: []ktesting.Action{
@@ -169,7 +168,63 @@ func TestCopyToNamespace(t *testing.T) {
 						Name:      "name",
 						Namespace: "bar",
 						Labels: map[string]string{
-							"untouched": "fine",
+							"untouched":      "fine",
+							"olm.copiedFrom": "foo",
+						},
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Message: "The operator is running in foo but is managing this namespace",
+						Reason:  v1alpha1.CSVReasonCopied,
+					},
+				}),
+			},
+		},
+				{
+			Name:      "component labels are stripped before initial copy",
+			Namespace: "bar",
+			Original: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "foo",
+					Labels: map[string]string{
+						"operators.coreos.com/foo": "",
+						"operators.coreos.com/bar": "",
+						"untouched":                "fine",
+					},
+				},
+			},
+			ExistingCopy: nil,
+			ExpectedResult: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "bar",
+					Labels: map[string]string{
+						"untouched":      "fine",
+						"olm.copiedFrom": "foo",
+					},
+				},
+				Status: v1alpha1.ClusterServiceVersionStatus{
+					Message: "The operator is running in foo but is managing this namespace",
+					Reason:  v1alpha1.CSVReasonCopied,
+				},
+			},
+			ExpectedActions: []ktesting.Action{
+				ktesting.NewCreateAction(gvr, "bar", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "name",
+						Namespace: "bar",
+						Labels: map[string]string{
+							"untouched":      "fine",
+							"olm.copiedFrom": "foo",
+						},
+					},
+				}),
+				ktesting.NewUpdateSubresourceAction(gvr, "status", "bar", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "name",
+						Namespace: "bar",
+						Labels: map[string]string{
+							"untouched":      "fine",
 							"olm.copiedFrom": "foo",
 						},
 					},
@@ -190,10 +245,11 @@ func TestCopyToNamespace(t *testing.T) {
 			if tc.ExistingCopy != nil {
 				client = fake.NewSimpleClientset(tc.ExistingCopy)
 				v1alpha1lister.ClusterServiceVersionListerReturns(FakeClusterServiceVersionLister{tc.ExistingCopy})
+			} else {
+				v1alpha1lister.ClusterServiceVersionListerReturns(FakeClusterServiceVersionLister(nil))
 			}
 
-			logger := logrus.New()
-			logger.SetOutput(ioutil.Discard)
+			logger, _ := test.NewNullLogger()
 
 			o := &Operator{
 				lister: lister,

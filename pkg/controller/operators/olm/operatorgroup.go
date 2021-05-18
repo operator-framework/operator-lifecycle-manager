@@ -704,12 +704,11 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 		return nil, fmt.Errorf("bug: can not copy to active namespace %v", csv.GetNamespace())
 	}
 
-	logger := a.logger.WithField("operator-ns", csv.GetNamespace()).WithField("target-ns", namespace)
+	logger := a.logger.WithField("operator-ns", csv.GetNamespace()).WithField("target-ns", namespace).WithField("csv", csv.GetName())
 	newCSV := csv.DeepCopy()
 	delete(newCSV.Annotations, v1.OperatorGroupTargetsAnnotationKey)
 
 	fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(newCSV.GetName())
-	logger = logger.WithField("csv", csv.GetName())
 	if fetchedCSV != nil {
 		logger.Debug("checking annotations")
 
@@ -755,11 +754,17 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 		newCSV.SetNamespace(namespace)
 		newCSV.SetResourceVersion("")
 		newCSV.SetLabels(utillabels.AddLabel(newCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
+		// remove Operator object component labels before copying so that copied CSVs do not show up in the component list
+		for k := range newCSV.GetLabels() {
+			if strings.HasPrefix(k, decorators.ComponentLabelKeyPrefix) {
+				delete(newCSV.Labels, k)
+			}
+		}
 
 		logger.Debug("copying CSV to target")
 		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), newCSV, metav1.CreateOptions{})
 		if err != nil {
-			a.logger.Errorf("Create for new CSV failed: %v", err)
+			logger.Errorf("Create for new CSV failed: %v", err)
 			return nil, err
 		}
 		createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
