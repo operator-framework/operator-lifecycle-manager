@@ -207,11 +207,11 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 		case nall == 0:
 			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found from catalog %s in namespace %s referenced by subscription %s", sub.Spec.CatalogSource, sub.Spec.CatalogSourceNamespace, sub.GetName()))
 		case npkg == 0:
-			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found in package %s in the catalog referenced by subscription %s", sub.Spec.Package, sub.GetName()))
+			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found in package %s in the catalog %s referenced by subscription %s", sub.Spec.Package, sub.Spec.CatalogSource, sub.GetName()))
 		case nch == 0:
-			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found in channel %s of package %s in the catalog referenced by subscription %s", sub.Spec.Channel, sub.Spec.Package, sub.GetName()))
+			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found in channel %s of package %s in the catalog %s referenced by subscription %s", sub.Spec.Channel, sub.Spec.Package, sub.Spec.CatalogSource, sub.GetName()))
 		case ncsv == 0:
-			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found with name %s in channel %s of package %s in the catalog referenced by subscription %s", sub.Spec.StartingCSV, sub.Spec.Channel, sub.Spec.Package, sub.GetName()))
+			si = NewInvalidSubscriptionInstallable(sub.GetName(), fmt.Sprintf("no operators found with name %s in channel %s of package %s in the catalog %s referenced by subscription %s", sub.Spec.StartingCSV, sub.Spec.Channel, sub.Spec.Package, sub.Spec.CatalogSource, sub.GetName()))
 		}
 
 		if si != nil {

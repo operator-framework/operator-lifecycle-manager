@@ -126,7 +126,7 @@ func TestResolver(t *testing.T) {
 					},
 					{
 						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found in package a in the catalog referenced by subscription a-alpha"),
+						Constraint:  PrettyConstraint(solver.Dependency(), fmt.Sprintf("no operators found in package a in the catalog %s referenced by subscription a-alpha", catalog.Name)),
 					},
 				},
 			},
@@ -149,7 +149,7 @@ func TestResolver(t *testing.T) {
 					},
 					{
 						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found in channel alpha of package a in the catalog referenced by subscription a-alpha"),
+						Constraint:  PrettyConstraint(solver.Dependency(), fmt.Sprintf("no operators found in channel alpha of package a in the catalog %s referenced by subscription a-alpha", catalog.Name)),
 					},
 				},
 			},
@@ -172,7 +172,7 @@ func TestResolver(t *testing.T) {
 					},
 					{
 						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found with name notfound in channel alpha of package a in the catalog referenced by subscription a-alpha"),
+						Constraint:  PrettyConstraint(solver.Dependency(), fmt.Sprintf("no operators found with name notfound in channel alpha of package a in the catalog %s referenced by subscription a-alpha", catalog.Name)),
 					},
 				},
 			},
