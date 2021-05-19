@@ -4,13 +4,14 @@ package reconciler
 import (
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type nowFunc func() metav1.Time
@@ -102,6 +103,8 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 		pullPolicy = v1.PullAlways
 	}
 
+	readOnlyRootFilesystem := false
+
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: source.GetName() + "-",
@@ -142,6 +145,9 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 							v1.ResourceCPU:    resource.MustParse("10m"),
 							v1.ResourceMemory: resource.MustParse("50Mi"),
 						},
+					},
+					SecurityContext: &v1.SecurityContext{
+						ReadOnlyRootFilesystem: &readOnlyRootFilesystem,
 					},
 					ImagePullPolicy:          pullPolicy,
 					TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,

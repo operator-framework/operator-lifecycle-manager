@@ -1,11 +1,13 @@
 package reconciler
 
 import (
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"testing"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 func TestPodNodeSelector(t *testing.T) {
@@ -73,4 +75,22 @@ func TestPullPolicy(t *testing.T) {
 			t.Fatalf("expected pull policy %s for image  %s", tt.policy, tt.image)
 		}
 	}
+}
+
+func TestPodContainerSecurityContext(t *testing.T) {
+	expectedReadOnlyRootFilesystem := false
+	expectedContainerSecCtx := &corev1.SecurityContext{
+		ReadOnlyRootFilesystem: &expectedReadOnlyRootFilesystem,
+	}
+
+	catsrc := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "testns",
+		},
+	}
+
+	gotPod := Pod(catsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0))
+	gotContainerSecCtx := gotPod.Spec.Containers[0].SecurityContext
+	require.Equal(t, expectedContainerSecCtx, gotContainerSecCtx)
 }
