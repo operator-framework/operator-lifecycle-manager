@@ -33,7 +33,7 @@ func validGrpcCatalogSource(image, address string) *v1alpha1.CatalogSource {
 	}
 }
 
-func grpcCatalogSourceWithSecret(secretName string) *v1alpha1.CatalogSource {
+func grpcCatalogSourceWithSecret(secretNames []string) *v1alpha1.CatalogSource {
 	return &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "private-catalog",
@@ -45,7 +45,7 @@ func grpcCatalogSourceWithSecret(secretName string) *v1alpha1.CatalogSource {
 			Image:      "private-image",
 			Address:    "",
 			SourceType: v1alpha1.SourceTypeGrpc,
-			Secrets:    []string{secretName},
+			Secrets:    secretNames,
 		},
 	}
 }
@@ -60,6 +60,10 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 	now := func() metav1.Time { return metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC) }
 	blockOwnerDeletion := true
 	isController := true
+
+	// We expect the empty string secret name should not be set
+	// on the service account
+	testSecrets := []string{"test-secret", ""}
 
 	type cluster struct {
 		k8sObjs []runtime.Object
@@ -225,7 +229,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 						},
 					},
 				},
-				catsrc: grpcCatalogSourceWithSecret("test-secret"),
+				catsrc: grpcCatalogSourceWithSecret(testSecrets),
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{

@@ -98,6 +98,9 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 	blockOwnerDeletion := true
 	isController := true
 	for _, secretName := range s.CatalogSource.Spec.Secrets {
+		if secretName == "" {
+			continue
+		}
 		secrets = append(secrets, corev1.LocalObjectReference{Name: secretName})
 	}
 	return &corev1.ServiceAccount{
