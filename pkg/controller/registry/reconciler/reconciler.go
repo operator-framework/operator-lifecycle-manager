@@ -102,6 +102,8 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 		pullPolicy = v1.PullAlways
 	}
 
+	podUser := int64(1001)
+
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: source.GetName() + "-",
@@ -151,6 +153,9 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 				"kubernetes.io/os": "linux",
 			},
 			ServiceAccountName: saName,
+			SecurityContext: &v1.PodSecurityContext{
+				RunAsUser: &podUser,
+			},
 		},
 	}
 	return pod

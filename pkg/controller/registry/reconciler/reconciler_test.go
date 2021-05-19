@@ -2,9 +2,11 @@ package reconciler
 
 import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"fmt"
 	"testing"
 )
 
@@ -73,4 +75,19 @@ func TestPullPolicy(t *testing.T) {
 			t.Fatalf("expected pull policy %s for image  %s", tt.policy, tt.image)
 		}
 	}
+}
+
+func TestPodRunAsUser(t *testing.T) {
+	source := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test-ns",
+		},
+	}
+
+	p := Pod(source, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0))
+	user := p.Spec.SecurityContext.RunAsUser
+
+	require.NotNil(t, user, "expected RunAsUser value for pod expected to not be nil")
+	require.EqualValues(t, int64(1001), *user, fmt.Sprintf("expected RunAsUser value for pod expected to be %v, not %v", int64(1001), *user))
 }
