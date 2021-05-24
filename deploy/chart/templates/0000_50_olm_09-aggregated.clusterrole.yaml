@@ -11,7 +11,7 @@ rules:
   resources: ["subscriptions"]
   verbs: ["create", "update", "patch", "delete"]
 - apiGroups: ["operators.coreos.com"]
-  resources: ["clusterserviceversions", "catalogsources", "installplans", "subscriptions"]
+  resources: ["clusterserviceversions", "catalogsources", "installplans", "subscriptions", "operators"]
   verbs: ["delete"]
 ---
 kind: ClusterRole
@@ -25,7 +25,7 @@ metadata:
     rbac.authorization.k8s.io/aggregate-to-view: "true"
 rules:
 - apiGroups: ["operators.coreos.com"]
-  resources: ["clusterserviceversions", "catalogsources", "installplans", "subscriptions", "operatorgroups"]
+  resources: ["clusterserviceversions", "catalogsources", "installplans", "subscriptions", "operatorgroups", "operators"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["packages.operators.coreos.com"]
   resources: ["packagemanifests", "packagemanifests/icon"]
