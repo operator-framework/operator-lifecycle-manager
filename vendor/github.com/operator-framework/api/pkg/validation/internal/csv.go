@@ -46,6 +46,8 @@ func validateCSV(csv *v1alpha1.ClusterServiceVersion) errors.ManifestResult {
 	result.Add(validateInstallModes(csv)...)
 	// check missing optional/mandatory fields.
 	result.Add(checkFields(*csv)...)
+	// validate case sensitive annotation names
+	result.Add(ValidateAnnotationNames(csv.GetAnnotations(), csv.GetName())...)
 	return result
 }
 

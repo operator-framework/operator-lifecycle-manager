@@ -22,6 +22,7 @@ const (
 	ClusterServiceVersionKind           = "ClusterServiceVersion"
 	OperatorGroupNamespaceAnnotationKey = "olm.operatorNamespace"
 	InstallStrategyNameDeployment       = "deployment"
+	SkipRangeAnnotationKey              = "olm.skipRange"
 )
 
 // InstallModeType is a supported type of install mode for CSV installation

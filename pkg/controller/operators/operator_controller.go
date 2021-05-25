@@ -25,6 +25,7 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 )
 
@@ -35,6 +36,7 @@ var (
 		apiregistrationv1.AddToScheme,
 		operatorsv1alpha1.AddToScheme,
 		operatorsv1.AddToScheme,
+		operatorsv2.AddToScheme,
 	)
 
 	// AddToScheme adds all types necessary for the controller to operate.
@@ -79,7 +81,7 @@ func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.InstallPlan{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &operatorsv1.OperatorCondition{}}, enqueueOperator).
+		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, enqueueOperator).
 		// TODO(njhale): Add WebhookConfigurations and ConfigMaps
 		Complete(r)
 }
@@ -209,7 +211,7 @@ func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels
 		&operatorsv1alpha1.SubscriptionList{},
 		&operatorsv1alpha1.InstallPlanList{},
 		&operatorsv1alpha1.ClusterServiceVersionList{},
-		&operatorsv1.OperatorConditionList{},
+		&operatorsv2.OperatorConditionList{},
 	}
 
 	opt := client.MatchingLabelsSelector{Selector: selector}

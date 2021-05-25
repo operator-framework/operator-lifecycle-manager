@@ -14,7 +14,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
@@ -75,7 +75,7 @@ var _ = Describe("The OperatorConditionsGenerator Controller", func() {
 
 		Expect(k8sClient.Create(ctx, csv)).To(Succeed())
 		namespacedName := types.NamespacedName{Name: csv.GetName(), Namespace: csv.GetNamespace()}
-		operatorCondition := &operatorsv1.OperatorCondition{}
+		operatorCondition := &operatorsv2.OperatorCondition{}
 		// Check that an OperatorCondition was created
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, namespacedName, operatorCondition)
@@ -138,7 +138,7 @@ var _ = Describe("The OperatorConditionsGenerator Controller", func() {
 
 		Expect(k8sClient.Create(ctx, csv)).To(Succeed())
 		namespacedName := types.NamespacedName{Name: csv.GetName(), Namespace: csv.GetNamespace()}
-		operatorCondition := &operatorsv1.OperatorCondition{}
+		operatorCondition := &operatorsv2.OperatorCondition{}
 
 		// Wait 10 seconds
 		// Background: This test could pass simply because the controller hasn't reconciled the Copied CSV yet.
@@ -214,7 +214,7 @@ var _ = Describe("The OperatorConditionsGenerator Controller", func() {
 		Expect(k8sClient.Create(ctx, csv)).To(Succeed())
 
 		namespacedName := types.NamespacedName{Name: csv.GetName(), Namespace: csv.GetNamespace()}
-		operatorCondition := &operatorsv1.OperatorCondition{}
+		operatorCondition := &operatorsv2.OperatorCondition{}
 		// Check that an OperatorCondition was created
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, namespacedName, operatorCondition)
