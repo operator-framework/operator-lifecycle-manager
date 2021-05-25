@@ -138,15 +138,9 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondit
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
-				Verbs:         []string{"get"},
-				APIGroups:     []string{"operators.coreos.com"},
-				Resources:     []string{"operatorconditions"},
-				ResourceNames: []string{operatorCondition.GetName()},
-			},
-			{
 				Verbs:         []string{"get", "update", "patch"},
 				APIGroups:     []string{"operators.coreos.com"},
-				Resources:     []string{"operatorconditions/status"},
+				Resources:     []string{"operatorconditions"},
 				ResourceNames: []string{operatorCondition.GetName()},
 			},
 		},
