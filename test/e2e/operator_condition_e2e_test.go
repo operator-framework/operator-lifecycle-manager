@@ -26,7 +26,7 @@ var _ = Describe("Operator Condition", func() {
 		By("This test proves that an operator can upgrade successfully when" +
 			"Upgrade condition type is set in OperatorCondition CR. Plus, an operator" +
 			"chooses not to use OperatorCondition, the upgrade process will proceed as" +
-			" asexpected. The overrides specification in OperatorCondition can be used to" +
+			" as expected. The overrides specification in OperatorCondition can be used to" +
 			" override the status condition. The overrides spec will remain in place until" +
 			"they are unset.")
 		c := newKubeClient()
@@ -99,14 +99,17 @@ var _ = Describe("Operator Condition", func() {
 			Message:            "test",
 			LastTransitionTime: metav1.Now(),
 		}
+
+		var currentGen int64
 		Eventually(func() error {
 			cond, err = crc.OperatorsV1().OperatorConditions(testNamespace).Get(context.TODO(), csvA.GetName(), metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
-
-			meta.SetStatusCondition(&cond.Status.Conditions, upgradeableFalseCondition)
-			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).UpdateStatus(context.TODO(), cond, metav1.UpdateOptions{})
+			currentGen = cond.ObjectMeta.GetGeneration()
+			upgradeableFalseCondition.ObservedGeneration = currentGen
+			meta.SetStatusCondition(&cond.Spec.Conditions, upgradeableFalseCondition)
+			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).Update(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
 
 		}, pollInterval, pollDuration).Should(Succeed())
@@ -142,11 +145,13 @@ var _ = Describe("Operator Condition", func() {
 		}
 		Eventually(func() error {
 			cond, err = crc.OperatorsV1().OperatorConditions(testNamespace).Get(context.TODO(), csvA.GetName(), metav1.GetOptions{})
-			if err != nil {
+			if err != nil || currentGen == cond.ObjectMeta.GetGeneration() {
 				return err
 			}
-			meta.SetStatusCondition(&cond.Status.Conditions, upgradeableTrueCondition)
-			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).UpdateStatus(context.TODO(), cond, metav1.UpdateOptions{})
+			currentGen = cond.ObjectMeta.GetGeneration()
+			upgradeableTrueCondition.ObservedGeneration = cond.ObjectMeta.GetGeneration()
+			meta.SetStatusCondition(&cond.Spec.Conditions, upgradeableTrueCondition)
+			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).Update(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
 
@@ -157,11 +162,13 @@ var _ = Describe("Operator Condition", func() {
 		// Get the OperatorCondition for csvB and report that it is not upgradeable
 		Eventually(func() error {
 			cond, err = crc.OperatorsV1().OperatorConditions(testNamespace).Get(context.TODO(), csvB.GetName(), metav1.GetOptions{})
-			if err != nil {
+			if err != nil || currentGen == cond.ObjectMeta.GetGeneration() {
 				return err
 			}
-			meta.SetStatusCondition(&cond.Status.Conditions, upgradeableFalseCondition)
-			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).UpdateStatus(context.TODO(), cond, metav1.UpdateOptions{})
+			currentGen = cond.ObjectMeta.GetGeneration()
+			upgradeableFalseCondition.ObservedGeneration = currentGen
+			meta.SetStatusCondition(&cond.Spec.Conditions, upgradeableFalseCondition)
+			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).Update(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
 
@@ -189,7 +196,7 @@ var _ = Describe("Operator Condition", func() {
 		// Get the OperatorCondition for csvB and override the upgradeable false condition
 		Eventually(func() error {
 			cond, err = crc.OperatorsV1().OperatorConditions(testNamespace).Get(context.TODO(), csvB.GetName(), metav1.GetOptions{})
-			if err != nil {
+			if err != nil || currentGen == cond.ObjectMeta.GetGeneration() {
 				return err
 			}
 			// Set Condition overrides to True

@@ -100,15 +100,9 @@ var _ = Describe("OperatorCondition", func() {
 				}))
 				Expect(role.Rules).Should(Equal([]rbacv1.PolicyRule{
 					{
-						Verbs:         []string{"get"},
-						APIGroups:     []string{"operators.coreos.com"},
-						Resources:     []string{"operatorconditions"},
-						ResourceNames: []string{namespacedName.Name},
-					},
-					{
 						Verbs:         []string{"get", "update", "patch"},
 						APIGroups:     []string{"operators.coreos.com"},
-						Resources:     []string{"operatorconditions/status"},
+						Resources:     []string{"operatorconditions"},
 						ResourceNames: []string{namespacedName.Name},
 					},
 				}))
