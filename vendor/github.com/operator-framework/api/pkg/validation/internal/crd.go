@@ -8,7 +8,7 @@ import (
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/install"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,8 +37,7 @@ func validateCRDs(objs ...interface{}) (results []errors.ManifestResult) {
 
 func validateV1Beta1CRD(crd *v1beta1.CustomResourceDefinition) (result errors.ManifestResult) {
 	internalCRD := &apiextensions.CustomResourceDefinition{}
-	v1beta1.SetDefaults_CustomResourceDefinition(crd)
-	v1beta1.SetDefaults_CustomResourceDefinitionSpec(&crd.Spec)
+	v1beta1.SetObjectDefaults_CustomResourceDefinition(crd)
 	err := scheme.Converter().Convert(crd, internalCRD, nil)
 	if err != nil {
 		result.Add(errors.ErrInvalidParse("error converting crd", err))
@@ -52,8 +51,7 @@ func validateV1Beta1CRD(crd *v1beta1.CustomResourceDefinition) (result errors.Ma
 
 func validateV1CRD(crd *v1.CustomResourceDefinition) (result errors.ManifestResult) {
 	internalCRD := &apiextensions.CustomResourceDefinition{}
-	v1.SetDefaults_CustomResourceDefinition(crd)
-	v1.SetDefaults_CustomResourceDefinitionSpec(&crd.Spec)
+	v1.SetObjectDefaults_CustomResourceDefinition(crd)
 	err := scheme.Converter().Convert(crd, internalCRD, nil)
 	if err != nil {
 		result.Add(errors.ErrInvalidParse("error converting crd", err))

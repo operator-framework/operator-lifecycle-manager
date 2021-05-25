@@ -26,6 +26,7 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -77,7 +78,7 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueProviders).
 		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &operatorsv1.OperatorCondition{}}, enqueueCSV).
+		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, enqueueCSV).
 		Complete(reconcile.Func(r.ReconcileClusterServiceVersion))
 	if err != nil {
 		return err
@@ -336,7 +337,7 @@ func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component runtim
 		}
 		operators = append(operators, *operator)
 	}
-	errs := make([]error,0)
+	errs := make([]error, 0)
 	for _, operator := range operators {
 		if err := r.disown(ctx, &operator, component); err != nil {
 			errs = append(errs, err)
@@ -365,7 +366,7 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 		&operatorsv1alpha1.SubscriptionList{},
 		&operatorsv1alpha1.InstallPlanList{},
 		&operatorsv1alpha1.ClusterServiceVersionList{},
-		&operatorsv1.OperatorConditionList{},
+		&operatorsv2.OperatorConditionList{},
 	}
 
 	// Only resources that aren't already labelled are adoption candidates

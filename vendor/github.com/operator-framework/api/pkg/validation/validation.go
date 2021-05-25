@@ -38,6 +38,10 @@ var ObjectValidator = internal.ObjectValidator
 // OperatorGroupValidator implements Validator to validate OperatorGroup manifests
 var OperatorGroupValidator = internal.OperatorGroupValidator
 
+// CommunityOperatorValidator implements Validator to validate bundle objects
+// for the Community Operator requirements.
+var CommunityOperatorValidator = internal.CommunityOperatorValidator
+
 // AllValidators implements Validator to validate all Operator manifest types.
 var AllValidators = interfaces.Validators{
 	PackageManifestValidator,
@@ -47,6 +51,7 @@ var AllValidators = interfaces.Validators{
 	OperatorHubValidator,
 	ObjectValidator,
 	OperatorGroupValidator,
+	CommunityOperatorValidator,
 }
 
 var DefaultBundleValidators = interfaces.Validators{

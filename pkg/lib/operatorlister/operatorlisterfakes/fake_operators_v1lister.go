@@ -9,16 +9,6 @@ import (
 )
 
 type FakeOperatorsV1Lister struct {
-	OperatorConditionListerStub        func() v1.OperatorConditionLister
-	operatorConditionListerMutex       sync.RWMutex
-	operatorConditionListerArgsForCall []struct {
-	}
-	operatorConditionListerReturns struct {
-		result1 v1.OperatorConditionLister
-	}
-	operatorConditionListerReturnsOnCall map[int]struct {
-		result1 v1.OperatorConditionLister
-	}
 	OperatorGroupListerStub        func() v1.OperatorGroupLister
 	operatorGroupListerMutex       sync.RWMutex
 	operatorGroupListerArgsForCall []struct {
@@ -29,12 +19,6 @@ type FakeOperatorsV1Lister struct {
 	operatorGroupListerReturnsOnCall map[int]struct {
 		result1 v1.OperatorGroupLister
 	}
-	RegisterOperatorConditionListerStub        func(string, v1.OperatorConditionLister)
-	registerOperatorConditionListerMutex       sync.RWMutex
-	registerOperatorConditionListerArgsForCall []struct {
-		arg1 string
-		arg2 v1.OperatorConditionLister
-	}
 	RegisterOperatorGroupListerStub        func(string, v1.OperatorGroupLister)
 	registerOperatorGroupListerMutex       sync.RWMutex
 	registerOperatorGroupListerArgsForCall []struct {
@@ -43,58 +27,6 @@ type FakeOperatorsV1Lister struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
-}
-
-func (fake *FakeOperatorsV1Lister) OperatorConditionLister() v1.OperatorConditionLister {
-	fake.operatorConditionListerMutex.Lock()
-	ret, specificReturn := fake.operatorConditionListerReturnsOnCall[len(fake.operatorConditionListerArgsForCall)]
-	fake.operatorConditionListerArgsForCall = append(fake.operatorConditionListerArgsForCall, struct {
-	}{})
-	fake.recordInvocation("OperatorConditionLister", []interface{}{})
-	fake.operatorConditionListerMutex.Unlock()
-	if fake.OperatorConditionListerStub != nil {
-		return fake.OperatorConditionListerStub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	fakeReturns := fake.operatorConditionListerReturns
-	return fakeReturns.result1
-}
-
-func (fake *FakeOperatorsV1Lister) OperatorConditionListerCallCount() int {
-	fake.operatorConditionListerMutex.RLock()
-	defer fake.operatorConditionListerMutex.RUnlock()
-	return len(fake.operatorConditionListerArgsForCall)
-}
-
-func (fake *FakeOperatorsV1Lister) OperatorConditionListerCalls(stub func() v1.OperatorConditionLister) {
-	fake.operatorConditionListerMutex.Lock()
-	defer fake.operatorConditionListerMutex.Unlock()
-	fake.OperatorConditionListerStub = stub
-}
-
-func (fake *FakeOperatorsV1Lister) OperatorConditionListerReturns(result1 v1.OperatorConditionLister) {
-	fake.operatorConditionListerMutex.Lock()
-	defer fake.operatorConditionListerMutex.Unlock()
-	fake.OperatorConditionListerStub = nil
-	fake.operatorConditionListerReturns = struct {
-		result1 v1.OperatorConditionLister
-	}{result1}
-}
-
-func (fake *FakeOperatorsV1Lister) OperatorConditionListerReturnsOnCall(i int, result1 v1.OperatorConditionLister) {
-	fake.operatorConditionListerMutex.Lock()
-	defer fake.operatorConditionListerMutex.Unlock()
-	fake.OperatorConditionListerStub = nil
-	if fake.operatorConditionListerReturnsOnCall == nil {
-		fake.operatorConditionListerReturnsOnCall = make(map[int]struct {
-			result1 v1.OperatorConditionLister
-		})
-	}
-	fake.operatorConditionListerReturnsOnCall[i] = struct {
-		result1 v1.OperatorConditionLister
-	}{result1}
 }
 
 func (fake *FakeOperatorsV1Lister) OperatorGroupLister() v1.OperatorGroupLister {
@@ -149,38 +81,6 @@ func (fake *FakeOperatorsV1Lister) OperatorGroupListerReturnsOnCall(i int, resul
 	}{result1}
 }
 
-func (fake *FakeOperatorsV1Lister) RegisterOperatorConditionLister(arg1 string, arg2 v1.OperatorConditionLister) {
-	fake.registerOperatorConditionListerMutex.Lock()
-	fake.registerOperatorConditionListerArgsForCall = append(fake.registerOperatorConditionListerArgsForCall, struct {
-		arg1 string
-		arg2 v1.OperatorConditionLister
-	}{arg1, arg2})
-	fake.recordInvocation("RegisterOperatorConditionLister", []interface{}{arg1, arg2})
-	fake.registerOperatorConditionListerMutex.Unlock()
-	if fake.RegisterOperatorConditionListerStub != nil {
-		fake.RegisterOperatorConditionListerStub(arg1, arg2)
-	}
-}
-
-func (fake *FakeOperatorsV1Lister) RegisterOperatorConditionListerCallCount() int {
-	fake.registerOperatorConditionListerMutex.RLock()
-	defer fake.registerOperatorConditionListerMutex.RUnlock()
-	return len(fake.registerOperatorConditionListerArgsForCall)
-}
-
-func (fake *FakeOperatorsV1Lister) RegisterOperatorConditionListerCalls(stub func(string, v1.OperatorConditionLister)) {
-	fake.registerOperatorConditionListerMutex.Lock()
-	defer fake.registerOperatorConditionListerMutex.Unlock()
-	fake.RegisterOperatorConditionListerStub = stub
-}
-
-func (fake *FakeOperatorsV1Lister) RegisterOperatorConditionListerArgsForCall(i int) (string, v1.OperatorConditionLister) {
-	fake.registerOperatorConditionListerMutex.RLock()
-	defer fake.registerOperatorConditionListerMutex.RUnlock()
-	argsForCall := fake.registerOperatorConditionListerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
 func (fake *FakeOperatorsV1Lister) RegisterOperatorGroupLister(arg1 string, arg2 v1.OperatorGroupLister) {
 	fake.registerOperatorGroupListerMutex.Lock()
 	fake.registerOperatorGroupListerArgsForCall = append(fake.registerOperatorGroupListerArgsForCall, struct {
@@ -216,12 +116,8 @@ func (fake *FakeOperatorsV1Lister) RegisterOperatorGroupListerArgsForCall(i int)
 func (fake *FakeOperatorsV1Lister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.operatorConditionListerMutex.RLock()
-	defer fake.operatorConditionListerMutex.RUnlock()
 	fake.operatorGroupListerMutex.RLock()
 	defer fake.operatorGroupListerMutex.RUnlock()
-	fake.registerOperatorConditionListerMutex.RLock()
-	defer fake.registerOperatorConditionListerMutex.RUnlock()
 	fake.registerOperatorGroupListerMutex.RLock()
 	defer fake.registerOperatorGroupListerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

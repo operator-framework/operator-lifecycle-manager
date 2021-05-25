@@ -6,7 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 
@@ -47,7 +47,7 @@ var _ = Describe("OperatorCondition", func() {
 	Context("The OperatorCondition Reconciler", func() {
 		var (
 			ctx               context.Context
-			operatorCondition *operatorsv1.OperatorCondition
+			operatorCondition *operatorsv2.OperatorCondition
 			namespace         *corev1.Namespace
 			namespacedName    types.NamespacedName
 		)
@@ -65,12 +65,12 @@ var _ = Describe("OperatorCondition", func() {
 
 		When("an operatorCondition is created that specifies an array of ServiceAccounts", func() {
 			BeforeEach(func() {
-				operatorCondition = &operatorsv1.OperatorCondition{
+				operatorCondition = &operatorsv2.OperatorCondition{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      namespacedName.Name,
 						Namespace: namespacedName.Namespace,
 					},
-					Spec: operatorsv1.OperatorConditionSpec{
+					Spec: operatorsv2.OperatorConditionSpec{
 						ServiceAccounts: []string{"serviceaccount"},
 						Deployments:     []string{},
 					},
@@ -91,7 +91,7 @@ var _ = Describe("OperatorCondition", func() {
 				trueBool := true
 
 				Expect(role.OwnerReferences).Should(ContainElement(metav1.OwnerReference{
-					APIVersion:         "operators.coreos.com/v1",
+					APIVersion:         "operators.coreos.com/v2",
 					Kind:               "OperatorCondition",
 					Name:               "test",
 					UID:                operatorCondition.UID,
@@ -123,7 +123,7 @@ var _ = Describe("OperatorCondition", func() {
 				}, timeout, interval).Should(BeNil())
 				Expect(len(roleBinding.OwnerReferences)).To(Equal(1))
 				Expect(roleBinding.OwnerReferences).Should(ContainElement(metav1.OwnerReference{
-					APIVersion:         "operators.coreos.com/v1",
+					APIVersion:         "operators.coreos.com/v2",
 					Kind:               "OperatorCondition",
 					Name:               "test",
 					UID:                operatorCondition.UID,
@@ -232,12 +232,12 @@ var _ = Describe("OperatorCondition", func() {
 
 			Context("and an OperatorCondition with a different name than the CSV includes that deployment in its spec.Deployments array", func() {
 				BeforeEach(func() {
-					operatorCondition = &operatorsv1.OperatorCondition{
+					operatorCondition = &operatorsv2.OperatorCondition{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      namespacedName.Name + "different",
 							Namespace: namespacedName.Namespace,
 						},
-						Spec: operatorsv1.OperatorConditionSpec{
+						Spec: operatorsv2.OperatorConditionSpec{
 							ServiceAccounts: []string{},
 							Deployments:     []string{"deployment"},
 						},
@@ -267,12 +267,12 @@ var _ = Describe("OperatorCondition", func() {
 
 			Context("and an OperatorCondition with the same name as the CSV includes that deployment in its spec.Deployments array", func() {
 				BeforeEach(func() {
-					operatorCondition = &operatorsv1.OperatorCondition{
+					operatorCondition = &operatorsv2.OperatorCondition{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      namespacedName.Name,
 							Namespace: namespacedName.Namespace,
 						},
-						Spec: operatorsv1.OperatorConditionSpec{
+						Spec: operatorsv2.OperatorConditionSpec{
 							ServiceAccounts: []string{},
 							Deployments:     []string{"deployment"},
 						},

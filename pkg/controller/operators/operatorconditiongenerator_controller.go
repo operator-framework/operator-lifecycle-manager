@@ -17,8 +17,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -66,7 +66,7 @@ func (r *OperatorConditionGeneratorReconciler) SetupWithManager(mgr ctrl.Manager
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.ClusterServiceVersion{}, builder.WithPredicates(p)).
-		Watches(&source.Kind{Type: &operatorsv1.OperatorCondition{}}, handler).
+		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, handler).
 		Complete(r)
 }
 
@@ -98,13 +98,13 @@ func (r *OperatorConditionGeneratorReconciler) Reconcile(ctx context.Context, re
 		return ctrl.Result{}, err
 	}
 
-	operatorCondition := &operatorsv1.OperatorCondition{
+	operatorCondition := &operatorsv2.OperatorCondition{
 		ObjectMeta: metav1.ObjectMeta{
 			// For now, only generate an OperatorCondition with the same name as the csv.
 			Name:      in.GetName(),
 			Namespace: in.GetNamespace(),
 		},
-		Spec: operatorsv1.OperatorConditionSpec{
+		Spec: operatorsv2.OperatorConditionSpec{
 			ServiceAccounts: getServiceAccountNames(*in),
 			Deployments:     getDeploymentNames(*in),
 		},
@@ -152,8 +152,8 @@ func getDeploymentNames(csv operatorsv1alpha1.ClusterServiceVersion) []string {
 	return result
 }
 
-func (r *OperatorConditionGeneratorReconciler) ensureOperatorCondition(operatorCondition operatorsv1.OperatorCondition) error {
-	existingOperatorCondition := &operatorsv1.OperatorCondition{}
+func (r *OperatorConditionGeneratorReconciler) ensureOperatorCondition(operatorCondition operatorsv2.OperatorCondition) error {
+	existingOperatorCondition := &operatorsv2.OperatorCondition{}
 	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: operatorCondition.GetName(), Namespace: operatorCondition.GetNamespace()}, existingOperatorCondition)
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
