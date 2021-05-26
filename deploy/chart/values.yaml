@@ -38,6 +38,8 @@ catalog:
 
 package:
   replicaCount: 2
+  maxUnavailable: 1
+  maxSurge: 1
   image:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
