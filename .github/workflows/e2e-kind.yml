@@ -1,4 +1,4 @@
-name: e2e
+name: ci
 on:
   pull_request:
     paths:
@@ -8,7 +8,7 @@ on:
   schedule:
   - cron: '0 0 * * *' # daily to pick up releases
 jobs:
-  run-local-kind:
+  e2e-kind:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
