@@ -104,9 +104,9 @@ func (r *csvStatusReporter) GetNewStatus(existing *configv1.ClusterOperatorStatu
 
 	switch phase {
 	case v1alpha1.CSVPhaseSucceeded:
-		builder.WithAvailable(configv1.ConditionTrue, fmt.Sprintf("ClusterServiceVersion %v/%v is in phase %v", csv.Namespace, csv.Name, csv.Status.Phase), reasonCSVSucceeded)
-	default:
-		builder.WithAvailable(configv1.ConditionFalse, fmt.Sprintf("ClusterServiceVersion %v/%v is in phase %v with reason: %v, message: %v", csv.Namespace, csv.Name, csv.Status.Phase, csv.Status.Reason, csv.Status.Message), reasonCSVNotSucceeded)
+		builder.WithAvailable(configv1.ConditionTrue, fmt.Sprintf("ClusterServiceVersion %v/%v observed in phase %v", csv.Namespace, csv.Name, csv.Status.Phase), reasonCSVSucceeded)
+	case v1alpha1.CSVPhaseFailed:
+		builder.WithAvailable(configv1.ConditionFalse, fmt.Sprintf("ClusterServiceVersion %v/%v observed in phase %v with reason: %v, message: %v", csv.Namespace, csv.Name, csv.Status.Phase, csv.Status.Reason, csv.Status.Message), reasonCSVNotSucceeded)
 	}
 
 	switch phase {
