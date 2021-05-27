@@ -11,5 +11,5 @@ spec:
   publisher: OperatorHub.io
   updateStrategy:
     registryPoll:
-      interval: 15m
+      interval: 60m
 {{- end }}
