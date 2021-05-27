@@ -43,7 +43,9 @@ func TestGetNewStatus(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.ClusterServiceVersionStatus{
-						Phase: v1alpha1.CSVPhasePending,
+						Phase:   v1alpha1.CSVPhasePending,
+						Reason:  v1alpha1.CSVReasonWaiting,
+						Message: "Progressing towards 1.0.0",
 					},
 				},
 			},
@@ -64,6 +66,8 @@ func TestGetNewStatus(t *testing.T) {
 					{
 						Type:               configv1.OperatorAvailable,
 						Status:             configv1.ConditionFalse,
+						Message:            "ClusterServiceVersion foo-namespace/foo is in phase Pending with reason: InstallWaiting, message: Progressing towards 1.0.0",
+						Reason:             "ClusterServiceVersionNotSucceeded",
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
 					{
@@ -131,6 +135,8 @@ func TestGetNewStatus(t *testing.T) {
 					{
 						Type:               configv1.OperatorAvailable,
 						Status:             configv1.ConditionTrue,
+						Message:            "ClusterServiceVersion foo-namespace/foo is in phase Succeeded",
+						Reason:             "ClusterServiceVersionSucceeded",
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
 					{
