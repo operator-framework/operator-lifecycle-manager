@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
-	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apiserver/pkg/storage/names"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
@@ -1291,7 +1290,7 @@ func TestValidateExistingCRs(t *testing.T) {
 	unstructuredForFile := func(file string) *unstructured.Unstructured {
 		data, err := ioutil.ReadFile(file)
 		require.NoError(t, err)
-		dec := k8syaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
+		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
 		k8sFile := &unstructured.Unstructured{}
 		require.NoError(t, dec.Decode(k8sFile))
 		return k8sFile
@@ -1300,7 +1299,7 @@ func TestValidateExistingCRs(t *testing.T) {
 	unversionedCRDForV1beta1File := func(file string) *apiextensions.CustomResourceDefinition {
 		data, err := ioutil.ReadFile(file)
 		require.NoError(t, err)
-		dec := k8syaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
+		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
 		k8sFile := &apiextensionsv1beta1.CustomResourceDefinition{}
 		require.NoError(t, dec.Decode(k8sFile))
 		convertedCRD := &apiextensions.CustomResourceDefinition{}
