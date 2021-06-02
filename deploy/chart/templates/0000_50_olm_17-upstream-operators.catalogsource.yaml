@@ -9,4 +9,7 @@ spec:
   image: quay.io/operatorhubio/catalog:latest
   displayName: Community Operators
   publisher: OperatorHub.io
+  updateStrategy:
+    registryPoll:
+      interval: 60m
 {{- end }}
