@@ -307,7 +307,7 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 		if !overwrite && ServiceHashMatch(svc, service) {
 			return nil
 		}
-		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil {
+		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serror.IsNotFound(err) {
 			return err
 		}
 	}
