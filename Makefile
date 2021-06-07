@@ -204,9 +204,15 @@ gen-all: codegen mockgen manifests
 diff:
 	git diff --exit-code
 
-verify-codegen: codegen diff
-verify-mockgen: mockgen diff
-verify-manifests: manifests diff
+verify-codegen: codegen
+	$(MAKE) diff
+
+verify-mockgen: mockgen
+	$(MAKE) diff
+
+verify-manifests: manifests
+	$(MAKE) diff
+
 verify: verify-codegen verify-mockgen verify-manifests
 
 # before running release, bump the version in OLM_VERSION and push to master,
@@ -216,7 +222,8 @@ release: manifests
 	docker pull quay.io/operator-framework/olm:v$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 
-verify-release: release diff
+verify-release: release
+	$(MAKE) diff
 
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/operator-framework/olm:v$(ver))
 package:
