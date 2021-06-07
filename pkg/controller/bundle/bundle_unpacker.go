@@ -525,10 +525,15 @@ func (c *ConfigMapUnpacker) pendingContainerStatusMessages(job *batchv1.Job) (st
 				continue
 			}
 
+			msg := fmt.Sprintf("Unpack pod(%s/%s) container(%s) is pending", pod.Namespace, pod.Name, ic.Name)
+			waiting := ic.State.Waiting
+			if waiting != nil {
+				msg = fmt.Sprintf("Unpack pod(%s/%s) container(%s) is pending. Reason: %s, Message: %s",
+					pod.Namespace, pod.Name, ic.Name, waiting.Reason, waiting.Message)
+			}
+
 			// Aggregate the wait reasons for all pending containers
-			containerStatusMessages = append(containerStatusMessages,
-				fmt.Sprintf("Unpack pod(%s/%s) container(%s) is pending. Reason: %s, Message: %s",
-					pod.Namespace, pod.Name, ic.Name, ic.State.Waiting.Reason, ic.State.Waiting.Message))
+			containerStatusMessages = append(containerStatusMessages, msg)
 		}
 	}
 
