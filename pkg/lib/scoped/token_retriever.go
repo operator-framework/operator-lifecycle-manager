@@ -14,7 +14,7 @@ import (
 // BearerTokenRetriever retrieves bearer token from a service account.
 type BearerTokenRetriever struct {
 	kubeclient operatorclient.ClientInterface
-	logger     *logrus.Logger
+	logger     logrus.FieldLogger
 }
 
 // Retrieve returns the bearer token for API access from a given service account reference.
@@ -49,7 +49,7 @@ func (r *BearerTokenRetriever) Retrieve(reference *corev1.ObjectReference) (toke
 	return
 }
 
-func getAPISecret(logger *logrus.Entry, kubeclient operatorclient.ClientInterface, sa *corev1.ServiceAccount) (APISecret *corev1.Secret, err error) {
+func getAPISecret(logger logrus.FieldLogger, kubeclient operatorclient.ClientInterface, sa *corev1.ServiceAccount) (APISecret *corev1.Secret, err error) {
 	for _, ref := range sa.Secrets {
 		// corev1.ObjectReference only has Name populated.
 		secret, getErr := kubeclient.KubernetesInterface().CoreV1().Secrets(sa.GetNamespace()).Get(context.TODO(), ref.Name, metav1.GetOptions{})

@@ -36,6 +36,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
@@ -82,6 +83,7 @@ type Operator struct {
 	serviceAccountSyncer  *scoped.UserDefinedServiceAccountSyncer
 	clientAttenuator      *scoped.ClientAttenuator
 	serviceAccountQuerier *scoped.UserDefinedServiceAccountQuerier
+	clientFactory         clients.Factory
 }
 
 func NewOperator(ctx context.Context, options ...OperatorOption) (*Operator, error) {
@@ -134,8 +136,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		csvSetGenerator:       csvutility.NewSetGenerator(config.logger, lister),
 		csvReplaceFinder:      csvutility.NewReplaceFinder(config.logger, config.externalClient),
 		serviceAccountSyncer:  scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
-		clientAttenuator:      scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient, config.externalClient, nil),
+		clientAttenuator:      scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
+		clientFactory:         clients.NewFactory(config.restConfig),
 	}
 
 	// Set up syncing for namespace-scoped resources
@@ -1886,11 +1889,12 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	// associated with the namespace then we should use a scoped client that is
 	// bound to the service account.
 	querierFunc := a.serviceAccountQuerier.NamespaceQuerier(csv.GetNamespace())
-	kubeclient, err := a.clientAttenuator.AttenuateOperatorClient(querierFunc)
+	attenuate, err := a.clientAttenuator.AttenuateToServiceAccount(querierFunc)
 	if err != nil {
 		a.logger.Errorf("failed to get a client for operator deployment- %v", err)
 		return nil, nil
 	}
+	kubeclient, err := a.clientFactory.WithConfigTransformer(attenuate).NewOperatorClient()
 
 	strName := strategy.GetStrategyName()
 	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.GetAnnotations(), csv.GetAllAPIServiceDescriptions(), csv.Spec.WebhookDefinitions, previousStrategy)

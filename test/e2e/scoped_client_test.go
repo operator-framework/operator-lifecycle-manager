@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -10,10 +11,9 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -25,9 +25,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 	var (
 		config *rest.Config
 
-		kubeclient    operatorclient.ClientInterface
-		crclient      versioned.Interface
-		dynamicclient dynamic.Interface
+		kubeclient operatorclient.ClientInterface
 
 		logger *logrus.Logger
 	)
@@ -36,8 +34,6 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 		config = ctx.Ctx().RESTConfig()
 
 		kubeclient = newKubeClient()
-		crclient = newCRClient()
-		dynamicclient = ctx.Ctx().DynamicClient()
 
 		logger = logrus.New()
 		logger.SetOutput(GinkgoWriter)
@@ -99,7 +95,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 			return v.Secrets
 		}, BeEmpty()))
 
-		strategy := scoped.NewClientAttenuator(logger, config, kubeclient, crclient, dynamicclient)
+		strategy := scoped.NewClientAttenuator(logger, config, kubeclient)
 		getter := func() (reference *corev1.ObjectReference, err error) {
 			reference = &corev1.ObjectReference{
 				Namespace: namespace,
@@ -114,23 +110,31 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 		}
 
 		By("Get scoped client instance(s)")
-		kubeclientGot, crclientGot, dynamicClientGot, errGot := strategy.AttenuateClient(getter)
-		Expect(errGot).ToNot(HaveOccurred())
+		attenuate, err := strategy.AttenuateToServiceAccount(getter)
+		Expect(err).ToNot(HaveOccurred())
+
+		factory := clients.NewFactory(config).WithConfigTransformer(attenuate)
+		kubeclientGot, err := factory.NewOperatorClient()
+		Expect(err).ToNot(HaveOccurred())
 		Expect(kubeclientGot).ToNot(BeNil())
+		crclientGot, err := factory.NewKubernetesClient()
+		Expect(err).ToNot(HaveOccurred())
 		Expect(crclientGot).ToNot(BeNil())
+		dynamicClientGot, err := factory.NewDynamicClient()
+		Expect(err).ToNot(HaveOccurred())
 		Expect(dynamicClientGot).ToNot(BeNil())
 
-		_, errGot = kubeclientGot.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
-		Expect(errGot).To(HaveOccurred())
-		tc.assertFunc(errGot)
+		_, err = kubeclientGot.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
+		Expect(err).To(HaveOccurred())
+		tc.assertFunc(err)
 
-		_, errGot = crclientGot.OperatorsV1alpha1().CatalogSources(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
-		Expect(errGot).To(HaveOccurred())
-		tc.assertFunc(errGot)
+		_, err = crclientGot.OperatorsV1alpha1().CatalogSources(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
+		Expect(err).To(HaveOccurred())
+		tc.assertFunc(err)
 
 		gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "ConfigMap"}
-		_, errGot = dynamicClientGot.Resource(gvr).Namespace(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
-		Expect(errGot).To(HaveOccurred())
-		tc.assertFunc(errGot)
+		_, err = dynamicClientGot.Resource(gvr).Namespace(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
+		Expect(err).To(HaveOccurred())
+		tc.assertFunc(err)
 	}, tableEntries...)
 })

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -31,6 +33,7 @@ import (
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -58,6 +61,140 @@ var _ = Describe("Install Plan", func() {
 
 	AfterEach(func() {
 		TearDown(testNamespace)
+	})
+
+	When("an InstallPlan step contains a deprecated resource version", func() {
+		var (
+			pdb      policyv1beta1.PodDisruptionBudget
+			manifest string
+			counter  float64
+		)
+
+		BeforeEach(func() {
+			dc, err := discovery.NewDiscoveryClientForConfig(ctx.Ctx().RESTConfig())
+			Expect(err).ToNot(HaveOccurred())
+
+			v, err := dc.ServerVersion()
+			Expect(err).ToNot(HaveOccurred())
+
+			if minor, err := strconv.Atoi(v.Minor); err == nil && minor < 21 {
+				// This is a tactical can-kick with
+				// the expectation that the
+				// event-emitting behavior being
+				// tested in this context will have
+				// moved by the time 1.25 arrives.
+				Skip("hack: test is dependent on 1.21+ behavior")
+			}
+		})
+
+		BeforeEach(func() {
+			counter = 0
+			for _, metric := range getMetricsFromPod(ctx.Ctx().KubeClient(), getPodWithLabel(ctx.Ctx().KubeClient(), "app=catalog-operator"), "8081") {
+				if metric.Family == "installplan_warnings_total" {
+					counter = metric.Value
+				}
+			}
+
+			csv := newCSV("test-csv", testNamespace, "", semver.Version{}, nil, nil, nil)
+			Expect(ctx.Ctx().Client().Create(context.TODO(), &csv)).To(Succeed())
+
+			pdb = policyv1beta1.PodDisruptionBudget{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pdb",
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "PodDisruptionBudget",
+					APIVersion: policyv1beta1.SchemeGroupVersion.String(),
+				},
+				Spec: policyv1beta1.PodDisruptionBudgetSpec{},
+			}
+
+			scheme := runtime.NewScheme()
+			Expect(policyv1beta1.AddToScheme(scheme)).To(Succeed())
+			{
+				var b bytes.Buffer
+				Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(&pdb, &b)).To(Succeed())
+				manifest = b.String()
+			}
+
+			plan := operatorsv1alpha1.InstallPlan{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testNamespace,
+					Name:      "test-plan",
+				},
+				Spec: operatorsv1alpha1.InstallPlanSpec{
+					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
+					Approved:                   true,
+					ClusterServiceVersionNames: []string{},
+				},
+				Status: operatorsv1alpha1.InstallPlanStatus{
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+					CatalogSources: []string{},
+					Plan: []*operatorsv1alpha1.Step{
+						{
+							Resolving: "test-csv",
+							Status:    operatorsv1alpha1.StepStatusUnknown,
+							Resource: operatorsv1alpha1.StepResource{
+								Name:     pdb.GetName(),
+								Version:  pdb.APIVersion,
+								Kind:     pdb.Kind,
+								Manifest: manifest,
+							},
+						},
+					},
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), &plan)).To(Succeed())
+			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
+				return &plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&plan), &plan)
+			}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+
+		})
+
+		It("creates an Event surfacing the deprecation warning", func() {
+			Eventually(func() ([]corev1.Event, error) {
+				var events corev1.EventList
+				if err := ctx.Ctx().Client().List(context.Background(), &events, client.InNamespace(testNamespace)); err != nil {
+					return nil, err
+				}
+				var result []corev1.Event
+				for _, item := range events.Items {
+					result = append(result, corev1.Event{
+						InvolvedObject: corev1.ObjectReference{
+							APIVersion: item.InvolvedObject.APIVersion,
+							Kind:       item.InvolvedObject.Kind,
+							Namespace:  item.InvolvedObject.Namespace,
+							Name:       item.InvolvedObject.Name,
+							FieldPath:  item.InvolvedObject.FieldPath,
+						},
+						Reason:  item.Reason,
+						Message: item.Message,
+					})
+				}
+				return result, nil
+			}).Should(ContainElement(corev1.Event{
+				InvolvedObject: corev1.ObjectReference{
+					APIVersion: operatorsv1alpha1.InstallPlanAPIVersion,
+					Kind:       operatorsv1alpha1.InstallPlanKind,
+					Namespace:  testNamespace,
+					Name:       "test-plan",
+					FieldPath:  "status.plan[0]",
+				},
+				Reason:  "AppliedWithWarnings",
+				Message: "1 warning(s) generated during installation of operator \"test-csv\" (PodDisruptionBudget \"test-pdb\"): policy/v1beta1 PodDisruptionBudget is deprecated in v1.21+, unavailable in v1.25+; use policy/v1 PodDisruptionBudget",
+			}))
+
+		})
+
+		It("increments a metric counting the warning", func() {
+			Eventually(func() []Metric {
+				return getMetricsFromPod(ctx.Ctx().KubeClient(), getPodWithLabel(ctx.Ctx().KubeClient(), "app=catalog-operator"), "8081")
+			}).Should(ContainElement(LikeMetric(
+				WithFamily("installplan_warnings_total"),
+				WithValueGreaterThan(counter),
+			)))
+		})
 	})
 
 	When("a CustomResourceDefinition step resolved from a bundle is applied", func() {

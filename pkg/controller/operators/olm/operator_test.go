@@ -318,6 +318,11 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 		return nil, fmt.Errorf("failed to wait for caches to sync")
 	}
 
+	op.clientFactory = &stubClientFactory{
+		operatorClient:   config.operatorClient,
+		kubernetesClient: config.externalClient,
+	}
+
 	return op, nil
 }
 
