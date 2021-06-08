@@ -14,6 +14,12 @@ if [[ ${#@} -lt 1 || ${#@} -gt 2 ]]; then
     exit 1
 fi
 
+kubectl get deployment olm-operator -n openshift-operator-lifecycle-manager -o=jsonpath='{.spec}' > /dev/null 2>&1
+if [[ $? -eq 0 ]]; then
+    echo "OLM is already installed in a different configuration. This is common if you are not running a vanilla Kubernetes cluster. Exiting..."
+    exit 1
+fi
+
 release="$1"
 base_url="${2:-${default_base_url}}"
 url="${base_url}/${release}"
