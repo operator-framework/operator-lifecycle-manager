@@ -310,6 +310,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Spec: corev1.PodSpec{
 							ServiceAccountName: "test-sa",
 						},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"foo": "bar",
+							},
+						},
 					},
 				},
 			},
@@ -317,7 +322,9 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				Selector: selector(t, "test=label"),
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
-						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
+						Annotations: map[string]string{
+							"foo":                  "bar",
+							OLMCAHashAnnotationKey: caHash},
 					},
 					Spec: corev1.PodSpec{
 						ServiceAccountName: "test-sa",

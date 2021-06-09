@@ -349,7 +349,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		}
 
 		install.AddDefaultCertVolumeAndVolumeMounts(&depSpec, secret.GetName())
-		depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{install.OLMCAHashAnnotationKey: caHash})
+		install.SetCAAnnotation(&depSpec, caHash)
 		depSpecs[desc.DeploymentName] = depSpec
 	}
 
@@ -376,7 +376,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		}
 		install.AddDefaultCertVolumeAndVolumeMounts(&depSpec, secret.GetName())
 
-		depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{install.OLMCAHashAnnotationKey: caHash})
+		install.SetCAAnnotation(&depSpec, caHash)
 		depSpecs[desc.DeploymentName] = depSpec
 	}
 
