@@ -1,0 +1,22 @@
+# Source: olm/templates/0000_50_olm_13-operatorgroup-default.yaml
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: global-operators
+  namespace: openshift-operators
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+---
+# Source: olm/templates/0000_50_olm_13-operatorgroup-default.yaml
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: olm-operators
+  namespace: openshift-operator-lifecycle-manager
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+spec:
+  targetNamespaces:
+    - openshift-operator-lifecycle-manager
