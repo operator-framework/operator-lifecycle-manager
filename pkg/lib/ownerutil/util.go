@@ -16,6 +16,7 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 )
 
 const (
@@ -394,10 +395,10 @@ func InferGroupVersionKind(obj runtime.Object) error {
 			Version: operatorsv1.GroupVersion.Version,
 			Kind:    "OperatorGroup",
 		})
-	case *operatorsv1.OperatorCondition:
+	case *operatorsv2.OperatorCondition:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   operatorsv1.GroupVersion.Group,
-			Version: operatorsv1.GroupVersion.Version,
+			Group:   operatorsv2.GroupVersion.Group,
+			Version: operatorsv2.GroupVersion.Version,
 			Kind:    "OperatorCondition",
 		})
 	case *apiregistrationv1.APIService:

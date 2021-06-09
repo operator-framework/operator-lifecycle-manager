@@ -23,6 +23,7 @@ import (
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v1"
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v1alpha1"
 	v1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v1alpha2"
+	v2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v2"
 )
 
 // Interface provides access to each of this group's versions.
@@ -33,6 +34,8 @@ type Interface interface {
 	V1alpha2() v1alpha2.Interface
 	// V1 provides access to shared informers for resources in V1.
 	V1() v1.Interface
+	// V2 provides access to shared informers for resources in V2.
+	V2() v2.Interface
 }
 
 type group struct {
@@ -59,4 +62,9 @@ func (g *group) V1alpha2() v1alpha2.Interface {
 // V1 returns a new v1.Interface.
 func (g *group) V1() v1.Interface {
 	return v1.New(g.factory, g.namespace, g.tweakListOptions)
+}
+
+// V2 returns a new v2.Interface.
+func (g *group) V2() v2.Interface {
+	return v2.New(g.factory, g.namespace, g.tweakListOptions)
 }

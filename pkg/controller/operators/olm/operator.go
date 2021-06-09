@@ -224,8 +224,8 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		}
 
 		// Register OperatorCondition QueueInformer
-		opConditionInformer := extInformerFactory.Operators().V1().OperatorConditions()
-		op.lister.OperatorsV1().RegisterOperatorConditionLister(namespace, opConditionInformer.Lister())
+		opConditionInformer := extInformerFactory.Operators().V2().OperatorConditions()
+		op.lister.OperatorsV2().RegisterOperatorConditionLister(namespace, opConditionInformer.Lister())
 		opConditionQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
 			queueinformer.WithLogger(op.logger),

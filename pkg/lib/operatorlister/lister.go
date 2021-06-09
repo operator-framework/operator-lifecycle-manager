@@ -9,6 +9,7 @@ import (
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	v2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v2"
 )
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../fakes/client-go/listers/fake_v1_service_account_lister.go k8s.io/client-go/listers/core/v1.ServiceAccountLister
@@ -37,6 +38,7 @@ type OperatorLister interface {
 
 	OperatorsV1alpha1() OperatorsV1alpha1Lister
 	OperatorsV1() OperatorsV1Lister
+	OperatorsV2() OperatorsV2Lister
 }
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . AppsV1Lister
@@ -105,10 +107,15 @@ type OperatorsV1alpha1Lister interface {
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorsV1Lister
 type OperatorsV1Lister interface {
 	RegisterOperatorGroupLister(namespace string, lister v1.OperatorGroupLister)
-	RegisterOperatorConditionLister(namespace string, lister v1.OperatorConditionLister)
 
 	OperatorGroupLister() v1.OperatorGroupLister
-	OperatorConditionLister() v1.OperatorConditionLister
+}
+
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorsV2Lister
+type OperatorsV2Lister interface {
+	RegisterOperatorConditionLister(namespace string, lister v2.OperatorConditionLister)
+
+	OperatorConditionLister() v2.OperatorConditionLister
 }
 
 type appsV1Lister struct {
@@ -194,13 +201,21 @@ func newOperatorsV1alpha1Lister() *operatorsV1alpha1Lister {
 }
 
 type operatorsV1Lister struct {
-	operatorGroupLister     *UnionOperatorGroupLister
+	operatorGroupLister *UnionOperatorGroupLister
+}
+
+type operatorsV2Lister struct {
 	operatorConditionLister *UnionOperatorConditionLister
 }
 
 func newOperatorsV1Lister() *operatorsV1Lister {
 	return &operatorsV1Lister{
-		operatorGroupLister:     &UnionOperatorGroupLister{},
+		operatorGroupLister: &UnionOperatorGroupLister{},
+	}
+}
+
+func newOperatorsV2Lister() *operatorsV2Lister {
+	return &operatorsV2Lister{
 		operatorConditionLister: &UnionOperatorConditionLister{},
 	}
 }
@@ -216,6 +231,7 @@ type lister struct {
 	apiExtensionsV1Lister   *apiExtensionsV1Lister
 	operatorsV1alpha1Lister *operatorsV1alpha1Lister
 	operatorsV1Lister       *operatorsV1Lister
+	operatorsV2Lister       *operatorsV2Lister
 }
 
 func (l *lister) AppsV1() AppsV1Lister {
@@ -246,6 +262,10 @@ func (l *lister) OperatorsV1() OperatorsV1Lister {
 	return l.operatorsV1Lister
 }
 
+func (l *lister) OperatorsV2() OperatorsV2Lister {
+	return l.operatorsV2Lister
+}
+
 func NewLister() OperatorLister {
 	// TODO: better initialization
 	return &lister{
@@ -256,5 +276,6 @@ func NewLister() OperatorLister {
 		apiExtensionsV1Lister:   newAPIExtensionsV1Lister(),
 		operatorsV1alpha1Lister: newOperatorsV1alpha1Lister(),
 		operatorsV1Lister:       newOperatorsV1Lister(),
+		operatorsV2Lister:       newOperatorsV2Lister(),
 	}
 }

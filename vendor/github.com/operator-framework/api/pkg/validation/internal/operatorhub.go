@@ -18,13 +18,20 @@ import (
 	interfaces "github.com/operator-framework/api/pkg/validation/interfaces"
 )
 
+// k8sVersionKey defines the key which can be used by its consumers
+// to inform what is the K8S version that should be used to do the tests against.
+const k8sVersionKey = "k8s-version"
+
 const minKubeVersionWarnMessage = "csv.Spec.minKubeVersion is not informed. It is recommended you provide this information. " +
 	"Otherwise, it would mean that your operator project can be distributed and installed in any cluster version " +
 	"available, which is not necessarily the case for all projects."
 
-const crdv1beta1DeprecationMsg = "apiextensions.k8s.io/v1beta1, kind=CustomResourceDefinitions was deprecated in " +
-	"Kubernetes v1.16 and will be removed in v1.22 in favor of v1"
-
+// OperatorHubValidator validates the bundle manifests against the required criteria to publish
+// the projects on OperatorHub.io.
+//
+// Note that this validator allows to receive a List of optional values as key=values. Currently, only the
+// `k8s-version` key is allowed. If informed, it will perform the checks against this specific Kubernetes version where the
+// operator bundle is intend to be distribute for.
 var OperatorHubValidator interfaces.Validator = interfaces.ValidatorFunc(validateOperatorHub)
 
 var validCapabilities = map[string]struct{}{
@@ -66,7 +73,7 @@ func validateOperatorHub(objs ...interface{}) (results []errors.ManifestResult) 
 	for _, obj := range objs {
 		switch obj.(type) {
 		case map[string]string:
-			k8sVersion = obj.(map[string]string)["k8s"]
+			k8sVersion = obj.(map[string]string)[k8sVersionKey]
 			if len(k8sVersion) > 0 {
 				break
 			}
@@ -151,8 +158,8 @@ func validateHubChannels(channels []string) error {
 // the CSV to do the checks. So, the criteria is >=minKubeVersion. By last, if the minKubeVersion is not provided
 // then, we should consider the operator bundle is intend to work well in any Kubernetes version.
 // Then, it means that:
-//--optional-values="k8s=value" flag with a value => 1.16 <= 1.22 the validator will return result as warning.
-//--optional-values="k8s=value" flag with a value => 1.22 the validator will return result as error.
+//--optional-values="k8s-version=value" flag with a value => 1.16 <= 1.22 the validator will return result as warning.
+//--optional-values="k8s-version=value" flag with a value => 1.22 the validator will return result as error.
 //minKubeVersion >= 1.22 return the error result.
 //minKubeVersion empty returns a warning since it would mean the same of allow install in any supported version
 func validateHubDeprecatedAPIS(bundle *manifests.Bundle, versionProvided string) (errs, warns []error) {
@@ -197,21 +204,19 @@ func validateHubDeprecatedAPIS(bundle *manifests.Bundle, versionProvided string)
 	// - if minKubeVersion any version defined it means that we are considering install
 	// in any upper version from that where the check is always applied
 	if !isVersionProvided || semVerVersionProvided.GE(semVerk8sVerV1betav1Deprecated) {
-		if len(bundle.V1beta1CRDs) > 0 {
-			var crdApiNames []string
-			for _, obj := range bundle.V1beta1CRDs {
-				crdApiNames = append(crdApiNames, obj.Name)
-			}
-
+		deprecatedAPIs := getRemovedAPIsOn1_22From(bundle)
+		if len(deprecatedAPIs) > 0 {
+			deprecatedAPIsMessage := generateMessageWithDeprecatedAPIs(deprecatedAPIs)
 			// isUnsupported is true only if the key/value OR minKubeVersion were informed and are >= 1.22
 			isUnsupported := semVerVersionProvided.GE(semVerK8sVerV1betav1Unsupported) ||
 				semverMinKube.GE(semVerK8sVerV1betav1Unsupported)
 			// We only raise an error when the version >= 1.22 was informed via
 			// the k8s key/value option or is specifically defined in the CSV
+			msg := fmt.Errorf("this bundle is using APIs which were deprecated and removed in v1.22. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22. Migrate the API(s) for %s", deprecatedAPIsMessage)
 			if isUnsupported {
-				errs = append(errs, fmt.Errorf("%s: %+q should be migrated", crdv1beta1DeprecationMsg, crdApiNames))
+				errs = append(errs, msg)
 			} else {
-				warns = append(warns, fmt.Errorf("%s: %+q should be migrated", crdv1beta1DeprecationMsg, crdApiNames))
+				warns = append(warns, msg)
 			}
 		}
 	}

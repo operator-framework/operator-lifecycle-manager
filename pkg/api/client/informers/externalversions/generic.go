@@ -24,6 +24,7 @@ import (
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1alpha2 "github.com/operator-framework/api/pkg/operators/v1alpha2"
+	v2 "github.com/operator-framework/api/pkg/operators/v2"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -75,6 +76,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		// Group=operators.coreos.com, Version=v1alpha2
 	case v1alpha2.SchemeGroupVersion.WithResource("operatorgroups"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1alpha2().OperatorGroups().Informer()}, nil
+
+		// Group=operators.coreos.com, Version=v2
+	case v2.SchemeGroupVersion.WithResource("operatorconditions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V2().OperatorConditions().Informer()}, nil
 
 	}
 
