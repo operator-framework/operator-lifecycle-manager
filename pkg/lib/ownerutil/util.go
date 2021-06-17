@@ -24,6 +24,7 @@ const (
 	OwnerNamespaceKey  = "olm.owner.namespace"
 	OwnerKind          = "olm.owner.kind"
 	OwnerPackageServer = "packageserver"
+	maxNameLength      = 63
 )
 
 var (
@@ -53,7 +54,7 @@ func IsOwnedByLabel(object metav1.Object, owner Owner) bool {
 		return false
 	}
 
-	if namespace == owner.GetNamespace() && name == owner.GetName() {
+	if namespace == owner.GetNamespace() && name == truncateString(owner.GetName()) {
 		return true
 	}
 
@@ -208,7 +209,7 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 // OwnerLabel returns a label added to generated objects for later querying
 func OwnerLabel(owner Owner, kind string) map[string]string {
 	return map[string]string{
-		OwnerKey:          owner.GetName(),
+		OwnerKey:          truncateString(owner.GetName()),
 		OwnerNamespaceKey: owner.GetNamespace(),
 		OwnerKind:         kind,
 	}
@@ -259,7 +260,7 @@ func AdoptableLabels(labels map[string]string, checkName bool, targets ...Owner)
 		}
 		if labels[OwnerKind] == target.GetObjectKind().GroupVersionKind().Kind &&
 			labels[OwnerNamespaceKey] == target.GetNamespace() &&
-			(!checkName || labels[OwnerKey] == target.GetName()) {
+			(!checkName || labels[OwnerKey] == truncateString(target.GetName())) {
 			return true
 		}
 	}
@@ -269,7 +270,7 @@ func AdoptableLabels(labels map[string]string, checkName bool, targets ...Owner)
 
 // CSVOwnerSelector returns a label selector to find generated objects owned by owner
 func CSVOwnerSelector(owner *operatorsv1alpha1.ClusterServiceVersion) labels.Selector {
-	return labels.SelectorFromSet(OwnerLabel(owner, operatorsv1alpha1.ClusterServiceVersionKind))
+	return labels.SelectorFromValidatedSet(OwnerLabel(owner, operatorsv1alpha1.ClusterServiceVersionKind))
 }
 
 // AddOwner adds an owner to the ownerref list.
@@ -423,4 +424,11 @@ func InferGroupVersionKind(obj runtime.Object) error {
 		return fmt.Errorf("could not infer GVK for object: %#v, %#v", obj, objectKind)
 	}
 	return nil
+}
+
+func truncateString(name string) string {
+	if len(name) > maxNameLength {
+		return name[:maxNameLength]
+	}
+	return name
 }
