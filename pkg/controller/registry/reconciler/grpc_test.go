@@ -208,7 +208,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
 			pod := decorated.Pod()
 			service := decorated.Service()
-			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
+			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromValidatedSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
 			outService, serviceErr := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(context.TODO(), service.GetName(), metav1.GetOptions{})
 

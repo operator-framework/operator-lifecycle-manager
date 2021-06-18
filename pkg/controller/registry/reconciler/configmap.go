@@ -208,7 +208,7 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source configMapCatalog
 
 func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) []*v1.Pod {
 	podName := source.Pod(image).GetName()
-	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromSet(source.Selector()))
+	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Selector()))
 	if err != nil {
 		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
 		return nil

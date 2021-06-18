@@ -272,13 +272,13 @@ var _ = Describe("Catalog", func() {
 
 		// Await 1 CatalogSource registry pod matching the updated labels
 		singlePod := podCount(1)
-		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName, "olm.configMapResourceVersion": updatedConfigMap.GetResourceVersion()})
+		selector := labels.SelectorFromValidatedSet(map[string]string{"olm.catalogSource": mainCatalogName, "olm.configMapResourceVersion": updatedConfigMap.GetResourceVersion()})
 		podList, err := awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), 1, len(podList.Items), "expected pod list not of length 1")
 
 		// Await 1 CatalogSource registry pod matching the updated labels
-		selector = labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName})
+		selector = labels.SelectorFromValidatedSet(map[string]string{"olm.catalogSource": mainCatalogName})
 		podList, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), 1, len(podList.Items), "expected pod list not of length 1")
@@ -538,7 +538,7 @@ var _ = Describe("Catalog", func() {
 		defer cleanupSource()
 
 		// Wait for a new registry pod to be created
-		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": sourceName})
+		selector := labels.SelectorFromValidatedSet(map[string]string{"olm.catalogSource": sourceName})
 		singlePod := podCount(1)
 		registryPods, err := awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
 		require.NoError(GinkgoT(), err, "error awaiting registry pod")
@@ -602,7 +602,7 @@ var _ = Describe("Catalog", func() {
 
 		// Wait for a new registry pod to be created
 		c := newKubeClient()
-		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
+		selector := labels.SelectorFromValidatedSet(map[string]string{"olm.catalogSource": source.GetName()})
 		singlePod := podCount(1)
 		registryPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
 		require.NoError(GinkgoT(), err, "error awaiting registry pod")
@@ -753,7 +753,7 @@ var _ = Describe("Catalog", func() {
 
 		// wait for new catalog source pod to be created
 		// Wait for a new registry pod to be created
-		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
+		selector := labels.SelectorFromValidatedSet(map[string]string{"olm.catalogSource": source.GetName()})
 		singlePod := podCount(1)
 		registryPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
 		require.NoError(GinkgoT(), err, "error awaiting registry pod")
@@ -1020,7 +1020,7 @@ var _ = Describe("Catalog", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait for new catalog source pod to be created and report ready
-		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
+		selector := labels.SelectorFromValidatedSet(map[string]string{"olm.catalogSource": source.GetName()})
 		singlePod := podCount(1)
 		catalogPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
 		Expect(err).ToNot(HaveOccurred())
@@ -1043,7 +1043,7 @@ var _ = Describe("Catalog", func() {
 		}).Should(BeTrue())
 
 		// Wait roughly the polling interval for update pod to show up
-		updateSelector := labels.SelectorFromSet(map[string]string{"catalogsource.operators.coreos.com/update": source.GetName()})
+		updateSelector := labels.SelectorFromValidatedSet(map[string]string{"catalogsource.operators.coreos.com/update": source.GetName()})
 		updatePods, err := awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 5*time.Second, 2*time.Minute, singlePod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(updatePods).ToNot(BeNil())

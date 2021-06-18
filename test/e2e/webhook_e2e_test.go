@@ -900,7 +900,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 })
 
 func getWebhookWithGenerateName(c operatorclient.ClientInterface, generateName string) (*admissionregistrationv1.ValidatingWebhookConfiguration, error) {
-	webhookSelector := labels.SelectorFromSet(map[string]string{install.WebhookDescKey: generateName}).String()
+	webhookSelector := labels.SelectorFromValidatedSet(map[string]string{install.WebhookDescKey: generateName}).String()
 	existingWebhooks, err := c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
 	if err != nil {
 		return nil, err
