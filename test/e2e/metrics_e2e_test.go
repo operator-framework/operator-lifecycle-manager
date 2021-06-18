@@ -80,7 +80,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 			It("generates csv_abnormal metric for OLM pod", func() {
 
-				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).To(And(
+				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8080")).To(And(
 					ContainElement(LikeMetric(
 						WithFamily("csv_abnormal"),
 						WithName(failingCSV.Name),
@@ -108,7 +108,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 				It("deletes its associated CSV metrics", func() {
 					// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
-					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).ToNot(And(
+					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8080")).ToNot(And(
 						ContainElement(LikeMetric(WithFamily("csv_abnormal"), WithName(failingCSV.Name))),
 						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(failingCSV.Name))),
 					))
@@ -138,7 +138,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 				// Verify metrics have been emitted for subscription
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 				}).Should(ContainElement(LikeMetric(
 					WithFamily("subscription_sync_total"),
 					WithName("metric-subscription-for-create"),
@@ -153,7 +153,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				// Verify metrics have been emitted for dependency resolution
 				Eventually(func() bool {
 					return Eventually(func() []Metric {
-						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 					}).Should(ContainElement(LikeMetric(
 						WithFamily("olm_resolution_duration_seconds"),
 						WithLabel("outcome", "failed"),
@@ -168,7 +168,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			BeforeEach(func() {
 				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-update", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-update"))))
 				Eventually(func() error {
 					s, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
@@ -189,7 +189,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 			It("deletes the old Subscription metric and emits the new metric", func() {
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 				}).Should(And(
 					Not(ContainElement(LikeMetric(
 						WithFamily("subscription_sync_total"),
@@ -223,7 +223,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 				It("deletes the old subscription metric and emits the new metric(there is only one metric for the subscription)", func() {
 					Eventually(func() []Metric {
-						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 					}).Should(And(
 						Not(ContainElement(LikeMetric(
 							WithFamily("subscription_sync_total"),
@@ -253,7 +253,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			BeforeEach(func() {
 				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-delete", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-delete"))))
 				if subscriptionCleanup != nil {
 					subscriptionCleanup()
@@ -269,7 +269,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 			It("deletes the Subscription metric", func() {
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 				}).ShouldNot(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithName("metric-subscription-for-delete"))))
 			})
 		})
@@ -312,7 +312,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			})
 			It("emits metrics for the catalogSource", func() {
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 				}).Should(And(
 					ContainElement(LikeMetric(
 						WithFamily("catalog_source_count"),
@@ -332,7 +332,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				})
 				It("deletes the metrics for the CatalogSource", func() {
 					Eventually(func() []Metric {
-						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 					}).Should(And(
 						Not(ContainElement(LikeMetric(
 							WithFamily("catalogsource_ready"),
@@ -356,7 +356,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			})
 			It("emits metrics for the CatlogSource with a Value greater than 0", func() {
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 				}).Should(And(
 					ContainElement(LikeMetric(
 						WithFamily("catalogsource_ready"),
@@ -366,7 +366,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					)),
 				))
 				Consistently(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8080")
 				}, "3m").Should(And(
 					ContainElement(LikeMetric(
 						WithFamily("catalogsource_ready"),

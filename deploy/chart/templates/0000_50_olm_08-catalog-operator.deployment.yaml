@@ -18,8 +18,34 @@ spec:
         app: catalog-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
+      {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
+      volumes: 
+      {{- end }}
+      {{- if .Values.catalog.tlsSecret }}
+      - name: srv-cert
+        secret:
+          secretName: {{ .Values.catalog.tlsSecret }}
+      {{- end }}
+      {{- if .Values.catalog.clientCASecret }}
+      - name: profile-collector-cert
+        secret:
+          secretName: {{ .Values.catalog.clientCASecret }}
+      {{- end }}
       containers:
         - name: catalog-operator
+          {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
+          volumeMounts:
+          {{- end }}
+          {{- if .Values.catalog.tlsSecret }}
+          - name: srv-cert
+            mountPath: "/srv-cert"
+            readOnly: true
+          {{- end }}
+          {{- if .Values.catalog.clientCASecret }}
+          - name: profile-collector-cert
+            mountPath: "/profile-collector-cert"
+            readOnly: true
+          {{- end }}
           command:
           - /bin/catalog
           args:
@@ -37,29 +63,30 @@ spec:
           - -writeStatusName
           - {{ .Values.writeStatusNameCatalog }}
           {{- end }}
-          {{- if .Values.olm.tlsCertPath }}
-          - -tls-cert
-          - {{ .Values.olm.tlsCertPath }}
+          {{- if .Values.catalog.tlsSecret }}
+          - --tls-cert
+          - /srv-cert/tls.crt
+          - --tls-key
+          - /srv-cert/tls.key
           {{- end }}
-          {{- if .Values.olm.tlsKeyPath }}
-          - -tls-key
-          - {{ .Values.olm.tlsKeyPath }}
+          {{- if .Values.catalog.clientCASecret }}
+          - --client-ca
+          - /profile-collector-cert/tls.crt
           {{- end }}
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.catalog.service.internalPort }}
-            - containerPort: 8081
-              name: metrics
-              protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
+              scheme: {{ if and .Values.catalog.tlsKeyPath .Values.catalog.tlsCertPath }}HTTPS{{ else }}HTTP{{end}}
           readinessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
+              scheme: {{ if and .Values.catalog.tlsKeyPath .Values.catalog.tlsCertPath }}HTTPS{{ else }}HTTP{{end}}
           terminationMessagePolicy: FallbackToLogsOnError
           {{- if .Values.catalog.resources }}
           resources:
