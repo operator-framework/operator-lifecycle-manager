@@ -66,7 +66,7 @@ type OperatorFactory interface {
 	// An error is returned if the decorator cannot be instantiated.
 	NewOperator(external *operatorsv1.Operator) (*Operator, error)
 
-	// NewPackageOperator returns an Operator decorator for a package and installs namespace.
+	// NewPackageOperator returns an Operator decorator for a package and install namespace.
 	NewPackageOperator(pkg, namespace string) (*Operator, error)
 }
 

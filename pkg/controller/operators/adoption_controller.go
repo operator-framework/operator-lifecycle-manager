@@ -368,7 +368,13 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 		components []client.Object
 		errs       []error
 	)
-	for _, candidate := range flatten(componentLists) {
+
+	componentCandidates, err := flatten(componentLists)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, candidate := range componentCandidates {
 		m, err := meta.Accessor(candidate)
 		if err != nil {
 			errs = append(errs, err)
@@ -524,12 +530,15 @@ func (r *AdoptionReconciler) mapToProviders(obj client.Object) (requests []recon
 }
 
 // flatten extracts slice of ObjectList to the slice of Object
-func flatten(lists []client.ObjectList) (flattened []client.Object) {
+func flatten(lists []client.ObjectList) (flattened []client.Object, err error) {
 	for _, list := range lists {
-		_ = meta.EachListItem(list, func(obj runtime.Object) error {
+		err = meta.EachListItem(list, func(obj runtime.Object) error {
 			flattened = append(flattened, obj.(client.Object))
 			return nil
 		})
+		if err != nil {
+			return
+		}
 	}
 	return
 }

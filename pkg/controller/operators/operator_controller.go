@@ -190,7 +190,10 @@ func (r *OperatorReconciler) updateComponents(ctx context.Context, operator *dec
 		return err
 	}
 
-	components := flatten(componentLists)
+	components, err := flatten(componentLists)
+	if err != nil {
+		return err
+	}
 
 	return operator.SetComponents(components...)
 }

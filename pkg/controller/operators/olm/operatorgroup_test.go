@@ -229,8 +229,8 @@ func TestCopyToNamespace(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.ClusterServiceVersionStatus{
-						Message:        "The operator is running in foo but is managing this namespace",
-						Reason:         v1alpha1.CSVReasonCopied,
+						Message: "The operator is running in foo but is managing this namespace",
+						Reason:  v1alpha1.CSVReasonCopied,
 					},
 				}),
 			},
