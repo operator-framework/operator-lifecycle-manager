@@ -185,7 +185,7 @@ func (a *Operator) operatorGroupDeleted(obj interface{}) {
 		"namespace":     op.GetNamespace(),
 	})
 
-	clusterRoles, err := a.lister.RbacV1().ClusterRoleLister().List(labels.SelectorFromSet(ownerutil.OwnerLabel(op, "OperatorGroup")))
+	clusterRoles, err := a.lister.RbacV1().ClusterRoleLister().List(labels.SelectorFromValidatedSet(ownerutil.OwnerLabel(op, "OperatorGroup")))
 	if err != nil {
 		logger.WithError(err).Error("failed to list ClusterRoles for garbage collection")
 		return

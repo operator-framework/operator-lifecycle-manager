@@ -459,7 +459,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			decorated := configMapCatalogSourceDecorator{tt.in.catsrc}
 
 			pod := decorated.Pod(registryImageName)
-			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
+			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromValidatedSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
 			require.NoError(t, err)
 			require.Len(t, outPods.Items, 1)

@@ -268,7 +268,7 @@ func AdoptableLabels(labels map[string]string, checkName bool, targets ...Owner)
 
 // CSVOwnerSelector returns a label selector to find generated objects owned by owner
 func CSVOwnerSelector(owner *operatorsv1alpha1.ClusterServiceVersion) labels.Selector {
-	return labels.SelectorFromSet(OwnerLabel(owner, operatorsv1alpha1.ClusterServiceVersionKind))
+	return labels.SelectorFromValidatedSet(OwnerLabel(owner, operatorsv1alpha1.ClusterServiceVersionKind))
 }
 
 // AddOwner adds an owner to the ownerref list.

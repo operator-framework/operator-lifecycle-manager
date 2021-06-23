@@ -968,7 +968,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		}
 	}
 
-	webhookSelector := labels.SelectorFromSet(ownerutil.OwnerLabel(clusterServiceVersion, v1alpha1.ClusterServiceVersionKind)).String()
+	webhookSelector := labels.SelectorFromValidatedSet(ownerutil.OwnerLabel(clusterServiceVersion, v1alpha1.ClusterServiceVersionKind)).String()
 	mWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
 	if err != nil {
 		logger.WithError(err).Warn("cannot list MutatingWebhookConfigurations")

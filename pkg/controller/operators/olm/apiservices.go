@@ -264,7 +264,7 @@ func (a *Operator) getCABundle(csv *v1alpha1.ClusterServiceVersion) ([]byte, err
 	for _, desc := range csv.Spec.WebhookDefinitions {
 		webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
 		webhookLabels[install.WebhookDescKey] = desc.GenerateName
-		webhookSelector := labels.SelectorFromSet(webhookLabels).String()
+		webhookSelector := labels.SelectorFromValidatedSet(webhookLabels).String()
 
 		switch desc.Type {
 		case v1alpha1.MutatingAdmissionWebhook:
@@ -493,7 +493,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 
 func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) error {
 	webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
-	webhookSelector := labels.SelectorFromSet(webhookLabels).String()
+	webhookSelector := labels.SelectorFromValidatedSet(webhookLabels).String()
 
 	csvWebhookGenerateNames := make(map[string]struct{}, len(csv.Spec.WebhookDefinitions))
 	for _, webhook := range csv.Spec.WebhookDefinitions {
@@ -549,7 +549,7 @@ func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion) (bo
 		webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
 		webhookLabels[install.WebhookDescKey] = desc.GenerateName
 		webhookLabels[install.WebhookHashKey] = install.HashWebhookDesc(desc)
-		webhookSelector := labels.SelectorFromSet(webhookLabels).String()
+		webhookSelector := labels.SelectorFromValidatedSet(webhookLabels).String()
 
 		webhookCount := 0
 		switch desc.Type {
