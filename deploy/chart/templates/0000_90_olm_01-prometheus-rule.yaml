@@ -30,7 +30,7 @@ spec:
   - name: olm.installplan.rules
     rules:
     - alert: InstallPlanStepAppliedWithWarnings
-      expr: sum(sum_over_time(installplan_warnings_total[5m])) > 0
+      expr: sum(increase(installplan_warnings_total[5m])) > 0
       labels:
         severity: warning
       annotations:
