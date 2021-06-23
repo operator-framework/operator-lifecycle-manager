@@ -1115,10 +1115,11 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 			} else {
 				syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
 			}
-		} else {
-			metrics.EmitCSVMetric(clusterServiceVersion, outCSV)
 		}
 	}
+
+	// always emit csv metrics
+	metrics.EmitCSVMetric(clusterServiceVersion, outCSV)
 
 	operatorGroup := a.operatorGroupFromAnnotations(logger, clusterServiceVersion)
 	if operatorGroup == nil {
