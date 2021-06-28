@@ -24,8 +24,7 @@ import (
 	"sync"
 	"time"
 
-	systemd "github.com/coreos/go-systemd/daemon"
-	"github.com/go-openapi/spec"
+	systemd "github.com/coreos/go-systemd/v22/daemon"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilwaitgroup "k8s.io/apimachinery/pkg/util/waitgroup"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/audit"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -55,6 +55,7 @@ import (
 	"k8s.io/kube-openapi/pkg/handler"
 	openapiutil "k8s.io/kube-openapi/pkg/util"
 	openapiproto "k8s.io/kube-openapi/pkg/util/proto"
+	"k8s.io/kube-openapi/pkg/validation/spec"
 )
 
 // Info about an API group.
@@ -209,6 +210,9 @@ type GenericAPIServer struct {
 
 	// StorageVersionManager holds the storage versions of the API resources installed by this server.
 	StorageVersionManager storageversion.Manager
+
+	// Version will enable the /version endpoint if non-nil
+	Version *version.Info
 }
 
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
@@ -347,6 +351,17 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
+	drainedCh := make(chan struct{})
+	go func() {
+		defer close(drainedCh)
+
+		// wait for the delayed stopCh before closing the handler chain (it rejects everything after Wait has been called).
+		<-delayedStopCh
+
+		// Wait for all requests to finish, which are bounded by the RequestTimeout variable.
+		s.HandlerChainWaitGroup.Wait()
+	}()
+
 	<-stopCh
 
 	// run shutdown hooks directly. This includes deregistering from the kubernetes endpoint in case of kube-apiserver.
@@ -355,13 +370,10 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	// wait for the delayed stopCh before closing the handler chain (it rejects everything after Wait has been called).
-	<-delayedStopCh
+	// Wait for all requests in flight to drain, bounded by the RequestTimeout variable.
+	<-drainedCh
 	// wait for stoppedCh that is closed when the graceful termination (server.Shutdown) is finished.
 	<-stoppedCh
-
-	// Wait for all requests to finish, which are bounded by the RequestTimeout variable.
-	s.HandlerChainWaitGroup.Wait()
 
 	return nil
 }

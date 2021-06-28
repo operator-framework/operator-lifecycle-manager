@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
 
+	"helm.sh/helm/v3/internal/experimental/registry"
 	"helm.sh/helm/v3/internal/resolver"
 	"helm.sh/helm/v3/internal/third_party/dep/fs"
 	"helm.sh/helm/v3/internal/urlutil"
@@ -71,6 +73,7 @@ type Manager struct {
 	SkipUpdate bool
 	// Getter collection for the operation
 	Getters          []getter.Provider
+	RegistryClient   *registry.Client
 	RepositoryConfig string
 	RepositoryCache  string
 }
@@ -173,7 +176,7 @@ func (m *Manager) Update() error {
 	// TODO(mattfarina): Repositories should be explicitly added by end users
 	// rather than automattic. In Helm v4 require users to add repositories. They
 	// should have to add them in order to make sure they are aware of the
-	// respoitories and opt-in to any locations, for security.
+	// repositories and opt-in to any locations, for security.
 	repoNames, err = m.ensureMissingRepos(repoNames, req)
 	if err != nil {
 		return err
@@ -307,7 +310,7 @@ func (m *Manager) downloadAll(deps []*chart.Dependency) error {
 
 		// Any failure to resolve/download a chart should fail:
 		// https://github.com/helm/helm/issues/1439
-		churl, username, password, err := m.findChartURL(dep.Name, dep.Version, dep.Repository, repos)
+		churl, username, password, passcredentialsall, err := m.findChartURL(dep.Name, dep.Version, dep.Repository, repos)
 		if err != nil {
 			saveError = errors.Wrapf(err, "could not find %s", churl)
 			break
@@ -329,10 +332,28 @@ func (m *Manager) downloadAll(deps []*chart.Dependency) error {
 			Getters:          m.Getters,
 			Options: []getter.Option{
 				getter.WithBasicAuth(username, password),
+				getter.WithPassCredentialsAll(passcredentialsall),
 			},
 		}
 
-		if _, _, err := dl.DownloadTo(churl, "", destPath); err != nil {
+		version := ""
+		if strings.HasPrefix(churl, "oci://") {
+			if !resolver.FeatureGateOCI.IsEnabled() {
+				return errors.Wrapf(resolver.FeatureGateOCI.Error(),
+					"the repository %s is an OCI registry", churl)
+			}
+
+			churl, version, err = parseOCIRef(churl)
+			if err != nil {
+				return errors.Wrapf(err, "could not parse OCI reference")
+			}
+			dl.Options = append(dl.Options,
+				getter.WithRegistryClient(m.RegistryClient),
+				getter.WithTagName(version))
+		}
+
+		_, _, err = dl.DownloadTo(churl, version, destPath)
+		if err != nil {
 			saveError = errors.Wrapf(err, "could not download %s", churl)
 			break
 		}
@@ -373,6 +394,18 @@ func (m *Manager) downloadAll(deps []*chart.Dependency) error {
 		return saveError
 	}
 	return nil
+}
+
+func parseOCIRef(chartRef string) (string, string, error) {
+	refTagRegexp := regexp.MustCompile(`^(oci://[^:]+(:[0-9]{1,5})?[^:]+):(.*)$`)
+	caps := refTagRegexp.FindStringSubmatch(chartRef)
+	if len(caps) != 4 {
+		return "", "", errors.Errorf("improperly formatted oci chart reference: %s", chartRef)
+	}
+	chartRef = caps[1]
+	tag := caps[3]
+
+	return chartRef, tag, nil
 }
 
 // safeDeleteDep deletes any versions of the given dependency in the given directory.
@@ -421,8 +454,8 @@ func (m *Manager) hasAllRepos(deps []*chart.Dependency) error {
 	missing := []string{}
 Loop:
 	for _, dd := range deps {
-		// If repo is from local path, continue
-		if strings.HasPrefix(dd.Repository, "file://") {
+		// If repo is from local path or OCI, continue
+		if strings.HasPrefix(dd.Repository, "file://") || strings.HasPrefix(dd.Repository, "oci://") {
 			continue
 		}
 
@@ -523,7 +556,8 @@ func (m *Manager) resolveRepoNames(deps []*chart.Dependency) (map[string]string,
 	missing := []string{}
 	for _, dd := range deps {
 		// Don't map the repository, we don't need to download chart from charts directory
-		if dd.Repository == "" {
+		// When OCI is used there is no Helm repository
+		if dd.Repository == "" || strings.HasPrefix(dd.Repository, "oci://") {
 			continue
 		}
 		// if dep chart is from local path, verify the path is valid
@@ -535,6 +569,11 @@ func (m *Manager) resolveRepoNames(deps []*chart.Dependency) (map[string]string,
 			if m.Debug {
 				fmt.Fprintf(m.Out, "Repository from local path: %s\n", dd.Repository)
 			}
+			reposMap[dd.Name] = dd.Repository
+			continue
+		}
+
+		if strings.HasPrefix(dd.Repository, "oci://") {
 			reposMap[dd.Name] = dd.Repository
 			continue
 		}
@@ -647,8 +686,13 @@ func (m *Manager) parallelRepoUpdate(repos []*repo.Entry) error {
 // repoURL is the repository to search
 //
 // If it finds a URL that is "relative", it will prepend the repoURL.
-func (m *Manager) findChartURL(name, version, repoURL string, repos map[string]*repo.ChartRepository) (url, username, password string, err error) {
+func (m *Manager) findChartURL(name, version, repoURL string, repos map[string]*repo.ChartRepository) (url, username, password string, passcredentialsall bool, err error) {
+	if strings.HasPrefix(repoURL, "oci://") {
+		return fmt.Sprintf("%s/%s:%s", repoURL, name, version), "", "", false, nil
+	}
+
 	for _, cr := range repos {
+
 		if urlutil.Equal(repoURL, cr.Config.URL) {
 			var entry repo.ChartVersions
 			entry, err = findEntryByName(name, cr)
@@ -666,15 +710,16 @@ func (m *Manager) findChartURL(name, version, repoURL string, repos map[string]*
 			}
 			username = cr.Config.Username
 			password = cr.Config.Password
+			passcredentialsall = cr.Config.PassCredentialsAll
 			return
 		}
 	}
 	url, err = repo.FindChartInRepoURL(repoURL, name, version, "", "", "", m.Getters)
 	if err == nil {
-		return
+		return url, username, password, false, err
 	}
 	err = errors.Errorf("chart %s not found in %s: %s", name, repoURL, err)
-	return
+	return url, username, password, false, err
 }
 
 // findEntryByName finds an entry in the chart repository whose name matches the given name.

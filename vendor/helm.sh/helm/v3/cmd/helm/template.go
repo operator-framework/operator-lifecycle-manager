@@ -27,6 +27,8 @@ import (
 	"sort"
 	"strings"
 
+	"helm.sh/helm/v3/pkg/release"
+
 	"github.com/spf13/cobra"
 
 	"helm.sh/helm/v3/cmd/helm/require"
@@ -47,8 +49,10 @@ faked locally. Additionally, none of the server-side testing of chart validity
 func newTemplateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	var validate bool
 	var includeCrds bool
+	var skipTests bool
 	client := action.NewInstall(cfg)
 	valueOpts := &values.Options{}
+	var kubeVersion string
 	var extraAPIs []string
 	var showFiles []string
 
@@ -61,6 +65,14 @@ func newTemplateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 			return compInstall(args, toComplete, client)
 		},
 		RunE: func(_ *cobra.Command, args []string) error {
+			if kubeVersion != "" {
+				parsedKubeVersion, err := chartutil.ParseKubeVersion(kubeVersion)
+				if err != nil {
+					return fmt.Errorf("invalid kube version '%s': %s", kubeVersion, err)
+				}
+				client.KubeVersion = parsedKubeVersion
+			}
+
 			client.DryRun = true
 			client.ReleaseName = "RELEASE-NAME"
 			client.Replace = true // Skip the name check
@@ -84,6 +96,9 @@ func newTemplateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 				if !client.DisableHooks {
 					fileWritten := make(map[string]bool)
 					for _, m := range rel.Hooks {
+						if skipTests && isTestHook(m) {
+							continue
+						}
 						if client.OutputDir == "" {
 							fmt.Fprintf(&manifests, "---\n# Source: %s\n%s\n", m.Path, m.Manifest)
 						} else {
@@ -163,7 +178,9 @@ func newTemplateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	f.StringVar(&client.OutputDir, "output-dir", "", "writes the executed templates to files in output-dir instead of stdout")
 	f.BoolVar(&validate, "validate", false, "validate your manifests against the Kubernetes cluster you are currently pointing at. This is the same validation performed on an install")
 	f.BoolVar(&includeCrds, "include-crds", false, "include CRDs in the templated output")
+	f.BoolVar(&skipTests, "skip-tests", false, "skip tests from templated output")
 	f.BoolVar(&client.IsUpgrade, "is-upgrade", false, "set .Release.IsUpgrade instead of .Release.IsInstall")
+	f.StringVar(&kubeVersion, "kube-version", "", "Kubernetes version used for Capabilities.KubeVersion")
 	f.StringArrayVarP(&extraAPIs, "api-versions", "a", []string{}, "Kubernetes api versions used for Capabilities.APIVersions")
 	f.BoolVar(&client.UseReleaseName, "release-name", false, "use release name in the output-dir path.")
 	bindPostRenderFlag(cmd, &client.PostRenderer)
@@ -171,8 +188,17 @@ func newTemplateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	return cmd
 }
 
+func isTestHook(h *release.Hook) bool {
+	for _, e := range h.Events {
+		if e == release.HookTest {
+			return true
+		}
+	}
+	return false
+}
+
 // The following functions (writeToFile, createOrOpenFile, and ensureDirectoryForFile)
-// are coppied from the actions package. This is part of a change to correct a
+// are copied from the actions package. This is part of a change to correct a
 // bug introduced by #8156. As part of the todo to refactor renderResources
 // this duplicate code should be removed. It is added here so that the API
 // surface area is as minimally impacted as possible in fixing the issue.
