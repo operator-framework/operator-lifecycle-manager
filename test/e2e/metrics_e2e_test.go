@@ -16,6 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -113,6 +114,44 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						ContainElement(LikeMetric(WithFamily("csv_abnormal"), WithName(failingCSV.Name))),
 						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(failingCSV.Name))),
 					))
+				})
+			})
+		})
+
+		When("a CSV is created", func() {
+			var (
+				cleanupCSV cleanupFunc
+				csv        v1alpha1.ClusterServiceVersion
+			)
+			BeforeEach(func() {
+				packageName := genName("csv-test-")
+				packageStable := fmt.Sprintf("%s-stable", packageName)
+				csv = newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
+
+				var err error
+				_, err = createCSV(c, crc, csv, testNamespace, false, false)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
+				Expect(err).ToNot(HaveOccurred())
+			})
+			AfterEach(func() {
+				if cleanupCSV != nil {
+					cleanupCSV()
+				}
+			})
+			It("emits a CSV metrics", func() {
+				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).To(
+					ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(csv.Name), WithValue(1))),
+				)
+			})
+			When("the OLM pod restarts", func() {
+				BeforeEach(func() {
+					restartDeploymentWithLabel(c, "app=olm-operator")
+				})
+				It("CSV metric is preserved", func() {
+					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).To(
+						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(csv.Name), WithValue(1))),
+					)
 				})
 			})
 		})
@@ -394,6 +433,51 @@ func getPodWithLabel(client operatorclient.ClientInterface, label string) *corev
 	}).Should(Equal(1), "number of pods never scaled to one")
 
 	return &podList.Items[0]
+}
+
+func getDeploymentWithLabel(client operatorclient.ClientInterface, label string) *appsv1.Deployment {
+	listOptions := metav1.ListOptions{LabelSelector: label}
+	var deploymentList *appsv1.DeploymentList
+	EventuallyWithOffset(1, func() (numDeps int, err error) {
+		deploymentList, err = client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).List(context.TODO(), listOptions)
+		if deploymentList != nil {
+			numDeps = len(deploymentList.Items)
+		}
+
+		return
+	}).Should(Equal(1), "expected exactly one Deployment")
+
+	return &deploymentList.Items[0]
+}
+
+func restartDeploymentWithLabel(client operatorclient.ClientInterface, l string) {
+	d := getDeploymentWithLabel(client, l)
+	z := int32(0)
+	oldZ := *d.Spec.Replicas
+	d.Spec.Replicas = &z
+	_, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Update(context.TODO(), d, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	EventuallyWithOffset(1, func() (replicas int32, err error) {
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Get(context.TODO(), d.Name, metav1.GetOptions{})
+		if deployment != nil {
+			replicas = deployment.Status.Replicas
+		}
+		return
+	}).Should(Equal(int32(0)), "expected exactly 0 Deployments")
+
+	updated := getDeploymentWithLabel(client, l)
+	updated.Spec.Replicas = &oldZ
+	_, err = client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Update(context.TODO(), updated, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	EventuallyWithOffset(1, func() (replicas int32, err error) {
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Get(context.TODO(), d.Name, metav1.GetOptions{})
+		if deployment != nil {
+			replicas = deployment.Status.Replicas
+		}
+		return
+	}).Should(Equal(oldZ), "expected exactly 1 Deployment")
 }
 
 func extractMetricPortFromPod(pod *corev1.Pod) string {
