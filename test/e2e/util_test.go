@@ -35,7 +35,9 @@ import (
 	"k8s.io/client-go/rest"
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	gtypes "github.com/onsi/gomega/types"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
@@ -896,4 +898,16 @@ func deploymentReplicas(replicas int32) predicateFunc {
 
 func Apply(obj controllerclient.Object, changeFunc interface{}) func() error {
 	return ctx.Ctx().SSAClient().Apply(context.Background(), obj, changeFunc)
+}
+
+func HavePhase(goal operatorsv1alpha1.InstallPlanPhase) gtypes.GomegaMatcher {
+	return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
+		return plan.Status.Phase
+	}, Equal(goal))
+}
+
+func HaveMessage(goal string) gtypes.GomegaMatcher {
+	return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) string {
+		return plan.Status.Message
+	}, ContainSubstring(goal))
 }
