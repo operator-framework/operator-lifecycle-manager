@@ -1927,6 +1927,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 					}
 
+					// check GroupVersion before proceeding -- v1beta1 RBAC resources are deprecated
+					if deprecated(cr.TypeMeta.GroupVersionKind().GroupVersion()) {
+						return deprecatedError{name: cr.Name, gv: cr.TypeMeta.GroupVersionKind().GroupVersion(), k: cr.Kind}
+					}
+
 					status, err := ensurer.EnsureClusterRole(&cr, step)
 					if err != nil {
 						return err
@@ -1942,6 +1947,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 					}
 
+					// check GroupVersion before proceeding -- v1beta1 RBAC resources are deprecated
+					if deprecated(rb.TypeMeta.GroupVersionKind().GroupVersion()) {
+						return deprecatedError{name: rb.Name, gv: rb.TypeMeta.GroupVersionKind().GroupVersion(), k: rb.Kind}
+					}
+
 					status, err := ensurer.EnsureClusterRoleBinding(&rb, step)
 					if err != nil {
 						return err
@@ -1955,6 +1965,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					err := json.Unmarshal([]byte(manifest), &r)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// check GroupVersion before proceeding -- v1beta1 RBAC resources are deprecated
+					if deprecated(r.TypeMeta.GroupVersionKind().GroupVersion()) {
+						return deprecatedError{name: r.Name, gv: r.TypeMeta.GroupVersionKind().GroupVersion(), k: r.Kind}
 					}
 
 					// Update UIDs on all CSV OwnerReferences
@@ -1978,6 +1993,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					err := json.Unmarshal([]byte(manifest), &rb)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// check GroupVersion before proceeding -- v1beta1 RBAC resources are deprecated
+					if deprecated(rb.TypeMeta.GroupVersionKind().GroupVersion()) {
+						return deprecatedError{name: rb.Name, gv: rb.TypeMeta.GroupVersionKind().GroupVersion(), k: rb.Kind}
 					}
 
 					// Update UIDs on all CSV OwnerReferences
@@ -2091,6 +2111,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					unstructuredObject := &unstructured.Unstructured{}
 					if err := dec.Decode(unstructuredObject); err != nil {
 						return errorwrap.Wrapf(err, "error decoding %s object to an unstructured object", step.Resource.Name)
+					}
+
+					// check if resource apiVersion is deprecated before proceeding
+					if deprecated(unstructuredObject.GroupVersionKind().GroupVersion()) {
+						return deprecatedError{name: unstructuredObject.GetName(), gv: unstructuredObject.GroupVersionKind().GroupVersion(), k: unstructuredObject.GetKind()}
 					}
 
 					// Get the resource from the GVK.

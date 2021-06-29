@@ -8,9 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsv1client "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
-	apiextensionsv1beta1client "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
@@ -75,17 +73,15 @@ func (b *builder) create(step v1alpha1.Step) (Stepper, error) {
 
 	switch step.Resource.Kind {
 	case crdKind:
-		version, err := crdlib.Version(&manifest)
+		groupVersion, err := crdlib.GroupVersion(&manifest)
 		if err != nil {
 			return nil, err
 		}
-
-		switch version {
-		case crdlib.V1Version:
-			return b.NewCRDV1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1(), &step, manifest), nil
-		case crdlib.V1Beta1Version:
-			return b.NewCRDV1Beta1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1beta1(), &step, manifest), nil
+		// v1beta1 CRDs are deprecated -- OLM no longer supports installing them
+		if deprecated(groupVersion) {
+			return nil, deprecatedError{k: crdKind, gv: groupVersion, name: step.Resource.Name}
 		}
+		return b.NewCRDV1Step(b.opclient.ApiextensionsInterface().ApiextensionsV1(), &step, manifest), nil
 	}
 	return nil, notSupportedStepperErr{fmt.Sprintf("stepper interface does not support %s", step.Resource.Kind)}
 }
@@ -135,85 +131,6 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
 				crd.SetResourceVersion(currentCRD.GetResourceVersion())
 				if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
-				}
-
-				// check to see if stored versions changed and whether the upgrade could cause potential data loss
-				safe, err := crdlib.SafeStorageVersionUpgrade(currentCRD, crd)
-				if !safe {
-					b.logger.Errorf("risk of data loss updating %s: %s", step.Resource.Name, err)
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "risk of data loss updating %s", step.Resource.Name)
-				}
-				if err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "checking CRD for potential data loss updating %s", step.Resource.Name)
-				}
-
-				// Update CRD to new version
-				setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd, currentCRD)
-				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
-				if err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
-				}
-				// If it already existed, mark the step as Present.
-				// they were equal - mark CRD as present
-				return v1alpha1.StepStatusPresent, nil
-			} else if createError != nil {
-				// Unexpected error creating the CRD.
-				return v1alpha1.StepStatusUnknown, createError
-			}
-			// If no error occured, make sure to wait for the API to become available.
-			return v1alpha1.StepStatusWaitingForAPI, nil
-		}
-		return v1alpha1.StepStatusUnknown, nil
-	}
-}
-
-func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.ApiextensionsV1beta1Interface, step *v1alpha1.Step, manifest string) StepperFunc {
-	return func() (v1alpha1.StepStatus, error) {
-		switch step.Status {
-		case v1alpha1.StepStatusPresent:
-			return v1alpha1.StepStatusPresent, nil
-		case v1alpha1.StepStatusCreated:
-			return v1alpha1.StepStatusCreated, nil
-		case v1alpha1.StepStatusWaitingForAPI:
-			crd, err := client.CustomResourceDefinitions().Get(context.TODO(), step.Resource.Name, metav1.GetOptions{})
-			if err != nil {
-				if k8serrors.IsNotFound(err) {
-					return v1alpha1.StepStatusNotPresent, nil
-				} else {
-					return v1alpha1.StepStatusNotPresent, errors.Wrapf(err, "error finding the %s CRD", crd.Name)
-				}
-			}
-			established, namesAccepted := false, false
-			for _, cdt := range crd.Status.Conditions {
-				switch cdt.Type {
-				case apiextensionsv1beta1.Established:
-					if cdt.Status == apiextensionsv1beta1.ConditionTrue {
-						established = true
-					}
-				case apiextensionsv1beta1.NamesAccepted:
-					if cdt.Status == apiextensionsv1beta1.ConditionTrue {
-						namesAccepted = true
-					}
-				}
-			}
-			if established && namesAccepted {
-				return v1alpha1.StepStatusCreated, nil
-			}
-		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
-			crd, err := crdlib.UnmarshalV1Beta1(manifest)
-			if err != nil {
-				return v1alpha1.StepStatusUnknown, err
-			}
-
-			setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd)
-
-			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
-			if k8serrors.IsAlreadyExists(createError) {
-				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				crd.SetResourceVersion(currentCRD.GetResourceVersion())
-
-				if err = validateV1Beta1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
 					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
 				}
 
