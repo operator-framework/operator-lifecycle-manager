@@ -101,7 +101,7 @@ func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
 }
 
 func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
-	pod := Pod(s.CatalogSource, "configmap-registry-server", image, "", s.Labels(), s.Annotations(), 5, 2)
+	pod := Pod(s.CatalogSource, "configmap-registry-server", image, "", s.Labels(), s.Annotations(), 5, 5)
 	pod.Spec.ServiceAccountName = s.GetName() + ConfigMapServerPostfix
 	pod.Spec.Containers[0].Command = []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
