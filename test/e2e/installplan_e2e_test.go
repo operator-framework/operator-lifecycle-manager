@@ -16,7 +16,6 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	"github.com/onsi/gomega/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -53,12 +52,6 @@ import (
 )
 
 var _ = Describe("Install Plan", func() {
-	HavePhase := func(goal operatorsv1alpha1.InstallPlanPhase) types.GomegaMatcher {
-		return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
-			return plan.Status.Phase
-		}, Equal(goal))
-	}
-
 	AfterEach(func() {
 		TearDown(testNamespace)
 	})
