@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -62,6 +63,9 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 			return
 		}
 
+		// Remove ServiceAccount condition if existed
+		meta.RemoveStatusCondition(&in.Status.Conditions, v1.OperatorGroupServiceAccountCondition)
+
 		// User must have removed ServiceAccount from the spec. We need to
 		// rest Status to a nil reference.
 		out, err = s.update(in, nil)
@@ -74,6 +78,19 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 	// A service account has been specified, we need to update the status.
 	sa, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), serviceAccountName, metav1.GetOptions{})
 	if err != nil {
+		// Set OG's status condition to indicate SA is not found
+		cond := metav1.Condition{
+			Type:    v1.OperatorGroupServiceAccountCondition,
+			Status:  metav1.ConditionTrue,
+			Reason:  v1.OperatorGroupServiceAccountReason,
+			Message: fmt.Sprintf("ServiceAccount %s not found", serviceAccountName),
+		}
+
+		meta.SetStatusCondition(&in.Status.Conditions, cond)
+		_, err = s.update(in, nil)
+		if err != nil {
+			logger.Warnf("fail to upgrade operator group status condition og=%s: %s", in.GetName(), err.Error())
+		}
 		err = fmt.Errorf("failed to get service account, sa=%s %v", serviceAccountName, err)
 		return
 	}

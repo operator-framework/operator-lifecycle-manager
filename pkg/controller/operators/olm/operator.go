@@ -15,6 +15,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -825,6 +826,42 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 	if err != nil {
 		logger.WithError(err).Warn("lister failed")
 		return err
+	}
+
+	// Filter the operator associated with this namespace
+	groups := make([]*v1.OperatorGroup, 0)
+	for _, og := range operatorGroupList {
+		if og.GetNamespace() == namespace.GetName() {
+			groups = append(groups, og)
+		}
+	}
+
+	// Check if there is a stale multiple OG condition and clear it if existed.
+	if len(groups) == 1 {
+		og := groups[0]
+		if c := meta.FindStatusCondition(og.Status.Conditions, v1.MutlipleOperatorGroupCondition); c != nil {
+			meta.RemoveStatusCondition(&og.Status.Conditions, v1.MutlipleOperatorGroupCondition)
+			_, err = a.client.OperatorsV1().OperatorGroups(namespace.GetName()).UpdateStatus(context.TODO(), og, metav1.UpdateOptions{})
+			if err != nil {
+				logger.Warnf("fail to upgrade operator group status condition og=%s: %s", og.GetName(), err.Error())
+			}
+		}
+	} else if len(groups) > 1 {
+		// Add to all OG's status conditions to indicate they're multiple OGs in the
+		// same namespace which is not allowed.
+		cond := metav1.Condition{
+			Type:    v1.MutlipleOperatorGroupCondition,
+			Status:  metav1.ConditionTrue,
+			Reason:  v1.MultipleOperatorGroupsReason,
+			Message: "Multiple OperatorGroup found in the same namespace",
+		}
+		for _, og := range groups {
+			meta.SetStatusCondition(&og.Status.Conditions, cond)
+			_, err = a.client.OperatorsV1().OperatorGroups(namespace.GetName()).UpdateStatus(context.TODO(), og, metav1.UpdateOptions{})
+			if err != nil {
+				logger.Warnf("fail to upgrade operator group status condition og=%s: %s", og.GetName(), err.Error())
+			}
+		}
 	}
 
 	for _, group := range operatorGroupList {
