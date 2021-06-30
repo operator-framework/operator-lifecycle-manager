@@ -16,7 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -746,13 +745,13 @@ func serializeCRD(crd apiextensions.CustomResourceDefinition) string {
 
 	Expect(extScheme.AddToScheme(scheme)).Should(Succeed())
 	Expect(k8sscheme.AddToScheme(scheme)).Should(Succeed())
-	Expect(v1beta1.AddToScheme(scheme)).Should(Succeed())
+	Expect(apiextensionsv1.AddToScheme(scheme)).Should(Succeed())
 
-	out := &v1beta1.CustomResourceDefinition{}
+	out := &apiextensionsv1.CustomResourceDefinition{}
 	Expect(scheme.Convert(&crd, out, nil)).To(Succeed())
 	out.TypeMeta = metav1.TypeMeta{
 		Kind:       "CustomResourceDefinition",
-		APIVersion: "apiextensions.k8s.io/v1beta1",
+		APIVersion: "apiextensions.k8s.io/v1",
 	}
 
 	// set up object serializer

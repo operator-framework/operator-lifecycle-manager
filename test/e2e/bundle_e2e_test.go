@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/ghodss/yaml"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -39,6 +39,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 		TearDown(testNamespace)
 	})
 
+	// TODO bump vpa CRD to v1, otherwise this test will now fail
 	When("a bundle with a pdb, priorityclass, and VPA object is installed", func() {
 		const (
 			packageName = "busybox"
@@ -76,7 +77,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 
 			// ensure vpa crd is established and accepted on the cluster before continuing
 			Eventually(func() (bool, error) {
-				crd, err := kubeClient.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), vpaCRD.GetName(), metav1.GetOptions{})
+				crd, err := kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), vpaCRD.GetName(), metav1.GetOptions{})
 				if err != nil {
 					return false, err
 				}
@@ -167,19 +168,19 @@ var _ = Describe("Installing bundles with new object types", func() {
 	})
 })
 
-func crdReady(status *apiextensionsv1beta1.CustomResourceDefinitionStatus) bool {
+func crdReady(status *apiextensionsv1.CustomResourceDefinitionStatus) bool {
 	if status == nil {
 		return false
 	}
 	established, namesAccepted := false, false
 	for _, cdt := range status.Conditions {
 		switch cdt.Type {
-		case apiextensionsv1beta1.Established:
-			if cdt.Status == apiextensionsv1beta1.ConditionTrue {
+		case apiextensionsv1.Established:
+			if cdt.Status == apiextensionsv1.ConditionTrue {
 				established = true
 			}
-		case apiextensionsv1beta1.NamesAccepted:
-			if cdt.Status == apiextensionsv1beta1.ConditionTrue {
+		case apiextensionsv1.NamesAccepted:
+			if cdt.Status == apiextensionsv1.ConditionTrue {
 				namesAccepted = true
 			}
 		}
