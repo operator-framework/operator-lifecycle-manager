@@ -36,7 +36,7 @@ MODULE="${ORG}/operator-lifecycle-manager"
 bash "${CODEGEN_PKG}/generate-groups.sh" "client,lister,informer" \
   "${MODULE}/pkg/api/client" \
   "${API_MODULE}/pkg" \
-  "operators:v1alpha1,v1alpha2,v1" \
+  "operators:v1alpha1,v1alpha2,v1,v2" \
   --output-base "${OUTPUT_BASE}" \
   --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
 
@@ -51,4 +51,3 @@ bash "${CODEGEN_PKG}/generate-internal-groups.sh" all \
 
 # copy the generated resources
 cp -R "${OUTPUT_BASE}/${MODULE}/." "${SCRIPT_ROOT}"
-

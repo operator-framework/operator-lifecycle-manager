@@ -12,8 +12,8 @@ import (
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
@@ -24,11 +24,11 @@ var _ = Describe("Operator Condition", func() {
 
 	It("OperatorCondition Upgradeable type and overrides", func() {
 		By("This test proves that an operator can upgrade successfully when" +
-			"Upgrade condition type is set in OperatorCondition CR. Plus, an operator" +
-			"chooses not to use OperatorCondition, the upgrade process will proceed as" +
-			" asexpected. The overrides specification in OperatorCondition can be used to" +
-			" override the status condition. The overrides spec will remain in place until" +
-			"they are unset.")
+			" Upgrade condition type is set in OperatorCondition spec. Plus, an operator" +
+			" chooses not to use OperatorCondition, the upgrade process will proceed as" +
+			" expected. The overrides spec in OperatorCondition can be used to override" +
+			" the conditions spec. The overrides spec will remain in place until" +
+			" they are unset.")
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -48,25 +48,6 @@ var _ = Describe("Operator Condition", func() {
 		csvB := newCSV(pkgBStable, testNamespace, pkgAStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &strategyB)
 		csvD := newCSV(pkgDStable, testNamespace, pkgBStable, semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &strategyD)
 
-		// Create OperatorCondition for csvA
-		opCondition := operatorsv1.OperatorCondition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      pkgAStable,
-				Namespace: testNamespace,
-			},
-		}
-		_, err := crc.OperatorsV1().OperatorConditions(testNamespace).Create(context.TODO(), &opCondition, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-		// Create OperatorCondition for csvB
-		opCondition = operatorsv1.OperatorCondition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      pkgBStable,
-				Namespace: testNamespace,
-			},
-		}
-		_, err = crc.OperatorsV1().OperatorConditions(testNamespace).Create(context.TODO(), &opCondition, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-
 		// Create the initial catalogsources
 		manifests := []registry.PackageManifest{
 			{
@@ -81,7 +62,7 @@ var _ = Describe("Operator Condition", func() {
 		catalog := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSourceOnStatus(crc, catalog, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalog, testNamespace, catalogSourceRegistryPodSynced)
 		subName := genName("sub-")
 		cleanupSub := createSubscriptionForCatalog(crc, testNamespace, subName, catalog, pkgA, stableChannel, pkgAStable, operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanupSub()
@@ -91,24 +72,26 @@ var _ = Describe("Operator Condition", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Get the OperatorCondition for csvA and report that it is not upgradeable
-		var cond *operatorsv1.OperatorCondition
+		var cond *operatorsv2.OperatorCondition
 		upgradeableFalseCondition := metav1.Condition{
-			Type:               operatorsv1.Upgradeable,
+			Type:               operatorsv2.Upgradeable,
 			Status:             metav1.ConditionFalse,
 			Reason:             "test",
 			Message:            "test",
 			LastTransitionTime: metav1.Now(),
 		}
+
+		var currentGen int64
 		Eventually(func() error {
-			cond, err = crc.OperatorsV1().OperatorConditions(testNamespace).Get(context.TODO(), csvA.GetName(), metav1.GetOptions{})
+			cond, err := crc.OperatorsV2().OperatorConditions(testNamespace).Get(context.TODO(), csvA.GetName(), metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
-
-			meta.SetStatusCondition(&cond.Status.Conditions, upgradeableFalseCondition)
-			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).UpdateStatus(context.TODO(), cond, metav1.UpdateOptions{})
+			currentGen = cond.ObjectMeta.GetGeneration()
+			upgradeableFalseCondition.ObservedGeneration = currentGen
+			meta.SetStatusCondition(&cond.Spec.Conditions, upgradeableFalseCondition)
+			_, err = crc.OperatorsV2().OperatorConditions(testNamespace).Update(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
-
 		}, pollInterval, pollDuration).Should(Succeed())
 
 		// Update the catalogsources
@@ -134,19 +117,21 @@ var _ = Describe("Operator Condition", func() {
 
 		// Get the OperatorCondition for csvA and report that it is upgradeable, unblocking csvB
 		upgradeableTrueCondition := metav1.Condition{
-			Type:               operatorsv1.Upgradeable,
+			Type:               operatorsv2.Upgradeable,
 			Status:             metav1.ConditionTrue,
 			Reason:             "test",
 			Message:            "test",
 			LastTransitionTime: metav1.Now(),
 		}
 		Eventually(func() error {
-			cond, err = crc.OperatorsV1().OperatorConditions(testNamespace).Get(context.TODO(), csvA.GetName(), metav1.GetOptions{})
-			if err != nil {
+			cond, err = crc.OperatorsV2().OperatorConditions(testNamespace).Get(context.TODO(), csvA.GetName(), metav1.GetOptions{})
+			if err != nil || currentGen == cond.ObjectMeta.GetGeneration() {
 				return err
 			}
-			meta.SetStatusCondition(&cond.Status.Conditions, upgradeableTrueCondition)
-			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).UpdateStatus(context.TODO(), cond, metav1.UpdateOptions{})
+			currentGen = cond.ObjectMeta.GetGeneration()
+			upgradeableTrueCondition.ObservedGeneration = cond.ObjectMeta.GetGeneration()
+			meta.SetStatusCondition(&cond.Spec.Conditions, upgradeableTrueCondition)
+			_, err = crc.OperatorsV2().OperatorConditions(testNamespace).Update(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
 
@@ -154,14 +139,17 @@ var _ = Describe("Operator Condition", func() {
 		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Get the OperatorCondition for csvB and report that it is not upgradeable
+		// Get the OperatorCondition for csvB and purposedly change ObservedGeneration
+		// to cause mismatch generation situation
 		Eventually(func() error {
-			cond, err = crc.OperatorsV1().OperatorConditions(testNamespace).Get(context.TODO(), csvB.GetName(), metav1.GetOptions{})
-			if err != nil {
+			cond, err = crc.OperatorsV2().OperatorConditions(testNamespace).Get(context.TODO(), csvB.GetName(), metav1.GetOptions{})
+			if err != nil || currentGen == cond.ObjectMeta.GetGeneration() {
 				return err
 			}
-			meta.SetStatusCondition(&cond.Status.Conditions, upgradeableFalseCondition)
-			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).UpdateStatus(context.TODO(), cond, metav1.UpdateOptions{})
+			currentGen = cond.ObjectMeta.GetGeneration()
+			upgradeableTrueCondition.ObservedGeneration = currentGen + 1
+			meta.SetStatusCondition(&cond.Status.Conditions, upgradeableTrueCondition)
+			_, err = crc.OperatorsV2().OperatorConditions(testNamespace).UpdateStatus(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
 
@@ -188,23 +176,13 @@ var _ = Describe("Operator Condition", func() {
 
 		// Get the OperatorCondition for csvB and override the upgradeable false condition
 		Eventually(func() error {
-			cond, err = crc.OperatorsV1().OperatorConditions(testNamespace).Get(context.TODO(), csvB.GetName(), metav1.GetOptions{})
+			cond, err = crc.OperatorsV2().OperatorConditions(testNamespace).Get(context.TODO(), csvB.GetName(), metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
-			// Set Condition overrides to True
-			cond.Spec = operatorsv1.OperatorConditionSpec{
-				Overrides: []metav1.Condition{{
-					Type:               operatorsv1.Upgradeable,
-					Status:             metav1.ConditionTrue,
-					Reason:             "test",
-					Message:            "test",
-					LastTransitionTime: metav1.Now(),
-				}},
-			}
-
+			meta.SetStatusCondition(&cond.Spec.Overrides, upgradeableTrueCondition)
 			// Update the condition
-			_, err = crc.OperatorsV1().OperatorConditions(testNamespace).Update(context.TODO(), cond, metav1.UpdateOptions{})
+			_, err = crc.OperatorsV2().OperatorConditions(testNamespace).Update(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
 		require.NoError(GinkgoT(), err)

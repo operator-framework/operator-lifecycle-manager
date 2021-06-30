@@ -35,6 +35,9 @@ var OperatorHubValidator = internal.OperatorHubValidator
 // Object validation is optional and not a default-level validation.
 var ObjectValidator = internal.ObjectValidator
 
+// OperatorGroupValidator implements Validator to validate OperatorGroup manifests
+var OperatorGroupValidator = internal.OperatorGroupValidator
+
 // AllValidators implements Validator to validate all Operator manifest types.
 var AllValidators = interfaces.Validators{
 	PackageManifestValidator,
@@ -43,6 +46,7 @@ var AllValidators = interfaces.Validators{
 	BundleValidator,
 	OperatorHubValidator,
 	ObjectValidator,
+	OperatorGroupValidator,
 }
 
 var DefaultBundleValidators = interfaces.Validators{

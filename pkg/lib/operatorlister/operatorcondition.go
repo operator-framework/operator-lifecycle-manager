@@ -8,8 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
-	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
+	v2 "github.com/operator-framework/api/pkg/operators/v2"
+	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v2"
 )
 
 type UnionOperatorConditionLister struct {
@@ -18,11 +18,11 @@ type UnionOperatorConditionLister struct {
 }
 
 // List lists all OperatorConditions in the indexer.
-func (uol *UnionOperatorConditionLister) List(selector labels.Selector) (ret []*v1.OperatorCondition, err error) {
+func (uol *UnionOperatorConditionLister) List(selector labels.Selector) (ret []*v2.OperatorCondition, err error) {
 	uol.opConditionLock.RLock()
 	defer uol.opConditionLock.RUnlock()
 
-	set := make(map[types.UID]*v1.OperatorCondition)
+	set := make(map[types.UID]*v2.OperatorCondition)
 	for _, cl := range uol.opConditionListers {
 		csvs, err := cl.List(selector)
 		if err != nil {
@@ -70,11 +70,11 @@ func (uol *UnionOperatorConditionLister) RegisterOperatorConditionLister(namespa
 	uol.opConditionListers[namespace] = lister
 }
 
-func (l *operatorsV1Lister) RegisterOperatorConditionLister(namespace string, lister listers.OperatorConditionLister) {
+func (l *operatorsV2Lister) RegisterOperatorConditionLister(namespace string, lister listers.OperatorConditionLister) {
 	l.operatorConditionLister.RegisterOperatorConditionLister(namespace, lister)
 }
 
-func (l *operatorsV1Lister) OperatorConditionLister() listers.OperatorConditionLister {
+func (l *operatorsV2Lister) OperatorConditionLister() listers.OperatorConditionLister {
 	return l.operatorConditionLister
 }
 
@@ -86,11 +86,11 @@ type NullOperatorConditionNamespaceLister struct {
 }
 
 // List returns nil and an error explaining that this is a NullOperatorConditionNamespaceLister.
-func (n *NullOperatorConditionNamespaceLister) List(selector labels.Selector) (ret []*v1.OperatorCondition, err error) {
+func (n *NullOperatorConditionNamespaceLister) List(selector labels.Selector) (ret []*v2.OperatorCondition, err error) {
 	return nil, fmt.Errorf("cannot list OperatorConditions with a NullOperatorConditionNamespaceLister")
 }
 
 // Get returns nil and an error explaining that this is a NullOperatorConditionNamespaceLister.
-func (n *NullOperatorConditionNamespaceLister) Get(name string) (*v1.OperatorCondition, error) {
+func (n *NullOperatorConditionNamespaceLister) Get(name string) (*v2.OperatorCondition, error) {
 	return nil, fmt.Errorf("cannot get OperatorCondition with a NullOperatorConditionNamespaceLister")
 }

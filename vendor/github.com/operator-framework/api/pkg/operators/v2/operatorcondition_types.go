@@ -1,4 +1,4 @@
-package v1
+package v2
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,21 +9,26 @@ const (
 	Upgradeable string = "Upgradeable"
 )
 
-// OperatorConditionSpec allows a cluster admin to convey information about the state of an operator to OLM, potentially overriding state reported by the operator.
+// ConditionType codifies a condition's type.
+type ConditionType string
+
+// OperatorConditionSpec allows an operator to report state to OLM and provides
+// cluster admin with the ability to manually override state reported by the operator.
 type OperatorConditionSpec struct {
 	ServiceAccounts []string           `json:"serviceAccounts,omitempty"`
 	Deployments     []string           `json:"deployments,omitempty"`
 	Overrides       []metav1.Condition `json:"overrides,omitempty"`
+	Conditions      []metav1.Condition `json:"conditions,omitempty"`
 }
 
-// OperatorConditionStatus allows an operator to convey information its state to OLM. The status may trail the actual
-// state of a system.
+// OperatorConditionStatus allows OLM to convey which conditions have been observed.
 type OperatorConditionStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
+// +kubebuilder:storageversion
 // +kubebuilder:resource:shortName=condition,categories=olm
 // +kubebuilder:subresource:status
 // OperatorCondition is a Custom Resource of type `OperatorCondition` which is used to convey information to OLM about the state of an operator.

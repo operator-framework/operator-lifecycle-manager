@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -18,8 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -41,11 +42,11 @@ func (r *OperatorConditionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	deploymentHandler := handler.EnqueueRequestsFromMapFunc(r.mapToOperatorCondition)
 	handler := &handler.EnqueueRequestForOwner{
 		IsController: true,
-		OwnerType:    &operatorsv1.OperatorCondition{},
+		OwnerType:    &operatorsv2.OperatorCondition{},
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&operatorsv1.OperatorCondition{}).
+		For(&operatorsv2.OperatorCondition{}).
 		Watches(&source.Kind{Type: &rbacv1.Role{}}, handler).
 		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, handler).
 		Watches(&source.Kind{Type: &appsv1.Deployment{}}, deploymentHandler).
@@ -94,7 +95,7 @@ func (r *OperatorConditionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	log := r.log.WithValues("request", req)
 	log.V(2).Info("reconciling operatorcondition")
 
-	operatorCondition := &operatorsv1.OperatorCondition{}
+	operatorCondition := &operatorsv2.OperatorCondition{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, operatorCondition)
 	if err != nil {
 		log.V(1).Error(err, "Unable to find operatorcondition")
@@ -119,10 +120,16 @@ func (r *OperatorConditionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{Requeue: true}, err
 	}
 
+	err = r.syncOperatorConditionStatus(operatorCondition)
+	if err != nil {
+		log.V(1).Error(err, "Error syncing OperatorCondition Status")
+		return ctrl.Result{Requeue: true}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
-func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondition *operatorsv1.OperatorCondition) error {
+func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondition *operatorsv2.OperatorCondition) error {
 	r.log.V(4).Info("Ensuring the Role for the OperatorCondition")
 	role := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
@@ -131,15 +138,9 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondit
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
-				Verbs:         []string{"get"},
-				APIGroups:     []string{"operators.coreos.com"},
-				Resources:     []string{"operatorconditions"},
-				ResourceNames: []string{operatorCondition.GetName()},
-			},
-			{
 				Verbs:         []string{"get", "update", "patch"},
 				APIGroups:     []string{"operators.coreos.com"},
-				Resources:     []string{"operatorconditions/status"},
+				Resources:     []string{"operatorconditions"},
 				ResourceNames: []string{operatorCondition.GetName()},
 			},
 		},
@@ -167,7 +168,7 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondit
 	return r.Client.Update(context.TODO(), existingRole)
 }
 
-func (r *OperatorConditionReconciler) ensureOperatorConditionRoleBinding(operatorCondition *operatorsv1.OperatorCondition) error {
+func (r *OperatorConditionReconciler) ensureOperatorConditionRoleBinding(operatorCondition *operatorsv2.OperatorCondition) error {
 	r.log.V(4).Info("Ensuring the RoleBinding for the OperatorCondition")
 	subjects := []rbacv1.Subject{}
 	for _, serviceAccount := range operatorCondition.Spec.ServiceAccounts {
@@ -216,7 +217,7 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRoleBinding(operato
 	return r.Client.Update(context.TODO(), existingRoleBinding)
 }
 
-func (r *OperatorConditionReconciler) ensureDeploymentEnvVars(operatorCondition *operatorsv1.OperatorCondition) error {
+func (r *OperatorConditionReconciler) ensureDeploymentEnvVars(operatorCondition *operatorsv2.OperatorCondition) error {
 	r.log.V(4).Info("Ensuring that deployments have the OPERATOR_CONDITION_NAME variable")
 	for _, deploymentName := range operatorCondition.Spec.Deployments {
 		deployment := &appsv1.Deployment{}
@@ -248,6 +249,27 @@ func (r *OperatorConditionReconciler) ensureDeploymentEnvVars(operatorCondition 
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (r *OperatorConditionReconciler) syncOperatorConditionStatus(operatorCondition *operatorsv2.OperatorCondition) error {
+	r.log.V(4).Info("Sync operatorcondition status")
+	currentGen := operatorCondition.ObjectMeta.GetGeneration()
+	changed := false
+	for _, cond := range operatorCondition.Spec.Conditions {
+		if c := meta.FindStatusCondition(operatorCondition.Status.Conditions, cond.Type); c != nil {
+			if cond.Status == c.Status && c.ObservedGeneration == currentGen {
+				continue
+			}
+		}
+		cond.ObservedGeneration = currentGen
+		meta.SetStatusCondition(&operatorCondition.Status.Conditions, cond)
+		changed = true
+	}
+
+	if changed {
+		return r.Client.Status().Update(context.TODO(), operatorCondition)
 	}
 	return nil
 }
