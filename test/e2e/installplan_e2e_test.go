@@ -1440,7 +1440,6 @@ var _ = Describe("Install Plan", func() {
 				expectedPhase: operatorsv1alpha1.InstallPlanPhaseComplete,
 				oldCRD: func() *apiextensions.CustomResourceDefinition {
 					oldCRD := newCRD(mainCRDPlural)
-					oldCRD.Spec.Version = "v1alpha1"
 					oldCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
@@ -1452,7 +1451,6 @@ var _ = Describe("Install Plan", func() {
 				}(),
 				intermediateCRD: func() *apiextensions.CustomResourceDefinition {
 					intermediateCRD := newCRD(mainCRDPlural)
-					intermediateCRD.Spec.Version = "v1alpha2"
 					intermediateCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha2",
@@ -1469,7 +1467,6 @@ var _ = Describe("Install Plan", func() {
 				}(),
 				newCRD: func() *apiextensions.CustomResourceDefinition {
 					newCRD := newCRD(mainCRDPlural)
-					newCRD.Spec.Version = "v1alpha2"
 					newCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha2",
@@ -2390,7 +2387,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
-			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
+			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), len(fetchedCRD.Spec.Versions), len(updatedCRD.Spec.Versions), "The CRD versions counts don't match")
 
@@ -2549,7 +2546,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
-			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
+			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), len(fetchedCRD.Spec.Versions), len(mainCRD.Spec.Versions), "The CRD versions counts don't match")
 
@@ -3136,7 +3133,7 @@ var _ = Describe("Install Plan", func() {
 
 		// Make sure to clean up the installed CRD
 		defer func() {
-			require.NoError(GinkgoT(), c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), *deleteOpts))
+			require.NoError(GinkgoT(), c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), *deleteOpts))
 		}()
 
 		// ensure there is only one installplan
@@ -4053,7 +4050,7 @@ type checkInstallPlanFunc func(fip *operatorsv1alpha1.InstallPlan) bool
 
 func validateCRDVersions(t GinkgoTInterface, c operatorclient.ClientInterface, name string, expectedVersions map[string]struct{}) {
 	// Retrieve CRD information
-	crd, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), name, metav1.GetOptions{})
+	crd, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), name, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	require.Equal(t, len(expectedVersions), len(crd.Spec.Versions), "number of CRD versions don't not match installed")
@@ -4186,8 +4183,20 @@ func newCRD(plural string) apiextensions.CustomResourceDefinition {
 			Name: plural + ".cluster.com",
 		},
 		Spec: apiextensions.CustomResourceDefinitionSpec{
-			Group:   "cluster.com",
-			Version: "v1alpha1",
+			Group: "cluster.com",
+			Versions: []apiextensions.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensions.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Type:        "object",
+							Description: "my crd schema",
+						},
+					},
+				},
+			},
 			Names: apiextensions.CustomResourceDefinitionNames{
 				Plural:   plural,
 				Singular: plural,
@@ -4254,14 +4263,10 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 	// Populate owned and required
 	for _, crd := range owned {
 		crdVersion := "v1alpha1"
-		if crd.Spec.Version != "" {
-			crdVersion = crd.Spec.Version
-		} else {
-			for _, v := range crd.Spec.Versions {
-				if v.Served && v.Storage {
-					crdVersion = v.Name
-					break
-				}
+		for _, v := range crd.Spec.Versions {
+			if v.Served && v.Storage {
+				crdVersion = v.Name
+				break
 			}
 		}
 		desc := operatorsv1alpha1.CRDDescription{
@@ -4276,14 +4281,10 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 
 	for _, crd := range required {
 		crdVersion := "v1alpha1"
-		if crd.Spec.Version != "" {
-			crdVersion = crd.Spec.Version
-		} else {
-			for _, v := range crd.Spec.Versions {
-				if v.Served && v.Storage {
-					crdVersion = v.Name
-					break
-				}
+		for _, v := range crd.Spec.Versions {
+			if v.Served && v.Storage {
+				crdVersion = v.Name
+				break
 			}
 		}
 		desc := operatorsv1alpha1.CRDDescription{

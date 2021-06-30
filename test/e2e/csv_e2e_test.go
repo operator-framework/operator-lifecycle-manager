@@ -16,7 +16,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
@@ -4120,13 +4119,13 @@ func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv v1
 
 func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) cleanupFunc {
 	return func() {
-		err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.TODO(), crdName, *metav1.NewDeleteOptions(immediateDeleteGracePeriod))
+		err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crdName, *metav1.NewDeleteOptions(immediateDeleteGracePeriod))
 		if err != nil {
 			fmt.Println(err)
 		}
 
 		waitForDelete(func() error {
-			_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
+			_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			return err
 		})
 	}
@@ -4147,18 +4146,18 @@ func buildAPIServiceCleanupFunc(c operatorclient.ClientInterface, apiServiceName
 }
 
 func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourceDefinition) (cleanupFunc, error) {
-	out := &v1beta1.CustomResourceDefinition{}
+	out := &apiextensionsv1.CustomResourceDefinition{}
 	scheme := runtime.NewScheme()
 	if err := apiextensions.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
-	if err := v1beta1.AddToScheme(scheme); err != nil {
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
 	if err := scheme.Convert(&crd, out, nil); err != nil {
 		return nil, err
 	}
-	_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
+	_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
