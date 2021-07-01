@@ -2,7 +2,7 @@
 
 ## Step 0: Review the Release Milestone
 
-If the release you plan to create corresponds with an existing [milestone](https://github.com/operator-framework/operator-lifecycle-manager/milestone/), make sure that all features have been committed. If a feature will not be added to the release be sure to remove it from the milestone.
+If the release you plan to create corresponds with an existing [milestone](https://github.com/operator-framework/operator-lifecycle-manager/milestones/), make sure that all features have been committed. If a feature will not be added to the release be sure to remove it from the milestone.
 
 ## Step 1: Installing Requirements
 
