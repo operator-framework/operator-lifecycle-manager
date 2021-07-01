@@ -9,6 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.16'
       - run: make e2e-local NODES=2 JUNIT_DIRECTORY=./artifacts/
       - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
         if: ${{ always() }}
