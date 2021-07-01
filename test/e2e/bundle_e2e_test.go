@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 
 	"github.com/ghodss/yaml"
@@ -19,8 +20,10 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
-	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/testdata/vpa"
 )
+
+//go:embed testdata/vpa/crd.yaml
+var vpaCRDraw []byte
 
 var _ = Describe("Installing bundles with new object types", func() {
 	var (
@@ -56,10 +59,8 @@ var _ = Describe("Installing bundles with new object types", func() {
 			)
 
 			// create VPA CRD on cluster
-			y, err := vpa.Asset("test/e2e/testdata/vpa/crd.yaml")
-			Expect(err).ToNot(HaveOccurred(), "could not read vpa bindata")
-
-			data, err := yaml.YAMLToJSON(y)
+			Expect(vpaCRDraw).ToNot(BeEmpty(), "could not read vpa bindata")
+			data, err := yaml.YAMLToJSON(vpaCRDraw)
 			Expect(err).ToNot(HaveOccurred(), "could not convert vpa crd to json")
 
 			err = json.Unmarshal(data, &vpaCRD)
