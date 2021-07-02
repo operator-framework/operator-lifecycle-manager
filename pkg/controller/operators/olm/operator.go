@@ -45,7 +45,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/proxy"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
@@ -471,42 +470,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	// setup proxy env var injection policies
-	discovery := config.operatorClient.KubernetesInterface().Discovery()
-	proxyAPIExists, err := proxy.IsAPIAvailable(discovery)
-	if err != nil {
-		op.logger.Errorf("error happened while probing for Proxy API support - %v", err)
-		return nil, err
-	}
-
-	proxyQuerierInUse := proxy.NoopQuerier()
-	if proxyAPIExists {
-		op.logger.Info("OpenShift Proxy API  available - setting up watch for Proxy type")
-
-		proxyInformer, proxySyncer, proxyQuerier, err := proxy.NewSyncer(op.logger, config.configClient, discovery)
-		if err != nil {
-			err = fmt.Errorf("failed to initialize syncer for Proxy type - %v", err)
-			return nil, err
-		}
-
-		op.logger.Info("OpenShift Proxy query will be used to fetch cluster proxy configuration")
-		proxyQuerierInUse = proxyQuerier
-
-		informer, err := queueinformer.NewQueueInformer(
-			ctx,
-			queueinformer.WithLogger(op.logger),
-			queueinformer.WithInformer(proxyInformer.Informer()),
-			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(proxySyncer.SyncProxy).ToSyncerWithDelete(proxySyncer.HandleProxyDelete)),
-		)
-		if err != nil {
-			return nil, err
-		}
-		if err := op.RegisterQueueInformer(informer); err != nil {
-			return nil, err
-		}
-	}
-
-	overridesBuilderFunc := overrides.NewDeploymentInitializer(op.logger, proxyQuerierInUse, op.lister)
+	overridesBuilderFunc := overrides.NewDeploymentInitializer(op.logger op.lister)
 	op.resolver = &install.StrategyResolver{
 		OverridesBuilderFunc: overridesBuilderFunc.GetDeploymentInitializer,
 	}

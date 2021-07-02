@@ -13,8 +13,6 @@ import (
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	configv1 "github.com/openshift/api/config/v1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/operator-framework/api/pkg/lib/version"
@@ -1156,55 +1153,8 @@ var _ = Describe("Subscription", func() {
 	})
 
 	It("creation with pod config", func() {
-
-		newConfigClient := func(t GinkgoTInterface) configv1client.ConfigV1Interface {
-			client, err := configv1client.NewForConfig(ctx.Ctx().RESTConfig())
-			require.NoError(GinkgoT(), err)
-
-			return client
-		}
-
-		proxyEnvVarFunc := func(t GinkgoTInterface, client configv1client.ConfigV1Interface) []corev1.EnvVar {
-			if discovery.ServerSupportsVersion(ctx.Ctx().KubeClient().KubernetesInterface().Discovery(), configv1.GroupVersion) != nil {
-				return nil
-			}
-
-			proxy, getErr := client.Proxies().Get(context.Background(), "cluster", metav1.GetOptions{})
-			if k8serrors.IsNotFound(getErr) {
-				return nil
-			}
-			require.NoError(GinkgoT(), getErr)
-			require.NotNil(GinkgoT(), proxy)
-
-			proxyEnv := []corev1.EnvVar{}
-
-			if proxy.Status.HTTPProxy != "" {
-				proxyEnv = append(proxyEnv, corev1.EnvVar{
-					Name:  "HTTP_PROXY",
-					Value: proxy.Status.HTTPProxy,
-				})
-			}
-
-			if proxy.Status.HTTPSProxy != "" {
-				proxyEnv = append(proxyEnv, corev1.EnvVar{
-					Name:  "HTTPS_PROXY",
-					Value: proxy.Status.HTTPSProxy,
-				})
-			}
-
-			if proxy.Status.NoProxy != "" {
-				proxyEnv = append(proxyEnv, corev1.EnvVar{
-					Name:  "NO_PROXY",
-					Value: proxy.Status.NoProxy,
-				})
-			}
-
-			return proxyEnv
-		}
-
 		kubeClient := newKubeClient()
 		crClient := newCRClient()
-		config := newConfigClient(GinkgoT())
 
 		// Create a ConfigMap that is mounted to the operator via the subscription
 		testConfigMapName := genName("test-configmap-")
@@ -1296,10 +1246,6 @@ var _ = Describe("Subscription", func() {
 
 		csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
-
-		proxyEnv := proxyEnvVarFunc(GinkgoT(), config)
-		expected := podEnv
-		expected = append(expected, proxyEnv...)
 
 		checkDeploymentWithPodConfiguration(GinkgoT(), kubeClient, csv, podConfig.Env, podConfig.Volumes, podConfig.VolumeMounts, podConfig.Tolerations, podConfig.Resources)
 	})

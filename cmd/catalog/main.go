@@ -9,18 +9,13 @@ import (
 	"os"
 	"time"
 
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/filemonitor"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/profile"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
@@ -30,7 +25,7 @@ import (
 const (
 	catalogNamespaceEnvVarName  = "GLOBAL_CATALOG_NAMESPACE"
 	defaultWakeupInterval       = 15 * time.Minute
-	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
+	defaultCatalogNamespace     = "olm"
 	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
 	defaultUtilImage            = "quay.io/operator-framework/olm:latest"
 	defaultOperatorName         = ""
@@ -52,9 +47,6 @@ var (
 
 	utilImage = flag.String(
 		"util-image", defaultUtilImage, "an image containing custom olm utilities")
-
-	writeStatusName = flag.String(
-		"writeStatusName", defaultOperatorName, "ClusterOperator name in which to write status, set to \"\" to disable.")
 
 	debug = flag.Bool(
 		"debug", false, "use debug log level")
@@ -130,6 +122,7 @@ func main() {
 
 	go http.ListenAndServe(":8080", healthMux)
 
+	// TODO(tflannag): Wrap this into it's own function handler
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())
 	if useTLS {
@@ -160,21 +153,6 @@ func main() {
 		}()
 	}
 
-	// create a config client for operator status
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-	configClient, err := configv1client.NewForConfig(config)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
-	crClient, err := client.NewClient(*kubeConfigPath)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-
 	// Create a new instance of the operator.
 	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
 	if err != nil {
@@ -183,10 +161,5 @@ func main() {
 
 	op.Run(ctx)
 	<-op.Ready()
-
-	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, op.AtLevel(), op.Done(), opClient, configClient, crClient)
-	}
-
 	<-op.Done()
 }

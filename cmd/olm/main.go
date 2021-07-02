@@ -10,22 +10,17 @@ import (
 	"strings"
 	"time"
 
-	configclientset "github.com/openshift/client-go/config/clientset/versioned"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/openshift"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/feature"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/filemonitor"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/profile"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
@@ -48,12 +43,6 @@ var (
 		"watchedNamespaces", "", "comma separated list of namespaces for olm operator to watch. "+
 			"If not set, or set to the empty string (e.g. `-watchedNamespaces=\"\"`), "+
 			"olm operator will watch all namespaces in the cluster.")
-
-	writeStatusName = pflag.String(
-		"writeStatusName", defaultOperatorName, "ClusterOperator name in which to write status, set to \"\" to disable.")
-
-	writePackageServerStatusName = pflag.String(
-		"writePackageServerStatusName", defaultPackageServerStatusName, "ClusterOperator name in which to write status for package API server, set to \"\" to disable.")
 
 	debug = pflag.Bool(
 		"debug", false, "use debug log level")
@@ -185,14 +174,6 @@ func main() {
 	}
 	config := mgr.GetConfig()
 
-	versionedConfigClient, err := configclientset.NewForConfig(config)
-	if err != nil {
-		logger.WithError(err).Fatal("error configuring openshift proxy client")
-	}
-	configClient, err := configv1client.NewForConfig(config)
-	if err != nil {
-		logger.WithError(err).Fatal("error configuring config client")
-	}
 	opClient, err := operatorclient.NewClientFromRestConfig(config)
 	if err != nil {
 		logger.WithError(err).Fatal("error configuring operator client")
@@ -213,7 +194,6 @@ func main() {
 		olm.WithExternalClient(crClient),
 		olm.WithOperatorClient(opClient),
 		olm.WithRestConfig(config),
-		olm.WithConfigClient(versionedConfigClient),
 	)
 	if err != nil {
 		logger.WithError(err).Fatalf("error configuring operator")
@@ -222,40 +202,6 @@ func main() {
 
 	op.Run(ctx)
 	<-op.Ready()
-
-	if *writeStatusName != "" {
-		reconciler, err := openshift.NewClusterOperatorReconciler(
-			openshift.WithClient(mgr.GetClient()),
-			openshift.WithScheme(mgr.GetScheme()),
-			openshift.WithLog(ctrl.Log.WithName("controllers").WithName("clusteroperator")),
-			openshift.WithName(*writeStatusName),
-			openshift.WithNamespace(*namespace),
-			openshift.WithSyncChannel(op.AtLevel()),
-			openshift.WithOLMOperator(),
-		)
-		if err != nil {
-			logger.WithError(err).Fatalf("error configuring openshift integration")
-			return
-		}
-
-		if err := reconciler.SetupWithManager(mgr); err != nil {
-			logger.WithError(err).Fatalf("error configuring openshift integration")
-			return
-		}
-	}
-
-	if *writePackageServerStatusName != "" {
-		logger.Info("Initializing cluster operator monitor for package server")
-
-		names := *writePackageServerStatusName
-		discovery := opClient.KubernetesInterface().Discovery()
-		monitor, sender := operatorstatus.NewMonitor(logger, discovery, configClient, names)
-
-		handler := operatorstatus.NewCSVWatchNotificationHandler(logger, op.GetCSVSetGenerator(), op.GetReplaceFinder(), sender)
-		op.RegisterCSVWatchNotification(handler)
-
-		go monitor.Run(op.Done())
-	}
 
 	// Start the controller manager
 	if err := mgr.Start(ctx); err != nil {
