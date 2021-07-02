@@ -470,7 +470,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	overridesBuilderFunc := overrides.NewDeploymentInitializer(op.logger op.lister)
+	overridesBuilderFunc := overrides.NewDeploymentInitializer(op.logger, op.lister)
 	op.resolver = &install.StrategyResolver{
 		OverridesBuilderFunc: overridesBuilderFunc.GetDeploymentInitializer,
 	}
