@@ -64,6 +64,8 @@ type Upgrade struct {
 	Timeout time.Duration
 	// Wait determines whether the wait operation should be performed after the upgrade is requested.
 	Wait bool
+	// WaitForJobs determines whether the wait operation for the Jobs should be performed after the upgrade is requested.
+	WaitForJobs bool
 	// DisableHooks disables hook processing if set to true.
 	DisableHooks bool
 	// DryRun controls whether the operation is prepared, but not executed.
@@ -92,7 +94,7 @@ type Upgrade struct {
 	// PostRender is an optional post-renderer
 	//
 	// If this is non-nil, then after templates are rendered, they will be sent to the
-	// post renderer before sending to the Kuberntes API server.
+	// post renderer before sending to the Kubernetes API server.
 	PostRenderer postrender.PostRenderer
 	// DisableOpenAPIValidation controls whether OpenAPI validation is enforced.
 	DisableOpenAPIValidation bool
@@ -329,9 +331,16 @@ func (u *Upgrade) performUpgrade(originalRelease, upgradedRelease *release.Relea
 	}
 
 	if u.Wait {
-		if err := u.cfg.KubeClient.Wait(target, u.Timeout); err != nil {
-			u.cfg.recordRelease(originalRelease)
-			return u.failRelease(upgradedRelease, results.Created, err)
+		if u.WaitForJobs {
+			if err := u.cfg.KubeClient.WaitWithJobs(target, u.Timeout); err != nil {
+				u.cfg.recordRelease(originalRelease)
+				return u.failRelease(upgradedRelease, results.Created, err)
+			}
+		} else {
+			if err := u.cfg.KubeClient.Wait(target, u.Timeout); err != nil {
+				u.cfg.recordRelease(originalRelease)
+				return u.failRelease(upgradedRelease, results.Created, err)
+			}
 		}
 	}
 
@@ -400,6 +409,7 @@ func (u *Upgrade) failRelease(rel *release.Release, created kube.ResourceList, e
 		rollin := NewRollback(u.cfg)
 		rollin.Version = filteredHistory[0].Version
 		rollin.Wait = true
+		rollin.WaitForJobs = u.WaitForJobs
 		rollin.DisableHooks = u.DisableHooks
 		rollin.Recreate = u.Recreate
 		rollin.Force = u.Force

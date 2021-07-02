@@ -29,7 +29,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 	"sigs.k8s.io/yaml"
 
 	"helm.sh/helm/v3/cmd/helm/require"
@@ -48,6 +48,7 @@ type repoAddOptions struct {
 	url                  string
 	username             string
 	password             string
+	passCredentialsAll   bool
 	forceUpdate          bool
 	allowDeprecatedRepos bool
 
@@ -91,6 +92,7 @@ func newRepoAddCmd(out io.Writer) *cobra.Command {
 	f.StringVar(&o.caFile, "ca-file", "", "verify certificates of HTTPS-enabled servers using this CA bundle")
 	f.BoolVar(&o.insecureSkipTLSverify, "insecure-skip-tls-verify", false, "skip tls certificate checks for the repository")
 	f.BoolVar(&o.allowDeprecatedRepos, "allow-deprecated-repos", false, "by default, this command will not allow adding official repos that have been permanently deleted. This disables that behavior")
+	f.BoolVar(&o.passCredentialsAll, "pass-credentials", false, "pass credentials to all domains")
 
 	return cmd
 }
@@ -136,7 +138,7 @@ func (o *repoAddOptions) run(out io.Writer) error {
 	if o.username != "" && o.password == "" {
 		fd := int(os.Stdin.Fd())
 		fmt.Fprint(out, "Password: ")
-		password, err := terminal.ReadPassword(fd)
+		password, err := term.ReadPassword(fd)
 		fmt.Fprintln(out)
 		if err != nil {
 			return err
@@ -149,6 +151,7 @@ func (o *repoAddOptions) run(out io.Writer) error {
 		URL:                   o.url,
 		Username:              o.username,
 		Password:              o.password,
+		PassCredentialsAll:    o.passCredentialsAll,
 		CertFile:              o.certFile,
 		KeyFile:               o.keyFile,
 		CAFile:                o.caFile,

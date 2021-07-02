@@ -20,7 +20,6 @@ import (
 	"net/http"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/apiserver/pkg/endpoints/request"
 )
 
 const (
@@ -70,20 +69,6 @@ func (lazy *lazyAccept) String() string {
 	if lazy.req != nil {
 		accept := lazy.req.Header.Get("Accept")
 		return accept
-	}
-
-	return "unknown"
-}
-
-// lazyAuditID implements Stringer interface to lazily retrieve
-// the audit ID associated with the request.
-type lazyAuditID struct {
-	req *http.Request
-}
-
-func (lazy *lazyAuditID) String() string {
-	if lazy.req != nil {
-		return request.GetAuditIDTruncated(lazy.req)
 	}
 
 	return "unknown"

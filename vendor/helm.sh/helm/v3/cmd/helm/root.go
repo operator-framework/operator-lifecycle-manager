@@ -98,7 +98,7 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 	// Setup shell completion for the namespace flag
 	err := cmd.RegisterFlagCompletionFunc("namespace", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if client, err := actionConfig.KubernetesClientSet(); err == nil {
-			// Choose a long enough timeout that the user notices somethings is not working
+			// Choose a long enough timeout that the user notices something is not working
 			// but short enough that the user is not made to wait very long
 			to := int64(3)
 			cobra.CompDebugln(fmt.Sprintf("About to call kube client for namespaces with timeout of: %d", to), settings.Debug)
@@ -131,13 +131,13 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 		if config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 			loadingRules,
 			&clientcmd.ConfigOverrides{}).RawConfig(); err == nil {
-			ctxs := []string{}
-			for name := range config.Contexts {
+			comps := []string{}
+			for name, context := range config.Contexts {
 				if strings.HasPrefix(name, toComplete) {
-					ctxs = append(ctxs, name)
+					comps = append(comps, fmt.Sprintf("%s\t%s", name, context.Cluster))
 				}
 			}
-			return ctxs, cobra.ShellCompDirectiveNoFileComp
+			return comps, cobra.ShellCompDirectiveNoFileComp
 		}
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	})
@@ -153,12 +153,22 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 	flags.ParseErrorsWhitelist.UnknownFlags = true
 	flags.Parse(args)
 
+	registryClient, err := registry.NewClient(
+		registry.ClientOptDebug(settings.Debug),
+		registry.ClientOptWriter(out),
+		registry.ClientOptCredentialsFile(settings.RegistryConfig),
+	)
+	if err != nil {
+		return nil, err
+	}
+	actionConfig.RegistryClient = registryClient
+
 	// Add subcommands
 	cmd.AddCommand(
 		// chart commands
 		newCreateCmd(out),
-		newDependencyCmd(out),
-		newPullCmd(out),
+		newDependencyCmd(actionConfig, out),
+		newPullCmd(actionConfig, out),
 		newShowCmd(out),
 		newLintCmd(out),
 		newPackageCmd(out),
@@ -188,15 +198,6 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 	)
 
 	// Add *experimental* subcommands
-	registryClient, err := registry.NewClient(
-		registry.ClientOptDebug(settings.Debug),
-		registry.ClientOptWriter(out),
-		registry.ClientOptCredentialsFile(settings.RegistryConfig),
-	)
-	if err != nil {
-		return nil, err
-	}
-	actionConfig.RegistryClient = registryClient
 	cmd.AddCommand(
 		newRegistryCmd(actionConfig, out),
 		newChartCmd(actionConfig, out),
