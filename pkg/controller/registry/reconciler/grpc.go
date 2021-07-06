@@ -226,7 +226,7 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, sa
 			return nil
 		}
 		for _, p := range currentLivePods {
-			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0)); err != nil && !k8serror.IsNotFound(err) {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0)); err != nil {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
 			}
 		}
@@ -307,8 +307,7 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 		if !overwrite && ServiceHashMatch(svc, service) {
 			return nil
 		}
-		// TODO(tflannag): Do we care about force deleting services?
-		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serror.IsNotFound(err) {
+		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil {
 			return err
 		}
 	}
@@ -403,7 +402,8 @@ func imageID(pod *corev1.Pod) string {
 
 func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string) error {
 	for _, p := range pods {
-		if err := c.OpClient.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0)); err != nil && !k8serror.IsNotFound(err) {
+		err := c.OpClient.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0))
+		if err != nil {
 			return errors.Wrapf(err, "error deleting pod: %s", p.GetName())
 		}
 	}

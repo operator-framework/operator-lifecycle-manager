@@ -9,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -311,7 +310,7 @@ func (c *ConfigMapRegistryReconciler) ensureServiceAccount(source configMapCatal
 		if !overwrite {
 			return nil
 		}
-		if err := c.OpClient.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0)); err != nil {
 			return err
 		}
 	}
@@ -325,7 +324,7 @@ func (c *ConfigMapRegistryReconciler) ensureRole(source configMapCatalogSourceDe
 		if !overwrite {
 			return nil
 		}
-		if err := c.OpClient.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0)); err != nil {
 			return err
 		}
 	}
@@ -339,7 +338,7 @@ func (c *ConfigMapRegistryReconciler) ensureRoleBinding(source configMapCatalogS
 		if !overwrite {
 			return nil
 		}
-		if err := c.OpClient.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0)); err != nil {
 			return err
 		}
 	}
@@ -355,7 +354,7 @@ func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDec
 			return nil
 		}
 		for _, p := range currentPods {
-			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(0)); err != nil {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
 			}
 		}
@@ -374,7 +373,7 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 		if !overwrite && ServiceHashMatch(svc, service) {
 			return nil
 		}
-		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil {
 			return err
 		}
 	}
