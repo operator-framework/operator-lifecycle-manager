@@ -828,13 +828,8 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 		return err
 	}
 
-	// Filter the operator associated with this namespace
-	groups := make([]*v1.OperatorGroup, 0)
-	for _, og := range operatorGroupList {
-		if og.GetNamespace() == namespace.GetName() {
-			groups = append(groups, og)
-		}
-	}
+	// Query OG in this namespace
+	groups, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace.GetName()).List(labels.Everything())
 
 	// Check if there is a stale multiple OG condition and clear it if existed.
 	if len(groups) == 1 {
@@ -843,7 +838,7 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 			meta.RemoveStatusCondition(&og.Status.Conditions, v1.MutlipleOperatorGroupCondition)
 			_, err = a.client.OperatorsV1().OperatorGroups(namespace.GetName()).UpdateStatus(context.TODO(), og, metav1.UpdateOptions{})
 			if err != nil {
-				logger.Warnf("fail to upgrade operator group status condition og=%s: %s", og.GetName(), err.Error())
+				logger.Warnf("fail to upgrade operator group status og=%s with condition %+v: %s", og.GetName(), c, err.Error())
 			}
 		}
 	} else if len(groups) > 1 {
@@ -859,7 +854,7 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 			meta.SetStatusCondition(&og.Status.Conditions, cond)
 			_, err = a.client.OperatorsV1().OperatorGroups(namespace.GetName()).UpdateStatus(context.TODO(), og, metav1.UpdateOptions{})
 			if err != nil {
-				logger.Warnf("fail to upgrade operator group status condition og=%s: %s", og.GetName(), err.Error())
+				logger.Warnf("fail to upgrade operator group status og=%s with condition %+v: %s", og.GetName(), cond, err.Error())
 			}
 		}
 	}

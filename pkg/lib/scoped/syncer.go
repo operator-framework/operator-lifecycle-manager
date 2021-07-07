@@ -89,7 +89,7 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 		meta.SetStatusCondition(&in.Status.Conditions, cond)
 		_, err = s.update(in, nil)
 		if err != nil {
-			logger.Warnf("fail to upgrade operator group status condition og=%s: %s", in.GetName(), err.Error())
+			logger.Warnf("fail to upgrade operator group status og=%s with condition %+v: %s", in.GetName(), cond, err.Error())
 		}
 		err = fmt.Errorf("failed to get service account, sa=%s %v", serviceAccountName, err)
 		return
@@ -103,6 +103,11 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 	if reflect.DeepEqual(in.Status.ServiceAccountRef, ref) {
 		logger.Debugf("status.serviceAccount is in sync with spec sa=%s", serviceAccountName)
 		return
+	}
+
+	// Remove SA not found condition if found
+	if c := meta.FindStatusCondition(in.Status.Conditions, v1.OperatorGroupServiceAccountCondition); c != nil {
+		meta.RemoveStatusCondition(&in.Status.Conditions, v1.OperatorGroupServiceAccountCondition)
 	}
 
 	out, err = s.update(in, ref)
