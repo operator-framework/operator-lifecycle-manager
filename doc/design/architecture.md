@@ -102,11 +102,12 @@ None --> Planning +------>------->------> Installing +---> Complete
 | Phase            | Description                                                                                    |
 |------------------|------------------------------------------------------------------------------------------------|
 | None             | initial phase, once seen by the Operator, it is immediately transitioned to `Planning`         |
-| Planning         | dependencies between resources are being resolved, to be stored in the InstallPlan `Status` |
+| Planning         | dependencies between resources are being resolved, to be stored in the InstallPlan `Status`    |
 | RequiresApproval | occurs when using manual approval, will not transition phase until `approved` field is true    |
-| Installing       | resolved resources in the InstallPlan `Status` block are being created                      |
+| Installing       | waiting for reconciliation of required resource(OG/SA etc), or resolved resources in the 
+                     InstallPlan `Status` block are being created                                                   |
 | Complete         | all resolved resources in the `Status` block exist                                             |
-| Failed           | occurs when resources fail to install or there is an invalid OperatorGroup                     |
+| Failed           | occurs when resources fail to install or when bundle unpacking fails                           |
 
 ### Subscription Control Loop
 

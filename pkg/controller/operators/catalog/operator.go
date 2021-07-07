@@ -1387,28 +1387,36 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
 	ref, err := querier()
+
+	out := plan.DeepCopy()
 	if err != nil {
-
-		// Retry sync if non-fatal error
-		if !scoped.IsOperatorGroupError(err) {
-			syncError = fmt.Errorf("attenuated service account query failed - %v", err)
-			return
-		}
-
-		// Mark the InstallPlan as failed for a fatal Operator Group related error
-		logger.Infof("attenuated service account query failed - %v", err)
-		ipFailError := fmt.Errorf("invalid operator group - %v", err)
-
-		if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, ipFailError.Error()); err != nil {
-			// retry for failure to update status
+		// Set status condition/message and retry sync if any error
+		ipFailError := fmt.Errorf("attenuated service account query failed - %v", err)
+		logger.Infof(ipFailError.Error())
+		_, err := o.setInstallPlanInstalledCond(out, v1alpha1.InstallPlanReasonInstallCheckFailed, err.Error(), logger)
+		if err != nil {
 			syncError = err
 			return
 		}
-
-		// Requeue subscription to propagate SubscriptionInstallPlanFailed condtion to subscription
-		o.requeueSubscriptionForInstallPlan(plan, logger)
-
+		syncError = ipFailError
 		return
+	} else {
+		// reset condition/message if it had been set in previous sync. This condition is being reset since any delay in the next steps
+		// (bundle unpacking/plan step errors being retried for a duration) could lead to this condition sticking around, even after
+		// the serviceAccountQuerier returns no error since the error has been resolved (by creating the required resources), which would
+		// be confusing to the user
+
+		// NOTE: this makes the assumption that the InstallPlanInstalledCheckFailed reason is only set in the previous if clause, which is
+		// true in the current iteration of the catalog operator. Any future implementation change that aims at setting the reason as
+		// InstallPlanInstalledCheckFailed must make sure that either this assumption is not breached, or the condition being set elsewhere
+		// is not being unset here unintentionally.
+		if cond := out.Status.GetCondition(v1alpha1.InstallPlanInstalled); cond.Reason == v1alpha1.InstallPlanReasonInstallCheckFailed {
+			plan, err = o.setInstallPlanInstalledCond(out, v1alpha1.InstallPlanConditionReason(corev1.ConditionUnknown), "", logger)
+			if err != nil {
+				syncError = err
+				return
+			}
+		}
 	}
 
 	if ref != nil {
@@ -1551,6 +1559,18 @@ func (o *Operator) requeueSubscriptionForInstallPlan(plan *v1alpha1.InstallPlan,
 			logger.WithError(err).Warn("error requeuing installplan owner")
 		}
 	}
+}
+
+func (o *Operator) setInstallPlanInstalledCond(ip *v1alpha1.InstallPlan, reason v1alpha1.InstallPlanConditionReason, message string, logger *logrus.Entry) (*v1alpha1.InstallPlan, error) {
+	now := o.now()
+	ip.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled, reason, message, &now))
+	outIP, err := o.client.OperatorsV1alpha1().InstallPlans(ip.GetNamespace()).UpdateStatus(context.TODO(), ip, metav1.UpdateOptions{})
+	if err != nil {
+		logger = logger.WithField("updateError", err.Error())
+		logger.Errorf("error updating InstallPlan status")
+		return nil, nil
+	}
+	return outIP, nil
 }
 
 type installPlanTransitioner interface {
