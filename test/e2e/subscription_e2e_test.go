@@ -189,8 +189,20 @@ var _ = Describe("Subscription", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
@@ -338,8 +350,20 @@ var _ = Describe("Subscription", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
