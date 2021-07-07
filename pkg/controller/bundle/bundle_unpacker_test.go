@@ -222,7 +222,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
@@ -399,7 +399,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
@@ -616,7 +616,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
@@ -828,7 +828,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
@@ -1010,7 +1010,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
@@ -1203,7 +1203,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
