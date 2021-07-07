@@ -127,6 +127,12 @@ var _ = Describe("CRD Versions", func() {
 						Name:    "v2alpha1",
 						Served:  true,
 						Storage: false,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
 					},
 				},
 				Names: apiextensions.CustomResourceDefinitionNames{
@@ -163,6 +169,12 @@ var _ = Describe("CRD Versions", func() {
 						Name:    "v2alpha2",
 						Served:  true,
 						Storage: false,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
 					},
 				},
 				Names: apiextensions.CustomResourceDefinitionNames{
@@ -281,6 +293,12 @@ var _ = Describe("CRD Versions", func() {
 						Name:    "v1alpha1",
 						Served:  true,
 						Storage: true,
+						Schema: &apiextensionsv1.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
 					},
 				},
 				Names: apiextensionsv1.CustomResourceDefinitionNames{
@@ -332,6 +350,12 @@ var _ = Describe("CRD Versions", func() {
 						Name:    "v1alpha2",
 						Served:  true,
 						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
 					},
 				},
 				Names: apiextensions.CustomResourceDefinitionNames{

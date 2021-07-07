@@ -23,7 +23,7 @@ import (
 )
 
 //go:embed testdata/vpa/crd.yaml
-var vpaCRDraw []byte
+var vpaCRDRaw []byte
 
 var _ = Describe("Installing bundles with new object types", func() {
 	var (
@@ -42,7 +42,6 @@ var _ = Describe("Installing bundles with new object types", func() {
 		TearDown(testNamespace)
 	})
 
-	// TODO bump vpa CRD to v1, otherwise this test will now fail
 	When("a bundle with a pdb, priorityclass, and VPA object is installed", func() {
 		const (
 			packageName = "busybox"
@@ -59,8 +58,8 @@ var _ = Describe("Installing bundles with new object types", func() {
 			)
 
 			// create VPA CRD on cluster
-			Expect(vpaCRDraw).ToNot(BeEmpty(), "could not read vpa bindata")
-			data, err := yaml.YAMLToJSON(vpaCRDraw)
+			Expect(vpaCRDRaw).ToNot(BeEmpty(), "could not read vpa bindata")
+			data, err := yaml.YAMLToJSON(vpaCRDRaw)
 			Expect(err).ToNot(HaveOccurred(), "could not convert vpa crd to json")
 
 			err = json.Unmarshal(data, &vpaCRD)
