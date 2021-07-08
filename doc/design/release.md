@@ -37,10 +37,10 @@ If git `push` is disabled on `upstream` repository in your fork, then clone this
 
 ```bash
 # 0.11.0 is the bumped version.
-git tag -a 0.11.0 -m "Version 0.11.0"
+git tag -a v0.18.0 -m "Version 0.18.0"
 
-# origin points to operator-framework/operator-lifecycle-manager
-git push origin 0.11.0
+# origin remote points to operator-framework/operator-lifecycle-manager
+git push origin v0.18.0
 ```
 
 * Confirm that new images have been built here: <https://quay.io/repository/operator-framework/olm?tab=builds>.
