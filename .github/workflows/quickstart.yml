@@ -20,4 +20,24 @@ jobs:
         kubectl apply -f deploy/upstream/quickstart/crds.yaml
         kubectl wait --timeout=5m --for=condition=Established crd $(kubectl get crd --output=jsonpath='{.items[*].metadata.name}')
         kubectl apply -f deploy/upstream/quickstart/olm.yaml
-        kubectl wait --timeout=5m --for=condition=Available -n olm deploy olm-operator catalog-operator packageserver
+
+        # Note(tflannag): `kubectl wait` does not support waiting for resource creation: https://github.com/kubernetes/kubernetes/pull/87399.
+        wait_for_deployment() {
+          local deployment_name=$1
+          timeout=60
+          i=1
+          echo "Checking if the ${deployment_name} deployment is ready"
+          until kubectl -n olm get deployment ${deployment_name} -o jsonpath='{.status.conditions[?(@.status=="True")].type}' | grep "Available" 2>/dev/null; do
+              ((i++))
+              if [[ ${i} -gt ${timeout} ]]; then
+                  echo "the ${deployment_name} deployment has not become ready before the timeout period"
+                  exit 1
+              fi
+              echo "waiting for ${deployment_name} deployment to report a ready status"
+              sleep 5
+          done
+          echo "The ${deployment_name} deployment is ready"
+        }
+        wait_for_deployment catalog-operator
+        wait_for_deployment olm-operator
+        wait_for_deployment packageserver
