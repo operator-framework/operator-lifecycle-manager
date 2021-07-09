@@ -899,7 +899,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -1238,7 +1238,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 		crd.SetOwnerReferences([]metav1.OwnerReference{{
@@ -2381,8 +2381,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 
@@ -2574,7 +2573,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -2764,7 +2763,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -2954,7 +2953,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 
@@ -3125,7 +3124,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -3403,7 +3402,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -3567,7 +3566,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		defer cleanupCRD()
@@ -3797,7 +3796,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())

@@ -1767,7 +1767,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -1949,7 +1949,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2169,7 +2169,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2380,7 +2380,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2420,7 +2420,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2572,7 +2572,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2612,7 +2612,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -3005,7 +3005,7 @@ var _ = Describe("Install Plan", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 
@@ -3808,7 +3808,7 @@ var _ = Describe("Install Plan", func() {
 					Kind:     "ins",
 					ListKind: "ins" + "list",
 				},
-				Scope: "Namespaced",
+				Scope: apiextensionsv1.NamespaceScoped,
 				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 					{
 						Name:    "v1alpha1",
@@ -4066,7 +4066,7 @@ var _ = Describe("Install Plan", func() {
 					Kind:     "ins",
 					ListKind: "ins" + "list",
 				},
-				Scope: "Namespaced",
+				Scope: apiextensionsv1.NamespaceScoped,
 				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 					{
 						Name:    "v1alpha1",
@@ -4347,7 +4347,7 @@ func newCRD(plural string) apiextensions.CustomResourceDefinition {
 				Kind:     plural,
 				ListKind: plural + "list",
 			},
-			Scope: "Namespaced",
+			Scope: apiextensions.NamespaceScoped,
 		},
 	}
 

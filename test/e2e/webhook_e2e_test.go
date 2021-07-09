@@ -1051,7 +1051,7 @@ func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
 		},
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: "cluster.com",
-			Scope: "Namespaced",
+			Scope: apiextensionsv1.NamespaceScoped,
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 				{
 					Name:    "v1alpha1",

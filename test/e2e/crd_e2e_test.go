@@ -37,6 +37,7 @@ var _ = Describe("CRD Versions", func() {
 				Name: crdName,
 			},
 			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Scope: apiextensionsv1.NamespaceScoped,
 				Group: "cluster.com",
 				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 					{
@@ -141,7 +142,7 @@ var _ = Describe("CRD Versions", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 
@@ -183,6 +184,7 @@ var _ = Describe("CRD Versions", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 
@@ -307,7 +309,7 @@ var _ = Describe("CRD Versions", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensionsv1.NamespaceScoped,
 			},
 		}
 		_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), oldCRD, metav1.CreateOptions{})
@@ -364,7 +366,7 @@ var _ = Describe("CRD Versions", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 
