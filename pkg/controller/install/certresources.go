@@ -39,6 +39,9 @@ const (
 	Organization = "Red Hat, Inc."
 	// Kubernetes System namespace
 	KubeSystem = "kube-system"
+	// olm managed label
+	OLMManagedLabelKey   = "olm.managed"
+	OLMManagedLabelValue = "true"
 )
 
 type certResource interface {
@@ -292,6 +295,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	secret.SetName(SecretName(service.GetName()))
 	secret.SetNamespace(i.owner.GetNamespace())
 	secret.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
+	secret.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 	existingSecret, err := i.strategyClient.GetOpLister().CoreV1().SecretLister().Secrets(i.owner.GetNamespace()).Get(secret.GetName())
 	if err == nil {
@@ -315,10 +319,17 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	} else if k8serrors.IsNotFound(err) {
 		// Create the secret
 		ownerutil.AddNonBlockingOwner(secret, i.owner)
-		_, err = i.strategyClient.GetOpClient().CreateSecret(secret)
-		if err != nil {
-			log.Warnf("could not create secret %s", secret.GetName())
-			return nil, nil, err
+		if _, err := i.strategyClient.GetOpClient().CreateSecret(secret); err != nil {
+			if !k8serrors.IsAlreadyExists(err) {
+				log.Warnf("could not create secret %s: %v", secret.GetName(), err)
+				return nil, nil, err
+			}
+			// if the secret isn't in the cache but exists in the cluster, it's missing the labels for the cache filter
+			// and just needs to be updated
+			if _, err := i.strategyClient.GetOpClient().UpdateSecret(secret); err != nil {
+				log.Warnf("could not update secret %s: %v", secret.GetName(), err)
+				return nil, nil, err
+			}
 		}
 	} else {
 		return nil, nil, err
