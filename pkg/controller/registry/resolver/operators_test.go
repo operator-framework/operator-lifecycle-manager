@@ -961,7 +961,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 	crd := v1beta1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
-			APIVersion: "apiextensions.k8s.io/v1beta1",
+			APIVersion: "apiextensions.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "owneds.crd.group.com",

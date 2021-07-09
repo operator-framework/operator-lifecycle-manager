@@ -752,7 +752,7 @@ func serializeCRD(crd apiextensions.CustomResourceDefinition) string {
 	Expect(scheme.Convert(&crd, out, nil)).To(Succeed())
 	out.TypeMeta = metav1.TypeMeta{
 		Kind:       "CustomResourceDefinition",
-		APIVersion: "apiextensions.k8s.io/v1beta1",
+		APIVersion: "apiextensions.k8s.io/v1",
 	}
 
 	// set up object serializer
