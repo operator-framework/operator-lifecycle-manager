@@ -32,11 +32,11 @@ func validateCSVs(objs ...interface{}) (results []errors.ManifestResult) {
 func validateCSV(csv *v1alpha1.ClusterServiceVersion) errors.ManifestResult {
 	result := errors.ManifestResult{Name: csv.GetName()}
 	// Ensure CSV names are of the correct format.
-	if err := parseCSVNameFormat(csv.GetName()); err != (errors.Error{}) {
+	if err := parseCSVNameFormat(csv.GetName()); err != nil {
 		result.Add(errors.ErrInvalidCSV(fmt.Sprintf("metadata.name %s", err), csv.GetName()))
 	}
 	if replaces := csv.Spec.Replaces; replaces != "" {
-		if err := parseCSVNameFormat(replaces); err != (errors.Error{}) {
+		if err := parseCSVNameFormat(replaces); err != nil {
 			result.Add(errors.ErrInvalidCSV(fmt.Sprintf("spec.replaces %s", err), csv.GetName()))
 		}
 	}
@@ -52,10 +52,15 @@ func validateCSV(csv *v1alpha1.ClusterServiceVersion) errors.ManifestResult {
 }
 
 func parseCSVNameFormat(name string) error {
-	if violations := k8svalidation.IsDNS1123Subdomain(name); len(violations) != 0 {
-		return fmt.Errorf("%q is invalid:\n%s", name, violations)
+	var errStrs []string
+	errStrs = append(errStrs, k8svalidation.IsDNS1123Subdomain(name)...)
+	// Give CSV name is used as label value, it should be validated
+	errStrs = append(errStrs, k8svalidation.IsValidLabelValue(name)...)
+
+	if len(errStrs) > 0 {
+		return fmt.Errorf("%q is invalid: %s", name, strings.Join(errStrs, ","))
 	}
-	return errors.Error{}
+	return nil
 }
 
 // checkFields runs checkEmptyFields and returns its errors.

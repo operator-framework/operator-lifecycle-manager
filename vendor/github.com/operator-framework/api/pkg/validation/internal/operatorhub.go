@@ -130,13 +130,13 @@ func validateBundleOperatorHub(bundle *manifests.Bundle, k8sVersion string) erro
 // authors knows if their operator bundles are or not respecting the Naming Convention Rules.
 // However, the operator authors still able to choose the names as please them.
 func validateHubChannels(channels []string) error {
-	const preview = "preview"
+	const candidate = "candidate"
 	const stable = "stable"
 	const fast = "fast"
 
 	var channelsNotFollowingConventional []string
 	for _, channel := range channels {
-		if !strings.HasPrefix(channel, preview) &&
+		if !strings.HasPrefix(channel, candidate) &&
 			!strings.HasPrefix(channel, stable) &&
 			!strings.HasPrefix(channel, fast) {
 			channelsNotFollowingConventional = append(channelsNotFollowingConventional, channel)
