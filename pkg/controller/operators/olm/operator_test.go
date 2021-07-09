@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -286,7 +285,6 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	k8sClientFake := k8sfake.NewSimpleClientset(config.k8sObjs...)
 	k8sClientFake.Resources = apiResourcesForObjects(append(config.extObjs, config.regObjs...))
 	config.operatorClient = operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
-	config.configClient = configfake.NewSimpleClientset()
 
 	for _, ns := range config.namespaces {
 		_, err := config.operatorClient.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}, metav1.CreateOptions{})
