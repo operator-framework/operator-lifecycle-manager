@@ -4345,7 +4345,7 @@ func newMockExtServerDeployment(labelName string, mGVKs []mockGroupVersionKind) 
 	for _, mGVK := range mGVKs {
 		containers = append(containers, corev1.Container{
 			Name:    genName(mGVK.Name),
-			Image:   "quay.io/coreos/mock-extension-apiserver:master",
+			Image:   "quay.io/operator-framework/mock-extension-apiserver:master",
 			Command: []string{"/bin/mock-extension-apiserver"},
 			Args: []string{
 				"-v=4",
