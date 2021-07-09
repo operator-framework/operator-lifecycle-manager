@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,11 @@ func main() {
 	g := lib.NewGnostic(os.Args)
 	err := g.Main()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		// only print UsageErrors; other errors are written to the specified error output
+		if _, ok := err.(*lib.UsageError); ok {
+			fmt.Fprintf(os.Stdout, "%s\n", err.Error())
+			fmt.Fprintf(os.Stdout, "%s\n", g.Usage())
+		}
 		os.Exit(-1)
 	}
 }
