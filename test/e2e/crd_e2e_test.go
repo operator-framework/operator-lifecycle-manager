@@ -37,6 +37,7 @@ var _ = Describe("CRD Versions", func() {
 				Name: crdName,
 			},
 			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Scope: apiextensionsv1.NamespaceScoped,
 				Group: "cluster.com",
 				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 					{
@@ -141,7 +142,7 @@ var _ = Describe("CRD Versions", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 
@@ -183,6 +184,7 @@ var _ = Describe("CRD Versions", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 
@@ -307,7 +309,7 @@ var _ = Describe("CRD Versions", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensionsv1.NamespaceScoped,
 			},
 		}
 		_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), oldCRD, metav1.CreateOptions{})
@@ -321,13 +323,18 @@ var _ = Describe("CRD Versions", func() {
 			}
 			GinkgoT().Logf("old crd status stored versions: %#v", oldCRD.Status.StoredVersions)
 
-			// set v1alpha1 to no longer served
+			// set v1alpha1 to no longer stored
 			oldCRD.Spec.Versions[0].Storage = false
 			// update CRD on-cluster with a new version
 			oldCRD.Spec.Versions = append(oldCRD.Spec.Versions, apiextensionsv1.CustomResourceDefinitionVersion{
 				Name:    "v1alpha2",
 				Served:  true,
 				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type: "object",
+					},
+				},
 			})
 
 			updatedCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), oldCRD, metav1.UpdateOptions{})
@@ -364,7 +371,7 @@ var _ = Describe("CRD Versions", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 

@@ -1160,8 +1160,19 @@ var _ = Describe("Install Plan", func() {
 							Storage: true,
 							Schema: &apiextensions.CustomResourceValidation{
 								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-									Type:        "object",
-									Description: "my crd schema",
+									Type: "object",
+									Properties: map[string]apiextensions.JSONSchemaProps{
+										"spec": {
+											Type:        "object",
+											Description: "Spec of a test object.",
+											Properties: map[string]apiextensions.JSONSchemaProps{
+												"scalar": {
+													Type:        "number",
+													Description: "Scalar value that should have a min and max.",
+												},
+											},
+										},
+									},
 								},
 							},
 						},
@@ -1767,7 +1778,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -1949,7 +1960,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2169,7 +2180,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2380,7 +2391,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2420,7 +2431,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2572,7 +2583,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -2612,7 +2623,7 @@ var _ = Describe("Install Plan", func() {
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: "Namespaced",
+					Scope: apiextensions.NamespaceScoped,
 				},
 			}
 
@@ -3005,7 +3016,7 @@ var _ = Describe("Install Plan", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 
@@ -3084,7 +3095,7 @@ var _ = Describe("Install Plan", func() {
 				Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
 			},
 			Spec: operatorsv1alpha1.CatalogSourceSpec{
-				Image:      "quay.io/olmtest/single-bundle-index:1.0.0", //TODO update image to use v1 CRDs
+				Image:      "quay.io/operator-framework/ci-index:latest",
 				SourceType: operatorsv1alpha1.SourceTypeGrpc,
 			},
 		}
@@ -3653,7 +3664,7 @@ var _ = Describe("Install Plan", func() {
 				Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
 			},
 			Spec: operatorsv1alpha1.CatalogSourceSpec{
-				Image:      "quay.io/olmtest/single-bundle-index:1.0.0",
+				Image:      "quay.io/operator-framework/ci-index:latest",
 				SourceType: operatorsv1alpha1.SourceTypeGrpc,
 			},
 		}
@@ -3808,7 +3819,7 @@ var _ = Describe("Install Plan", func() {
 					Kind:     "ins",
 					ListKind: "ins" + "list",
 				},
-				Scope: "Namespaced",
+				Scope: apiextensionsv1.NamespaceScoped,
 				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 					{
 						Name:    "v1alpha1",
@@ -4066,7 +4077,7 @@ var _ = Describe("Install Plan", func() {
 					Kind:     "ins",
 					ListKind: "ins" + "list",
 				},
-				Scope: "Namespaced",
+				Scope: apiextensionsv1.NamespaceScoped,
 				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 					{
 						Name:    "v1alpha1",
@@ -4347,7 +4358,7 @@ func newCRD(plural string) apiextensions.CustomResourceDefinition {
 				Kind:     plural,
 				ListKind: plural + "list",
 			},
-			Scope: "Namespaced",
+			Scope: apiextensions.NamespaceScoped,
 		},
 	}
 

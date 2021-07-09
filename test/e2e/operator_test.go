@@ -265,7 +265,7 @@ var _ = Describe("Operator API", func() {
 			cs := &operatorsv1alpha1.CatalogSource{
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
-					Image:      "quay.io/olmtest/single-bundle-index:1.0.0", // TODO upgrade to v1 CRDs
+					Image:      "quay.io/operator-framework/ci-index:latest",
 				},
 			}
 			cs.SetNamespace(ns.GetName())

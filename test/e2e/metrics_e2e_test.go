@@ -41,7 +41,10 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 	})
 
 	Context("Given an OperatorGroup that supports all namespaces", func() {
-		By("using the default OperatorGroup created in BeforeSuite")
+		BeforeEach(func() {
+			By("using the default OperatorGroup created in BeforeSuite")
+		})
+
 		When("a CSV spec does not include Install Mode", func() {
 
 			var (

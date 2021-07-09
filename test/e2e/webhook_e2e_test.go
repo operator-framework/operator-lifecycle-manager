@@ -648,7 +648,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			packageName := "webhook-operator"
 			channelName := "alpha"
 
-			catSrcImage := "quay.io/olmtest/webhook-operator-index"
+			catSrcImage := "quay.io/operator-framework/webhook-operator-index"
 
 			// Create gRPC CatalogSource
 			source := &operatorsv1alpha1.CatalogSource{
@@ -1051,7 +1051,7 @@ func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
 		},
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: "cluster.com",
-			Scope: "Namespaced",
+			Scope: apiextensionsv1.NamespaceScoped,
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 				{
 					Name:    "v1alpha1",
