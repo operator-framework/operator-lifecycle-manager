@@ -830,6 +830,10 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 
 	// Query OG in this namespace
 	groups, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace.GetName()).List(labels.Everything())
+	if err != nil {
+		logger.WithError(err).Warn("failed to list OperatorGroups in the namespace")
+		return err
+	}
 
 	// Check if there is a stale multiple OG condition and clear it if existed.
 	if len(groups) == 1 {
