@@ -265,7 +265,7 @@ var _ = Describe("Operator API", func() {
 			cs := &operatorsv1alpha1.CatalogSource{
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
-					Image:      "quay.io/olmtest/single-bundle-index:1.0.0",
+					Image:      "quay.io/operator-framework/ci-index:latest",
 				},
 			}
 			cs.SetNamespace(ns.GetName())
@@ -356,7 +356,7 @@ var _ = Describe("Operator API", func() {
 		})
 
 		Context("when a namespace is added", func() {
-			var newNs  *corev1.Namespace
+			var newNs *corev1.Namespace
 
 			BeforeEach(func() {
 				// Subscribe to a package and await a successful install

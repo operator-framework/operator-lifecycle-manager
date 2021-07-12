@@ -16,7 +16,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
@@ -880,15 +879,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -1207,15 +1218,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		}
 		crd.SetOwnerReferences([]metav1.OwnerReference{{
@@ -2338,15 +2361,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 
@@ -2518,15 +2553,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -2702,6 +2749,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 						Name:    "v1alpha1",
 						Served:  true,
 						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
 					},
 				},
 				Names: apiextensions.CustomResourceDefinitionNames{
@@ -2710,7 +2763,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -2880,15 +2933,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 
@@ -3034,11 +3099,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 						Name:    "v1alpha1",
 						Served:  true,
 						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
 					},
 					{
 						Name:    "v1alpha2",
 						Served:  true,
 						Storage: false,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
 					},
 				},
 				Names: apiextensions.CustomResourceDefinitionNames{
@@ -3047,7 +3124,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -3305,15 +3382,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -3457,15 +3546,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		defer cleanupCRD()
@@ -3675,15 +3776,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Name: crdName,
 			},
 			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group:   "cluster.com",
-				Version: "v1alpha1",
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensions.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+								Type:        "object",
+								Description: "my crd schema",
+							},
+						},
+					},
+				},
 				Names: apiextensions.CustomResourceDefinitionNames{
 					Plural:   crdPlural,
 					Singular: crdPlural,
 					Kind:     crdPlural,
 					ListKind: "list" + crdPlural,
 				},
-				Scope: "Namespaced",
+				Scope: apiextensions.NamespaceScoped,
 			},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -4120,13 +4233,13 @@ func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv v1
 
 func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) cleanupFunc {
 	return func() {
-		err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.TODO(), crdName, *metav1.NewDeleteOptions(immediateDeleteGracePeriod))
+		err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crdName, *metav1.NewDeleteOptions(immediateDeleteGracePeriod))
 		if err != nil {
 			fmt.Println(err)
 		}
 
 		waitForDelete(func() error {
-			_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
+			_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			return err
 		})
 	}
@@ -4147,18 +4260,18 @@ func buildAPIServiceCleanupFunc(c operatorclient.ClientInterface, apiServiceName
 }
 
 func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourceDefinition) (cleanupFunc, error) {
-	out := &v1beta1.CustomResourceDefinition{}
+	out := &apiextensionsv1.CustomResourceDefinition{}
 	scheme := runtime.NewScheme()
 	if err := apiextensions.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
-	if err := v1beta1.AddToScheme(scheme); err != nil {
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
 	if err := scheme.Convert(&crd, out, nil); err != nil {
 		return nil, err
 	}
-	_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
+	_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -4232,7 +4345,7 @@ func newMockExtServerDeployment(labelName string, mGVKs []mockGroupVersionKind) 
 	for _, mGVK := range mGVKs {
 		containers = append(containers, corev1.Container{
 			Name:    genName(mGVK.Name),
-			Image:   "quay.io/coreos/mock-extension-apiserver:master",
+			Image:   "quay.io/operator-framework/mock-extension-apiserver:master",
 			Command: []string{"/bin/mock-extension-apiserver"},
 			Args: []string{
 				"-v=4",

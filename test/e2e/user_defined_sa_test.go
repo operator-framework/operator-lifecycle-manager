@@ -271,15 +271,27 @@ func newCatalogSource(t GinkgoTInterface, kubeclient operatorclient.ClientInterf
 			Name: crdName,
 		},
 		Spec: apiextensions.CustomResourceDefinitionSpec{
-			Group:   "cluster.com",
-			Version: "v1alpha1",
+			Group: "cluster.com",
+			Versions: []apiextensions.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensions.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Type:        "object",
+							Description: "my crd schema",
+						},
+					},
+				},
+			},
 			Names: apiextensions.CustomResourceDefinitionNames{
 				Plural:   crdPlural,
 				Singular: crdPlural,
 				Kind:     crdPlural,
 				ListKind: "list" + crdPlural,
 			},
-			Scope: "Namespaced",
+			Scope: apiextensions.NamespaceScoped,
 		},
 	}
 
@@ -331,15 +343,27 @@ func newCatalogSourceWithDependencies(t GinkgoTInterface, kubeclient operatorcli
 			Name: crdName,
 		},
 		Spec: apiextensions.CustomResourceDefinitionSpec{
-			Group:   "cluster.com",
-			Version: "v1alpha1",
+			Group: "cluster.com",
+			Versions: []apiextensions.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensions.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Type:        "object",
+							Description: "my crd schema",
+						},
+					},
+				},
+			},
 			Names: apiextensions.CustomResourceDefinitionNames{
 				Plural:   crdPlural,
 				Singular: crdPlural,
 				Kind:     crdPlural,
 				ListKind: "list" + crdPlural,
 			},
-			Scope: "Namespaced",
+			Scope: apiextensions.NamespaceScoped,
 		},
 	}
 

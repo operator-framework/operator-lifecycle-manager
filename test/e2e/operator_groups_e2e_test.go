@@ -544,7 +544,7 @@ var _ = Describe("Operator Group", func() {
 					ResourceAttributes: &authorizationv1.ResourceAttributes{
 						Namespace: nsA,
 						Group:     crd.Spec.Group,
-						Version:   crd.Spec.Version,
+						Version:   crd.Spec.Versions[0].Name,
 						Resource:  crd.Spec.Names.Plural,
 						Verb:      "create",
 					},
@@ -861,9 +861,9 @@ var _ = Describe("Operator Group", func() {
 		crdA := newCRD(genName(pkgA))
 		crdB := newCRD(genName(pkgB))
 		crdD := newCRD(genName(pkgD))
-		kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Version, crdA.Spec.Group)
-		kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Version, crdB.Spec.Group)
-		kvgD := fmt.Sprintf("%s.%s.%s", crdD.Spec.Names.Kind, crdD.Spec.Version, crdD.Spec.Group)
+		kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Versions[0].Name, crdA.Spec.Group)
+		kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Versions[0].Name, crdB.Spec.Group)
+		kvgD := fmt.Sprintf("%s.%s.%s", crdD.Spec.Names.Kind, crdD.Spec.Versions[0].Name, crdD.Spec.Group)
 		csvA := newCSV(pkgAStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, &strategyA)
 		csvB := newCSV(pkgBStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA, crdB}, nil, &strategyB)
 		csvD := newCSV(pkgDStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdD}, nil, &strategyD)
@@ -1006,7 +1006,7 @@ var _ = Describe("Operator Group", func() {
 					ResourceAttributes: &authorizationv1.ResourceAttributes{
 						Namespace: nsA,
 						Group:     crdA.Spec.Group,
-						Version:   crdA.Spec.Version,
+						Version:   crdA.Spec.Versions[0].Name,
 						Resource:  crdA.Spec.Names.Plural,
 						Verb:      "create",
 					},
@@ -1137,8 +1137,8 @@ var _ = Describe("Operator Group", func() {
 		strategyB := newNginxInstallStrategy(pkgBStable, nil, nil)
 		crdA := newCRD(genName(pkgA))
 		crdB := newCRD(genName(pkgB))
-		kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Version, crdA.Spec.Group)
-		kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Version, crdB.Spec.Group)
+		kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Versions[0].Name, crdA.Spec.Group)
+		kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Versions[0].Name, crdB.Spec.Group)
 		csvA := newCSV(pkgAStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, &strategyA)
 		csvB := newCSV(pkgBStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdB}, nil, &strategyB)
 

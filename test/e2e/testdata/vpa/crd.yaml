@@ -1,4 +1,4 @@
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: verticalpodautoscalers.autoscaling.k8s.io
@@ -13,52 +13,40 @@ spec:
     kind: VerticalPodAutoscaler
     shortNames:
       - vpa
-  version: v1beta1
   versions:
     - name: v1beta1
       served: false
       storage: false
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                name:
+                  type: string
     - name: v1beta2
       served: true
       storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                name:
+                  type: string
     - name: v1
       served: true
       storage: false
-  validation:
-    # openAPIV3Schema is the schema for validating custom objects.
-    openAPIV3Schema:
-      type: object
-      properties:
-        spec:
+      schema:
+        openAPIV3Schema:
           type: object
-          required: []
           properties:
-            targetRef:
-              type: object
-            updatePolicy:
+            spec:
               type: object
               properties:
-                updateMode:
+                name:
                   type: string
-            resourcePolicy:
-              type: object
-              properties:
-                containerPolicies:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      containerName:
-                        type: string
-                      mode:
-                        type: string
-                        enum: ["Auto", "Off"]
-                      minAllowed:
-                        type: object
-                      maxAllowed:
-                        type: object
-                      controlledResources:
-                        type: array
-                        items:
-                          type: string
-                          enum: ["cpu", "memory"]
