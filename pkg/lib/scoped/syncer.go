@@ -7,6 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -62,6 +64,9 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 			return
 		}
 
+		// Remove ServiceAccount condition if existed
+		meta.RemoveStatusCondition(&in.Status.Conditions, v1.OperatorGroupServiceAccountCondition)
+
 		// User must have removed ServiceAccount from the spec. We need to
 		// rest Status to a nil reference.
 		out, err = s.update(in, nil)
@@ -74,6 +79,21 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 	// A service account has been specified, we need to update the status.
 	sa, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), serviceAccountName, metav1.GetOptions{})
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			// Set OG's status condition to indicate SA is not found
+			cond := metav1.Condition{
+				Type:    v1.OperatorGroupServiceAccountCondition,
+				Status:  metav1.ConditionTrue,
+				Reason:  v1.OperatorGroupServiceAccountReason,
+				Message: fmt.Sprintf("ServiceAccount %s not found", serviceAccountName),
+			}
+
+			meta.SetStatusCondition(&in.Status.Conditions, cond)
+			_, uerr := s.update(in, nil)
+			if uerr != nil {
+				logger.Warnf("fail to upgrade operator group status og=%s with condition %+v: %s", in.GetName(), cond, uerr.Error())
+			}
+		}
 		err = fmt.Errorf("failed to get service account, sa=%s %v", serviceAccountName, err)
 		return
 	}
@@ -86,6 +106,11 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 	if reflect.DeepEqual(in.Status.ServiceAccountRef, ref) {
 		logger.Debugf("status.serviceAccount is in sync with spec sa=%s", serviceAccountName)
 		return
+	}
+
+	// Remove SA not found condition if found
+	if c := meta.FindStatusCondition(in.Status.Conditions, v1.OperatorGroupServiceAccountCondition); c != nil {
+		meta.RemoveStatusCondition(&in.Status.Conditions, v1.OperatorGroupServiceAccountCondition)
 	}
 
 	out, err = s.update(in, ref)

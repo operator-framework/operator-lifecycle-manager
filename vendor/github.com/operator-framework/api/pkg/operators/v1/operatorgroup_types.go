@@ -19,6 +19,11 @@ const (
 
 	OperatorGroupLabelPrefix   = "olm.operatorgroup.uid/"
 	OperatorGroupLabelTemplate = OperatorGroupLabelPrefix + "%s"
+
+	OperatorGroupServiceAccountCondition = "OperatorGroupServiceAccount"
+	MutlipleOperatorGroupCondition       = "MultipleOperatorGroup"
+	MultipleOperatorGroupsReason         = "MultipleOperatorGroupsFound"
+	OperatorGroupServiceAccountReason    = "ServiceAccountNotFound"
 )
 
 // OperatorGroupSpec is the spec for an OperatorGroup resource.
@@ -53,6 +58,9 @@ type OperatorGroupStatus struct {
 
 	// LastUpdated is a timestamp of the last time the OperatorGroup's status was Updated.
 	LastUpdated *metav1.Time `json:"lastUpdated"`
+
+	// Conditions is an array of the OperatorGroup's conditions.
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

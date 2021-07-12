@@ -28,6 +28,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -4532,6 +4533,217 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			for namespace, objects := range tt.final.objects {
 				RequireObjectsInNamespace(t, op.opClient, op.client, namespace, objects)
+			}
+		})
+	}
+}
+
+func TestOperatorGroupConditions(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+	clockFake := utilclock.NewFakeClock(time.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600)))
+
+	operatorNamespace := "operator-ns"
+	opNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: operatorNamespace,
+		},
+	}
+	serviceAccount := serviceAccount("sa", operatorNamespace)
+
+	type initial struct {
+		operatorGroup *v1.OperatorGroup
+		clientObjs    []runtime.Object
+		k8sObjs       []runtime.Object
+	}
+
+	tests := []struct {
+		initial            initial
+		name               string
+		expectedConditions []metav1.Condition
+		expectError        bool
+	}{
+		{
+			name: "ValidOperatorGroup/NoServiceAccount",
+			initial: initial{
+				operatorGroup: &v1.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace,
+						UID:       "135e02a5-a7e2-44e7-abaa-88c63838993c",
+					},
+					Spec: v1.OperatorGroupSpec{
+						TargetNamespaces: []string{operatorNamespace},
+					},
+				},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: operatorNamespace,
+						},
+					},
+				},
+			},
+			expectError:        false,
+			expectedConditions: []metav1.Condition{},
+		},
+		{
+			name: "ValidOperatorGroup/ValidServiceAccount",
+			initial: initial{
+				operatorGroup: &v1.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace,
+						UID:       "135e02a5-a7e2-44e7-abaa-88c63838993c",
+					},
+					Spec: v1.OperatorGroupSpec{
+						ServiceAccountName: "sa",
+						TargetNamespaces:   []string{operatorNamespace},
+					},
+				},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: operatorNamespace,
+						},
+					},
+					serviceAccount,
+				},
+			},
+			expectError:        false,
+			expectedConditions: []metav1.Condition{},
+		},
+		{
+			name: "BadOperatorGroup/MissingServiceAccount",
+			initial: initial{
+				operatorGroup: &v1.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace,
+						UID:       "135e02a5-a7e2-44e7-abaa-88c63838993c",
+					},
+					Spec: v1.OperatorGroupSpec{
+						ServiceAccountName: "nonexistingSA",
+						TargetNamespaces:   []string{operatorNamespace},
+					},
+				},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: operatorNamespace,
+						},
+					},
+				},
+			},
+			expectError: true,
+			expectedConditions: []metav1.Condition{
+				metav1.Condition{
+					Type:    v1.OperatorGroupServiceAccountCondition,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1.OperatorGroupServiceAccountReason,
+					Message: "ServiceAccount nonexistingSA not found",
+				},
+			},
+		},
+		{
+			name: "BadOperatorGroup/MultipleOperatorGroups",
+			initial: initial{
+				operatorGroup: &v1.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace,
+						UID:       "135e02a5-a7e2-44e7-abaa-88c63838993c",
+					},
+					Spec: v1.OperatorGroupSpec{
+						TargetNamespaces: []string{operatorNamespace},
+					},
+				},
+				clientObjs: []runtime.Object{
+					&v1.OperatorGroup{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "operator-group-2",
+							Namespace: operatorNamespace,
+							UID:       "cdc9643e-7c52-4f7c-ae75-28ccb6aec97d",
+						},
+						Spec: v1.OperatorGroupSpec{
+							TargetNamespaces: []string{operatorNamespace},
+						},
+					},
+				},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: operatorNamespace,
+						},
+					},
+				},
+			},
+			expectError: true,
+			expectedConditions: []metav1.Condition{
+				metav1.Condition{
+					Type:    v1.MutlipleOperatorGroupCondition,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1.MultipleOperatorGroupsReason,
+					Message: "Multiple OperatorGroup found in the same namespace",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			namespaces := []string{}
+			// Pick out Namespaces
+			for _, obj := range tt.initial.k8sObjs {
+				if ns, ok := obj.(*corev1.Namespace); ok {
+					namespaces = append(namespaces, ns.GetName())
+				}
+			}
+
+			// Append operatorGroup to initialObjs
+			tt.initial.clientObjs = append(tt.initial.clientObjs, tt.initial.operatorGroup)
+
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(
+				ctx,
+				withClock(clockFake),
+				withNamespaces(namespaces...),
+				withOperatorNamespace(operatorNamespace),
+				withClientObjs(tt.initial.clientObjs...),
+				withK8sObjs(tt.initial.k8sObjs...),
+			)
+			require.NoError(t, err)
+
+			err = op.syncOperatorGroups(tt.initial.operatorGroup)
+			if !tt.expectError {
+				require.NoError(t, err)
+			}
+
+			// wait on operator group updated status to be in the cache
+			err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
+				og, err := op.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName())
+				if err != nil || og == nil {
+					return false, err
+				}
+				return true, nil
+			})
+			require.NoError(t, err)
+
+			// sync namespace
+			err = op.syncNamespace(opNamespace)
+			require.NoError(t, err)
+
+			operatorGroup, err := op.client.OperatorsV1().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(context.TODO(), tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			assert.Equal(t, len(tt.expectedConditions), len(operatorGroup.Status.Conditions))
+			if len(tt.expectedConditions) > 0 {
+				for _, cond := range tt.expectedConditions {
+					c := meta.FindStatusCondition(operatorGroup.Status.Conditions, cond.Type)
+					assert.Equal(t, cond.Status, c.Status)
+					assert.Equal(t, cond.Reason, c.Reason)
+					assert.Equal(t, cond.Message, c.Message)
+				}
 			}
 		})
 	}
