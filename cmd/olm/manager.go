@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/labels"
 
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/feature"
 )
@@ -16,7 +20,16 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 
 	// Setup a Manager
 	setupLog.Info("configuring manager")
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{MetricsBindAddress: "0"}) // TODO(njhale): Enable metrics on non-conflicting port (not 8080)
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		MetricsBindAddress: "0", // TODO(njhale): Enable metrics on non-conflicting port (not 8080)
+		NewCache: cache.BuilderWithOptions(cache.Options{
+			SelectorsByObject: cache.SelectorsByObject{
+				&corev1.Secret{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+			},
+		}),
+	})
 	if err != nil {
 		return nil, err
 	}
