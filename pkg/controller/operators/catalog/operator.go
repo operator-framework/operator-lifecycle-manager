@@ -115,7 +115,7 @@ type Operator struct {
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration, bundleUnpackTimeout time.Duration) (*Operator, error) {
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, opmImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration, bundleUnpackTimeout time.Duration) (*Operator, error) {
 	resyncPeriod := queueinformer.ResyncWithJitter(resync, 0.2)
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
@@ -351,7 +351,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		bundle.WithPodLister(podInformer.Lister()),
 		bundle.WithRoleLister(roleInformer.Lister()),
 		bundle.WithRoleBindingLister(roleBindingInformer.Lister()),
-		bundle.WithOPMImage(configmapRegistryImage),
+		bundle.WithOPMImage(opmImage),
 		bundle.WithUtilImage(utilImage),
 		bundle.WithNow(op.now),
 		bundle.WithUnpackTimeout(op.bundleUnpackTimeout),
