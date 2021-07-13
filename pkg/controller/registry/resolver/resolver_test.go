@@ -1298,8 +1298,19 @@ func getFakeOperatorCache(fakedNamespacedOperatorCache NamespacedOperatorCache) 
 
 func genOperator(name, version, replaces, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs APISet, dependencies []*api.Dependency, defaultChannel string, deprecated bool) *Operator {
 	semversion, _ := semver.Make(version)
+	properties := apiSetToProperties(providedAPIs, nil, deprecated)
 	if len(dependencies) == 0 {
-		dependencies = apiSetToDependencies(requiredAPIs, nil)
+		ps, err := requiredAPIsToProperties(requiredAPIs)
+		if err != nil {
+			panic(err)
+		}
+		properties = append(properties, ps...)
+	} else {
+		ps, err := legacyDependenciesToProperties(dependencies)
+		if err != nil {
+			panic(err)
+		}
+		properties = append(properties, ps...)
 	}
 	o := &Operator{
 		name:     name,
@@ -1309,10 +1320,9 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 			PackageName:  pkg,
 			ChannelName:  channel,
 			Dependencies: dependencies,
-			Properties:   apiSetToProperties(providedAPIs, nil, deprecated),
+			Properties:   properties,
 		},
-		dependencies: dependencies,
-		properties:   apiSetToProperties(providedAPIs, nil, deprecated),
+		properties: properties,
 		sourceInfo: &OperatorSourceInfo{
 			Catalog: registry.CatalogKey{
 				Name:      catalogName,
@@ -1488,6 +1498,46 @@ func TestSolveOperators_WithSkips(t *testing.T) {
 		"packageB.v2": opB2,
 	}
 	require.EqualValues(t, expected, operators)
+}
+
+func TestSolveOperatorsWithClusterServiceVersionHavingDependency(t *testing.T) {
+	const namespace = "test-namespace"
+	catalog := registry.CatalogKey{Name: "test-catalog", Namespace: namespace}
+
+	a1 := existingOperator(namespace, "a-1", "a", "default", "", nil, nil, nil, nil)
+	a1.Annotations = map[string]string{
+		"operatorframework.io/properties": `{"properties":[{"type":"olm.package.required","value":{"packageName":"b","versionRange":"1.0.0"}}]}`,
+	}
+
+	b1 := existingOperator(namespace, "b-1", "b", "default", "", nil, nil, nil, nil)
+	b1.Annotations = map[string]string{
+		"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"b","version":"1.0.0"}}]}`,
+	}
+
+	csvs := []*v1alpha1.ClusterServiceVersion{a1, b1}
+	subs := []*v1alpha1.Subscription{
+		existingSub(namespace, "b-1", "b", "default", catalog),
+	}
+
+	log, _ := test.NewNullLogger()
+	r := SatResolver{
+		cache: getFakeOperatorCache(NamespacedOperatorCache{
+			snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+				catalog: {
+					key: catalog,
+					operators: []*Operator{
+						genOperator("b-2", "2.0.0", "b-1", "b", "default", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					},
+				},
+			},
+		}),
+		log: log,
+	}
+
+	operators, err := r.SolveOperators([]string{namespace}, csvs, subs)
+	assert.NoError(t, err)
+	//expected := OperatorSet{}
+	require.Empty(t, operators)
 }
 
 func TestInferProperties(t *testing.T) {

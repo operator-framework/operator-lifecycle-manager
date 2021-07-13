@@ -11,10 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 type APISet map[opregistry.APIKey]struct{}
@@ -197,6 +196,7 @@ type OperatorSourceInfo struct {
 	StartingCSV    string
 	Catalog        registry.CatalogKey
 	DefaultChannel bool
+	Subscription   *v1alpha1.Subscription
 }
 
 func (i *OperatorSourceInfo) String() string {
@@ -216,7 +216,6 @@ type OperatorSurface interface {
 	SourceInfo() *OperatorSourceInfo
 	Bundle() *api.Bundle
 	Inline() bool
-	Dependencies() []*api.Dependency
 	Properties() []*api.Property
 	Skips() []string
 }
@@ -229,7 +228,6 @@ type Operator struct {
 	version      *semver.Version
 	bundle       *api.Bundle
 	sourceInfo   *OperatorSourceInfo
-	dependencies []*api.Dependency
 	properties   []*api.Property
 	skips        []string
 }
@@ -261,21 +259,27 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 	// legacy support - if the api doesn't contain properties/dependencies, build them from required/provided apis
 	properties := bundle.Properties
 	if len(properties) == 0 {
-		properties, err = apisToProperties(provided)
+		properties, err = providedAPIsToProperties(provided)
 		if err != nil {
 			return nil, err
 		}
 	}
-	dependencies := bundle.Dependencies
-	if len(dependencies) == 0 {
-		dependencies, err = apisToDependencies(required)
+	if len(bundle.Dependencies) > 0 {
+		ps, err := legacyDependenciesToProperties(bundle.Dependencies)
+		if err != nil {
+			return nil, fmt.Errorf("failed to translate legacy dependencies to properties: %w", err)
+		}
+		properties = append(properties, ps...)
+	} else {
+		ps, err := requiredAPIsToProperties(required)
 		if err != nil {
 			return nil, err
 		}
+		properties = append(properties, ps...)
 	}
 
 	// legacy support - if the grpc api doesn't contain required/provided apis, fallback to csv parsing
-	if len(required) == 0 && len(provided) == 0 && len(properties) == 0 && len(dependencies) == 0 {
+	if len(required) == 0 && len(provided) == 0 && len(properties) == 0 {
 		// fallback to csv parsing
 		if bundle.CsvJson == "" {
 			if bundle.GetBundlePath() != "" {
@@ -307,7 +311,6 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		requiredAPIs: required,
 		bundle:       bundle,
 		sourceInfo:   sourceInfo,
-		dependencies: dependencies,
 		properties:   properties,
 		skips:        bundle.Skips,
 	}, nil
@@ -338,15 +341,15 @@ func NewOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*Operator,
 		requiredAPIs[opregistry.APIKey{Group: api.Group, Version: api.Version, Kind: api.Kind, Plural: api.Name}] = struct{}{}
 	}
 
-	dependencies, err := apisToDependencies(requiredAPIs)
+	properties, err := providedAPIsToProperties(providedAPIs)
 	if err != nil {
 		return nil, err
 	}
-
-	properties, err := apisToProperties(providedAPIs)
+	dependencies, err := requiredAPIsToProperties(requiredAPIs)
 	if err != nil {
 		return nil, err
 	}
+	properties = append(properties, dependencies...)
 
 	return &Operator{
 		name:         csv.GetName(),
@@ -354,7 +357,6 @@ func NewOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*Operator,
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,
 		sourceInfo:   &ExistingOperator,
-		dependencies: dependencies,
 		properties:   properties,
 	}, nil
 }
@@ -413,48 +415,48 @@ func (o *Operator) Inline() bool {
 	return o.bundle != nil && o.bundle.GetBundlePath() == ""
 }
 
-func (o *Operator) Dependencies() []*api.Dependency {
-	return o.dependencies
-}
-
 func (o *Operator) Properties() []*api.Property {
 	return o.properties
 }
 
 func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
 	predicates = make([]OperatorPredicate, 0)
-	for _, d := range o.Dependencies() {
-		var p OperatorPredicate
-		if d == nil || d.Type == "" {
+	for _, property := range o.Properties() {
+		predicate, err := PredicateForProperty(property)
+		if err != nil {
+			return nil, err
+		}
+		if predicate == nil {
 			continue
 		}
-		p, err = PredicateForDependency(d)
-		if err != nil {
-			return
-		}
-		predicates = append(predicates, p)
+		predicates = append(predicates, predicate)
 	}
 	return
 }
 
-// TODO: this should go in its own dependency/predicate builder package
-// TODO: can we make this more extensible, i.e. via cue
-func PredicateForDependency(dependency *api.Dependency) (OperatorPredicate, error) {
-	p, ok := predicates[dependency.Type]
-	if !ok {
-		return nil, fmt.Errorf("no predicate for dependency type %s", dependency.Type)
+func PredicateForProperty(property *api.Property) (OperatorPredicate, error) {
+	if property == nil {
+		return nil, nil
 	}
-	return p(dependency.Value)
+	p, ok := predicates[property.Type]
+	if !ok {
+		return nil, nil
+	}
+	return p(property.Value)
 }
 
 var predicates = map[string]func(string) (OperatorPredicate, error){
-	opregistry.GVKType:     predicateForGVKDependency,
-	opregistry.PackageType: predicateForPackageDependency,
-	opregistry.LabelType:   predicateForLabelDependency,
+	"olm.gvk.required":     predicateForRequiredGVKProperty,
+	"olm.package.required": predicateForRequiredPackageProperty,
+	"olm.label.required":   predicateForRequiredLabelProperty,
 }
 
-func predicateForGVKDependency(value string) (OperatorPredicate, error) {
-	var gvk opregistry.GVKDependency
+func predicateForRequiredGVKProperty(value string) (OperatorPredicate, error) {
+	var gvk struct {
+		Group   string `json:"group"`
+		Version string `json:"version"`
+		Kind    string `json:"kind"`
+	}
 	if err := json.Unmarshal([]byte(value), &gvk); err != nil {
 		return nil, err
 	}
@@ -465,44 +467,51 @@ func predicateForGVKDependency(value string) (OperatorPredicate, error) {
 	}), nil
 }
 
-func predicateForPackageDependency(value string) (OperatorPredicate, error) {
-	var pkg opregistry.PackageDependency
+func predicateForRequiredPackageProperty(value string) (OperatorPredicate, error) {
+	var pkg struct {
+		PackageName  string `json:"packageName"`
+		VersionRange string `json:"versionRange"`
+	}
 	if err := json.Unmarshal([]byte(value), &pkg); err != nil {
 		return nil, err
 	}
-	ver, err := semver.ParseRange(pkg.Version)
+	ver, err := semver.ParseRange(pkg.VersionRange)
 	if err != nil {
 		return nil, err
 	}
-
 	return And(WithPackage(pkg.PackageName), WithVersionInRange(ver)), nil
 }
 
-func predicateForLabelDependency(value string) (OperatorPredicate, error) {
-	var label opregistry.LabelDependency
+func predicateForRequiredLabelProperty(value string) (OperatorPredicate, error) {
+	var label struct {
+		Label string `json:"label"`
+	}
 	if err := json.Unmarshal([]byte(value), &label); err != nil {
 		return nil, err
 	}
-
 	return WithLabel(label.Label), nil
 }
 
-func apisToDependencies(apis APISet) (out []*api.Dependency, err error) {
+func requiredAPIsToProperties(apis APISet) (out []*api.Property, err error) {
 	if len(apis) == 0 {
 		return
 	}
-	out = make([]*api.Dependency, 0)
+	out = make([]*api.Property, 0)
 	for a := range apis {
-		val, err := json.Marshal(opregistry.GVKDependency{
+		val, err := json.Marshal(struct {
+			Group   string `json:"group"`
+			Version string `json:"version"`
+			Kind    string `json:"kind"`
+		}{
 			Group:   a.Group,
-			Kind:    a.Kind,
 			Version: a.Version,
+			Kind:    a.Kind,
 		})
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, &api.Dependency{
-			Type:  opregistry.GVKType,
+		out = append(out, &api.Property{
+			Type:  "olm.gvk.required",
 			Value: string(val),
 		})
 	}
@@ -512,13 +521,13 @@ func apisToDependencies(apis APISet) (out []*api.Dependency, err error) {
 	return nil, nil
 }
 
-func apisToProperties(apis APISet) (out []*api.Property, err error) {
+func providedAPIsToProperties(apis APISet) (out []*api.Property, err error) {
 	out = make([]*api.Property, 0)
 	for a := range apis {
 		val, err := json.Marshal(opregistry.GVKProperty{
 			Group:   a.Group,
-			Kind:    a.Kind,
 			Version: a.Version,
+			Kind:    a.Kind,
 		})
 		if err != nil {
 			panic(err)
@@ -532,4 +541,64 @@ func apisToProperties(apis APISet) (out []*api.Property, err error) {
 		return
 	}
 	return nil, nil
+}
+
+func legacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Property, error) {
+	var result []*api.Property
+	for _, dependency := range dependencies {
+		switch dependency.Type {
+		case "olm.gvk":
+			type gvk struct {
+				Group   string `json:"group"`
+				Version string `json:"version"`
+				Kind    string `json:"kind"`
+			}
+			var vfrom gvk
+			if err := json.Unmarshal([]byte(dependency.Value), &vfrom); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal legacy 'olm.gvk' dependency: %w", err)
+			}
+			vto := gvk{
+				Group:   vfrom.Group,
+				Version: vfrom.Version,
+				Kind:    vfrom.Kind,
+			}
+			vb, err := json.Marshal(&vto)
+			if err != nil {
+				return nil, fmt.Errorf("unexpected error marshaling generated 'olm.package.required' property: %w", err)
+			}
+			result = append(result, &api.Property{
+				Type:  "olm.gvk.required",
+				Value: string(vb),
+			})
+		case "olm.package":
+			var vfrom struct {
+				PackageName  string `json:"packageName"`
+				VersionRange string `json:"version"`
+			}
+			if err := json.Unmarshal([]byte(dependency.Value), &vfrom); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal legacy 'olm.package' dependency: %w", err)
+			}
+			vto := struct {
+				PackageName  string `json:"packageName"`
+				VersionRange string `json:"versionRange"`
+			}{
+				PackageName:  vfrom.PackageName,
+				VersionRange: vfrom.VersionRange,
+			}
+			vb, err := json.Marshal(&vto)
+			if err != nil {
+				return nil, fmt.Errorf("unexpected error marshaling generated 'olm.package.required' property: %w", err)
+			}
+			result = append(result, &api.Property{
+				Type:  "olm.package.required",
+				Value: string(vb),
+			})
+		case "olm.label":
+			result = append(result, &api.Property{
+				Type:  "olm.label.required",
+				Value: dependency.Value,
+			})
+		}
+	}
+	return result, nil
 }

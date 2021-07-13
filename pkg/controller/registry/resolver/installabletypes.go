@@ -60,24 +60,30 @@ func NewBundleInstallableFromOperator(o *Operator) (BundleInstallable, error) {
 	if src == nil {
 		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Identifier())
 	}
+	id := bundleId(o.Identifier(), o.Channel(), src.Catalog)
 	var constraints []solver.Constraint
+	if src.Catalog.Virtual() && src.Subscription == nil {
+		// CSVs already associated with a Subscription
+		// may be replaced, but freestanding CSVs must
+		// appear in any solution.
+		constraints = append(constraints, PrettyConstraint(
+			solver.Mandatory(),
+			fmt.Sprintf("clusterserviceversion %s exists and is not referenced by a subscription", o.Identifier()),
+		))
+	}
 	for _, p := range o.bundle.GetProperties() {
 		if p.GetType() == operatorregistry.DeprecatedType {
 			constraints = append(constraints, PrettyConstraint(
 				solver.Prohibited(),
-				fmt.Sprintf("bundle %s is deprecated", bundleId(o.Identifier(), o.Channel(), src.Catalog)),
+				fmt.Sprintf("bundle %s is deprecated", id),
 			))
 			break
 		}
 	}
-	return NewBundleInstallable(o.Identifier(), o.Channel(), src.Catalog, constraints...), nil
-}
-
-func NewBundleInstallable(bundle, channel string, catalog registry.CatalogKey, constraints ...solver.Constraint) BundleInstallable {
 	return BundleInstallable{
-		identifier:  bundleId(bundle, channel, catalog),
+		identifier:  id,
 		constraints: constraints,
-	}
+	}, nil
 }
 
 type GenericInstallable struct {
