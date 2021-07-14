@@ -2,7 +2,6 @@ package queueinformer
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -170,7 +169,6 @@ func (l LegacySyncHandler) ToSyncer() kubestate.Syncer {
 // ToSyncerWithDelete returns the Syncer equivalent of the given sync handler and delete function.
 func (l LegacySyncHandler) ToSyncerWithDelete(onDelete func(obj interface{})) kubestate.Syncer {
 	var syncer kubestate.SyncFunc = func(ctx context.Context, event kubestate.ResourceEvent) error {
-		logrus.New().WithField("event", fmt.Sprintf("%+v", event)).Trace("legacy syncer received event")
 		switch event.Type() {
 		case kubestate.ResourceDeleted:
 			if onDelete != nil {
