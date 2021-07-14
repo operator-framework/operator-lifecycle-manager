@@ -192,8 +192,6 @@ func main() {
 		logger.WithError(err).Fatal("error configuring custom resource client")
 	}
 
-	cleanup(logger, opClient, crClient)
-
 	// Create a new instance of the operator.
 	op, err := olm.NewOperator(
 		ctx,
