@@ -47,18 +47,28 @@ func RegisterHandlers(mux *http.ServeMux, options ...Option) {
 	config.apply(options)
 
 	if config.pprof {
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.Handle("/debug/pprof/", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Index)))
 	}
 	if config.cmdline {
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.Handle("/debug/pprof/cmdline", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Cmdline)))
 	}
 	if config.profile {
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.Handle("/debug/pprof/profile", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Profile)))
 	}
 	if config.symbol {
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.Handle("/debug/pprof/symbol", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Symbol)))
 	}
 	if config.trace {
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		mux.Handle("/debug/pprof/trace", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Trace)))
 	}
+}
+
+func requireVerifiedClientCertificate(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }

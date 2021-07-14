@@ -10,12 +10,12 @@ import (
 type watcher struct {
 	notify       *fsnotify.Watcher
 	pathsToWatch []string
-	logger       *logrus.Logger
-	onUpdateFn   func(*logrus.Logger, fsnotify.Event)
+	logger       logrus.FieldLogger
+	onUpdateFn   func(logrus.FieldLogger, fsnotify.Event)
 }
 
 // NewWatch sets up monitoring on a slice of paths and will execute the update function to process each event
-func NewWatch(logger *logrus.Logger, pathsToWatch []string, onUpdateFn func(*logrus.Logger, fsnotify.Event)) (*watcher, error) {
+func NewWatch(logger logrus.FieldLogger, pathsToWatch []string, onUpdateFn func(logrus.FieldLogger, fsnotify.Event)) (*watcher, error) {
 	notify, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err

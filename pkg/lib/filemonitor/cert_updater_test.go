@@ -1,6 +1,7 @@
 package filemonitor
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -55,8 +56,18 @@ func TestOLMGetCertRotationFn(t *testing.T) {
 	err = os.Symlink(filepath.Join("..", oldKey), loadKey)
 	require.NoError(t, err)
 
-	tlsGetCertFn, err := OLMGetCertRotationFn(logger, loadCrt, loadKey)
+	certStore, err := NewCertStore(loadCrt, loadKey)
+	if err != nil {
+		require.NoError(t, err)
+	}
+
+	tlsGetCertFn := func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		return certStore.GetCertificate(), nil
+	}
+
+	csw, err := NewWatch(logger, []string{filepath.Dir(loadCrt), filepath.Dir(loadKey)}, certStore.HandleFilesystemUpdate)
 	require.NoError(t, err)
+	csw.Run(context.Background())
 
 	// find a free port to listen on and start server
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -113,7 +124,8 @@ func TestOLMGetCertRotationFn(t *testing.T) {
 
 	// sometimes the the filesystem operations need time to catch up so the server cert is updated
 	err = wait.PollImmediate(500*time.Millisecond, 10*time.Second, func() (bool, error) {
-		currentCert, _ := tlsGetCertFn(nil)
+		currentCert, err := tlsGetCertFn(nil)
+		require.NoError(t, err)
 		info, err := x509.ParseCertificate(currentCert.Certificate[0])
 		if err != nil {
 			return false, err

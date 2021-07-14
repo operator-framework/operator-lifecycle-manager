@@ -12,9 +12,9 @@ spec:
   type: ClusterIP
   ports:
   - name: https-metrics
-    port: 8081
+    port: {{ .Values.olm.service.externalPort }}
     protocol: TCP
-    targetPort: metrics
+    targetPort: {{ .Values.olm.service.internalPort }}
   selector:
     app: olm-operator
 ---
@@ -31,9 +31,9 @@ spec:
   type: ClusterIP
   ports:
   - name: https-metrics
-    port: 8081
+    port: {{ .Values.catalog.service.externalPort }}
     protocol: TCP
-    targetPort: metrics
+    targetPort: {{ .Values.catalog.service.internalPort }}
   selector:
     app: catalog-operator
 {{ end }}
