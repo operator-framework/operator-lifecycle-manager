@@ -55,12 +55,16 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	startingCSVs := make(map[string]struct{})
 
 	// build a virtual catalog of all currently installed CSVs
-	existingSnapshot, existingInstallables, err := r.newSnapshotForNamespace(namespaces[0], subs, csvs)
+	existingSnapshot, err := r.newSnapshotForNamespace(namespaces[0], subs, csvs)
 	if err != nil {
 		return nil, err
 	}
 	namespacedCache := r.cache.Namespaced(namespaces...).WithExistingOperators(existingSnapshot)
 
+	_, existingInstallables, err := r.getBundleInstallables(registry.NewVirtualCatalogKey(namespaces[0]), existingSnapshot.Find(), namespacedCache, visited)
+	if err != nil {
+		return nil, err
+	}
 	for _, i := range existingInstallables {
 		installables[i.Identifier()] = i
 	}
@@ -248,7 +252,8 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 	candidates := make([]*BundleInstallable, 0)
 	for _, o := range Filter(sortedBundles, channelPredicates...) {
 		predicates := append(cachePredicates, WithCSVName(o.Identifier()))
-		id, installable, err := r.getBundleInstallables(catalog, predicates, namespacedCache, visited)
+		stack := namespacedCache.Catalog(catalog).Find(predicates...)
+		id, installable, err := r.getBundleInstallables(catalog, stack, namespacedCache, visited)
 		if err != nil {
 			return nil, err
 		}
@@ -292,16 +297,9 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 	return installables, nil
 }
 
-func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predicates []OperatorPredicate, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
+func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleStack []*Operator, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
 	errs := make([]error, 0)
 	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
-
-	var finder OperatorFinder = namespacedCache
-	if !catalog.Empty() {
-		finder = namespacedCache.Catalog(catalog)
-	}
-
-	bundleStack := finder.Find(predicates...)
 
 	// track the first layer of installable ids
 	var initial = make(map[*Operator]struct{})
@@ -353,11 +351,18 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 				}
 				sources[*si] = struct{}{}
 
-				sourcePredicate = Or(sourcePredicate, And(
-					WithPackage(si.Package),
-					WithChannel(si.Channel),
-					WithCatalog(si.Catalog),
-				))
+				if si.Catalog.Virtual() {
+					sourcePredicate = Or(sourcePredicate, And(
+						WithCSVName(b.Identifier()),
+						WithCatalog(si.Catalog),
+					))
+				} else {
+					sourcePredicate = Or(sourcePredicate, And(
+						WithPackage(si.Package),
+						WithChannel(si.Channel),
+						WithCatalog(si.Catalog),
+					))
+				}
 			}
 			sortedBundles, err := r.sortBundles(namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, sourcePredicate))
 			if err != nil {
@@ -441,15 +446,14 @@ func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs 
 	return properties, nil
 }
 
-func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*CatalogSnapshot, []solver.Installable, error) {
-	installables := make([]solver.Installable, 0)
+func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*CatalogSnapshot, error) {
 	existingOperatorCatalog := registry.NewVirtualCatalogKey(namespace)
 	// build a catalog snapshot of CSVs without subscriptions
-	csvsWithSubscriptions := make(map[*v1alpha1.ClusterServiceVersion]struct{})
+	csvSubscriptions := make(map[*v1alpha1.ClusterServiceVersion]*v1alpha1.Subscription)
 	for _, sub := range subs {
 		for _, csv := range csvs {
 			if csv.Name == sub.Status.InstalledCSV {
-				csvsWithSubscriptions[csv] = struct{}{}
+				csvSubscriptions[csv] = sub
 				break
 			}
 		}
@@ -457,17 +461,9 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 	var csvsMissingProperties []*v1alpha1.ClusterServiceVersion
 	standaloneOperators := make([]*Operator, 0)
 	for _, csv := range csvs {
-		var constraints []solver.Constraint
-		if _, ok := csvsWithSubscriptions[csv]; !ok {
-			// CSVs already associated with a Subscription
-			// may be replaced, but freestanding CSVs must
-			// appear in any solution.
-			constraints = append(constraints, solver.Mandatory())
-		}
-
 		op, err := NewOperatorFromV1Alpha1CSV(csv)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		if anno, ok := csv.GetAnnotations()[projection.PropertiesAnnotationKey]; !ok {
@@ -478,13 +474,14 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 				op.properties = append(op.properties, inferred...)
 			}
 		} else if props, err := projection.PropertyListFromPropertiesAnnotation(anno); err != nil {
-			return nil, nil, fmt.Errorf("failed to retrieve properties of csv %q: %w", csv.GetName(), err)
+			return nil, fmt.Errorf("failed to retrieve properties of csv %q: %w", csv.GetName(), err)
 		} else {
 			op.properties = props
 		}
 
 		op.sourceInfo = &OperatorSourceInfo{
-			Catalog: existingOperatorCatalog,
+			Catalog:      existingOperatorCatalog,
+			Subscription: csvSubscriptions[csv],
 		}
 		// Try to determine source package name from properties and add to SourceInfo.
 		for _, p := range op.properties {
@@ -501,10 +498,6 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 		}
 
 		standaloneOperators = append(standaloneOperators, op)
-
-		// all standalone operators are mandatory
-		i := NewBundleInstallable(op.Identifier(), "", existingOperatorCatalog, constraints...)
-		installables = append(installables, &i)
 	}
 
 	if len(csvsMissingProperties) > 0 {
@@ -515,7 +508,7 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 		r.log.Infof("considered csvs without properties annotation during resolution: %v", names)
 	}
 
-	return NewRunningOperatorSnapshot(r.log, existingOperatorCatalog, standaloneOperators), installables, nil
+	return NewRunningOperatorSnapshot(r.log, existingOperatorCatalog, standaloneOperators), nil
 }
 
 func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, installables map[solver.Identifier]solver.Installable) {
