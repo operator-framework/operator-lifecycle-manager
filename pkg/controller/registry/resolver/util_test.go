@@ -518,3 +518,13 @@ func getPkgName(pkgChan string) string {
 	s := strings.Split(pkgChan, "/")
 	return s[0]
 }
+
+type OperatorPredicateTestFunc func(*Operator) bool
+
+func (opf OperatorPredicateTestFunc) Test(o *Operator) bool {
+	return opf(o)
+}
+
+func (opf OperatorPredicateTestFunc) String() string {
+	return ""
+}

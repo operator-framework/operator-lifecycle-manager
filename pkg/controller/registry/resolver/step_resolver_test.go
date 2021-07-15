@@ -333,7 +333,7 @@ func TestResolver(t *testing.T) {
 							identifier:  "catsrc/catsrc-namespace/alpha/a.v1",
 							constraints: []solver.Constraint{solver.Dependency()},
 						},
-						Constraint: solver.Dependency(),
+						Constraint: PrettyConstraint(solver.Dependency(), "bundle a.v1 requires an operator providing an API with group: g, version: v, kind: k"),
 					},
 					{
 						Installable: NewSubscriptionInstallable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),

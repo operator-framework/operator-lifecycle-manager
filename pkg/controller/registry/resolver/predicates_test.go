@@ -39,7 +39,7 @@ func TestCountingPredicate(t *testing.T) {
 				result bool
 			)
 
-			p := CountingPredicate(OperatorPredicateFunc(func(*Operator) bool {
+			p := CountingPredicate(OperatorPredicateTestFunc(func(*Operator) bool {
 				return result
 			}), &n)
 
