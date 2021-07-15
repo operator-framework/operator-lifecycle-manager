@@ -14,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -205,10 +206,29 @@ func main() {
 		go monitor.Run(op.Done())
 	}
 
+	// Emit CSV metric
+	if err = ensureCSVMetric(logger, op); err != nil {
+		logger.WithError(err).Fatalf("error emitting metrics for existing CSV")
+	}
+
 	// Start the controller manager
 	if err := mgr.Start(ctx); err != nil {
 		logger.WithError(err).Fatal("controller manager stopped")
 	}
 
 	<-op.Done()
+}
+
+func ensureCSVMetric(logger *logrus.Logger, c *olm.Operator) error {
+	logger.Debug("emitting metrics for existing CSVs")
+	csvs, err := c.GetLister().OperatorsV1alpha1().ClusterServiceVersionLister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	for _, csv := range csvs {
+		metrics.EmitCSVMetric(csv, csv)
+	}
+
+	return nil
 }

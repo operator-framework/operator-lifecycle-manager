@@ -590,6 +590,10 @@ func (a *Operator) syncAPIService(obj interface{}) (syncError error) {
 	return nil
 }
 
+func (a *Operator) GetLister() operatorlister.OperatorLister {
+	return a.lister
+}
+
 func (a *Operator) GetCSVSetGenerator() csvutility.SetGenerator {
 	return a.csvSetGenerator
 }
