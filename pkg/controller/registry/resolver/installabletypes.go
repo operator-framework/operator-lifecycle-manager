@@ -32,8 +32,8 @@ func (i *BundleInstallable) AddConflict(id solver.Identifier) {
 	i.constraints = append(i.constraints, solver.Conflict(id))
 }
 
-func (i *BundleInstallable) AddDependency(dependencies []solver.Identifier) {
-	i.constraints = append(i.constraints, solver.Dependency(dependencies...))
+func (i *BundleInstallable) AddConstraint(c solver.Constraint) {
+	i.constraints = append(i.constraints, c)
 }
 
 func (i *BundleInstallable) BundleSourceInfo() (string, string, registry.CatalogKey, error) {

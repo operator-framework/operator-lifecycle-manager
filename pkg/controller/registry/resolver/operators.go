@@ -361,6 +361,10 @@ func NewOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*Operator,
 	}, nil
 }
 
+func (o *Operator) Name() string {
+	return o.name
+}
+
 func (o *Operator) ProvidedAPIs() APISet {
 	return o.providedAPIs
 }
@@ -409,6 +413,10 @@ func (o *Operator) Bundle() *api.Bundle {
 
 func (o *Operator) Version() *semver.Version {
 	return o.version
+}
+
+func (o *Operator) SemverRange() (semver.Range, error) {
+	return semver.ParseRange(o.Bundle().SkipRange)
 }
 
 func (o *Operator) Inline() bool {

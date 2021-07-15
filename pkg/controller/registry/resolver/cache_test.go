@@ -123,7 +123,7 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 			nc := c.Namespaced(namespaces...)
 			for _, index := range indices {
 				name := fmt.Sprintf("%s/%s", keys[index].Namespace, keys[index].Name)
-				operators := nc.Find(WithCSVName(name))
+				operators := nc.Find(CSVNamePredicate(name))
 				if len(operators) != 1 {
 					return fmt.Errorf("expected 1 operator, got %d", len(operators))
 				}
@@ -159,7 +159,7 @@ func TestOperatorCacheExpiration(t *testing.T) {
 	c := NewOperatorCache(rcp, logrus.New(), catsrcLister)
 	c.ttl = 0 // instantly stale
 
-	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(WithCSVName("csvname")), 1)
+	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("csvname")), 1)
 }
 
 func TestOperatorCacheReuse(t *testing.T) {
@@ -182,7 +182,7 @@ func TestOperatorCacheReuse(t *testing.T) {
 
 	c := NewOperatorCache(rcp, logrus.New(), catsrcLister)
 
-	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(WithCSVName("csvname")), 1)
+	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("csvname")), 1)
 }
 
 func TestCatalogSnapshotExpired(t *testing.T) {
@@ -333,7 +333,7 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 	c := NewOperatorCache(rcp, logrus.New(), catsrcLister)
 
 	nc := c.Namespaced("testnamespace")
-	result, err := AtLeast(1, nc.Find(ProvidingAPI(opregistry.APIKey{Group: "g", Version: "v1", Kind: "K"})))
+	result, err := AtLeast(1, nc.Find(ProvidingAPIPredicate(opregistry.APIKey{Group: "g", Version: "v1", Kind: "K"})))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(result))
 	assert.Equal(t, "K.v1.g", result[0].providedAPIs.String())
