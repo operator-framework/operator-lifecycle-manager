@@ -434,64 +434,6 @@ func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err e
 	return
 }
 
-func PredicateForProperty(property *api.Property) (OperatorPredicate, error) {
-	if property == nil {
-		return nil, nil
-	}
-	p, ok := predicates[property.Type]
-	if !ok {
-		return nil, nil
-	}
-	return p(property.Value)
-}
-
-var predicates = map[string]func(string) (OperatorPredicate, error){
-	"olm.gvk.required":     predicateForRequiredGVKProperty,
-	"olm.package.required": predicateForRequiredPackageProperty,
-	"olm.label.required":   predicateForRequiredLabelProperty,
-}
-
-func predicateForRequiredGVKProperty(value string) (OperatorPredicate, error) {
-	var gvk struct {
-		Group   string `json:"group"`
-		Version string `json:"version"`
-		Kind    string `json:"kind"`
-	}
-	if err := json.Unmarshal([]byte(value), &gvk); err != nil {
-		return nil, err
-	}
-	return ProvidingAPI(opregistry.APIKey{
-		Group:   gvk.Group,
-		Version: gvk.Version,
-		Kind:    gvk.Kind,
-	}), nil
-}
-
-func predicateForRequiredPackageProperty(value string) (OperatorPredicate, error) {
-	var pkg struct {
-		PackageName  string `json:"packageName"`
-		VersionRange string `json:"versionRange"`
-	}
-	if err := json.Unmarshal([]byte(value), &pkg); err != nil {
-		return nil, err
-	}
-	ver, err := semver.ParseRange(pkg.VersionRange)
-	if err != nil {
-		return nil, err
-	}
-	return And(WithPackage(pkg.PackageName), WithVersionInRange(ver)), nil
-}
-
-func predicateForRequiredLabelProperty(value string) (OperatorPredicate, error) {
-	var label struct {
-		Label string `json:"label"`
-	}
-	if err := json.Unmarshal([]byte(value), &label); err != nil {
-		return nil, err
-	}
-	return WithLabel(label.Label), nil
-}
-
 func requiredAPIsToProperties(apis APISet) (out []*api.Property, err error) {
 	if len(apis) == 0 {
 		return
