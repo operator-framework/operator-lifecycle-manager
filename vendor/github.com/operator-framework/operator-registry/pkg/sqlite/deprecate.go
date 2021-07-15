@@ -31,17 +31,15 @@ func NewSQLDeprecatorForBundles(store registry.Load, bundles []string) *BundleDe
 
 func (d *BundleDeprecator) Deprecate() error {
 	log := logrus.WithField("bundles", d.bundles)
-
 	log.Info("deprecating bundles")
 
 	var errs []error
-
 	for _, bundlePath := range d.bundles {
-		if err := d.store.DeprecateBundle(bundlePath); err != nil {
-			if !errors.Is(err, registry.ErrBundleImageNotInDatabase) && !errors.Is(err, registry.ErrRemovingDefaultChannelDuringDeprecation) {
-				return utilerrors.NewAggregate(append(errs, fmt.Errorf("error deprecating bundle %s: %s", bundlePath, err)))
-			}
+		if err := d.store.DeprecateBundle(bundlePath); err != nil && !errors.Is(err, registry.ErrBundleImageNotInDatabase) {
 			errs = append(errs, fmt.Errorf("error deprecating bundle %s: %s", bundlePath, err))
+			if !errors.Is(err, registry.ErrRemovingDefaultChannelDuringDeprecation) {
+				break
+			}
 		}
 	}
 

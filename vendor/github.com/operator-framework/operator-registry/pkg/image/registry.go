@@ -29,4 +29,3 @@ type Registry interface {
 	// If it exists, it's used as the base image.
 	// Pack(ctx context.Context, ref Reference, from io.Reader) (next string, err error)
 }
-

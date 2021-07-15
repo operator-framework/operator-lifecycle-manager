@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/blang/semver"
@@ -36,6 +37,15 @@ type PackageVersionAlreadyAddedErr struct {
 }
 
 func (e PackageVersionAlreadyAddedErr) Error() string {
+	return e.ErrorString
+}
+
+// OverwritesErr is an error that describes that an error with the add request with --force enabled.
+type OverwriteErr struct {
+	ErrorString string
+}
+
+func (e OverwriteErr) Error() string {
 	return e.ErrorString
 }
 
@@ -150,19 +160,25 @@ type Annotations struct {
 	DefaultChannelName string `json:"operators.operatorframework.io.bundle.channel.default.v1" yaml:"operators.operatorframework.io.bundle.channel.default.v1"`
 }
 
-// DependenciesFile holds dependency information about a bundle
+// DependenciesFile holds dependency information about a bundle.
 type DependenciesFile struct {
 	// Dependencies is a list of dependencies for a given bundle
 	Dependencies []Dependency `json:"dependencies" yaml:"dependencies"`
 }
 
-// Dependency specifies a single constraint that can be satisfied by a property on another bundle..
+// Dependency specifies a single constraint that can be satisfied by a property on another bundle.
 type Dependency struct {
 	// The type of dependency. This field is required.
 	Type string `json:"type" yaml:"type"`
 
 	// The serialized value of the dependency
 	Value json.RawMessage `json:"value" yaml:"value"`
+}
+
+// PropertiesFile holds the properties associated with a bundle.
+type PropertiesFile struct {
+	// Properties is a list of properties.
+	Properties []Property `json:"properties" yaml:"properties"`
 }
 
 // Property defines a single piece of the public interface for a bundle. Dependencies are specified over properties.
@@ -174,6 +190,10 @@ type Property struct {
 
 	// The serialized value of the propertuy
 	Value json.RawMessage `json:"value" yaml:"value"`
+}
+
+func (p Property) String() string {
+	return fmt.Sprintf("type: %s, value: %s", p.Type, p.Value)
 }
 
 type GVKDependency struct {
@@ -196,7 +216,7 @@ type PackageDependency struct {
 }
 
 type LabelDependency struct {
-	// The version range of dependency in semver range format
+	// The Label name of dependency
 	Label string `json:"label" yaml:"label"`
 }
 
@@ -224,7 +244,7 @@ type DeprecatedProperty struct {
 }
 
 type LabelProperty struct {
-	// The version range of dependency in semver range format
+	// The name of Label
 	Label string `json:"label" yaml:"label"`
 }
 
@@ -243,7 +263,7 @@ func (gd *GVKDependency) Validate() []error {
 	return errs
 }
 
-// Validate will validate GVK dependency type and return error(s)
+// Validate will validate Label dependency type and return error(s)
 func (ld *LabelDependency) Validate() []error {
 	errs := []error{}
 	if *ld == (LabelDependency{}) {
@@ -333,12 +353,22 @@ func (a *AnnotationsFile) GetChannels() []string {
 
 // GetDefaultChannelName returns the name of the default channel
 func (a *AnnotationsFile) GetDefaultChannelName() string {
-	if a.Annotations.DefaultChannelName != "" {
-		return a.Annotations.DefaultChannelName
+	return a.Annotations.DefaultChannelName
+}
+
+// SelectDefaultChannel returns the first item in channel list that is sorted
+// in lexicographic order.
+func (a *AnnotationsFile) SelectDefaultChannel() string {
+	return a.Annotations.SelectDefaultChannel()
+}
+
+func (a Annotations) SelectDefaultChannel() string {
+	if len(a.Channels) < 1 {
+		return ""
 	}
-	channels := a.GetChannels()
-	if len(channels) == 1 {
-		return channels[0]
-	}
-	return ""
+
+	channels := strings.Split(a.Channels, ",")
+	sort.Strings(channels)
+
+	return channels[0]
 }

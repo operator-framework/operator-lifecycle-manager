@@ -307,6 +307,13 @@ github.com/gregjones/httpcache
 github.com/gregjones/httpcache/diskcache
 # github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 github.com/grpc-ecosystem/go-grpc-prometheus
+# github.com/h2non/filetype v1.1.1
+github.com/h2non/filetype
+github.com/h2non/filetype/matchers
+github.com/h2non/filetype/matchers/isobmff
+github.com/h2non/filetype/types
+# github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
+github.com/h2non/go-is-svg
 # github.com/hashicorp/golang-lru v0.5.4
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
@@ -498,8 +505,10 @@ github.com/operator-framework/api/pkg/validation
 github.com/operator-framework/api/pkg/validation/errors
 github.com/operator-framework/api/pkg/validation/interfaces
 github.com/operator-framework/api/pkg/validation/internal
-# github.com/operator-framework/operator-registry v1.13.6
+# github.com/operator-framework/operator-registry v1.17.5
 ## explicit
+github.com/operator-framework/operator-registry/internal/model
+github.com/operator-framework/operator-registry/internal/property
 github.com/operator-framework/operator-registry/pkg/api
 github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1
 github.com/operator-framework/operator-registry/pkg/client
@@ -509,6 +518,8 @@ github.com/operator-framework/operator-registry/pkg/image
 github.com/operator-framework/operator-registry/pkg/image/containerdregistry
 github.com/operator-framework/operator-registry/pkg/image/execregistry
 github.com/operator-framework/operator-registry/pkg/lib/bundle
+github.com/operator-framework/operator-registry/pkg/lib/encoding
+github.com/operator-framework/operator-registry/pkg/lib/semver
 github.com/operator-framework/operator-registry/pkg/lib/validation
 github.com/operator-framework/operator-registry/pkg/registry
 github.com/operator-framework/operator-registry/pkg/server
@@ -630,7 +641,7 @@ go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
 go.uber.org/zap/zapgrpc
-# golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
+# golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/cast5

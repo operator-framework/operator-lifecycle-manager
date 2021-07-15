@@ -36,7 +36,6 @@ func (d *PackageRemover) Remove() error {
 
 	var errs []error
 	packages := sanitizePackageList(strings.Split(d.packages, ","))
-	log.Info("input has been sanitized")
 	log.Infof("packages: %s", packages)
 
 	for _, pkg := range packages {

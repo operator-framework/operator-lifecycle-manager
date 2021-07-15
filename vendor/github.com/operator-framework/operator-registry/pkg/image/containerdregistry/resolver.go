@@ -28,7 +28,7 @@ func NewResolver(configDir string, insecure bool, roots *x509.CertPool) (remotes
 		ExpectContinueTimeout: 5 * time.Second,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: false,
-			RootCAs: roots,
+			RootCAs:            roots,
 		},
 	}
 
@@ -40,8 +40,7 @@ func NewResolver(configDir string, insecure bool, roots *x509.CertPool) (remotes
 	headers := http.Header{}
 	headers.Set("User-Agent", "opm/alpha")
 
-	client := http.DefaultClient
-	client.Transport = transport
+	client := &http.Client{Transport: transport}
 
 	cfg, err := loadConfig(configDir)
 	if err != nil {
@@ -61,7 +60,7 @@ func NewResolver(configDir string, insecure bool, roots *x509.CertPool) (remotes
 	}
 
 	opts := docker.ResolverOptions{
-		Hosts: docker.ConfigureDefaultRegistries(regopts...),
+		Hosts:   docker.ConfigureDefaultRegistries(regopts...),
 		Headers: headers,
 	}
 

@@ -111,6 +111,12 @@ func graphFromEntries(channelEntries []registry.ChannelEntryAnnotated, existingB
 		}
 
 		if !replacesKey.IsEmpty() {
+			if _, ok := channelGraph[entry.ChannelName]; !ok {
+				channelGraph[entry.ChannelName] = replaces{key: {replacesKey: struct{}{}}}
+			}
+			if _, ok := channelGraph[entry.ChannelName][key]; !ok {
+				channelGraph[entry.ChannelName][key] = map[registry.BundleKey]struct{}{replacesKey: {}}
+			}
 			channelGraph[entry.ChannelName][key][replacesKey] = struct{}{}
 		}
 

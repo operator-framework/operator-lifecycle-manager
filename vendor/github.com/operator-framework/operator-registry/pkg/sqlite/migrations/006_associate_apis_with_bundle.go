@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"database/sql"
+
 	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 

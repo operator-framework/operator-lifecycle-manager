@@ -56,9 +56,9 @@ func validateOwnedCRDs(bundle *registry.Bundle, csv *registry.ClusterServiceVers
 	for _, ownedKey := range ownedKeys {
 		if _, ok := keySet[*ownedKey]; !ok {
 			result.Add(errors.ErrInvalidBundle(fmt.Sprintf("owned CRD %s not found in bundle %q", keyToString(*ownedKey), bundle.Name), *ownedKey))
-		} else {
-			delete(keySet, *ownedKey)
+			continue
 		}
+		delete(keySet, *ownedKey)
 	}
 	// CRDs not defined in the CSV present in the bundle
 	for key := range keySet {
