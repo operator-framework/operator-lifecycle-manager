@@ -673,7 +673,7 @@ func (r *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
 		for _, v := range headCandidates {
 			names = append(names, v.Identifier())
 		}
-		return nil, fmt.Errorf("found multiple channel heads: %v, please check the `replaces`/`skipRange` fields of the operator bundles", names)
+		return nil, fmt.Errorf("found multiple channel heads: %v, please check the `replaces`/`skipRange` fields of the operator bundles. bundleLookup:%v, replacedBy:%v", names, bundleLookup, replacedBy)
 
 	} else if len(headCandidates) < 1 {
 		return nil, fmt.Errorf("head of channel not found")
