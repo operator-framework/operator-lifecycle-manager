@@ -1481,6 +1481,38 @@ func TestSolveOperators_WithSkips(t *testing.T) {
 	require.EqualValues(t, expected, operators)
 }
 
+func TestSolveOperatorsWithSkipsPreventingSelection(t *testing.T) {
+	const namespace = "test-namespace"
+	catalog := registry.CatalogKey{Name: "test-catalog", Namespace: namespace}
+	gvks := APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
+
+	// Subscription candidate a-1 requires a GVK provided
+	// exclusively by b-1, but b-1 is skipped by b-3 and can't be
+	// chosen.
+	subs := []*v1alpha1.Subscription{newSub(namespace, "a", "channel", catalog)}
+	a1 := genOperator("a-1", "1.0.0", "", "a", "channel", catalog.Name, catalog.Namespace, gvks, nil, nil, "", false)
+	b3 := genOperator("b-3", "3.0.0", "b-2", "b", "channel", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
+	b3.skips = []string{"b-1"}
+	b2 := genOperator("b-2", "2.0.0", "b-1", "b", "channel", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
+	b1 := genOperator("b-1", "1.0.0", "", "b", "channel", catalog.Name, catalog.Namespace, nil, gvks, nil, "", false)
+
+	logger, _ := test.NewNullLogger()
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(NamespacedOperatorCache{
+			snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+				catalog: {
+					key:       catalog,
+					operators: []*Operator{a1, b3, b2, b1},
+				},
+			},
+		}),
+		log: logger,
+	}
+
+	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	assert.IsType(t, solver.NotSatisfiable{}, err)
+}
+
 func TestSolveOperatorsWithClusterServiceVersionHavingDependency(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := registry.CatalogKey{Name: "test-catalog", Namespace: namespace}
@@ -1823,6 +1855,54 @@ func TestSortChannel(t *testing.T) {
 				},
 			},
 			Err: errors.New(`a cycle exists in the chain of replacement beginning with "a" in channel "channel" of package "package"`),
+		},
+		{
+			Name: "skipped and replaced entry omitted",
+			In: []*Operator{
+				{
+					name:     "a",
+					replaces: "b",
+					skips:    []string{"b"},
+				},
+				{
+					name: "b",
+				},
+			},
+			Out: []*Operator{
+				{
+					name:     "a",
+					replaces: "b",
+					skips:    []string{"b"},
+				},
+			},
+		},
+		{
+			Name: "skipped entry omitted",
+			In: []*Operator{
+				{
+					name:     "a",
+					replaces: "b",
+					skips:    []string{"c"},
+				},
+				{
+					name:     "b",
+					replaces: "c",
+				},
+				{
+					name: "c",
+				},
+			},
+			Out: []*Operator{
+				{
+					name:     "a",
+					replaces: "b",
+					skips:    []string{"c"},
+				},
+				{
+					name:     "b",
+					replaces: "c",
+				},
+			},
 		},
 		{
 			Name: "two replaces chains",
