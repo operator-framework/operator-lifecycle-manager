@@ -241,11 +241,7 @@ func notCopiedSelector() (labels.Selector, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	selector := labels.NewSelector()
-	selector.Add(*requirement)
-
-	return selector, nil
+	return labels.NewSelector().Add(*requirement), nil
 }
 
 func olmOperatorRelatedObjects(ctx context.Context, cli client.Client, namespace string) ([]configv1.ObjectReference, error) {
