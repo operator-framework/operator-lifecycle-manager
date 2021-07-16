@@ -8,6 +8,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -599,6 +600,28 @@ func TestMaxOpenShiftVersion(t *testing.T) {
 			}
 
 			require.Equal(t, tt.expect.max, max)
+		})
+	}
+}
+
+func TestNotCopiedSelector(t *testing.T) {
+	for _, tc := range []struct {
+		Labels  labels.Set
+		Matches bool
+	}{
+		{
+			Labels:  labels.Set{operatorsv1alpha1.CopiedLabelKey: ""},
+			Matches: false,
+		},
+		{
+			Labels:  labels.Set{},
+			Matches: true,
+		},
+	} {
+		t.Run(tc.Labels.String(), func(t *testing.T) {
+			selector, err := notCopiedSelector()
+			require.NoError(t, err)
+			require.Equal(t, tc.Matches, selector.Matches(tc.Labels))
 		})
 	}
 }
