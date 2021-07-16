@@ -680,10 +680,9 @@ func sortChannel(bundles []*Operator) ([]*Operator, error) {
 		var chain []*Operator
 		visited := make(map[*Operator]struct{})
 		current := head
-		skip := false
 		for {
 			visited[current] = struct{}{}
-			if !skip {
+			if _, ok := skipped[current.Identifier()]; !ok {
 				chain = append(chain, current)
 			}
 			next, ok := replaces[current]
@@ -692,9 +691,6 @@ func sortChannel(bundles []*Operator) ([]*Operator, error) {
 			}
 			if _, ok := visited[next]; ok {
 				return nil, fmt.Errorf("a cycle exists in the chain of replacement beginning with %q in channel %q of package %q", head.Identifier(), channelName, packageName)
-			}
-			if _, ok := skipped[current.Identifier()]; ok {
-				skip = true
 			}
 			current = next
 		}
