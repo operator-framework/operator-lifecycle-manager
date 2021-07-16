@@ -89,8 +89,8 @@ func NewStepResourceFromObject(obj runtime.Object, catalogSourceName, catalogSou
 func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1alpha1.StepResource, error) {
 	return NewStepResourceFromObject(&v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      strings.Join([]string{info.Package, info.Channel, info.Catalog.Name, info.Catalog.Namespace}, "-"),
+			Namespace:    namespace,
+			GenerateName: strings.ToLower(fmt.Sprintf("%s-%s-%s-%s-", info.Package, info.Channel, info.Catalog.Name, info.Catalog.Namespace)),
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			CatalogSource:          info.Catalog.Name,
