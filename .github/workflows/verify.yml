@@ -1,4 +1,4 @@
-name: verify
+name: ci
 on:
   push:
     branches:
