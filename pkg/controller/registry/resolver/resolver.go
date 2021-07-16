@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
@@ -237,7 +238,7 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 		if i != len(bundles) && bundles[i].bundle.ChannelName == lastChannel {
 			continue
 		}
-		channel, err := r.sortChannel(bundles[lastIndex:i])
+		channel, err := sortChannel(bundles[lastIndex:i])
 		if err != nil {
 			return nil, err
 		}
@@ -610,7 +611,7 @@ func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 			return pi.Channel < pj.Channel
 		})
 		for channel := range partitionedBundles[catalog] {
-			sorted, err := r.sortChannel(partitionedBundles[catalog][channel])
+			sorted, err := sortChannel(partitionedBundles[catalog][channel])
 			if err != nil {
 				return nil, err
 			}
@@ -626,13 +627,15 @@ func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 	return all, nil
 }
 
-// sorts bundle in a channel by replaces
-func (r *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
-	if len(bundles) <= 1 {
+// Sorts bundle in a channel by replaces. All entries in the argument
+// are assumed to have the same Package and Channel.
+func sortChannel(bundles []*Operator) ([]*Operator, error) {
+	if len(bundles) < 1 {
 		return bundles, nil
 	}
 
-	channel := []*Operator{}
+	packageName := bundles[0].Package()
+	channelName := bundles[0].Channel()
 
 	bundleLookup := map[string]*Operator{}
 
@@ -660,44 +663,64 @@ func (r *SatResolver) sortChannel(bundles []*Operator) ([]*Operator, error) {
 		}
 	}
 
-	// a bundle without a replacement is a channel head, but if we find more than one of those something is weird
+	// a bundle without a replacement is a channel head, but if we
+	// find more than one of those something is weird
 	headCandidates := []*Operator{}
 	for _, b := range bundles {
 		if _, ok := replacedBy[b]; !ok {
 			headCandidates = append(headCandidates, b)
 		}
 	}
-
-	if len(headCandidates) > 1 {
-		var names []string
-		for _, v := range headCandidates {
-			names = append(names, v.Identifier())
-		}
-		return nil, fmt.Errorf("found multiple channel heads: %v, please check the `replaces`/`skipRange` fields of the operator bundles", names)
-
-	} else if len(headCandidates) < 1 {
-		return nil, fmt.Errorf("head of channel not found")
+	if len(headCandidates) == 0 {
+		return nil, fmt.Errorf("no channel heads (entries not replaced by another entry) found in channel %q of package %q", channelName, packageName)
 	}
 
-	head := headCandidates[0]
-	current := head
-	skip := false
-	for {
-		if skip == false {
-			channel = append(channel, current)
+	var chains [][]*Operator
+	for _, head := range headCandidates {
+		var chain []*Operator
+		visited := make(map[*Operator]struct{})
+		current := head
+		skip := false
+		for {
+			visited[current] = struct{}{}
+			if !skip {
+				chain = append(chain, current)
+			}
+			next, ok := replaces[current]
+			if !ok {
+				break
+			}
+			if _, ok := visited[next]; ok {
+				return nil, fmt.Errorf("a cycle exists in the chain of replacement beginning with %q in channel %q of package %q", head.Identifier(), channelName, packageName)
+			}
+			if _, ok := skipped[current.Identifier()]; ok {
+				skip = true
+			}
+			current = next
 		}
-		skip = false
-		next, ok := replaces[current]
-		if !ok {
-			break
+		chains = append(chains, chain)
+	}
+
+	if len(chains) > 1 {
+		schains := make([]string, len(chains))
+		for i, chain := range chains {
+			switch len(chain) {
+			case 0:
+				schains[i] = "[]" // Bug?
+			case 1:
+				schains[i] = chain[0].Identifier()
+			default:
+				schains[i] = fmt.Sprintf("%s...%s", chain[0].Identifier(), chain[len(chain)-1].Identifier())
+			}
 		}
-		if _, ok := skipped[current.Identifier()]; ok {
-			skip = true
-		}
-		current = next
+		return nil, fmt.Errorf("a unique replacement chain within a channel is required to determine the relative order between channel entries, but %d replacement chains were found in channel %q of package %q: %s", len(schains), channelName, packageName, strings.Join(schains, ", "))
+	}
+
+	if len(chains) == 0 {
+		// Bug?
+		return nil, fmt.Errorf("found no replacement chains in channel %q of package %q", channelName, packageName)
 	}
 
 	// TODO: do we care if the channel doesn't include every bundle in the input?
-
-	return channel, nil
+	return chains[0], nil
 }
