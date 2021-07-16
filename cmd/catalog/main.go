@@ -28,7 +28,8 @@ const (
 	catalogNamespaceEnvVarName  = "GLOBAL_CATALOG_NAMESPACE"
 	defaultWakeupInterval       = 15 * time.Minute
 	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
-	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
+	defaultConfigMapServerImage = "quay.io/operator-framework/configmap-operator-registry:latest"
+	defaultOPMImage             = "quay.io/operator-framework/upstream-opm-builder:latest"
 	defaultUtilImage            = "quay.io/operator-framework/olm:latest"
 	defaultOperatorName         = ""
 )
@@ -46,6 +47,9 @@ var (
 
 	configmapServerImage = flag.String(
 		"configmapServerImage", defaultConfigMapServerImage, "the image to use for serving the operator registry api for a configmap")
+
+	opmImage = flag.String(
+		"opmImage", defaultOPMImage, "the image to use for unpacking bundle content with opm")
 
 	utilImage = flag.String(
 		"util-image", defaultUtilImage, "an image containing custom olm utilities")
@@ -131,7 +135,7 @@ func main() {
 	}
 
 	// Create a new instance of the operator.
-	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
+	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

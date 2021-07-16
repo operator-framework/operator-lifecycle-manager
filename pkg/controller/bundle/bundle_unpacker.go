@@ -100,9 +100,14 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					ImagePullSecrets: secrets,
 					Containers: []corev1.Container{
 						{
-							Name:    "extract",
-							Image:   c.opmImage,
-							Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", cmRef.Namespace, "-c", cmRef.Name},
+							Name:  "extract",
+							Image: c.opmImage,
+							Command: []string{"opm", "alpha", "bundle", "extract",
+								"-m", "/bundle/",
+								"-n", cmRef.Namespace,
+								"-c", cmRef.Name,
+								"-z",
+							},
 							Env: []corev1.EnvVar{
 								{
 									Name:  configmap.EnvContainerImage,

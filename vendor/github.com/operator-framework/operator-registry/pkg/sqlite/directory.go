@@ -92,6 +92,7 @@ func (d *DirectoryLoader) LoadBundleWalkFunc(path string, f os.FileInfo, err err
 	if err != nil {
 		return fmt.Errorf("unable to load file %s: %s", path, err)
 	}
+	defer fileReader.Close()
 
 	decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
 	csv := unstructured.Unstructured{}
@@ -155,6 +156,7 @@ func (d *DirectoryLoader) LoadPackagesWalkFunc(path string, f os.FileInfo, err e
 	if err != nil {
 		return fmt.Errorf("unable to load package from file %s: %s", path, err)
 	}
+	defer fileReader.Close()
 
 	decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
 	manifest := registry.PackageManifest{}
@@ -207,6 +209,7 @@ func loadBundle(csvName string, dir string) (*registry.Bundle, error) {
 			errs = append(errs, fmt.Errorf("unable to load file %s: %s", path, err))
 			continue
 		}
+		defer fileReader.Close()
 
 		decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
 		obj := &unstructured.Unstructured{}

@@ -7,7 +7,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -127,7 +127,7 @@ func (c *ConfigMapLoader) Populate() error {
 			continue
 		}
 
-		bundle := registry.NewBundle(csv.GetName(), "", nil, &unstructured.Unstructured{Object: csvUnst})
+		bundle := registry.NewBundle(csv.GetName(), &registry.Annotations{}, &unstructured.Unstructured{Object: csvUnst})
 		ownedCRDs, _, err := csv.GetCustomResourceDefintions()
 		if err != nil {
 			errs = append(errs, err)

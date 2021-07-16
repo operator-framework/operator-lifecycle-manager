@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"strings"
 )
 
 type Package struct {
@@ -10,9 +11,36 @@ type Package struct {
 	Channels       map[string]Channel
 }
 
+func (p *Package) String() string {
+	var b strings.Builder
+	b.WriteString("name: ")
+	b.WriteString(p.Name)
+	b.WriteString("\ndefault channel: ")
+	b.WriteString(p.DefaultChannel)
+	b.WriteString("\nchannels:\n")
+
+	for n, c := range p.Channels {
+		b.WriteString(n)
+		b.WriteString("\n")
+		b.WriteString(c.String())
+	}
+
+	return b.String()
+}
+
 type Channel struct {
 	Head  BundleKey
 	Nodes map[BundleKey]map[BundleKey]struct{}
+}
+
+func (c *Channel) String() string {
+	var b strings.Builder
+	for node, _ := range c.Nodes {
+		b.WriteString(node.String())
+		b.WriteString("\n")
+	}
+
+	return b.String()
 }
 
 type BundleKey struct {

@@ -21,9 +21,10 @@ type BundleImageValidator interface {
 }
 
 // NewImageValidator is a constructor that returns an ImageValidator
-func NewImageValidator(registry image.Registry, logger *logrus.Entry) BundleImageValidator {
+func NewImageValidator(registry image.Registry, logger *logrus.Entry, options ...string) BundleImageValidator {
 	return imageValidator{
 		registry: registry,
 		logger:   logger,
+		optional: options,
 	}
 }

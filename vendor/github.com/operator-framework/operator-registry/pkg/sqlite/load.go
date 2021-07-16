@@ -7,15 +7,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/blang/semver"
 	_ "github.com/mattn/go-sqlite3"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
+	libsemver "github.com/operator-framework/operator-registry/pkg/lib/semver"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 type sqlLoader struct {
-	db       *sql.DB
-	migrator Migrator
+	db          *sql.DB
+	migrator    Migrator
+	enableAlpha bool
 }
 
 type MigratableLoader interface {
@@ -31,7 +34,7 @@ func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (MigratableLoader, error) {
 		o(options)
 	}
 
-	if _, err := db.Exec("PRAGMA foreign_keys = ON", nil); err != nil {
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
 		return nil, err
 	}
 
@@ -40,7 +43,7 @@ func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (MigratableLoader, error) {
 		return nil, err
 	}
 
-	return &sqlLoader{db: db, migrator: migrator}, nil
+	return &sqlLoader{db: db, migrator: migrator, enableAlpha: options.EnableAlpha}, nil
 }
 
 func (s *sqlLoader) Migrate(ctx context.Context) error {
@@ -67,7 +70,7 @@ func (s *sqlLoader) AddOperatorBundle(bundle *registry.Bundle) error {
 }
 
 func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error {
-	addBundle, err := tx.Prepare("insert into operatorbundle(name, csv, bundle, bundlepath, version, skiprange, replaces, skips) values(?, ?, ?, ?, ?, ?, ?, ?)")
+	addBundle, err := tx.Prepare("insert into operatorbundle(name, csv, bundle, bundlepath, version, skiprange, replaces, skips, substitutesfor) values(?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -79,7 +82,7 @@ func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 	}
 	defer addImage.Close()
 
-	csvName, bundleImage, csvBytes, bundleBytes, err := bundle.Serialize()
+	csvName, bundleImage, csvBytes, bundleBytes, _, err := bundle.Serialize()
 	if err != nil {
 		return err
 	}
@@ -104,9 +107,17 @@ func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 	if err != nil {
 		return err
 	}
-
-	if _, err := addBundle.Exec(csvName, csvBytes, bundleBytes, bundleImage, version, skiprange, replaces, strings.Join(skips, ",")); err != nil {
+	substitutesFor, err := bundle.SubstitutesFor()
+	if err != nil {
 		return err
+	}
+
+	if substitutesFor != "" && !s.enableAlpha {
+		return fmt.Errorf("SubstitutesFor is an alpha-only feature. You must enable alpha features with the flag --enable-alpha in order to use this feature.")
+	}
+
+	if _, err := addBundle.Exec(csvName, csvBytes, bundleBytes, bundleImage, version, skiprange, replaces, strings.Join(skips, ","), substitutesFor); err != nil {
+		return fmt.Errorf("failed to add bundle %q: %s", csvName, err.Error())
 	}
 
 	imgs, err := bundle.Images()
@@ -115,7 +126,7 @@ func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 	}
 	for img := range imgs {
 		if _, err := addImage.Exec(img, csvName); err != nil {
-			return err
+			return fmt.Errorf("failed to add related images %q for bundle %q: %s", img, csvName, err.Error())
 		}
 	}
 
@@ -130,7 +141,254 @@ func (s *sqlLoader) addOperatorBundle(tx *sql.Tx, bundle *registry.Bundle) error
 		return err
 	}
 
+	if s.enableAlpha {
+		err = s.addSubstitutesFor(tx, bundle)
+		if err != nil {
+			return err
+		}
+	}
+
 	return s.addAPIs(tx, bundle)
+}
+
+func (s *sqlLoader) addSubstitutesFor(tx *sql.Tx, bundle *registry.Bundle) error {
+
+	updateBundleReplaces, err := tx.Prepare("update operatorbundle set replaces = ? where replaces = ?")
+	if err != nil {
+		return err
+	}
+	defer updateBundleReplaces.Close()
+
+	updateBundleSkips, err := tx.Prepare("update operatorbundle set skips = ? where name = ?")
+	if err != nil {
+		return err
+	}
+	defer updateBundleSkips.Close()
+
+	updateBundleSubstitutesFor, err := tx.Prepare("update operatorbundle set substitutesfor = ? where name = ?")
+	if err != nil {
+		return err
+	}
+	defer updateBundleSubstitutesFor.Close()
+
+	updateBundleReplacesSkips, err := tx.Prepare("update operatorbundle set replaces = ?, skips = ? where name = ?")
+	if err != nil {
+		return err
+	}
+	defer updateBundleReplacesSkips.Close()
+
+	csvName := bundle.Name
+
+	replaces, err := bundle.Replaces()
+	if err != nil {
+		return err
+	}
+	skips, err := bundle.Skips()
+	if err != nil {
+		return err
+	}
+	version, err := bundle.Version()
+	if err != nil {
+		return err
+	}
+	substitutesFor, err := bundle.SubstitutesFor()
+	if err != nil {
+		return err
+	}
+	if substitutesFor != "" {
+		// Update any replaces that reference the substituted-for bundle
+		_, err = updateBundleReplaces.Exec(csvName, substitutesFor)
+		if err != nil {
+			return err
+		}
+		// Check if any other bundle substitutes for the same bundle
+		otherSubstitutions, err := s.getBundlesThatSubstitutesFor(tx, substitutesFor)
+		if err != nil {
+			return err
+		}
+		for len(otherSubstitutions) > 0 {
+			// consume the slice of substitutions
+			otherSubstitution := otherSubstitutions[0]
+			otherSubstitutions = otherSubstitutions[1:]
+			if otherSubstitution != csvName {
+				// Another bundle is substituting for that same bundle
+				// Get other bundle's version
+				_, _, rawVersion, err := s.getBundleSkipsReplacesVersion(tx, otherSubstitution)
+				if err != nil {
+					return err
+				}
+				otherSubstitutionVersion, err := semver.Parse(rawVersion)
+				if err != nil {
+					return err
+				}
+				currentSubstitutionVersion, err := semver.Parse(version)
+				if err != nil {
+					return err
+				}
+				// Compare versions
+				c, err := libsemver.BuildIdCompare(otherSubstitutionVersion, currentSubstitutionVersion)
+				if err != nil {
+					return err
+				}
+				if c < 0 {
+					// Update the currentSubstitution substitutesFor to point to otherSubstitution
+					// since it is latest
+					_, err = updateBundleSubstitutesFor.Exec(otherSubstitution, csvName)
+					if err != nil {
+						return err
+					}
+					moreSubstitutions, err := s.getBundlesThatSubstitutesFor(tx, otherSubstitution)
+					if err != nil {
+						return err
+					}
+					otherSubstitutions = append(otherSubstitutions, moreSubstitutions...)
+				} else if c > 0 {
+					// Update the otherSubstitution's substitutesFor to point to csvName
+					// Since it is the latest
+					_, err = updateBundleSubstitutesFor.Exec(csvName, otherSubstitution)
+					if err != nil {
+						return err
+					}
+					// Update the otherSubstitution's skips to include csvName and its skips
+					err = s.appendSkips(tx, append(skips, csvName), otherSubstitution)
+					if err != nil {
+						return err
+					}
+					moreSubstitutions, err := s.getBundlesThatSubstitutesFor(tx, csvName)
+					if err != nil {
+						return err
+					}
+					if len(moreSubstitutions) > 1 {
+						return fmt.Errorf("programmer error: more than one substitution pointing to %s", csvName)
+					}
+				} else {
+					// the versions are equal
+					return fmt.Errorf("cannot determine latest substitution because of duplicate versions")
+				}
+			}
+		}
+	}
+
+	// Get latest substitutesFor value of the current bundle
+	substitutesFor, err = s.getBundleSubstitution(tx, csvName)
+	if err != nil {
+		return err
+	}
+
+	// If the substituted-for of the current bundle substitutes for another bundle
+	// it should also be added to the skips of the substitutesFor bundle
+	for substitutesFor != "" {
+		skips = append(skips, substitutesFor)
+		substitutesFor, err = s.getBundleSubstitution(tx, substitutesFor)
+		if err != nil {
+			return err
+		}
+	}
+
+	// If the substitution (or substitution of substitution) is added before the
+	// substituted for bundle, (i.e. the bundle being added is substituted for by
+	// another bundle) then transfer the skips from the substitutedFor bundle (this
+	// bundle) over to the substitution's skips
+	var substitutesFors []string
+	substitutesFors, err = s.getBundlesThatSubstitutesFor(tx, csvName)
+	if err != nil || len(substitutesFors) > 1 {
+		return err
+	}
+	for len(substitutesFors) > 0 {
+		err = s.appendSkips(tx, append(skips, csvName), substitutesFors[0])
+		if err != nil {
+			return err
+		}
+		substitutesFors, err = s.getBundlesThatSubstitutesFor(tx, substitutesFors[0])
+		if err != nil || len(substitutesFors) > 1 {
+			return err
+		}
+	}
+
+	// Bundles that skip a bundle that is substituted for
+	// should also skip the substituted-for bundle
+	if len(skips) != 0 {
+		// ensure slice of skips doesn't contain duplicates
+		substitutesSkips := make(map[string]struct{})
+		skipsOverwrite := []string{}
+		for _, skip := range skips {
+			substitutesSkips[skip] = struct{}{}
+			substitutesFors, err = s.getBundlesThatSubstitutesFor(tx, skip)
+			if err != nil || len(substitutesFors) > 1 {
+				return err
+			}
+			for len(substitutesFors) > 0 {
+				// consume the slice of substitutions
+				substitutesFor = substitutesFors[0]
+				substitutesFors = substitutesFors[1:]
+				// shouldn't skip yourself
+				if substitutesFor != csvName {
+					substitutesSkips[substitutesFor] = struct{}{}
+					substitutesFors, err = s.getBundlesThatSubstitutesFor(tx, substitutesFor)
+					if err != nil || len(substitutesFors) > 1 {
+						return err
+					}
+				}
+			}
+		}
+		for s := range substitutesSkips {
+			skipsOverwrite = append(skipsOverwrite, s)
+		}
+		skips = skipsOverwrite
+	}
+
+	// If the bundle being added replaces a bundle that is substituted for
+	// (for example it was the previous head of the channel), change
+	// the replaces to the substituted-for bundle
+	if replaces != "" {
+		substitutesFors, err = s.getBundlesThatSubstitutesFor(tx, replaces)
+		if err != nil {
+			return err
+		}
+		for len(substitutesFors) > 0 {
+			// update the replaces to a newer substitution
+			replaces = substitutesFors[0]
+			// try to get the substitution of the substitution
+			substitutesFors, err = s.getBundlesThatSubstitutesFor(tx, replaces)
+			if err != nil || len(substitutesFors) > 1 {
+				return err
+			}
+		}
+	}
+
+	_, err = updateBundleReplacesSkips.Exec(replaces, strings.Join(skips, ","), csvName)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *sqlLoader) appendSkips(tx *sql.Tx, skips []string, csvName string) error {
+	updateSkips, err := tx.Prepare("update operatorbundle set skips = ? where name = ?")
+	if err != nil {
+		return err
+	}
+	defer updateSkips.Close()
+
+	_, currentSkips, _, err := s.getBundleSkipsReplacesVersion(tx, csvName)
+	if err != nil {
+		return err
+	}
+
+	// ensure slice of skips doesn't contain duplicates
+	skipsMap := make(map[string]struct{})
+	for _, skip := range currentSkips {
+		skipsMap[skip] = struct{}{}
+	}
+	for _, skip := range skips {
+		if _, ok := skipsMap[skip]; !ok {
+			currentSkips = append(currentSkips, skip)
+		}
+	}
+
+	_, err = updateSkips.Exec(strings.Join(currentSkips, ","), csvName)
+	return err
 }
 
 func (s *sqlLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
@@ -263,6 +521,10 @@ func (s *sqlLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 		tx.Rollback()
 	}()
 
+	if err := s.rmPackage(tx, manifest.PackageName); err != nil {
+		return err
+	}
+
 	if err := s.addPackageChannels(tx, manifest); err != nil {
 		return err
 	}
@@ -310,35 +572,41 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 	}
 	defer getReplaces.Close()
 
-	var errs []error
-
 	if _, err := addPackage.Exec(manifest.PackageName); err != nil {
-		errs = append(errs, err)
-		return utilerrors.NewAggregate(errs)
+		return fmt.Errorf("failed to add package %q: %s", manifest.PackageName, err.Error())
 	}
 
-	hasDefault := false
+	var (
+		errs       []error
+		channels   []registry.PackageChannel
+		hasDefault bool
+	)
 	for _, c := range manifest.Channels {
+		if deprecated, err := s.deprecated(tx, c.CurrentCSVName); err != nil || deprecated {
+			// Elide channels that start with a deprecated bundle
+			continue
+		}
 		if _, err := addChannel.Exec(c.Name, manifest.PackageName, c.CurrentCSVName); err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("failed to add channel %q in package %q: %s", c.Name, manifest.PackageName, err.Error()))
 			continue
 		}
 		if c.IsDefaultChannel(manifest) {
 			hasDefault = true
 			if _, err := addDefaultChannel.Exec(c.Name, manifest.PackageName); err != nil {
-				errs = append(errs, err)
+				errs = append(errs, fmt.Errorf("failed to add default channel %q in package %q: %s", c.Name, manifest.PackageName, err.Error()))
 				continue
 			}
 		}
+		channels = append(channels, c)
 	}
 	if !hasDefault {
 		errs = append(errs, fmt.Errorf("no default channel specified for %s", manifest.PackageName))
 	}
 
-	for _, c := range manifest.Channels {
+	for _, c := range channels {
 		res, err := addChannelEntry.Exec(c.Name, manifest.PackageName, c.CurrentCSVName, 0)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("failed to add channel %q in package %q: %s", c.Name, manifest.PackageName, err.Error()))
 			continue
 		}
 		currentID, err := res.LastInsertId()
@@ -360,7 +628,14 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 				break
 			}
 
-			if err := s.addPackageProperty(tx, channelEntryCSVName, manifest.PackageName, version); err != nil {
+			bundlePath, err := s.getBundlePathIfExists(tx, channelEntryCSVName)
+			if err != nil {
+				// this should only happen on an SQL error, bundlepath just not being set is for backwards compatibility reasons
+				errs = append(errs, err)
+				break
+			}
+
+			if err := s.addPackageProperty(tx, channelEntryCSVName, manifest.PackageName, version, bundlePath); err != nil {
 				errs = append(errs, err)
 				break
 			}
@@ -369,7 +644,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 				// add dummy channel entry for the skipped version
 				skippedChannelEntry, err := addChannelEntry.Exec(c.Name, manifest.PackageName, skip, depth)
 				if err != nil {
-					errs = append(errs, err)
+					errs = append(errs, fmt.Errorf("failed to add channel %q for skipped version %q in package %q: %s", c.Name, skip, manifest.PackageName, err.Error()))
 					continue
 				}
 
@@ -382,7 +657,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 				// add another channel entry for the parent, which replaces the skipped
 				synthesizedChannelEntry, err := addChannelEntry.Exec(c.Name, manifest.PackageName, channelEntryCSVName, depth)
 				if err != nil {
-					errs = append(errs, err)
+					errs = append(errs, fmt.Errorf("failed to add channel %q for replaces %q in package %q: %s", c.Name, channelEntryCSVName, manifest.PackageName, err.Error()))
 					continue
 				}
 
@@ -408,7 +683,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 
 			replacedChannelEntry, err := addChannelEntry.Exec(c.Name, manifest.PackageName, replaces, depth)
 			if err != nil {
-				errs = append(errs, err)
+				errs = append(errs, fmt.Errorf("failed to add channel %q for replaces %q in package %q: %s", c.Name, replaces, manifest.PackageName, err.Error()))
 				break
 			}
 
@@ -428,8 +703,17 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 				errs = append(errs, err)
 				break
 			}
+			deprecated, err := s.deprecated(tx, channelEntryCSVName)
+			if err != nil {
+				errs = append(errs, err)
+				break
+			}
+			if deprecated {
+				// The package is truncated below this point, we're done!
+				break
+			}
 			if _, _, _, err := s.getBundleSkipsReplacesVersion(tx, replaces); err != nil {
-				errs = append(errs, fmt.Errorf("%s specifies replacement that couldn't be found", c.CurrentCSVName))
+				errs = append(errs, fmt.Errorf("Invalid bundle %s, replaces nonexistent bundle %s", c.CurrentCSVName, replaces))
 				break
 			}
 
@@ -485,6 +769,7 @@ func (s *sqlLoader) getBundleSkipsReplacesVersion(tx *sql.Tx, bundleName string)
 		err = rerr
 		return
 	}
+	defer rows.Close()
 	if !rows.Next() {
 		err = fmt.Errorf("no bundle found for bundlename %s", bundleName)
 		return
@@ -505,6 +790,39 @@ func (s *sqlLoader) getBundleSkipsReplacesVersion(tx *sql.Tx, bundleName string)
 	}
 	if versionStringSQL.Valid {
 		version = versionStringSQL.String
+	}
+
+	return
+}
+
+func (s *sqlLoader) getBundlePathIfExists(tx *sql.Tx, bundleName string) (bundlePath string, err error) {
+	getBundlePath, err := tx.Prepare(`
+	  SELECT bundlepath
+	  FROM operatorbundle
+	  WHERE operatorbundle.name=? LIMIT 1`)
+	if err != nil {
+		return
+	}
+	defer getBundlePath.Close()
+
+	rows, rerr := getBundlePath.Query(bundleName)
+	if err != nil {
+		err = rerr
+		return
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		// no bundlepath set
+		return
+	}
+
+	var bundlePathSQL sql.NullString
+	if err = rows.Scan(&bundlePathSQL); err != nil {
+		return
+	}
+
+	if bundlePathSQL.Valid {
+		bundlePath = bundlePathSQL.String
 	}
 
 	return
@@ -591,6 +909,9 @@ func (s *sqlLoader) getCSVNames(tx *sql.Tx, packageName string) ([]string, error
 	for rows.Next() {
 		err := rows.Scan(&csvName)
 		if err != nil {
+			if nerr := rows.Close(); nerr != nil {
+				return nil, nerr
+			}
 			return nil, err
 		}
 		csvNames = append(csvNames, csvName)
@@ -604,36 +925,91 @@ func (s *sqlLoader) getCSVNames(tx *sql.Tx, packageName string) ([]string, error
 }
 
 func (s *sqlLoader) RemovePackage(packageName string) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		tx.Rollback()
-	}()
-
-	csvNames, err := s.getCSVNames(tx, packageName)
-	if err != nil {
-		return err
-	}
-	for _, csvName := range csvNames {
-		err = s.rmBundle(tx, csvName)
+	if err := func() error {
+		tx, err := s.db.Begin()
 		if err != nil {
 			return err
 		}
+		defer func() {
+			tx.Rollback()
+		}()
+
+		csvNames, err := s.getCSVNames(tx, packageName)
+		if err != nil {
+			return err
+		}
+		for _, csvName := range csvNames {
+			if err := s.rmBundle(tx, csvName); err != nil {
+				return err
+			}
+		}
+
+		deletePackage, err := tx.Prepare("DELETE FROM package WHERE package.name=?")
+		if err != nil {
+			return err
+		}
+		defer deletePackage.Close()
+
+		if _, err := deletePackage.Exec(packageName); err != nil {
+			return err
+		}
+
+		deleteChannel, err := tx.Prepare("DELETE FROM channel WHERE package_name = ?")
+		if err != nil {
+			return err
+		}
+		defer deleteChannel.Close()
+
+		if _, err := deleteChannel.Exec(packageName); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}(); err != nil {
+		return err
 	}
 
-	return tx.Commit()
+	// separate transaction so that we remove stranded bundles after the package has been cleared
+	return s.RemoveStrandedBundles()
 }
 
 func (s *sqlLoader) rmBundle(tx *sql.Tx, csvName string) error {
-	stmt, err := tx.Prepare("DELETE FROM operatorbundle WHERE operatorbundle.name=?")
+	deleteBundle, err := tx.Prepare("DELETE FROM operatorbundle WHERE operatorbundle.name=?")
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer deleteBundle.Close()
 
-	if _, err := stmt.Exec(csvName); err != nil {
+	if _, err := deleteBundle.Exec(csvName); err != nil {
+		return err
+	}
+
+	deleteProvider, err := tx.Prepare("DELETE FROM api_provider WHERE api_provider.operatorbundle_name=?")
+	if err != nil {
+		return err
+	}
+	defer deleteProvider.Close()
+
+	if _, err := deleteProvider.Exec(csvName); err != nil {
+		return err
+	}
+
+	deleteRequirer, err := tx.Prepare("DELETE FROM api_requirer WHERE api_requirer.operatorbundle_name=?")
+	if err != nil {
+		return err
+	}
+	defer deleteRequirer.Close()
+
+	if _, err := deleteRequirer.Exec(csvName); err != nil {
+		return err
+	}
+
+	deleteChannelEntries, err := tx.Prepare("DELETE FROM channel_entry WHERE channel_entry.operatorbundle_name=?")
+	if err != nil {
+		return err
+	}
+	defer deleteChannelEntries.Close()
+
+	if _, err := deleteChannelEntries.Exec(csvName); err != nil {
 		return err
 	}
 
@@ -667,23 +1043,7 @@ func (s *sqlLoader) AddBundlePackageChannels(manifest registry.PackageManifest, 
 		return err
 	}
 
-	// Delete package and channels (entries will cascade) - they will be recalculated
-	deletePkg, err := tx.Prepare("delete from package where name = ?")
-	if err != nil {
-		return err
-	}
-	defer deletePkg.Close()
-	_, err = deletePkg.Exec(manifest.PackageName)
-	if err != nil {
-		return err
-	}
-	deleteChan, err := tx.Prepare("delete from channel where package_name = ?")
-	if err != nil {
-		return err
-	}
-	defer deleteChan.Close()
-	_, err = deleteChan.Exec(manifest.PackageName)
-	if err != nil {
+	if err := s.rmPackage(tx, manifest.PackageName); err != nil {
 		return err
 	}
 
@@ -692,6 +1052,41 @@ func (s *sqlLoader) AddBundlePackageChannels(manifest registry.PackageManifest, 
 	}
 
 	return tx.Commit()
+}
+
+func (s *sqlLoader) rmPackage(tx *sql.Tx, pkg string) error {
+	// Delete package, channel, and entries - they will be recalculated
+	deletePkg, err := tx.Prepare("DELETE FROM package WHERE name = ?")
+	if err != nil {
+		return err
+	}
+
+	defer deletePkg.Close()
+	_, err = deletePkg.Exec(pkg)
+	if err != nil {
+		return err
+	}
+
+	deleteChan, err := tx.Prepare("DELETE FROM channel WHERE package_name = ?")
+	if err != nil {
+		return err
+	}
+
+	defer deleteChan.Close()
+	_, err = deleteChan.Exec(pkg)
+	if err != nil {
+		return err
+	}
+
+	deleteChannelEntries, err := tx.Prepare("DELETE FROM channel_entry WHERE package_name = ?")
+	if err != nil {
+		return err
+	}
+
+	defer deleteChannelEntries.Close()
+	_, err = deleteChannelEntries.Exec(pkg)
+
+	return err
 }
 
 func (s *sqlLoader) addDependencies(tx *sql.Tx, bundle *registry.Bundle) error {
@@ -756,7 +1151,7 @@ func (s *sqlLoader) addProperty(tx *sql.Tx, propType, value, bundleName, version
 	return nil
 }
 
-func (s *sqlLoader) addPackageProperty(tx *sql.Tx, bundleName, pkg, version string) error {
+func (s *sqlLoader) addPackageProperty(tx *sql.Tx, bundleName, pkg, version, bundlePath string) error {
 	// Add the package property
 	prop := registry.PackageProperty{
 		PackageName: pkg,
@@ -767,20 +1162,27 @@ func (s *sqlLoader) addPackageProperty(tx *sql.Tx, bundleName, pkg, version stri
 		return err
 	}
 
-	return s.addProperty(tx, registry.PackageType, string(value), bundleName, version, "")
+	return s.addProperty(tx, registry.PackageType, string(value), bundleName, version, bundlePath)
 }
 
 func (s *sqlLoader) addBundleProperties(tx *sql.Tx, bundle *registry.Bundle) error {
+	type propstring struct {
+		Type  string
+		Value string
+	}
+	properties := make(map[propstring]struct{})
+
 	bundleVersion, err := bundle.Version()
 	if err != nil {
 		return err
 	}
 
 	for _, prop := range bundle.Properties {
-		value, _ := json.Marshal(prop.Value)
-		if err := s.addProperty(tx, prop.Type, string(value), bundle.Name, bundleVersion, bundle.BundleImage); err != nil {
+		value, err := json.Marshal(prop.Value)
+		if err != nil {
 			return err
 		}
+		properties[propstring{Type: prop.Type, Value: string(value)}] = struct{}{}
 	}
 
 	// Look up providedAPIs in CSV and add them in properties table
@@ -799,36 +1201,74 @@ func (s *sqlLoader) addBundleProperties(tx *sql.Tx, bundle *registry.Bundle) err
 		if err != nil {
 			return err
 		}
-		if err := s.addProperty(tx, registry.GVKType, string(value), bundle.Name, bundleVersion, bundle.BundleImage); err != nil {
-			return err
+		properties[propstring{Type: registry.GVKType, Value: string(value)}] = struct{}{}
+	}
+
+	// Add properties from annotations
+	csv, err := bundle.ClusterServiceVersion()
+	if err != nil {
+		// FIXME: Returning nil here is in line with the original implementation, but that was probably wrong. We should probably just bubble-up the error.
+		return nil
+	}
+
+	if csv == nil {
+		// FIXME: Currently, a CSV is requirement of bundle addition. Should this return an error?
+		return nil
+	}
+
+	var props []registry.Property
+	if csv.GetAnnotations() != nil {
+		v, ok := csv.GetAnnotations()[registry.PropertyKey]
+		if ok {
+			if err := json.Unmarshal([]byte(v), &props); err != nil {
+				return err
+			}
 		}
 	}
 
-	// Add label properties
-	if csv, err := bundle.ClusterServiceVersion(); err == nil {
-		annotations := csv.ObjectMeta.GetAnnotations()
-		if v, ok := annotations[registry.PropertyKey]; ok {
-			var props []registry.Property
-			if err := json.Unmarshal([]byte(v), &props); err == nil {
-				for _, prop := range props {
-					// Only add label type from the list
-					// TODO: Support more types such as GVK and package
-					if prop.Type == registry.LabelType {
-						var label registry.LabelProperty
-						err := json.Unmarshal(prop.Value, &label)
-						if err != nil {
-							continue
-						}
-						value, err := json.Marshal(label)
-						if err != nil {
-							continue
-						}
-						if err := s.addProperty(tx, registry.LabelType, string(value), bundle.Name, bundleVersion, bundle.BundleImage); err != nil {
-							continue
-						}
-					}
-				}
+	for _, prop := range props {
+		value, err := json.Marshal(&prop.Value)
+		if err != nil {
+			return err
+		}
+
+		// validate if Type is known
+		switch prop.Type {
+		case registry.LabelType:
+			if err := json.Unmarshal(prop.Value, &registry.LabelProperty{}); err != nil {
+				return err
 			}
+		case registry.PackageType:
+			if err := json.Unmarshal(prop.Value, &registry.PackageProperty{}); err != nil {
+				return err
+			}
+		case registry.GVKType:
+			if err := json.Unmarshal(prop.Value, &registry.GVKProperty{}); err != nil {
+				return err
+			}
+		case registry.DeprecatedType:
+			// deprecated has no value
+		}
+
+		properties[propstring{Type: prop.Type, Value: string(value)}] = struct{}{}
+	}
+
+	// If the bundle has been deprecated before, readd the deprecated property
+	deprecated, err := s.deprecated(tx, bundle.Name)
+	if err != nil {
+		return err
+	}
+	if deprecated {
+		value, err := json.Marshal(registry.DeprecatedProperty{})
+		if err != nil {
+			return err
+		}
+		properties[propstring{Type: registry.DeprecatedType, Value: string(value)}] = struct{}{}
+	}
+
+	for prop := range properties {
+		if err := s.addProperty(tx, prop.Type, prop.Value, bundle.Name, bundleVersion, bundle.BundleImage); err != nil {
+			return err
 		}
 	}
 
@@ -836,19 +1276,18 @@ func (s *sqlLoader) addBundleProperties(tx *sql.Tx, bundle *registry.Bundle) err
 }
 
 func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
-	getEntryID := `SELECT entry_id FROM channel_entry WHERE operatorbundle_name=?`
-	rows, err := tx.QueryContext(context.TODO(), getEntryID, csvName)
+	rows, err := tx.Query(`SELECT entry_id FROM channel_entry WHERE operatorbundle_name=?`, csvName)
 	if err != nil {
 		return err
 	}
+
 	var entryIDs []int64
 	for rows.Next() {
 		var entryID sql.NullInt64
 		rows.Scan(&entryID)
 		entryIDs = append(entryIDs, entryID.Int64)
 	}
-	err = rows.Close()
-	if err != nil {
+	if err := rows.Close(); err != nil {
 		return err
 	}
 
@@ -858,6 +1297,7 @@ func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
 	}
 	for _, id := range entryIDs {
 		if _, err := updateChannelEntry.Exec(id); err != nil {
+			updateChannelEntry.Close()
 			return err
 		}
 	}
@@ -866,77 +1306,89 @@ func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
 		return err
 	}
 
-	stmt, err := tx.Prepare("DELETE FROM channel_entry WHERE operatorbundle_name=?")
+	_, err = tx.Exec(`DELETE FROM channel WHERE head_operatorbundle_name=?`, csvName)
 	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	if _, err := stmt.Exec(csvName); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func getTailFromBundle(tx *sql.Tx, name string) (bundles []string, err error) {
+func getTailFromBundle(tx *sql.Tx, head string) (bundles []string, err error) {
 	getReplacesSkips := `SELECT replaces, skips FROM operatorbundle WHERE name=?`
-	isDefaultChannelHead := `SELECT head_operatorbundle_name FROM channel 
-							INNER JOIN package ON channel.name = package.default_channel 
+	isDefaultChannelHead := `SELECT head_operatorbundle_name FROM channel
+							INNER JOIN package ON channel.name = package.default_channel
 							WHERE channel.head_operatorbundle_name = ?`
 
-	tail := make(map[string]struct{})
-	next := name
+	visited := map[string]struct{}{}
+	next := []string{head}
 
-	for next != "" {
-		rows, err := tx.QueryContext(context.TODO(), getReplacesSkips, next)
+	for len(next) > 0 {
+		// Pop the next bundle off of the queue
+		bundle := next[0]
+		next = next[1:] // Potentially inefficient queue implementation, but this function is only used when deprecate is called
+
+		// Check if next is the head of the defaultChannel
+		// If it is, the defaultChannel would be removed -- this is not allowed because we cannot know which channel to promote as the new default
+		var err error
+		if row := tx.QueryRow(isDefaultChannelHead, bundle); row != nil {
+			err = row.Scan(&sql.NullString{})
+		}
+		if err == nil {
+			// A nil error indicates that next is the default channel head
+			return nil, registry.ErrRemovingDefaultChannelDuringDeprecation
+		} else if err != sql.ErrNoRows {
+			return nil, err
+		}
+
+		rows, err := tx.QueryContext(context.TODO(), getReplacesSkips, bundle)
 		if err != nil {
 			return nil, err
 		}
-		var replaces sql.NullString
-		var skips sql.NullString
+
+		var (
+			replaces sql.NullString
+			skips    sql.NullString
+		)
 		if rows.Next() {
 			if err := rows.Scan(&replaces, &skips); err != nil {
+				if nerr := rows.Close(); nerr != nil {
+					return nil, nerr
+				}
 				return nil, err
 			}
 		}
-		rows.Close()
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
 		if skips.Valid && skips.String != "" {
 			for _, skip := range strings.Split(skips.String, ",") {
-				tail[skip] = struct{}{}
+				if _, ok := visited[skip]; ok {
+					// We've already visited this bundle's subgraph
+					continue
+				}
+				visited[skip] = struct{}{}
+				next = append(next, skip)
 			}
 		}
 		if replaces.Valid && replaces.String != "" {
-			// check if replaces is the head of the defaultChannel
-			// if it is, the defaultChannel will be removed
-			// this is not allowed because we cannot know which channel to promote as the new default
-			rows, err := tx.QueryContext(context.TODO(), isDefaultChannelHead, replaces.String)
-			if err != nil {
-				return nil, err
+			r := replaces.String
+			if _, ok := visited[r]; ok {
+				// We've already visited this bundle's subgraph
+				continue
 			}
-			if rows.Next() {
-				var defaultChannelHead sql.NullString
-				err := rows.Scan(&defaultChannelHead)
-				if err != nil {
-					return nil, err
-				}
-				if defaultChannelHead.Valid {
-					return nil, registry.ErrRemovingDefaultChannelDuringDeprecation
-				}
-			}
-			next = replaces.String
-			tail[replaces.String] = struct{}{}
-		} else {
-			next = ""
+			visited[r] = struct{}{}
+			next = append(next, r)
 		}
 	}
-	var allTails []string
 
-	for k := range tail {
-		allTails = append(allTails, k)
+	// The tail is exactly the set of bundles we visited while traversing the graph from head
+	var tail []string
+	for v := range visited {
+		tail = append(tail, v)
 	}
 
-	return allTails, nil
+	return tail, nil
 
 }
 
@@ -980,14 +1432,18 @@ func (s *sqlLoader) DeprecateBundle(path string) error {
 	}
 
 	for _, bundle := range tailBundles {
-		err := s.rmBundle(tx, bundle)
-		if err != nil {
+		if err := s.rmChannelEntry(tx, bundle); err != nil {
 			return err
 		}
-		err = s.rmChannelEntry(tx, bundle)
-		if err != nil {
+		if err := s.rmBundle(tx, bundle); err != nil {
 			return err
 		}
+	}
+
+	// Remove any channels that start with the deprecated bundle
+	_, err = tx.Exec(fmt.Sprintf(`DELETE FROM channel WHERE head_operatorbundle_name="%s"`, name))
+	if err != nil {
+		return err
 	}
 
 	deprecatedValue, err := json.Marshal(registry.DeprecatedProperty{})
@@ -999,5 +1455,84 @@ func (s *sqlLoader) DeprecateBundle(path string) error {
 		return err
 	}
 
+	// Create a persistent record of the bundle's deprecation
+	// This lets us recover from losing the properties and augmented bundle rows
+	_, err = tx.Exec("INSERT OR REPLACE INTO deprecated(operatorbundle_name) VALUES(?)", name)
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
+}
+
+func (s *sqlLoader) RemoveStrandedBundles() error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		tx.Rollback()
+	}()
+
+	if err := s.rmStrandedBundles(tx); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (s *sqlLoader) rmStrandedBundles(tx *sql.Tx) error {
+	_, err := tx.Exec("DELETE FROM operatorbundle WHERE name NOT IN(select operatorbundle_name from channel_entry)")
+	return err
+}
+
+func (s *sqlLoader) getBundlesThatSubstitutesFor(tx *sql.Tx, replaces string) ([]string, error) {
+	query := `SELECT name FROM operatorbundle WHERE substitutesfor=?`
+	rows, err := tx.QueryContext(context.TODO(), query, replaces)
+	if err != nil {
+		return []string{}, err
+	}
+	defer rows.Close()
+
+	var substitutesFor []string
+	var subsFor sql.NullString
+	for rows.Next() {
+		if err := rows.Scan(&subsFor); err != nil {
+			return []string{}, err
+		}
+		if subsFor.Valid && subsFor.String != "" {
+			substitutesFor = append(substitutesFor, subsFor.String)
+		}
+	}
+	return substitutesFor, nil
+}
+
+func (s *sqlLoader) getBundleSubstitution(tx *sql.Tx, name string) (string, error) {
+	query := `SELECT substitutesfor FROM operatorbundle WHERE name=?`
+	rows, err := tx.QueryContext(context.TODO(), query, name)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var substitutesFor sql.NullString
+	if rows.Next() {
+		if err := rows.Scan(&substitutesFor); err != nil {
+			return "", err
+		}
+	}
+	return substitutesFor.String, nil
+}
+
+func (s *sqlLoader) deprecated(tx *sql.Tx, name string) (bool, error) {
+	var err error
+	if row := tx.QueryRow(`SELECT * FROM deprecated WHERE operatorbundle_name = ?`, name); row != nil {
+		err = row.Scan(&sql.NullString{})
+	}
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+
+	// Ignore any deprecated bundles
+	return err == nil, err
 }
