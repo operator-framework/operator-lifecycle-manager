@@ -59,6 +59,35 @@ func TestSolveOperators(t *testing.T) {
 	require.EqualValues(t, expected, operators)
 }
 
+func TestDisjointChannelGraph(t *testing.T) {
+	const namespace = "test-namespace"
+	catalog := registry.CatalogKey{Name: "test-catalog", Namespace: namespace}
+
+	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	fakeNamespacedOperatorCache := NamespacedOperatorCache{
+		snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+			catalog: {
+				key: catalog,
+				operators: []*Operator{
+					genOperator("packageA.side1.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genOperator("packageA.side1.v2", "0.0.2", "packageA.side1.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genOperator("packageA.side2.v1", "1.0.0", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genOperator("packageA.side2.v2", "2.0.0", "packageA.side2.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+				},
+			},
+		},
+	}
+	satResolver := SatResolver{
+		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		log:   logrus.New(),
+	}
+
+	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	require.Error(t, err, "a unique replacement chain within a channel is required to determine the relative order between channel entries, but 2 replacement chains were found in channel \"alpha\" of package \"packageA\": packageA.side1.v2...packageA.side1.v1, packageA.side2.v2...packageA.side2.v1")
+}
+
 func TestPropertiesAnnotationHonored(t *testing.T) {
 	const (
 		namespace = "olm"
