@@ -88,6 +88,7 @@ func TestAddComponents(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, k8sscheme.AddToScheme(scheme))
 	require.NoError(t, operatorsv1alpha1.AddToScheme(scheme))
+	require.NoError(t, metav1.AddMetaToScheme(scheme))
 
 	type fields struct {
 		operator *operatorsv1.Operator

@@ -18,6 +18,7 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -69,20 +70,22 @@ func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&operatorsv1.Operator{}).
 		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.InstallPlan{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueueOperator).
 		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, enqueueOperator).
-		// TODO(njhale): Add WebhookConfigurations and ConfigMaps
+		// Metadata is sufficient to build component refs for
+		// GVKs that don't have a .status.conditions field.
+		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueOperator, builder.OnlyMetadata).
+		// TODO(njhale): Add WebhookConfigurations
 		Complete(r)
 }
 
@@ -196,23 +199,7 @@ func (r *OperatorReconciler) updateComponents(ctx context.Context, operator *dec
 func (r *OperatorReconciler) listComponents(ctx context.Context, selector labels.Selector) ([]runtime.Object, error) {
 	// Note: We need to figure out how to dynamically add new list types here (or some equivalent) in
 	// order to support operators composed of custom resources.
-	componentLists := []runtime.Object{
-		&appsv1.DeploymentList{},
-		&corev1.NamespaceList{},
-		&corev1.ServiceAccountList{},
-		&corev1.SecretList{},
-		&corev1.ConfigMapList{},
-		&rbacv1.RoleList{},
-		&rbacv1.RoleBindingList{},
-		&rbacv1.ClusterRoleList{},
-		&rbacv1.ClusterRoleBindingList{},
-		&apiextensionsv1.CustomResourceDefinitionList{},
-		&apiregistrationv1.APIServiceList{},
-		&operatorsv1alpha1.SubscriptionList{},
-		&operatorsv1alpha1.InstallPlanList{},
-		&operatorsv1alpha1.ClusterServiceVersionList{},
-		&operatorsv2.OperatorConditionList{},
-	}
+	componentLists := componentLists()
 
 	opt := client.MatchingLabelsSelector{Selector: selector}
 	for _, list := range componentLists {

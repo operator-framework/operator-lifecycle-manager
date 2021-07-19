@@ -19,6 +19,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -68,17 +69,17 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &corev1.Service{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueProviders).
 		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueCSV).
 		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, enqueueCSV).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueCSV, builder.OnlyMetadata).
 		Complete(reconcile.Func(r.ReconcileClusterServiceVersion))
 	if err != nil {
 		return err
@@ -350,24 +351,7 @@ func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component runtim
 func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.Operator, csv *operatorsv1alpha1.ClusterServiceVersion) ([]runtime.Object, error) {
 	// Note: We need to figure out how to dynamically add new list types here (or some equivalent) in
 	// order to support operators composed of custom resources.
-	componentLists := []runtime.Object{
-		&appsv1.DeploymentList{},
-		&corev1.ServiceList{},
-		&corev1.NamespaceList{},
-		&corev1.ServiceAccountList{},
-		&corev1.SecretList{},
-		&corev1.ConfigMapList{},
-		&rbacv1.RoleList{},
-		&rbacv1.RoleBindingList{},
-		&rbacv1.ClusterRoleList{},
-		&rbacv1.ClusterRoleBindingList{},
-		&apiregistrationv1.APIServiceList{},
-		&apiextensionsv1.CustomResourceDefinitionList{},
-		&operatorsv1alpha1.SubscriptionList{},
-		&operatorsv1alpha1.InstallPlanList{},
-		&operatorsv1alpha1.ClusterServiceVersionList{},
-		&operatorsv2.OperatorConditionList{},
-	}
+	componentLists := componentLists()
 
 	// Only resources that aren't already labelled are adoption candidates
 	selector, err := operator.NonComponentSelector()
@@ -403,7 +387,8 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 
 	// Pick up owned CRDs
 	for _, provided := range csv.Spec.CustomResourceDefinitions.Owned {
-		crd := &apiextensionsv1.CustomResourceDefinition{}
+		crd := &metav1.PartialObjectMetadata{}
+		crd.SetGroupVersionKind(apiextensionsv1.SchemeGroupVersion.WithKind("CustomResourceDefinition"))
 		if err := r.Get(ctx, types.NamespacedName{Name: provided.Name}, crd); err != nil {
 			if !apierrors.IsNotFound(err) {
 				// Inform requeue on transient error
