@@ -19,6 +19,7 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	crfake "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	crinformers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/configmap"
 )
@@ -180,6 +181,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "operators.coreos.com/v1alpha1",
@@ -570,6 +572,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "operators.coreos.com/v1alpha1",
@@ -1305,7 +1308,10 @@ func TestConfigMapUnpacker(t *testing.T) {
 
 			period := 5 * time.Minute
 			factory := informers.NewSharedInformerFactory(client, period)
-			cmLister := factory.Core().V1().ConfigMaps().Lister()
+			configMapInformer := informers.NewSharedInformerFactoryWithOptions(client, period, informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+				options.LabelSelector = install.OLMManagedLabelKey
+			})).Core().V1().ConfigMaps()
+			cmLister := configMapInformer.Lister()
 			jobLister := factory.Batch().V1().Jobs().Lister()
 			podLister := factory.Core().V1().Pods().Lister()
 			roleLister := factory.Rbac().V1().Roles().Lister()
