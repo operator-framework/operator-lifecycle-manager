@@ -1572,6 +1572,75 @@ func TestCheckInstallPlanStatus(t *testing.T) {
 			},
 		},
 		{
+			description: "InstallPlanReferencedState/NoConditions/Failed/ToInstallPlanFailedState/Update/InstallPlanReasonComponentFailed/MultipleBundleConditions",
+			fields: fields{
+				existingObjs: existingObjs{
+					clientObjs: []runtime.Object{
+						&v1alpha1.Subscription{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "sub",
+								Namespace: "ns",
+							},
+						},
+					},
+				},
+				namespace: "ns",
+				state: newInstallPlanReferencedState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+				}),
+			},
+			args: args{
+				now: &now,
+				status: &v1alpha1.InstallPlanStatus{
+					Phase: v1alpha1.InstallPlanPhaseFailed,
+					Conditions: []v1alpha1.InstallPlanCondition{
+						{
+							Type:   v1alpha1.InstallPlanInstalled,
+							Status: corev1.ConditionFalse,
+							Reason: v1alpha1.InstallPlanReasonComponentFailed,
+						},
+					},
+					BundleLookups: []v1alpha1.BundleLookup{
+						{
+							Conditions: []v1alpha1.BundleLookupCondition{
+								{
+									Type:    v1alpha1.BundleLookupPending,
+									Status:  corev1.ConditionTrue,
+									Message: "encountered issue foo",
+								},
+							},
+						},
+						{
+							Conditions: []v1alpha1.BundleLookupCondition{
+								{
+									Type:    v1alpha1.BundleLookupPending,
+									Status:  corev1.ConditionTrue,
+									Message: "encountered issue bar",
+								},
+							},
+						},
+					},
+				},
+			},
+			want: want{
+				transitioned: newInstallPlanFailedState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planFailedCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanReasonComponentFailed), "encountered issue foo. encountered issue bar.", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
 			description: "InstallPlanReferencedState/Conditions/Failed/ToInstallPlanFailedState/NoUpdate/InstallPlanReasonComponentFailed",
 			fields: fields{
 				existingObjs: existingObjs{
