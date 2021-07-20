@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,10 +23,13 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtempate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/catalogsource"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+	"k8s.io/apimachinery/pkg/api/meta"
 )
 
 var _ = Describe("Catalog represents a store of bundles which OLM can use to install Operators", func() {
@@ -1027,6 +1031,165 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		updatePods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 1*time.Second, 30*time.Second, noPod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(updatePods.Items).To(HaveLen(0))
+	})
+
+	It("adding catalog template adjusts image used", func() {
+		// This test attempts to create a catalog source, and update it with a template annotation
+		// and ensure that the image gets changed according to what's in the template as well as
+		// check the status conditions are updated accordingly
+
+		sourceName := genName("catalog-")
+		source := &v1alpha1.CatalogSource{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.CatalogSourceKind,
+				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourceName,
+				Namespace: testNamespace,
+				Labels:    map[string]string{"olm.catalogSource": sourceName},
+			},
+			Spec: v1alpha1.CatalogSourceSpec{
+				SourceType: v1alpha1.SourceTypeGrpc,
+				Image:      "quay.io/olmtest/catsrc-update-test:old",
+			},
+		}
+
+		By("creating a catalog source")
+		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		configmap := corev1.ConfigMap{}
+		configmapName := genName("configmap-")
+		configmap.SetName(configmapName)
+		configmap.SetNamespace(testNamespace)
+		configmap.Data = map[string]string{"test": "mytest"}
+
+		By("creating an arbitrary config map to be the source of a GVK template")
+		_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.TODO(), &configmap, metav1.CreateOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		defer func() {
+			// cleanup
+			err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), sourceName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Delete(context.TODO(), configmapName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+		}()
+
+		By("update the catalog source with template annotation")
+		///////
+		// FIXME: There have been concerns about security of allowing selection of arbitrary
+		// GVK during code reviews. For now we're disabling setting up a gvk template. This
+		// code needs to be re-enabled once we've come up with a valid approach
+		// create a gvk template to point at the configmap
+		// gvkTemplate := fmt.Sprintf("{group:,version:v1,kind:ConfigMap,name:%s,namespace:%s,jsonpath:{.data.test}}", configmapName, testNamespace)
+		///////
+
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+		Expect(err).ShouldNot(HaveOccurred(), "error getting catalog source")
+
+		// create an annotation using the gvk and kube templates
+
+		///////
+		// FIXME: There have been concerns about security of allowing selection of arbitrary
+		// GVK during code reviews. For now we're disabling setting up a gvk template. This
+		// code needs to be re-enabled once we've come up with a valid approach
+		// create a gvk template to point at the configmap
+		// source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s-%s.%s.%s", gvkTemplate, catalogsource.TEMPL_KUBEMAJORV, catalogsource.TEMPL_KUBEMINORV, catalogsource.TEMPL_KUBEPATCHV)})
+		source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TEMPL_KUBEMAJORV, catalogsource.TEMPL_KUBEMINORV, catalogsource.TEMPL_KUBEPATCHV)})
+		///////
+
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
+		Expect(err).ShouldNot(HaveOccurred(), "error updating catalog source with template annotation")
+
+		// wait for status condition to show up
+		Eventually(func() (bool, error) {
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), sourceName, metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
+			// if the conditions array has the entry we know things got updated
+			condition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeTemplatesHaveResolved)
+			if condition != nil {
+				return true, nil
+			}
+
+			return false, nil
+		}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+		// source should be the latest we got from the eventually block
+		Expect(source.Status.Conditions).ToNot(BeNil())
+
+		/*
+			///////
+			// FIXME: There have been concerns about security of allowing selection of arbitrary
+			// GVK during code reviews. For now we're disabling setting up a gvk template. This
+			// code needs to be re-enabled once we've come up with a valid approach
+			// the first time a GVK template is encountered, watches are setup for those resources so the
+			// templates can't be resolved immediately. We should have status conditions and they should indicate
+			// that resolution has not happened yet
+			templatesResolvedCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeTemplatesHaveResolved)
+			if Expect(templatesResolvedCondition).ToNot(BeNil()) {
+				Expect(templatesResolvedCondition.Reason).To(BeIdenticalTo(catalogtempate.ReasonUnableToResolve))
+				Expect(templatesResolvedCondition.Status).To(BeIdenticalTo(metav1.ConditionFalse))
+			}
+			resolvedImageCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeResolvedImage)
+			if Expect(resolvedImageCondition).ToNot(BeNil()) {
+				Expect(resolvedImageCondition.Reason).To(BeIdenticalTo(catalogtempate.ReasonUnableToResolve))
+				Expect(resolvedImageCondition.Status).To(BeIdenticalTo(metav1.ConditionFalse))
+			}
+
+			// update catalog source with annotation (to kick resync)
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred(), "error getting catalog source pod")
+			source.Annotations["testKey"] = genName("newValue")
+			_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
+			Expect(err).ShouldNot(HaveOccurred(), "error updating catalog source pod with test annotation")
+
+			// wait for change in status condition
+			Eventually(func() (bool, error) {
+				source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), sourceName, metav1.GetOptions{})
+				if err != nil {
+					return false, err
+				}
+				// condition should flip to true indicating that the catalog image has been updated
+				if meta.IsStatusConditionTrue(source.Status.Conditions, catalogtempate.StatusTypeTemplatesHaveResolved) {
+					return true, nil
+				}
+
+				return false, nil
+			}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+			///////
+		*/
+
+		templatesResolvedCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeTemplatesHaveResolved)
+		if Expect(templatesResolvedCondition).ToNot(BeNil()) {
+			Expect(templatesResolvedCondition.Reason).To(BeIdenticalTo(catalogtempate.ReasonAllTemplatesResolved))
+			Expect(templatesResolvedCondition.Status).To(BeIdenticalTo(metav1.ConditionTrue))
+		}
+		resolvedImageCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeResolvedImage)
+		if Expect(resolvedImageCondition).ToNot(BeNil()) {
+			Expect(resolvedImageCondition.Reason).To(BeIdenticalTo(catalogtempate.ReasonAllTemplatesResolved))
+			Expect(resolvedImageCondition.Status).To(BeIdenticalTo(metav1.ConditionTrue))
+
+			// if we can, try to determine the server version so we can check the resulting image
+			if serverVersion, err := crc.Discovery().ServerVersion(); err != nil {
+				if serverGitVersion, err := semver.Parse(serverVersion.GitVersion); err != nil {
+					///////
+					// FIXME: There have been concerns about security of allowing selection of arbitrary
+					// GVK during code reviews. For now we're disabling setting up a gvk template. This
+					// code needs to be re-enabled once we've come up with a valid approach
+					// create a gvk template to point at the configmap
+					// expectedImage := fmt.Sprintf("quay.io/olmtest/catsrc-update-test:mytest-%s.%s.%s", serverVersion.Major, serverVersion.Minor, strconv.FormatUint(serverGitVersion.Patch, 10))
+					expectedImage := fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", serverVersion.Major, serverVersion.Minor, strconv.FormatUint(serverGitVersion.Patch, 10))
+					///////
+					Expect(resolvedImageCondition.Message).To(BeIdenticalTo(expectedImage))
+				}
+			}
+		}
 	})
 })
 
