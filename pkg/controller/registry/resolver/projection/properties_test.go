@@ -54,6 +54,16 @@ func TestPropertiesAnnotationFromPropertyList(t *testing.T) {
 			},
 			expected: `{"properties":[{"type":"string","value":"hello"},{"type":"number","value":5},{"type":"array","value":[1,"two",3,"four"]},{"type":"object","value":{"hello":{"worl":"d"}}}]}`,
 		},
+		{
+			name: "unquoted string",
+			properties: []*api.Property{
+				{
+					Type:  "version",
+					Value: "4.8",
+				},
+			},
+			expected: `{"properties":[{"type":"version","value":4.8}]}`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			actual, err := projection.PropertiesAnnotationFromPropertyList(tc.properties)
@@ -120,9 +130,20 @@ func TestPropertyListFromPropertiesAnnotation(t *testing.T) {
 				{
 					Type:  "array",
 					Value: `[1,"two",3,"four"]`,
-				}, {
+				},
+				{
 					Type:  "object",
 					Value: `{"hello":{"worl":"d"}}`,
+				},
+			},
+		},
+		{
+			name:       "unquoted string values",
+			annotation: `{"properties":[{"type": "version","value": 4.8}]}`,
+			expected: []*api.Property{
+				{
+					Type:  "version",
+					Value: "4.8",
 				},
 			},
 		},
