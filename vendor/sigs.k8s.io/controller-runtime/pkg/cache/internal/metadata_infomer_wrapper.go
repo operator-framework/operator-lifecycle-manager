@@ -19,6 +19,7 @@ package internal
 import (
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 )
@@ -48,24 +49,39 @@ type handlerPreserveGVK struct {
 	cache.ResourceEventHandler
 }
 
-func (h *handlerPreserveGVK) resetGroupVersionKind(obj interface{}) {
-	if v, ok := obj.(schema.ObjectKind); ok {
-		v.SetGroupVersionKind(h.gvk)
+func (h *handlerPreserveGVK) copyWithGVK(obj interface{}) interface{} {
+	switch t := obj.(type) {
+	case *metav1.PartialObjectMetadata:
+		return &metav1.PartialObjectMetadata{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: h.gvk.GroupVersion().String(),
+				Kind:       h.gvk.Kind,
+			},
+			ObjectMeta: t.ObjectMeta,
+		}
+	case *metav1.PartialObjectMetadataList:
+		return &metav1.PartialObjectMetadataList{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: h.gvk.GroupVersion().String(),
+				Kind:       h.gvk.Kind,
+			},
+			ListMeta: t.ListMeta,
+			Items:    t.Items,
+		}
+	default:
+		return obj
 	}
+
 }
 
 func (h *handlerPreserveGVK) OnAdd(obj interface{}) {
-	h.resetGroupVersionKind(obj)
-	h.ResourceEventHandler.OnAdd(obj)
+	h.ResourceEventHandler.OnAdd(h.copyWithGVK(obj))
 }
 
 func (h *handlerPreserveGVK) OnUpdate(oldObj, newObj interface{}) {
-	h.resetGroupVersionKind(oldObj)
-	h.resetGroupVersionKind(newObj)
-	h.ResourceEventHandler.OnUpdate(oldObj, newObj)
+	h.ResourceEventHandler.OnUpdate(h.copyWithGVK(oldObj), h.copyWithGVK(newObj))
 }
 
 func (h *handlerPreserveGVK) OnDelete(obj interface{}) {
-	h.resetGroupVersionKind(obj)
-	h.ResourceEventHandler.OnDelete(obj)
+	h.ResourceEventHandler.OnDelete(h.copyWithGVK(obj))
 }
