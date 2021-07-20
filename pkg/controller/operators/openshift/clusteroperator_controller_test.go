@@ -1,6 +1,8 @@
 package openshift
 
 import (
+	"fmt"
+
 	semver "github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -161,7 +163,7 @@ var _ = Describe("ClusterOperator controller", func() {
 		withMax := func(version string) map[string]string {
 			maxProperty := &api.Property{
 				Type:  MaxOpenShiftVersionProperty,
-				Value: `"` + version + `"`, // Wrap in quotes so we don't break property marshaling
+				Value: version,
 			}
 			value, err := projection.PropertiesAnnotationFromPropertyList([]*api.Property{maxProperty})
 			Expect(err).ToNot(HaveOccurred())
@@ -170,7 +172,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				projection.PropertiesAnnotationKey: value,
 			}
 		}
-		incompatible.SetAnnotations(withMax(clusterVersion))
+		incompatible.SetAnnotations(withMax(fmt.Sprintf(`"%s"`, clusterVersion))) // Wrap in quotes so we don't break property marshaling
 
 		Eventually(func() error {
 			return k8sClient.Create(ctx, incompatible)
@@ -202,7 +204,7 @@ var _ = Describe("ClusterOperator controller", func() {
 		// Set compatibility to the next minor version
 		next := semver.MustParse(clusterVersion)
 		Expect(next.IncrementMinor()).To(Succeed())
-		incompatible.SetAnnotations(withMax(next.String()))
+		incompatible.SetAnnotations(withMax(fmt.Sprintf(`"%s"`, next.String())))
 
 		Eventually(func() error {
 			return k8sClient.Update(ctx, incompatible)
@@ -214,6 +216,33 @@ var _ = Describe("ClusterOperator controller", func() {
 		}, timeout).Should(ContainElement(configv1.ClusterOperatorStatusCondition{
 			Type:               configv1.OperatorUpgradeable,
 			Status:             configv1.ConditionTrue,
+			LastTransitionTime: fixedNow(),
+		}))
+
+		By("understanding unquoted short max versions; e.g. X.Y")
+		// Mimic common pipeline shorthand
+		v := semver.MustParse(clusterVersion)
+		short := fmt.Sprintf("%d.%d", v.Major, v.Minor)
+		incompatible.SetAnnotations(withMax(short))
+
+		Eventually(func() error {
+			return k8sClient.Update(ctx, incompatible)
+		}).Should(Succeed())
+
+		Eventually(func() ([]configv1.ClusterOperatorStatusCondition, error) {
+			err := k8sClient.Get(ctx, clusterOperatorName, co)
+			return co.Status.Conditions, err
+		}, timeout).Should(ContainElement(configv1.ClusterOperatorStatusCondition{
+			Type:   configv1.OperatorUpgradeable,
+			Status: configv1.ConditionFalse,
+			Reason: IncompatibleOperatorsInstalled,
+			Message: skews{
+				{
+					namespace:           ns.GetName(),
+					name:                incompatible.GetName(),
+					maxOpenShiftVersion: short + ".0",
+				},
+			}.String(),
 			LastTransitionTime: fixedNow(),
 		}))
 	})
