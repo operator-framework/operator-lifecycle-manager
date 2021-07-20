@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/reference"
 
@@ -343,6 +344,10 @@ func NewComponent(component runtime.Object, scheme *runtime.Scheme) (*Component,
 	u := &unstructured.Unstructured{}
 	if err := scheme.Convert(component, u, nil); err != nil {
 		return nil, err
+	}
+	// GVK may have been lost from PartialObjectMetadata during conversion.
+	if gvk := component.GetObjectKind().GroupVersionKind(); gvk != schema.EmptyObjectKind.GroupVersionKind() {
+		u.SetGroupVersionKind(gvk)
 	}
 
 	c := &Component{

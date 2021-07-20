@@ -105,8 +105,8 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).ToNot(BeNil())
 
 	By("Setting up a controller manager")
-	err = AddToScheme(scheme)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(metav1.AddMetaToScheme(scheme)).To(Succeed())
+	Expect(AddToScheme(scheme)).To(Succeed())
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		MetricsBindAddress: "0", // Prevents conflicts with other test suites that might bind metrics
 		Scheme:             scheme,

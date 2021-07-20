@@ -4,6 +4,7 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
@@ -34,6 +35,9 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 	setupLog := ctrl.Log.WithName("setup").V(1)
 
 	scheme := runtime.NewScheme()
+	if err := metav1.AddMetaToScheme(scheme); err != nil {
+		return nil, err
+	}
 	if err := operators.AddToScheme(scheme); err != nil {
 		// ctrl.NewManager needs the Scheme to be populated
 		// up-front so that the NewCache implementation we
