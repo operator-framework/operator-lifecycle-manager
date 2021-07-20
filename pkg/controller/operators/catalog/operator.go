@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/selection"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -310,10 +311,32 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	op.lister.CoreV1().RegisterServiceLister(metav1.NamespaceAll, serviceInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, serviceInformer.Informer())
 
-	// Wire Pods
-	podInformer := k8sInformerFactory.Core().V1().Pods()
-	op.lister.CoreV1().RegisterPodLister(metav1.NamespaceAll, podInformer.Lister())
-	sharedIndexInformers = append(sharedIndexInformers, podInformer.Informer())
+	// Wire Pods for CatalogSource
+	catsrcReq, err := labels.NewRequirement(reconciler.CatalogSourceLabelKey, selection.Exists, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	csPodLabels := labels.NewSelector()
+	csPodLabels = csPodLabels.Add(*catsrcReq)
+	csPodInformer := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), resyncPeriod(), informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+		options.LabelSelector = csPodLabels.String()
+	})).Core().V1().Pods()
+	op.lister.CoreV1().RegisterPodLister(metav1.NamespaceAll, csPodInformer.Lister())
+	sharedIndexInformers = append(sharedIndexInformers, csPodInformer.Informer())
+
+	// Wire Pods for BundleUnpack job
+	buReq, err := labels.NewRequirement(bundle.BundleUnpackPodLabel, selection.Exists, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	buPodLabels := labels.NewSelector()
+	buPodLabels = buPodLabels.Add(*buReq)
+	buPodInformer := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), resyncPeriod(), informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+		options.LabelSelector = buPodLabels.String()
+	})).Core().V1().Pods()
+	sharedIndexInformers = append(sharedIndexInformers, buPodInformer.Informer())
 
 	// Wire ConfigMaps
 	configMapInformer := k8sInformerFactory.Core().V1().ConfigMaps()
@@ -344,11 +367,12 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	// Setup the BundleUnpacker
 	op.bundleUnpacker, err = bundle.NewConfigmapUnpacker(
+		bundle.WithLogger(op.logger),
 		bundle.WithClient(op.opClient.KubernetesInterface()),
 		bundle.WithCatalogSourceLister(catsrcInformer.Lister()),
 		bundle.WithConfigMapLister(configMapInformer.Lister()),
 		bundle.WithJobLister(jobInformer.Lister()),
-		bundle.WithPodLister(podInformer.Lister()),
+		bundle.WithPodLister(buPodInformer.Lister()),
 		bundle.WithRoleLister(roleInformer.Lister()),
 		bundle.WithRoleBindingLister(roleBindingInformer.Lister()),
 		bundle.WithOPMImage(configmapRegistryImage),

@@ -9,6 +9,7 @@ import (
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/configmap"
+	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -39,6 +40,7 @@ const (
 	// The time duration should be in the same format as accepted by time.ParseDuration()
 	// e.g 1m30s
 	BundleUnpackTimeoutAnnotationKey = "operatorframework.io/bundle-unpack-timeout"
+	BundleUnpackPodLabel             = "job-name"
 )
 
 type BundleUnpackResult struct {
@@ -225,6 +227,7 @@ type Unpacker interface {
 }
 
 type ConfigMapUnpacker struct {
+	logger        *logrus.Logger
 	opmImage      string
 	utilImage     string
 	client        kubernetes.Interface
@@ -269,6 +272,12 @@ func WithOPMImage(opmImage string) ConfigMapUnpackerOption {
 func WithUtilImage(utilImage string) ConfigMapUnpackerOption {
 	return func(unpacker *ConfigMapUnpacker) {
 		unpacker.utilImage = utilImage
+	}
+}
+
+func WithLogger(logger *logrus.Logger) ConfigMapUnpackerOption {
+	return func(unpacker *ConfigMapUnpacker) {
+		unpacker.logger = logger
 	}
 }
 
@@ -505,9 +514,10 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 func (c *ConfigMapUnpacker) pendingContainerStatusMessages(job *batchv1.Job) (string, error) {
 	containerStatusMessages := []string{}
 	// List pods for unpack job
-	podLabel := map[string]string{"job-name": job.GetName()}
-	pods, listErr := c.podLister.Pods(job.GetNamespace()).List(k8slabels.SelectorFromSet(podLabel))
+	podLabel := map[string]string{BundleUnpackPodLabel: job.GetName()}
+	pods, listErr := c.podLister.Pods(job.GetNamespace()).List(k8slabels.SelectorFromValidatedSet(podLabel))
 	if listErr != nil {
+		c.logger.Errorf("Failed to list pods for job(%s): %v", job.GetName(), listErr)
 		return "", fmt.Errorf("Failed to list pods for job(%s): %v", job.GetName(), listErr)
 	}
 
