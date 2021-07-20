@@ -13,8 +13,8 @@ olm:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
   service:
-    internalPort: 8080
-    externalPort: metrics
+    internalPort: 8443
+    externalPort: 8443
   # tlsSecret: olm-operator-serving-cert
   # clientCASecret: pprof-serving-cert
   nodeSelector:
@@ -31,8 +31,8 @@ catalog:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
   service:
-    internalPort: 8080
-    externalPort: metrics
+    internalPort: 8443
+    externalPort: 8443
   # tlsSecret: catalog-operator-serving-cert
   # clientCASecret: pprof-serving-cert
   nodeSelector:
