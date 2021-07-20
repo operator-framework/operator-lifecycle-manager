@@ -1,0 +1,55 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: available-csvs
+  namespace: {{ .Values.namespace }}
+  labels:
+    olm.version: {{ .Chart.Version }}
+spec:
+  displayName: Available ClusterServiceVersions
+  description: An Available CSV in a namespace indicates that a csv of the same description is watching that namespace.
+  minKubeVersion: {{ .Values.minKubeVersion }}
+  keywords: ['csv', 'olm', 'available', 'copied']
+  maintainers:
+    - name: Red Hat
+      email: openshift-operators@redhat.com
+  provider:
+    name: Red Hat
+  installModes:
+    - type: OwnNamespace
+      supported: true
+    - type: SingleNamespace
+      supported: false
+    - type: MultiNamespace
+      supported: false
+    - type: AllNamespaces
+      supported: true
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions:
+        - serviceAccountName: olm-operator-serviceaccount
+          rules:
+            - apiGroups:
+                - "operators.coreos.com"
+              resources:
+                - clusterserviceversions
+              verbs:
+                - get
+                - list
+                - watch
+      deployments:
+        - name: available-csv-server
+          {{- include "available-csv-server.deployment-spec" . | nindent 10 }}
+  maturity: alpha
+  version: {{ .Chart.Version }}
+  apiservicedefinitions:
+    owned:
+      - group: available.operators.coreos.com
+        version: v1alpha1
+        kind: AvailableClusterServiceVersion
+        name: availableclusterserviceversions
+        displayName: AvailableClusterServiceVersion
+        description: A AvailableClusterServiceVersion represents an operator that is available in a namespace.
+        deploymentName: available-csv-server
+        containerPort: {{ .Values.availablecsv.service.internalPort }}

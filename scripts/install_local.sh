@@ -18,7 +18,7 @@ chart=$2
 # create OLM
 for f in "${chart}"/*.yaml
 do
-    if [[ $f == *.configmap.yaml ]]
+    if [[ $f == *.crd.yaml ]]
     then
         kubectl replace --force -f "${f}"
     else

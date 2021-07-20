@@ -1,0 +1,68 @@
+{{- define "available-csv-server.deployment-spec" -}}
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.availablecsv.maxUnavailable }}
+      maxSurge: {{ .Values.availablecsv.maxSurge }}
+  replicas: {{ .Values.availablecsv.replicaCount }}
+  selector:
+    matchLabels:
+      app: available-csv-server
+  template:
+    metadata:
+      labels:
+        app: available-csv-server
+    spec:
+      serviceAccountName: olm-operator-serviceaccount
+      {{- if .Values.availablecsv.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.availablecsv.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.availablecsv.tolerations }}
+      tolerations:
+        {{- toYaml .Values.availablecsv.tolerations | nindent 6 }}
+      {{- end }}
+      containers:
+      - name: available-csv-server
+        command:
+        - /bin/available-csv-server
+        - -v=4
+        - --secure-port
+        - {{ .Values.availablecsv.service.internalPort | quote }}
+        {{- if .Values.debug }}
+        - --debug
+        {{- end }}
+        {{- if .Values.availablecsv.commandArgs }}
+        - {{ .Values.availablecsv.commandArgs }}
+        {{- end }}
+        image: {{ .Values.availablecsv.image.ref }}
+        imagePullPolicy: {{ .Values.availablecsv.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.availablecsv.service.internalPort }}
+        livenessProbe:
+          httpGet:
+            scheme: HTTPS
+            path: /healthz
+            port: {{ .Values.availablecsv.service.internalPort }}
+        readinessProbe:
+          httpGet:
+            scheme: HTTPS
+            path: /healthz
+            port: {{ .Values.availablecsv.service.internalPort }}
+        terminationMessagePolicy: FallbackToLogsOnError
+        {{- if .Values.availablecsv.resources }}
+        resources:
+{{ toYaml .Values.availablecsv.resources | indent 10 }}
+        {{- end }}
+        {{- if .Values.availablecsv.securityContext }}
+        securityContext:
+          runAsUser: {{ .Values.availablecsv.securityContext.runAsUser }}
+        {{- end }}
+        volumeMounts:
+        - name: tmpfs
+          mountPath: /tmp
+      volumes:
+      - name: tmpfs
+        emptyDir: {}
+{{- end -}}

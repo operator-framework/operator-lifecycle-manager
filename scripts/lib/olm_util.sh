@@ -32,4 +32,5 @@ olm::util::await_olm_ready() {
     kubectl rollout status -w deployment/olm-operator --namespace="${namespace}" || return
     kubectl rollout status -w deployment/catalog-operator --namespace="${namespace}" || return
     olm::util::await_csv_success "${namespace}" "packageserver" 32 || return
+    olm::util::await_csv_success "${namespace}" "available-csvs" 32 || return
 }
