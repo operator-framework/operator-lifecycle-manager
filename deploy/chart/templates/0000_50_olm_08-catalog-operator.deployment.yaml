@@ -81,12 +81,12 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
-              scheme: {{ if and .Values.catalog.tlsKeyPath .Values.catalog.tlsCertPath }}HTTPS{{ else }}HTTP{{end}}
+              scheme: {{ if .Values.catalog.tlsSecret }}HTTPS{{ else }}HTTP{{end}}
           readinessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
-              scheme: {{ if and .Values.catalog.tlsKeyPath .Values.catalog.tlsCertPath }}HTTPS{{ else }}HTTP{{end}}
+              scheme: {{ if .Values.catalog.tlsSecret }}HTTPS{{ else }}HTTP{{end}}
           terminationMessagePolicy: FallbackToLogsOnError
           {{- if .Values.catalog.resources }}
           resources:
