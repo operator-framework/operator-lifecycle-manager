@@ -3,6 +3,7 @@ package olm
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"reflect"
 	"strings"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -641,13 +643,18 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 	logger := a.logger.WithField("opgroup", operatorGroup.GetName()).WithField("csv", csv.GetName())
 
 	targetCSVs := make(map[string]*v1alpha1.ClusterServiceVersion)
+
+	var copyPrototype v1alpha1.ClusterServiceVersion
+	csvCopyPrototype(csv, &copyPrototype)
+	nonstatus, status := copyableCSVHash(&copyPrototype)
+
 	for _, ns := range namespaces {
 		if ns.GetName() == operatorGroup.Namespace {
 			continue
 		}
 		if targets.Contains(ns.GetName()) {
 			var targetCSV *v1alpha1.ClusterServiceVersion
-			if targetCSV, err = a.copyToNamespace(csv, ns.GetName()); err != nil {
+			if targetCSV, err = a.copyToNamespace(&copyPrototype, csv.GetNamespace(), ns.GetName(), nonstatus, status); err != nil {
 				a.logger.WithError(err).Debug("error copying to target")
 				continue
 			}
@@ -699,94 +706,94 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 	return nil
 }
 
-func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespace string) (*v1alpha1.ClusterServiceVersion, error) {
-	if csv.GetNamespace() == namespace {
-		return nil, fmt.Errorf("bug: can not copy to active namespace %v", csv.GetNamespace())
+// copyableCSVHash returns a hash of the parts of the given CSV that
+// are relevant to copied CSV projection.
+func copyableCSVHash(original *v1alpha1.ClusterServiceVersion) (string, string) {
+	shallow := v1alpha1.ClusterServiceVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        original.Name,
+			Labels:      original.Labels,
+			Annotations: original.Annotations,
+		},
+		Spec: original.Spec,
 	}
 
-	logger := a.logger.WithField("operator-ns", csv.GetNamespace()).WithField("target-ns", namespace).WithField("csv", csv.GetName())
-	newCSV := csv.DeepCopy()
-	delete(newCSV.Annotations, v1.OperatorGroupTargetsAnnotationKey)
+	hash := fnv.New64a()
+	hashutil.DeepHashObject(hash, &shallow)
+	nonstatus := string(hash.Sum(nil))
 
-	fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(newCSV.GetName())
-	if fetchedCSV != nil {
-		logger.Debug("checking annotations")
+	hash.Reset()
+	hashutil.DeepHashObject(hash, &original.Status)
+	status := string(hash.Sum(nil))
 
-		if !reflect.DeepEqual(a.copyOperatorGroupAnnotations(&fetchedCSV.ObjectMeta), a.copyOperatorGroupAnnotations(&newCSV.ObjectMeta)) ||
-			len(decorators.OperatorNames(fetchedCSV.GetLabels())) > 0 {
-			// TODO: only copy over the opgroup annotations, not _all_ annotations
-			fetchedCSV.Annotations = newCSV.Annotations
-			fetchedCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
+	return nonstatus, status
+}
 
-			// remove Operator object component labels before copying so that copied CSVs do not show up in the component list
-			for k := range fetchedCSV.GetLabels() {
-				if strings.HasPrefix(k, decorators.ComponentLabelKeyPrefix) {
-					delete(fetchedCSV.Labels, k)
-				}
-			}
+// If returned error is not nil, the returned ClusterServiceVersion
+// has only the Name, Namespace, and UID fields set.
+func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, nsFrom, nsTo, nonstatus, status string) (*v1alpha1.ClusterServiceVersion, error) {
+	if nsFrom == nsTo {
+		return nil, fmt.Errorf("bug: can not copy to active namespace %v", nsFrom)
+	}
 
-			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
-			logger.Debug("updating target CSV")
-			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
-				logger.WithError(err).Error("update target CSV failed")
-				return nil, err
-			}
-		}
+	prototype.Namespace = nsTo
+	prototype.ResourceVersion = ""
+	prototype.UID = ""
 
-		logger.Debug("checking status")
-		newCSV.Status = csv.Status
-		newCSV.Status.Reason = v1alpha1.CSVReasonCopied
-		newCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
+	existing, err := a.copiedCSVLister.ClusterServiceVersions(nsTo).Get(prototype.GetName())
+	if k8serrors.IsNotFound(err) {
 
-		if !reflect.DeepEqual(fetchedCSV.Status, newCSV.Status) {
-			logger.Debug("updating status")
-			// Must use fetchedCSV because UpdateStatus(...) checks resource UID.
-			fetchedCSV.Status = newCSV.Status
-			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{}); err != nil {
-				logger.WithError(err).Error("status update for target CSV failed")
-				return nil, err
-			}
-		}
-
-		return fetchedCSV, nil
-
-	} else if k8serrors.IsNotFound(err) {
-		newCSV.SetNamespace(namespace)
-		newCSV.SetResourceVersion("")
-		newCSV.SetLabels(utillabels.AddLabel(newCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
-		// remove Operator object component labels before copying so that copied CSVs do not show up in the component list
-		for k := range newCSV.GetLabels() {
-			if strings.HasPrefix(k, decorators.ComponentLabelKeyPrefix) {
-				delete(newCSV.Labels, k)
-			}
-		}
-
-		logger.Debug("copying CSV to target")
-		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), newCSV, metav1.CreateOptions{})
+		created, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Create(context.TODO(), prototype, metav1.CreateOptions{})
 		if err != nil {
-			logger.Errorf("Create for new CSV failed: %v", err)
 			return nil, err
 		}
-		createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
-		createdCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
-		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(context.TODO(), createdCSV, metav1.UpdateOptions{}); err != nil {
-			a.logger.Errorf("Status update for CSV failed: %v", err)
+		created.Status = prototype.Status
+		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{}); err != nil {
 			return nil, err
 		}
-
-		return createdCSV, nil
-
+		return &v1alpha1.ClusterServiceVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      created.Name,
+				Namespace: created.Namespace,
+				UID:       created.UID,
+			},
+		}, nil
 	} else if err != nil {
-		logger.WithError(err).Error("couldn't get CSV")
 		return nil, err
 	}
 
-	// this return shouldn't be hit
-	return nil, fmt.Errorf("unhandled code path")
+	prototype.Namespace = existing.Namespace
+	prototype.ResourceVersion = existing.ResourceVersion
+	prototype.UID = existing.UID
+	existingNonStatus := existing.Annotations["$copyhash-nonstatus"]
+	existingStatus := existing.Annotations["$copyhash-status"]
+
+	if existingNonStatus != nonstatus {
+		if existing, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
+			return nil, err
+		}
+	} else {
+		// Avoid mutating cached copied CSV.
+		existing = prototype
+	}
+
+	if existingStatus != status {
+		existing.Status = prototype.Status
+		if _, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), existing, metav1.UpdateOptions{}); err != nil {
+			return nil, err
+		}
+	}
+	return &v1alpha1.ClusterServiceVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      existing.Name,
+			Namespace: existing.Namespace,
+			UID:       existing.UID,
+		},
+	}, nil
 }
 
 func (a *Operator) pruneFromNamespace(operatorGroupName, namespace string) error {
-	fetchedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).List(labels.Everything())
+	fetchedCSVs, err := a.copiedCSVLister.ClusterServiceVersions(namespace).List(labels.Everything())
 	if err != nil {
 		return err
 	}
@@ -794,7 +801,7 @@ func (a *Operator) pruneFromNamespace(operatorGroupName, namespace string) error
 	for _, csv := range fetchedCSVs {
 		if csv.IsCopied() && csv.GetAnnotations()[v1.OperatorGroupAnnotationKey] == operatorGroupName {
 			a.logger.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), namespace)
-			if err := a.csvGCQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+			if err := a.copiedCSVGCQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
 				return err
 			}
 		}
@@ -1027,4 +1034,35 @@ func namespacesAddedOrRemoved(a, b []string) []string {
 	}
 
 	return keys
+}
+
+func csvCopyPrototype(src, dst *v1alpha1.ClusterServiceVersion) {
+	*dst = v1alpha1.ClusterServiceVersion{
+		TypeMeta: src.TypeMeta,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        src.Name,
+			Annotations: map[string]string{},
+			Labels:      map[string]string{},
+		},
+		Spec:   src.Spec,
+		Status: src.Status,
+	}
+	for k, v := range src.Annotations {
+		if k == v1.OperatorGroupTargetsAnnotationKey {
+			continue
+		}
+		if k == "kubectl.kubernetes.io/last-applied-configuration" {
+			continue // big
+		}
+		dst.Annotations[k] = v
+	}
+	for k, v := range src.Labels {
+		if strings.HasPrefix(k, decorators.ComponentLabelKeyPrefix) {
+			continue
+		}
+		dst.Labels[k] = v
+	}
+	dst.Labels[v1alpha1.CopiedLabelKey] = src.Namespace
+	dst.Status.Reason = v1alpha1.CSVReasonCopied
+	dst.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", src.GetNamespace())
 }

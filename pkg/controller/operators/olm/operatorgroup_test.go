@@ -1,10 +1,11 @@
 package olm
 
 import (
+	"fmt"
 	"testing"
-	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -23,216 +24,271 @@ func TestCopyToNamespace(t *testing.T) {
 
 	for _, tc := range []struct {
 		Name            string
-		Namespace       string
-		Original        *v1alpha1.ClusterServiceVersion
+		FromNamespace   string
+		ToNamespace     string
+		Hash            string
+		StatusHash      string
+		Prototype       v1alpha1.ClusterServiceVersion
 		ExistingCopy    *v1alpha1.ClusterServiceVersion
 		ExpectedResult  *v1alpha1.ClusterServiceVersion
-		ExpectedError   string
+		ExpectedError   error
 		ExpectedActions []ktesting.Action
 	}{
 		{
-			Name:      "copy to original namespace returns error",
-			Namespace: "foo",
-			Original: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "foo",
-				},
-			},
-			ExpectedError: "bug: can not copy to active namespace foo",
+			Name:          "copy to original namespace returns error",
+			FromNamespace: "samesies",
+			ToNamespace:   "samesies",
+			ExpectedError: fmt.Errorf("bug: can not copy to active namespace samesies"),
 		},
 		{
-			Name:      "status updated if meaningfully changed",
-			Namespace: "bar",
-			Original: &v1alpha1.ClusterServiceVersion{
+			Name:          "copy created if does not exist",
+			FromNamespace: "from",
+			ToNamespace:   "to",
+			Prototype: v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "foo",
+					Name: "name",
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					Replaces: "replacee",
 				},
 				Status: v1alpha1.ClusterServiceVersionStatus{
-					LastUpdateTime: &metav1.Time{Time: time.Unix(2, 0)},
+					Phase: "waxing gibbous",
+				},
+			},
+			ExpectedActions: []ktesting.Action{
+				ktesting.NewCreateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "name",
+						Namespace: "to",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
+				ktesting.NewUpdateSubresourceAction(gvr, "status", "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "name",
+						Namespace: "to",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
+			},
+			ExpectedResult: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "to",
+				},
+			},
+		},
+		{
+			Name:          "copy updated if hash differs",
+			FromNamespace: "from",
+			ToNamespace:   "to",
+			Hash:          "hn-1",
+			StatusHash:    "hs",
+			Prototype: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "name",
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					Replaces: "replacee",
+				},
+				Status: v1alpha1.ClusterServiceVersionStatus{
+					Phase: "waxing gibbous",
+				},
+			},
+			ExistingCopy: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "name",
+					Namespace:       "to",
+					UID:             "uid",
+					ResourceVersion: "42",
+					Annotations: map[string]string{
+						"$copyhash-nonstatus": "hn-2",
+						"$copyhash-status":    "hs",
+					},
+				},
+			},
+			ExpectedResult: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "to",
+					UID:       "uid",
+				},
+			},
+			ExpectedActions: []ktesting.Action{
+				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "name",
+						Namespace:       "to",
+						UID:             "uid",
+						ResourceVersion: "42",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
+			},
+		},
+		{
+			Name:          "copy status updated if status hash differs",
+			FromNamespace: "from",
+			ToNamespace:   "to",
+			Hash:          "hn",
+			StatusHash:    "hs-1",
+			Prototype: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "name",
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					Replaces: "replacee",
+				},
+				Status: v1alpha1.ClusterServiceVersionStatus{
+					Phase: "waxing gibbous",
+				},
+			},
+			ExistingCopy: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "name",
+					Namespace:       "to",
+					UID:             "uid",
+					ResourceVersion: "42",
+					Annotations: map[string]string{
+						"$copyhash-nonstatus": "hn",
+						"$copyhash-status":    "hs-2",
+					},
+				},
+			},
+			ExpectedResult: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "to",
+					UID:       "uid",
+				},
+			},
+			ExpectedActions: []ktesting.Action{
+				ktesting.NewUpdateSubresourceAction(gvr, "status", "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "name",
+						Namespace:       "to",
+						UID:             "uid",
+						ResourceVersion: "42",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
+			},
+		},
+		{
+			Name:          "copy and copy status updated if both hashes differ",
+			FromNamespace: "from",
+			ToNamespace:   "to",
+			Hash:          "hn-1",
+			StatusHash:    "hs-1",
+			Prototype: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "name",
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					Replaces: "replacee",
+				},
+				Status: v1alpha1.ClusterServiceVersionStatus{
+					Phase: "waxing gibbous",
+				},
+			},
+			ExistingCopy: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "name",
+					Namespace:       "to",
+					UID:             "uid",
+					ResourceVersion: "42",
+					Annotations: map[string]string{
+						"$copyhash-nonstatus": "hn-2",
+						"$copyhash-status":    "hs-2",
+					},
+				},
+			},
+			ExpectedResult: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "to",
+					UID:       "uid",
+				},
+			},
+			ExpectedActions: []ktesting.Action{
+				ktesting.NewUpdateAction(gvr, "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "name",
+						Namespace:       "to",
+						UID:             "uid",
+						ResourceVersion: "42",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
+				ktesting.NewUpdateSubresourceAction(gvr, "status", "to", &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "name",
+						Namespace:       "to",
+						UID:             "uid",
+						ResourceVersion: "42",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Replaces: "replacee",
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase: "waxing gibbous",
+					},
+				}),
+			},
+		},
+		{
+			Name:          "no action taken if neither hash differs",
+			FromNamespace: "from",
+			ToNamespace:   "to",
+			Hash:          "hn",
+			StatusHash:    "hs",
+			Prototype: v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "name",
 				},
 			},
 			ExistingCopy: &v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "name",
-					Namespace: "bar",
-				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					LastUpdateTime: &metav1.Time{Time: time.Unix(1, 0)},
+					Namespace: "to",
+					UID:       "uid",
+					Annotations: map[string]string{
+						"$copyhash-nonstatus": "hn",
+						"$copyhash-status":    "hs",
+					},
 				},
 			},
 			ExpectedResult: &v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "name",
-					Namespace: "bar",
+					Namespace: "to",
+					UID:       "uid",
 				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					LastUpdateTime: &metav1.Time{Time: time.Unix(2, 0)},
-					Message:        "The operator is running in foo but is managing this namespace",
-					Reason:         v1alpha1.CSVReasonCopied,
-				},
-			},
-			ExpectedActions: []ktesting.Action{
-				ktesting.NewUpdateSubresourceAction(gvr, "status", "bar", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "name",
-						Namespace: "bar",
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						LastUpdateTime: &metav1.Time{Time: time.Unix(2, 0)},
-						Message:        "The operator is running in foo but is managing this namespace",
-						Reason:         v1alpha1.CSVReasonCopied,
-					},
-				}),
-			},
-		},
-		{
-			Name:      "status not updated if not meaningfully changed",
-			Namespace: "bar",
-			Original: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "foo",
-				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					LastUpdateTime: &metav1.Time{Time: time.Unix(2, 0)},
-				},
-			},
-			ExistingCopy: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "bar",
-				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					LastUpdateTime: &metav1.Time{Time: time.Unix(2, 0)},
-					Message:        "The operator is running in foo but is managing this namespace",
-					Reason:         v1alpha1.CSVReasonCopied},
-			},
-			ExpectedResult: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "bar",
-				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					LastUpdateTime: &metav1.Time{Time: time.Unix(2, 0)},
-					Message:        "The operator is running in foo but is managing this namespace",
-					Reason:         v1alpha1.CSVReasonCopied,
-				},
-			},
-		},
-		{
-			Name:      "component labels are stripped before copy",
-			Namespace: "bar",
-			Original: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "foo",
-					Labels: map[string]string{
-						"operators.coreos.com/foo": "",
-						"operators.coreos.com/bar": "",
-						"untouched":                "fine",
-					},
-				},
-			},
-			ExistingCopy: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "bar",
-					Labels: map[string]string{
-						"operators.coreos.com/foo": "",
-						"operators.coreos.com/bar": "",
-						"untouched":                "fine",
-					},
-				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					Message: "The operator is running in foo but is managing this namespace",
-					Reason:  v1alpha1.CSVReasonCopied},
-			},
-			ExpectedResult: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "bar",
-					Labels: map[string]string{
-						"untouched":      "fine",
-						"olm.copiedFrom": "foo",
-					},
-				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					Message: "The operator is running in foo but is managing this namespace",
-					Reason:  v1alpha1.CSVReasonCopied,
-				},
-			},
-			ExpectedActions: []ktesting.Action{
-				ktesting.NewUpdateAction(gvr, "bar", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "name",
-						Namespace: "bar",
-						Labels: map[string]string{
-							"untouched":      "fine",
-							"olm.copiedFrom": "foo",
-						},
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Message: "The operator is running in foo but is managing this namespace",
-						Reason:  v1alpha1.CSVReasonCopied,
-					},
-				}),
-			},
-		},
-				{
-			Name:      "component labels are stripped before initial copy",
-			Namespace: "bar",
-			Original: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "foo",
-					Labels: map[string]string{
-						"operators.coreos.com/foo": "",
-						"operators.coreos.com/bar": "",
-						"untouched":                "fine",
-					},
-				},
-			},
-			ExistingCopy: nil,
-			ExpectedResult: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "name",
-					Namespace: "bar",
-					Labels: map[string]string{
-						"untouched":      "fine",
-						"olm.copiedFrom": "foo",
-					},
-				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					Message: "The operator is running in foo but is managing this namespace",
-					Reason:  v1alpha1.CSVReasonCopied,
-				},
-			},
-			ExpectedActions: []ktesting.Action{
-				ktesting.NewCreateAction(gvr, "bar", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "name",
-						Namespace: "bar",
-						Labels: map[string]string{
-							"untouched":      "fine",
-							"olm.copiedFrom": "foo",
-						},
-					},
-				}),
-				ktesting.NewUpdateSubresourceAction(gvr, "status", "bar", &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "name",
-						Namespace: "bar",
-						Labels: map[string]string{
-							"untouched":      "fine",
-							"olm.copiedFrom": "foo",
-						},
-					},
-					Status: v1alpha1.ClusterServiceVersionStatus{
-						Message:        "The operator is running in foo but is managing this namespace",
-						Reason:         v1alpha1.CSVReasonCopied,
-					},
-				}),
 			},
 		},
 	} {
@@ -250,27 +306,26 @@ func TestCopyToNamespace(t *testing.T) {
 			}
 
 			logger, _ := test.NewNullLogger()
-
 			o := &Operator{
-				lister: lister,
-				client: client,
-				logger: logger,
+				copiedCSVLister: v1alpha1lister.ClusterServiceVersionLister(),
+				client:          client,
+				logger:          logger,
 			}
-			result, err := o.copyToNamespace(tc.Original, tc.Namespace)
 
-			require := require.New(t)
-			if tc.ExpectedError == "" {
-				require.NoError(err)
+			result, err := o.copyToNamespace(tc.Prototype.DeepCopy(), tc.FromNamespace, tc.ToNamespace, tc.Hash, tc.StatusHash)
+
+			if tc.ExpectedError == nil {
+				require.NoError(t, err)
 			} else {
-				require.EqualError(err, tc.ExpectedError)
+				require.EqualError(t, err, tc.ExpectedError.Error())
 			}
-			require.Equal(tc.ExpectedResult, result)
+			assert.Equal(t, tc.ExpectedResult, result)
 
 			actions := client.Actions()
 			if len(actions) == 0 {
 				actions = nil
 			}
-			require.Equal(tc.ExpectedActions, actions)
+			assert.Equal(t, tc.ExpectedActions, actions)
 		})
 	}
 }
@@ -312,3 +367,40 @@ var (
 	_ listersv1alpha1.ClusterServiceVersionLister          = FakeClusterServiceVersionLister{}
 	_ listersv1alpha1.ClusterServiceVersionNamespaceLister = FakeClusterServiceVersionLister{}
 )
+
+func TestCSVCopyPrototype(t *testing.T) {
+	src := v1alpha1.ClusterServiceVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "name",
+			Namespace: "foo",
+			Annotations: map[string]string{
+				"olm.targetNamespaces":                             "a,b,c",
+				"kubectl.kubernetes.io/last-applied-configuration": "{}",
+				"preserved": "yes",
+			},
+			Labels: map[string]string{
+				"operators.coreos.com/foo": "",
+				"operators.coreos.com/bar": "",
+				"untouched":                "fine",
+			},
+		},
+	}
+	var dst v1alpha1.ClusterServiceVersion
+	csvCopyPrototype(&src, &dst)
+	assert.Equal(t, v1alpha1.ClusterServiceVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "name",
+			Annotations: map[string]string{
+				"preserved": "yes",
+			},
+			Labels: map[string]string{
+				"untouched":      "fine",
+				"olm.copiedFrom": "foo",
+			},
+		},
+		Status: v1alpha1.ClusterServiceVersionStatus{
+			Message: "The operator is running in foo but is managing this namespace",
+			Reason:  v1alpha1.CSVReasonCopied,
+		},
+	}, dst)
+}
