@@ -87,12 +87,12 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.olm.service.internalPort }}
-              scheme: {{ if or .Values.olm.tlsSecret .Values.olm.clientCASecret }}HTTPS{{ else }}HTTP{{end}}
+              scheme: {{ if .Values.olm.tlsSecret }}HTTPS{{ else }}HTTP{{end}}
           readinessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.olm.service.internalPort }}
-              scheme: {{ if or .Values.olm.tlsSecret .Values.olm.clientCASecret }}HTTPS{{ else }}HTTP{{end}}
+              scheme: {{ if .Values.olm.tlsSecret }}HTTPS{{ else }}HTTP{{end}}
           terminationMessagePolicy: FallbackToLogsOnError
           env:
           - name: OPERATOR_NAMESPACE
