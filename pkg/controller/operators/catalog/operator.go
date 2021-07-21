@@ -909,9 +909,22 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// not-satisfiable error
 		if _, ok := err.(solver.NotSatisfiable); ok {
 			logger.WithError(err).Debug("resolution failed")
+			updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ConstraintsNotSatisfiable", err.Error(), true)
+			if updateErr != nil {
+				logger.WithError(updateErr).Debug("failed to update subs conditions")
+			}
 			return nil
 		}
+		updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ErrorPreventedResolution", err.Error(), true)
+		if updateErr != nil {
+			logger.WithError(updateErr).Debug("failed to update subs conditions")
+		}
 		return err
+	} else {
+		updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
+		if updateErr != nil {
+			logger.WithError(updateErr).Debug("failed to update subs conditions")
+		}
 	}
 
 	// create installplan if anything updated
@@ -1187,6 +1200,55 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 	}
 
 	return reference.GetReference(res)
+}
+
+func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType, reason, message string, setTrue bool) error {
+	var (
+		errs        []error
+		mu          sync.Mutex
+		wg          sync.WaitGroup
+		getOpts     = metav1.GetOptions{}
+		updateOpts  = metav1.UpdateOptions{}
+		lastUpdated = o.now()
+	)
+	for _, sub := range subs {
+		sub.Status.LastUpdated = lastUpdated
+		cond := sub.Status.GetCondition(condType)
+		cond.Reason = reason
+		cond.Message = message
+		if setTrue {
+			cond.Status = corev1.ConditionTrue
+		} else {
+			cond.Status = corev1.ConditionFalse
+		}
+		sub.Status.SetCondition(cond)
+
+		wg.Add(1)
+		go func(s v1alpha1.Subscription) {
+			defer wg.Done()
+
+			update := func() error {
+				// Update the status of the latest revision
+				latest, err := o.client.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Get(context.TODO(), s.GetName(), getOpts)
+				if err != nil {
+					return err
+				}
+
+				latest.Status = s.Status
+				_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.Namespace).UpdateStatus(context.TODO(), latest, updateOpts)
+
+				return err
+			}
+			if err := retry.RetryOnConflict(retry.DefaultRetry, update); err != nil {
+				mu.Lock()
+				defer mu.Unlock()
+				errs = append(errs, err)
+			}
+		}(*sub)
+	}
+	wg.Wait()
+
+	return utilerrors.NewAggregate(errs)
 }
 
 type UnpackedBundleReference struct {
