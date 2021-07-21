@@ -82,7 +82,7 @@ var _ = Describe("Install Plan", func() {
 
 		BeforeEach(func() {
 			counter = 0
-			for _, metric := range getMetricsFromPod(ctx.Ctx().KubeClient(), getPodWithLabel(ctx.Ctx().KubeClient(), "app=catalog-operator"), "8080") {
+			for _, metric := range getMetricsFromPod(ctx.Ctx().KubeClient(), getPodWithLabel(ctx.Ctx().KubeClient(), "app=catalog-operator")) {
 				if metric.Family == "installplan_warnings_total" {
 					counter = metric.Value
 				}
@@ -182,7 +182,7 @@ var _ = Describe("Install Plan", func() {
 
 		It("increments a metric counting the warning", func() {
 			Eventually(func() []Metric {
-				return getMetricsFromPod(ctx.Ctx().KubeClient(), getPodWithLabel(ctx.Ctx().KubeClient(), "app=catalog-operator"), "8080")
+				return getMetricsFromPod(ctx.Ctx().KubeClient(), getPodWithLabel(ctx.Ctx().KubeClient(), "app=catalog-operator"))
 			}).Should(ContainElement(LikeMetric(
 				WithFamily("installplan_warnings_total"),
 				WithValueGreaterThan(counter),

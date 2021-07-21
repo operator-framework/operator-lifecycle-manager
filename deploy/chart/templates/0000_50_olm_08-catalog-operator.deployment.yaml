@@ -76,7 +76,8 @@ spec:
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.catalog.service.internalPort }}
+            - containerPort: {{ .Values.olm.service.internalPort }}
+              name: metrics
           livenessProbe:
             httpGet:
               path: /healthz

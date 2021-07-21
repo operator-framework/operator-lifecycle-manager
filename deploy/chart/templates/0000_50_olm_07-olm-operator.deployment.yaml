@@ -83,6 +83,7 @@ spec:
           imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.olm.service.internalPort }}
+              name: metrics
           livenessProbe:
             httpGet:
               path: /healthz
