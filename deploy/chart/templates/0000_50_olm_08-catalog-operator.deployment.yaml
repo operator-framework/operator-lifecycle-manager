@@ -57,6 +57,9 @@ spec:
           {{- if .Values.catalog.commandArgs }}
           - {{ .Values.catalog.commandArgs }}
           {{- end }}
+          {{- if .Values.catalog.opmImageArgs }}
+          - {{ .Values.catalog.opmImageArgs }}
+          {{- end }}
           - -util-image
           -  {{ .Values.catalog.image.ref }}
           {{- if .Values.writeStatusNameCatalog }}
