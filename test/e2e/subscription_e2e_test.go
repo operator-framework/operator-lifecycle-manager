@@ -2105,6 +2105,60 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 	})
 
+	When("A subscription is created for an operator that requires an API that is not available", func() {
+
+		var (
+			c          operatorclient.ClientInterface
+			crc        versioned.Interface
+			teardown   func()
+			cleanup    func()
+			packages   []registry.PackageManifest
+			subName    = genName("test-subscription")
+			catSrcName = genName("test-catalog")
+		)
+
+		BeforeEach(func() {
+			c = newKubeClient()
+			crc = newCRClient()
+
+			packages = []registry.PackageManifest{
+				{
+					PackageName: "packageA",
+					Channels: []registry.PackageChannel{
+						{Name: "alpha", CurrentCSVName: "csvA"},
+					},
+					DefaultChannelName: "alpha",
+				},
+			}
+			crd := newCRD(genName("foo"))
+			csv := newCSV("csvA", testNamespace, "", semver.MustParse("1.0.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
+
+			_, teardown = createInternalCatalogSource(c, ctx.Ctx().OperatorClient(), catSrcName, testNamespace, packages, nil, []operatorsv1alpha1.ClusterServiceVersion{csv})
+
+			// Ensure that the catalog source is resolved before we create a subscription.
+			_, err := fetchCatalogSourceOnStatus(crc, catSrcName, testNamespace, catalogSourceRegistryPodSynced)
+			require.NoError(GinkgoT(), err)
+
+			cleanup = createSubscriptionForCatalog(crc, testNamespace, subName, catSrcName, "packageA", "alpha", "", operatorsv1alpha1.ApprovalAutomatic)
+		})
+
+		AfterEach(func() {
+			cleanup()
+			teardown()
+		})
+
+		It("the subscription has a condition in it's status that indicates the resolution error", func() {
+			Eventually(func() (corev1.ConditionStatus, error) {
+				sub, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subName, metav1.GetOptions{})
+				if err != nil {
+					return corev1.ConditionUnknown, err
+				}
+				return sub.Status.GetCondition(operatorsv1alpha1.SubscriptionResolutionFailed).Status, nil
+			}).Should(Equal(corev1.ConditionTrue))
+		})
+
+	})
+
 	When("an unannotated ClusterServiceVersion exists with an associated Subscription", func() {
 		var (
 			teardown func()

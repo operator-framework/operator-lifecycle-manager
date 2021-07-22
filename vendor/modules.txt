@@ -489,7 +489,7 @@ github.com/openshift/client-go/config/informers/externalversions/config
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
-# github.com/operator-framework/api v0.10.1
+# github.com/operator-framework/api v0.10.2
 ## explicit
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/lib/version
