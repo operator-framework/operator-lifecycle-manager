@@ -144,7 +144,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			continue
 		}
 
-		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(WithCSVName(csvName), WithChannel(channel)))
+		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(CSVNamePredicate(csvName), ChannelPredicate(channel)))
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -184,16 +184,16 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 		csvPredicate := True()
 		if current != nil {
 			// if we found an existing installed operator, we should filter the channel by operators that can replace it
-			channelPredicates = append(channelPredicates, Or(SkipRangeIncludes(*current.Version()), Replaces(current.Identifier())))
+			channelPredicates = append(channelPredicates, Or(SkipRangeIncludesPredicate(*current.Version()), ReplacesPredicate(current.Identifier())))
 		} else if sub.Spec.StartingCSV != "" {
 			// if no operator is installed and we have a startingCSV, filter for it
-			csvPredicate = WithCSVName(sub.Spec.StartingCSV)
+			csvPredicate = CSVNamePredicate(sub.Spec.StartingCSV)
 		}
 
 		cachePredicates = append(cachePredicates, And(
 			CountingPredicate(True(), &nall),
-			CountingPredicate(WithPackage(sub.Spec.Package), &npkg),
-			CountingPredicate(WithChannel(sub.Spec.Channel), &nch),
+			CountingPredicate(PkgPredicate(sub.Spec.Package), &npkg),
+			CountingPredicate(ChannelPredicate(sub.Spec.Channel), &nch),
 			CountingPredicate(csvPredicate, &ncsv),
 		))
 		bundles = namespacedCache.Catalog(catalog).Find(cachePredicates...)
@@ -252,7 +252,7 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 
 	candidates := make([]*BundleInstallable, 0)
 	for _, o := range Filter(sortedBundles, channelPredicates...) {
-		predicates := append(cachePredicates, WithCSVName(o.Identifier()))
+		predicates := append(cachePredicates, CSVNamePredicate(o.Identifier()))
 		stack := namespacedCache.Catalog(catalog).Find(predicates...)
 		id, installable, err := r.getBundleInstallables(catalog, stack, namespacedCache, visited)
 		if err != nil {
@@ -354,14 +354,14 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleS
 
 				if si.Catalog.Virtual() {
 					sourcePredicate = Or(sourcePredicate, And(
-						WithCSVName(b.Identifier()),
-						WithCatalog(si.Catalog),
+						CSVNamePredicate(b.Identifier()),
+						CatalogPredicate(si.Catalog),
 					))
 				} else {
 					sourcePredicate = Or(sourcePredicate, And(
-						WithPackage(si.Package),
-						WithChannel(si.Channel),
-						WithCatalog(si.Catalog),
+						PkgPredicate(si.Package),
+						ChannelPredicate(si.Channel),
+						CatalogPredicate(si.Catalog),
 					))
 				}
 			}
@@ -384,7 +384,10 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleS
 				bundleDependencies = append(bundleDependencies, i.Identifier())
 				bundleStack = append(bundleStack, b)
 			}
-			bundleInstallable.AddDependency(bundleDependencies)
+			bundleInstallable.AddConstraint(PrettyConstraint(
+				solver.Dependency(bundleDependencies...),
+				fmt.Sprintf("bundle %s requires an operator %s", bundle.name, d.String()),
+			))
 		}
 
 		installables[bundleInstallable.Identifier()] = &bundleInstallable
@@ -414,7 +417,7 @@ func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs 
 		// package against catalog contents, updates to the
 		// Subscription spec could result in a bad package
 		// inference.
-		for _, entry := range r.cache.Namespaced(sub.Namespace).Catalog(registry.CatalogKey{Namespace: sub.Spec.CatalogSourceNamespace, Name: sub.Spec.CatalogSource}).Find(And(WithCSVName(csv.Name), WithPackage(sub.Spec.Package))) {
+		for _, entry := range r.cache.Namespaced(sub.Namespace).Catalog(registry.CatalogKey{Namespace: sub.Spec.CatalogSourceNamespace, Name: sub.Spec.CatalogSource}).Find(And(CSVNamePredicate(csv.Name), PkgPredicate(sub.Spec.Package))) {
 			if pkg := entry.Package(); pkg != "" {
 				packages[pkg] = struct{}{}
 			}
@@ -526,7 +529,7 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			continue
 		}
 
-		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(WithCSVName(csvName), WithChannel(channel)))
+		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(CSVNamePredicate(csvName), ChannelPredicate(channel)))
 		if err != nil {
 			continue
 		}
