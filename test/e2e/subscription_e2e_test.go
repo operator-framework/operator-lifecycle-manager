@@ -489,38 +489,11 @@ var _ = Describe("Subscription", func() {
 		require.Len(GinkgoT(), ips.Items, 2)
 	})
 
-	It("with non-existent replaces in catalog", func() {
+	FIt("with non-existent replaces in catalog", func() {
+
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
-
-		crd := apiextensions.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: crdName,
-			},
-			Spec: apiextensions.CustomResourceDefinitionSpec{
-				Group: "cluster.com",
-				Versions: []apiextensions.CustomResourceDefinitionVersion{
-					{
-						Name:    "v1alpha1",
-						Served:  true,
-						Storage: true,
-						Schema: &apiextensions.CustomResourceValidation{
-							OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-								Type:        "object",
-								Description: "my crd schema",
-							},
-						},
-					},
-				},
-				Names: apiextensions.CustomResourceDefinitionNames{
-					Plural:   crdPlural,
-					Singular: crdPlural,
-					Kind:     crdPlural,
-					ListKind: "list" + crdPlural,
-				},
-				Scope: apiextensions.NamespaceScoped,
-			},
-		}
+		crd := newCRD(crdPlural)
 
 		// Create CSV
 		packageName := genName("nginx-")
@@ -530,7 +503,17 @@ var _ = Describe("Subscription", func() {
 		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		// Create PackageManifests
-		manifests := []registry.PackageManifest{
+		manifestsA := []registry.PackageManifest{
+			{
+				PackageName: packageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: csvA.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		manifestsB := []registry.PackageManifest{
 			{
 				PackageName: packageName,
 				Channels: []registry.PackageChannel{
@@ -544,11 +527,11 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		catalogSourceAName := genName("mock-nginx-a-")
-		_, cleanupCatalogSourceA := createInternalCatalogSource(c, crc, catalogSourceAName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
+		_, cleanupCatalogSourceA := createInternalCatalogSource(c, crc, catalogSourceAName, testNamespace, manifestsA, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 		defer cleanupCatalogSourceA()
 
 		catalogSourceBName := genName("mock-nginx-b-")
-		_, cleanupCatalogSourceB := createInternalCatalogSource(c, crc, catalogSourceBName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvB})
+		_, cleanupCatalogSourceB := createInternalCatalogSource(c, crc, catalogSourceBName, testNamespace, manifestsB, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvB})
 		defer cleanupCatalogSourceB()
 
 		// Attempt to get the catalog sources before creating install plan
@@ -569,7 +552,7 @@ var _ = Describe("Subscription", func() {
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
 		requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval)
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, requiresApprovalChecker)
+		installPlanA, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, requiresApprovalChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Ensure that only 1 installplan was created
@@ -577,17 +560,22 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		require.Len(GinkgoT(), ips.Items, 1)
 
-		// Ensure that csvA and its crd are found in the plan
-		csvFound := false
+		// Ensure that the installPlan has csv A and its crd but not csvB
+		csvAFound := false
+		csvBFound := false
 		crdFound := false
-		for _, s := range fetchedInstallPlan.Status.Plan {
+		for _, s := range installPlanA.Status.Plan {
 			require.Equal(GinkgoT(), csvA.GetName(), s.Resolving, "unexpected resolution found")
 			require.Equal(GinkgoT(), operatorsv1alpha1.StepStatusUnknown, s.Status, "status should be unknown")
 			require.Equal(GinkgoT(), catalogSourceName, s.Resource.CatalogSource, "incorrect catalogsource on step resource")
 			switch kind := s.Resource.Kind; kind {
 			case operatorsv1alpha1.ClusterServiceVersionKind:
+				if s.Resource.Name == csvB.GetName() {
+					csvBFound = true
+					continue
+				}
 				require.Equal(GinkgoT(), csvA.GetName(), s.Resource.Name, "unexpected csv found")
-				csvFound = true
+				csvAFound = true
 			case "CustomResourceDefinition":
 				require.Equal(GinkgoT(), crdName, s.Resource.Name, "unexpected crd found")
 				crdFound = true
@@ -595,27 +583,13 @@ var _ = Describe("Subscription", func() {
 				GinkgoT().Fatalf("unexpected resource kind found in installplan: %s", kind)
 			}
 		}
-		require.True(GinkgoT(), csvFound, "expected csv not found in installplan")
+		require.True(GinkgoT(), csvAFound, "expected csv not found in installplan")
 		require.True(GinkgoT(), crdFound, "expected crd not found in installplan")
-
-		// Ensure that csvB is not found in the plan
-		csvFound = false
-		for _, s := range fetchedInstallPlan.Status.Plan {
-			require.Equal(GinkgoT(), csvA.GetName(), s.Resolving, "unexpected resolution found")
-			require.Equal(GinkgoT(), operatorsv1alpha1.StepStatusUnknown, s.Status, "status should be unknown")
-			require.Equal(GinkgoT(), catalogSourceName, s.Resource.CatalogSource, "incorrect catalogsource on step resource")
-			switch kind := s.Resource.Kind; kind {
-			case operatorsv1alpha1.ClusterServiceVersionKind:
-				if s.Resource.Name == csvB.GetName() {
-					csvFound = true
-				}
-			}
-		}
-		require.False(GinkgoT(), csvFound, "expected csv not found in installplan")
+		require.False(GinkgoT(), csvBFound, "unexpected csv found in installplan")
 
 		// Approve the installplan and wait for csvA to be installed
-		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
+		installPlanA.Spec.Approved = true
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), installPlanA, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		_, err = awaitCSV(crc, testNamespace, csvA.GetName(), csvSucceededChecker)
@@ -628,14 +602,14 @@ var _ = Describe("Subscription", func() {
 		// Wait for the subscription to begin upgrading to csvB
 		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
 		require.NoError(GinkgoT(), err)
-		require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), subscription.Status.InstallPlanRef.Name, "expected new installplan for upgraded csv")
+		require.NotEqual(GinkgoT(), installPlanA.GetName(), subscription.Status.InstallPlanRef.Name, "expected new installplan for upgraded csv")
 
-		upgradeInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, requiresApprovalChecker)
+		installPlanB, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, requiresApprovalChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Approve the upgrade installplan and wait for
-		upgradeInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), upgradeInstallPlan, metav1.UpdateOptions{})
+		// Approve the upgrade installplan and wait for csvB to be installed
+		installPlanB.Spec.Approved = true
+		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), installPlanB, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
