@@ -24,7 +24,7 @@ require (
 	github.com/onsi/gomega v1.13.0
 	github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
-	github.com/operator-framework/api v0.10.2
+	github.com/operator-framework/api v0.10.4
 	github.com/operator-framework/operator-registry v1.17.5
 	github.com/otiai10/copy v1.2.0
 	github.com/pkg/errors v0.9.1
@@ -35,6 +35,7 @@ require (
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6
 	google.golang.org/grpc v1.38.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -60,6 +61,7 @@ replace (
 	// controller runtime
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20200331152225-585af27e34fd // release-4.5
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0 // release-4.5
+
 	// Patch for a race condition involving metadata-only
 	// informers until it can be resolved upstream:
 	sigs.k8s.io/controller-runtime v0.9.2 => github.com/benluddy/controller-runtime v0.9.3-0.20210720171926-9bcb99bd9bd3

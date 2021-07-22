@@ -49,5 +49,14 @@ bash "${CODEGEN_PKG}/generate-internal-groups.sh" all \
   --output-base "${OUTPUT_BASE}" \
   --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
 
+export OPENAPI_EXTRA_PACKAGES="${API_MODULE}/pkg/operators/v1alpha1,${API_MODULE}/pkg/lib/version,k8s.io/api/rbac/v1,k8s.io/api/apps/v1,k8s.io/api/core/v1,k8s.io/apimachinery/pkg/util/intstr,k8s.io/apimachinery/pkg/api/resource,k8s.io/api/admissionregistration/v1"
+bash "${CODEGEN_PKG}/generate-internal-groups.sh" all \
+  "${MODULE}/pkg/available-csvs/client" \
+  "${MODULE}/pkg/available-csvs/apis" \
+  "${MODULE}/pkg/available-csvs/apis" \
+  "available:v1alpha1" \
+  --output-base "${OUTPUT_BASE}" \
+  --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
+
 # copy the generated resources
 cp -R "${OUTPUT_BASE}/${MODULE}/." "${SCRIPT_ROOT}"
