@@ -17,6 +17,7 @@ limitations under the License.
 package docker
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -55,7 +56,7 @@ func (n *node) IP() (ipv4 string, ipv6 string, err error) {
 		"-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}},{{.GlobalIPv6Address}}{{end}}",
 		n.name, // ... against the "node" container
 	)
-	lines, err := exec.CombinedOutputLines(cmd)
+	lines, err := exec.OutputLines(cmd)
 	if err != nil {
 		return "", "", errors.Wrap(err, "failed to get container details")
 	}
@@ -77,6 +78,15 @@ func (n *node) Command(command string, args ...string) exec.Cmd {
 	}
 }
 
+func (n *node) CommandContext(ctx context.Context, command string, args ...string) exec.Cmd {
+	return &nodeCmd{
+		nameOrID: n.name,
+		command:  command,
+		args:     args,
+		ctx:      ctx,
+	}
+}
+
 // nodeCmd implements exec.Cmd for docker nodes
 type nodeCmd struct {
 	nameOrID string // the container name or ID
@@ -86,6 +96,7 @@ type nodeCmd struct {
 	stdin    io.Reader
 	stdout   io.Writer
 	stderr   io.Writer
+	ctx      context.Context
 }
 
 func (c *nodeCmd) Run() error {
@@ -117,7 +128,12 @@ func (c *nodeCmd) Run() error {
 		// finally, with the caller args
 		c.args...,
 	)
-	cmd := exec.Command("docker", args...)
+	var cmd exec.Cmd
+	if c.ctx != nil {
+		cmd = exec.CommandContext(c.ctx, "docker", args...)
+	} else {
+		cmd = exec.Command("docker", args...)
+	}
 	if c.stdin != nil {
 		cmd.SetStdin(c.stdin)
 	}
@@ -148,4 +164,8 @@ func (c *nodeCmd) SetStdout(w io.Writer) exec.Cmd {
 func (c *nodeCmd) SetStderr(w io.Writer) exec.Cmd {
 	c.stderr = w
 	return c
+}
+
+func (n *node) SerialLogs(w io.Writer) error {
+	return exec.Command("docker", "logs", n.name).SetStdout(w).SetStderr(w).Run()
 }

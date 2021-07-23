@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package providers
 
 import (
 	"sigs.k8s.io/kind/pkg/cluster/nodes"
@@ -28,7 +28,7 @@ import (
 type Provider interface {
 	// Provision should create and start the nodes, just short of
 	// actually starting up Kubernetes, based on the given cluster config
-	Provision(status *cli.Status, cluster string, cfg *config.Cluster) error
+	Provision(status *cli.Status, cfg *config.Cluster) error
 	// ListClusters discovers the clusters that currently have resources
 	// under this providers
 	ListClusters() ([]string, error)
@@ -41,4 +41,19 @@ type Provider interface {
 	DeleteNodes([]nodes.Node) error
 	// GetAPIServerEndpoint returns the host endpoint for the cluster's API server
 	GetAPIServerEndpoint(cluster string) (string, error)
+	// GetAPIServerEndpoint returns the internal network endpoint for the cluster's API server
+	GetAPIServerInternalEndpoint(cluster string) (string, error)
+	// CollectLogs will populate dir with cluster logs and other debug files
+	CollectLogs(dir string, nodes []nodes.Node) error
+	// Info returns the provider info
+	Info() (*ProviderInfo, error)
+}
+
+// ProviderInfo is the info of the provider
+type ProviderInfo struct {
+	Rootless            bool
+	Cgroup2             bool
+	SupportsMemoryLimit bool
+	SupportsPidsLimit   bool
+	SupportsCPUShares   bool
 }
