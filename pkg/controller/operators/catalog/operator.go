@@ -45,10 +45,12 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
@@ -105,7 +107,6 @@ type Operator struct {
 	sourcesLastUpdate        sharedtime.SharedTime
 	resolver                 resolver.StepResolver
 	reconciler               reconciler.RegistryReconcilerFactory
-	csvProvidedAPIsIndexer   map[string]cache.Indexer
 	catalogSubscriberIndexer map[string]cache.Indexer
 	clientAttenuator         *scoped.ClientAttenuator
 	serviceAccountQuerier    *scoped.UserDefinedServiceAccountQuerier
@@ -176,7 +177,6 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
-		csvProvidedAPIsIndexer:   map[string]cache.Indexer{},
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient),
@@ -192,18 +192,41 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Wire OLM CR sharedIndexInformers
 	crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, resyncPeriod())
 
-	// Wire CSVs
-	csvInformer := crInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
-	op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvInformer.Lister())
-	if err := op.RegisterInformer(csvInformer.Informer()); err != nil {
+	// Fields are pruned from local copies of the objects managed
+	// by this informer in order to reduce cached size.
+	prunedCSVInformer := cache.NewSharedIndexInformer(
+		pruning.NewListerWatcher(op.client, metav1.NamespaceAll, func(*metav1.ListOptions) {}, pruning.PrunerFunc(func(csv *v1alpha1.ClusterServiceVersion) {
+			*csv = v1alpha1.ClusterServiceVersion{
+				TypeMeta: csv.TypeMeta,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        csv.Name,
+					Namespace:   csv.Namespace,
+					Labels:      csv.Labels,
+					Annotations: csv.Annotations,
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: csv.Spec.CustomResourceDefinitions,
+					APIServiceDefinitions:     csv.Spec.APIServiceDefinitions,
+					Replaces:                  csv.Spec.Replaces,
+					Version:                   csv.Spec.Version,
+				},
+				Status: v1alpha1.ClusterServiceVersionStatus{
+					Phase:  csv.Status.Phase,
+					Reason: csv.Status.Reason,
+				},
+			}
+		})),
+		&v1alpha1.ClusterServiceVersion{},
+		resyncPeriod(),
+		cache.Indexers{
+			cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
+		},
+	)
+	csvLister := operatorsv1alpha1listers.NewClusterServiceVersionLister(prunedCSVInformer.GetIndexer())
+	op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvLister)
+	if err := op.RegisterInformer(prunedCSVInformer); err != nil {
 		return nil, err
 	}
-
-	if err := csvInformer.Informer().AddIndexers(cache.Indexers{index.ProvidedAPIsIndexFuncKey: index.ProvidedAPIsIndexFunc}); err != nil {
-		return nil, err
-	}
-	csvIndexer := csvInformer.Informer().GetIndexer()
-	op.csvProvidedAPIsIndexer[metav1.NamespaceAll] = csvIndexer
 
 	// TODO: Add namespace resolve sync
 
@@ -1279,7 +1302,7 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.
 				}
 
 				latest.Status = s.Status
-				_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.Namespace).UpdateStatus(context.TODO(), latest, updateOpts)
+				_, err = o.client.OperatorsV1alpha1().Subscriptions(s.Namespace).UpdateStatus(context.TODO(), latest, updateOpts)
 
 				return err
 			}
