@@ -902,7 +902,7 @@ func TestSyncCatalogSources(t *testing.T) {
 				&corev1.ConfigMap{},
 			},
 			expectedStatus: nil,
-			expectedError:  errors.New("failed to get catalog config map cool-configmap: configmap \"cool-configmap\" not found"),
+			expectedError:  errors.New("failed to get catalog config map cool-configmap: configmaps \"cool-configmap\" not found"),
 		},
 		{
 			testName:      "CatalogSourceWithGrpcImage",

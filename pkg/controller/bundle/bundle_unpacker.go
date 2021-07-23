@@ -26,6 +26,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/reference"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 )
 
@@ -560,10 +561,25 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 	fresh.SetNamespace(csRef.Namespace)
 	fresh.SetName(name)
 	fresh.SetOwnerReferences([]metav1.OwnerReference{ownerRef(csRef)})
+	fresh.SetLabels(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue})
 
 	cm, err = c.cmLister.ConfigMaps(fresh.GetNamespace()).Get(fresh.GetName())
 	if apierrors.IsNotFound(err) {
 		cm, err = c.client.CoreV1().ConfigMaps(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+		// CM already exists in cluster but not in cache, then add the label
+		if err != nil && apierrors.IsAlreadyExists(err) {
+			cm, err = c.client.CoreV1().ConfigMaps(fresh.GetNamespace()).Get(context.TODO(), fresh.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("Failed to retrieve configmap %s: %v", fresh.GetName(), err)
+			}
+			cm.SetLabels(map[string]string{
+				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+			})
+			cm, err = c.client.CoreV1().ConfigMaps(cm.GetNamespace()).Update(context.TODO(), cm, metav1.UpdateOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("Failed to update configmap %s: %v", cm.GetName(), err)
+			}
+		}
 	}
 
 	return

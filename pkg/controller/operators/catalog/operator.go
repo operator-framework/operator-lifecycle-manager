@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
@@ -23,6 +21,7 @@ import (
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -48,6 +47,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
@@ -341,7 +341,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	sharedIndexInformers = append(sharedIndexInformers, buPodInformer.Informer())
 
 	// Wire ConfigMaps
-	configMapInformer := k8sInformerFactory.Core().V1().ConfigMaps()
+	configMapInformer := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), resyncPeriod(), informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+		options.LabelSelector = install.OLMManagedLabelKey
+	})).Core().V1().ConfigMaps()
 	op.lister.CoreV1().RegisterConfigMapLister(metav1.NamespaceAll, configMapInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, configMapInformer.Informer())
 
@@ -595,15 +597,31 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 
 	logger.Debug("checking catsrc configmap state")
 
+	var updateLabel bool
 	// Get the catalog source's config map
 	configMap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(in.GetNamespace()).Get(in.Spec.ConfigMap)
+	// Attempt to look up the CM via api call if there is a cache miss
+	if k8serrors.IsNotFound(err) {
+		configMap, err = o.opClient.KubernetesInterface().CoreV1().ConfigMaps(in.GetNamespace()).Get(context.TODO(), in.Spec.ConfigMap, metav1.GetOptions{})
+		// Found cm in the cluster, add managed label to configmap
+		if err == nil {
+			labels := configMap.GetLabels()
+			if labels == nil {
+				labels = make(map[string]string)
+			}
+
+			labels[install.OLMManagedLabelKey] = "false"
+			configMap.SetLabels(labels)
+			updateLabel = true
+		}
+	}
 	if err != nil {
 		syncError = fmt.Errorf("failed to get catalog config map %s: %s", in.Spec.ConfigMap, err)
 		out.SetError(v1alpha1.CatalogSourceConfigMapError, syncError)
 		return
 	}
 
-	if wasOwned := ownerutil.EnsureOwner(configMap, in); !wasOwned {
+	if wasOwned := ownerutil.EnsureOwner(configMap, in); !wasOwned || updateLabel {
 		configMap, err = o.opClient.KubernetesInterface().CoreV1().ConfigMaps(configMap.GetNamespace()).Update(context.TODO(), configMap, metav1.UpdateOptions{})
 		if err != nil {
 			syncError = fmt.Errorf("unable to write owner onto catalog source configmap - %v", err)
