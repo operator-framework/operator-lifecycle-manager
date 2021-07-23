@@ -7,17 +7,10 @@ import (
 	"sync"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"github.com/distribution/distribution/reference"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/catalogsource"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -29,7 +22,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/distribution/distribution/reference"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/catalogsource"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
 const (
@@ -174,7 +172,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 
 	catalogImageTemplate := catalogsource.GetCatalogTemplateAnnotation(outputCatalogSource)
 	if catalogImageTemplate == "" {
-		logger.Info("this catalog source is not participating in template replacement")
+		logger.Debug("this catalog source is not participating in template replacement")
 		// make sure the conditions are removed
 		catalogsource.RemoveStatusConditions(logger, o.client, outputCatalogSource, StatusTypeTemplatesHaveResolved, StatusTypeResolvedImage)
 		// no further action is needed
