@@ -33,8 +33,10 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
@@ -66,10 +68,11 @@ type Operator struct {
 	opClient              operatorclient.ClientInterface
 	client                versioned.Interface
 	lister                operatorlister.OperatorLister
+	copiedCSVLister       operatorsv1alpha1listers.ClusterServiceVersionLister
 	ogQueueSet            *queueinformer.ResourceQueueSet
 	csvQueueSet           *queueinformer.ResourceQueueSet
 	csvCopyQueueSet       *queueinformer.ResourceQueueSet
-	csvGCQueueSet         *queueinformer.ResourceQueueSet
+	copiedCSVGCQueueSet   *queueinformer.ResourceQueueSet
 	objGCQueueSet         *queueinformer.ResourceQueueSet
 	nsQueueSet            workqueue.RateLimitingInterface
 	apiServiceQueue       workqueue.RateLimitingInterface
@@ -125,7 +128,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		ogQueueSet:            queueinformer.NewEmptyResourceQueueSet(),
 		csvQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		csvCopyQueueSet:       queueinformer.NewEmptyResourceQueueSet(),
-		csvGCQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
+		copiedCSVGCQueueSet:   queueinformer.NewEmptyResourceQueueSet(),
 		objGCQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
 		apiServiceQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
 		resolver:              config.strategyResolver,
@@ -146,8 +149,14 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	k8sSyncer := queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)
 	for _, namespace := range config.watchedNamespaces {
 		// Wire CSVs
-		extInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, config.resyncPeriod(), externalversions.WithNamespace(namespace))
-		csvInformer := extInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
+		csvInformer := externalversions.NewSharedInformerFactoryWithOptions(
+			op.client,
+			config.resyncPeriod(),
+			externalversions.WithNamespace(namespace),
+			externalversions.WithTweakListOptions(func(options *metav1.ListOptions) {
+				options.LabelSelector = fmt.Sprintf("!%s", v1alpha1.CopiedLabelKey)
+			}),
+		).Operators().V1alpha1().ClusterServiceVersions()
 		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
 		csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv", namespace))
 		op.csvQueueSet.Set(namespace, csvQueue)
@@ -188,24 +197,65 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			return nil, err
 		}
 
-		// Register separate queue for gcing csvs
-		csvGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv-gc", namespace))
-		op.csvGCQueueSet.Set(namespace, csvGCQueue)
-		csvGCQueueInformer, err := queueinformer.NewQueueInformer(
+		// A separate informer solely for CSV copies. Fields
+		// are pruned from local copies of the objects managed
+		// by this informer in order to reduce cached size.
+		copiedCSVInformer := cache.NewSharedIndexInformer(
+			pruning.NewListerWatcher(
+				op.client,
+				namespace,
+				func(opts *metav1.ListOptions) {
+					opts.LabelSelector = v1alpha1.CopiedLabelKey
+				},
+				pruning.PrunerFunc(func(csv *v1alpha1.ClusterServiceVersion) {
+					nonstatus, status := copyableCSVHash(csv)
+					*csv = v1alpha1.ClusterServiceVersion{
+						TypeMeta:   csv.TypeMeta,
+						ObjectMeta: csv.ObjectMeta,
+						Status: v1alpha1.ClusterServiceVersionStatus{
+							Phase:  csv.Status.Phase,
+							Reason: csv.Status.Reason,
+						},
+					}
+					if csv.Annotations == nil {
+						csv.Annotations = make(map[string]string, 2)
+					}
+					// These annotation keys are
+					// intentionally invalid -- all writes
+					// to copied CSVs are regenerated from
+					// the corresponding non-copied CSV,
+					// so it should never be transmitted
+					// back to the API server.
+					csv.Annotations["$copyhash-nonstatus"] = nonstatus
+					csv.Annotations["$copyhash-status"] = status
+				}),
+			),
+			&v1alpha1.ClusterServiceVersion{},
+			config.resyncPeriod(),
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+		op.copiedCSVLister = operatorsv1alpha1listers.NewClusterServiceVersionLister(copiedCSVInformer.GetIndexer())
+
+		// Register separate queue for gcing copied csvs
+		copiedCSVGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv-gc", namespace))
+		op.copiedCSVGCQueueSet.Set(namespace, copiedCSVGCQueue)
+		copiedCSVGCQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
+			queueinformer.WithInformer(copiedCSVInformer),
 			queueinformer.WithLogger(op.logger),
-			queueinformer.WithQueue(csvGCQueue),
-			queueinformer.WithIndexer(csvIndexer),
+			queueinformer.WithQueue(copiedCSVGCQueue),
+			queueinformer.WithIndexer(copiedCSVInformer.GetIndexer()),
 			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncGcCsv).ToSyncer()),
 		)
 		if err != nil {
 			return nil, err
 		}
-		if err := op.RegisterQueueInformer(csvGCQueueInformer); err != nil {
+		if err := op.RegisterQueueInformer(copiedCSVGCQueueInformer); err != nil {
 			return nil, err
 		}
 
 		// Wire OperatorGroup reconciliation
+		extInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, config.resyncPeriod(), externalversions.WithNamespace(namespace))
 		operatorGroupInformer := extInformerFactory.Operators().V1().OperatorGroups()
 		op.lister.OperatorsV1().RegisterOperatorGroupLister(namespace, operatorGroupInformer.Lister())
 		ogQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/og", namespace))
@@ -916,6 +966,11 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 
 	metrics.DeleteCSVMetric(clusterServiceVersion)
 
+	if clusterServiceVersion.IsCopied() {
+		logger.Warning("deleted csv is copied. skipping additional cleanup steps") // should not happen?
+		return
+	}
+
 	defer func(csv v1alpha1.ClusterServiceVersion) {
 		if clusterServiceVersion.IsCopied() {
 			logger.Debug("deleted csv is copied. skipping operatorgroup requeue")
@@ -956,11 +1011,6 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		return
 	}
 
-	if clusterServiceVersion.IsCopied() {
-		logger.Debug("deleted csv is copied. skipping additional cleanup steps")
-		return
-	}
-
 	logger.Info("gcing children")
 	namespaces := make([]string, 0)
 	if targetNamespaces == "" {
@@ -978,7 +1028,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	for _, namespace := range namespaces {
 		if namespace != operatorNamespace {
 			logger.WithField("targetNamespace", namespace).Debug("requeueing child csv for deletion")
-			if err := a.csvGCQueueSet.Requeue(namespace, clusterServiceVersion.GetName()); err != nil {
+			if err := a.copiedCSVGCQueueSet.Requeue(namespace, clusterServiceVersion.GetName()); err != nil {
 				logger.WithError(err).Warn("unable to requeue")
 			}
 		}
@@ -1060,7 +1110,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 	})
 
 	if !csv.IsCopied() {
-		logger.Debug("removeDanglingChild called on a parent. this is a no-op but should be avoided.")
+		logger.Warning("removeDanglingChild called on a parent. this is a no-op but should be avoided.")
 		return nil
 	}
 
@@ -1124,10 +1174,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	}
 
 	if clusterServiceVersion.IsCopied() {
-		logger.Debug("skipping copied csv transition, schedule for gc check")
-		if err := a.csvGCQueueSet.Requeue(clusterServiceVersion.GetNamespace(), clusterServiceVersion.GetName()); err != nil {
-			logger.WithError(err).Warn("unable to requeue")
-		}
+		logger.Warning("skipping copied csv transition") // should not happen?
 		return
 	}
 
