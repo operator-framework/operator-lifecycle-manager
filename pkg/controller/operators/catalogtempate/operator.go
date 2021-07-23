@@ -4,21 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/distribution/distribution/reference"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/restmapper"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
@@ -40,18 +33,15 @@ const (
 
 type Operator struct {
 	queueinformer.Operator
-	logger                        *logrus.Logger                               // common logger
-	namespace                     string                                       // operator namespace
-	client                        versioned.Interface                          // client used for OLM CRs
-	dynamicClient                 dynamic.Interface                            // client used to dynamically discover resources
-	dynamicInformerFactory        dynamicinformer.DynamicSharedInformerFactory // factory to create shared informers for dynamic resources
-	discoveryClient               *discovery.DiscoveryClient                   // queries the API server to discover resources
-	mapper                        *restmapper.DeferredDiscoveryRESTMapper      // maps between GVK and GVR
-	lister                        operatorlister.OperatorLister                // union of versioned informer listers
-	catalogSourceTemplateQueueSet *queueinformer.ResourceQueueSet              // work queues for a catalog source update
-	resyncPeriod                  func() time.Duration                         // period of time between resync
-	dynamicResourceWatchesMap     sync.Map                                     // map to keep track of what GVR we've already opened watches for
-	ctx                           context.Context                              // context used for shutting down
+	logger                        *logrus.Logger                  // common logger
+	namespace                     string                          // operator namespace
+	client                        versioned.Interface             // client used for OLM CRs
+	dynamicClient                 dynamic.Interface               // client used to dynamically discover resources
+	discoveryClient               *discovery.DiscoveryClient      // queries the API server to discover resources
+	lister                        operatorlister.OperatorLister   // union of versioned informer listers
+	catalogSourceTemplateQueueSet *queueinformer.ResourceQueueSet // work queues for a catalog source update
+	resyncPeriod                  func() time.Duration            // period of time between resync
+	ctx                           context.Context                 // context used for shutting down
 }
 
 func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logger, resync time.Duration, operatorNamespace string) (*Operator, error) {
@@ -91,8 +81,6 @@ func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logg
 		return nil, err
 	}
 
-	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discoveryClient))
-
 	// Create an OperatorLister
 	lister := operatorlister.NewLister()
 
@@ -102,14 +90,11 @@ func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logg
 		namespace:                     operatorNamespace,
 		client:                        crClient,
 		dynamicClient:                 dynamicClient,
-		dynamicInformerFactory:        dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, resyncPeriod()),
 		discoveryClient:               discoveryClient,
-		mapper:                        mapper,
 		lister:                        lister,
 		catalogSourceTemplateQueueSet: queueinformer.NewEmptyResourceQueueSet(),
 		resyncPeriod:                  resyncPeriod,
-		// dynamicResourceWatchesMap:     map[string]struct{}{},
-		ctx: ctx,
+		ctx:                           ctx,
 	}
 
 	// Wire OLM CR sharedIndexInformers
@@ -158,17 +143,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	logger.Info("syncing catalog source for annotation templates")
 
 	// this is our opportunity to discover GVK templates and setup watchers (if possible)
-	foundGVKs := catalogsource.InitializeCatalogSourceTemplates(outputCatalogSource)
-
-	///////
-	// FIXME: There have been concerns about security of allowing selection of arbitrary
-	// GVK during code reviews. For now we're disabling setting up dynamic watchers. This
-	// code needs to be re-enabled once we've come up with a valid approach
-	_ = foundGVKs
-	// for _, gvk := range foundGVKs {
-	// 	o.processGVK(o.ctx, logger, gvk.GroupVersionKind)
-	// }
-	///////
+	catalogsource.InitializeCatalogSourceTemplates(outputCatalogSource)
 
 	catalogImageTemplate := catalogsource.GetCatalogTemplateAnnotation(outputCatalogSource)
 	if catalogImageTemplate == "" {
@@ -255,57 +230,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	}
 
 	return nil
-}
-
-// processGVK sets up a watcher for the GVK provided (if possible). Errors are logged but not returned
-func (o *Operator) processGVK(ctx context.Context, logger *logrus.Entry, gvk schema.GroupVersionKind) {
-	if gvk.Empty() {
-		logger.Warn("provided GVK is empty, unable to add watch")
-		return
-	}
-	// setup a watcher for the GVK
-
-	mapping, err := o.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		logger.WithError(err).Warnf("unable to obtain preferred rest mapping for GVK %s", gvk.String())
-		return
-	}
-
-	// see if we already setup a watcher for this resource
-	if _, ok := o.dynamicResourceWatchesMap.Load(mapping.Resource); !ok {
-		// we've not come across this resource before so setup a watcher
-		informer := o.dynamicInformerFactory.ForResource(mapping.Resource)
-		informer.Informer().AddEventHandlerWithResyncPeriod(o.eventHandlers(ctx, o.processDynamicWatches), o.resyncPeriod())
-		go informer.Informer().Run(ctx.Done())
-		o.dynamicResourceWatchesMap.Store(mapping.Resource, struct{}{})
-	}
-}
-
-// eventHandlers is a generic handler that forwards all calls to provided notify function
-func (o *Operator) eventHandlers(ctx context.Context, notify func(ctx context.Context, obj interface{})) cache.ResourceEventHandlerFuncs {
-	return cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			notify(ctx, obj)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			notify(ctx, newObj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			notify(ctx, obj)
-		},
-	}
-}
-
-func (o *Operator) processDynamicWatches(ctx context.Context, obj interface{}) {
-	// this is an opportunity to update the server version (regardless of any other actions for processing a dynamic watch)
-	o.updateServerVersion()
-
-	if u, ok := obj.(*unstructured.Unstructured); ok {
-		catalogsource.UpdateGVKValue(u, o.logger)
-	} else {
-		o.logger.Warn("object provided to processDynamicWatches was not unstructured.Unstructured type")
-	}
-
 }
 
 func (o *Operator) updateServerVersion() {
