@@ -54,7 +54,7 @@ require (
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.8.0
 	sigs.k8s.io/controller-tools v0.4.1
-	sigs.k8s.io/kind v0.7.0
+	sigs.k8s.io/kind v0.11.1
 )
 
 replace (

@@ -86,6 +86,14 @@ func OutputLines(cmd Cmd) (lines []string, err error) {
 	return lines, err
 }
 
+// Output is like os/exec's cmd.Output, but over our Cmd interface
+func Output(cmd Cmd) ([]byte, error) {
+	var buff bytes.Buffer
+	cmd.SetStdout(&buff)
+	err := cmd.Run()
+	return buff.Bytes(), err
+}
+
 // InheritOutput sets cmd's output to write to the current process's stdout and stderr
 func InheritOutput(cmd Cmd) Cmd {
 	cmd.SetStderr(os.Stderr)
@@ -99,15 +107,15 @@ func RunWithStdoutReader(cmd Cmd, readerFunc func(io.Reader) error) error {
 	if err != nil {
 		return err
 	}
-	defer pw.Close()
-	defer pr.Close()
 	cmd.SetStdout(pw)
 
 	return errors.AggregateConcurrent([]func() error{
 		func() error {
+			defer pr.Close()
 			return readerFunc(pr)
 		},
 		func() error {
+			defer pw.Close()
 			return cmd.Run()
 		},
 	})
@@ -119,15 +127,15 @@ func RunWithStdinWriter(cmd Cmd, writerFunc func(io.Writer) error) error {
 	if err != nil {
 		return err
 	}
-	defer pw.Close()
-	defer pr.Close()
 	cmd.SetStdin(pr)
 
 	return errors.AggregateConcurrent([]func() error{
 		func() error {
+			defer pw.Close()
 			return writerFunc(pw)
 		},
 		func() error {
+			defer pr.Close()
 			return cmd.Run()
 		},
 	})

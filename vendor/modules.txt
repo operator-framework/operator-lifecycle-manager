@@ -59,7 +59,7 @@ github.com/NYTimes/gziphandler
 github.com/PuerkitoBio/purell
 # github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578
 github.com/PuerkitoBio/urlesc
-# github.com/alessio/shellescape v0.0.0-20190409004728-b115ca0f9053
+# github.com/alessio/shellescape v1.4.1
 github.com/alessio/shellescape
 # github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535
 github.com/asaskevich/govalidator
@@ -184,6 +184,8 @@ github.com/emicklei/go-restful
 github.com/emicklei/go-restful/log
 # github.com/evanphx/json-patch v4.9.0+incompatible
 github.com/evanphx/json-patch
+# github.com/evanphx/json-patch/v5 v5.2.0
+github.com/evanphx/json-patch/v5
 # github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d
 github.com/exponent-io/jsonpath
 # github.com/fatih/color v1.9.0
@@ -473,7 +475,7 @@ github.com/operator-framework/operator-registry/pkg/sqlite/migrations
 github.com/otiai10/copy
 # github.com/pbnjay/strptime v0.0.0-20140226051138-5c05b0d668c9
 github.com/pbnjay/strptime
-# github.com/pelletier/go-toml v1.6.0
+# github.com/pelletier/go-toml v1.8.1
 github.com/pelletier/go-toml
 # github.com/peterbourgon/diskv v2.0.1+incompatible
 github.com/peterbourgon/diskv
@@ -619,7 +621,7 @@ golang.org/x/oauth2/jwt
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.0.0-20201112073958-5cba982894dd
+# golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
 golang.org/x/sys/cpu
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
@@ -765,7 +767,7 @@ gopkg.in/op/go-logging.v1
 gopkg.in/tomb.v1
 # gopkg.in/yaml.v2 v2.3.0
 gopkg.in/yaml.v2
-# gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
+# gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 gopkg.in/yaml.v3
 # helm.sh/helm/v3 v3.1.0-rc.1.0.20201215141456-e71d38b414eb
 helm.sh/helm/v3/cmd/helm
@@ -1508,13 +1510,11 @@ sigs.k8s.io/controller-tools/pkg/schemapatcher
 sigs.k8s.io/controller-tools/pkg/schemapatcher/internal/yaml
 sigs.k8s.io/controller-tools/pkg/version
 sigs.k8s.io/controller-tools/pkg/webhook
-# sigs.k8s.io/kind v0.7.0
+# sigs.k8s.io/kind v0.11.1
 sigs.k8s.io/kind/pkg/apis/config/defaults
-sigs.k8s.io/kind/pkg/apis/config/v1alpha3
 sigs.k8s.io/kind/pkg/apis/config/v1alpha4
 sigs.k8s.io/kind/pkg/cluster
 sigs.k8s.io/kind/pkg/cluster/constants
-sigs.k8s.io/kind/pkg/cluster/internal/context
 sigs.k8s.io/kind/pkg/cluster/internal/create
 sigs.k8s.io/kind/pkg/cluster/internal/create/actions
 sigs.k8s.io/kind/pkg/cluster/internal/create/actions/config
@@ -1531,13 +1531,17 @@ sigs.k8s.io/kind/pkg/cluster/internal/kubeconfig/internal/kubeconfig
 sigs.k8s.io/kind/pkg/cluster/internal/loadbalancer
 sigs.k8s.io/kind/pkg/cluster/internal/logs
 sigs.k8s.io/kind/pkg/cluster/internal/patch
+sigs.k8s.io/kind/pkg/cluster/internal/providers
+sigs.k8s.io/kind/pkg/cluster/internal/providers/common
 sigs.k8s.io/kind/pkg/cluster/internal/providers/docker
-sigs.k8s.io/kind/pkg/cluster/internal/providers/provider
-sigs.k8s.io/kind/pkg/cluster/internal/providers/provider/common
+sigs.k8s.io/kind/pkg/cluster/internal/providers/podman
 sigs.k8s.io/kind/pkg/cluster/nodes
 sigs.k8s.io/kind/pkg/cluster/nodeutils
+sigs.k8s.io/kind/pkg/cmd
+sigs.k8s.io/kind/pkg/cmd/kind/version
 sigs.k8s.io/kind/pkg/errors
 sigs.k8s.io/kind/pkg/exec
+sigs.k8s.io/kind/pkg/fs
 sigs.k8s.io/kind/pkg/internal/apis/config
 sigs.k8s.io/kind/pkg/internal/apis/config/encoding
 sigs.k8s.io/kind/pkg/internal/cli
