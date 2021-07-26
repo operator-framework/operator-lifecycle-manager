@@ -103,6 +103,10 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 
 	r.addInvariants(namespacedCache, installables)
 
+	if err := namespacedCache.Error(); err != nil {
+		return nil, err
+	}
+
 	input := make([]solver.Installable, 0)
 	for _, i := range installables {
 		input = append(input, i)

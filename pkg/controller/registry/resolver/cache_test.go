@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,6 +37,8 @@ func (s *BundleStreamStub) Recv() (*api.Bundle, error) {
 
 type RegistryClientStub struct {
 	BundleIterator *client.BundleIterator
+
+	ListBundlesError error
 }
 
 func (s *RegistryClientStub) Get() (client.Interface, error) {
@@ -58,7 +62,7 @@ func (s *RegistryClientStub) GetBundleThatProvides(ctx context.Context, group, v
 }
 
 func (s *RegistryClientStub) ListBundles(ctx context.Context) (*client.BundleIterator, error) {
-	return s.BundleIterator, nil
+	return s.BundleIterator, s.ListBundlesError
 }
 
 func (s *RegistryClientStub) GetPackage(ctx context.Context, packageName string) (*api.Package, error) {
@@ -338,4 +342,22 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 	assert.Equal(t, 1, len(result))
 	assert.Equal(t, "K.v1.g", result[0].providedAPIs.String())
 	assert.Equal(t, "K2.v2.g2", result[0].requiredAPIs.String())
+}
+
+func TestNamespaceOperatorCacheError(t *testing.T) {
+	rcp := RegistryClientProviderStub{}
+	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
+	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
+	rcp[key] = &RegistryClientStub{
+		ListBundlesError: errors.New("testing"),
+	}
+
+	logger, _ := test.NewNullLogger()
+	c := NewOperatorCache(rcp, logger, catsrcLister)
+	require.EqualError(t, c.Namespaced("dummynamespace").Error(), "error using catalog dummyname (in namespace dummynamespace): testing")
+	if snapshot, ok := c.snapshots[key]; !ok {
+		t.Fatalf("cache snapshot not found")
+	} else {
+		require.Zero(t, snapshot.expiry)
+	}
 }
