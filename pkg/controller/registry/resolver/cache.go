@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/errors"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
@@ -77,6 +79,19 @@ type NamespacedOperatorCache struct {
 	namespaces []string
 	existing   *registry.CatalogKey
 	snapshots  map[registry.CatalogKey]*CatalogSnapshot
+}
+
+func (c *NamespacedOperatorCache) Error() error {
+	var errs []error
+	for key, snapshot := range c.snapshots {
+		snapshot.m.Lock()
+		err := snapshot.err
+		snapshot.m.Unlock()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("error using catalog %s (in namespace %s): %w", key.Name, key.Namespace, err))
+		}
+	}
+	return errors.NewAggregate(errs)
 }
 
 func (c *OperatorCache) Expire(catalog registry.CatalogKey) {
@@ -183,6 +198,12 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 
 func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot, registry client.Interface) {
 	defer snapshot.m.Unlock()
+	defer func() {
+		// Don't cache an errorred snapshot.
+		if snapshot.err != nil {
+			snapshot.expiry = time.Time{}
+		}
+	}()
 
 	c.sem <- struct{}{}
 	defer func() { <-c.sem }()
@@ -195,6 +216,7 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 	it, err := registry.ListBundles(ctx)
 	if err != nil {
 		snapshot.logger.Errorf("failed to list bundles: %s", err.Error())
+		snapshot.err = err
 		return
 	}
 	c.logger.WithField("catalog", snapshot.key.String()).Debug("updating cache")
@@ -223,6 +245,7 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 	}
 	if err := it.Error(); err != nil {
 		snapshot.logger.Warnf("error encountered while listing bundles: %s", err.Error())
+		snapshot.err = err
 	}
 	snapshot.operators = operators
 }
@@ -293,6 +316,7 @@ type CatalogSnapshot struct {
 	m         sync.RWMutex
 	pop       context.CancelFunc
 	priority  catalogSourcePriority
+	err       error
 }
 
 func (s *CatalogSnapshot) Cancel() {
@@ -400,6 +424,7 @@ type MultiCatalogOperatorFinder interface {
 	Catalog(registry.CatalogKey) OperatorFinder
 	FindPreferred(*registry.CatalogKey, ...OperatorPredicate) []*Operator
 	WithExistingOperators(*CatalogSnapshot) MultiCatalogOperatorFinder
+	Error() error
 	OperatorFinder
 }
 

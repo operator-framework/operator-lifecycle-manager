@@ -33,7 +33,7 @@ func (k *CatalogKey) Virtual() bool {
 
 func NewVirtualCatalogKey(namespace string) CatalogKey {
 	return CatalogKey{
-		Name: ExistingOperatorKey,
+		Name:      ExistingOperatorKey,
 		Namespace: namespace,
 	}
 }
