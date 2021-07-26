@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-
 	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -13,6 +11,7 @@ import (
 
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -1078,8 +1077,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
-				// lack of full api response falls back to csv name
-				name:         "testCSV",
+				name:         "testBundle",
 				version:      &version.Version,
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
@@ -1155,81 +1153,16 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "BundleReplaceOverrides",
-			args: args{
-				bundle:    bundleNoAPIs,
-				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
-			},
-			want: &Operator{
-				// lack of full api response falls back to csv name
-				name:         "testCSV",
-				providedAPIs: EmptyAPISet(),
-				requiredAPIs: EmptyAPISet(),
-				bundle:       bundleNoAPIs,
-				version:      &version.Version,
-				sourceInfo: &OperatorSourceInfo{
-					Package: "testPackage",
-					Channel: "testChannel",
-					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
-				},
-			},
-		},
-		{
-			name: "BundleCsvFallback",
+			name: "BundleIgnoreCSV",
 			args: args{
 				bundle:    bundleWithAPIsUnextracted,
 				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
-				name: "testCSV",
-				providedAPIs: APISet{
-					opregistry.APIKey{
-						Group:   "crd.group.com",
-						Version: "v1",
-						Kind:    "OwnedCRD",
-						Plural:  "owneds",
-					}: struct{}{},
-					opregistry.APIKey{
-						Group:   "apis.group.com",
-						Version: "v1",
-						Kind:    "OwnedAPI",
-						Plural:  "ownedapis",
-					}: struct{}{},
-				},
-				requiredAPIs: APISet{
-					opregistry.APIKey{
-						Group:   "crd.group.com",
-						Version: "v1",
-						Kind:    "RequiredCRD",
-						Plural:  "requireds",
-					}: struct{}{},
-					opregistry.APIKey{
-						Group:   "apis.group.com",
-						Version: "v1",
-						Kind:    "RequiredAPI",
-						Plural:  "requiredapis",
-					}: struct{}{},
-				},
-				properties: []*api.Property{
-					{
-						Type:  "olm.gvk",
-						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
-					},
-					{
-						Type:  "olm.gvk",
-						Value: "{\"group\":\"apis.group.com\",\"kind\":\"OwnedAPI\",\"version\":\"v1\"}",
-					},
-					{
-						Type:  "olm.gvk.required",
-						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
-					},
-					{
-						Type:  "olm.gvk.required",
-						Value: "{\"group\":\"crd.group.com\",\"kind\":\"RequiredCRD\",\"version\":\"v1\"}",
-					},
-				},
-				bundle:  bundleWithAPIsUnextracted,
-				version: &version.Version,
+				name:         "testBundle",
+				providedAPIs: EmptyAPISet(),
+				requiredAPIs: EmptyAPISet(),
+				bundle:       bundleWithAPIsUnextracted,
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
@@ -1238,14 +1171,14 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "bundle in default channel",
+			name: "BundleInDefaultChannel",
 			args: args{
 				bundle:         bundleNoAPIs,
 				sourceKey:      registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 				defaultChannel: "testChannel",
 			},
 			want: &Operator{
-				name:         "testCSV",
+				name:         "testBundle",
 				version:      &version.Version,
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
@@ -1255,26 +1188,6 @@ func TestNewOperatorFromBundle(t *testing.T) {
 					Channel:        "testChannel",
 					Catalog:        registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 					DefaultChannel: true,
-				},
-			},
-		},
-		{
-			name: "BundleNoAPIs",
-			args: args{
-				bundle:    bundleNoAPIs,
-				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
-			},
-			want: &Operator{
-				// lack of full api response falls back to csv name
-				name:         "testCSV",
-				version:      &version.Version,
-				providedAPIs: EmptyAPISet(),
-				requiredAPIs: EmptyAPISet(),
-				bundle:       bundleNoAPIs,
-				sourceInfo: &OperatorSourceInfo{
-					Package: "testPackage",
-					Channel: "testChannel",
-					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 				},
 			},
 		},
