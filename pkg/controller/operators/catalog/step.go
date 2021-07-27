@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsv1client "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
@@ -14,6 +13,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
@@ -132,27 +132,33 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(createError) {
-				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				crd.SetResourceVersion(currentCRD.GetResourceVersion())
-				if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
-				}
+				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
+					crd.SetResourceVersion(currentCRD.GetResourceVersion())
+					if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
+						return fmt.Errorf("error validating existing CRs against new CRD's schema for %q: %w", step.Resource.Name, err)
+					}
 
-				// check to see if stored versions changed and whether the upgrade could cause potential data loss
-				safe, err := crdlib.SafeStorageVersionUpgrade(currentCRD, crd)
-				if !safe {
-					b.logger.Errorf("risk of data loss updating %s: %s", step.Resource.Name, err)
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "risk of data loss updating %s", step.Resource.Name)
-				}
-				if err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "checking CRD for potential data loss updating %s", step.Resource.Name)
-				}
+					// check to see if stored versions changed and whether the upgrade could cause potential data loss
+					safe, err := crdlib.SafeStorageVersionUpgrade(currentCRD, crd)
+					if !safe {
+						b.logger.Errorf("risk of data loss updating %q: %s", step.Resource.Name, err)
+						return fmt.Errorf("risk of data loss updating %q: %w", step.Resource.Name, err)
+					}
+					if err != nil {
+						return fmt.Errorf("checking CRD for potential data loss updating %q: %w", step.Resource.Name, err)
+					}
 
-				// Update CRD to new version
-				setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd, currentCRD)
-				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
+					// Update CRD to new version
+					setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd, currentCRD)
+					_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
+					if err != nil {
+						return fmt.Errorf("error updating CRD %q: %w", step.Resource.Name, err)
+					}
+					return nil
+				})
 				if err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
+					return v1alpha1.StepStatusUnknown, err
 				}
 				// If it already existed, mark the step as Present.
 				// they were equal - mark CRD as present
@@ -181,7 +187,7 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 				if k8serrors.IsNotFound(err) {
 					return v1alpha1.StepStatusNotPresent, nil
 				} else {
-					return v1alpha1.StepStatusNotPresent, errors.Wrapf(err, "error finding the %s CRD", crd.Name)
+					return v1alpha1.StepStatusNotPresent, fmt.Errorf("error finding the %q CRD: %w", crd.Name, err)
 				}
 			}
 			established, namesAccepted := false, false
@@ -210,28 +216,34 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if k8serrors.IsAlreadyExists(createError) {
-				currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
-				crd.SetResourceVersion(currentCRD.GetResourceVersion())
+				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
+					crd.SetResourceVersion(currentCRD.GetResourceVersion())
 
-				if err = validateV1Beta1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "error validating existing CRs against new CRD's schema: %s", step.Resource.Name)
-				}
+					if err = validateV1Beta1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
+						return fmt.Errorf("error validating existing CRs against new CRD's schema for %q: %w", step.Resource.Name, err)
+					}
 
-				// check to see if stored versions changed and whether the upgrade could cause potential data loss
-				safe, err := crdlib.SafeStorageVersionUpgrade(currentCRD, crd)
-				if !safe {
-					b.logger.Errorf("risk of data loss updating %s: %s", step.Resource.Name, err)
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "risk of data loss updating %s", step.Resource.Name)
-				}
+					// check to see if stored versions changed and whether the upgrade could cause potential data loss
+					safe, err := crdlib.SafeStorageVersionUpgrade(currentCRD, crd)
+					if !safe {
+						b.logger.Errorf("risk of data loss updating %q: %s", step.Resource.Name, err)
+						return fmt.Errorf("risk of data loss updating %q: %w", step.Resource.Name, err)
+					}
+					if err != nil {
+						return fmt.Errorf("checking CRD for potential data loss updating %q: %w", step.Resource.Name, err)
+					}
+
+					// Update CRD to new version
+					setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd, currentCRD)
+					_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
+					if err != nil {
+						return fmt.Errorf("error updating CRD %q: %w", step.Resource.Name, err)
+					}
+					return nil
+				})
 				if err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "checking CRD for potential data loss updating %s", step.Resource.Name)
-				}
-
-				// Update CRD to new version
-				setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd, currentCRD)
-				_, err = client.CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
-				if err != nil {
-					return v1alpha1.StepStatusUnknown, errors.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
+					return v1alpha1.StepStatusUnknown, err
 				}
 				// If it already existed, mark the step as Present.
 				// they were equal - mark CRD as present
