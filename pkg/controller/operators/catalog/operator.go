@@ -1245,23 +1245,18 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 			Approved:                   installPlanApproval == v1alpha1.ApprovalAutomatic,
 			Generation:                 gen,
 		},
+		Status: v1alpha1.InstallPlanStatus{
+			Phase:          phase,
+			Plan:           steps,
+			CatalogSources: catalogSources,
+			BundleLookups:  bundleLookups,
+		},
 	}
 	for _, sub := range subs {
 		ownerutil.AddNonBlockingOwner(ip, sub)
 	}
 
 	res, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).Create(context.TODO(), ip, metav1.CreateOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	res.Status = v1alpha1.InstallPlanStatus{
-		Phase:          phase,
-		Plan:           steps,
-		CatalogSources: catalogSources,
-		BundleLookups:  bundleLookups,
-	}
-	res, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(context.TODO(), res, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1548,37 +1543,35 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		}
 	}
 
-	if ref != nil {
-		out := plan.DeepCopy()
-		out.Status.AttenuatedServiceAccountRef = ref
-
-		if !reflect.DeepEqual(plan, out) {
-			if _, updateErr := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); updateErr != nil {
-				syncError = fmt.Errorf("failed to attach attenuated ServiceAccount to status - %v", updateErr)
-				return
-			}
-
-			logger.WithField("attenuated-sa", ref.Name).Info("successfully attached attenuated ServiceAccount to status")
+	if ref != nil && plan.Status.AttenuatedServiceAccountRef != ref {
+		if _, updateErr := o.updateInstallPlanStatus(context.TODO(), plan, func(status *v1alpha1.InstallPlanStatus) {
+			status.AttenuatedServiceAccountRef = ref
+		}); updateErr != nil {
+			syncError = fmt.Errorf("failed to attach attenuated ServiceAccount to status - %v", updateErr)
 			return
 		}
+
+		logger.WithField("attenuated-sa", ref.Name).Info("successfully attached attenuated ServiceAccount to status")
+		return
 	}
 
 	// Attempt to unpack bundles before installing
 	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
 	if len(plan.Status.BundleLookups) > 0 {
-		unpacked, out, err := o.unpackBundles(plan)
+		unpacked, want, err := o.unpackBundles(plan)
 		if err != nil {
 			// Retry sync if non-fatal error
 			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
 			return
 		}
-
-		if !reflect.DeepEqual(plan.Status, out.Status) {
+		if !reflect.DeepEqual(plan.Status, want.Status) {
 			logger.Warnf("status not equal, updating...")
-			if _, err := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
+			if _, err := o.updateInstallPlanStatus(context.TODO(), plan, func(status *v1alpha1.InstallPlanStatus) {
+				*status = want.Status
+			}); err != nil {
 				syncError = fmt.Errorf("failed to update installplan bundle lookups: %v", err)
-			}
 
+			}
 			return
 		}
 
@@ -1627,7 +1620,9 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	defer o.requeueSubscriptionForInstallPlan(plan, logger)
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), outInstallPlan, metav1.UpdateOptions{}); err != nil {
+	if _, err := o.updateInstallPlanStatus(context.TODO(), plan, func(status *v1alpha1.InstallPlanStatus) {
+		*status = outInstallPlan.Status
+	}); err != nil {
 		logger = logger.WithField("updateError", err.Error())
 		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
@@ -1653,14 +1648,13 @@ func hasBundleLookupFailureCondition(plan *v1alpha1.InstallPlan) (bool, *v1alpha
 }
 
 func (o *Operator) transitionInstallPlanToFailed(plan *v1alpha1.InstallPlan, logger logrus.FieldLogger, reason v1alpha1.InstallPlanConditionReason, message string) error {
-	now := o.now()
-	out := plan.DeepCopy()
-	out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
-		reason, message, &now))
-	out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-
 	logger.Info("transitioning InstallPlan to failed")
-	_, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
+	_, err := o.updateInstallPlanStatus(context.TODO(), plan, func(status *v1alpha1.InstallPlanStatus) {
+		now := o.now()
+		status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
+			reason, message, &now))
+		status.Phase = v1alpha1.InstallPlanPhaseFailed
+	})
 	if err == nil {
 		return nil
 	}
@@ -1691,15 +1685,16 @@ func (o *Operator) requeueSubscriptionForInstallPlan(plan *v1alpha1.InstallPlan,
 }
 
 func (o *Operator) setInstallPlanInstalledCond(ip *v1alpha1.InstallPlan, reason v1alpha1.InstallPlanConditionReason, message string, logger *logrus.Entry) (*v1alpha1.InstallPlan, error) {
-	now := o.now()
-	ip.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled, reason, message, &now))
-	outIP, err := o.client.OperatorsV1alpha1().InstallPlans(ip.GetNamespace()).UpdateStatus(context.TODO(), ip, metav1.UpdateOptions{})
+	out, err := o.updateInstallPlanStatus(context.TODO(), ip, func(status *v1alpha1.InstallPlanStatus) {
+		now := o.now()
+		status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled, reason, message, &now))
+	})
 	if err != nil {
 		logger = logger.WithField("updateError", err.Error())
 		logger.Errorf("error updating InstallPlan status")
 		return nil, nil
 	}
-	return outIP, nil
+	return out, nil
 }
 
 type installPlanTransitioner interface {
@@ -2468,4 +2463,31 @@ var supportedKinds = map[string]struct{}{
 func isSupported(kind string) bool {
 	_, ok := supportedKinds[kind]
 	return ok
+}
+
+func (o *Operator) updateInstallPlanStatus(ctx context.Context, ip *v1alpha1.InstallPlan, mutate func(status *v1alpha1.InstallPlanStatus)) (*v1alpha1.InstallPlan, error) {
+	after := ip.DeepCopy()
+	mutate(&after.Status)
+	if reflect.DeepEqual(ip.Status, after.Status) {
+		return ip, nil
+	}
+
+	var ret *v1alpha1.InstallPlan
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		out, getErr := o.client.OperatorsV1alpha1().InstallPlans(ip.GetNamespace()).Get(ctx, ip.GetName(), metav1.GetOptions{})
+		if getErr != nil {
+			return getErr
+		}
+		mutate(&out.Status)
+		out, updateErr := o.client.OperatorsV1alpha1().InstallPlans(ip.GetNamespace()).UpdateStatus(ctx, out, metav1.UpdateOptions{})
+		if updateErr != nil {
+			return updateErr
+		}
+		ret = out
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
 }

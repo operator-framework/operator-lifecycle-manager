@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -43,14 +42,6 @@ func (o *Operator) triggerInstallPlanRetry(obj interface{}) (syncError error) {
 		return ip.Status.Phase == v1alpha1.InstallPlanPhaseFailed && ip.Status.AttenuatedServiceAccountRef != nil
 	}
 
-	update := func(ip *v1alpha1.InstallPlan) error {
-		out := ip.DeepCopy()
-		out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
-		_, err := o.client.OperatorsV1alpha1().InstallPlans(ip.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
-
-		return err
-	}
-
 	var errs []error
 	for _, ip := range ips {
 		if !isTarget(ip) {
@@ -63,7 +54,9 @@ func (o *Operator) triggerInstallPlanRetry(obj interface{}) (syncError error) {
 			"phase":     ip.Status.Phase,
 		})
 
-		if updateErr := update(ip); updateErr != nil {
+		if _, updateErr := o.updateInstallPlanStatus(context.TODO(), ip, func(status *v1alpha1.InstallPlanStatus) {
+			status.Phase = v1alpha1.InstallPlanPhaseInstalling
+		}); updateErr != nil {
 			errs = append(errs, updateErr)
 			logger.WithError(updateErr).Warn("failed to kick off InstallPlan retry")
 			continue
