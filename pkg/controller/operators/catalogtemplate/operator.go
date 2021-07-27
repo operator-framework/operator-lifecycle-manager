@@ -41,7 +41,6 @@ type Operator struct {
 	lister                        operatorlister.OperatorLister   // union of versioned informer listers
 	catalogSourceTemplateQueueSet *queueinformer.ResourceQueueSet // work queues for a catalog source update
 	resyncPeriod                  func() time.Duration            // period of time between resync
-	ctx                           context.Context                 // context used for shutting down
 }
 
 func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logger, resync time.Duration, operatorNamespace string) (*Operator, error) {
@@ -94,7 +93,6 @@ func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logg
 		lister:                        lister,
 		catalogSourceTemplateQueueSet: queueinformer.NewEmptyResourceQueueSet(),
 		resyncPeriod:                  resyncPeriod,
-		ctx:                           ctx,
 	}
 
 	// Wire OLM CR sharedIndexInformers
@@ -106,13 +104,11 @@ func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logg
 	catalogTemplateSrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogSourceTemplate")
 	op.catalogSourceTemplateQueueSet.Set(metav1.NamespaceAll, catalogTemplateSrcQueue)
 	catsrcQueueInformer, err := queueinformer.NewQueueInformer(
-		op.ctx,
-		// TODO: commented out sections I don't think are necessary
-		// queueinformer.WithMetricsProvider(metrics.NewMetricsCatalogSource(op.lister.OperatorsV1alpha1().CatalogSourceLister())),
+		ctx,
 		queueinformer.WithLogger(op.logger),
 		queueinformer.WithQueue(catalogTemplateSrcQueue),
 		queueinformer.WithInformer(catsrcInformer.Informer()),
-		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncCatalogSources).ToSyncer()), // ToSyncerWithDelete(op.handleCatSrcDeletion)), TODO do we need to handle deletion specially?
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncCatalogSources).ToSyncer()),
 	)
 	if err != nil {
 		return nil, err
@@ -141,9 +137,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 		"id":         queueinformer.NewLoopID(),
 	})
 	logger.Info("syncing catalog source for annotation templates")
-
-	// this is our opportunity to discover GVK templates and setup watchers (if possible)
-	catalogsource.InitializeCatalogSourceTemplates(outputCatalogSource)
 
 	catalogImageTemplate := catalogsource.GetCatalogTemplateAnnotation(outputCatalogSource)
 	if catalogImageTemplate == "" {

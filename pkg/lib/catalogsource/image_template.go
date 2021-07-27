@@ -1,23 +1,17 @@
 package catalogsource
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/blang/semver/v4"
+	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/util/jsonpath"
 )
 
 const (
@@ -30,21 +24,6 @@ const (
 	capGrpKubeMinorV = "kubeminorv"
 	// capGrpKubePatchV is a capture group name for a kube patch version
 	capGrpKubePatchV = "kubepatchv"
-	// capGrpGvk is a capture group name for a dynamic template that uses its own subgroups
-	capGrpGvk = "gvk"
-
-	// capSubgrpGroup is a sub capture group name used in a dynamic template
-	capSubgrpGroup = "group"
-	// capSubgrpVersion is a sub capture group name used in a dynamic template
-	capSubgrpVersion = "version"
-	// capSubgrpKind is a sub capture group name used in a dynamic template
-	capSubgrpKind = "kind"
-	// capSubgrpName is a sub capture group name used in a dynamic template
-	capSubgrpName = "name"
-	// capSubgrpNamespace is a sub capture group name used in a dynamic template
-	capSubgrpNamespace = "namespace"
-	// capSubgrpJsonpath is a sub capture group name used in a dynamic template
-	capSubgrpJsonpath = "jsonpath"
 
 	// static templates
 
@@ -54,9 +33,6 @@ const (
 	TemplKubeMinorV = "{kube_minor_version}"
 	// TemplKubePatchV is a template that represents the kube patch version
 	TemplKubePatchV = "{kube_patch_version}"
-
-	// templGvk is a dynamic template that uses its own subgroups
-	templGvk = "{group:(?P<group>.*?),version:(?P<version>.*?),kind:(?P<kind>.*?),name:(?P<name>.*?),namespace:(?P<namespace>.*?),jsonpath:(?P<jsonpath>{.*?})}"
 
 	// templateMissing represents a value that could not be obtained from the cluster
 	templateMissing = "missing"
@@ -72,17 +48,7 @@ const (
 var templateNameToReplacementValuesMap = map[string]string{}
 
 // templateMutex is a package scoped mutex for synchronizing access to templateNameToReplacementValuesMap
-var templateMutex sync.Mutex
-
-// convertToKey is a function that creates a key for templateNameToReplacementValuesMap based on a GVK key and json path
-func convertToKey(key GVK_Key, jsonPath string) string {
-	return fmt.Sprintf("{group:%s,version:%s,kind:%s,name:%s,namespace:%s,jsonpath:%s}", key.Group, key.Version, key.Kind, key.name, key.namespace, jsonPath)
-}
-
-// gvkToJSONPathMap is a multimap (i.e. one key with multiple values) where each value is
-// zero or more JSON paths. In other words the user could specify multiple JSON path references
-// for the same kubernetes manifest
-var gvkToJSONPathMap = map[GVK_Key][]string{}
+var templateMutex sync.RWMutex
 
 func init() {
 	// Handle known static templates
@@ -106,10 +72,9 @@ func initializeIfNeeded(templateKey string) {
 // resetMaps is only useful for test cases
 func resetMaps() {
 	templateMutex.Lock()
-	defer templateMutex.Unlock()
-
 	templateNameToReplacementValuesMap = map[string]string{}
-	gvkToJSONPathMap = map[GVK_Key][]string{}
+	templateMutex.Unlock()
+
 	initializeIfNeeded(TemplKubeMajorV)
 	initializeIfNeeded(TemplKubeMinorV)
 	initializeIfNeeded(TemplKubePatchV)
@@ -139,12 +104,9 @@ var regexList = regexEntries{
 	{capGrpKubeMajorV, TemplKubeMajorV},
 	{capGrpKubeMinorV, TemplKubeMinorV},
 	{capGrpKubePatchV, TemplKubePatchV},
-	{capGrpGvk, templGvk},
 }
 
 var regexImageTemplates = regexp.MustCompile(regexList.String())
-
-var regexGVKTemplate = regexp.MustCompile(templGvk)
 
 // ReplaceTemplates takes a catalog image reference containing templates (i.e. catalogImageTemplate)
 // and attempts to replace the templates with actual values (if available).
@@ -155,8 +117,8 @@ var regexGVKTemplate = regexp.MustCompile(templGvk)
 // fetched yet). Providing an empty catalogImageTemplate results in empty processedCatalogImageTemplate and
 // zero length unresolvedTemplates
 func ReplaceTemplates(catalogImageTemplate string) (processedCatalogImageTemplate string, unresolvedTemplates []string) {
-	templateMutex.Lock()
-	defer templateMutex.Unlock()
+	templateMutex.RLock()
+	defer templateMutex.RUnlock()
 
 	// init to empty slice
 	unresolvedTemplates = []string{}
@@ -197,161 +159,6 @@ func GetCatalogTemplateAnnotation(catalogSource *v1alpha1.CatalogSource) string 
 		return ""
 	} else {
 		return catalogImageTemplate
-	}
-}
-
-// GVK_Key uniquely represents a Group/Version/Kind (with optional name/namespace)
-// and can be used as a key for retrieval of data associated with this key
-type GVK_Key struct {
-	schema.GroupVersionKind
-	name      string
-	namespace string
-}
-
-func InitializeCatalogSourceTemplates(catalogSource *v1alpha1.CatalogSource) []GVK_Key {
-
-	// capture a list of keys that were found in this catalog source
-	foundGVKs := []GVK_Key{}
-
-	// findNamedMatches will return a map whose key is the named capture group, and value is the value of the capture group
-	findNamedMatches := func(str string) map[string]string {
-		// Note: matches and names indices are "in sync"
-		matches := regexGVKTemplate.FindStringSubmatch(str)
-		names := regexGVKTemplate.SubexpNames()
-
-		results := map[string]string{}
-		for i, match := range matches {
-			// only add named groups to the map
-			if names[i] != "" {
-				results[names[i]] = match
-			}
-		}
-		return results
-	}
-
-	catalogImageTemplate := GetCatalogTemplateAnnotation(catalogSource)
-	if catalogImageTemplate == "" {
-		// bail out since there's nothing to do here
-		return foundGVKs
-	}
-
-	/* Handle GVK templates */
-
-	// get every GVK template available (if any)
-	gvkTemplates := regexGVKTemplate.FindAllString(catalogImageTemplate, -1)
-	// add each GVK template for later use, initializing to missing value
-	for _, gvkTemplate := range gvkTemplates {
-		initializeIfNeeded(gvkTemplate)
-
-		// get the sub groups
-		subGroupMap := findNamedMatches(gvkTemplate)
-
-		// create GVKTemplate to use as a key... add values from the subgroups as best we can, defaults to empty string for values not found
-		key := GVK_Key{
-			GroupVersionKind: schema.GroupVersionKind{Group: subGroupMap[capSubgrpGroup], Version: subGroupMap[capSubgrpVersion], Kind: subGroupMap[capSubgrpKind]},
-			name:             subGroupMap[capSubgrpName],
-			namespace:        subGroupMap[capSubgrpNamespace],
-		}
-		jsonPath := subGroupMap[capSubgrpJsonpath]
-
-		// see if we've already added this key (don't add duplicates)
-		gvkPresent := false
-		for _, existingGVK := range foundGVKs {
-			if reflect.DeepEqual(existingGVK, key) {
-				gvkPresent = true
-			}
-		}
-		if !gvkPresent {
-			foundGVKs = append(foundGVKs, key)
-		}
-
-		// add this entry to the map and append the jsonPath to the array
-		if existingJsonPaths, ok := gvkToJSONPathMap[key]; ok {
-			// map already has this key, now find out if we've already added this path
-			foundEntry := false
-			for _, existingJsonPath := range existingJsonPaths {
-				if jsonPath == existingJsonPath {
-					foundEntry = true
-				}
-			}
-			// if we did not find a jsonpath entry then add it now
-			if !foundEntry {
-				gvkToJSONPathMap[key] = append(gvkToJSONPathMap[key], jsonPath)
-			}
-		} else {
-			gvkToJSONPathMap[key] = append(gvkToJSONPathMap[key], jsonPath)
-		}
-
-	}
-
-	return foundGVKs
-}
-
-func UpdateGVKValue(u *unstructured.Unstructured, logger *logrus.Logger) {
-	templateMutex.Lock()
-	defer templateMutex.Unlock()
-
-	// reconstitute the key
-	key := GVK_Key{
-		GroupVersionKind: u.GetObjectKind().GroupVersionKind(),
-		name:             u.GetName(),
-		namespace:        u.GetNamespace(),
-	}
-
-	// find the JSON paths
-	if jsonPaths, ok := gvkToJSONPathMap[key]; ok {
-
-		// convert the unstructured object into JSON as bytes
-		jsonBytes, err := u.MarshalJSON()
-		if err != nil {
-			logger.WithError(err).Warn("unable to convert kube manifest to JSON")
-		}
-
-		// pass the JSON as bytes through the go json library so its in the right format
-		var processedJSON interface{}
-		err = json.Unmarshal(jsonBytes, &processedJSON)
-		if err != nil {
-			logger.WithError(err).Warn("unable to convert kube manifest json data into usable form")
-		}
-
-		for _, jsonPath := range jsonPaths {
-
-			gvkLogger := logger.WithFields(logrus.Fields{
-				"gvk":      u.GetObjectKind().GroupVersionKind().String(),
-				"jsonPath": jsonPath,
-			})
-			// create the json path parser
-			jsonPathParser := jsonpath.New("GVK path parser")
-
-			// parse the json path template
-			err = jsonPathParser.Parse(jsonPath)
-			if err != nil {
-				gvkLogger.WithError(err).Warn("unable to parse json path template")
-				continue
-			}
-
-			// execute the parser using the JSON data writing the results into a buffer
-			buf := new(bytes.Buffer)
-			err = jsonPathParser.Execute(buf, processedJSON)
-			if err != nil {
-				gvkLogger.WithError(err).Warn("unable to execute json path parsing")
-				continue
-			}
-
-			templateMapKey := convertToKey(key, jsonPath)
-			templateMapValue := buf.String()
-
-			if jsonPath == templateMapValue {
-				// the jsonpath is exactly the same as the templateMapValue, this means
-				// that the jsonpath was probably invalid, so don't update
-				gvkLogger.Debugf("jsonpath %q is likely invalid (maybe curly braces are missing?)", jsonPath)
-				continue
-			}
-			// reconstruct the key for the template replacement map and add
-			// whatever we got from the json path execution
-			templateNameToReplacementValuesMap[templateMapKey] = templateMapValue
-			gvkLogger.Debugf("updated templateNameToReplacementValuesMap: key=%q value%q", templateMapKey, templateMapValue)
-		}
 	}
 }
 
