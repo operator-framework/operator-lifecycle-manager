@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/blang/semver/v4"
 
@@ -70,6 +71,9 @@ const (
 // The values are initialized to variable "templateMissing"
 var templateNameToReplacementValuesMap = map[string]string{}
 
+// templateMutex is a package scoped mutex for synchronizing access to templateNameToReplacementValuesMap
+var templateMutex sync.Mutex
+
 // convertToKey is a function that creates a key for templateNameToReplacementValuesMap based on a GVK key and json path
 func convertToKey(key GVK_Key, jsonPath string) string {
 	return fmt.Sprintf("{group:%s,version:%s,kind:%s,name:%s,namespace:%s,jsonpath:%s}", key.Group, key.Version, key.Kind, key.name, key.namespace, jsonPath)
@@ -89,6 +93,9 @@ func init() {
 
 // initializeIfNeeded sets the map to a "missing" value if its not already present
 func initializeIfNeeded(templateKey string) {
+	templateMutex.Lock()
+	defer templateMutex.Unlock()
+
 	// have we encountered this template already?
 	if _, ok := templateNameToReplacementValuesMap[templateKey]; !ok {
 		// this is a new template, so default to missing value
@@ -98,6 +105,9 @@ func initializeIfNeeded(templateKey string) {
 
 // resetMaps is only useful for test cases
 func resetMaps() {
+	templateMutex.Lock()
+	defer templateMutex.Unlock()
+
 	templateNameToReplacementValuesMap = map[string]string{}
 	gvkToJSONPathMap = map[GVK_Key][]string{}
 	initializeIfNeeded(TemplKubeMajorV)
@@ -145,6 +155,8 @@ var regexGVKTemplate = regexp.MustCompile(templGvk)
 // fetched yet). Providing an empty catalogImageTemplate results in empty processedCatalogImageTemplate and
 // zero length unresolvedTemplates
 func ReplaceTemplates(catalogImageTemplate string) (processedCatalogImageTemplate string, unresolvedTemplates []string) {
+	templateMutex.Lock()
+	defer templateMutex.Unlock()
 
 	// init to empty slice
 	unresolvedTemplates = []string{}
@@ -218,60 +230,66 @@ func InitializeCatalogSourceTemplates(catalogSource *v1alpha1.CatalogSource) []G
 	}
 
 	catalogImageTemplate := GetCatalogTemplateAnnotation(catalogSource)
-	if catalogImageTemplate != "" {
-		/* Handle GVK templates */
+	if catalogImageTemplate == "" {
+		// bail out since there's nothing to do here
+		return foundGVKs
+	}
 
-		// get every GVK template available (if any)
-		gvkTemplates := regexGVKTemplate.FindAllString(catalogImageTemplate, -1)
-		// add each GVK template for later use, initializing to missing value
-		for _, gvkTemplate := range gvkTemplates {
-			initializeIfNeeded(gvkTemplate)
+	/* Handle GVK templates */
 
-			// get the sub groups
-			subGroupMap := findNamedMatches(gvkTemplate)
+	// get every GVK template available (if any)
+	gvkTemplates := regexGVKTemplate.FindAllString(catalogImageTemplate, -1)
+	// add each GVK template for later use, initializing to missing value
+	for _, gvkTemplate := range gvkTemplates {
+		initializeIfNeeded(gvkTemplate)
 
-			// create GVKTemplate to use as a key... add values from the subgroups as best we can, defaults to empty string for values not found
-			key := GVK_Key{
-				GroupVersionKind: schema.GroupVersionKind{Group: subGroupMap[capSubgrpGroup], Version: subGroupMap[capSubgrpVersion], Kind: subGroupMap[capSubgrpKind]},
-				name:             subGroupMap[capSubgrpName],
-				namespace:        subGroupMap[capSubgrpNamespace],
+		// get the sub groups
+		subGroupMap := findNamedMatches(gvkTemplate)
+
+		// create GVKTemplate to use as a key... add values from the subgroups as best we can, defaults to empty string for values not found
+		key := GVK_Key{
+			GroupVersionKind: schema.GroupVersionKind{Group: subGroupMap[capSubgrpGroup], Version: subGroupMap[capSubgrpVersion], Kind: subGroupMap[capSubgrpKind]},
+			name:             subGroupMap[capSubgrpName],
+			namespace:        subGroupMap[capSubgrpNamespace],
+		}
+		jsonPath := subGroupMap[capSubgrpJsonpath]
+
+		// see if we've already added this key (don't add duplicates)
+		gvkPresent := false
+		for _, existingGVK := range foundGVKs {
+			if reflect.DeepEqual(existingGVK, key) {
+				gvkPresent = true
 			}
-			jsonPath := subGroupMap[capSubgrpJsonpath]
+		}
+		if !gvkPresent {
+			foundGVKs = append(foundGVKs, key)
+		}
 
-			// see if we've already added this key (don't add duplicates)
-			gvkPresent := false
-			for _, existingGVK := range foundGVKs {
-				if reflect.DeepEqual(existingGVK, key) {
-					gvkPresent = true
+		// add this entry to the map and append the jsonPath to the array
+		if existingJsonPaths, ok := gvkToJSONPathMap[key]; ok {
+			// map already has this key, now find out if we've already added this path
+			foundEntry := false
+			for _, existingJsonPath := range existingJsonPaths {
+				if jsonPath == existingJsonPath {
+					foundEntry = true
 				}
 			}
-			if !gvkPresent {
-				foundGVKs = append(foundGVKs, key)
-			}
-
-			// add this entry to the map and append the jsonPath to the array
-			if existingJsonPaths, ok := gvkToJSONPathMap[key]; ok {
-				// map already has this key, now find out if we've already added this path
-				foundEntry := false
-				for _, existingJsonPath := range existingJsonPaths {
-					if jsonPath == existingJsonPath {
-						foundEntry = true
-					}
-				}
-				// if we did not find a jsonpath entry then add it now
-				if !foundEntry {
-					gvkToJSONPathMap[key] = append(gvkToJSONPathMap[key], jsonPath)
-				}
-			} else {
+			// if we did not find a jsonpath entry then add it now
+			if !foundEntry {
 				gvkToJSONPathMap[key] = append(gvkToJSONPathMap[key], jsonPath)
 			}
-
+		} else {
+			gvkToJSONPathMap[key] = append(gvkToJSONPathMap[key], jsonPath)
 		}
+
 	}
+
 	return foundGVKs
 }
 
 func UpdateGVKValue(u *unstructured.Unstructured, logger *logrus.Logger) {
+	templateMutex.Lock()
+	defer templateMutex.Unlock()
 
 	// reconstitute the key
 	key := GVK_Key{
@@ -338,6 +356,9 @@ func UpdateGVKValue(u *unstructured.Unstructured, logger *logrus.Logger) {
 }
 
 func UpdateKubeVersion(serverVersion *version.Info, logger *logrus.Logger) {
+	templateMutex.Lock()
+	defer templateMutex.Unlock()
+
 	if serverVersion == nil {
 		logger.Warn("no server version provided")
 		return

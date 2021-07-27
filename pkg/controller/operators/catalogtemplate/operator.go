@@ -194,40 +194,41 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 			catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource, conditions...)
 			logger.Infof("The catalog image for catalog source %q within namespace %q image does not require an update because the image has not changed", outputCatalogSource.GetName(), namespace)
 		}
-	} else {
-		// at least one template was unresolved because:
-		// - either we explicitly discovered a template without a valid value (as listed in unresolvedTemplates)
-		// - or because a template curly brace was found (which means the user screwed up the syntax)
-		// so update status accordingly
-
-		// quote the values and use comma separator
-		quotedTemplates := fmt.Sprintf(`"%s"`, strings.Join(unresolvedTemplates, `", "`))
-
-		// init to sensible generic message
-		message := "cannot construct catalog image reference"
-		if invalidSyntax && !templatesAreResolved {
-			message = fmt.Sprintf("cannot construct catalog image reference, because variable(s) %s could not be resolved and one or more template(s) has improper syntax", quotedTemplates)
-		} else if invalidSyntax {
-			message = "cannot construct catalog image reference, because one or more template(s) has improper syntax"
-		} else if !templatesAreResolved {
-			message = fmt.Sprintf("cannot construct catalog image reference, because variable(s) %s could not be resolved", quotedTemplates)
-		}
-		catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource,
-			metav1.Condition{
-				Type:    StatusTypeTemplatesHaveResolved,
-				Status:  metav1.ConditionFalse,
-				Reason:  ReasonUnableToResolve,
-				Message: message,
-			},
-			metav1.Condition{
-				Type:    StatusTypeResolvedImage,
-				Status:  metav1.ConditionFalse,
-				Reason:  ReasonUnableToResolve,
-				Message: processedCatalogImageTemplate,
-			},
-		)
-		logger.Infof(message)
+		return nil
 	}
+
+	// if we get here, at least one template was unresolved because:
+	// - either we explicitly discovered a template without a valid value (as listed in unresolvedTemplates)
+	// - or because a template curly brace was found (which means the user screwed up the syntax)
+	// so update status accordingly
+
+	// quote the values and use comma separator
+	quotedTemplates := fmt.Sprintf(`"%s"`, strings.Join(unresolvedTemplates, `", "`))
+
+	// init to sensible generic message
+	message := "cannot construct catalog image reference"
+	if invalidSyntax && !templatesAreResolved {
+		message = fmt.Sprintf("cannot construct catalog image reference, because variable(s) %s could not be resolved and one or more template(s) has improper syntax", quotedTemplates)
+	} else if invalidSyntax {
+		message = "cannot construct catalog image reference, because one or more template(s) has improper syntax"
+	} else if !templatesAreResolved {
+		message = fmt.Sprintf("cannot construct catalog image reference, because variable(s) %s could not be resolved", quotedTemplates)
+	}
+	catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource,
+		metav1.Condition{
+			Type:    StatusTypeTemplatesHaveResolved,
+			Status:  metav1.ConditionFalse,
+			Reason:  ReasonUnableToResolve,
+			Message: message,
+		},
+		metav1.Condition{
+			Type:    StatusTypeResolvedImage,
+			Status:  metav1.ConditionFalse,
+			Reason:  ReasonUnableToResolve,
+			Message: processedCatalogImageTemplate,
+		},
+	)
+	logger.Infof(message)
 
 	return nil
 }
