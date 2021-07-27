@@ -811,7 +811,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	catsrc, ok := obj.(*v1alpha1.CatalogSource)
 	if !ok {
 		o.logger.Debugf("wrong type: %#v", obj)
-		syncError = fmt.Errorf("casting CatalogSource failed")
+		syncError = nil
 		return
 	}
 

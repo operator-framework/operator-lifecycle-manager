@@ -14,8 +14,6 @@ import (
 	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/operator-framework/api/pkg/lib/version"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -23,8 +21,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	"github.com/operator-framework/api/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtempate"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtemplate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/catalogsource"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -1098,8 +1098,8 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// GVK during code reviews. For now we're disabling setting up a gvk template. This
 		// code needs to be re-enabled once we've come up with a valid approach
 		// create a gvk template to point at the configmap
-		// source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s-%s.%s.%s", gvkTemplate, catalogsource.TEMPL_KUBEMAJORV, catalogsource.TEMPL_KUBEMINORV, catalogsource.TEMPL_KUBEPATCHV)})
-		source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TEMPL_KUBEMAJORV, catalogsource.TEMPL_KUBEMINORV, catalogsource.TEMPL_KUBEPATCHV)})
+		// source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s-%s.%s.%s", gvkTemplate, catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV)})
+		source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV)})
 		///////
 
 		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
@@ -1112,7 +1112,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 				return false, err
 			}
 			// if the conditions array has the entry we know things got updated
-			condition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeTemplatesHaveResolved)
+			condition := meta.FindStatusCondition(source.Status.Conditions, catalogtemplate.StatusTypeTemplatesHaveResolved)
 			if condition != nil {
 				return true, nil
 			}
@@ -1131,14 +1131,14 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			// the first time a GVK template is encountered, watches are setup for those resources so the
 			// templates can't be resolved immediately. We should have status conditions and they should indicate
 			// that resolution has not happened yet
-			templatesResolvedCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeTemplatesHaveResolved)
+			templatesResolvedCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtemplate.StatusTypeTemplatesHaveResolved)
 			if Expect(templatesResolvedCondition).ToNot(BeNil()) {
-				Expect(templatesResolvedCondition.Reason).To(BeIdenticalTo(catalogtempate.ReasonUnableToResolve))
+				Expect(templatesResolvedCondition.Reason).To(BeIdenticalTo(catalogtemplate.ReasonUnableToResolve))
 				Expect(templatesResolvedCondition.Status).To(BeIdenticalTo(metav1.ConditionFalse))
 			}
-			resolvedImageCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeResolvedImage)
+			resolvedImageCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtemplate.StatusTypeResolvedImage)
 			if Expect(resolvedImageCondition).ToNot(BeNil()) {
-				Expect(resolvedImageCondition.Reason).To(BeIdenticalTo(catalogtempate.ReasonUnableToResolve))
+				Expect(resolvedImageCondition.Reason).To(BeIdenticalTo(catalogtemplate.ReasonUnableToResolve))
 				Expect(resolvedImageCondition.Status).To(BeIdenticalTo(metav1.ConditionFalse))
 			}
 
@@ -1156,7 +1156,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 					return false, err
 				}
 				// condition should flip to true indicating that the catalog image has been updated
-				if meta.IsStatusConditionTrue(source.Status.Conditions, catalogtempate.StatusTypeTemplatesHaveResolved) {
+				if meta.IsStatusConditionTrue(source.Status.Conditions, catalogtemplate.StatusTypeTemplatesHaveResolved) {
 					return true, nil
 				}
 
@@ -1165,14 +1165,14 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			///////
 		*/
 
-		templatesResolvedCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeTemplatesHaveResolved)
+		templatesResolvedCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtemplate.StatusTypeTemplatesHaveResolved)
 		if Expect(templatesResolvedCondition).ToNot(BeNil()) {
-			Expect(templatesResolvedCondition.Reason).To(BeIdenticalTo(catalogtempate.ReasonAllTemplatesResolved))
+			Expect(templatesResolvedCondition.Reason).To(BeIdenticalTo(catalogtemplate.ReasonAllTemplatesResolved))
 			Expect(templatesResolvedCondition.Status).To(BeIdenticalTo(metav1.ConditionTrue))
 		}
-		resolvedImageCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtempate.StatusTypeResolvedImage)
+		resolvedImageCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtemplate.StatusTypeResolvedImage)
 		if Expect(resolvedImageCondition).ToNot(BeNil()) {
-			Expect(resolvedImageCondition.Reason).To(BeIdenticalTo(catalogtempate.ReasonAllTemplatesResolved))
+			Expect(resolvedImageCondition.Reason).To(BeIdenticalTo(catalogtemplate.ReasonAllTemplatesResolved))
 			Expect(resolvedImageCondition.Status).To(BeIdenticalTo(metav1.ConditionTrue))
 
 			// if we can, try to determine the server version so we can check the resulting image

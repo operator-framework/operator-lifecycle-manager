@@ -28,9 +28,9 @@ func TestImageTemplateRegex(t *testing.T) {
 		},
 		{
 			description: "one static template used",
-			imageName:   fmt.Sprintf("foo%s", TEMPL_KUBEMAJORV),
+			imageName:   fmt.Sprintf("foo%s", TemplKubeMajorV),
 			isMatch:     true,
-			foundItems:  []string{TEMPL_KUBEMAJORV},
+			foundItems:  []string{TemplKubeMajorV},
 		},
 		{
 			description: "one gvk template used",
@@ -40,9 +40,9 @@ func TestImageTemplateRegex(t *testing.T) {
 		},
 		{
 			description: "multiple templates used",
-			imageName:   fmt.Sprintf("%sfoo%s", TEMPL_KUBEMAJORV, "{group:foo.example.com,version:v1,kind:Sample,name:MySample,namespace:ns,jsonpath:{.spec.foo.bar}}"),
+			imageName:   fmt.Sprintf("%sfoo%s", TemplKubeMajorV, "{group:foo.example.com,version:v1,kind:Sample,name:MySample,namespace:ns,jsonpath:{.spec.foo.bar}}"),
 			isMatch:     true,
-			foundItems:  []string{TEMPL_KUBEMAJORV, "{group:foo.example.com,version:v1,kind:Sample,name:MySample,namespace:ns,jsonpath:{.spec.foo.bar}}"},
+			foundItems:  []string{TemplKubeMajorV, "{group:foo.example.com,version:v1,kind:Sample,name:MySample,namespace:ns,jsonpath:{.spec.foo.bar}}"},
 		},
 	}
 
@@ -59,7 +59,7 @@ func TestImageTemplateRegex(t *testing.T) {
 
 func TestImageTemplateGVKRegex(t *testing.T) {
 
-	exepctedNames := []string{"", cap_subgrp_group, cap_subgrp_version, cap_subgrp_kind, cap_subgrp_name, cap_subgrp_namespace, cap_subgrp_jsonpath}
+	exepctedNames := []string{"", capSubgrpGroup, capSubgrpVersion, capSubgrpKind, capSubgrpName, capSubgrpNamespace, capSubgrpJsonpath}
 
 	var table = []struct {
 		description string
@@ -136,7 +136,7 @@ func TestImageTemplateFlow(t *testing.T) {
 			catsrc: v1alpha1.CatalogSource{
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
-						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s", TEMPL_KUBEMAJORV),
+						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s", TemplKubeMajorV),
 					},
 				},
 			},
@@ -151,7 +151,7 @@ func TestImageTemplateFlow(t *testing.T) {
 			catsrc: v1alpha1.CatalogSource{
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
-						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s", TEMPL_KUBEMAJORV),
+						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s", TemplKubeMajorV),
 					},
 				},
 			},
@@ -181,7 +181,7 @@ func TestImageTemplateFlow(t *testing.T) {
 			catsrc: v1alpha1.CatalogSource{
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
-						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s/%s", TEMPL_KUBEMAJORV, "{group:,version:v1,kind:Pod,name:foo,namespace:bar,jsonpath:{.metadata.annotations.dummy}}"),
+						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s/%s", TemplKubeMajorV, "{group:,version:v1,kind:Pod,name:foo,namespace:bar,jsonpath:{.metadata.annotations.dummy}}"),
 					},
 				},
 			},
@@ -216,7 +216,7 @@ func TestImageTemplateFlow(t *testing.T) {
 			catsrc: v1alpha1.CatalogSource{
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
-						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s/%s", TEMPL_KUBEMAJORV, "{group:,version:v1,kind:Pod,name:foo,namespace:bar,jsonpath:.metadata.annotations.dummy}"),
+						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s/%s", TemplKubeMajorV, "{group:,version:v1,kind:Pod,name:foo,namespace:bar,jsonpath:.metadata.annotations.dummy}"),
 					},
 				},
 			},
@@ -245,7 +245,7 @@ func TestImageTemplateFlow(t *testing.T) {
 			catsrc: v1alpha1.CatalogSource{
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
-						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s/%s", TEMPL_KUBEMAJORV, "{group:,version:v1,kind:Pod,name:foo,namespace:bar,jsonpath:{.metadata.annotations[.dummy}}"),
+						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s/%s", TemplKubeMajorV, "{group:,version:v1,kind:Pod,name:foo,namespace:bar,jsonpath:{.metadata.annotations[.dummy}}"),
 					},
 				},
 			},
@@ -280,7 +280,7 @@ func TestImageTemplateFlow(t *testing.T) {
 			catsrc: v1alpha1.CatalogSource{
 				ObjectMeta: v1.ObjectMeta{
 					Annotations: map[string]string{
-						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s/%s", TEMPL_KUBEMAJORV, "{group:,version:v1,kind:Pod,name:foo,namespace:bar,jsonpath:{.metadata.annotations[*].dummy}}"),
+						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s/%s", TemplKubeMajorV, "{group:,version:v1,kind:Pod,name:foo,namespace:bar,jsonpath:{.metadata.annotations[*].dummy}}"),
 					},
 				},
 			},

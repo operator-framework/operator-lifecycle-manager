@@ -23,39 +23,39 @@ const (
 
 	// regex capture group names
 
-	// cap_grp_kubemajorv is a capture group name for a kube major version
-	cap_grp_kubemajorv = "kubemajorv"
-	// cap_grp_kubeminorv is a capture group name for a kube minor version
-	cap_grp_kubeminorv = "kubeminorv"
-	// cap_grp_kubepatchv is a capture group name for a kube patch version
-	cap_grp_kubepatchv = "kubepatchv"
-	// cap_grp_gvk is a capture group name for a dynamic template that uses its own subgroups
-	cap_grp_gvk = "gvk"
+	// capGrpKubeMajorV is a capture group name for a kube major version
+	capGrpKubeMajorV = "kubemajorv"
+	// capGrpKubeMinorV is a capture group name for a kube minor version
+	capGrpKubeMinorV = "kubeminorv"
+	// capGrpKubePatchV is a capture group name for a kube patch version
+	capGrpKubePatchV = "kubepatchv"
+	// capGrpGvk is a capture group name for a dynamic template that uses its own subgroups
+	capGrpGvk = "gvk"
 
-	// cap_subgrp_group is a sub capture group name used in a dynamic template
-	cap_subgrp_group = "group"
-	// cap_subgrp_version is a sub capture group name used in a dynamic template
-	cap_subgrp_version = "version"
-	// cap_subgrp_kind is a sub capture group name used in a dynamic template
-	cap_subgrp_kind = "kind"
-	// cap_subgrp_name is a sub capture group name used in a dynamic template
-	cap_subgrp_name = "name"
-	// cap_subgrp_namespace is a sub capture group name used in a dynamic template
-	cap_subgrp_namespace = "namespace"
-	// cap_subgrp_jsonpath is a sub capture group name used in a dynamic template
-	cap_subgrp_jsonpath = "jsonpath"
+	// capSubgrpGroup is a sub capture group name used in a dynamic template
+	capSubgrpGroup = "group"
+	// capSubgrpVersion is a sub capture group name used in a dynamic template
+	capSubgrpVersion = "version"
+	// capSubgrpKind is a sub capture group name used in a dynamic template
+	capSubgrpKind = "kind"
+	// capSubgrpName is a sub capture group name used in a dynamic template
+	capSubgrpName = "name"
+	// capSubgrpNamespace is a sub capture group name used in a dynamic template
+	capSubgrpNamespace = "namespace"
+	// capSubgrpJsonpath is a sub capture group name used in a dynamic template
+	capSubgrpJsonpath = "jsonpath"
 
 	// static templates
 
-	// TEMPL_KUBEMAJORV is a template that represents the kube major version
-	TEMPL_KUBEMAJORV = "{kube_major_version}"
-	// TEMPL_KUBEMINORV is a template that represents the kube minor version
-	TEMPL_KUBEMINORV = "{kube_minor_version}"
-	// TEMPL_KUBEPATCHV is a template that represents the kube patch version
-	TEMPL_KUBEPATCHV = "{kube_patch_version}"
+	// TemplKubeMajorV is a template that represents the kube major version
+	TemplKubeMajorV = "{kube_major_version}"
+	// TemplKubeMinorV is a template that represents the kube minor version
+	TemplKubeMinorV = "{kube_minor_version}"
+	// TemplKubePatchV is a template that represents the kube patch version
+	TemplKubePatchV = "{kube_patch_version}"
 
-	// templ_gvk is a dynamic template that uses its own subgroups
-	templ_gvk = "{group:(?P<group>.*?),version:(?P<version>.*?),kind:(?P<kind>.*?),name:(?P<name>.*?),namespace:(?P<namespace>.*?),jsonpath:(?P<jsonpath>{.*?})}"
+	// templGvk is a dynamic template that uses its own subgroups
+	templGvk = "{group:(?P<group>.*?),version:(?P<version>.*?),kind:(?P<kind>.*?),name:(?P<name>.*?),namespace:(?P<namespace>.*?),jsonpath:(?P<jsonpath>{.*?})}"
 
 	// templateMissing represents a value that could not be obtained from the cluster
 	templateMissing = "missing"
@@ -82,9 +82,9 @@ var gvkToJSONPathMap = map[GVK_Key][]string{}
 
 func init() {
 	// Handle known static templates
-	initializeIfNeeded(TEMPL_KUBEMAJORV)
-	initializeIfNeeded(TEMPL_KUBEMINORV)
-	initializeIfNeeded(TEMPL_KUBEPATCHV)
+	initializeIfNeeded(TemplKubeMajorV)
+	initializeIfNeeded(TemplKubeMinorV)
+	initializeIfNeeded(TemplKubePatchV)
 }
 
 // initializeIfNeeded sets the map to a "missing" value if its not already present
@@ -100,9 +100,9 @@ func initializeIfNeeded(templateKey string) {
 func resetMaps() {
 	templateNameToReplacementValuesMap = map[string]string{}
 	gvkToJSONPathMap = map[GVK_Key][]string{}
-	initializeIfNeeded(TEMPL_KUBEMAJORV)
-	initializeIfNeeded(TEMPL_KUBEMINORV)
-	initializeIfNeeded(TEMPL_KUBEPATCHV)
+	initializeIfNeeded(TemplKubeMajorV)
+	initializeIfNeeded(TemplKubeMinorV)
+	initializeIfNeeded(TemplKubePatchV)
 }
 
 type regexEntry struct {
@@ -126,15 +126,15 @@ func (r regexEntries) String() string {
 }
 
 var regexList = regexEntries{
-	{cap_grp_kubemajorv, TEMPL_KUBEMAJORV},
-	{cap_grp_kubeminorv, TEMPL_KUBEMINORV},
-	{cap_grp_kubepatchv, TEMPL_KUBEPATCHV},
-	{cap_grp_gvk, templ_gvk},
+	{capGrpKubeMajorV, TemplKubeMajorV},
+	{capGrpKubeMinorV, TemplKubeMinorV},
+	{capGrpKubePatchV, TemplKubePatchV},
+	{capGrpGvk, templGvk},
 }
 
 var regexImageTemplates = regexp.MustCompile(regexList.String())
 
-var regexGVKTemplate = regexp.MustCompile(templ_gvk)
+var regexGVKTemplate = regexp.MustCompile(templGvk)
 
 // ReplaceTemplates takes a catalog image reference containing templates (i.e. catalogImageTemplate)
 // and attempts to replace the templates with actual values (if available).
@@ -232,11 +232,11 @@ func InitializeCatalogSourceTemplates(catalogSource *v1alpha1.CatalogSource) []G
 
 			// create GVKTemplate to use as a key... add values from the subgroups as best we can, defaults to empty string for values not found
 			key := GVK_Key{
-				GroupVersionKind: schema.GroupVersionKind{Group: subGroupMap[cap_subgrp_group], Version: subGroupMap[cap_subgrp_version], Kind: subGroupMap[cap_subgrp_kind]},
-				name:             subGroupMap[cap_subgrp_name],
-				namespace:        subGroupMap[cap_subgrp_namespace],
+				GroupVersionKind: schema.GroupVersionKind{Group: subGroupMap[capSubgrpGroup], Version: subGroupMap[capSubgrpVersion], Kind: subGroupMap[capSubgrpKind]},
+				name:             subGroupMap[capSubgrpName],
+				namespace:        subGroupMap[capSubgrpNamespace],
 			}
-			jsonPath := subGroupMap[cap_subgrp_jsonpath]
+			jsonPath := subGroupMap[capSubgrpJsonpath]
 
 			// see if we've already added this key (don't add duplicates)
 			gvkPresent := false
@@ -343,13 +343,13 @@ func UpdateKubeVersion(serverVersion *version.Info, logger *logrus.Logger) {
 		return
 	}
 
-	templateNameToReplacementValuesMap[TEMPL_KUBEMAJORV] = serverVersion.Major
-	templateNameToReplacementValuesMap[TEMPL_KUBEMINORV] = serverVersion.Minor
+	templateNameToReplacementValuesMap[TemplKubeMajorV] = serverVersion.Major
+	templateNameToReplacementValuesMap[TemplKubeMinorV] = serverVersion.Minor
 
 	// api server does not explicitly give patch value, so we have to resort to parsing the git version
 	serverGitVersion, err := semver.Parse(serverVersion.GitVersion)
 	if err != nil {
-		templateNameToReplacementValuesMap[TEMPL_KUBEPATCHV] = strconv.FormatUint(serverGitVersion.Patch, 10)
+		templateNameToReplacementValuesMap[TemplKubePatchV] = strconv.FormatUint(serverGitVersion.Patch, 10)
 	} else {
 		logger.WithError(err).Warn("unable to obtain kube server patch value")
 	}

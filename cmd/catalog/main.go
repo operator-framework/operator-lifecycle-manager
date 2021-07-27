@@ -16,7 +16,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtempate"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtemplate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/server"
@@ -141,7 +141,7 @@ func main() {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
 
-	opCatalogTemplate, err := catalogtempate.NewOperator(ctx, *kubeConfigPath, logger, *wakeupInterval, *catalogNamespace)
+	opCatalogTemplate, err := catalogtemplate.NewOperator(ctx, *kubeConfigPath, logger, *wakeupInterval, *catalogNamespace)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

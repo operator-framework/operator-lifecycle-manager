@@ -1,4 +1,4 @@
-package catalogtempate
+package catalogtemplate
 
 import (
 	"context"
@@ -131,7 +131,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	inputCatalogSource, ok := obj.(*v1alpha1.CatalogSource)
 	if !ok {
 		o.logger.Debugf("wrong type: %#v", obj)
-		return fmt.Errorf("casting CatalogSource failed")
+		return nil
 	}
 
 	outputCatalogSource := inputCatalogSource.DeepCopy()
