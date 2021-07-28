@@ -66,18 +66,29 @@ You need to have `gem` installed on your workstation. Execute the following comm
 gem install github_changelog_generator
 ```
 
-Afterward installing it may be worth modifying the `MAX_THREAD_NUMBER` to something lower similar to what is done here: <https://github.com/github-changelog-generator/github-changelog-generator/pull/661>. Note that the referenced PR has been merged, but the number is still too high. Although 1 is a very low value, it does seem to work more reliably. (On Fedora, the install location for the gem is `~/.gem/ruby/gems/github_changelog_generator-1.14.3/lib/github_changelog_generator/octo_fetcher.rb`.)
-
 Make sure you have a GitHub API access token. You can generate one from [tokens](https://github.com/settings/tokens)
 
-* Generate the changelog:
+Run the following command to generate a changelog for this release:
+
 ```bash
 # <start-semver> is the previous version.
 # <end-semver> is the new release you have made.
-github_changelog_generator -u operator-framework -p operator-lifecycle-manager --since-tag=<start-semver> \
-    --token=<github-api-token> --future-release=<end-semver> --pr-label="**Other changes:**" -b CHANGELOG.md
+GITHUB_TOKEN="<github-api-token>"
+github_changelog_generator \
+    -u operator-framework \
+    -p operator-lifecycle-manager \
+    --token=${GITHUB_TOKEN} \
+    --since-tag=<start-semver> \
+    --future-release=<end-semver> \
+    --pr-label="**Other changes:**" \
+    -b CHANGELOG.md
 ```
-* Open a new PR with the changelog.
+
+**Note**: You may run into API rate limiting when attempting to generate the changelog.
+
+By default, all open and closed issues will be queried when running the above command, which can lead to API rate limiting. Lower the number of issues that will be queried by specifying the `--max-issues` flag (e.g. `--max-issues=100`) and re-run the above command with that flag provided.
+
+Ensure the `CHANGELOG.md` has been modified locally and open a PR with those generated changes.
 
 ## Step 7: Create a New GitHub Release
 
