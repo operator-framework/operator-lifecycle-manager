@@ -4,6 +4,9 @@ on:
     branches:
       - master
   pull_request:
+    paths:
+      - '**'
+      - '!doc/**'
 jobs:
   run-e2e-tests:
     runs-on: ubuntu-latest
