@@ -961,19 +961,31 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// not-satisfiable error
 		if _, ok := err.(solver.NotSatisfiable); ok {
 			logger.WithError(err).Debug("resolution failed")
-			updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ConstraintsNotSatisfiable", err.Error(), true)
+			_, updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ConstraintsNotSatisfiable", err.Error(), true)
 			if updateErr != nil {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")
 			}
 			return nil
 		}
-		updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ErrorPreventedResolution", err.Error(), true)
+		_, updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ErrorPreventedResolution", err.Error(), true)
 		if updateErr != nil {
 			logger.WithError(updateErr).Debug("failed to update subs conditions")
 		}
 		return err
 	} else {
-		updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
+		subs, updateErr := o.setSubsCond(updatedSubs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
+		if updateErr != nil {
+			logger.WithError(updateErr).Debug("failed to update subs conditions")
+		}
+		updatedSubs = subs
+
+		// Also clear the condition from the subscriptions there were not included in the list of updatedSubs
+		allSubs, err := o.listSubscriptions(namespace)
+		if err != nil {
+			logger.WithError(err).Debug("couldn't list subscriptions")
+			return err
+		}
+		_, updateErr = o.setSubsCond(allSubs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
 		if updateErr != nil {
 			logger.WithError(updateErr).Debug("failed to update subs conditions")
 		}
@@ -1254,7 +1266,7 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 	return reference.GetReference(res)
 }
 
-func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType, reason, message string, setTrue bool) error {
+func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType, reason, message string, setTrue bool) ([]*v1alpha1.Subscription, error) {
 	var (
 		errs        []error
 		mu          sync.Mutex
@@ -1269,26 +1281,31 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.
 		cond.Reason = reason
 		cond.Message = message
 		if setTrue {
+			if cond.Status == corev1.ConditionTrue {
+				continue
+			}
 			cond.Status = corev1.ConditionTrue
 		} else {
+			if cond.Status == corev1.ConditionFalse {
+				continue
+			}
 			cond.Status = corev1.ConditionFalse
 		}
 		sub.Status.SetCondition(cond)
 
 		wg.Add(1)
-		go func(s v1alpha1.Subscription) {
+		go func(sub v1alpha1.Subscription) {
 			defer wg.Done()
 
 			update := func() error {
 				// Update the status of the latest revision
-				latest, err := o.client.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Get(context.TODO(), s.GetName(), getOpts)
+				latest, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(context.TODO(), sub.GetName(), getOpts)
 				if err != nil {
 					return err
 				}
-
-				latest.Status = s.Status
-				_, err = o.client.OperatorsV1alpha1().Subscriptions(s.Namespace).UpdateStatus(context.TODO(), latest, updateOpts)
-
+				latest.Status = sub.Status
+				sub = *latest
+				_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.Namespace).UpdateStatus(context.TODO(), latest, updateOpts)
 				return err
 			}
 			if err := retry.RetryOnConflict(retry.DefaultRetry, update); err != nil {
@@ -1300,7 +1317,7 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.
 	}
 	wg.Wait()
 
-	return utilerrors.NewAggregate(errs)
+	return subs, utilerrors.NewAggregate(errs)
 }
 
 type UnpackedBundleReference struct {
