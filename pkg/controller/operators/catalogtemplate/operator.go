@@ -133,8 +133,9 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	outputCatalogSource := inputCatalogSource.DeepCopy()
 
 	logger := o.logger.WithFields(logrus.Fields{
-		"catSrcName": outputCatalogSource.GetName(),
-		"id":         queueinformer.NewLoopID(),
+		"catSrcNamespace": outputCatalogSource.GetNamespace(),
+		"catSrcName":      outputCatalogSource.GetName(),
+		"id":              queueinformer.NewLoopID(),
 	})
 	logger.Info("syncing catalog source for annotation templates")
 
@@ -142,7 +143,10 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	if catalogImageTemplate == "" {
 		logger.Debug("this catalog source is not participating in template replacement")
 		// make sure the conditions are removed
-		catalogsource.RemoveStatusConditions(logger, o.client, outputCatalogSource, StatusTypeTemplatesHaveResolved, StatusTypeResolvedImage)
+
+		if err := catalogsource.RemoveStatusConditions(logger, o.client, outputCatalogSource, StatusTypeTemplatesHaveResolved, StatusTypeResolvedImage); err != nil {
+			return err
+		}
 		// no further action is needed
 		return nil
 	}
@@ -158,8 +162,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	// make sure everything was resolved and valid
 	if templatesAreResolved && !invalidSyntax {
 		// all templates have been resolved
-
-		namespace := outputCatalogSource.GetNamespace()
 
 		conditions := []metav1.Condition{
 			{
@@ -181,11 +183,15 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 
 			outputCatalogSource.Spec.Image = processedCatalogImageTemplate
 
-			catalogsource.UpdateImageReferenceAndStatusCondition(logger, o.client, outputCatalogSource, conditions...)
-			logger.Infof("The catalog image for catalog source %q within namespace %q image has been updated to %q", outputCatalogSource.GetName(), namespace, processedCatalogImageTemplate)
+			if err := catalogsource.UpdateImageReferenceAndStatusCondition(logger, o.client, outputCatalogSource, conditions...); err != nil {
+				return err
+			}
+			logger.Infof("The catalog image has been updated to %q", processedCatalogImageTemplate)
 		} else {
-			catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource, conditions...)
-			logger.Infof("The catalog image for catalog source %q within namespace %q image does not require an update because the image has not changed", outputCatalogSource.GetName(), namespace)
+			if err := catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource, conditions...); err != nil {
+				return err
+			}
+			logger.Infof("The catalog image %q does not require an update because the image has not changed", processedCatalogImageTemplate)
 		}
 		return nil
 	}
@@ -207,7 +213,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	} else if !templatesAreResolved {
 		message = fmt.Sprintf("cannot construct catalog image reference, because variable(s) %s could not be resolved", quotedTemplates)
 	}
-	catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource,
+	err = catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource,
 		metav1.Condition{
 			Type:    StatusTypeTemplatesHaveResolved,
 			Status:  metav1.ConditionFalse,
@@ -221,6 +227,10 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 			Message: processedCatalogImageTemplate,
 		},
 	)
+	if err != nil {
+		return err
+	}
+
 	logger.Infof(message)
 
 	return nil
