@@ -209,7 +209,8 @@ func (r *ClusterOperatorReconciler) setDegraded(_ context.Context, co *ClusterOp
 }
 
 const (
-	IncompatibleOperatorsInstalled = "IncompatibleOperatorsInstalled"
+	IncompatibleOperatorsInstalled     = "IncompatibleOperatorsInstalled"
+	ErrorCheckingOperatorCompatibility = "ErrorCheckingOperatorCompatibility"
 )
 
 func (r *ClusterOperatorReconciler) setUpgradeable(ctx context.Context, co *ClusterOperator) error {
@@ -221,31 +222,39 @@ func (r *ClusterOperatorReconciler) setUpgradeable(ctx context.Context, co *Clus
 
 	// Set upgradeable=false if (either/or):
 	// 1. OLM currently upgrading (takes priorty in the status message)
-	// 2. Operators currently installed that are incompatible with the next OCP minor version
+	// 2. Operators currently installed that are incompatible with the next minor version of OpenShift
+	// 3. An error occurs while determining 2
+	var err error
 	if r.syncTracker.SuccessfulSyncs() < 1 || !versionsMatch(co.Status.Versions, r.TargetVersions) {
 		// OLM is still upgrading
 		desired.Status = configv1.ConditionFalse
 		desired.Message = "Waiting for updates to take effect"
 	} else {
-		incompatible, err := incompatibleOperators(ctx, r.Client)
+		var incompatible skews
+		incompatible, err = incompatibleOperators(ctx, r.Client)
 		if err != nil {
-			return err
-		}
-
-		if len(incompatible) > 0 {
-			// Some incompatible operator is installed
+			// "Fail closed" when we can't determine compatibility
+			// Note: Unspecified compatibility = universal compatibility; i.e. operators that don't specify a "maxOpenShiftVersion" property are compatible with everything.
+			desired.Status = configv1.ConditionFalse
+			desired.Reason = ErrorCheckingOperatorCompatibility
+			desired.Message = fmt.Sprintf("Encountered errors while checking compatibility with the next minor version of OpenShift: %s", err)
+		} else if len(incompatible) > 0 {
+			// Operators are installed that have incompatible and/or invalid max versions
 			desired.Status = configv1.ConditionFalse
 			desired.Reason = IncompatibleOperatorsInstalled
-			desired.Message = incompatible.String() // TODO: Truncate message to field length
+			desired.Message = incompatible.String()
 		}
 	}
 
+	// Only return transient errors likely resolved by retrying immediately
+	err = transientErrors(err)
+
 	current := co.GetCondition(configv1.OperatorUpgradeable)
 	if conditionsEqual(current, desired) { // Comparison ignores lastUpdated
-		return nil
+		return err
 	}
 
 	co.SetCondition(desired)
 
-	return nil
+	return err
 }

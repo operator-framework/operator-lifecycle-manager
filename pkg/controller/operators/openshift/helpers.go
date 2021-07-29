@@ -2,6 +2,7 @@ package openshift
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -80,22 +81,47 @@ func versionsMatch(a []configv1.OperandVersion, b []configv1.OperandVersion) boo
 type skews []skew
 
 func (s skews) String() string {
-	var msg []string
+	msg := make([]string, len(s))
+	i, j := 0, len(s)-1
 	for _, sk := range s {
-		msg = append(msg, sk.String())
+		m := sk.String()
+		// Partial order: error skews first
+		if sk.err != nil {
+			msg[i] = m
+			i++
+			continue
+		}
+		msg[j] = m
+		j--
 	}
 
-	return "The following operators block OpenShift upgrades: " + strings.Join(msg, ",")
+	return "ClusterServiceVersions blocking cluster upgrade: " + strings.Join(msg, ",")
 }
 
 type skew struct {
 	namespace           string
 	name                string
 	maxOpenShiftVersion string
+	err                 error
 }
 
 func (s skew) String() string {
-	return fmt.Sprintf("Operator %s in namespace %s is not compatible with OpenShift versions greater than %s", s.name, s.namespace, s.maxOpenShiftVersion)
+	if s.err != nil {
+		return fmt.Sprintf("%s/%s has invalid %s properties: %s", s.namespace, s.name, MaxOpenShiftVersionProperty, s.err)
+	}
+
+	return fmt.Sprintf("%s/%s is incompatible with OpenShift versions greater than %s", s.namespace, s.name, s.maxOpenShiftVersion)
+}
+
+type transientError struct {
+	error
+}
+
+// transientErrors returns the result of stripping all wrapped errors not of type transientError from the given error.
+func transientErrors(err error) error {
+	return utilerrors.FilterOut(err, func(e error) bool {
+		return !errors.As(e, new(transientError))
+	})
 }
 
 func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error) {
@@ -105,58 +131,59 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 	}
 
 	if next == nil {
-		return nil, nil
+		// Note: This shouldn't happen
+		return nil, fmt.Errorf("Failed to determine next OpenShift Y-stream release")
 	}
 	next.Minor++
 
 	csvList := &operatorsv1alpha1.ClusterServiceVersionList{}
 	if err := cli.List(ctx, csvList); err != nil {
-		return nil, err
+		return nil, &transientError{fmt.Errorf("Failed to list ClusterServiceVersions: %w", err)}
 	}
 
-	var (
-		s    skews
-		errs []error
-	)
+	var incompatible skews
 	for _, csv := range csvList.Items {
 		if csv.IsCopied() {
 			continue
 		}
 
+		s := skew{
+			name:      csv.GetName(),
+			namespace: csv.GetNamespace(),
+		}
 		max, err := maxOpenShiftVersion(&csv)
 		if err != nil {
-			errs = append(errs, err)
+			s.err = err
+			incompatible = append(incompatible, s)
 			continue
 		}
+
 		if max == nil || max.GTE(*next) {
 			continue
 		}
+		s.maxOpenShiftVersion = max.String()
 
-		s = append(s, skew{
-			name:                csv.GetName(),
-			namespace:           csv.GetNamespace(),
-			maxOpenShiftVersion: max.String(),
-		})
+		incompatible = append(incompatible, s)
 	}
 
-	return s, utilerrors.NewAggregate(errs)
+	return incompatible, nil
 }
 
 func desiredRelease(ctx context.Context, cli client.Client) (*semver.Version, error) {
 	cv := configv1.ClusterVersion{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: "version"}, &cv); err != nil { // "version" is the name of OpenShift's ClusterVersion singleton
-		return nil, err
+		return nil, &transientError{fmt.Errorf("Failed to get ClusterVersion: %w", err)}
 	}
 
 	v := cv.Status.Desired.Version
 	if v == "" {
 		// The release version hasn't been set yet
-		return nil, nil
+		return nil, fmt.Errorf("Desired release version missing from ClusterVersion")
 	}
 
 	desired, err := semver.ParseTolerant(v)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ClusterVersion has invalid desired release version: %w", err)
 	}
 
 	return &desired, nil
@@ -178,57 +205,36 @@ func maxOpenShiftVersion(csv *operatorsv1alpha1.ClusterServiceVersion) (*semver.
 		return nil, err
 	}
 
-	// Take the highest semver if there's more than one max version specified
-	var (
-		max  *semver.Version
-		dups []semver.Version
-		errs []error
-	)
+	var max *string
 	for _, property := range properties {
 		if property.Type != MaxOpenShiftVersionProperty {
 			continue
 		}
 
-		value := strings.Trim(property.Value, "\"")
-		if value == "" {
-			continue
+		if max != nil {
+			return nil, fmt.Errorf(`Defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty)
 		}
 
-		version, err := semver.ParseTolerant(value)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		if max == nil {
-			max = &version
-			continue
-		}
-		if version.LT(*max) {
-			continue
-		}
-		if version.EQ(*max) {
-			// Found a duplicate, mark it
-			dups = append(dups, *max)
-		}
-
-		max = &version
+		max = &property.Value
 	}
 
-	// Return an error if THE max version has a duplicate (i.e. equivalent version)
-	// Note: This may not be a problem since there should be no difference as far as blocking upgrades is concerned.
-	// This is more for clear status messages.
-	for _, dup := range dups {
-		if max.EQ(dup) && max.String() != dup.String() { // "1.0.0" vs "1.0.0" is fine, but not "1.0.0" vs "1.0.0+1"
-			errs = append(errs, fmt.Errorf("max openshift version ambiguous, equivalent versions %s and %s have been specified concurrently", max, dup))
-		}
+	if max == nil {
+		return nil, nil
 	}
 
-	if len(errs) > 0 {
-		return nil, utilerrors.NewAggregate(errs)
+	// Account for any additional quoting
+	value := strings.Trim(*max, "\"")
+	if value == "" {
+		// Handle "" separately, so parse doesn't treat it as a zero
+		return nil, fmt.Errorf(`Value cannot be "" (an empty string)`)
 	}
 
-	return max, nil
+	version, err := semver.ParseTolerant(value)
+	if err != nil {
+		return nil, fmt.Errorf(`Failed to parse "%s" as semver: %w`, value, err)
+	}
+
+	return &version, nil
 }
 
 func notCopiedSelector() (labels.Selector, error) {
