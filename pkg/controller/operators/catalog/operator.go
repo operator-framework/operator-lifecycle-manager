@@ -56,6 +56,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/catalogsource"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
@@ -600,9 +601,11 @@ func validateSourceType(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *
 		return
 	}
 
-	// The sourceType is valid, clear (all) status if there's existing invalid spec reason
+	// The sourceType is valid, clear all status (other than status conditions array) if there's existing invalid spec reason
 	if out.Status.Reason == v1alpha1.CatalogSourceSpecInvalidError {
-		out.Status = v1alpha1.CatalogSourceStatus{}
+		out.Status = v1alpha1.CatalogSourceStatus{
+			Conditions: out.Status.Conditions,
+		}
 	}
 	continueSync = true
 
@@ -808,7 +811,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	catsrc, ok := obj.(*v1alpha1.CatalogSource)
 	if !ok {
 		o.logger.Debugf("wrong type: %#v", obj)
-		syncError = fmt.Errorf("casting CatalogSource failed")
+		syncError = nil
 		return
 	}
 
@@ -841,24 +844,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return reflect.DeepEqual(a, b)
 	}
 
-	updateStatusFunc := func(catsrc *v1alpha1.CatalogSource) error {
-		latest, err := o.client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Get(context.TODO(), catsrc.GetName(), metav1.GetOptions{})
-		if err != nil {
-			logger.Errorf("error getting catalogsource - %v", err)
-			return err
-		}
-
-		out := latest.DeepCopy()
-		out.Status = catsrc.Status
-
-		if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
-			logger.Errorf("error while setting catalogsource status condition - %v", err)
-			return err
-		}
-
-		return nil
-	}
-
 	chain := []CatalogSourceSyncFunc{
 		validateSourceType,
 		o.syncConfigMap,
@@ -879,7 +864,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return
 	}
 
-	updateErr := updateStatusFunc(out)
+	updateErr := catalogsource.UpdateStatus(logger, o.client, out)
 	if syncError == nil && updateErr != nil {
 		syncError = updateErr
 	}

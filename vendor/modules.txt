@@ -131,6 +131,9 @@ github.com/deislabs/oras/pkg/auth/docker
 github.com/deislabs/oras/pkg/content
 github.com/deislabs/oras/pkg/context
 github.com/deislabs/oras/pkg/oras
+# github.com/distribution/distribution v2.7.1+incompatible
+## explicit
+github.com/distribution/distribution/reference
 # github.com/docker/cli v20.10.5+incompatible
 github.com/docker/cli/cli/config
 github.com/docker/cli/cli/config/configfile
@@ -496,7 +499,7 @@ github.com/openshift/client-go/config/informers/externalversions/config
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
-# github.com/operator-framework/api v0.10.2
+# github.com/operator-framework/api v0.10.3
 ## explicit
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/lib/version

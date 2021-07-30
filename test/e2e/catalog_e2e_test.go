@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,13 +17,16 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtemplate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/catalogsource"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -1027,6 +1031,82 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		updatePods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 1*time.Second, 30*time.Second, noPod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(updatePods.Items).To(HaveLen(0))
+	})
+
+	It("adding catalog template adjusts image used", func() {
+		// This test attempts to create a catalog source, and update it with a template annotation
+		// and ensure that the image gets changed according to what's in the template as well as
+		// check the status conditions are updated accordingly
+
+		sourceName := genName("catalog-")
+		source := &v1alpha1.CatalogSource{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.CatalogSourceKind,
+				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourceName,
+				Namespace: testNamespace,
+				Labels:    map[string]string{"olm.catalogSource": sourceName},
+			},
+			Spec: v1alpha1.CatalogSourceSpec{
+				SourceType: v1alpha1.SourceTypeGrpc,
+				Image:      "quay.io/olmtest/catsrc-update-test:old",
+			},
+		}
+
+		By("creating a catalog source")
+		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("update the catalog source with template annotation")
+
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+		Expect(err).ShouldNot(HaveOccurred(), "error getting catalog source")
+
+		// create an annotation using the kube templates
+
+		source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV)})
+
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
+		Expect(err).ShouldNot(HaveOccurred(), "error updating catalog source with template annotation")
+
+		// wait for status condition to show up
+		Eventually(func() (bool, error) {
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), sourceName, metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
+			// if the conditions array has the entry we know things got updated
+			condition := meta.FindStatusCondition(source.Status.Conditions, catalogtemplate.StatusTypeTemplatesHaveResolved)
+			if condition != nil {
+				return true, nil
+			}
+
+			return false, nil
+		}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+
+		// source should be the latest we got from the eventually block
+		Expect(source.Status.Conditions).ToNot(BeNil())
+
+		templatesResolvedCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtemplate.StatusTypeTemplatesHaveResolved)
+		if Expect(templatesResolvedCondition).ToNot(BeNil()) {
+			Expect(templatesResolvedCondition.Reason).To(BeIdenticalTo(catalogtemplate.ReasonAllTemplatesResolved))
+			Expect(templatesResolvedCondition.Status).To(BeIdenticalTo(metav1.ConditionTrue))
+		}
+		resolvedImageCondition := meta.FindStatusCondition(source.Status.Conditions, catalogtemplate.StatusTypeResolvedImage)
+		if Expect(resolvedImageCondition).ToNot(BeNil()) {
+			Expect(resolvedImageCondition.Reason).To(BeIdenticalTo(catalogtemplate.ReasonAllTemplatesResolved))
+			Expect(resolvedImageCondition.Status).To(BeIdenticalTo(metav1.ConditionTrue))
+
+			// if we can, try to determine the server version so we can check the resulting image
+			if serverVersion, err := crc.Discovery().ServerVersion(); err != nil {
+				if serverGitVersion, err := semver.Parse(serverVersion.GitVersion); err != nil {
+					expectedImage := fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", serverVersion.Major, serverVersion.Minor, strconv.FormatUint(serverGitVersion.Patch, 10))
+					Expect(resolvedImageCondition.Message).To(BeIdenticalTo(expectedImage))
+				}
+			}
+		}
 	})
 })
 

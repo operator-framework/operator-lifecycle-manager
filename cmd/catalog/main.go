@@ -16,6 +16,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtemplate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/server"
@@ -137,11 +138,19 @@ func main() {
 	// Create a new instance of the operator.
 	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
 	if err != nil {
-		log.Panicf("error configuring operator: %s", err.Error())
+		log.Panicf("error configuring catalog operator: %s", err.Error())
+	}
+
+	opCatalogTemplate, err := catalogtemplate.NewOperator(ctx, *kubeConfigPath, logger, *wakeupInterval, *catalogNamespace)
+	if err != nil {
+		log.Panicf("error configuring catalog template operator: %s", err.Error())
 	}
 
 	op.Run(ctx)
 	<-op.Ready()
+
+	opCatalogTemplate.Run(ctx)
+	<-opCatalogTemplate.Ready()
 
 	if *writeStatusName != "" {
 		operatorstatus.MonitorClusterStatus(*writeStatusName, op.AtLevel(), op.Done(), opClient, configClient, crClient)
