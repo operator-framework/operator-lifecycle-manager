@@ -961,34 +961,28 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// not-satisfiable error
 		if _, ok := err.(solver.NotSatisfiable); ok {
 			logger.WithError(err).Debug("resolution failed")
-			_, updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ConstraintsNotSatisfiable", err.Error(), true)
+			subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ConstraintsNotSatisfiable", err.Error(), true)
+			_, updateErr := o.updateSubscriptionStatuses(subs)
 			if updateErr != nil {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")
+				return updateErr
 			}
 			return nil
 		}
-		_, updateErr := o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ErrorPreventedResolution", err.Error(), true)
+		subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ErrorPreventedResolution", err.Error(), true)
+		_, updateErr := o.updateSubscriptionStatuses(subs)
 		if updateErr != nil {
 			logger.WithError(updateErr).Debug("failed to update subs conditions")
+			return updateErr
 		}
 		return err
 	} else {
-		subs, updateErr := o.setSubsCond(updatedSubs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
+		subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
+		_, updateErr := o.updateSubscriptionStatuses(subs)
 		if updateErr != nil {
 			logger.WithError(updateErr).Debug("failed to update subs conditions")
 		}
-		updatedSubs = subs
-
-		// Also clear the condition from the subscriptions there were not included in the list of updatedSubs
-		allSubs, err := o.listSubscriptions(namespace)
-		if err != nil {
-			logger.WithError(err).Debug("couldn't list subscriptions")
-			return err
-		}
-		_, updateErr = o.setSubsCond(allSubs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
-		if updateErr != nil {
-			logger.WithError(updateErr).Debug("failed to update subs conditions")
-		}
+		updatedSubs = o.setSubsCond(updatedSubs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
 	}
 
 	// create installplan if anything updated
@@ -1020,7 +1014,8 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			logger.WithError(err).Debug("error ensuring installplan")
 			return err
 		}
-		if err := o.updateSubscriptionStatus(namespace, maxGeneration+1, updatedSubs, installPlanReference); err != nil {
+		updatedSubs = o.setIPReference(updatedSubs, maxGeneration+1, installPlanReference)
+		if _, err := o.updateSubscriptionStatuses(updatedSubs); err != nil {
 			logger.WithError(err).Debug("error ensuring subscription installplan state")
 			return err
 		}
@@ -1140,12 +1135,8 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	return updatedSub, true, nil
 }
 
-func (o *Operator) updateSubscriptionStatus(namespace string, gen int, subs []*v1alpha1.Subscription, installPlanRef *corev1.ObjectReference) error {
+func (o *Operator) setIPReference(subs []*v1alpha1.Subscription, gen int, installPlanRef *corev1.ObjectReference) []*v1alpha1.Subscription {
 	var (
-		errs        []error
-		mu          sync.Mutex
-		wg          sync.WaitGroup
-		getOpts     = metav1.GetOptions{}
 		lastUpdated = o.now()
 	)
 	for _, sub := range subs {
@@ -1156,33 +1147,8 @@ func (o *Operator) updateSubscriptionStatus(namespace string, gen int, subs []*v
 			sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
 			sub.Status.InstallPlanGeneration = gen
 		}
-
-		wg.Add(1)
-		go func(s v1alpha1.Subscription) {
-			defer wg.Done()
-
-			update := func() error {
-				// Update the status of the latest revision
-				latest, err := o.client.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Get(context.TODO(), s.GetName(), getOpts)
-				if err != nil {
-					return err
-				}
-
-				latest.Status = s.Status
-				_, err = o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(context.TODO(), latest, metav1.UpdateOptions{})
-
-				return err
-			}
-			if err := retry.RetryOnConflict(retry.DefaultRetry, update); err != nil {
-				mu.Lock()
-				defer mu.Unlock()
-				errs = append(errs, err)
-			}
-		}(*sub)
 	}
-	wg.Wait()
-
-	return utilerrors.NewAggregate(errs)
+	return subs
 }
 
 func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, gen int, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
@@ -1266,13 +1232,8 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 	return reference.GetReference(res)
 }
 
-func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType, reason, message string, setTrue bool) ([]*v1alpha1.Subscription, error) {
+func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType, reason, message string, setTrue bool) []*v1alpha1.Subscription {
 	var (
-		errs        []error
-		mu          sync.Mutex
-		wg          sync.WaitGroup
-		getOpts     = metav1.GetOptions{}
-		updateOpts  = metav1.UpdateOptions{}
 		lastUpdated = o.now()
 	)
 	for _, sub := range subs {
@@ -1292,7 +1253,20 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.
 			cond.Status = corev1.ConditionFalse
 		}
 		sub.Status.SetCondition(cond)
+	}
+	return subs
+}
 
+func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]*v1alpha1.Subscription, error) {
+	var (
+		errs       []error
+		mu         sync.Mutex
+		wg         sync.WaitGroup
+		getOpts    = metav1.GetOptions{}
+		updateOpts = metav1.UpdateOptions{}
+	)
+
+	for _, sub := range subs {
 		wg.Add(1)
 		go func(sub v1alpha1.Subscription) {
 			defer wg.Done()
@@ -1316,7 +1290,6 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.
 		}(*sub)
 	}
 	wg.Wait()
-
 	return subs, utilerrors.NewAggregate(errs)
 }
 
