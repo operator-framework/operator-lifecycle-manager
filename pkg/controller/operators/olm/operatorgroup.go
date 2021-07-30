@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -64,8 +65,51 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		"namespace":     op.GetNamespace(),
 	})
 
+	// Query OG in this namespace
+	groups, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(op.GetNamespace()).List(labels.Everything())
+	if err != nil {
+		logger.WithError(err).Warnf("failed to list OperatorGroups in the namespace")
+	}
+
+	// Check if there is a stale multiple OG condition and clear it if existed.
+	if len(groups) == 1 {
+		og := groups[0]
+		if c := meta.FindStatusCondition(og.Status.Conditions, v1.MutlipleOperatorGroupCondition); c != nil {
+			meta.RemoveStatusCondition(&og.Status.Conditions, v1.MutlipleOperatorGroupCondition)
+			if og.GetName() == op.GetName() {
+				meta.RemoveStatusCondition(&op.Status.Conditions, v1.MutlipleOperatorGroupCondition)
+			}
+			_, err = a.client.OperatorsV1().OperatorGroups(op.GetNamespace()).UpdateStatus(context.TODO(), og, metav1.UpdateOptions{})
+			if err != nil {
+				logger.Warnf("fail to upgrade operator group status og=%s with condition %+v: %s", og.GetName(), c, err.Error())
+			}
+		}
+	} else if len(groups) > 1 {
+		// Add to all OG's status conditions to indicate they're multiple OGs in the
+		// same namespace which is not allowed.
+		cond := metav1.Condition{
+			Type:    v1.MutlipleOperatorGroupCondition,
+			Status:  metav1.ConditionTrue,
+			Reason:  v1.MultipleOperatorGroupsReason,
+			Message: "Multiple OperatorGroup found in the same namespace",
+		}
+		for _, og := range groups {
+			if c := meta.FindStatusCondition(og.Status.Conditions, v1.MutlipleOperatorGroupCondition); c != nil {
+				continue
+			}
+			meta.SetStatusCondition(&og.Status.Conditions, cond)
+			if og.GetName() == op.GetName() {
+				meta.SetStatusCondition(&op.Status.Conditions, cond)
+			}
+			_, err = a.client.OperatorsV1().OperatorGroups(op.GetNamespace()).UpdateStatus(context.TODO(), og, metav1.UpdateOptions{})
+			if err != nil {
+				logger.Warnf("fail to upgrade operator group status og=%s with condition %+v: %s", og.GetName(), cond, err.Error())
+			}
+		}
+	}
+
 	previousRef := op.Status.ServiceAccountRef.DeepCopy()
-	op, err := a.serviceAccountSyncer.SyncOperatorGroup(op)
+	op, err = a.serviceAccountSyncer.SyncOperatorGroup(op)
 	if err != nil {
 		logger.Errorf("error updating service account - %v", err)
 		return err
@@ -109,6 +153,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		op.Status = v1.OperatorGroupStatus{
 			Namespaces:  targetNamespaces,
 			LastUpdated: a.now(),
+			Conditions:  op.Status.Conditions,
 		}
 
 		if _, err = a.client.OperatorsV1().OperatorGroups(op.GetNamespace()).UpdateStatus(context.TODO(), op, metav1.UpdateOptions{}); err != nil && !k8serrors.IsNotFound(err) {
