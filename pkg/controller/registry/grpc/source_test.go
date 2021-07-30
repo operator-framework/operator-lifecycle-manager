@@ -22,8 +22,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
-func server(store opregistry.Query, port int) (func(), func()) {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+func server(store opregistry.Query) (func(), string, func()) {
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:"))
 	if err != nil {
 		logrus.Fatalf("failed to listen: %v", err)
 	}
@@ -41,7 +41,7 @@ func server(store opregistry.Query, port int) (func(), func()) {
 		s.Stop()
 	}
 
-	return serve, stop
+	return serve, lis.Addr().String(), stop
 }
 
 type FakeSourceSyncer struct {
@@ -82,14 +82,14 @@ func TestConnectionEvents(t *testing.T) {
 
 	test := func(tt testcase) func(t *testing.T) {
 		return func(t *testing.T) {
-
 			// start server for each catalog
 			totalEvents := 0
-			port := 50050
-			for _, events := range tt.expectedHistory {
+			addresses := map[registry.CatalogKey]string{}
+
+			for catalog, events := range tt.expectedHistory {
 				totalEvents += len(events)
-				port += 1
-				serve, stop := server(&fakes.FakeQuery{}, port)
+				serve, address, stop := server(&fakes.FakeQuery{})
+				addresses[catalog] = address
 				go serve()
 				defer stop()
 			}
@@ -102,10 +102,8 @@ func TestConnectionEvents(t *testing.T) {
 			sources.Start(ctx)
 
 			// add source for each catalog
-			port = 50050
-			for catalog := range tt.expectedHistory {
-				port += 1
-				_, err := sources.Add(catalog, fmt.Sprintf("localhost:%d", port))
+			for catalog, address := range addresses {
+				_, err := sources.Add(catalog, address)
 				require.NoError(t, err)
 			}
 
