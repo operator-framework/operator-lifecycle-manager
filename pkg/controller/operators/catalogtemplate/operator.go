@@ -143,12 +143,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	if catalogImageTemplate == "" {
 		logger.Debug("this catalog source is not participating in template replacement")
 		// make sure the conditions are removed
-
-		if err := catalogsource.RemoveStatusConditions(logger, o.client, outputCatalogSource, StatusTypeTemplatesHaveResolved, StatusTypeResolvedImage); err != nil {
-			return err
-		}
-		// no further action is needed
-		return nil
+		return catalogsource.RemoveStatusConditions(logger, o.client, outputCatalogSource, StatusTypeTemplatesHaveResolved, StatusTypeResolvedImage)
 	}
 
 	processedCatalogImageTemplate, unresolvedTemplates := catalogsource.ReplaceTemplates(catalogImageTemplate)
@@ -183,12 +178,12 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 
 			outputCatalogSource.Spec.Image = processedCatalogImageTemplate
 
-			if err := catalogsource.UpdateImageReferenceAndStatusCondition(logger, o.client, outputCatalogSource, conditions...); err != nil {
+			if err := catalogsource.UpdateSpecAndStatusConditions(logger, o.client, outputCatalogSource, conditions...); err != nil {
 				return err
 			}
 			logger.Infof("The catalog image has been updated to %q", processedCatalogImageTemplate)
 		} else {
-			if err := catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource, conditions...); err != nil {
+			if err := catalogsource.UpdateStatusWithConditions(logger, o.client, outputCatalogSource, conditions...); err != nil {
 				return err
 			}
 			logger.Infof("The catalog image %q does not require an update because the image has not changed", processedCatalogImageTemplate)
@@ -213,7 +208,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 	} else if !templatesAreResolved {
 		message = fmt.Sprintf("cannot construct catalog image reference, because variable(s) %s could not be resolved", quotedTemplates)
 	}
-	err = catalogsource.UpdateStatusCondition(logger, o.client, outputCatalogSource,
+	err = catalogsource.UpdateStatusWithConditions(logger, o.client, outputCatalogSource,
 		metav1.Condition{
 			Type:    StatusTypeTemplatesHaveResolved,
 			Status:  metav1.ConditionFalse,
