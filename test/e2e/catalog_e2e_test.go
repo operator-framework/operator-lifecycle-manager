@@ -1068,8 +1068,11 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV)})
 
-		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
-		Expect(err).ShouldNot(HaveOccurred(), "error updating catalog source with template annotation")
+		// Update the catalog image
+		Eventually(func() error {
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
+			return err
+		}).Should(Succeed())
 
 		// wait for status condition to show up
 		Eventually(func() (bool, error) {
