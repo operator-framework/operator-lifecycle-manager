@@ -4543,11 +4543,6 @@ func TestOperatorGroupConditions(t *testing.T) {
 	clockFake := utilclock.NewFakeClock(time.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600)))
 
 	operatorNamespace := "operator-ns"
-	opNamespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: operatorNamespace,
-		},
-	}
 	serviceAccount := serviceAccount("sa", operatorNamespace)
 
 	type initial struct {
@@ -4665,7 +4660,7 @@ func TestOperatorGroupConditions(t *testing.T) {
 							UID:       "cdc9643e-7c52-4f7c-ae75-28ccb6aec97d",
 						},
 						Spec: v1.OperatorGroupSpec{
-							TargetNamespaces: []string{operatorNamespace},
+							TargetNamespaces: []string{operatorNamespace, "some-namespace"},
 						},
 					},
 				},
@@ -4719,20 +4714,6 @@ func TestOperatorGroupConditions(t *testing.T) {
 			if !tt.expectError {
 				require.NoError(t, err)
 			}
-
-			// wait on operator group updated status to be in the cache
-			err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
-				og, err := op.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName())
-				if err != nil || og == nil {
-					return false, err
-				}
-				return true, nil
-			})
-			require.NoError(t, err)
-
-			// sync namespace
-			err = op.syncNamespace(opNamespace)
-			require.NoError(t, err)
 
 			operatorGroup, err := op.client.OperatorsV1().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(context.TODO(), tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
