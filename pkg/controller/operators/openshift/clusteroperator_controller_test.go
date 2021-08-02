@@ -142,8 +142,35 @@ var _ = Describe("ClusterOperator controller", func() {
 			LastTransitionTime: fixedNow(),
 		}))
 
-		By("setting upgradeable=false when incompatible operators exist")
+		By("setting upgradeable=false when there's an error determining compatibility")
+		cv.Status = configv1.ClusterVersionStatus{}
 
+		Eventually(func() error {
+			return k8sClient.Status().Update(ctx, cv)
+		}).Should(Succeed())
+
+		Eventually(func() ([]configv1.ClusterOperatorStatusCondition, error) {
+			err := k8sClient.Get(ctx, clusterOperatorName, co)
+			return co.Status.Conditions, err
+		}, timeout).Should(ContainElement(configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorUpgradeable,
+			Status:             configv1.ConditionFalse,
+			Reason:             ErrorCheckingOperatorCompatibility,
+			Message:            "Encountered errors while checking compatibility with the next minor version of OpenShift: Desired release version missing from ClusterVersion",
+			LastTransitionTime: fixedNow(),
+		}))
+
+		cv.Status = configv1.ClusterVersionStatus{
+			Desired: configv1.Update{
+				Version: clusterVersion,
+			},
+		}
+
+		Eventually(func() error {
+			return k8sClient.Status().Update(ctx, cv)
+		}).Should(Succeed())
+
+		By("setting upgradeable=false when incompatible operators exist")
 		ns := &corev1.Namespace{}
 		ns.SetName("nostromo")
 
@@ -160,12 +187,15 @@ var _ = Describe("ClusterOperator controller", func() {
 		incompatible.SetName("xenomorph")
 		incompatible.SetNamespace(ns.GetName())
 
-		withMax := func(version string) map[string]string {
-			maxProperty := &api.Property{
-				Type:  MaxOpenShiftVersionProperty,
-				Value: version,
+		withMax := func(versions ...string) map[string]string {
+			var properties []*api.Property
+			for _, v := range versions {
+				properties = append(properties, &api.Property{
+					Type:  MaxOpenShiftVersionProperty,
+					Value: v,
+				})
 			}
-			value, err := projection.PropertiesAnnotationFromPropertyList([]*api.Property{maxProperty})
+			value, err := projection.PropertiesAnnotationFromPropertyList(properties)
 			Expect(err).ToNot(HaveOccurred())
 
 			return map[string]string{
@@ -241,6 +271,55 @@ var _ = Describe("ClusterOperator controller", func() {
 					namespace:           ns.GetName(),
 					name:                incompatible.GetName(),
 					maxOpenShiftVersion: short + ".0",
+				},
+			}.String(),
+			LastTransitionTime: fixedNow(),
+		}))
+
+		By("setting upgradeable=false when invalid max versions are found")
+		incompatible.SetAnnotations(withMax(`"garbage"`))
+
+		Eventually(func() error {
+			return k8sClient.Update(ctx, incompatible)
+		}).Should(Succeed())
+
+		_, parseErr := semver.ParseTolerant("garbage")
+		Eventually(func() ([]configv1.ClusterOperatorStatusCondition, error) {
+			err := k8sClient.Get(ctx, clusterOperatorName, co)
+			return co.Status.Conditions, err
+		}, timeout).Should(ContainElement(configv1.ClusterOperatorStatusCondition{
+			Type:   configv1.OperatorUpgradeable,
+			Status: configv1.ConditionFalse,
+			Reason: IncompatibleOperatorsInstalled,
+			Message: skews{
+				{
+					namespace: ns.GetName(),
+					name:      incompatible.GetName(),
+					err:       fmt.Errorf(`Failed to parse "garbage" as semver: %w`, parseErr),
+				},
+			}.String(),
+			LastTransitionTime: fixedNow(),
+		}))
+
+		By("setting upgradeable=false when more than one max version property is defined")
+		incompatible.SetAnnotations(withMax(fmt.Sprintf(`"%s"`, clusterVersion), fmt.Sprintf(`"%s"`, next.String())))
+
+		Eventually(func() error {
+			return k8sClient.Update(ctx, incompatible)
+		}).Should(Succeed())
+
+		Eventually(func() ([]configv1.ClusterOperatorStatusCondition, error) {
+			err := k8sClient.Get(ctx, clusterOperatorName, co)
+			return co.Status.Conditions, err
+		}, timeout).Should(ContainElement(configv1.ClusterOperatorStatusCondition{
+			Type:   configv1.OperatorUpgradeable,
+			Status: configv1.ConditionFalse,
+			Reason: IncompatibleOperatorsInstalled,
+			Message: skews{
+				{
+					namespace: ns.GetName(),
+					name:      incompatible.GetName(),
+					err:       fmt.Errorf(`Defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty),
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),

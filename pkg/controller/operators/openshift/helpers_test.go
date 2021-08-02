@@ -394,12 +394,20 @@ func TestIncompatibleOperators(t *testing.T) {
 				},
 			},
 			expect: expect{
-				err: true,
+				err: false,
 				incompatible: skews{
 					{
 						name:                "beech",
 						namespace:           "default",
 						maxOpenShiftVersion: "1.0.0",
+					},
+					{
+						name:      "chestnut",
+						namespace: "default",
+						err: fmt.Errorf(`Failed to parse "bad_version" as semver: %w`, func() error {
+							_, err := semver.ParseTolerant("bad_version")
+							return err
+						}()),
 					},
 				},
 			},
@@ -429,7 +437,7 @@ func TestIncompatibleOperators(t *testing.T) {
 				},
 			},
 			expect: expect{
-				err:          false,
+				err:          true,
 				incompatible: nil,
 			},
 		},
@@ -501,35 +509,13 @@ func TestMaxOpenShiftVersion(t *testing.T) {
 			description: "Nothing",
 			in:          []string{`""`},
 			expect: expect{
-				err: false,
-				max: nil,
-			},
-		},
-		{
-			description: "Nothing/Mixed",
-			in: []string{
-				`""`,
-				`"1.0.0"`,
-			},
-			expect: expect{
-				err: false,
-				max: mustParse("1.0.0"),
-			},
-		},
-		{
-			description: "Garbage",
-			in:          []string{`"bad_version"`},
-			expect: expect{
 				err: true,
 				max: nil,
 			},
 		},
 		{
-			description: "Garbage/Mixed",
-			in: []string{
-				`"bad_version"`,
-				`"1.0.0"`,
-			},
+			description: "Garbage",
+			in:          []string{`"bad_version"`},
 			expect: expect{
 				err: true,
 				max: nil,
@@ -548,40 +534,6 @@ func TestMaxOpenShiftVersion(t *testing.T) {
 			in: []string{
 				`"1.0.0"`,
 				`"2.0.0"`,
-			},
-			expect: expect{
-				err: false,
-				max: mustParse("2.0.0"),
-			},
-		},
-		{
-			description: "Duplicates",
-			in: []string{
-				`"1.0.0"`,
-				`"1.0.0"`,
-			},
-			expect: expect{
-				err: false,
-				max: mustParse("1.0.0"),
-			},
-		},
-		{
-			description: "Duplicates/NonMax",
-			in: []string{
-				`"1.0.0"`,
-				`"1.0.0"`,
-				`"2.0.0"`,
-			},
-			expect: expect{
-				err: false,
-				max: mustParse("2.0.0"),
-			},
-		},
-		{
-			description: "Ambiguous",
-			in: []string{
-				`"1.0.0"`,
-				`"1.0.0+1"`,
 			},
 			expect: expect{
 				err: true,
