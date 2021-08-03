@@ -58,6 +58,12 @@ func TestImageTemplateFlow(t *testing.T) {
 		GitVersion: "v1.20.0+bd9e442",
 	}
 
+	serverVersionNonReleaseBuild := version.Info{
+		Major:      "1",
+		Minor:      "20+",
+		GitVersion: "v1.20.1+bd9e442",
+	}
+
 	var table = []struct {
 		description                 string                 // description of test case
 		catsrc                      v1alpha1.CatalogSource // fake catalog source for testing
@@ -122,6 +128,19 @@ func TestImageTemplateFlow(t *testing.T) {
 			},
 			serverVersion:               &defaultServerVersion,
 			expectedCatalogTemplate:     "foo/v{foobar}",
+			expectedUnresolvedTemplates: []string{},
+		},
+		{
+			description: "multiple kube image template with patch and nonrelease build version",
+			catsrc: v1alpha1.CatalogSource{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						CatalogImageTemplateAnnotation: fmt.Sprintf("foo/v%s.%s.%s", TemplKubeMajorV, TemplKubeMinorV, TemplKubePatchV),
+					},
+				},
+			},
+			serverVersion:               &serverVersionNonReleaseBuild,
+			expectedCatalogTemplate:     "foo/v1.20.1",
 			expectedUnresolvedTemplates: []string{},
 		},
 	}

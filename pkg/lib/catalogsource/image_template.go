@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
+	versionutil "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -171,14 +171,15 @@ func UpdateKubeVersion(serverVersion *version.Info, logger *logrus.Logger) {
 		return
 	}
 
-	templateNameToReplacementValuesMap[TemplKubeMajorV] = serverVersion.Major
-	templateNameToReplacementValuesMap[TemplKubeMinorV] = serverVersion.Minor
-
-	// api server does not explicitly give patch value, so we have to resort to parsing the git version
-	serverGitVersion, err := semver.Parse(serverVersion.GitVersion)
+	// need to use the gitversion from version.info.String() because minor version is not always Uint value
+	// and patch version is not returned as a first class field
+	semver, err := versionutil.ParseSemantic(serverVersion.String())
 	if err != nil {
-		templateNameToReplacementValuesMap[TemplKubePatchV] = strconv.FormatUint(serverGitVersion.Patch, 10)
-	} else {
-		logger.WithError(err).Warn("unable to obtain kube server patch value")
+		logger.WithError(err).Error("unable to parse kube server version")
+		return
 	}
+
+	templateNameToReplacementValuesMap[TemplKubeMajorV] = strconv.FormatUint(uint64(semver.Major()), 10)
+	templateNameToReplacementValuesMap[TemplKubeMinorV] = strconv.FormatUint(uint64(semver.Minor()), 10)
+	templateNameToReplacementValuesMap[TemplKubePatchV] = strconv.FormatUint(uint64(semver.Patch()), 10)
 }
