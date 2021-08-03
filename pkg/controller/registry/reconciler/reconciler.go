@@ -2,14 +2,18 @@
 package reconciler
 
 import (
+	"fmt"
+	"hash/fnv"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
@@ -19,6 +23,10 @@ type nowFunc func() metav1.Time
 const (
 	// CatalogSourceLabelKey is the key for a label containing a CatalogSource name.
 	CatalogSourceLabelKey string = "olm.catalogSource"
+	// CatalogPriorityClassKey is the key of an annotation in default catalogsources
+	CatalogPriorityClassKey string = "operatorframework.io/priorityclass"
+	// PodHashLabelKey is the key of a label for podspec hash information
+	PodHashLabelKey = "olm.pod-spec-hash"
 )
 
 // RegistryEnsurer describes methods for ensuring a registry exists.
@@ -160,5 +168,25 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 			ServiceAccountName: saName,
 		},
 	}
+
+	// Set priorityclass if its annotation exists
+	if prio, ok := annotations[CatalogPriorityClassKey]; ok && prio != "" {
+		pod.Spec.PriorityClassName = prio
+	}
+
+	// Add PodSpec hash
+	// This hash info will be used to detect PodSpec changes
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[PodHashLabelKey] = hashPodSpec(pod.Spec)
+	pod.SetLabels(labels)
 	return pod
+}
+
+// hashPodSpec calculates a hash given a copy of the pod spec
+func hashPodSpec(spec v1.PodSpec) string {
+	hasher := fnv.New32a()
+	hashutil.DeepHashObject(hasher, &spec)
+	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
 }

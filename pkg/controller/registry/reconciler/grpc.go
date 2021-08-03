@@ -171,15 +171,16 @@ func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecor
 	return pods
 }
 
-func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogSourceDecorator) []*corev1.Pod {
+func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(source grpcCatalogSourceDecorator, saName string) []*corev1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
 		logrus.WithError(err).Warn("couldn't find pod in cache")
 		return nil
 	}
 	found := []*corev1.Pod{}
+	newPod := source.Pod(saName)
 	for _, p := range pods {
-		if p.Spec.Containers[0].Image == source.Spec.Image {
+		if p.Spec.Containers[0].Image == source.Spec.Image && podHashMatch(p, newPod) {
 			found = append(found, p)
 		}
 	}
@@ -192,11 +193,12 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 
 	// if service status is nil, we force create every object to ensure they're created the first time
 	overwrite := source.Status.RegistryServiceStatus == nil
-	// recreate the pod if no existing pod is serving the latest image
-	overwritePod := overwrite || len(c.currentPodsWithCorrectImage(source)) == 0
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	sa, err := c.ensureSA(source)
+	// recreate the pod if no existing pod is serving the latest image or correct spec
+	overwritePod := overwrite || len(c.currentPodsWithCorrectImageAndSpec(source, sa.GetName())) == 0
+
 	if err != nil && !k8serror.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "error ensuring service account: %s", source.GetName())
 	}
@@ -421,10 +423,9 @@ func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
 	source := grpcCatalogSourceDecorator{catalogSource}
-
 	// Check on registry resources
 	// TODO: add gRPC health check
-	if len(c.currentPodsWithCorrectImage(source)) < 1 ||
+	if len(c.currentPodsWithCorrectImageAndSpec(source, source.ServiceAccount().GetName())) < 1 ||
 		c.currentService(source) == nil {
 		healthy = false
 		return
@@ -477,4 +478,31 @@ func (c *GrpcRegistryReconciler) podFailed(pod *corev1.Pod) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+// podHashMatch will check the hash info in existing pod to ensure its
+// hash info matches the desired Service's hash.
+func podHashMatch(existing, new *corev1.Pod) bool {
+	labels := existing.GetLabels()
+	newLabels := new.GetLabels()
+	// If both new & existing pods don't have labels, consider it not matched
+	if len(labels) == 0 || len(newLabels) == 0 {
+		return false
+	}
+
+	existingPodSpecHash, ok := labels[PodHashLabelKey]
+	if !ok {
+		return false
+	}
+
+	newPodSpecHash, ok := newLabels[PodHashLabelKey]
+	if !ok {
+		return false
+	}
+
+	if existingPodSpecHash != newPodSpecHash {
+		return false
+	}
+
+	return true
 }

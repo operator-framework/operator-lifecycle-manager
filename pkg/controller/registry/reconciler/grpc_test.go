@@ -339,6 +339,74 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 	}
 }
 
+func TestRegistryPodPriorityClass(t *testing.T) {
+	now := func() metav1.Time { return metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC) }
+
+	type cluster struct {
+		k8sObjs []runtime.Object
+	}
+	type in struct {
+		cluster cluster
+		catsrc  *v1alpha1.CatalogSource
+	}
+	tests := []struct {
+		testName      string
+		in            in
+		priorityclass string
+	}{
+		{
+			testName: "Grpc/WithValidPriorityClassAnnotation",
+			in: in{
+				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
+					"operatorframework.io/priorityclass": "system-cluster-critical",
+				}),
+			},
+			priorityclass: "system-cluster-critical",
+		},
+		{
+			testName: "Grpc/WithInvalidPriorityClassAnnotation",
+			in: in{
+				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
+					"operatorframework.io/priorityclass": "",
+				}),
+			},
+			priorityclass: "",
+		},
+		{
+			testName: "Grpc/WithNoPriorityClassAnnotation",
+			in: in{
+				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
+					"annotationkey": "annotationvalue",
+				}),
+			},
+			priorityclass: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			stopc := make(chan struct{})
+			defer close(stopc)
+
+			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
+			rec := factory.ReconcilerForSource(tt.in.catsrc)
+
+			err := rec.EnsureRegistryServer(tt.in.catsrc)
+			require.NoError(t, err)
+
+			// Check for resource existence
+			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
+			pod := decorated.Pod(tt.in.catsrc.GetName())
+			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
+			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
+			require.NoError(t, podErr)
+			require.Len(t, outPods.Items, 1)
+			outPod := outPods.Items[0]
+			require.Equal(t, tt.priorityclass, outPod.Spec.PriorityClassName)
+			require.Equal(t, pod.GetLabels()[PodHashLabelKey], outPod.GetLabels()[PodHashLabelKey])
+		})
+	}
+}
+
 func TestGrpcRegistryChecker(t *testing.T) {
 	type cluster struct {
 		k8sObjs []runtime.Object
