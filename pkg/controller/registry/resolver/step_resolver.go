@@ -19,6 +19,7 @@ import (
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	controllerbundle "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
@@ -48,7 +49,7 @@ type OperatorStepResolver struct {
 var _ StepResolver = &OperatorStepResolver{}
 
 func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface,
-	globalCatalogNamespace string, provider RegistryClientProvider, log logrus.FieldLogger) *OperatorStepResolver {
+	globalCatalogNamespace string, provider cache.RegistryClientProvider, log logrus.FieldLogger) *OperatorStepResolver {
 	return &OperatorStepResolver{
 		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
@@ -56,7 +57,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(NewDefaultRegistryClientProvider(log, provider), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
+		satResolver:            NewDefaultSatResolver(cache.NewDefaultRegistryClientProvider(log, provider), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
 		log:                    log,
 	}
 }
@@ -86,7 +87,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		return nil, nil, nil, err
 	}
 
-	var operators OperatorSet
+	var operators cache.OperatorSet
 	namespaces := []string{namespace, r.globalCatalogNamespace}
 	operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs)
 	if err != nil {
@@ -101,7 +102,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	for name, op := range operators {
 		// Find any existing subscriptions that resolve to this operator.
 		existingSubscriptions := make(map[*v1alpha1.Subscription]bool)
-		sourceInfo := *op.SourceInfo()
+		sourceInfo := *op.GetSourceInfo()
 		for _, sub := range subs {
 			if sub.Spec.Package != sourceInfo.Package {
 				continue
@@ -137,21 +138,21 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		}
 
 		// add steps for any new bundle
-		if op.Bundle() != nil {
+		if op.GetBundle() != nil {
 			if op.Inline() {
-				bundleSteps, err := NewStepsFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
+				bundleSteps, err := NewStepsFromBundle(op.GetBundle(), namespace, op.GetReplaces(), op.GetSourceInfo().Catalog.Name, op.GetSourceInfo().Catalog.Namespace)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
 				}
 				steps = append(steps, bundleSteps...)
 			} else {
 				lookup := v1alpha1.BundleLookup{
-					Path:       op.Bundle().GetBundlePath(),
+					Path:       op.GetBundle().GetBundlePath(),
 					Identifier: op.Identifier(),
-					Replaces:   op.Replaces(),
+					Replaces:   op.GetReplaces(),
 					CatalogSourceRef: &corev1.ObjectReference{
-						Namespace: op.SourceInfo().Catalog.Namespace,
-						Name:      op.SourceInfo().Catalog.Name,
+						Namespace: op.GetSourceInfo().Catalog.Namespace,
+						Name:      op.GetSourceInfo().Catalog.Name,
 					},
 					Conditions: []v1alpha1.BundleLookupCondition{
 						{
@@ -168,7 +169,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 						},
 					},
 				}
-				if anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties()); err != nil {
+				if anno, err := projection.PropertiesAnnotationFromPropertyList(op.GetProperties()); err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to serialize operator properties for %q: %w", op.Identifier(), err)
 				} else {
 					lookup.Properties = anno
@@ -178,8 +179,8 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 
 			if len(existingSubscriptions) == 0 {
 				// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
-				op.SourceInfo().StartingCSV = op.Identifier()
-				subStep, err := NewSubscriptionStepResource(namespace, *op.SourceInfo())
+				op.GetSourceInfo().StartingCSV = op.Identifier()
+				subStep, err := NewSubscriptionStepResource(namespace, *op.GetSourceInfo())
 				if err != nil {
 					return nil, nil, nil, err
 				}

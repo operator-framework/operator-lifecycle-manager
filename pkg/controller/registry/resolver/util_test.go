@@ -19,6 +19,7 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes"
 )
 
@@ -32,7 +33,7 @@ func RequireStepsEqual(t *testing.T, expectedSteps, steps []*v1alpha1.Step) {
 	}
 }
 
-func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *v1alpha1.ClusterServiceVersion {
+func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requiredAPIServices cache.APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *v1alpha1.ClusterServiceVersion {
 	var singleInstance = int32(1)
 	strategy := v1alpha1.StrategyDetailsDeployment{
 		Permissions:        permissions,
@@ -155,7 +156,7 @@ func u(object runtime.Object) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: unst}
 }
 
-func apiSetToGVK(crds, apis APISet) (out []*api.GroupVersionKind) {
+func apiSetToGVK(crds, apis cache.APISet) (out []*api.GroupVersionKind) {
 	out = make([]*api.GroupVersionKind, 0)
 	for a := range crds {
 		out = append(out, &api.GroupVersionKind{
@@ -172,91 +173,6 @@ func apiSetToGVK(crds, apis APISet) (out []*api.GroupVersionKind) {
 			Kind:    a.Kind,
 			Plural:  a.Plural,
 		})
-	}
-	return
-}
-
-func apiSetToDependencies(crds, apis APISet) (out []*api.Dependency) {
-	if len(crds)+len(apis) == 0 {
-		return nil
-	}
-	out = make([]*api.Dependency, 0)
-	for a := range crds {
-		val, err := json.Marshal(opregistry.GVKDependency{
-			Group:   a.Group,
-			Kind:    a.Kind,
-			Version: a.Version,
-		})
-		if err != nil {
-			panic(err)
-		}
-		out = append(out, &api.Dependency{
-			Type:  opregistry.GVKType,
-			Value: string(val),
-		})
-	}
-	for a := range apis {
-		val, err := json.Marshal(opregistry.GVKDependency{
-			Group:   a.Group,
-			Kind:    a.Kind,
-			Version: a.Version,
-		})
-		if err != nil {
-			panic(err)
-		}
-		out = append(out, &api.Dependency{
-			Type:  opregistry.GVKType,
-			Value: string(val),
-		})
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return
-}
-
-func apiSetToProperties(crds, apis APISet, deprecated bool) (out []*api.Property) {
-	out = make([]*api.Property, 0)
-	for a := range crds {
-		val, err := json.Marshal(opregistry.GVKProperty{
-			Group:   a.Group,
-			Kind:    a.Kind,
-			Version: a.Version,
-		})
-		if err != nil {
-			panic(err)
-		}
-		out = append(out, &api.Property{
-			Type:  opregistry.GVKType,
-			Value: string(val),
-		})
-	}
-	for a := range apis {
-		val, err := json.Marshal(opregistry.GVKProperty{
-			Group:   a.Group,
-			Kind:    a.Kind,
-			Version: a.Version,
-		})
-		if err != nil {
-			panic(err)
-		}
-		out = append(out, &api.Property{
-			Type:  opregistry.GVKType,
-			Value: string(val),
-		})
-	}
-	if deprecated {
-		val, err := json.Marshal(opregistry.DeprecatedProperty{})
-		if err != nil {
-			panic(err)
-		}
-		out = append(out, &api.Property{
-			Type:  opregistry.DeprecatedType,
-			Value: string(val),
-		})
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return
 }
@@ -303,7 +219,7 @@ func withVersion(version string) bundleOpt {
 	}
 }
 
-func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, opts ...bundleOpt) *api.Bundle {
+func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices cache.APISet, opts ...bundleOpt) *api.Bundle {
 	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil))
 	if err != nil {
 		panic(err)
@@ -328,8 +244,8 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		ProvidedApis: apiSetToGVK(providedCRDs, providedAPIServices),
 		RequiredApis: apiSetToGVK(requiredCRDs, requiredAPIServices),
 		Replaces:     replaces,
-		Dependencies: apiSetToDependencies(requiredCRDs, requiredAPIServices),
-		Properties: append(apiSetToProperties(providedCRDs, providedAPIServices, false),
+		Dependencies: cache.APISetToDependencies(requiredCRDs, requiredAPIServices),
+		Properties: append(cache.APISetToProperties(providedCRDs, providedAPIServices, false),
 			packageNameToProperty(pkg, "0.0.0"),
 		),
 	}
@@ -359,7 +275,7 @@ func withBundlePath(bundle *api.Bundle, path string) *api.Bundle {
 	return bundle
 }
 
-func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *api.Bundle {
+func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices cache.APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *api.Bundle {
 	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, permissions, clusterPermissions))
 	if err != nil {
 		panic(err)
@@ -385,8 +301,8 @@ func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, re
 	}
 }
 
-func withReplaces(operator *Operator, replaces string) *Operator {
-	operator.replaces = replaces
+func withReplaces(operator *cache.Operator, replaces string) *cache.Operator {
+	operator.Replaces = replaces
 	return operator
 }
 
@@ -517,14 +433,4 @@ func sortBundleInChannel(replaces string, replacedBundle map[string]*api.Bundle,
 func getPkgName(pkgChan string) string {
 	s := strings.Split(pkgChan, "/")
 	return s[0]
-}
-
-type OperatorPredicateTestFunc func(*Operator) bool
-
-func (opf OperatorPredicateTestFunc) Test(o *Operator) bool {
-	return opf(o)
-}
-
-func (opf OperatorPredicateTestFunc) String() string {
-	return ""
 }

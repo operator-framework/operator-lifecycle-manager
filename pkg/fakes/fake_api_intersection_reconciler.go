@@ -5,13 +5,14 @@ import (
 	"sync"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
 type FakeAPIIntersectionReconciler struct {
-	ReconcileStub        func(resolver.APISet, resolver.OperatorGroupSurface, ...resolver.OperatorGroupSurface) resolver.APIReconciliationResult
+	ReconcileStub        func(cache.APISet, resolver.OperatorGroupSurface, ...resolver.OperatorGroupSurface) resolver.APIReconciliationResult
 	reconcileMutex       sync.RWMutex
 	reconcileArgsForCall []struct {
-		arg1 resolver.APISet
+		arg1 cache.APISet
 		arg2 resolver.OperatorGroupSurface
 		arg3 []resolver.OperatorGroupSurface
 	}
@@ -25,11 +26,11 @@ type FakeAPIIntersectionReconciler struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeAPIIntersectionReconciler) Reconcile(arg1 resolver.APISet, arg2 resolver.OperatorGroupSurface, arg3 ...resolver.OperatorGroupSurface) resolver.APIReconciliationResult {
+func (fake *FakeAPIIntersectionReconciler) Reconcile(arg1 cache.APISet, arg2 resolver.OperatorGroupSurface, arg3 ...resolver.OperatorGroupSurface) resolver.APIReconciliationResult {
 	fake.reconcileMutex.Lock()
 	ret, specificReturn := fake.reconcileReturnsOnCall[len(fake.reconcileArgsForCall)]
 	fake.reconcileArgsForCall = append(fake.reconcileArgsForCall, struct {
-		arg1 resolver.APISet
+		arg1 cache.APISet
 		arg2 resolver.OperatorGroupSurface
 		arg3 []resolver.OperatorGroupSurface
 	}{arg1, arg2, arg3})
@@ -51,13 +52,13 @@ func (fake *FakeAPIIntersectionReconciler) ReconcileCallCount() int {
 	return len(fake.reconcileArgsForCall)
 }
 
-func (fake *FakeAPIIntersectionReconciler) ReconcileCalls(stub func(resolver.APISet, resolver.OperatorGroupSurface, ...resolver.OperatorGroupSurface) resolver.APIReconciliationResult) {
+func (fake *FakeAPIIntersectionReconciler) ReconcileCalls(stub func(cache.APISet, resolver.OperatorGroupSurface, ...resolver.OperatorGroupSurface) resolver.APIReconciliationResult) {
 	fake.reconcileMutex.Lock()
 	defer fake.reconcileMutex.Unlock()
 	fake.ReconcileStub = stub
 }
 
-func (fake *FakeAPIIntersectionReconciler) ReconcileArgsForCall(i int) (resolver.APISet, resolver.OperatorGroupSurface, []resolver.OperatorGroupSurface) {
+func (fake *FakeAPIIntersectionReconciler) ReconcileArgsForCall(i int) (cache.APISet, resolver.OperatorGroupSurface, []resolver.OperatorGroupSurface) {
 	fake.reconcileMutex.RLock()
 	defer fake.reconcileMutex.RUnlock()
 	argsForCall := fake.reconcileArgsForCall[i]

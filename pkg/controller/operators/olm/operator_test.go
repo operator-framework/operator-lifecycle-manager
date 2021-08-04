@@ -55,6 +55,7 @@ import (
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	resolvercache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
@@ -872,7 +873,7 @@ func TestTransitionCSV(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
 
-	apiHash, err := resolver.APIKeyToGVKHash(opregistry.APIKey{Group: "g1", Version: "v1", Kind: "c1"})
+	apiHash, err := resolvercache.APIKeyToGVKHash(opregistry.APIKey{Group: "g1", Version: "v1", Kind: "c1"})
 	require.NoError(t, err)
 
 	defaultOperatorGroup := &v1.OperatorGroup{
@@ -3693,7 +3694,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		v1alpha1.CSVPhaseNone,
 	), labels.Set{resolver.APILabelKeyPrefix + "9f4c46c37bdff8d0": "provided"})
 
-	operatorCSV.Spec.InstallStrategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{corev1.EnvVar{
+	operatorCSV.Spec.InstallStrategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{
 		Name:  "OPERATOR_CONDITION_NAME",
 		Value: operatorCSV.GetName(),
 	}}
@@ -4631,7 +4632,7 @@ func TestOperatorGroupConditions(t *testing.T) {
 			},
 			expectError: true,
 			expectedConditions: []metav1.Condition{
-				metav1.Condition{
+				{
 					Type:    v1.OperatorGroupServiceAccountCondition,
 					Status:  metav1.ConditionTrue,
 					Reason:  v1.OperatorGroupServiceAccountReason,
@@ -4674,7 +4675,7 @@ func TestOperatorGroupConditions(t *testing.T) {
 			},
 			expectError: true,
 			expectedConditions: []metav1.Condition{
-				metav1.Condition{
+				{
 					Type:    v1.MutlipleOperatorGroupCondition,
 					Status:  metav1.ConditionTrue,
 					Reason:  v1.MultipleOperatorGroupsReason,

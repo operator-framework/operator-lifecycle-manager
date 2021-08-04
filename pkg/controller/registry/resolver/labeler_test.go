@@ -3,6 +3,7 @@ package resolver
 import (
 	"testing"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/labels"
@@ -43,8 +44,8 @@ func TestLabelSetsFor(t *testing.T) {
 		},
 		{
 			name: "OperatorSurface/Provided",
-			obj: &Operator{
-				providedAPIs: map[opregistry.APIKey]struct{}{
+			obj: &cache.Operator{
+				ProvidedAPIs: map[opregistry.APIKey]struct{}{
 					opregistry.APIKey{Group: "ghouls", Version: "v1alpha1", Kind: "Ghost", Plural: "Ghosts"}: {},
 				},
 			},
@@ -56,11 +57,11 @@ func TestLabelSetsFor(t *testing.T) {
 		},
 		{
 			name: "OperatorSurface/ProvidedAndRequired",
-			obj: &Operator{
-				providedAPIs: map[opregistry.APIKey]struct{}{
+			obj: &cache.Operator{
+				ProvidedAPIs: map[opregistry.APIKey]struct{}{
 					opregistry.APIKey{Group: "ghouls", Version: "v1alpha1", Kind: "Ghost", Plural: "Ghosts"}: {},
 				},
-				requiredAPIs: map[opregistry.APIKey]struct{}{
+				RequiredAPIs: map[opregistry.APIKey]struct{}{
 					opregistry.APIKey{Group: "ghouls", Version: "v1alpha1", Kind: "Goblin", Plural: "Goblins"}: {},
 				},
 			},

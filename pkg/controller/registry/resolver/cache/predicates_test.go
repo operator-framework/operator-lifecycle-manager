@@ -1,10 +1,20 @@
-package resolver
+package cache
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+type OperatorPredicateTestFunc func(*Operator) bool
+
+func (opf OperatorPredicateTestFunc) Test(o *Operator) bool {
+	return opf(o)
+}
+
+func (opf OperatorPredicateTestFunc) String() string {
+	return ""
+}
 
 func TestCountingPredicate(t *testing.T) {
 	for _, tc := range []struct {

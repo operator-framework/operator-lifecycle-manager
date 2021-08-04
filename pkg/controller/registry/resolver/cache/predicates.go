@@ -1,4 +1,4 @@
-package resolver
+package cache
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ func CSVNamePredicate(name string) OperatorPredicate {
 }
 
 func (c csvNamePredicate) Test(o *Operator) bool {
-	return o.Name() == string(c)
+	return o.Name == string(c)
 }
 
 func (c csvNamePredicate) String() string {
@@ -42,10 +42,10 @@ func (ch channelPredicate) Test(o *Operator) bool {
 	if string(ch) == "" {
 		return true
 	}
-	if o.Bundle() == nil {
+	if o.Bundle == nil {
 		return false
 	}
-	return o.Bundle().ChannelName == string(ch)
+	return o.Bundle.ChannelName == string(ch)
 }
 
 func (ch channelPredicate) String() string {
@@ -59,7 +59,7 @@ func PkgPredicate(pkg string) OperatorPredicate {
 }
 
 func (pkg pkgPredicate) Test(o *Operator) bool {
-	for _, p := range o.Properties() {
+	for _, p := range o.Properties {
 		if p.Type != opregistry.PackageType {
 			continue
 		}
@@ -89,7 +89,7 @@ func VersionInRangePredicate(r semver.Range, version string) OperatorPredicate {
 }
 
 func (v versionInRangePredicate) Test(o *Operator) bool {
-	for _, p := range o.Properties() {
+	for _, p := range o.Properties {
 		if p.Type != opregistry.PackageType {
 			continue
 		}
@@ -106,7 +106,7 @@ func (v versionInRangePredicate) Test(o *Operator) bool {
 			return true
 		}
 	}
-	return o.Version() != nil && v.r(*o.Version())
+	return o.Version != nil && v.r(*o.Version)
 }
 
 func (v versionInRangePredicate) String() string {
@@ -119,7 +119,7 @@ func LabelPredicate(label string) OperatorPredicate {
 	return labelPredicate(label)
 }
 func (l labelPredicate) Test(o *Operator) bool {
-	for _, p := range o.Properties() {
+	for _, p := range o.Properties {
 		if p.Type != opregistry.LabelType {
 			continue
 		}
@@ -148,7 +148,7 @@ func CatalogPredicate(key registry.CatalogKey) OperatorPredicate {
 }
 
 func (c catalogPredicate) Test(o *Operator) bool {
-	return c.key.Equal(o.SourceInfo().Catalog)
+	return c.key.Equal(o.SourceInfo.Catalog)
 }
 
 func (c catalogPredicate) String() string {
@@ -166,7 +166,7 @@ func ProvidingAPIPredicate(api opregistry.APIKey) OperatorPredicate {
 }
 
 func (g gvkPredicate) Test(o *Operator) bool {
-	for _, p := range o.Properties() {
+	for _, p := range o.Properties {
 		if p.Type != opregistry.GVKType {
 			continue
 		}
@@ -210,10 +210,10 @@ func ReplacesPredicate(replaces string) OperatorPredicate {
 }
 
 func (r replacesPredicate) Test(o *Operator) bool {
-	if o.Replaces() == string(r) {
+	if o.Replaces == string(r) {
 		return true
 	}
-	for _, s := range o.Skips() {
+	for _, s := range o.Skips {
 		if s == string(r) {
 			return true
 		}

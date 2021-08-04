@@ -1,4 +1,4 @@
-package resolver
+package cache
 
 import (
 	"encoding/json"
@@ -208,28 +208,28 @@ var ExistingOperator = OperatorSourceInfo{Package: "", Channel: "", StartingCSV:
 
 // OperatorSurface describes the API surfaces provided and required by an Operator.
 type OperatorSurface interface {
-	ProvidedAPIs() APISet
-	RequiredAPIs() APISet
+	GetProvidedAPIs() APISet
+	GetRequiredAPIs() APISet
 	Identifier() string
-	Replaces() string
-	Version() *semver.Version
-	SourceInfo() *OperatorSourceInfo
-	Bundle() *api.Bundle
+	GetReplaces() string
+	GetVersion() *semver.Version
+	GetSourceInfo() *OperatorSourceInfo
+	GetBundle() *api.Bundle
 	Inline() bool
-	Properties() []*api.Property
-	Skips() []string
+	GetProperties() []*api.Property
+	GetSkips() []string
 }
 
 type Operator struct {
-	name         string
-	replaces     string
-	providedAPIs APISet
-	requiredAPIs APISet
-	version      *semver.Version
-	bundle       *api.Bundle
-	sourceInfo   *OperatorSourceInfo
-	properties   []*api.Property
-	skips        []string
+	Name         string
+	Replaces     string
+	ProvidedAPIs APISet
+	RequiredAPIs APISet
+	Version      *semver.Version
+	Bundle       *api.Bundle
+	SourceInfo   *OperatorSourceInfo
+	Properties   []*api.Property
+	Skips        []string
 }
 
 var _ OperatorSurface = &Operator{}
@@ -265,13 +265,13 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		}
 	}
 	if len(bundle.Dependencies) > 0 {
-		ps, err := legacyDependenciesToProperties(bundle.Dependencies)
+		ps, err := LegacyDependenciesToProperties(bundle.Dependencies)
 		if err != nil {
 			return nil, fmt.Errorf("failed to translate legacy dependencies to properties: %w", err)
 		}
 		properties = append(properties, ps...)
 	} else {
-		ps, err := requiredAPIsToProperties(required)
+		ps, err := RequiredAPIsToProperties(required)
 		if err != nil {
 			return nil, err
 		}
@@ -279,15 +279,15 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 	}
 
 	o := &Operator{
-		name:         bundle.CsvName,
-		replaces:     bundle.Replaces,
-		version:      version,
-		providedAPIs: provided,
-		requiredAPIs: required,
-		bundle:       bundle,
-		sourceInfo:   sourceInfo,
-		properties:   properties,
-		skips:        bundle.Skips,
+		Name:         bundle.CsvName,
+		Replaces:     bundle.Replaces,
+		Version:      version,
+		ProvidedAPIs: provided,
+		RequiredAPIs: required,
+		Bundle:       bundle,
+		SourceInfo:   sourceInfo,
+		Properties:   properties,
+		Skips:        bundle.Skips,
 	}
 
 	if !o.Inline() {
@@ -331,91 +331,83 @@ func NewOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*Operator,
 	if err != nil {
 		return nil, err
 	}
-	dependencies, err := requiredAPIsToProperties(requiredAPIs)
+	dependencies, err := RequiredAPIsToProperties(requiredAPIs)
 	if err != nil {
 		return nil, err
 	}
 	properties = append(properties, dependencies...)
 
 	return &Operator{
-		name:         csv.GetName(),
-		version:      &csv.Spec.Version.Version,
-		providedAPIs: providedAPIs,
-		requiredAPIs: requiredAPIs,
-		sourceInfo:   &ExistingOperator,
-		properties:   properties,
+		Name:         csv.GetName(),
+		Version:      &csv.Spec.Version.Version,
+		ProvidedAPIs: providedAPIs,
+		RequiredAPIs: requiredAPIs,
+		SourceInfo:   &ExistingOperator,
+		Properties:   properties,
 	}, nil
 }
 
-func (o *Operator) Name() string {
-	return o.name
+func (o *Operator) GetProvidedAPIs() APISet {
+	return o.ProvidedAPIs
 }
 
-func (o *Operator) ProvidedAPIs() APISet {
-	return o.providedAPIs
-}
-
-func (o *Operator) RequiredAPIs() APISet {
-	return o.requiredAPIs
+func (o *Operator) GetRequiredAPIs() APISet {
+	return o.RequiredAPIs
 }
 
 func (o *Operator) Identifier() string {
-	return o.name
+	return o.Name
 }
 
-func (o *Operator) Replaces() string {
-	return o.replaces
+func (o *Operator) GetReplaces() string {
+	return o.Replaces
 }
 
-func (o *Operator) Skips() []string {
-	return o.skips
-}
-
-func (o *Operator) SetReplaces(replacing string) {
-	o.replaces = replacing
+func (o *Operator) GetSkips() []string {
+	return o.Skips
 }
 
 func (o *Operator) Package() string {
-	if o.bundle != nil {
-		return o.bundle.PackageName
+	if o.Bundle != nil {
+		return o.Bundle.PackageName
 	}
 	return ""
 }
 
 func (o *Operator) Channel() string {
-	if o.bundle != nil {
-		return o.bundle.ChannelName
+	if o.Bundle != nil {
+		return o.Bundle.ChannelName
 	}
 	return ""
 }
 
-func (o *Operator) SourceInfo() *OperatorSourceInfo {
-	return o.sourceInfo
+func (o *Operator) GetSourceInfo() *OperatorSourceInfo {
+	return o.SourceInfo
 }
 
-func (o *Operator) Bundle() *api.Bundle {
-	return o.bundle
+func (o *Operator) GetBundle() *api.Bundle {
+	return o.Bundle
 }
 
-func (o *Operator) Version() *semver.Version {
-	return o.version
+func (o *Operator) GetVersion() *semver.Version {
+	return o.Version
 }
 
 func (o *Operator) SemverRange() (semver.Range, error) {
-	return semver.ParseRange(o.Bundle().SkipRange)
+	return semver.ParseRange(o.Bundle.SkipRange)
 }
 
 func (o *Operator) Inline() bool {
-	return o.bundle != nil && o.bundle.GetBundlePath() == ""
+	return o.Bundle != nil && o.Bundle.GetBundlePath() == ""
 }
 
-func (o *Operator) Properties() []*api.Property {
-	return o.properties
+func (o *Operator) GetProperties() []*api.Property {
+	return o.Properties
 }
 
 func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
 	predicates = make([]OperatorPredicate, 0)
-	for _, property := range o.Properties() {
+	for _, property := range o.Properties {
 		predicate, err := PredicateForProperty(property)
 		if err != nil {
 			return nil, err
@@ -428,7 +420,7 @@ func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err e
 	return
 }
 
-func requiredAPIsToProperties(apis APISet) (out []*api.Property, err error) {
+func RequiredAPIsToProperties(apis APISet) (out []*api.Property, err error) {
 	if len(apis) == 0 {
 		return
 	}
@@ -479,7 +471,7 @@ func providedAPIsToProperties(apis APISet) (out []*api.Property, err error) {
 	return nil, nil
 }
 
-func legacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Property, error) {
+func LegacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Property, error) {
 	var result []*api.Property
 	for _, dependency := range dependencies {
 		switch dependency.Type {
@@ -537,4 +529,89 @@ func legacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Prop
 		}
 	}
 	return result, nil
+}
+
+func APISetToProperties(crds, apis APISet, deprecated bool) (out []*api.Property) {
+	out = make([]*api.Property, 0)
+	for a := range crds {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if deprecated {
+		val, err := json.Marshal(opregistry.DeprecatedProperty{})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.DeprecatedType,
+			Value: string(val),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return
+}
+
+func APISetToDependencies(crds, apis APISet) (out []*api.Dependency) {
+	if len(crds)+len(apis) == 0 {
+		return nil
+	}
+	out = make([]*api.Dependency, 0)
+	for a := range crds {
+		val, err := json.Marshal(opregistry.GVKDependency{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Dependency{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKDependency{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Dependency{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return
 }

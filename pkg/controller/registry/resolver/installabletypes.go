@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	operatorregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -55,14 +56,13 @@ func bundleId(bundle, channel string, catalog registry.CatalogKey) solver.Identi
 	return solver.IdentifierFromString(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
 }
 
-func NewBundleInstallableFromOperator(o *Operator) (BundleInstallable, error) {
-	src := o.SourceInfo()
-	if src == nil {
-		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Identifier())
+func NewBundleInstallableFromOperator(o *cache.Operator) (BundleInstallable, error) {
+	if o.SourceInfo == nil {
+		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Name)
 	}
-	id := bundleId(o.Identifier(), o.Channel(), src.Catalog)
+	id := bundleId(o.Identifier(), o.Channel(), o.SourceInfo.Catalog)
 	var constraints []solver.Constraint
-	if src.Catalog.Virtual() && src.Subscription == nil {
+	if o.SourceInfo.Catalog.Virtual() && o.SourceInfo.Subscription == nil {
 		// CSVs already associated with a Subscription
 		// may be replaced, but freestanding CSVs must
 		// appear in any solution.
@@ -71,7 +71,7 @@ func NewBundleInstallableFromOperator(o *Operator) (BundleInstallable, error) {
 			fmt.Sprintf("clusterserviceversion %s exists and is not referenced by a subscription", o.Identifier()),
 		))
 	}
-	for _, p := range o.bundle.GetProperties() {
+	for _, p := range o.Properties {
 		if p.GetType() == operatorregistry.DeprecatedType {
 			constraints = append(constraints, PrettyConstraint(
 				solver.Prohibited(),

@@ -8,7 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/api/pkg/operators/v1"
+	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
 func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []string) *v1.OperatorGroup {
@@ -38,7 +39,7 @@ func TestNewOperatorGroup(t *testing.T) {
 				namespace:    "ns",
 				name:         "empty-group",
 				targets:      make(NamespaceSet),
-				providedAPIs: make(APISet),
+				providedAPIs: make(cache.APISet),
 			},
 		},
 		{
@@ -51,7 +52,7 @@ func TestNewOperatorGroup(t *testing.T) {
 					"ns":   {},
 					"ns-1": {},
 				},
-				providedAPIs: make(APISet),
+				providedAPIs: make(cache.APISet),
 			},
 		},
 		{
@@ -63,7 +64,7 @@ func TestNewOperatorGroup(t *testing.T) {
 				targets: NamespaceSet{
 					"ns": {},
 				},
-				providedAPIs: make(APISet),
+				providedAPIs: make(cache.APISet),
 			},
 		},
 		{
@@ -77,7 +78,7 @@ func TestNewOperatorGroup(t *testing.T) {
 					"ns-1": {},
 					"ns-2": {},
 				},
-				providedAPIs: make(APISet),
+				providedAPIs: make(cache.APISet),
 			},
 		},
 		{
@@ -89,7 +90,7 @@ func TestNewOperatorGroup(t *testing.T) {
 				targets: NamespaceSet{
 					metav1.NamespaceAll: {},
 				},
-				providedAPIs: make(APISet),
+				providedAPIs: make(cache.APISet),
 			},
 		},
 		{
@@ -102,7 +103,7 @@ func TestNewOperatorGroup(t *testing.T) {
 					"ns":   {},
 					"ns-1": {},
 				},
-				providedAPIs: APISet{
+				providedAPIs: cache.APISet{
 					opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 				},
 			},
@@ -117,7 +118,7 @@ func TestNewOperatorGroup(t *testing.T) {
 					"ns":   {},
 					"ns-1": {},
 				},
-				providedAPIs: make(APISet),
+				providedAPIs: make(cache.APISet),
 			},
 		},
 		{
@@ -130,7 +131,7 @@ func TestNewOperatorGroup(t *testing.T) {
 					"ns":   {},
 					"ns-1": {},
 				},
-				providedAPIs: APISet{
+				providedAPIs: cache.APISet{
 					opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},
 				},
 			},
@@ -145,7 +146,7 @@ func TestNewOperatorGroup(t *testing.T) {
 					"ns":   {},
 					"ns-1": {},
 				},
-				providedAPIs: APISet{
+				providedAPIs: cache.APISet{
 					opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}:   {},
 					opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},
 				},
@@ -804,21 +805,21 @@ func TestGroupIntersection(t *testing.T) {
 func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReconciler) {
 	tests := []struct {
 		name        string
-		add         APISet
+		add         cache.APISet
 		group       OperatorGroupSurface
 		otherGroups []OperatorGroupSurface
 		want        APIReconciliationResult
 	}{
 		{
 			name:        "Empty/NoAPIConflict",
-			add:         make(APISet),
+			add:         make(cache.APISet),
 			group:       buildOperatorGroup("ns", "g1", []string{"ns"}, nil),
 			otherGroups: nil,
 			want:        NoAPIConflict,
 		},
 		{
 			name: "NoNamespaceIntersection/APIIntersection/NoAPIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
@@ -829,7 +830,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "NamespaceIntersection/NoAPIIntersection/NoAPIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
@@ -840,7 +841,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "MultipleNamespaceIntersections/NoAPIIntersection/NoAPIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
@@ -852,7 +853,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "SomeNamespaceIntersection/NoAPIIntersection/NoAPIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}:   {},
 				opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},
 			},
@@ -866,7 +867,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceIntersection/NoAPIIntersection/NoAPIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{""}, []string{"Goose.v1alpha1.birds.com"}),
@@ -877,7 +878,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceIntersectionOnOther/NoAPIIntersection/NoAPIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
@@ -888,7 +889,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceInstersectionOnOther/NoAPIIntersection/NoAPIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{""}, []string{"Goose.v1alpha1.birds.com"}),
@@ -899,7 +900,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "NamespaceIntersection/NoAPIIntersection/NoAPIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
@@ -910,7 +911,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "NamespaceIntersection/APIIntersection/APIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, nil),
@@ -921,7 +922,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceIntersection/APIIntersection/APIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{""}, nil),
@@ -932,7 +933,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceIntersectionOnOther/APIIntersection/APIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, nil),
@@ -943,7 +944,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceIntersectionOnBoth/APIIntersection/APIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{""}, nil),
@@ -954,7 +955,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "NamespaceIntersection/SomeAPIIntersection/APIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, nil),
@@ -966,7 +967,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "NamespaceIntersectionOnOperatorNamespace/SomeAPIIntersection/APIConflict",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, nil),
@@ -978,7 +979,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 
 		{
 			name: "NoNamespaceIntersection/NoAPIIntersection/AddAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, nil),
@@ -989,7 +990,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "NamespaceIntersection/NoAPIIntersection/AddAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, nil),
@@ -1000,7 +1001,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "OperatorNamespaceIntersection/NoAPIIntersection/AddAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, nil),
@@ -1011,7 +1012,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceIntersection/NoAPIIntersection/AddAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{""}, nil),
@@ -1023,7 +1024,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceIntersectionOnOthers/NoAPIIntersection/AddAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, nil),
@@ -1035,7 +1036,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceIntersectionOnOthers/NoAPIIntersection/AddAPIs/PrexistingAddition",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 				opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Cow"}: {},
 			},
@@ -1048,7 +1049,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "NamespaceInstersection/APIIntersection/RemoveAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
@@ -1059,7 +1060,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceInstersection/APIIntersection/RemoveAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{""}, []string{"Goose.v1alpha1.birds.com"}),
@@ -1070,7 +1071,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "AllNamespaceInstersectionOnOther/APIIntersection/RemoveAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{""}, []string{"Goose.v1alpha1.birds.com"}),
@@ -1081,7 +1082,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "MultipleNamespaceIntersections/APIIntersection/RemoveAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
@@ -1093,7 +1094,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		},
 		{
 			name: "SomeNamespaceIntersection/APIIntersection/RemoveAPIs",
-			add: APISet{
+			add: cache.APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}:   {},
 				opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},
 			},

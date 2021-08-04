@@ -1,4 +1,4 @@
-package resolver
+package cache
 
 import (
 	"encoding/json"
@@ -737,7 +737,7 @@ func TestAPIMultiOwnerSet_PopAPIKey(t *testing.T) {
 			name: "OneApi/OneOwner",
 			s: map[opregistry.APIKey]OperatorSet{
 				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{name: "op1"},
+					"owner1": &Operator{Name: "op1"},
 				},
 			},
 		},
@@ -745,8 +745,8 @@ func TestAPIMultiOwnerSet_PopAPIKey(t *testing.T) {
 			name: "OneApi/MultiOwner",
 			s: map[opregistry.APIKey]OperatorSet{
 				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{name: "op1"},
-					"owner2": &Operator{name: "op2"},
+					"owner1": &Operator{Name: "op1"},
+					"owner2": &Operator{Name: "op2"},
 				},
 			},
 		},
@@ -754,12 +754,12 @@ func TestAPIMultiOwnerSet_PopAPIKey(t *testing.T) {
 			name: "MultipleApi/MultiOwner",
 			s: map[opregistry.APIKey]OperatorSet{
 				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{name: "op1"},
-					"owner2": &Operator{name: "op2"},
+					"owner1": &Operator{Name: "op1"},
+					"owner2": &Operator{Name: "op2"},
 				},
 				{Group: "g2", Version: "v2", Kind: "k2", Plural: "p2"}: map[string]OperatorSurface{
-					"owner1": &Operator{name: "op1"},
-					"owner2": &Operator{name: "op2"},
+					"owner1": &Operator{Name: "op1"},
+					"owner2": &Operator{Name: "op2"},
 				},
 			},
 		},
@@ -797,41 +797,41 @@ func TestAPIMultiOwnerSet_PopAPIRequirers(t *testing.T) {
 			name: "OneApi/OneOwner",
 			s: map[opregistry.APIKey]OperatorSet{
 				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{name: "op1"},
+					"owner1": &Operator{Name: "op1"},
 				},
 			},
 			want: map[string]OperatorSurface{
-				"owner1": &Operator{name: "op1"},
+				"owner1": &Operator{Name: "op1"},
 			},
 		},
 		{
 			name: "OneApi/MultiOwner",
 			s: map[opregistry.APIKey]OperatorSet{
 				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{name: "op1"},
-					"owner2": &Operator{name: "op2"},
+					"owner1": &Operator{Name: "op1"},
+					"owner2": &Operator{Name: "op2"},
 				},
 			},
 			want: map[string]OperatorSurface{
-				"owner1": &Operator{name: "op1"},
-				"owner2": &Operator{name: "op2"},
+				"owner1": &Operator{Name: "op1"},
+				"owner2": &Operator{Name: "op2"},
 			},
 		},
 		{
 			name: "MultipleApi/MultiOwner",
 			s: map[opregistry.APIKey]OperatorSet{
 				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{name: "op1"},
-					"owner2": &Operator{name: "op2"},
+					"owner1": &Operator{Name: "op1"},
+					"owner2": &Operator{Name: "op2"},
 				},
 				{Group: "g2", Version: "v2", Kind: "k2", Plural: "p2"}: map[string]OperatorSurface{
-					"owner1": &Operator{name: "op1"},
-					"owner2": &Operator{name: "op2"},
+					"owner1": &Operator{Name: "op1"},
+					"owner2": &Operator{Name: "op2"},
 				},
 			},
 			want: map[string]OperatorSurface{
-				"owner1": &Operator{name: "op1"},
-				"owner2": &Operator{name: "op2"},
+				"owner1": &Operator{Name: "op1"},
+				"owner2": &Operator{Name: "op2"},
 			},
 		},
 	}
@@ -1077,12 +1077,12 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
-				name:         "testBundle",
-				version:      &version.Version,
-				providedAPIs: EmptyAPISet(),
-				requiredAPIs: EmptyAPISet(),
-				bundle:       bundleNoAPIs,
-				sourceInfo: &OperatorSourceInfo{
+				Name:         "testBundle",
+				Version:      &version.Version,
+				ProvidedAPIs: EmptyAPISet(),
+				RequiredAPIs: EmptyAPISet(),
+				Bundle:       bundleNoAPIs,
+				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
 					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
@@ -1096,9 +1096,9 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
-				name:    "testBundle",
-				version: &version.Version,
-				providedAPIs: APISet{
+				Name:    "testBundle",
+				Version: &version.Version,
+				ProvidedAPIs: APISet{
 					opregistry.APIKey{
 						Group:   "crd.group.com",
 						Version: "v1",
@@ -1112,7 +1112,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Plural:  "ownedapis",
 					}: struct{}{},
 				},
-				requiredAPIs: APISet{
+				RequiredAPIs: APISet{
 					opregistry.APIKey{
 						Group:   "crd.group.com",
 						Version: "v1",
@@ -1126,7 +1126,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Plural:  "requiredapis",
 					}: struct{}{},
 				},
-				properties: []*api.Property{
+				Properties: []*api.Property{
 					{
 						Type:  "olm.gvk",
 						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
@@ -1144,8 +1144,8 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
 					},
 				},
-				bundle: bundleWithAPIs,
-				sourceInfo: &OperatorSourceInfo{
+				Bundle: bundleWithAPIs,
+				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
 					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
@@ -1159,11 +1159,11 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
-				name:         "testBundle",
-				providedAPIs: EmptyAPISet(),
-				requiredAPIs: EmptyAPISet(),
-				bundle:       bundleWithAPIsUnextracted,
-				sourceInfo: &OperatorSourceInfo{
+				Name:         "testBundle",
+				ProvidedAPIs: EmptyAPISet(),
+				RequiredAPIs: EmptyAPISet(),
+				Bundle:       bundleWithAPIsUnextracted,
+				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
 					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
@@ -1178,12 +1178,12 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				defaultChannel: "testChannel",
 			},
 			want: &Operator{
-				name:         "testBundle",
-				version:      &version.Version,
-				providedAPIs: EmptyAPISet(),
-				requiredAPIs: EmptyAPISet(),
-				bundle:       bundleNoAPIs,
-				sourceInfo: &OperatorSourceInfo{
+				Name:         "testBundle",
+				Version:      &version.Version,
+				ProvidedAPIs: EmptyAPISet(),
+				RequiredAPIs: EmptyAPISet(),
+				Bundle:       bundleNoAPIs,
+				SourceInfo: &OperatorSourceInfo{
 					Package:        "testPackage",
 					Channel:        "testChannel",
 					Catalog:        registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
@@ -1198,11 +1198,11 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
-				name:         "testBundle",
-				version:      &version.Version,
-				providedAPIs: EmptyAPISet(),
-				requiredAPIs: EmptyAPISet(),
-				properties: []*api.Property{
+				Name:         "testBundle",
+				Version:      &version.Version,
+				ProvidedAPIs: EmptyAPISet(),
+				RequiredAPIs: EmptyAPISet(),
+				Properties: []*api.Property{
 					{
 						Type:  "olm.gvk",
 						Value: "{\"group\":\"crd.group.com\",\"kind\":\"OwnedCRD\",\"version\":\"v1\"}",
@@ -1220,8 +1220,8 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
 					},
 				},
-				bundle: bundleWithPropsAndDeps,
-				sourceInfo: &OperatorSourceInfo{
+				Bundle: bundleWithPropsAndDeps,
+				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
 					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
@@ -1233,8 +1233,8 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey, tt.args.defaultChannel)
 			require.Equal(t, tt.wantErr, err)
-			requirePropertiesEqual(t, tt.want.properties, got.properties)
-			tt.want.properties, got.properties = nil, nil
+			requirePropertiesEqual(t, tt.want.Properties, got.Properties)
+			tt.want.Properties, got.Properties = nil, nil
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -1264,11 +1264,11 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				},
 			},
 			want: &Operator{
-				name:         "operator.v1",
-				providedAPIs: EmptyAPISet(),
-				requiredAPIs: EmptyAPISet(),
-				sourceInfo:   &ExistingOperator,
-				version:      &version.Version,
+				Name:         "operator.v1",
+				ProvidedAPIs: EmptyAPISet(),
+				RequiredAPIs: EmptyAPISet(),
+				SourceInfo:   &ExistingOperator,
+				Version:      &version.Version,
 			},
 		},
 		{
@@ -1303,12 +1303,12 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				},
 			},
 			want: &Operator{
-				name: "operator.v1",
-				providedAPIs: map[opregistry.APIKey]struct{}{
+				Name: "operator.v1",
+				ProvidedAPIs: map[opregistry.APIKey]struct{}{
 					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 				},
-				properties: []*api.Property{
+				Properties: []*api.Property{
 					{
 						Type:  "olm.gvk",
 						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
@@ -1318,9 +1318,9 @@ func TestNewOperatorFromCSV(t *testing.T) {
 						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
 					},
 				},
-				requiredAPIs: EmptyAPISet(),
-				sourceInfo:   &ExistingOperator,
-				version:      &version.Version,
+				RequiredAPIs: EmptyAPISet(),
+				SourceInfo:   &ExistingOperator,
+				Version:      &version.Version,
 			},
 		},
 		{
@@ -1355,13 +1355,13 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				},
 			},
 			want: &Operator{
-				name:         "operator.v1",
-				providedAPIs: EmptyAPISet(),
-				requiredAPIs: map[opregistry.APIKey]struct{}{
+				Name:         "operator.v1",
+				ProvidedAPIs: EmptyAPISet(),
+				RequiredAPIs: map[opregistry.APIKey]struct{}{
 					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 				},
-				properties: []*api.Property{
+				Properties: []*api.Property{
 					{
 						Type:  "olm.gvk.required",
 						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
@@ -1371,8 +1371,8 @@ func TestNewOperatorFromCSV(t *testing.T) {
 						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
 					},
 				},
-				sourceInfo: &ExistingOperator,
-				version:    &version.Version,
+				SourceInfo: &ExistingOperator,
+				Version:    &version.Version,
 			},
 		},
 		{
@@ -1422,16 +1422,16 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				},
 			},
 			want: &Operator{
-				name: "operator.v1",
-				providedAPIs: map[opregistry.APIKey]struct{}{
+				Name: "operator.v1",
+				ProvidedAPIs: map[opregistry.APIKey]struct{}{
 					{Group: "g", Version: "v1", Kind: "APIOwnedKind", Plural: "apiownedkinds"}: {},
 					{Group: "g", Version: "v1", Kind: "CRDOwnedKind", Plural: "crdownedkinds"}: {},
 				},
-				requiredAPIs: map[opregistry.APIKey]struct{}{
+				RequiredAPIs: map[opregistry.APIKey]struct{}{
 					{Group: "g2", Version: "v1", Kind: "APIReqKind", Plural: "apireqkinds"}: {},
 					{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 				},
-				properties: []*api.Property{
+				Properties: []*api.Property{
 					{
 						Type:  "olm.gvk",
 						Value: "{\"group\":\"g\",\"kind\":\"APIOwnedKind\",\"version\":\"v1\"}",
@@ -1449,8 +1449,8 @@ func TestNewOperatorFromCSV(t *testing.T) {
 						Value: "{\"group\":\"g2\",\"kind\":\"CRDReqKind\",\"version\":\"v1\"}",
 					},
 				},
-				sourceInfo: &ExistingOperator,
-				version:    &version.Version,
+				SourceInfo: &ExistingOperator,
+				Version:    &version.Version,
 			},
 		},
 	}
@@ -1458,8 +1458,8 @@ func TestNewOperatorFromCSV(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := NewOperatorFromV1Alpha1CSV(tt.args.csv)
 			require.Equal(t, tt.wantErr, err)
-			requirePropertiesEqual(t, tt.want.properties, got.properties)
-			tt.want.properties, got.properties = nil, nil
+			requirePropertiesEqual(t, tt.want.Properties, got.Properties)
+			tt.want.Properties, got.Properties = nil, nil
 			require.Equal(t, tt.want, got)
 		})
 	}
