@@ -34,6 +34,16 @@ func UpdateStatus(logger *logrus.Entry, client versioned.Interface, catsrc *v1al
 	return nil
 }
 
+func UpdateSpec(logger *logrus.Entry, client versioned.Interface, catsrc *v1alpha1.CatalogSource) error {
+	// make the spec update if possible
+	if _, err := client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Update(context.TODO(), catsrc, metav1.UpdateOptions{}); err != nil {
+		logger.WithError(err).Error("UpdateSpec - error while updating CatalogSource spec")
+		return err
+	}
+
+	return nil
+}
+
 /* UpdateStatusWithConditions can be used to update the status conditions for the provided catalog source.
 This function will make no changes to the other status fields (those fields will be used as-is).
 If the provided conditions do not result in any status condition changes, then the API server will not be updated.
@@ -92,7 +102,12 @@ func UpdateSpecAndStatusConditions(logger *logrus.Entry, client versioned.Interf
 
 	// make the update if possible
 	if _, err := client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Update(context.TODO(), catsrc, metav1.UpdateOptions{}); err != nil {
-		logger.WithError(err).Error("UpdateSpecAndStatusConditions - unable to update CatalogSource image reference")
+		logger.WithError(err).Error("UpdateSpecAndStatusConditions - unable to update CatalogSource spec")
+		return err
+	}
+
+	if _, err := client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).UpdateStatus(context.TODO(), catsrc, metav1.UpdateOptions{}); err != nil {
+		logger.WithError(err).Error("UpdateSpecAndStatusConditions - unable to update CatalogSource status")
 		return err
 	}
 	return nil

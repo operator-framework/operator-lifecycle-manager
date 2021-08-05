@@ -28,6 +28,8 @@ const (
 	CatalogSourceUpdateKey      = "catalogsource.operators.coreos.com/update"
 	ServiceHashLabelKey         = "olm.service-spec-hash"
 	CatalogPollingRequeuePeriod = 30 * time.Second
+	// CatalogSourceImageIDLabelKey is the key for a label containing a catsrc image id.
+	CatalogSourceImageIDLabelKey string = "olm.catalogSourceImageID"
 )
 
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
@@ -182,6 +184,7 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(source grpcC
 	for _, p := range pods {
 		if p.Spec.Containers[0].Image == source.Spec.Image && podHashMatch(p, newPod) {
 			found = append(found, p)
+			c.ensureImageID(source, p)
 		}
 	}
 	return found
@@ -478,6 +481,28 @@ func (c *GrpcRegistryReconciler) podFailed(pod *corev1.Pod) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func (c *GrpcRegistryReconciler) ensureImageID(source grpcCatalogSourceDecorator, pod *corev1.Pod) error {
+	imageID := imageID(pod)
+	if imageID != "" {
+		labels := source.GetLabels()
+		if labels == nil {
+			labels = make(map[string]string)
+		}
+		currentID, ok := labels[CatalogSourceImageIDLabelKey]
+		if !ok || currentID != imageID {
+			labels[CatalogSourceImageIDLabelKey] = hashImageID(imageID)
+			source.SetLabels(labels)
+		}
+	}
+	return nil
+}
+
+func hashImageID(imageID string) string {
+	hasher := fnv.New32a()
+	hasher.Write([]byte(imageID))
+	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
 }
 
 // podHashMatch will check the hash info in existing pod to ensure its

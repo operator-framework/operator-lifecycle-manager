@@ -12,8 +12,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	v1alpha1lister "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
@@ -47,7 +49,7 @@ type OperatorCacheProvider interface {
 type OperatorCache struct {
 	logger       logrus.FieldLogger
 	rcp          RegistryClientProvider
-	catsrcLister v1alpha1.CatalogSourceLister
+	catsrcLister v1alpha1lister.CatalogSourceLister
 	snapshots    map[registry.CatalogKey]*CatalogSnapshot
 	ttl          time.Duration
 	sem          chan struct{}
@@ -60,7 +62,7 @@ type catalogSourcePriority int
 
 var _ OperatorCacheProvider = &OperatorCache{}
 
-func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, catsrcLister v1alpha1.CatalogSourceLister) *OperatorCache {
+func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, catsrcLister v1alpha1lister.CatalogSourceLister) *OperatorCache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
 	)
@@ -118,6 +120,7 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	}
 
 	var misses []registry.CatalogKey
+	var hash string
 	func() {
 		c.m.RLock()
 		defer c.m.RUnlock()
@@ -127,7 +130,9 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 				func() {
 					snapshot.m.RLock()
 					defer snapshot.m.RUnlock()
-					if !snapshot.Expired(now) && snapshot.Operators != nil && len(snapshot.Operators) > 0 {
+					catsrc, _ := c.catsrcLister.CatalogSources(key.Namespace).Get(key.Name)
+					hash = getImageHash(catsrc)
+					if !snapshot.Expired(now) && !snapshot.Outdated(hash) && snapshot.Operators != nil && len(snapshot.Operators) > 0 {
 						result.Snapshots[key] = snapshot
 					} else {
 						misses = append(misses, key)
@@ -150,7 +155,9 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	// Take the opportunity to clear expired snapshots while holding the lock.
 	var expired []registry.CatalogKey
 	for key, snapshot := range c.snapshots {
-		if snapshot.Expired(now) {
+		catsrc, _ := c.catsrcLister.CatalogSources(key.Namespace).Get(key.Name)
+		hash = getImageHash(catsrc)
+		if snapshot.Outdated(hash) || snapshot.Expired(now) {
 			snapshot.Cancel()
 			expired = append(expired, key)
 		}
@@ -161,8 +168,12 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 
 	// Check for any snapshots that were populated while waiting to acquire the lock.
 	var found int
-	for i := range misses {
-		if snapshot, ok := c.snapshots[misses[i]]; ok && !snapshot.Expired(now) && snapshot.Operators != nil && len(snapshot.Operators) > 0 {
+	for i, miss := range misses {
+		// Ignoring error and treat catsrc priority as 0 if not found.
+		catsrc, _ := c.catsrcLister.CatalogSources(miss.Namespace).Get(miss.Name)
+		hash = getImageHash(catsrc)
+
+		if snapshot, ok := c.snapshots[misses[i]]; ok && !snapshot.Expired(now) && !snapshot.Outdated(hash) && snapshot.Operators != nil && len(snapshot.Operators) > 0 {
 			result.Snapshots[misses[i]] = snapshot
 			misses[found], misses[i] = misses[i], misses[found]
 			found++
@@ -181,11 +192,12 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 		}
 
 		s := CatalogSnapshot{
-			logger:   c.logger.WithField("catalog", miss),
-			Key:      miss,
-			expiry:   now.Add(c.ttl),
-			pop:      cancel,
-			Priority: catalogSourcePriority(catsrcPriority),
+			logger:    c.logger.WithField("catalog", miss),
+			Key:       miss,
+			expiry:    now.Add(c.ttl),
+			pop:       cancel,
+			Priority:  catalogSourcePriority(catsrcPriority),
+			imageHash: getImageHash(catsrc),
 		}
 		s.m.Lock()
 		c.snapshots[miss] = &s
@@ -315,6 +327,7 @@ type CatalogSnapshot struct {
 	Operators []*Operator
 	m         sync.RWMutex
 	pop       context.CancelFunc
+	imageHash string
 	Priority  catalogSourcePriority
 	err       error
 }
@@ -325,6 +338,10 @@ func (s *CatalogSnapshot) Cancel() {
 
 func (s *CatalogSnapshot) Expired(at time.Time) bool {
 	return !at.Before(s.expiry)
+}
+
+func (s *CatalogSnapshot) Outdated(hash string) bool {
+	return s.imageHash != hash
 }
 
 // NewRunningOperatorSnapshot creates a CatalogSnapshot that represents a set of existing installed operators
@@ -460,4 +477,17 @@ func Filter(operators []*Operator, p ...OperatorPredicate) []*Operator {
 
 func Matches(o *Operator, p ...OperatorPredicate) bool {
 	return And(p...).Test(o)
+}
+
+func getImageHash(catsrc *v1alpha1.CatalogSource) string {
+	if catsrc != nil {
+		labels := catsrc.GetLabels()
+		if labels != nil {
+			if hash, ok := labels[reconciler.CatalogSourceImageIDLabelKey]; ok {
+				return hash
+			}
+		}
+	}
+
+	return ""
 }

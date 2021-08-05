@@ -860,6 +860,13 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return
 	}
 
+	if !reflect.DeepEqual(catsrc.GetLabels(), out.GetLabels()) {
+		updateErr := catalogsource.UpdateSpec(logger, o.client, out)
+		if syncError == nil && updateErr != nil {
+			syncError = updateErr
+		}
+	}
+
 	if equalFunc(&catsrc.Status, &out.Status) {
 		return
 	}
