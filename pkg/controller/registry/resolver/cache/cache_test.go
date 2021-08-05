@@ -1,4 +1,4 @@
-package resolver
+package cache
 
 import (
 	"context"
@@ -240,9 +240,9 @@ func TestCatalogSnapshotFind(t *testing.T) {
 				return false
 			}),
 			Operators: []*Operator{
-				{name: "a"},
-				{name: "b"},
-				{name: "c"},
+				{Name: "a"},
+				{Name: "b"},
+				{Name: "c"},
 			},
 			Expected: nil,
 		},
@@ -260,34 +260,34 @@ func TestCatalogSnapshotFind(t *testing.T) {
 				return true
 			}),
 			Operators: []*Operator{
-				{name: "a"},
-				{name: "b"},
-				{name: "c"},
+				{Name: "a"},
+				{Name: "b"},
+				{Name: "c"},
 			},
 			Expected: []*Operator{
-				{name: "a"},
-				{name: "b"},
-				{name: "c"},
+				{Name: "a"},
+				{Name: "b"},
+				{Name: "c"},
 			},
 		},
 		{
 			Name: "some satisfy predicate",
 			Predicate: OperatorPredicateTestFunc(func(o *Operator) bool {
-				return o.name != "a"
+				return o.Name != "a"
 			}),
 			Operators: []*Operator{
-				{name: "a"},
-				{name: "b"},
-				{name: "c"},
+				{Name: "a"},
+				{Name: "b"},
+				{Name: "c"},
 			},
 			Expected: []*Operator{
-				{name: "b"},
-				{name: "c"},
+				{Name: "b"},
+				{Name: "c"},
 			},
 		},
 	} {
 		t.Run(tt.Name, func(t *testing.T) {
-			s := CatalogSnapshot{operators: tt.Operators}
+			s := CatalogSnapshot{Operators: tt.Operators}
 			assert.Equal(t, tt.Expected, s.Find(tt.Predicate))
 		})
 	}
@@ -314,7 +314,7 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 					Kind:    "K2",
 					Plural:  "ks2",
 				}},
-				Properties: apiSetToProperties(map[opregistry.APIKey]struct{}{
+				Properties: APISetToProperties(map[opregistry.APIKey]struct{}{
 					{
 						Group:   "g",
 						Version: "v1",
@@ -322,7 +322,7 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 						Plural:  "ks",
 					}: {},
 				}, nil, false),
-				Dependencies: apiSetToDependencies(map[opregistry.APIKey]struct{}{
+				Dependencies: APISetToDependencies(map[opregistry.APIKey]struct{}{
 					{
 						Group:   "g2",
 						Version: "v2",
@@ -340,8 +340,8 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 	result, err := AtLeast(1, nc.Find(ProvidingAPIPredicate(opregistry.APIKey{Group: "g", Version: "v1", Kind: "K"})))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(result))
-	assert.Equal(t, "K.v1.g", result[0].providedAPIs.String())
-	assert.Equal(t, "K2.v2.g2", result[0].requiredAPIs.String())
+	assert.Equal(t, "K.v1.g", result[0].ProvidedAPIs.String())
+	assert.Equal(t, "K2.v2.g2", result[0].RequiredAPIs.String())
 }
 
 func TestNamespaceOperatorCacheError(t *testing.T) {

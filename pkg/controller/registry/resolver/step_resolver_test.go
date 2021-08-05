@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -25,24 +24,26 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	controllerbundle "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	resolvercache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"k8s.io/client-go/tools/cache"
 )
 
 var (
 	// conventions for tests: packages are letters (a,b,c) and apis are numbers (1,2,3)
 
 	// APISets used for tests
-	APISet1   = APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet1   = resolvercache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
 	Provides1 = APISet1
 	Requires1 = APISet1
-	APISet2   = APISet{opregistry.APIKey{"g2", "v2", "k2", "k2s"}: struct{}{}}
+	APISet2   = resolvercache.APISet{opregistry.APIKey{"g2", "v2", "k2", "k2s"}: struct{}{}}
 	Provides2 = APISet2
 	Requires2 = APISet2
-	APISet3   = APISet{opregistry.APIKey{"g3", "v3", "k3", "k3s"}: struct{}{}}
+	APISet3   = resolvercache.APISet{opregistry.APIKey{"g3", "v3", "k3", "k3s"}: struct{}{}}
 	Provides3 = APISet3
 	Requires3 = APISet3
-	APISet4   = APISet{opregistry.APIKey{"g4", "v4", "k4", "k4s"}: struct{}{}}
+	APISet4   = resolvercache.APISet{opregistry.APIKey{"g4", "v4", "k4", "k4s"}: struct{}{}}
 	Provides4 = APISet4
 	Requires4 = APISet4
 )
@@ -826,20 +827,19 @@ func TestResolver(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 			kClientFake := k8sfake.NewSimpleClientset()
 
-			stubSnapshot := &CatalogSnapshot{}
+			stubSnapshot := &resolvercache.CatalogSnapshot{}
 			for _, bundles := range tt.bundlesByCatalog {
 				for _, bundle := range bundles {
-					op, err := NewOperatorFromBundle(bundle, "", catalog, "")
+					op, err := resolvercache.NewOperatorFromBundle(bundle, "", catalog, "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
-					op.replaces = bundle.Replaces
-					stubSnapshot.operators = append(stubSnapshot.operators, op)
+					stubSnapshot.Operators = append(stubSnapshot.Operators, op)
 				}
 			}
 			stubCache := &stubOperatorCacheProvider{
-				noc: &NamespacedOperatorCache{
-					snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+				noc: &resolvercache.NamespacedOperatorCache{
+					Snapshots: map[registry.CatalogKey]*resolvercache.CatalogSnapshot{
 						catalog: stubSnapshot,
 					},
 				},
@@ -880,10 +880,10 @@ func TestResolver(t *testing.T) {
 }
 
 type stubOperatorCacheProvider struct {
-	noc *NamespacedOperatorCache
+	noc *resolvercache.NamespacedOperatorCache
 }
 
-func (stub *stubOperatorCacheProvider) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
+func (stub *stubOperatorCacheProvider) Namespaced(namespaces ...string) resolvercache.MultiCatalogOperatorFinder {
 	return stub.noc
 }
 
@@ -979,18 +979,17 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			stubSnapshot := &CatalogSnapshot{}
+			stubSnapshot := &resolvercache.CatalogSnapshot{}
 			for _, bundle := range tt.bundlesInCatalog {
-				op, err := NewOperatorFromBundle(bundle, "", catalog, "")
+				op, err := resolvercache.NewOperatorFromBundle(bundle, "", catalog, "")
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
-				op.replaces = bundle.Replaces
-				stubSnapshot.operators = append(stubSnapshot.operators, op)
+				stubSnapshot.Operators = append(stubSnapshot.Operators, op)
 			}
 			stubCache := &stubOperatorCacheProvider{
-				noc: &NamespacedOperatorCache{
-					snapshots: map[registry.CatalogKey]*CatalogSnapshot{
+				noc: &resolvercache.NamespacedOperatorCache{
+					Snapshots: map[registry.CatalogKey]*resolvercache.CatalogSnapshot{
 						catalog: stubSnapshot,
 					},
 				},
@@ -1102,7 +1101,7 @@ func existingSub(namespace, operatorName, pkg, channel string, catalog registry.
 	}
 }
 
-func existingOperator(namespace, operatorName, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIs, requiredAPIs APISet) *v1alpha1.ClusterServiceVersion {
+func existingOperator(namespace, operatorName, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIs, requiredAPIs resolvercache.APISet) *v1alpha1.ClusterServiceVersion {
 	bundleForOperator := bundle(operatorName, pkg, channel, replaces, providedCRDs, requiredCRDs, providedAPIs, requiredAPIs)
 	csv, err := V1alpha1CSVFromBundle(bundleForOperator)
 	if err != nil {

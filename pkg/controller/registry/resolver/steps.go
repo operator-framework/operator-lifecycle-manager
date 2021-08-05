@@ -17,6 +17,7 @@ import (
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -86,7 +87,7 @@ func NewStepResourceFromObject(obj runtime.Object, catalogSourceName, catalogSou
 	return resource, nil
 }
 
-func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1alpha1.StepResource, error) {
+func NewSubscriptionStepResource(namespace string, info cache.OperatorSourceInfo) (v1alpha1.StepResource, error) {
 	return NewStepResourceFromObject(&v1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,

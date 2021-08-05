@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
 type NamespaceSet map[string]struct{}
@@ -93,7 +94,7 @@ type OperatorGroupSurface interface {
 	Identifier() string
 	Namespace() string
 	Targets() NamespaceSet
-	ProvidedAPIs() APISet
+	ProvidedAPIs() cache.APISet
 	GroupIntersection(groups ...OperatorGroupSurface) []OperatorGroupSurface
 }
 
@@ -103,7 +104,7 @@ type OperatorGroup struct {
 	namespace    string
 	name         string
 	targets      NamespaceSet
-	providedAPIs APISet
+	providedAPIs cache.APISet
 }
 
 func NewOperatorGroup(group *v1.OperatorGroup) *OperatorGroup {
@@ -119,7 +120,7 @@ func NewOperatorGroup(group *v1.OperatorGroup) *OperatorGroup {
 		namespace:    group.GetNamespace(),
 		name:         group.GetName(),
 		targets:      NewNamespaceSet(namespaces),
-		providedAPIs: GVKStringToProvidedAPISet(gvksStr),
+		providedAPIs: cache.GVKStringToProvidedAPISet(gvksStr),
 	}
 }
 
@@ -144,7 +145,7 @@ func (g *OperatorGroup) Targets() NamespaceSet {
 	return g.targets
 }
 
-func (g *OperatorGroup) ProvidedAPIs() APISet {
+func (g *OperatorGroup) ProvidedAPIs() cache.APISet {
 	return g.providedAPIs
 }
 
@@ -174,18 +175,18 @@ const (
 )
 
 type APIIntersectionReconciler interface {
-	Reconcile(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult
+	Reconcile(add cache.APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult
 }
 
-type APIIntersectionReconcileFunc func(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult
+type APIIntersectionReconcileFunc func(add cache.APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult
 
-func (a APIIntersectionReconcileFunc) Reconcile(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult {
+func (a APIIntersectionReconcileFunc) Reconcile(add cache.APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult {
 	return a(add, group, otherGroups...)
 }
 
-func ReconcileAPIIntersection(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult {
+func ReconcileAPIIntersection(add cache.APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult {
 	groupIntersection := group.GroupIntersection(otherGroups...)
-	providedAPIIntersection := make(APISet)
+	providedAPIIntersection := make(cache.APISet)
 	for _, g := range groupIntersection {
 		providedAPIIntersection = providedAPIIntersection.Union(g.ProvidedAPIs())
 	}

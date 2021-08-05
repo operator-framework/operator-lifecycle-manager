@@ -14,6 +14,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -21,17 +22,17 @@ import (
 )
 
 type OperatorResolver interface {
-	SolveOperators(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[OperatorSourceInfo]struct{}) (OperatorSet, error)
+	SolveOperators(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[cache.OperatorSourceInfo]struct{}) (cache.OperatorSet, error)
 }
 
 type SatResolver struct {
-	cache OperatorCacheProvider
+	cache cache.OperatorCacheProvider
 	log   logrus.FieldLogger
 }
 
-func NewDefaultSatResolver(rcp RegistryClientProvider, catsrcLister v1alpha1listers.CatalogSourceLister, log logrus.FieldLogger) *SatResolver {
+func NewDefaultSatResolver(rcp cache.RegistryClientProvider, catsrcLister v1alpha1listers.CatalogSourceLister, log logrus.FieldLogger) *SatResolver {
 	return &SatResolver{
-		cache: NewOperatorCache(rcp, log, catsrcLister),
+		cache: cache.NewOperatorCache(rcp, log, catsrcLister),
 		log:   log,
 	}
 }
@@ -46,11 +47,11 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (OperatorSet, error) {
+func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (cache.OperatorSet, error) {
 	var errs []error
 
 	installables := make(map[solver.Identifier]solver.Installable, 0)
-	visited := make(map[OperatorSurface]*BundleInstallable, 0)
+	visited := make(map[cache.OperatorSurface]*BundleInstallable, 0)
 
 	// TODO: better abstraction
 	startingCSVs := make(map[string]struct{})
@@ -73,10 +74,10 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	// build constraints for each Subscription
 	for _, sub := range subs {
 		// find the currently installed operator (if it exists)
-		var current *Operator
+		var current *cache.Operator
 		for _, csv := range csvs {
 			if csv.Name == sub.Status.InstalledCSV {
-				op, err := NewOperatorFromV1Alpha1CSV(csv)
+				op, err := cache.NewOperatorFromV1Alpha1CSV(csv)
 				if err != nil {
 					return nil, err
 				}
@@ -140,7 +141,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 	}
 
-	operators := make(map[string]OperatorSurface, 0)
+	operators := make(map[string]cache.OperatorSurface, 0)
 	for _, installableOperator := range operatorInstallables {
 		csvName, channel, catalog, err := installableOperator.BundleSourceInfo()
 		if err != nil {
@@ -148,18 +149,18 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			continue
 		}
 
-		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(CSVNamePredicate(csvName), ChannelPredicate(channel)))
+		op, err := cache.ExactlyOne(namespacedCache.Catalog(catalog).Find(cache.CSVNamePredicate(csvName), cache.ChannelPredicate(channel)))
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		if len(installableOperator.Replaces) > 0 {
-			op.replaces = installableOperator.Replaces
+			op.Replaces = installableOperator.Replaces // TODO: Don't mutate object from cache!
 		}
 
 		// lookup if this installable came from a starting CSV
 		if _, ok := startingCSVs[csvName]; ok {
-			op.sourceInfo.StartingCSV = csvName
+			op.SourceInfo.StartingCSV = csvName // TODO: Don't mutate object from cache!
 		}
 
 		operators[csvName] = op
@@ -172,8 +173,8 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, current *Operator, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
-	var cachePredicates, channelPredicates []OperatorPredicate
+func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, current *cache.Operator, namespacedCache cache.MultiCatalogOperatorFinder, visited map[cache.OperatorSurface]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+	var cachePredicates, channelPredicates []cache.OperatorPredicate
 	installables := make(map[solver.Identifier]solver.Installable, 0)
 
 	catalog := registry.CatalogKey{
@@ -181,24 +182,24 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 		Namespace: sub.Spec.CatalogSourceNamespace,
 	}
 
-	var bundles []*Operator
+	var bundles []*cache.Operator
 	{
 		var nall, npkg, nch, ncsv int
 
-		csvPredicate := True()
+		csvPredicate := cache.True()
 		if current != nil {
 			// if we found an existing installed operator, we should filter the channel by operators that can replace it
-			channelPredicates = append(channelPredicates, Or(SkipRangeIncludesPredicate(*current.Version()), ReplacesPredicate(current.Identifier())))
+			channelPredicates = append(channelPredicates, cache.Or(cache.SkipRangeIncludesPredicate(*current.Version), cache.ReplacesPredicate(current.Identifier())))
 		} else if sub.Spec.StartingCSV != "" {
 			// if no operator is installed and we have a startingCSV, filter for it
-			csvPredicate = CSVNamePredicate(sub.Spec.StartingCSV)
+			csvPredicate = cache.CSVNamePredicate(sub.Spec.StartingCSV)
 		}
 
-		cachePredicates = append(cachePredicates, And(
-			CountingPredicate(True(), &nall),
-			CountingPredicate(PkgPredicate(sub.Spec.Package), &npkg),
-			CountingPredicate(ChannelPredicate(sub.Spec.Channel), &nch),
-			CountingPredicate(csvPredicate, &ncsv),
+		cachePredicates = append(cachePredicates, cache.And(
+			cache.CountingPredicate(cache.True(), &nall),
+			cache.CountingPredicate(cache.PkgPredicate(sub.Spec.Package), &npkg),
+			cache.CountingPredicate(cache.ChannelPredicate(sub.Spec.Channel), &nch),
+			cache.CountingPredicate(csvPredicate, &ncsv),
 		))
 		bundles = namespacedCache.Catalog(catalog).Find(cachePredicates...)
 
@@ -223,23 +224,23 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 	// bundles in the default channel appear first, then lexicographically order by channel name
 	sort.SliceStable(bundles, func(i, j int) bool {
 		var idef bool
-		if isrc := bundles[i].SourceInfo(); isrc != nil {
+		if isrc := bundles[i].SourceInfo; isrc != nil {
 			idef = isrc.DefaultChannel
 		}
 		var jdef bool
-		if jsrc := bundles[j].SourceInfo(); jsrc != nil {
+		if jsrc := bundles[j].SourceInfo; jsrc != nil {
 			jdef = jsrc.DefaultChannel
 		}
 		if idef == jdef {
-			return bundles[i].bundle.ChannelName < bundles[j].bundle.ChannelName
+			return bundles[i].Bundle.ChannelName < bundles[j].Bundle.ChannelName
 		}
 		return idef
 	})
 
-	var sortedBundles []*Operator
+	var sortedBundles []*cache.Operator
 	lastChannel, lastIndex := "", 0
 	for i := 0; i <= len(bundles); i++ {
-		if i != len(bundles) && bundles[i].bundle.ChannelName == lastChannel {
+		if i != len(bundles) && bundles[i].Bundle.ChannelName == lastChannel {
 			continue
 		}
 		channel, err := sortChannel(bundles[lastIndex:i])
@@ -249,14 +250,14 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 		sortedBundles = append(sortedBundles, channel...)
 
 		if i != len(bundles) {
-			lastChannel = bundles[i].bundle.ChannelName
+			lastChannel = bundles[i].Bundle.ChannelName
 			lastIndex = i
 		}
 	}
 
 	candidates := make([]*BundleInstallable, 0)
-	for _, o := range Filter(sortedBundles, channelPredicates...) {
-		predicates := append(cachePredicates, CSVNamePredicate(o.Identifier()))
+	for _, o := range cache.Filter(sortedBundles, channelPredicates...) {
+		predicates := append(cachePredicates, cache.CSVNamePredicate(o.Identifier()))
 		stack := namespacedCache.Catalog(catalog).Find(predicates...)
 		id, installable, err := r.getBundleInstallables(catalog, stack, namespacedCache, visited)
 		if err != nil {
@@ -302,12 +303,12 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 	return installables, nil
 }
 
-func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleStack []*Operator, namespacedCache MultiCatalogOperatorFinder, visited map[OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
+func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleStack []*cache.Operator, namespacedCache cache.MultiCatalogOperatorFinder, visited map[cache.OperatorSurface]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
 	errs := make([]error, 0)
 	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
 
 	// track the first layer of installable ids
-	var initial = make(map[*Operator]struct{})
+	var initial = make(map[*cache.Operator]struct{})
 	for _, o := range bundleStack {
 		initial[o] = struct{}{}
 	}
@@ -340,15 +341,15 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleS
 		}
 
 		for _, d := range dependencyPredicates {
-			sourcePredicate := False()
+			sourcePredicate := cache.False()
 			// Build a filter matching all (catalog,
 			// package, channel) combinations that contain
 			// at least one candidate bundle, even if only
 			// a subset of those bundles actually satisfy
 			// the dependency.
-			sources := map[OperatorSourceInfo]struct{}{}
+			sources := map[cache.OperatorSourceInfo]struct{}{}
 			for _, b := range namespacedCache.Find(d) {
-				si := b.SourceInfo()
+				si := b.SourceInfo
 
 				if _, ok := sources[*si]; ok {
 					// Predicate already covers this source.
@@ -357,19 +358,19 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleS
 				sources[*si] = struct{}{}
 
 				if si.Catalog.Virtual() {
-					sourcePredicate = Or(sourcePredicate, And(
-						CSVNamePredicate(b.Identifier()),
-						CatalogPredicate(si.Catalog),
+					sourcePredicate = cache.Or(sourcePredicate, cache.And(
+						cache.CSVNamePredicate(b.Identifier()),
+						cache.CatalogPredicate(si.Catalog),
 					))
 				} else {
-					sourcePredicate = Or(sourcePredicate, And(
-						PkgPredicate(si.Package),
-						ChannelPredicate(si.Channel),
-						CatalogPredicate(si.Catalog),
+					sourcePredicate = cache.Or(sourcePredicate, cache.And(
+						cache.PkgPredicate(si.Package),
+						cache.ChannelPredicate(si.Channel),
+						cache.CatalogPredicate(si.Catalog),
 					))
 				}
 			}
-			sortedBundles, err := r.sortBundles(namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, sourcePredicate))
+			sortedBundles, err := r.sortBundles(namespacedCache.FindPreferred(&bundle.SourceInfo.Catalog, sourcePredicate))
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -378,7 +379,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleS
 			// The dependency predicate is applied here
 			// (after sorting) to remove all bundles that
 			// don't satisfy the dependency.
-			for _, b := range Filter(sortedBundles, d) {
+			for _, b := range cache.Filter(sortedBundles, d) {
 				i, err := NewBundleInstallableFromOperator(b)
 				if err != nil {
 					errs = append(errs, err)
@@ -390,7 +391,7 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, bundleS
 			}
 			bundleInstallable.AddConstraint(PrettyConstraint(
 				solver.Dependency(bundleDependencies...),
-				fmt.Sprintf("bundle %s requires an operator %s", bundle.name, d.String()),
+				fmt.Sprintf("bundle %s requires an operator %s", bundle.Name, d.String()),
 			))
 		}
 
@@ -421,7 +422,7 @@ func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs 
 		// package against catalog contents, updates to the
 		// Subscription spec could result in a bad package
 		// inference.
-		for _, entry := range r.cache.Namespaced(sub.Namespace).Catalog(registry.CatalogKey{Namespace: sub.Spec.CatalogSourceNamespace, Name: sub.Spec.CatalogSource}).Find(And(CSVNamePredicate(csv.Name), PkgPredicate(sub.Spec.Package))) {
+		for _, entry := range r.cache.Namespaced(sub.Namespace).Catalog(registry.CatalogKey{Namespace: sub.Spec.CatalogSourceNamespace, Name: sub.Spec.CatalogSource}).Find(cache.And(cache.CSVNamePredicate(csv.Name), cache.PkgPredicate(sub.Spec.Package))) {
 			if pkg := entry.Package(); pkg != "" {
 				packages[pkg] = struct{}{}
 			}
@@ -454,7 +455,7 @@ func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs 
 	return properties, nil
 }
 
-func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*CatalogSnapshot, error) {
+func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*cache.CatalogSnapshot, error) {
 	existingOperatorCatalog := registry.NewVirtualCatalogKey(namespace)
 	// build a catalog snapshot of CSVs without subscriptions
 	csvSubscriptions := make(map[*v1alpha1.ClusterServiceVersion]*v1alpha1.Subscription)
@@ -467,9 +468,9 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 		}
 	}
 	var csvsMissingProperties []*v1alpha1.ClusterServiceVersion
-	standaloneOperators := make([]*Operator, 0)
+	standaloneOperators := make([]*cache.Operator, 0)
 	for _, csv := range csvs {
-		op, err := NewOperatorFromV1Alpha1CSV(csv)
+		op, err := cache.NewOperatorFromV1Alpha1CSV(csv)
 		if err != nil {
 			return nil, err
 		}
@@ -479,20 +480,20 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 			if inferred, err := r.inferProperties(csv, subs); err != nil {
 				r.log.Warnf("unable to infer properties for csv %q: %w", csv.Name, err)
 			} else {
-				op.properties = append(op.properties, inferred...)
+				op.Properties = append(op.Properties, inferred...)
 			}
 		} else if props, err := projection.PropertyListFromPropertiesAnnotation(anno); err != nil {
 			return nil, fmt.Errorf("failed to retrieve properties of csv %q: %w", csv.GetName(), err)
 		} else {
-			op.properties = props
+			op.Properties = props
 		}
 
-		op.sourceInfo = &OperatorSourceInfo{
+		op.SourceInfo = &cache.OperatorSourceInfo{
 			Catalog:      existingOperatorCatalog,
 			Subscription: csvSubscriptions[csv],
 		}
 		// Try to determine source package name from properties and add to SourceInfo.
-		for _, p := range op.properties {
+		for _, p := range op.Properties {
 			if p.Type != opregistry.PackageType {
 				continue
 			}
@@ -502,7 +503,7 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 				r.log.Warnf("failed to unmarshal package property of csv %q: %w", csv.Name, err)
 				continue
 			}
-			op.sourceInfo.Package = pp.PackageName
+			op.SourceInfo.Package = pp.PackageName
 		}
 
 		standaloneOperators = append(standaloneOperators, op)
@@ -516,10 +517,10 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 		r.log.Infof("considered csvs without properties annotation during resolution: %v", names)
 	}
 
-	return NewRunningOperatorSnapshot(r.log, existingOperatorCatalog, standaloneOperators), nil
+	return cache.NewRunningOperatorSnapshot(r.log, existingOperatorCatalog, standaloneOperators), nil
 }
 
-func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, installables map[solver.Identifier]solver.Installable) {
+func (r *SatResolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFinder, installables map[solver.Identifier]solver.Installable) {
 	// no two operators may provide the same GVK or Package in a namespace
 	gvkConflictToInstallable := make(map[opregistry.GVKProperty][]solver.Identifier)
 	packageConflictToInstallable := make(map[string][]solver.Identifier)
@@ -533,13 +534,13 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 			continue
 		}
 
-		op, err := ExactlyOne(namespacedCache.Catalog(catalog).Find(CSVNamePredicate(csvName), ChannelPredicate(channel)))
+		op, err := cache.ExactlyOne(namespacedCache.Catalog(catalog).Find(cache.CSVNamePredicate(csvName), cache.ChannelPredicate(channel)))
 		if err != nil {
 			continue
 		}
 
 		// cannot provide the same GVK
-		for _, p := range op.Properties() {
+		for _, p := range op.Properties {
 			if p.Type != opregistry.GVKType {
 				continue
 			}
@@ -552,7 +553,7 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 		}
 
 		// cannot have the same package
-		for _, p := range op.Properties() {
+		for _, p := range op.Properties {
 			if p.Type != opregistry.PackageType {
 				continue
 			}
@@ -576,7 +577,7 @@ func (r *SatResolver) addInvariants(namespacedCache MultiCatalogOperatorFinder, 
 	}
 }
 
-func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
+func (r *SatResolver) sortBundles(bundles []*cache.Operator) ([]*cache.Operator, error) {
 	// assume bundles have been passed in sorted by catalog already
 	catalogOrder := make([]registry.CatalogKey, 0)
 
@@ -588,22 +589,22 @@ func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 	channelOrder := make(map[registry.CatalogKey][]PackageChannel)
 
 	// partition by catalog -> channel -> bundle
-	partitionedBundles := map[registry.CatalogKey]map[PackageChannel][]*Operator{}
+	partitionedBundles := map[registry.CatalogKey]map[PackageChannel][]*cache.Operator{}
 	for _, b := range bundles {
 		pc := PackageChannel{
 			Package:        b.Package(),
 			Channel:        b.Channel(),
-			DefaultChannel: b.SourceInfo().DefaultChannel,
+			DefaultChannel: b.SourceInfo.DefaultChannel,
 		}
-		if _, ok := partitionedBundles[b.sourceInfo.Catalog]; !ok {
-			catalogOrder = append(catalogOrder, b.sourceInfo.Catalog)
-			partitionedBundles[b.sourceInfo.Catalog] = make(map[PackageChannel][]*Operator)
+		if _, ok := partitionedBundles[b.SourceInfo.Catalog]; !ok {
+			catalogOrder = append(catalogOrder, b.SourceInfo.Catalog)
+			partitionedBundles[b.SourceInfo.Catalog] = make(map[PackageChannel][]*cache.Operator)
 		}
-		if _, ok := partitionedBundles[b.sourceInfo.Catalog][pc]; !ok {
-			channelOrder[b.sourceInfo.Catalog] = append(channelOrder[b.sourceInfo.Catalog], pc)
-			partitionedBundles[b.sourceInfo.Catalog][pc] = make([]*Operator, 0)
+		if _, ok := partitionedBundles[b.SourceInfo.Catalog][pc]; !ok {
+			channelOrder[b.SourceInfo.Catalog] = append(channelOrder[b.SourceInfo.Catalog], pc)
+			partitionedBundles[b.SourceInfo.Catalog][pc] = make([]*cache.Operator, 0)
 		}
-		partitionedBundles[b.sourceInfo.Catalog][pc] = append(partitionedBundles[b.sourceInfo.Catalog][pc], b)
+		partitionedBundles[b.SourceInfo.Catalog][pc] = append(partitionedBundles[b.SourceInfo.Catalog][pc], b)
 	}
 
 	for catalog := range partitionedBundles {
@@ -625,7 +626,7 @@ func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 			partitionedBundles[catalog][channel] = sorted
 		}
 	}
-	all := make([]*Operator, 0)
+	all := make([]*cache.Operator, 0)
 	for _, catalog := range catalogOrder {
 		for _, channel := range channelOrder[catalog] {
 			all = append(all, partitionedBundles[catalog][channel]...)
@@ -636,7 +637,7 @@ func (r *SatResolver) sortBundles(bundles []*Operator) ([]*Operator, error) {
 
 // Sorts bundle in a channel by replaces. All entries in the argument
 // are assumed to have the same Package and Channel.
-func sortChannel(bundles []*Operator) ([]*Operator, error) {
+func sortChannel(bundles []*cache.Operator) ([]*cache.Operator, error) {
 	if len(bundles) < 1 {
 		return bundles, nil
 	}
@@ -644,25 +645,25 @@ func sortChannel(bundles []*Operator) ([]*Operator, error) {
 	packageName := bundles[0].Package()
 	channelName := bundles[0].Channel()
 
-	bundleLookup := map[string]*Operator{}
+	bundleLookup := map[string]*cache.Operator{}
 
 	// if a replaces b, then replacedBy[b] = a
-	replacedBy := map[*Operator]*Operator{}
-	replaces := map[*Operator]*Operator{}
-	skipped := map[string]*Operator{}
+	replacedBy := map[*cache.Operator]*cache.Operator{}
+	replaces := map[*cache.Operator]*cache.Operator{}
+	skipped := map[string]*cache.Operator{}
 
 	for _, b := range bundles {
 		bundleLookup[b.Identifier()] = b
 	}
 
 	for _, b := range bundles {
-		if b.replaces != "" {
-			if r, ok := bundleLookup[b.replaces]; ok {
+		if b.Replaces != "" {
+			if r, ok := bundleLookup[b.Replaces]; ok {
 				replacedBy[r] = b
 				replaces[b] = r
 			}
 		}
-		for _, skip := range b.skips {
+		for _, skip := range b.Skips {
 			if r, ok := bundleLookup[skip]; ok {
 				replacedBy[r] = b
 				skipped[skip] = r
@@ -672,7 +673,7 @@ func sortChannel(bundles []*Operator) ([]*Operator, error) {
 
 	// a bundle without a replacement is a channel head, but if we
 	// find more than one of those something is weird
-	headCandidates := []*Operator{}
+	headCandidates := []*cache.Operator{}
 	for _, b := range bundles {
 		if _, ok := replacedBy[b]; !ok {
 			headCandidates = append(headCandidates, b)
@@ -682,10 +683,10 @@ func sortChannel(bundles []*Operator) ([]*Operator, error) {
 		return nil, fmt.Errorf("no channel heads (entries not replaced by another entry) found in channel %q of package %q", channelName, packageName)
 	}
 
-	var chains [][]*Operator
+	var chains [][]*cache.Operator
 	for _, head := range headCandidates {
-		var chain []*Operator
-		visited := make(map[*Operator]struct{})
+		var chain []*cache.Operator
+		visited := make(map[*cache.Operator]struct{})
 		current := head
 		for {
 			visited[current] = struct{}{}
