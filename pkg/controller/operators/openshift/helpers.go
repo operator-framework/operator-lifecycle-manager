@@ -125,16 +125,20 @@ func transientErrors(err error) error {
 }
 
 func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error) {
-	next, err := desiredRelease(ctx, cli)
+	desired, err := desiredRelease(ctx, cli)
 	if err != nil {
 		return nil, err
 	}
 
-	if next == nil {
+	if desired == nil {
 		// Note: This shouldn't happen
-		return nil, fmt.Errorf("Failed to determine next OpenShift Y-stream release")
+		return nil, fmt.Errorf("Failed to determine current OpenShift Y-stream release")
 	}
-	next.Minor++
+
+	next, err := nextY(*desired)
+	if err != nil {
+		return nil, err
+	}
 
 	csvList := &operatorsv1alpha1.ClusterServiceVersionList{}
 	if err := cli.List(ctx, csvList); err != nil {
@@ -158,7 +162,7 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 			continue
 		}
 
-		if max == nil || max.GTE(*next) {
+		if max == nil || max.GTE(next) {
 			continue
 		}
 		s.maxOpenShiftVersion = max.String()
@@ -187,6 +191,20 @@ func desiredRelease(ctx context.Context, cli client.Client) (*semver.Version, er
 	}
 
 	return &desired, nil
+}
+
+func nextY(v semver.Version) (semver.Version, error) {
+	v.Build = nil // Builds are irrelevant
+
+	if len(v.Pre) > 0 {
+		// Dropping pre-releases is equivalent to incrementing Y
+		v.Pre = nil
+		v.Patch = 0
+
+		return v, nil
+	}
+
+	return v, v.IncrementMinor() // Sets Y=Y+1 and Z=0
 }
 
 const (
