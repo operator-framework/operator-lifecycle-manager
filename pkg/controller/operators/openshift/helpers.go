@@ -110,7 +110,7 @@ func (s skew) String() string {
 		return fmt.Sprintf("%s/%s has invalid %s properties: %s", s.namespace, s.name, MaxOpenShiftVersionProperty, s.err)
 	}
 
-	return fmt.Sprintf("%s/%s is incompatible with OpenShift versions greater than %s", s.namespace, s.name, s.maxOpenShiftVersion)
+	return fmt.Sprintf("%s/%s is incompatible with OpenShift minor versions greater than %s", s.namespace, s.name, s.maxOpenShiftVersion)
 }
 
 type transientError struct {
@@ -165,7 +165,8 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 		if max == nil || max.GTE(next) {
 			continue
 		}
-		s.maxOpenShiftVersion = max.String()
+
+		s.maxOpenShiftVersion = fmt.Sprintf("%d.%d", max.Major, max.Minor)
 
 		incompatible = append(incompatible, s)
 	}
@@ -252,7 +253,11 @@ func maxOpenShiftVersion(csv *operatorsv1alpha1.ClusterServiceVersion) (*semver.
 		return nil, fmt.Errorf(`Failed to parse "%s" as semver: %w`, value, err)
 	}
 
-	return &version, nil
+	truncatedVersion := semver.Version{Major: version.Major, Minor: version.Minor}
+	if !version.EQ(truncatedVersion) {
+		return nil, fmt.Errorf("property %s must specify only <major>.<minor> version, got invalid value %s", MaxOpenShiftVersionProperty, version)
+	}
+	return &truncatedVersion, nil
 }
 
 func notCopiedSelector() (labels.Selector, error) {

@@ -251,11 +251,6 @@ func TestIncompatibleOperators(t *testing.T) {
 				{
 					name:                "chestnut",
 					namespace:           "default",
-					maxOpenShiftVersion: "1.2.0-pre+build",
-				},
-				{
-					name:                "drupe",
-					namespace:           "default",
 					maxOpenShiftVersion: "2.0.0",
 				},
 			},
@@ -309,27 +304,27 @@ func TestIncompatibleOperators(t *testing.T) {
 					{
 						name:                "almond",
 						namespace:           "default",
-						maxOpenShiftVersion: "1.0.0",
+						maxOpenShiftVersion: "1.0",
 					},
 					{
 						name:                "beech",
 						namespace:           "default",
-						maxOpenShiftVersion: "1.0.0+build",
+						maxOpenShiftVersion: "1.0",
 					},
 					{
-						name:                "chestnut",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.1.0-pre",
+						name:      "chestnut",
+						namespace: "default",
+						err:       fmt.Errorf("property olm.maxOpenShiftVersion must specify only <major>.<minor> version, got invalid value 1.1.0-pre"),
 					},
 					{
-						name:                "drupe",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.1.0-pre+build",
+						name:      "drupe",
+						namespace: "default",
+						err:       fmt.Errorf("property olm.maxOpenShiftVersion must specify only <major>.<minor> version, got invalid value 1.1.0-pre+build"),
 					},
 					{
 						name:                "european-hazelnut",
 						namespace:           "default",
-						maxOpenShiftVersion: "0.1.0",
+						maxOpenShiftVersion: "0.1",
 					},
 				},
 			},
@@ -369,12 +364,12 @@ func TestIncompatibleOperators(t *testing.T) {
 					{
 						name:                "beech",
 						namespace:           "default",
-						maxOpenShiftVersion: "1.0.0",
+						maxOpenShiftVersion: "1.0",
 					},
 					{
 						name:                "chestnut",
 						namespace:           "default",
-						maxOpenShiftVersion: "1.0.0",
+						maxOpenShiftVersion: "1.0",
 					},
 				},
 			},
@@ -414,7 +409,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					{
 						name:                "beech",
 						namespace:           "default",
-						maxOpenShiftVersion: "1.0.0",
+						maxOpenShiftVersion: "1.0",
 					},
 					{
 						name:      "chestnut",
@@ -470,11 +465,6 @@ func TestIncompatibleOperators(t *testing.T) {
 			},
 			in: skews{
 				{
-					name:                "almond",
-					namespace:           "default",
-					maxOpenShiftVersion: "1.1.2",
-				},
-				{
 					name:                "beech",
 					namespace:           "default",
 					maxOpenShiftVersion: "1.1",
@@ -503,21 +493,10 @@ func TestIncompatibleOperators(t *testing.T) {
 					namespace:           "default",
 					maxOpenShiftVersion: "1.1.0",
 				},
-				{
-					name:                "beech",
-					namespace:           "default",
-					maxOpenShiftVersion: "1.1.0-pre",
-				},
 			},
 			expect: expect{
-				err: false,
-				incompatible: skews{
-					{
-						name:                "beech",
-						namespace:           "default",
-						maxOpenShiftVersion: "1.1.0-pre",
-					},
-				},
+				err:          false,
+				incompatible: nil,
 			},
 		},
 	} {

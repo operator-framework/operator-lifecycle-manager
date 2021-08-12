@@ -2,7 +2,6 @@ package openshift
 
 import (
 	"fmt"
-
 	semver "github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -213,6 +212,7 @@ var _ = Describe("ClusterOperator controller", func() {
 			}).Should(Succeed())
 		}()
 
+		parsedVersion := semver.MustParse(clusterVersion)
 		Eventually(func() ([]configv1.ClusterOperatorStatusCondition, error) {
 			err := k8sClient.Get(ctx, clusterOperatorName, co)
 			return co.Status.Conditions, err
@@ -224,7 +224,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace:           ns.GetName(),
 					name:                incompatible.GetName(),
-					maxOpenShiftVersion: clusterVersion,
+					maxOpenShiftVersion: fmt.Sprintf("%d.%d", parsedVersion.Major, parsedVersion.Minor),
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
@@ -270,7 +270,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace:           ns.GetName(),
 					name:                incompatible.GetName(),
-					maxOpenShiftVersion: short + ".0",
+					maxOpenShiftVersion: short,
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
