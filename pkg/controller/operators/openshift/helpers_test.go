@@ -251,6 +251,11 @@ func TestIncompatibleOperators(t *testing.T) {
 				{
 					name:                "chestnut",
 					namespace:           "default",
+					maxOpenShiftVersion: "1.2.0-pre+build",
+				},
+				{
+					name:                "drupe",
+					namespace:           "default",
 					maxOpenShiftVersion: "2.0.0",
 				},
 			},
@@ -290,6 +295,11 @@ func TestIncompatibleOperators(t *testing.T) {
 				{
 					name:                "drupe",
 					namespace:           "default",
+					maxOpenShiftVersion: "1.1.0-pre+build",
+				},
+				{
+					name:                "european-hazelnut",
+					namespace:           "default",
 					maxOpenShiftVersion: "0.1.0",
 				},
 			},
@@ -313,6 +323,11 @@ func TestIncompatibleOperators(t *testing.T) {
 					},
 					{
 						name:                "drupe",
+						namespace:           "default",
+						maxOpenShiftVersion: "1.1.0-pre+build",
+					},
+					{
+						name:                "european-hazelnut",
 						namespace:           "default",
 						maxOpenShiftVersion: "0.1.0",
 					},
@@ -413,14 +428,14 @@ func TestIncompatibleOperators(t *testing.T) {
 			},
 		},
 		{
-			description: "Compatible/EmptyVersion",
+			description: "EmptyVersion",
 			cv: configv1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "version",
 				},
 				Status: configv1.ClusterVersionStatus{
 					Desired: configv1.Update{
-						Version: "",
+						Version: "", // This should result in an transient error
 					},
 				},
 			},
@@ -439,6 +454,70 @@ func TestIncompatibleOperators(t *testing.T) {
 			expect: expect{
 				err:          true,
 				incompatible: nil,
+			},
+		},
+		{
+			description: "ClusterZ",
+			cv: configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "version",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Update{
+						Version: "1.0.1", // Next Y-stream is 1.1.0, NOT 1.1.1
+					},
+				},
+			},
+			in: skews{
+				{
+					name:                "almond",
+					namespace:           "default",
+					maxOpenShiftVersion: "1.1.2",
+				},
+				{
+					name:                "beech",
+					namespace:           "default",
+					maxOpenShiftVersion: "1.1",
+				},
+			},
+			expect: expect{
+				err:          false,
+				incompatible: nil,
+			},
+		},
+		{
+			description: "ClusterPre",
+			cv: configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "version",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Update{
+						Version: "1.1.0-pre", // Next Y-stream is 1.1.0, NOT 1.2.0
+					},
+				},
+			},
+			in: skews{
+				{
+					name:                "almond",
+					namespace:           "default",
+					maxOpenShiftVersion: "1.1.0",
+				},
+				{
+					name:                "beech",
+					namespace:           "default",
+					maxOpenShiftVersion: "1.1.0-pre",
+				},
+			},
+			expect: expect{
+				err: false,
+				incompatible: skews{
+					{
+						name:                "beech",
+						namespace:           "default",
+						maxOpenShiftVersion: "1.1.0-pre",
+					},
+				},
 			},
 		},
 	} {
