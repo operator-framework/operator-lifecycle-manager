@@ -9,8 +9,6 @@ metadata:
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
 spec:
-  cleanup:
-    enabled: false
   customresourcedefinitions: {}
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
