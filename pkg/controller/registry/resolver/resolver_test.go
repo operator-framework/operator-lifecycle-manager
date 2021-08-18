@@ -208,7 +208,7 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 	for _, op := range operators {
-		assert.Equal(t, "1.0.1", op.GetVersion().String())
+		assert.Equal(t, "1.0.1", op.Version.String())
 	}
 
 	expected := cache.OperatorSet{
@@ -286,7 +286,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.EqualValues(t, k, operators[k].Name)
 	}
 }
 
@@ -362,7 +362,7 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.EqualValues(t, k, operators[k].Name)
 	}
 }
 
@@ -565,7 +565,7 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.EqualValues(t, k, operators[k].Name)
 	}
 }
 
@@ -618,7 +618,7 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 	assert.Equal(t, len(expected), len(operators))
 	for k := range expected {
 		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.EqualValues(t, k, operators[k].Name)
 	}
 }
 
@@ -679,7 +679,7 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.EqualValues(t, k, operators[k].Name)
 	}
 }
 
@@ -801,12 +801,12 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 	}
 	got := []string{}
 	for _, o := range operators {
-		got = append(got, o.Identifier())
+		got = append(got, o.Name)
 	}
 	for k := range expected {
 		assert.NotNil(t, operators[k], "did not find expected operator %s in results. have: %s", k, got)
 		if _, ok := operators[k]; ok {
-			assert.EqualValues(t, k, operators[k].Identifier())
+			assert.EqualValues(t, k, operators[k].Name)
 		}
 	}
 }
@@ -877,7 +877,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	assert.Equal(t, len(expected), len(operators))
 	for k := range expected {
 		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.EqualValues(t, k, operators[k].Name)
 	}
 }
 
@@ -1095,7 +1095,7 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 	assert.Equal(t, len(expected), len(operators))
 	for k := range expected {
 		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.EqualValues(t, k, operators[k].Name)
 	}
 }
 
@@ -1189,7 +1189,7 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 	}
 	for k := range expected {
 		require.NotNil(t, operators[k])
-		assert.EqualValues(t, k, operators[k].Identifier())
+		assert.EqualValues(t, k, operators[k].Name)
 	}
 	assert.Equal(t, 3, len(operators))
 }
@@ -1276,11 +1276,11 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 			csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
 			for _, o := range operators {
 				var pkg, channel string
-				if b := o.GetBundle(); b != nil {
+				if b := o.Bundle; b != nil {
 					pkg = b.PackageName
 					channel = b.ChannelName
 				}
-				csvs = append(csvs, existingOperator(namespace, o.Identifier(), pkg, channel, o.GetReplaces(), o.GetProvidedAPIs(), o.GetRequiredAPIs(), nil, nil))
+				csvs = append(csvs, existingOperator(namespace, o.Name, pkg, channel, o.Replaces, o.ProvidedAPIs, o.RequiredAPIs, nil, nil))
 			}
 
 			var err error
@@ -1288,7 +1288,7 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 			assert.NoError(t, err)
 			for k := range p.expected {
 				require.NotNil(t, operators[k])
-				assert.EqualValues(t, k, operators[k].Identifier())
+				assert.EqualValues(t, k, operators[k].Name)
 			}
 			assert.Equal(t, len(p.expected), len(operators))
 		})

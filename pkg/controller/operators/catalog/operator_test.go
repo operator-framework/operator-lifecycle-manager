@@ -1204,7 +1204,7 @@ func TestSyncResolvingNamespace(t *testing.T) {
 
 			o.sourcesLastUpdate.Set(tt.fields.sourcesLastUpdate.Time)
 			o.resolver = &fakes.FakeStepResolver{
-				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+				ResolveStepsStub: func(string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 					return nil, nil, nil, tt.fields.resolveErr
 				},
 			}

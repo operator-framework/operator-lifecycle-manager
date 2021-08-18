@@ -890,7 +890,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
 
-	querier := resolver.NewNamespaceSourceQuerier(o.sources.AsClients(o.namespace, namespace))
+	querier := NewNamespaceSourceQuerier(o.sources.AsClients(o.namespace, namespace))
 
 	logger.Debug("checking if subscriptions need update")
 
@@ -950,7 +950,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	logger.Debug("resolving subscriptions in namespace")
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
+	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace)
 	if err != nil {
 		go o.recorder.Event(ns, corev1.EventTypeWarning, "ResolutionFailed", err.Error())
 		// If the error is constraints not satisfiable, then simply project the
@@ -1085,7 +1085,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	return updated, true, nil
 }
 
-func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription, querier resolver.SourceQuerier) (*v1alpha1.Subscription, bool, error) {
+func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription, querier SourceQuerier) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.CurrentCSV == "" {
 		return sub, false, nil
 	}

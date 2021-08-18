@@ -14,7 +14,6 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
@@ -30,7 +29,7 @@ type operatorConfig struct {
 	operatorClient    operatorclient.ClientInterface
 	externalClient    versioned.Interface
 	strategyResolver  install.StrategyResolverInterface
-	apiReconciler     resolver.APIIntersectionReconciler
+	apiReconciler     APIIntersectionReconciler
 	apiLabeler        labeler.Labeler
 	restConfig        *rest.Config
 	configClient      configv1client.Interface
@@ -84,8 +83,8 @@ func defaultOperatorConfig() *operatorConfig {
 		clock:             utilclock.RealClock{},
 		logger:            logrus.New(),
 		strategyResolver:  &install.StrategyResolver{},
-		apiReconciler:     resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
-		apiLabeler:        labeler.Func(resolver.LabelSetsFor),
+		apiReconciler:     APIIntersectionReconcileFunc(ReconcileAPIIntersection),
+		apiLabeler:        labeler.Func(LabelSetsFor),
 	}
 }
 
@@ -137,7 +136,7 @@ func WithStrategyResolver(strategyResolver install.StrategyResolverInterface) Op
 	}
 }
 
-func WithAPIReconciler(apiReconciler resolver.APIIntersectionReconciler) OperatorOption {
+func WithAPIReconciler(apiReconciler APIIntersectionReconciler) OperatorOption {
 	return func(config *operatorConfig) {
 		config.apiReconciler = apiReconciler
 	}

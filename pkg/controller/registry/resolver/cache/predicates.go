@@ -195,8 +195,7 @@ func SkipRangeIncludesPredicate(version semver.Version) OperatorPredicate {
 }
 
 func (s skipRangeIncludesPredication) Test(o *Operator) bool {
-	semverRange, err := o.SemverRange()
-	return err == nil && semverRange(s.version)
+	return o.SkipRange != nil && o.SkipRange(s.version)
 }
 
 func (s skipRangeIncludesPredication) String() string {
