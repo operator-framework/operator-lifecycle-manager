@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/irifrance/gini/inter"
-	"github.com/irifrance/gini/logic"
-	"github.com/irifrance/gini/z"
+	"github.com/operator-framework/gini/inter"
+	"github.com/operator-framework/gini/logic"
+	"github.com/operator-framework/gini/z"
 )
 
 type DuplicateIdentifier Identifier
