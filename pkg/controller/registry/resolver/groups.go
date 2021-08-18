@@ -1,4 +1,3 @@
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../../../fakes/fake_api_intersection_reconciler.go . APIIntersectionReconciler
 package resolver
 
 import (

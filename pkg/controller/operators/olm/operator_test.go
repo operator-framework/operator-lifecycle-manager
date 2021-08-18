@@ -56,7 +56,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	resolvercache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
@@ -328,10 +327,18 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	return op, nil
 }
 
-func buildFakeAPIIntersectionReconcilerThatReturns(result resolver.APIReconciliationResult) *fakes.FakeAPIIntersectionReconciler {
-	reconciler := &fakes.FakeAPIIntersectionReconciler{}
-	reconciler.ReconcileReturns(result)
-	return reconciler
+type fakeAPIIntersectionReconciler struct {
+	Result resolver.APIReconciliationResult
+}
+
+func (f fakeAPIIntersectionReconciler) Reconcile(resolvercache.APISet, resolver.OperatorGroupSurface, ...resolver.OperatorGroupSurface) resolver.APIReconciliationResult {
+	return f.Result
+}
+
+func buildFakeAPIIntersectionReconcilerThatReturns(result resolver.APIReconciliationResult) resolver.APIIntersectionReconciler {
+	return fakeAPIIntersectionReconciler{
+		Result: result,
+	}
 }
 
 func deployment(deploymentName, namespace, serviceAccountName string, templateAnnotations map[string]string) *appsv1.Deployment {
