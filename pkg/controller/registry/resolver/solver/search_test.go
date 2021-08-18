@@ -1,4 +1,4 @@
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o zz_search_test.go ../../../../../vendor/github.com/irifrance/gini/inter S
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o zz_search_test.go ../../../../../vendor/github.com/operator-framework/gini/inter S
 
 package solver
 
@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/irifrance/gini/inter"
-	"github.com/irifrance/gini/z"
+	"github.com/operator-framework/gini/inter"
+	"github.com/operator-framework/gini/z"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/irifrance/gini"
-	"github.com/irifrance/gini/inter"
-	"github.com/irifrance/gini/z"
+	"github.com/operator-framework/gini"
+	"github.com/operator-framework/gini/inter"
+	"github.com/operator-framework/gini/z"
 )
 
 var Incomplete = errors.New("cancelled before a solution could be found")

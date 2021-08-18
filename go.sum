@@ -631,8 +631,6 @@ github.com/imdario/mergo v0.3.12/go.mod h1:jmQim1M+e3UYxmgPu/WyfjB3N3VflVyUjjjwH
 github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NHg9XEKhtSvM=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d/go.mod h1:qj24IKcXYK6Iy9ceXlo3Tc+vtHo9lIhSX5JddghvEPo=
-github.com/irifrance/gini v1.0.1 h1:oTABiARLoRsnTmda0uY2u2e5kfm8e6meBZB19lf5xhE=
-github.com/irifrance/gini v1.0.1/go.mod h1:swH5OTtiG/X/YrU06r288qZwq6I1agpbuXQOB55xqGU=
 github.com/itchyny/astgen-go v0.0.0-20200519013840-cf3ea398f645 h1:3gyXljUyTWWTv/NMFPvwgxJSdE9Mamg2r3x8HMBl+Uo=
 github.com/itchyny/astgen-go v0.0.0-20200519013840-cf3ea398f645/go.mod h1:296z3W7Xsrp2mlIY88ruDKscuvrkL6zXCNRtaYVshzw=
 github.com/itchyny/go-flags v1.5.0/go.mod h1:lenkYuCobuxLBAd/HGFE4LRoW8D3B6iXRQfWYJ+MNbA=
@@ -880,6 +878,8 @@ github.com/openzipkin/zipkin-go v0.2.2/go.mod h1:NaW6tEwdmWMaCDZzg8sh+IBNOxHMPnh
 github.com/operator-framework/api v0.7.1/go.mod h1:L7IvLd/ckxJEJg/t4oTTlnHKAJIP/p51AvEslW3wYdY=
 github.com/operator-framework/api v0.10.3 h1:C4DE7Rr3+ztUw3mKiFyfAiUJSVOty/cJmpwE90/kYro=
 github.com/operator-framework/api v0.10.3/go.mod h1:tV0BUNvly7szq28ZPBXhjp1Sqg5yHCOeX19ui9K4vjI=
+github.com/operator-framework/gini v1.1.0 h1:w84bE/pi0nlnIRAxzYguoYAnL9s5T6RSVZKYWcxO3yI=
+github.com/operator-framework/gini v1.1.0/go.mod h1:L4GlF3xPPfQUoWglKhaBcR8/LZn3fWtMB1mwUyOGv98=
 github.com/operator-framework/operator-registry v1.17.5 h1:LR8m1rFz5Gcyje8WK6iYt+gIhtzqo52zMRALdmTYHT0=
 github.com/operator-framework/operator-registry v1.17.5/go.mod h1:sRQIgDMZZdUcmHltzyCnM6RUoDF+WS8Arj1BQIARDS8=
 github.com/otiai10/copy v1.2.0 h1:HvG945u96iNadPoG2/Ja2+AUJeW5YuFQMixq9yirC+k=

@@ -15,7 +15,6 @@ require (
 	github.com/golang/mock v1.4.1
 	github.com/google/go-cmp v0.5.6
 	github.com/googleapis/gnostic v0.5.5
-	github.com/irifrance/gini v1.0.1
 	github.com/itchyny/gojq v0.11.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 	github.com/mikefarah/yq/v3 v3.0.0-20201202084205-8846255d1c37
@@ -26,6 +25,7 @@ require (
 	github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
 	github.com/operator-framework/api v0.10.3
+	github.com/operator-framework/gini v1.1.0
 	github.com/operator-framework/operator-registry v1.17.5
 	github.com/otiai10/copy v1.2.0
 	github.com/pkg/errors v0.9.1
