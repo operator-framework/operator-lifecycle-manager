@@ -14,7 +14,6 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
@@ -85,7 +84,7 @@ func defaultOperatorConfig() *operatorConfig {
 		logger:            logrus.New(),
 		strategyResolver:  &install.StrategyResolver{},
 		apiReconciler:     APIIntersectionReconcileFunc(ReconcileAPIIntersection),
-		apiLabeler:        labeler.Func(resolver.LabelSetsFor),
+		apiLabeler:        labeler.Func(LabelSetsFor),
 	}
 }
 

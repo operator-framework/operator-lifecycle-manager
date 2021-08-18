@@ -54,7 +54,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	resolvercache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
@@ -269,7 +268,7 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 			logger:            logrus.New(),
 			strategyResolver:  &install.StrategyResolver{},
 			apiReconciler:     APIIntersectionReconcileFunc(ReconcileAPIIntersection),
-			apiLabeler:        labeler.Func(resolver.LabelSetsFor),
+			apiLabeler:        labeler.Func(LabelSetsFor),
 			restConfig:        &rest.Config{},
 		},
 		recorder: &record.FakeRecorder{},
@@ -2580,7 +2579,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*apiextensionsv1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations), labels.Set{
-						resolver.APILabelKeyPrefix + apiHash: "provided",
+						APILabelKeyPrefix + apiHash: "provided",
 					}),
 					csvWithLabels(csvWithAnnotations(csv("csv1",
 						namespace,
@@ -2591,7 +2590,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*apiextensionsv1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations), labels.Set{
-						resolver.APILabelKeyPrefix + apiHash: "provided",
+						APILabelKeyPrefix + apiHash: "provided",
 					}),
 					csvWithLabels(csvWithAnnotations(csv("csv2",
 						namespace,
@@ -2602,7 +2601,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*apiextensionsv1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations), labels.Set{
-						resolver.APILabelKeyPrefix + apiHash: "provided",
+						APILabelKeyPrefix + apiHash: "provided",
 					}),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
@@ -3699,7 +3698,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		[]*apiextensionsv1.CustomResourceDefinition{crd},
 		[]*apiextensionsv1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseNone,
-	), labels.Set{resolver.APILabelKeyPrefix + "9f4c46c37bdff8d0": "provided"})
+	), labels.Set{APILabelKeyPrefix + "9f4c46c37bdff8d0": "provided"})
 
 	operatorCSV.Spec.InstallStrategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{
 		Name:  "OPERATOR_CONDITION_NAME",

@@ -1,4 +1,4 @@
-package resolver
+package olm
 
 import (
 	"testing"
@@ -6,6 +6,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -27,12 +29,29 @@ func TestLabelSetsFor(t *testing.T) {
 		},
 		{
 			name: "CRD/ProvidedAndRequired",
-			obj: crd(opregistry.APIKey{
-				Group:   "ghouls",
-				Version: "v1alpha1",
-				Kind:    "Ghost",
-				Plural:  "Ghosts",
-			}),
+			obj: &v1beta1.CustomResourceDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "CustomResourceDefinition",
+					APIVersion: v1beta1.SchemeGroupVersion.String(),
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "Ghosts.ghouls",
+				},
+				Spec: v1beta1.CustomResourceDefinitionSpec{
+					Group: "ghouls",
+					Versions: []v1beta1.CustomResourceDefinitionVersion{
+						{
+							Name:    "v1alpha1",
+							Storage: true,
+							Served:  true,
+						},
+					},
+					Names: v1beta1.CustomResourceDefinitionNames{
+						Kind:   "Ghost",
+						Plural: "Ghosts",
+					},
+				},
+			},
 			expected: []labels.Set{
 				{
 					APILabelKeyPrefix + "6435ab0d7c6bda64": "provided",
