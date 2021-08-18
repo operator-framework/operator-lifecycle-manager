@@ -21,7 +21,6 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -186,7 +185,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	// Requeue all CSVs that provide the same APIs (including those removed). This notifies conflicting CSVs in
 	// intersecting groups that their conflict has possibly been resolved, either through resizing or through
 	// deletion of the conflicting CSV.
-	groupSurface := resolver.NewOperatorGroup(op)
+	groupSurface := NewOperatorGroup(op)
 	groupProvidedAPIs := groupSurface.ProvidedAPIs()
 	providedAPIsForCSVs := a.providedAPIsFromCSVs(op, logger)
 	providedAPIsForGroup := make(cache.APISet)
@@ -255,7 +254,7 @@ func (a *Operator) operatorGroupDeleted(obj interface{}) {
 
 func (a *Operator) annotateCSVs(group *v1.OperatorGroup, targetNamespaces []string, logger *logrus.Entry) error {
 	updateErrs := []error{}
-	targetNamespaceSet := resolver.NewNamespaceSet(targetNamespaces)
+	targetNamespaceSet := NewNamespaceSet(targetNamespaces)
 
 	for _, csv := range a.csvSet(group.GetNamespace(), v1alpha1.CSVPhaseAny) {
 		if csv.IsCopied() {
@@ -264,7 +263,7 @@ func (a *Operator) annotateCSVs(group *v1.OperatorGroup, targetNamespaces []stri
 		logger := logger.WithField("csv", csv.GetName())
 
 		originalNamespacesAnnotation, _ := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)[v1.OperatorGroupTargetsAnnotationKey]
-		originalNamespaceSet := resolver.NewNamespaceSetFromString(originalNamespacesAnnotation)
+		originalNamespaceSet := NewNamespaceSetFromString(originalNamespacesAnnotation)
 
 		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, group) {
 			a.setOperatorGroupAnnotations(&csv.ObjectMeta, group, true)
@@ -689,7 +688,7 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 	return nil
 }
 
-func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1.OperatorGroup, targets resolver.NamespaceSet) error {
+func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1.OperatorGroup, targets NamespaceSet) error {
 	namespaces, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
 	if err != nil {
 		return err

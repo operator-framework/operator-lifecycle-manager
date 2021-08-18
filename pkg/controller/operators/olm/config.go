@@ -30,7 +30,7 @@ type operatorConfig struct {
 	operatorClient    operatorclient.ClientInterface
 	externalClient    versioned.Interface
 	strategyResolver  install.StrategyResolverInterface
-	apiReconciler     resolver.APIIntersectionReconciler
+	apiReconciler     APIIntersectionReconciler
 	apiLabeler        labeler.Labeler
 	restConfig        *rest.Config
 	configClient      configv1client.Interface
@@ -84,7 +84,7 @@ func defaultOperatorConfig() *operatorConfig {
 		clock:             utilclock.RealClock{},
 		logger:            logrus.New(),
 		strategyResolver:  &install.StrategyResolver{},
-		apiReconciler:     resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
+		apiReconciler:     APIIntersectionReconcileFunc(ReconcileAPIIntersection),
 		apiLabeler:        labeler.Func(resolver.LabelSetsFor),
 	}
 }
@@ -137,7 +137,7 @@ func WithStrategyResolver(strategyResolver install.StrategyResolverInterface) Op
 	}
 }
 
-func WithAPIReconciler(apiReconciler resolver.APIIntersectionReconciler) OperatorOption {
+func WithAPIReconciler(apiReconciler APIIntersectionReconciler) OperatorOption {
 	return func(config *operatorConfig) {
 		config.apiReconciler = apiReconciler
 	}

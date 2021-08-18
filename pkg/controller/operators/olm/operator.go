@@ -37,7 +37,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	resolvercache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
@@ -79,7 +78,7 @@ type Operator struct {
 	csvIndexers           map[string]cache.Indexer
 	recorder              record.EventRecorder
 	resolver              install.StrategyResolverInterface
-	apiReconciler         resolver.APIIntersectionReconciler
+	apiReconciler         APIIntersectionReconciler
 	apiLabeler            labeler.Labeler
 	csvSetGenerator       csvutility.SetGenerator
 	csvReplaceFinder      csvutility.ReplaceFinder
@@ -846,7 +845,7 @@ func (a *Operator) namespaceAddedOrRemoved(obj interface{}) {
 	}
 
 	for _, group := range operatorGroupList {
-		if resolver.NewNamespaceSet(group.Status.Namespaces).Contains(namespace.GetName()) {
+		if NewNamespaceSet(group.Status.Namespaces).Contains(namespace.GetName()) {
 			if err := a.ogQueueSet.Requeue(group.Namespace, group.Name); err != nil {
 				logger.WithError(err).Warn("error requeuing operatorgroup")
 			}
@@ -881,7 +880,7 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 	}
 
 	for _, group := range operatorGroupList {
-		namespaceSet := resolver.NewNamespaceSet(group.Status.Namespaces)
+		namespaceSet := NewNamespaceSet(group.Status.Namespaces)
 
 		// Apply the label if not an All Namespaces OperatorGroup.
 		if namespaceSet.Contains(namespace.GetName()) && !namespaceSet.IsAllNamespaces() {
@@ -1098,7 +1097,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 	}
 
 	if annotations := parent.GetAnnotations(); annotations != nil {
-		if !resolver.NewNamespaceSetFromString(annotations[v1.OperatorGroupTargetsAnnotationKey]).Contains(csv.GetNamespace()) {
+		if !NewNamespaceSetFromString(annotations[v1.OperatorGroupTargetsAnnotationKey]).Contains(csv.GetNamespace()) {
 			logger.WithField("parentTargets", annotations[v1.OperatorGroupTargetsAnnotationKey]).
 				Debug("deleting copied CSV since parent no longer lists this as a target namespace")
 			return a.deleteChild(csv, logger)
@@ -1226,7 +1225,7 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 	}).Debug("copying csv to targets")
 
 	// Check if we need to do any copying / annotation for the operatorgroup
-	if err := a.ensureCSVsInNamespaces(clusterServiceVersion, operatorGroup, resolver.NewNamespaceSet(operatorGroup.Status.Namespaces)); err != nil {
+	if err := a.ensureCSVsInNamespaces(clusterServiceVersion, operatorGroup, NewNamespaceSet(operatorGroup.Status.Namespaces)); err != nil {
 		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
 		syncError = err
 	}
@@ -1427,12 +1426,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 	}
 
-	groupSurface := resolver.NewOperatorGroup(operatorGroup)
-	otherGroupSurfaces := resolver.NewOperatorGroupSurfaces(otherGroups...)
+	groupSurface := NewOperatorGroup(operatorGroup)
+	otherGroupSurfaces := NewOperatorGroupSurfaces(otherGroups...)
 	providedAPIs := operatorSurface.GetProvidedAPIs().StripPlural()
 
 	switch result := a.apiReconciler.Reconcile(providedAPIs, groupSurface, otherGroupSurfaces...); {
-	case operatorGroup.Spec.StaticProvidedAPIs && (result == resolver.AddAPIs || result == resolver.RemoveAPIs):
+	case operatorGroup.Spec.StaticProvidedAPIs && (result == AddAPIs || result == RemoveAPIs):
 		// Transition the CSV to FAILED with status reason "CannotModifyStaticOperatorGroupProvidedAPIs"
 		if out.Status.Reason != v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 			logger.WithField("apis", providedAPIs).Warn("cannot modify provided apis of static provided api operatorgroup")
@@ -1440,7 +1439,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			a.cleanupCSVDeployments(logger, out)
 		}
 		return
-	case result == resolver.APIConflict:
+	case result == APIConflict:
 		// Transition the CSV to FAILED with status reason "InterOperatorGroupOwnerConflict"
 		if out.Status.Reason != v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 			logger.WithField("apis", providedAPIs).Warn("intersecting operatorgroups provide the same apis")
@@ -1448,7 +1447,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			a.cleanupCSVDeployments(logger, out)
 		}
 		return
-	case result == resolver.AddAPIs:
+	case result == AddAPIs:
 		// Add the CSV's provided APIs to its OperatorGroup's annotation
 		logger.WithField("apis", providedAPIs).Debug("adding csv provided apis to operatorgroup")
 		union := groupSurface.ProvidedAPIs().Union(providedAPIs)
@@ -1471,7 +1470,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			a.logger.WithError(err).Warn("unable to requeue")
 		}
 		return
-	case result == resolver.RemoveAPIs:
+	case result == RemoveAPIs:
 		// Remove the CSV's provided APIs from its OperatorGroup's annotation
 		logger.WithField("apis", providedAPIs).Debug("removing csv provided apis from operatorgroup")
 		difference := groupSurface.ProvidedAPIs().Difference(providedAPIs)
