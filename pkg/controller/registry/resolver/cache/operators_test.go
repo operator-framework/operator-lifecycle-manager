@@ -736,30 +736,30 @@ func TestAPIMultiOwnerSet_PopAPIKey(t *testing.T) {
 		{
 			name: "OneApi/OneOwner",
 			s: map[opregistry.APIKey]OperatorSet{
-				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{Name: "op1"},
+				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]*Operator{
+					"owner1": {Name: "op1"},
 				},
 			},
 		},
 		{
 			name: "OneApi/MultiOwner",
 			s: map[opregistry.APIKey]OperatorSet{
-				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{Name: "op1"},
-					"owner2": &Operator{Name: "op2"},
+				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]*Operator{
+					"owner1": {Name: "op1"},
+					"owner2": {Name: "op2"},
 				},
 			},
 		},
 		{
 			name: "MultipleApi/MultiOwner",
 			s: map[opregistry.APIKey]OperatorSet{
-				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{Name: "op1"},
-					"owner2": &Operator{Name: "op2"},
+				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]*Operator{
+					"owner1": {Name: "op1"},
+					"owner2": {Name: "op2"},
 				},
-				{Group: "g2", Version: "v2", Kind: "k2", Plural: "p2"}: map[string]OperatorSurface{
-					"owner1": &Operator{Name: "op1"},
-					"owner2": &Operator{Name: "op2"},
+				{Group: "g2", Version: "v2", Kind: "k2", Plural: "p2"}: map[string]*Operator{
+					"owner1": {Name: "op1"},
+					"owner2": {Name: "op2"},
 				},
 			},
 		},
@@ -796,42 +796,42 @@ func TestAPIMultiOwnerSet_PopAPIRequirers(t *testing.T) {
 		{
 			name: "OneApi/OneOwner",
 			s: map[opregistry.APIKey]OperatorSet{
-				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{Name: "op1"},
+				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]*Operator{
+					"owner1": {Name: "op1"},
 				},
 			},
-			want: map[string]OperatorSurface{
-				"owner1": &Operator{Name: "op1"},
+			want: map[string]*Operator{
+				"owner1": {Name: "op1"},
 			},
 		},
 		{
 			name: "OneApi/MultiOwner",
 			s: map[opregistry.APIKey]OperatorSet{
-				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{Name: "op1"},
-					"owner2": &Operator{Name: "op2"},
+				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]*Operator{
+					"owner1": {Name: "op1"},
+					"owner2": {Name: "op2"},
 				},
 			},
-			want: map[string]OperatorSurface{
-				"owner1": &Operator{Name: "op1"},
-				"owner2": &Operator{Name: "op2"},
+			want: map[string]*Operator{
+				"owner1": {Name: "op1"},
+				"owner2": {Name: "op2"},
 			},
 		},
 		{
 			name: "MultipleApi/MultiOwner",
 			s: map[opregistry.APIKey]OperatorSet{
-				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]OperatorSurface{
-					"owner1": &Operator{Name: "op1"},
-					"owner2": &Operator{Name: "op2"},
+				{Group: "g", Version: "v", Kind: "k", Plural: "p"}: map[string]*Operator{
+					"owner1": {Name: "op1"},
+					"owner2": {Name: "op2"},
 				},
-				{Group: "g2", Version: "v2", Kind: "k2", Plural: "p2"}: map[string]OperatorSurface{
-					"owner1": &Operator{Name: "op1"},
-					"owner2": &Operator{Name: "op2"},
+				{Group: "g2", Version: "v2", Kind: "k2", Plural: "p2"}: map[string]*Operator{
+					"owner1": {Name: "op1"},
+					"owner2": {Name: "op2"},
 				},
 			},
-			want: map[string]OperatorSurface{
-				"owner1": &Operator{Name: "op1"},
-				"owner2": &Operator{Name: "op2"},
+			want: map[string]*Operator{
+				"owner1": {Name: "op1"},
+				"owner2": {Name: "op2"},
 			},
 		},
 	}

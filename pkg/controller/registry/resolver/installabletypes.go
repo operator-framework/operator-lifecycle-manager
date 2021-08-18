@@ -60,7 +60,7 @@ func NewBundleInstallableFromOperator(o *cache.Operator) (BundleInstallable, err
 	if o.SourceInfo == nil {
 		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Name)
 	}
-	id := bundleId(o.Identifier(), o.Channel(), o.SourceInfo.Catalog)
+	id := bundleId(o.Name, o.Channel(), o.SourceInfo.Catalog)
 	var constraints []solver.Constraint
 	if o.SourceInfo.Catalog.Virtual() && o.SourceInfo.Subscription == nil {
 		// CSVs already associated with a Subscription
@@ -68,7 +68,7 @@ func NewBundleInstallableFromOperator(o *cache.Operator) (BundleInstallable, err
 		// appear in any solution.
 		constraints = append(constraints, PrettyConstraint(
 			solver.Mandatory(),
-			fmt.Sprintf("clusterserviceversion %s exists and is not referenced by a subscription", o.Identifier()),
+			fmt.Sprintf("clusterserviceversion %s exists and is not referenced by a subscription", o.Name),
 		))
 	}
 	for _, p := range o.Properties {

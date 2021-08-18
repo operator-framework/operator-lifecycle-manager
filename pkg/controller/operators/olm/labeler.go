@@ -13,11 +13,16 @@ const (
 	APILabelKeyPrefix = "olm.api."
 )
 
+type operatorSurface interface {
+	GetProvidedAPIs() cache.APISet
+	GetRequiredAPIs() cache.APISet
+}
+
 // LabelSetsFor returns API label sets for the given object.
 // Concrete types other than OperatorSurface and CustomResource definition no-op.
 func LabelSetsFor(obj interface{}) ([]labels.Set, error) {
 	switch v := obj.(type) {
-	case cache.OperatorSurface:
+	case operatorSurface:
 		return labelSetsForOperatorSurface(v)
 	case *extv1beta1.CustomResourceDefinition:
 		return labelSetsForCRDv1beta1(v)
@@ -28,7 +33,7 @@ func LabelSetsFor(obj interface{}) ([]labels.Set, error) {
 	}
 }
 
-func labelSetsForOperatorSurface(surface cache.OperatorSurface) ([]labels.Set, error) {
+func labelSetsForOperatorSurface(surface operatorSurface) ([]labels.Set, error) {
 	labelSet := labels.Set{}
 	for key := range surface.GetProvidedAPIs().StripPlural() {
 		hash, err := cache.APIKeyToGVKHash(key)

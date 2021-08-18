@@ -102,7 +102,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 	for name, op := range operators {
 		// Find any existing subscriptions that resolve to this operator.
 		existingSubscriptions := make(map[*v1alpha1.Subscription]bool)
-		sourceInfo := *op.GetSourceInfo()
+		sourceInfo := *op.SourceInfo
 		for _, sub := range subs {
 			if sub.Spec.Package != sourceInfo.Package {
 				continue
@@ -127,7 +127,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		if len(existingSubscriptions) > 0 {
 			upToDate := true
 			for sub, exists := range existingSubscriptions {
-				if !exists || sub.Status.CurrentCSV != op.Identifier() {
+				if !exists || sub.Status.CurrentCSV != op.Name {
 					upToDate = false
 				}
 			}
@@ -138,21 +138,21 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 		}
 
 		// add steps for any new bundle
-		if op.GetBundle() != nil {
+		if op.Bundle != nil {
 			if op.Inline() {
-				bundleSteps, err := NewStepsFromBundle(op.GetBundle(), namespace, op.GetReplaces(), op.GetSourceInfo().Catalog.Name, op.GetSourceInfo().Catalog.Namespace)
+				bundleSteps, err := NewStepsFromBundle(op.Bundle, namespace, op.Replaces, op.SourceInfo.Catalog.Name, op.SourceInfo.Catalog.Namespace)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
 				}
 				steps = append(steps, bundleSteps...)
 			} else {
 				lookup := v1alpha1.BundleLookup{
-					Path:       op.GetBundle().GetBundlePath(),
-					Identifier: op.Identifier(),
-					Replaces:   op.GetReplaces(),
+					Path:       op.Bundle.GetBundlePath(),
+					Identifier: op.Name,
+					Replaces:   op.Replaces,
 					CatalogSourceRef: &corev1.ObjectReference{
-						Namespace: op.GetSourceInfo().Catalog.Namespace,
-						Name:      op.GetSourceInfo().Catalog.Name,
+						Namespace: op.SourceInfo.Catalog.Namespace,
+						Name:      op.SourceInfo.Catalog.Name,
 					},
 					Conditions: []v1alpha1.BundleLookupCondition{
 						{
@@ -169,8 +169,8 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 						},
 					},
 				}
-				if anno, err := projection.PropertiesAnnotationFromPropertyList(op.GetProperties()); err != nil {
-					return nil, nil, nil, fmt.Errorf("failed to serialize operator properties for %q: %w", op.Identifier(), err)
+				if anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties); err != nil {
+					return nil, nil, nil, fmt.Errorf("failed to serialize operator properties for %q: %w", op.Name, err)
 				} else {
 					lookup.Properties = anno
 				}
@@ -179,8 +179,8 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 
 			if len(existingSubscriptions) == 0 {
 				// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
-				op.GetSourceInfo().StartingCSV = op.Identifier()
-				subStep, err := NewSubscriptionStepResource(namespace, *op.GetSourceInfo())
+				op.SourceInfo.StartingCSV = op.Name
+				subStep, err := NewSubscriptionStepResource(namespace, *op.SourceInfo)
 				if err != nil {
 					return nil, nil, nil, err
 				}
@@ -194,11 +194,11 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string, _ SourceQuerier) (
 
 		// add steps for subscriptions for bundles that were added through resolution
 		for sub := range existingSubscriptions {
-			if sub.Status.CurrentCSV == op.Identifier() {
+			if sub.Status.CurrentCSV == op.Name {
 				continue
 			}
 			// update existing subscription status
-			sub.Status.CurrentCSV = op.Identifier()
+			sub.Status.CurrentCSV = op.Name
 			updatedSubs = append(updatedSubs, sub)
 		}
 	}

@@ -137,21 +137,21 @@ func (s APISet) StripPlural() APISet {
 	return set
 }
 
-type APIOwnerSet map[opregistry.APIKey]OperatorSurface
+type APIOwnerSet map[opregistry.APIKey]*Operator
 
 func EmptyAPIOwnerSet() APIOwnerSet {
-	return map[opregistry.APIKey]OperatorSurface{}
+	return map[opregistry.APIKey]*Operator{}
 }
 
-type OperatorSet map[string]OperatorSurface
+type OperatorSet map[string]*Operator
 
 func EmptyOperatorSet() OperatorSet {
-	return map[string]OperatorSurface{}
+	return map[string]*Operator{}
 }
 
 // Snapshot returns a new set, pointing to the same values
 func (o OperatorSet) Snapshot() OperatorSet {
-	out := make(map[string]OperatorSurface)
+	out := make(map[string]*Operator)
 	for key, val := range o {
 		out[key] = val
 	}
@@ -206,33 +206,18 @@ func (i *OperatorSourceInfo) String() string {
 var NoCatalog = registry.CatalogKey{Name: "", Namespace: ""}
 var ExistingOperator = OperatorSourceInfo{Package: "", Channel: "", StartingCSV: "", Catalog: NoCatalog, DefaultChannel: false}
 
-// OperatorSurface describes the API surfaces provided and required by an Operator.
-type OperatorSurface interface {
-	GetProvidedAPIs() APISet
-	GetRequiredAPIs() APISet
-	Identifier() string
-	GetReplaces() string
-	GetVersion() *semver.Version
-	GetSourceInfo() *OperatorSourceInfo
-	GetBundle() *api.Bundle
-	Inline() bool
-	GetProperties() []*api.Property
-	GetSkips() []string
-}
-
 type Operator struct {
 	Name         string
 	Replaces     string
+	Skips        []string
+	SkipRange    semver.Range
 	ProvidedAPIs APISet
 	RequiredAPIs APISet
 	Version      *semver.Version
 	Bundle       *api.Bundle
 	SourceInfo   *OperatorSourceInfo
 	Properties   []*api.Property
-	Skips        []string
 }
-
-var _ OperatorSurface = &Operator{}
 
 func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey registry.CatalogKey, defaultChannel string) (*Operator, error) {
 	parsedVersion, err := semver.ParseTolerant(bundle.Version)
@@ -288,6 +273,10 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		SourceInfo:   sourceInfo,
 		Properties:   properties,
 		Skips:        bundle.Skips,
+	}
+
+	if r, err := semver.ParseRange(o.Bundle.SkipRange); err == nil {
+		o.SkipRange = r
 	}
 
 	if !o.Inline() {
@@ -355,18 +344,6 @@ func (o *Operator) GetRequiredAPIs() APISet {
 	return o.RequiredAPIs
 }
 
-func (o *Operator) Identifier() string {
-	return o.Name
-}
-
-func (o *Operator) GetReplaces() string {
-	return o.Replaces
-}
-
-func (o *Operator) GetSkips() []string {
-	return o.Skips
-}
-
 func (o *Operator) Package() string {
 	if o.Bundle != nil {
 		return o.Bundle.PackageName
@@ -381,28 +358,8 @@ func (o *Operator) Channel() string {
 	return ""
 }
 
-func (o *Operator) GetSourceInfo() *OperatorSourceInfo {
-	return o.SourceInfo
-}
-
-func (o *Operator) GetBundle() *api.Bundle {
-	return o.Bundle
-}
-
-func (o *Operator) GetVersion() *semver.Version {
-	return o.Version
-}
-
-func (o *Operator) SemverRange() (semver.Range, error) {
-	return semver.ParseRange(o.Bundle.SkipRange)
-}
-
 func (o *Operator) Inline() bool {
 	return o.Bundle != nil && o.Bundle.GetBundlePath() == ""
-}
-
-func (o *Operator) GetProperties() []*api.Property {
-	return o.Properties
 }
 
 func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
