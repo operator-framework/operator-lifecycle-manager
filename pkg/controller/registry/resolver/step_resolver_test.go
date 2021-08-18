@@ -62,7 +62,6 @@ func TestResolver(t *testing.T) {
 	type resolverTest struct {
 		name             string
 		clusterState     []runtime.Object
-		querier          SourceQuerier
 		bundlesByCatalog map[registry.CatalogKey][]*api.Bundle
 		out              resolverTestOut
 	}
@@ -852,7 +851,7 @@ func TestResolver(t *testing.T) {
 			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
 			resolver.satResolver = satresolver
 
-			steps, lookups, subs, err := resolver.ResolveSteps(namespace, nil)
+			steps, lookups, subs, err := resolver.ResolveSteps(namespace)
 			if tt.out.solverError == nil {
 				if tt.out.errAssert == nil {
 					assert.NoError(t, err)
@@ -999,8 +998,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			}
 			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, logrus.New())
 			resolver.satResolver = satresolver
-			querier := NewFakeSourceQuerier(map[registry.CatalogKey][]*api.Bundle{catalog: tt.bundlesInCatalog})
-			steps, _, subs, err := resolver.ResolveSteps(namespace, querier)
+			steps, _, subs, err := resolver.ResolveSteps(namespace)
 			require.Equal(t, tt.out.err, err)
 			RequireStepsEqual(t, expectedSteps, steps)
 			require.ElementsMatch(t, tt.out.subs, subs)

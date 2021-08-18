@@ -15,11 +15,10 @@ type FakeStepResolver struct {
 	expireArgsForCall []struct {
 		arg1 registry.CatalogKey
 	}
-	ResolveStepsStub        func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
+	ResolveStepsStub        func(string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 	resolveStepsMutex       sync.RWMutex
 	resolveStepsArgsForCall []struct {
 		arg1 string
-		arg2 resolver.SourceQuerier
 	}
 	resolveStepsReturns struct {
 		result1 []*v1alpha1.Step
@@ -68,17 +67,16 @@ func (fake *FakeStepResolver) ExpireArgsForCall(i int) registry.CatalogKey {
 	return argsForCall.arg1
 }
 
-func (fake *FakeStepResolver) ResolveSteps(arg1 string, arg2 resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+func (fake *FakeStepResolver) ResolveSteps(arg1 string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	fake.resolveStepsMutex.Lock()
 	ret, specificReturn := fake.resolveStepsReturnsOnCall[len(fake.resolveStepsArgsForCall)]
 	fake.resolveStepsArgsForCall = append(fake.resolveStepsArgsForCall, struct {
 		arg1 string
-		arg2 resolver.SourceQuerier
-	}{arg1, arg2})
-	fake.recordInvocation("ResolveSteps", []interface{}{arg1, arg2})
+	}{arg1})
+	fake.recordInvocation("ResolveSteps", []interface{}{arg1})
 	fake.resolveStepsMutex.Unlock()
 	if fake.ResolveStepsStub != nil {
-		return fake.ResolveStepsStub(arg1, arg2)
+		return fake.ResolveStepsStub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3, ret.result4
@@ -93,17 +91,17 @@ func (fake *FakeStepResolver) ResolveStepsCallCount() int {
 	return len(fake.resolveStepsArgsForCall)
 }
 
-func (fake *FakeStepResolver) ResolveStepsCalls(stub func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)) {
+func (fake *FakeStepResolver) ResolveStepsCalls(stub func(string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)) {
 	fake.resolveStepsMutex.Lock()
 	defer fake.resolveStepsMutex.Unlock()
 	fake.ResolveStepsStub = stub
 }
 
-func (fake *FakeStepResolver) ResolveStepsArgsForCall(i int) (string, resolver.SourceQuerier) {
+func (fake *FakeStepResolver) ResolveStepsArgsForCall(i int) string {
 	fake.resolveStepsMutex.RLock()
 	defer fake.resolveStepsMutex.RUnlock()
 	argsForCall := fake.resolveStepsArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.arg1
 }
 
 func (fake *FakeStepResolver) ResolveStepsReturns(result1 []*v1alpha1.Step, result2 []v1alpha1.BundleLookup, result3 []*v1alpha1.Subscription, result4 error) {
