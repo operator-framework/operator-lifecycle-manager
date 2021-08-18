@@ -6,6 +6,7 @@ approvers:
   - kevinrizza
   - benluddy
   - awgreene
+  - dinhxuanvu
 # review == this code is good /lgtm
 reviewers:
   - ecordell
