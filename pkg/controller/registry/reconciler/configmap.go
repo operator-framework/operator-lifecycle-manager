@@ -213,11 +213,10 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source configMapCatalog
 	return roleBinding
 }
 
-func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) []*v1.Pod {
-	podName := source.Pod(image).GetName()
+func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator) []*v1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromSet(source.Selector()))
 	if err != nil {
-		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
+		logrus.WithField("selector", source.Selector()).WithError(err).Debug("couldn't find pod in cache")
 		return nil
 	}
 	if len(pods) > 1 {
@@ -226,11 +225,10 @@ func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceD
 	return pods
 }
 
-func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string) []*v1.Pod {
-	podName := source.Pod(image).GetName()
+func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator) []*v1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
-		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
+		logrus.WithField("selector", source.Labels()).WithError(err).Debug("couldn't find pod in cache")
 		return nil
 	}
 	if len(pods) > 1 {
@@ -243,42 +241,31 @@ func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(sour
 func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.CatalogSource) error {
 	source := configMapCatalogSourceDecorator{catalogSource}
 
-	image := c.Image
-	if source.Spec.SourceType == "grpc" {
-		image = source.Spec.Image
-	}
-	if image == "" {
-		return fmt.Errorf("no image for registry")
-	}
-
 	// if service status is nil, we force create every object to ensure they're created the first time
 	overwrite := source.Status.RegistryServiceStatus == nil
 	overwritePod := overwrite
 
-	if source.Spec.SourceType == v1alpha1.SourceTypeConfigmap || source.Spec.SourceType == v1alpha1.SourceTypeInternal {
-		// fetch configmap first, exit early if we can't find it
-		configMap, err := c.Lister.CoreV1().ConfigMapLister().ConfigMaps(source.GetNamespace()).Get(source.Spec.ConfigMap)
-		if err != nil {
-			return fmt.Errorf("unable to get configmap %s/%s from cache", source.GetNamespace(), source.Spec.ConfigMap)
+	// fetch configmap first, exit early if we can't find it
+	configMap, err := c.Lister.CoreV1().ConfigMapLister().ConfigMaps(source.GetNamespace()).Get(source.Spec.ConfigMap)
+	if err != nil {
+		return fmt.Errorf("unable to get configmap %s/%s from cache", source.GetNamespace(), source.Spec.ConfigMap)
+	}
+	if source.ConfigMapChanges(configMap) {
+		catalogSource.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
+			Name:            configMap.GetName(),
+			Namespace:       configMap.GetNamespace(),
+			UID:             configMap.GetUID(),
+			ResourceVersion: configMap.GetResourceVersion(),
+			LastUpdateTime:  c.now(),
 		}
 
-		if source.ConfigMapChanges(configMap) {
-			catalogSource.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
-				Name:            configMap.GetName(),
-				Namespace:       configMap.GetNamespace(),
-				UID:             configMap.GetUID(),
-				ResourceVersion: configMap.GetResourceVersion(),
-				LastUpdateTime:  c.now(),
-			}
+		// recreate the pod if there are configmap changes; this causes the db to be rebuilt
+		overwritePod = true
+	}
 
-			// recreate the pod if there are configmap changes; this causes the db to be rebuilt
-			overwritePod = true
-		}
-
-		// recreate the pod if no existing pod is serving the latest image
-		if len(c.currentPodsWithCorrectResourceVersion(source, image)) == 0 {
-			overwritePod = true
-		}
+	// recreate the pod if no existing pod is serving the latest image
+	if len(c.currentPodsWithCorrectResourceVersion(source)) == 0 && len(c.currentPods(source)) > 0 {
+		overwritePod = true
 	}
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
@@ -292,13 +279,14 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alph
 		return errors.Wrapf(err, "error ensuring rolebinding: %s", source.RoleBinding().GetName())
 	}
 	if err := c.ensurePod(source, overwritePod); err != nil {
-		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(image).GetName())
+		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod("").GetName())
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
 	}
 
 	if overwritePod {
+		logrus.Warn(4)
 		now := c.now()
 		catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
 			CreatedAt:        now,
@@ -354,12 +342,14 @@ func (c *ConfigMapRegistryReconciler) ensureRoleBinding(source configMapCatalogS
 }
 
 func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDecorator, overwrite bool) error {
+	logrus.Warn("ENSUREPOD")
 	pod := source.Pod(c.Image)
-	currentPods := c.currentPods(source, c.Image)
+	currentPods := c.currentPods(source)
 	if len(currentPods) > 0 {
 		if !overwrite {
 			return nil
 		}
+		logrus.Warn("OVERWRITE")
 		for _, p := range currentPods {
 			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !k8serrors.IsNotFound(err) {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
@@ -392,35 +382,24 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
 	source := configMapCatalogSourceDecorator{catalogSource}
 
-	image := c.Image
-	if source.Spec.SourceType == "grpc" {
-		image = source.Spec.Image
-	}
-	if image == "" {
-		err = fmt.Errorf("no image for registry")
-		return
+	configMap, err := c.Lister.CoreV1().ConfigMapLister().ConfigMaps(source.GetNamespace()).Get(source.Spec.ConfigMap)
+	if err != nil {
+		return false, fmt.Errorf("unable to get configmap %s/%s from cache", source.GetNamespace(), source.Spec.ConfigMap)
 	}
 
-	if source.Spec.SourceType == v1alpha1.SourceTypeConfigmap || source.Spec.SourceType == v1alpha1.SourceTypeInternal {
-		configMap, err := c.Lister.CoreV1().ConfigMapLister().ConfigMaps(source.GetNamespace()).Get(source.Spec.ConfigMap)
-		if err != nil {
-			return false, fmt.Errorf("unable to get configmap %s/%s from cache", source.GetNamespace(), source.Spec.ConfigMap)
-		}
+	if source.ConfigMapChanges(configMap) {
+		return false, nil
+	}
 
-		if source.ConfigMapChanges(configMap) {
-			return false, nil
-		}
-
-		// recreate the pod if no existing pod is serving the latest image
-		if len(c.currentPodsWithCorrectResourceVersion(source, image)) == 0 {
-			return false, nil
-		}
+	// recreate the pod if no existing pod is serving the latest image
+	if len(c.currentPodsWithCorrectResourceVersion(source)) == 0 {
+		return false, nil
 	}
 
 	// Check on registry resources
 	// TODO: more complex checks for resources
 	// TODO: add gRPC health check
-	pods := c.currentPods(source, c.Image)
+	pods := c.currentPods(source)
 
 	if c.currentServiceAccount(source) == nil ||
 		c.currentRole(source) == nil ||
