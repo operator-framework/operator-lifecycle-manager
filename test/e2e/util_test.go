@@ -297,7 +297,7 @@ func registryPodHealthy(address string) bool {
 		return false
 	}
 	health := grpc_health_v1.NewHealthClient(conn)
-	res, err := health.Check(context.TODO(), &grpc_health_v1.HealthCheckRequest{Service: "Registry"})
+	res, err := health.Check(context.TODO(), &grpc_health_v1.HealthCheckRequest{Service: "api.Registry"})
 	if err != nil {
 		fmt.Printf("error connecting: %s\n", err.Error())
 		return false
@@ -310,11 +310,11 @@ func registryPodHealthy(address string) bool {
 }
 
 func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
-	registry := catalog.Status.RegistryServiceStatus
+	registryService := catalog.Status.RegistryServiceStatus
 	connState := catalog.Status.GRPCConnectionState
-	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
-		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
-		return registryPodHealthy(registry.Address())
+	if registryService != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
+		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registryService.Address())
+		return registryPodHealthy(registryService.Address())
 	}
 	state := "NO_CONNECTION"
 	if connState != nil {
