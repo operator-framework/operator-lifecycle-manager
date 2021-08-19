@@ -101,7 +101,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/CreateSuccessful",
 			in: in{
 				cluster: cluster{
-					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("test-img", "")),
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("test-img", ""), true),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -148,7 +148,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/BadServiceWithWrongHash",
 			in: in{
 				cluster: cluster{
-					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Service{}, ServiceHashLabelKey, "wrongHash"),
+					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", ""), true), &corev1.Service{}, ServiceHashLabelKey, "wrongHash"),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -166,7 +166,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/BadService",
 			in: in{
 				cluster: cluster{
-					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Service{}, "badName"),
+					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", ""), true), &corev1.Service{}, "badName"),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -184,7 +184,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/BadPod",
 			in: in{
 				cluster: cluster{
-					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Pod{}, CatalogSourceLabelKey, ""),
+					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", ""), true), &corev1.Pod{}, CatalogSourceLabelKey, ""),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -202,7 +202,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/OldPod",
 			in: in{
 				cluster: cluster{
-					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("old-img", "")),
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("old-img", ""), true),
 				},
 				catsrc: validGrpcCatalogSource("new-img", ""),
 			},
@@ -428,7 +428,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/Image/Healthy",
 			in: in{
 				cluster: cluster{
-					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("test-img", "")),
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("test-img", ""), true),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -449,7 +449,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/Image/BadService",
 			in: in{
 				cluster: cluster{
-					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Service{}, "badName"),
+					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", ""), true), &corev1.Service{}, "badName"),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -461,7 +461,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/Image/BadPod",
 			in: in{
 				cluster: cluster{
-					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Pod{}, CatalogSourceLabelKey, ""),
+					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", ""), true), &corev1.Pod{}, CatalogSourceLabelKey, ""),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -473,7 +473,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/Image/OldPod/NotHealthy",
 			in: in{
 				cluster: cluster{
-					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("old-img", "")),
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("old-img", ""), true),
 				},
 				catsrc: validGrpcCatalogSource("new-img", ""),
 			},
@@ -494,7 +494,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/AddressAndImage/Healthy",
 			in: in{
 				cluster: cluster{
-					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001")),
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"), true),
 				},
 				catsrc: validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
 			},
@@ -516,7 +516,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/AddressAndImage/BadService/NotHealthy",
 			in: in{
 				cluster: cluster{
-					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "catalog.svc.cluster.local:50001")), &corev1.Service{}, "badName"),
+					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "catalog.svc.cluster.local:50001"), true), &corev1.Service{}, "badName"),
 				},
 				catsrc: validGrpcCatalogSource("test-img", "catalog.svc.cluster.local:50001"),
 			},
@@ -528,7 +528,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/AddressAndImage/OldPod/NotHealthy",
 			in: in{
 				cluster: cluster{
-					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("old-img", "catalog.svc.cluster.local:50001")),
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("old-img", "catalog.svc.cluster.local:50001"), true),
 				},
 				catsrc: validGrpcCatalogSource("new-img", "catalog.svc.cluster.local:50001"),
 			},
