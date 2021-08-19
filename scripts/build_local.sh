@@ -13,7 +13,7 @@ if [ -z "$NO_MINIKUBE" ]; then
   kubectl config use-context minikube
 fi
 
-docker build -f e2e.Dockerfile -t quay.io/operator-framework/olm:local -t quay.io/operator-framework/olm-e2e:local ./bin
+docker build -f e2e.Dockerfile -t quay.io/operator-framework/olm:local ./bin
 docker build -f test/e2e/hang.Dockerfile -t hang:10 ./bin
 
 if [ -n "$KIND" ]; then
@@ -26,6 +26,5 @@ if [ -n "$KIND" ]; then
   fi
 
   kind load docker-image quay.io/operator-framework/olm:local ${KIND_FLAGS}
-  kind load docker-image quay.io/operator-framework/olm-e2e:local ${KIND_FLAGS}
   kind load docker-image hang:10 ${KIND_FLAGS}
 fi
