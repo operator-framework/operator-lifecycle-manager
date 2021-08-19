@@ -697,9 +697,13 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 
 	logger.Debugf("check registry server healthy: %t", healthy)
 
+	// if the pod isn't healthy, don't check the connection
+	// checking the connection before the dns is ready may lead dns to cache the miss
+	// (pod readiness is used as a hint that dns should be ready to avoid coupling this to dns)
+	continueSync = healthy
+
 	if healthy && in.Status.RegistryServiceStatus != nil {
 		logger.Debug("registry state good")
-		continueSync = true
 		// return here if catalog does not have polling enabled
 		if !out.Poll() {
 			return
