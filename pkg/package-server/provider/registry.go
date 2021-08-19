@@ -178,7 +178,9 @@ func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) 
 		"namespace": source.GetNamespace(),
 	})
 
-	if source.Status.RegistryServiceStatus == nil {
+	// packageserver seems to compete with catalog operator for the initial connection
+	// wait for the catalog operator to be connected properly before connecting here
+	if source.Status.RegistryServiceStatus == nil || source.Status.GRPCConnectionState == nil || source.Status.GRPCConnectionState.LastObservedState != "READY" {
 		logger.Debug("registry service is not ready for grpc connection")
 		return
 	}
