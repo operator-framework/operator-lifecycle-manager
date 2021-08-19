@@ -2,12 +2,13 @@ package grpc
 
 import (
 	"context"
-	"github.com/operator-framework/operator-registry/pkg/client"
 	"sync"
 	"time"
 
+	"github.com/operator-framework/operator-registry/pkg/client"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
@@ -102,7 +103,15 @@ func (s *SourceStore) Get(key registry.CatalogKey) *SourceConn {
 func (s *SourceStore) Add(key registry.CatalogKey, address string) (*SourceConn, error) {
 	_ = s.Remove(key)
 
-	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithConnectParams(grpc.ConnectParams{
+		Backoff: backoff.Config{
+			BaseDelay:  500 * time.Millisecond,
+			Multiplier: 1.2,
+			Jitter:     0.2,
+			MaxDelay:   5 * time.Second,
+		},
+		MinConnectTimeout: 1 * time.Second,
+	}))
 	if err != nil {
 		return nil, err
 	}
