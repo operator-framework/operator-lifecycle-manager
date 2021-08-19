@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/operator-framework/operator-registry/pkg/client"
-
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
@@ -152,6 +152,18 @@ func grpcConnection(address string) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// add aggressive connection backoff for improved gRPC connection times
+	dialOptions = append(dialOptions, grpc.WithConnectParams(grpc.ConnectParams{
+		Backoff: backoff.Config{
+			BaseDelay:  500 * time.Millisecond,
+			Multiplier: 1.2,
+			Jitter:     0.2,
+			MaxDelay:   5 * time.Second,
+		},
+		MinConnectTimeout: 1 * time.Second,
+	},
+	))
 
 	if proxyURL != nil {
 		dialOptions = append(dialOptions, grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
