@@ -74,6 +74,7 @@ func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
 			Namespace: s.GetNamespace(),
 		},
 		Spec: corev1.ServiceSpec{
+			ClusterIP: "None",
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "grpc",
