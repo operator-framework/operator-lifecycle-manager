@@ -81,6 +81,7 @@ func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
 			Namespace: s.GetNamespace(),
 		},
 		Spec: v1.ServiceSpec{
+			ClusterIP: "None",
 			Ports: []v1.ServicePort{
 				{
 					Name:       "grpc",
