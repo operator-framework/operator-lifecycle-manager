@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -29,9 +30,10 @@ import (
 )
 
 const (
-	AdminSuffix = "admin"
-	EditSuffix  = "edit"
-	ViewSuffix  = "view"
+	AdminSuffix     = "admin"
+	EditSuffix      = "edit"
+	ViewSuffix      = "view"
+	OlmHashLabelKey = "olm.objhash"
 )
 
 var (
@@ -514,33 +516,43 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 
 	for _, r := range ownedRoles {
 		a.logger.Debug("processing role")
-		_, err := a.lister.RbacV1().ClusterRoleLister().Get(r.GetName())
+		existing, err := a.lister.RbacV1().ClusterRoleLister().Get(r.GetName())
+		clusterRole := &rbacv1.ClusterRole{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ClusterRole",
+				APIVersion: r.APIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   r.GetName(),
+				Labels: r.GetLabels(),
+			},
+			Rules: append(r.Rules, rbacv1.PolicyRule{
+				Verbs:     ViewVerbs,
+				APIGroups: []string{corev1.GroupName},
+				Resources: []string{"namespaces"},
+			}),
+		}
+		crHash := hashObject(clusterRole)
 		if err != nil {
-			clusterRole := &rbacv1.ClusterRole{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "ClusterRole",
-					APIVersion: r.APIVersion,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:   r.GetName(),
-					Labels: r.GetLabels(),
-				},
-				Rules: append(r.Rules, rbacv1.PolicyRule{
-					Verbs:     ViewVerbs,
-					APIGroups: []string{corev1.GroupName},
-					Resources: []string{"namespaces"},
-				}),
-			}
-			// TODO: this should do something smarter if the cluster role already exists
-			if cr, err := a.opClient.CreateClusterRole(clusterRole); err != nil {
-				// if the CR already exists, but the label is correct, the cache is just behind
-				if k8serrors.IsAlreadyExists(err) && ownerutil.IsOwnedByLabel(cr, csv) {
-					continue
-				} else {
-					return err
-				}
+			utillabels.AddLabel(clusterRole.GetLabels(), OlmHashLabelKey, crHash)
+			if _, err := a.opClient.CreateClusterRole(clusterRole); err != nil && !k8serrors.IsAlreadyExists(err) {
+				return err
 			}
 			a.logger.Debug("created cluster role")
+		}
+		if existing != nil {
+			existingLabels := existing.GetLabels()
+			if existingLabels == nil {
+				existingLabels = map[string]string{}
+			}
+			if h, ok := existingLabels[OlmHashLabelKey]; ok {
+				if h == crHash {
+					continue
+				}
+			}
+		}
+		if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
+			return err
 		}
 	}
 
@@ -553,33 +565,46 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 	}
 
 	for _, r := range ownedRoleBindings {
-		_, err := a.lister.RbacV1().ClusterRoleBindingLister().Get(r.GetName())
+		existing, err := a.lister.RbacV1().ClusterRoleBindingLister().Get(r.GetName())
+		clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ClusterRoleBinding",
+				APIVersion: r.APIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   r.GetName(),
+				Labels: r.GetLabels(),
+			},
+			Subjects: r.Subjects,
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: r.RoleRef.APIGroup,
+				Kind:     "ClusterRole",
+				Name:     r.RoleRef.Name,
+			},
+		}
+		crbHash := hashObject(clusterRoleBinding)
+
 		if err != nil {
-			clusterRoleBinding := &rbacv1.ClusterRoleBinding{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "ClusterRoleBinding",
-					APIVersion: r.APIVersion,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:   r.GetName(),
-					Labels: r.GetLabels(),
-				},
-				Subjects: r.Subjects,
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: r.RoleRef.APIGroup,
-					Kind:     "ClusterRole",
-					Name:     r.RoleRef.Name,
-				},
+			utillabels.AddLabel(clusterRoleBinding.GetLabels(), OlmHashLabelKey, crbHash)
+			if _, err := a.opClient.CreateClusterRoleBinding(clusterRoleBinding); err != nil && !k8serrors.IsAlreadyExists(err) {
+				return err
+			} else if err == nil {
+				continue
 			}
-			// TODO: this should do something smarter if the cluster role binding already exists
-			if crb, err := a.opClient.CreateClusterRoleBinding(clusterRoleBinding); err != nil {
-				// if the CR already exists, but the label is correct, the cache is just behind
-				if k8serrors.IsAlreadyExists(err) && ownerutil.IsOwnedByLabel(crb, csv) {
+		}
+		if existing != nil {
+			existingLabels := existing.GetLabels()
+			if existingLabels == nil {
+				existingLabels = map[string]string{}
+			}
+			if h, ok := existingLabels[OlmHashLabelKey]; ok {
+				if h == crbHash {
 					continue
-				} else {
-					return err
 				}
 			}
+		}
+		if _, err := a.opClient.UpdateClusterRoleBinding(clusterRoleBinding); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -1123,4 +1148,10 @@ func csvCopyPrototype(src, dst *v1alpha1.ClusterServiceVersion) {
 	dst.Labels[v1alpha1.CopiedLabelKey] = src.Namespace
 	dst.Status.Reason = v1alpha1.CSVReasonCopied
 	dst.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", src.GetNamespace())
+}
+
+func hashObject(object interface{}) string {
+	hasher := fnv.New32a()
+	hashutil.DeepHashObject(hasher, object)
+	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
 }

@@ -4248,6 +4248,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "csv-role",
 							Labels: map[string]string{
+								"olm.objhash":         "7779f8dc4f",
 								"olm.owner":           "csv1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "ClusterServiceVersion",
@@ -4267,6 +4268,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "csv-rolebinding",
 							Labels: map[string]string{
+								"olm.objhash":         "777d59685f",
 								"olm.owner":           "csv1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "ClusterServiceVersion",

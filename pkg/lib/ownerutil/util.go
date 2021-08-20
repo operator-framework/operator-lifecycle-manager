@@ -238,6 +238,9 @@ func AddOwnerLabelsForKind(object metav1.Object, owner Owner, kind string) {
 
 // IsOwnedByKindLabel returns whether or not a label exists on the object pointing to an owner of a particular kind
 func IsOwnedByKindLabel(object metav1.Object, ownerKind string) bool {
+	if object == nil {
+		return false
+	}
 	if object.GetLabels() == nil {
 		return false
 	}
