@@ -24,6 +24,11 @@ base_url="${2:-${default_base_url}}"
 url="${base_url}/${release}"
 namespace=olm
 
+if kubectl get deployment olm-operator -n ${namespace} -o=jsonpath='{.spec}' > /dev/null 2>&1; then
+    echo "OLM is already installed in ${namespace} namespace. Exiting..."
+    exit 1
+fi
+
 kubectl apply -f "${url}/crds.yaml"
 kubectl wait --for=condition=Established -f "${url}/crds.yaml"
 kubectl apply -f "${url}/olm.yaml"
