@@ -976,14 +976,15 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			return updateErr
 		}
 		return err
-	} else {
+	}
+
+	defer func() {
 		subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
 		_, updateErr := o.updateSubscriptionStatuses(subs)
 		if updateErr != nil {
-			logger.WithError(updateErr).Debug("failed to update subs conditions")
+			logger.WithError(updateErr).Warn("failed to update subscription conditions")
 		}
-		updatedSubs = o.setSubsCond(updatedSubs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
-	}
+	}()
 
 	// create installplan if anything updated
 	if len(updatedSubs) > 0 {
@@ -1015,9 +1016,12 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			return err
 		}
 		updatedSubs = o.setIPReference(updatedSubs, maxGeneration+1, installPlanReference)
-		if _, err := o.updateSubscriptionStatuses(updatedSubs); err != nil {
-			logger.WithError(err).Debug("error ensuring subscription installplan state")
-			return err
+		for _, updatedSub := range updatedSubs {
+			for i, sub := range subs {
+				if sub.Name == updatedSub.Name && sub.Namespace == updatedSub.Namespace {
+					subs[i] = updatedSub
+				}
+			}
 		}
 	} else {
 		logger.Debugf("no subscriptions were updated")
