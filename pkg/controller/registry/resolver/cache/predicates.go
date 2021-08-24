@@ -7,7 +7,6 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -140,10 +139,10 @@ func (l labelPredicate) String() string {
 }
 
 type catalogPredicate struct {
-	key registry.CatalogKey
+	key SourceKey
 }
 
-func CatalogPredicate(key registry.CatalogKey) OperatorPredicate {
+func CatalogPredicate(key SourceKey) OperatorPredicate {
 	return catalogPredicate{key: key}
 }
 

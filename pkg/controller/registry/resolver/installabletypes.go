@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	operatorregistry "github.com/operator-framework/operator-registry/pkg/registry"
@@ -37,13 +36,13 @@ func (i *BundleInstallable) AddConstraint(c solver.Constraint) {
 	i.constraints = append(i.constraints, c)
 }
 
-func (i *BundleInstallable) BundleSourceInfo() (string, string, registry.CatalogKey, error) {
+func (i *BundleInstallable) BundleSourceInfo() (string, string, cache.SourceKey, error) {
 	info := strings.Split(i.identifier.String(), "/")
 	// This should be enforced by Kube naming constraints
 	if len(info) != 4 {
-		return "", "", registry.CatalogKey{}, fmt.Errorf("Unable to parse identifier %s for source info", i.identifier)
+		return "", "", cache.SourceKey{}, fmt.Errorf("Unable to parse identifier %s for source info", i.identifier)
 	}
-	catalog := registry.CatalogKey{
+	catalog := cache.SourceKey{
 		Name:      info[0],
 		Namespace: info[1],
 	}
@@ -52,7 +51,7 @@ func (i *BundleInstallable) BundleSourceInfo() (string, string, registry.Catalog
 	return csvName, channel, catalog, nil
 }
 
-func bundleId(bundle, channel string, catalog registry.CatalogKey) solver.Identifier {
+func bundleId(bundle, channel string, catalog cache.SourceKey) solver.Identifier {
 	return solver.IdentifierFromString(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
 }
 

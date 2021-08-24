@@ -11,7 +11,6 @@ import (
 
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -713,7 +712,7 @@ func TestCatalogKey_String(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			k := &registry.CatalogKey{
+			k := &SourceKey{
 				Name:      tt.fields.Name,
 				Namespace: tt.fields.Namespace,
 			}
@@ -878,7 +877,7 @@ func TestOperatorSourceInfo_String(t *testing.T) {
 			i := &OperatorSourceInfo{
 				Package: tt.fields.Package,
 				Channel: tt.fields.Channel,
-				Catalog: registry.CatalogKey{Name: tt.fields.CatalogSource, Namespace: tt.fields.CatalogSourceNamespace},
+				Catalog: SourceKey{Name: tt.fields.CatalogSource, Namespace: tt.fields.CatalogSourceNamespace},
 			}
 			if got := i.String(); got != tt.want {
 				t.Errorf("OperatorSourceInfo.String() = %v, want %v", got, tt.want)
@@ -1060,7 +1059,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 
 	type args struct {
 		bundle         *api.Bundle
-		sourceKey      registry.CatalogKey
+		sourceKey      SourceKey
 		replaces       string
 		defaultChannel string
 	}
@@ -1074,7 +1073,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleNoAPIs",
 			args: args{
 				bundle:    bundleNoAPIs,
-				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: SourceKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				Name:         "testBundle",
@@ -1085,7 +1084,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+					Catalog: SourceKey{Name: "source", Namespace: "testNamespace"},
 				},
 			},
 		},
@@ -1093,7 +1092,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleWithAPIs",
 			args: args{
 				bundle:    bundleWithAPIs,
-				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: SourceKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				Name:    "testBundle",
@@ -1148,7 +1147,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+					Catalog: SourceKey{Name: "source", Namespace: "testNamespace"},
 				},
 			},
 		},
@@ -1156,7 +1155,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleIgnoreCSV",
 			args: args{
 				bundle:    bundleWithAPIsUnextracted,
-				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: SourceKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				Name:         "testBundle",
@@ -1166,7 +1165,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+					Catalog: SourceKey{Name: "source", Namespace: "testNamespace"},
 				},
 			},
 		},
@@ -1174,7 +1173,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleInDefaultChannel",
 			args: args{
 				bundle:         bundleNoAPIs,
-				sourceKey:      registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey:      SourceKey{Name: "source", Namespace: "testNamespace"},
 				defaultChannel: "testChannel",
 			},
 			want: &Operator{
@@ -1186,7 +1185,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				SourceInfo: &OperatorSourceInfo{
 					Package:        "testPackage",
 					Channel:        "testChannel",
-					Catalog:        registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+					Catalog:        SourceKey{Name: "source", Namespace: "testNamespace"},
 					DefaultChannel: true,
 				},
 			},
@@ -1195,7 +1194,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			name: "BundleWithPropertiesAndDependencies",
 			args: args{
 				bundle:    bundleWithPropsAndDeps,
-				sourceKey: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+				sourceKey: SourceKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
 				Name:         "testBundle",
@@ -1224,7 +1223,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
-					Catalog: registry.CatalogKey{Name: "source", Namespace: "testNamespace"},
+					Catalog: SourceKey{Name: "source", Namespace: "testNamespace"},
 				},
 			},
 		},

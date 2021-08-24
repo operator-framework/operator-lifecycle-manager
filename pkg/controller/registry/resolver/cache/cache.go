@@ -19,36 +19,77 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
+const ExistingOperatorKey = "@existing"
+
+type SourceKey struct {
+	Name      string
+	Namespace string
+}
+
+func (k *SourceKey) String() string {
+	return fmt.Sprintf("%s/%s", k.Name, k.Namespace)
+}
+
+func (k *SourceKey) Empty() bool {
+	return k.Name == "" && k.Namespace == ""
+}
+
+func (k *SourceKey) Equal(compare SourceKey) bool {
+	return k.Name == compare.Name && k.Namespace == compare.Namespace
+}
+
+// Virtual indicates if this is a "virtual" catalog representing the currently installed operators in a namespace
+func (k *SourceKey) Virtual() bool {
+	return k.Name == ExistingOperatorKey && k.Namespace != ""
+}
+
+func NewVirtualSourceKey(namespace string) SourceKey {
+	return SourceKey{
+		Name:      ExistingOperatorKey,
+		Namespace: namespace,
+	}
+}
+
 type RegistryClientProvider interface {
 	ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface
 }
 
-type DefaultRegistryClientProvider struct {
-	logger logrus.FieldLogger
-	s      RegistryClientProvider
+type SourceProvider interface {
+	// TODO: Spun off from the old RegistryClientProvider in order
+	// to phase out the dependency on registry.CatalogKey. Subject
+	// to further change as the registry client dependency is also
+	// removed.
+	ClientsForNamespaces(namespaces ...string) map[SourceKey]client.Interface
 }
 
-func NewDefaultRegistryClientProvider(log logrus.FieldLogger, store RegistryClientProvider) *DefaultRegistryClientProvider {
+type DefaultRegistryClientProvider struct {
+	s RegistryClientProvider
+}
+
+func SourceProviderFromRegistryClientProvider(store RegistryClientProvider) *DefaultRegistryClientProvider {
 	return &DefaultRegistryClientProvider{
-		logger: log,
-		s:      store,
+		s: store,
 	}
 }
 
-func (rcp *DefaultRegistryClientProvider) ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface {
-	return rcp.s.ClientsForNamespaces(namespaces...)
+func (rcp *DefaultRegistryClientProvider) ClientsForNamespaces(namespaces ...string) map[SourceKey]client.Interface {
+	result := make(map[SourceKey]client.Interface)
+	for key, client := range rcp.s.ClientsForNamespaces(namespaces...) {
+		result[SourceKey(key)] = client
+	}
+	return result
 }
 
 type OperatorCacheProvider interface {
 	Namespaced(namespaces ...string) MultiCatalogOperatorFinder
-	Expire(catalog registry.CatalogKey)
+	Expire(catalog SourceKey)
 }
 
 type OperatorCache struct {
 	logger       logrus.FieldLogger
-	rcp          RegistryClientProvider
+	rcp          SourceProvider
 	catsrcLister v1alpha1.CatalogSourceLister
-	snapshots    map[registry.CatalogKey]*CatalogSnapshot
+	snapshots    map[SourceKey]*CatalogSnapshot
 	ttl          time.Duration
 	sem          chan struct{}
 	m            sync.RWMutex
@@ -60,7 +101,7 @@ type catalogSourcePriority int
 
 var _ OperatorCacheProvider = &OperatorCache{}
 
-func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, catsrcLister v1alpha1.CatalogSourceLister) *OperatorCache {
+func NewOperatorCache(rcp SourceProvider, log logrus.FieldLogger, catsrcLister v1alpha1.CatalogSourceLister) *OperatorCache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
 	)
@@ -69,7 +110,7 @@ func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, catsrc
 		logger:       log,
 		rcp:          rcp,
 		catsrcLister: catsrcLister,
-		snapshots:    make(map[registry.CatalogKey]*CatalogSnapshot),
+		snapshots:    make(map[SourceKey]*CatalogSnapshot),
 		ttl:          5 * time.Minute,
 		sem:          make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
@@ -77,8 +118,8 @@ func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, catsrc
 
 type NamespacedOperatorCache struct {
 	Namespaces []string
-	existing   *registry.CatalogKey
-	Snapshots  map[registry.CatalogKey]*CatalogSnapshot
+	existing   *SourceKey
+	Snapshots  map[SourceKey]*CatalogSnapshot
 }
 
 func (c *NamespacedOperatorCache) Error() error {
@@ -94,7 +135,7 @@ func (c *NamespacedOperatorCache) Error() error {
 	return errors.NewAggregate(errs)
 }
 
-func (c *OperatorCache) Expire(catalog registry.CatalogKey) {
+func (c *OperatorCache) Expire(catalog SourceKey) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	s, ok := c.snapshots[catalog]
@@ -114,10 +155,10 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 
 	result := NamespacedOperatorCache{
 		Namespaces: namespaces,
-		Snapshots:  make(map[registry.CatalogKey]*CatalogSnapshot),
+		Snapshots:  make(map[SourceKey]*CatalogSnapshot),
 	}
 
-	var misses []registry.CatalogKey
+	var misses []SourceKey
 	func() {
 		c.m.RLock()
 		defer c.m.RUnlock()
@@ -148,7 +189,7 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	defer c.m.Unlock()
 
 	// Take the opportunity to clear expired snapshots while holding the lock.
-	var expired []registry.CatalogKey
+	var expired []SourceKey
 	for key, snapshot := range c.snapshots {
 		if snapshot.Expired(now) {
 			snapshot.Cancel()
@@ -270,7 +311,7 @@ func EnsurePackageProperty(o *Operator, name, version string) {
 	})
 }
 
-func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder {
+func (c *NamespacedOperatorCache) Catalog(k SourceKey) OperatorFinder {
 	// all catalogs match the empty catalog
 	if k.Empty() {
 		return c
@@ -281,7 +322,7 @@ func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder 
 	return EmptyOperatorFinder{}
 }
 
-func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, p ...OperatorPredicate) []*Operator {
+func (c *NamespacedOperatorCache) FindPreferred(preferred *SourceKey, p ...OperatorPredicate) []*Operator {
 	var result []*Operator
 	if preferred != nil && preferred.Empty() {
 		preferred = nil
@@ -310,7 +351,7 @@ func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
 
 type CatalogSnapshot struct {
 	logger    logrus.FieldLogger
-	Key       registry.CatalogKey
+	Key       SourceKey
 	expiry    time.Time
 	Operators []*Operator
 	m         sync.RWMutex
@@ -329,7 +370,7 @@ func (s *CatalogSnapshot) Expired(at time.Time) bool {
 
 // NewRunningOperatorSnapshot creates a CatalogSnapshot that represents a set of existing installed operators
 // in the cluster.
-func NewRunningOperatorSnapshot(logger logrus.FieldLogger, key registry.CatalogKey, o []*Operator) *CatalogSnapshot {
+func NewRunningOperatorSnapshot(logger logrus.FieldLogger, key SourceKey, o []*Operator) *CatalogSnapshot {
 	return &CatalogSnapshot{
 		logger:    logger,
 		Key:       key,
@@ -340,11 +381,11 @@ func NewRunningOperatorSnapshot(logger logrus.FieldLogger, key registry.CatalogK
 type SortableSnapshots struct {
 	snapshots  []*CatalogSnapshot
 	namespaces map[string]int
-	preferred  *registry.CatalogKey
-	existing   *registry.CatalogKey
+	preferred  *SourceKey
+	existing   *SourceKey
 }
 
-func NewSortableSnapshots(existing, preferred *registry.CatalogKey, namespaces []string, snapshots map[registry.CatalogKey]*CatalogSnapshot) SortableSnapshots {
+func NewSortableSnapshots(existing, preferred *SourceKey, namespaces []string, snapshots map[SourceKey]*CatalogSnapshot) SortableSnapshots {
 	sorted := SortableSnapshots{
 		existing:   existing,
 		preferred:  preferred,
@@ -421,8 +462,8 @@ type OperatorFinder interface {
 }
 
 type MultiCatalogOperatorFinder interface {
-	Catalog(registry.CatalogKey) OperatorFinder
-	FindPreferred(*registry.CatalogKey, ...OperatorPredicate) []*Operator
+	Catalog(SourceKey) OperatorFinder
+	FindPreferred(*SourceKey, ...OperatorPredicate) []*Operator
 	WithExistingOperators(*CatalogSnapshot) MultiCatalogOperatorFinder
 	Error() error
 	OperatorFinder

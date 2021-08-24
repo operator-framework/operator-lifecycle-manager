@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
@@ -77,9 +76,9 @@ func (s *RegistryClientStub) Close() error {
 	return nil
 }
 
-type RegistryClientProviderStub map[registry.CatalogKey]client.Interface
+type RegistryClientProviderStub map[SourceKey]client.Interface
 
-func (s RegistryClientProviderStub) ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface {
+func (s RegistryClientProviderStub) ClientsForNamespaces(namespaces ...string) map[SourceKey]client.Interface {
 	return s
 }
 
@@ -89,10 +88,10 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 	)
 	rcp := RegistryClientProviderStub{}
 	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	var keys []registry.CatalogKey
+	var keys []SourceKey
 	for i := 0; i < 128; i++ {
 		for j := 0; j < 8; j++ {
-			key := registry.CatalogKey{Namespace: strconv.Itoa(i), Name: strconv.Itoa(j)}
+			key := SourceKey{Namespace: strconv.Itoa(i), Name: strconv.Itoa(j)}
 			keys = append(keys, key)
 			rcp[key] = &RegistryClientStub{
 				BundleIterator: client.NewBundleIterator(&BundleStreamStub{
@@ -145,7 +144,7 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 func TestOperatorCacheExpiration(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
 	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
+	key := SourceKey{Namespace: "dummynamespace", Name: "dummyname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
 			Bundles: []*api.Bundle{{
@@ -169,7 +168,7 @@ func TestOperatorCacheExpiration(t *testing.T) {
 func TestOperatorCacheReuse(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
 	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
+	key := SourceKey{Namespace: "dummynamespace", Name: "dummyname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
 			Bundles: []*api.Bundle{{
@@ -297,7 +296,7 @@ func TestCatalogSnapshotFind(t *testing.T) {
 func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
 	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	key := registry.CatalogKey{Namespace: "testnamespace", Name: "testname"}
+	key := SourceKey{Namespace: "testnamespace", Name: "testname"}
 	rcp[key] = &RegistryClientStub{
 		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
 			Bundles: []*api.Bundle{{
@@ -347,7 +346,7 @@ func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 func TestNamespaceOperatorCacheError(t *testing.T) {
 	rcp := RegistryClientProviderStub{}
 	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
+	key := SourceKey{Namespace: "dummynamespace", Name: "dummyname"}
 	rcp[key] = &RegistryClientStub{
 		ListBundlesError: errors.New("testing"),
 	}

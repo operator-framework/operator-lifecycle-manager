@@ -17,7 +17,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	controllerbundle "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -31,7 +30,7 @@ var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 type StepResolver interface {
 	ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
-	Expire(key registry.CatalogKey)
+	Expire(key cache.SourceKey)
 }
 
 type OperatorStepResolver struct {
@@ -56,12 +55,12 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(cache.NewDefaultRegistryClientProvider(log, provider), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
+		satResolver:            NewDefaultSatResolver(cache.SourceProviderFromRegistryClientProvider(provider), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
 		log:                    log,
 	}
 }
 
-func (r *OperatorStepResolver) Expire(key registry.CatalogKey) {
+func (r *OperatorStepResolver) Expire(key cache.SourceKey) {
 	r.satResolver.cache.Expire(key)
 }
 
@@ -109,7 +108,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 			if sub.Spec.Channel != "" && sub.Spec.Channel != sourceInfo.Channel {
 				continue
 			}
-			subCatalogKey := registry.CatalogKey{
+			subCatalogKey := cache.SourceKey{
 				Name:      sub.Spec.CatalogSource,
 				Namespace: sub.Spec.CatalogSourceNamespace,
 			}
