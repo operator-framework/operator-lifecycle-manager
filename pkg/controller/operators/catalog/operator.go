@@ -1246,14 +1246,8 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.
 		cond.Reason = reason
 		cond.Message = message
 		if setTrue {
-			if cond.Status == corev1.ConditionTrue {
-				continue
-			}
 			cond.Status = corev1.ConditionTrue
 		} else {
-			if cond.Status == corev1.ConditionFalse {
-				continue
-			}
 			cond.Status = corev1.ConditionFalse
 		}
 		sub.Status.SetCondition(cond)
