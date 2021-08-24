@@ -2112,8 +2112,11 @@ var _ = Describe("Subscription", func() {
 			teardown   func()
 			cleanup    func()
 			packages   []registry.PackageManifest
-			subName    = genName("test-subscription")
-			catSrcName = genName("test-catalog")
+			crd        = newCRD(genName("foo-"))
+			csvA       operatorsv1alpha1.ClusterServiceVersion
+			csvB       operatorsv1alpha1.ClusterServiceVersion
+			subName    = genName("test-subscription-")
+			catSrcName = genName("test-catalog-")
 		)
 
 		BeforeEach(func() {
@@ -2129,10 +2132,9 @@ var _ = Describe("Subscription", func() {
 					DefaultChannelName: "alpha",
 				},
 			}
-			crd := newCRD(genName("foo"))
-			csv := newCSV("csvA", testNamespace, "", semver.MustParse("1.0.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
+			csvA = newCSV("csvA", testNamespace, "", semver.MustParse("1.0.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
 
-			_, teardown = createInternalCatalogSource(c, ctx.Ctx().OperatorClient(), catSrcName, testNamespace, packages, nil, []operatorsv1alpha1.ClusterServiceVersion{csv})
+			_, teardown = createInternalCatalogSource(c, ctx.Ctx().OperatorClient(), catSrcName, testNamespace, packages, nil, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 
 			// Ensure that the catalog source is resolved before we create a subscription.
 			_, err := fetchCatalogSourceOnStatus(crc, catSrcName, testNamespace, catalogSourceRegistryPodSynced)
@@ -2156,6 +2158,31 @@ var _ = Describe("Subscription", func() {
 			}).Should(Equal(corev1.ConditionTrue))
 		})
 
+		When("the required API is made available", func() {
+			BeforeEach(func() {
+				newPkg := registry.PackageManifest{
+					PackageName: "PackageB",
+					Channels: []registry.PackageChannel{
+						{Name: "alpha", CurrentCSVName: "csvB"},
+					},
+					DefaultChannelName: "alpha",
+				}
+				packages = append(packages, newPkg)
+
+				csvB = newCSV("csvB", testNamespace, "", semver.MustParse("1.0.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+
+				updateInternalCatalog(GinkgoT(), c, crc, catSrcName, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, packages)
+			})
+			It("the ResolutionFailed condition previously set in it's status that indicated the resolution error is cleared off", func() {
+				Eventually(func() (corev1.ConditionStatus, error) {
+					sub, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subName, metav1.GetOptions{})
+					if err != nil {
+						return corev1.ConditionUnknown, err
+					}
+					return sub.Status.GetCondition(operatorsv1alpha1.SubscriptionResolutionFailed).Status, nil
+				}).Should(Equal(corev1.ConditionFalse))
+			})
+		})
 	})
 
 	When("an unannotated ClusterServiceVersion exists with an associated Subscription", func() {
