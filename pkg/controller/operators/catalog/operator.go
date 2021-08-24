@@ -1266,7 +1266,7 @@ func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]
 
 	for _, sub := range subs {
 		wg.Add(1)
-		go func(sub v1alpha1.Subscription) {
+		go func(sub *v1alpha1.Subscription) {
 			defer wg.Done()
 
 			update := func() error {
@@ -1276,7 +1276,7 @@ func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]
 					return err
 				}
 				latest.Status = sub.Status
-				sub = *latest
+				*sub = *latest
 				_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.Namespace).UpdateStatus(context.TODO(), latest, updateOpts)
 				return err
 			}
@@ -1285,7 +1285,7 @@ func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]
 				defer mu.Unlock()
 				errs = append(errs, err)
 			}
-		}(*sub)
+		}(sub)
 	}
 	wg.Wait()
 	return subs, utilerrors.NewAggregate(errs)
