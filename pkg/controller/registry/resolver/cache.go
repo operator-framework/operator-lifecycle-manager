@@ -392,9 +392,6 @@ type OperatorPredicate func(*Operator) bool
 func (s *CatalogSnapshot) Find(p ...OperatorPredicate) []*Operator {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	if len(p) > 0 {
-		p = append(p, WithoutDeprecatedProperty())
-	}
 	return Filter(s.operators, p...)
 }
 
@@ -450,17 +447,6 @@ func WithPackage(pkg string) OperatorPredicate {
 			}
 		}
 		return o.Package() == pkg
-	}
-}
-
-func WithoutDeprecatedProperty() OperatorPredicate {
-	return func(o *Operator) bool {
-		for _, p := range o.bundle.GetProperties() {
-			if p.GetType() == opregistry.DeprecatedType {
-				return false
-			}
-		}
-		return true
 	}
 }
 
