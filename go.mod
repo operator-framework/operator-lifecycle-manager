@@ -10,6 +10,7 @@ require (
 	github.com/distribution/distribution v2.7.1+incompatible
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-air/gini v1.0.4
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-logr/logr v0.4.0
 	github.com/golang/mock v1.4.1
@@ -25,7 +26,6 @@ require (
 	github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
 	github.com/operator-framework/api v0.10.3
-	github.com/operator-framework/gini v1.1.0
 	github.com/operator-framework/operator-registry v1.17.5
 	github.com/otiai10/copy v1.2.0
 	github.com/pkg/errors v0.9.1

@@ -350,6 +350,8 @@ github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeME
 github.com/gliderlabs/ssh v0.2.2/go.mod h1:U7qILu1NlMHj9FlMhZLlkCdDnU1DBEAqr0aevW3Awn0=
 github.com/globalsign/mgo v0.0.0-20180905125535-1ca0a4f7cbcb/go.mod h1:xkRDCp4j0OGD1HRkm4kmhM+pmpv3AKq5SU7GMg4oO/Q=
 github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8/go.mod h1:xkRDCp4j0OGD1HRkm4kmhM+pmpv3AKq5SU7GMg4oO/Q=
+github.com/go-air/gini v1.0.4 h1:lteMAxHKNOAjIqazL/klOJJmxq6YxxSuJ17MnMXny+s=
+github.com/go-air/gini v1.0.4/go.mod h1:dd8RvT1xcv6N1da33okvBd8DhMh1/A4siGy6ErjTljs=
 github.com/go-bindata/go-bindata/v3 v3.1.3 h1:F0nVttLC3ws0ojc7p60veTurcOm//D4QBODNM7EGrCI=
 github.com/go-bindata/go-bindata/v3 v3.1.3/go.mod h1:1/zrpXsLD8YDIbhZRqXzm1Ghc7NhEvIN9+Z6R5/xH4I=
 github.com/go-errors/errors v1.0.1 h1:LUHzmkK3GUKUrL/1gfBUxAHzcev3apQlezX/+O7ma6w=
@@ -878,8 +880,6 @@ github.com/openzipkin/zipkin-go v0.2.2/go.mod h1:NaW6tEwdmWMaCDZzg8sh+IBNOxHMPnh
 github.com/operator-framework/api v0.7.1/go.mod h1:L7IvLd/ckxJEJg/t4oTTlnHKAJIP/p51AvEslW3wYdY=
 github.com/operator-framework/api v0.10.3 h1:C4DE7Rr3+ztUw3mKiFyfAiUJSVOty/cJmpwE90/kYro=
 github.com/operator-framework/api v0.10.3/go.mod h1:tV0BUNvly7szq28ZPBXhjp1Sqg5yHCOeX19ui9K4vjI=
-github.com/operator-framework/gini v1.1.0 h1:w84bE/pi0nlnIRAxzYguoYAnL9s5T6RSVZKYWcxO3yI=
-github.com/operator-framework/gini v1.1.0/go.mod h1:L4GlF3xPPfQUoWglKhaBcR8/LZn3fWtMB1mwUyOGv98=
 github.com/operator-framework/operator-registry v1.17.5 h1:LR8m1rFz5Gcyje8WK6iYt+gIhtzqo52zMRALdmTYHT0=
 github.com/operator-framework/operator-registry v1.17.5/go.mod h1:sRQIgDMZZdUcmHltzyCnM6RUoDF+WS8Arj1BQIARDS8=
 github.com/otiai10/copy v1.2.0 h1:HvG945u96iNadPoG2/Ja2+AUJeW5YuFQMixq9yirC+k=

@@ -211,6 +211,14 @@ github.com/fsnotify/fsnotify
 # github.com/ghodss/yaml v1.0.0
 ## explicit
 github.com/ghodss/yaml
+# github.com/go-air/gini v1.0.4
+## explicit
+github.com/go-air/gini
+github.com/go-air/gini/dimacs
+github.com/go-air/gini/inter
+github.com/go-air/gini/internal/xo
+github.com/go-air/gini/logic
+github.com/go-air/gini/z
 # github.com/go-bindata/go-bindata/v3 v3.1.3
 ## explicit
 github.com/go-bindata/go-bindata/v3
@@ -507,14 +515,6 @@ github.com/operator-framework/api/pkg/validation
 github.com/operator-framework/api/pkg/validation/errors
 github.com/operator-framework/api/pkg/validation/interfaces
 github.com/operator-framework/api/pkg/validation/internal
-# github.com/operator-framework/gini v1.1.0
-## explicit
-github.com/operator-framework/gini
-github.com/operator-framework/gini/dimacs
-github.com/operator-framework/gini/inter
-github.com/operator-framework/gini/internal/xo
-github.com/operator-framework/gini/logic
-github.com/operator-framework/gini/z
 # github.com/operator-framework/operator-registry v1.17.5
 ## explicit
 github.com/operator-framework/operator-registry/internal/model
