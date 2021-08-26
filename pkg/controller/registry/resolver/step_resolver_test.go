@@ -733,7 +733,7 @@ func TestResolver(t *testing.T) {
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
-					bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+					bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
 					bundle("a.v2", "a", "alpha", "a.v1", nil, Requires1, nil, nil),
 					bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
 					bundle("b.v2", "b", "beta", "b.v1", Provides1, nil, nil, nil),
@@ -825,26 +825,21 @@ func TestResolver(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 			kClientFake := k8sfake.NewSimpleClientset()
 
-			stubSnapshot := &resolvercache.CatalogSnapshot{}
-			for _, bundles := range tt.bundlesByCatalog {
+			ssp := make(resolvercache.StaticSourceProvider)
+			for catalog, bundles := range tt.bundlesByCatalog {
+				snapshot := &resolvercache.Snapshot{}
 				for _, bundle := range bundles {
 					op, err := resolvercache.NewOperatorFromBundle(bundle, "", catalog, "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
-					stubSnapshot.Operators = append(stubSnapshot.Operators, op)
+					snapshot.Entries = append(snapshot.Entries, op)
 				}
-			}
-			stubCache := &stubOperatorCacheProvider{
-				noc: &resolvercache.NamespacedOperatorCache{
-					Snapshots: map[resolvercache.SourceKey]*resolvercache.CatalogSnapshot{
-						catalog: stubSnapshot,
-					},
-				},
+				ssp[catalog] = snapshot
 			}
 			log := logrus.New()
 			satresolver := &SatResolver{
-				cache: stubCache,
+				cache: resolvercache.New(ssp),
 				log:   log,
 			}
 			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
@@ -977,23 +972,18 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			stubSnapshot := &resolvercache.CatalogSnapshot{}
+			stubSnapshot := &resolvercache.Snapshot{}
 			for _, bundle := range tt.bundlesInCatalog {
 				op, err := resolvercache.NewOperatorFromBundle(bundle, "", catalog, "")
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
-				stubSnapshot.Operators = append(stubSnapshot.Operators, op)
-			}
-			stubCache := &stubOperatorCacheProvider{
-				noc: &resolvercache.NamespacedOperatorCache{
-					Snapshots: map[resolvercache.SourceKey]*resolvercache.CatalogSnapshot{
-						catalog: stubSnapshot,
-					},
-				},
+				stubSnapshot.Entries = append(stubSnapshot.Entries, op)
 			}
 			satresolver := &SatResolver{
-				cache: stubCache,
+				cache: resolvercache.New(resolvercache.StaticSourceProvider{
+					catalog: stubSnapshot,
+				}),
 			}
 			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, logrus.New())
 			resolver.satResolver = satresolver

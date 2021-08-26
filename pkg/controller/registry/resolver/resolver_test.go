@@ -12,9 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -34,20 +36,16 @@ func TestSolveOperators(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Key: catalog,
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 					genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -66,22 +64,18 @@ func TestDisjointChannelGraph(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Key: catalog,
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.side1.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 					genOperator("packageA.side1.v2", "0.0.2", "packageA.side1.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 					genOperator("packageA.side2.v1", "1.0.0", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 					genOperator("packageA.side2.v2", "2.0.0", "packageA.side2.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
@@ -103,17 +97,13 @@ func TestPropertiesAnnotationHonored(t *testing.T) {
 
 	b := genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, []*api.Dependency{{Type: "olm.package", Value: `{"packageName":"packageA","version":"1.0.0"}`}}, "", false)
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			community: {
-				Key:       community,
-				Operators: []*cache.Operator{b},
-			},
-		},
-	}
 	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		cache: cache.New(cache.StaticSourceProvider{
+			community: &cache.Snapshot{
+				Entries: []*cache.Operator{b},
+			},
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -138,21 +128,17 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Key: catalog,
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "beta", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -179,28 +165,21 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
 			cache.SourceKey{
 				Namespace: "olm",
 				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+			}: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -244,17 +223,10 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 		},
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
@@ -266,11 +238,8 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 					genOperator("packageD.v1.0.2", "1.0.2", "packageD.v1.0.1", "packageD", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -319,17 +288,10 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 		},
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
@@ -341,11 +303,8 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 					genOperator("packageE.v1.0.0", "1.0.0", "", "packageE", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -365,6 +324,40 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	}
 }
 
+type stubCatalogSourceLister struct {
+	catsrcs   []*v1alpha1.CatalogSource
+	namespace string
+}
+
+func (l *stubCatalogSourceLister) List(labels.Selector) ([]*v1alpha1.CatalogSource, error) {
+	if l.namespace == "" {
+		return l.catsrcs, nil
+	}
+	var result []*v1alpha1.CatalogSource
+	for _, cs := range l.catsrcs {
+		if cs.Namespace == l.namespace {
+			result = append(result, cs)
+		}
+	}
+	return result, nil
+}
+
+func (l *stubCatalogSourceLister) Get(name string) (*v1alpha1.CatalogSource, error) {
+	for _, cs := range l.catsrcs {
+		if cs.Name == name {
+			return cs, nil
+		}
+	}
+	return nil, errors.New("stub not found")
+}
+
+func (l *stubCatalogSourceLister) CatalogSources(namespace string) listersv1alpha1.CatalogSourceNamespaceLister {
+	return &stubCatalogSourceLister{
+		catsrcs:   l.catsrcs,
+		namespace: namespace,
+	}
+}
+
 func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	opToAddVersionDeps := []*api.Dependency{
 		{
@@ -378,54 +371,41 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "alpha", customCatalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
-					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", namespace, nil,
-						nil, opToAddVersionDeps, "", false),
-				},
+	ssp := cache.StaticSourceProvider{
+		cache.SourceKey{Namespace: "olm", Name: "community"}: &cache.Snapshot{
+			Entries: []*cache.Operator{
+				genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", namespace, nil,
+					nil, opToAddVersionDeps, "", false),
 			},
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community-operator",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community-operator",
-				},
-				Operators: []*cache.Operator{
-					genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
-						namespace, nil, nil, nil, "", false),
-				},
+		},
+		cache.SourceKey{Namespace: "olm", Name: "community-operator"}: &cache.Snapshot{
+			Entries: []*cache.Operator{
+				genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
+					namespace, nil, nil, nil, "", false),
 			},
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "high-priority-operator",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "high-priority-operator",
-				},
-				Priority: 100,
-				Operators: []*cache.Operator{
-					genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "high-priority-operator",
-						namespace, nil, nil, nil, "", false),
-				},
+		},
+		cache.SourceKey{Namespace: "olm", Name: "high-priority-operator"}: &cache.Snapshot{
+			Entries: []*cache.Operator{
+				genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "high-priority-operator",
+					namespace, nil, nil, nil, "", false),
 			},
 		},
 	}
 
-	// operators sorted by priority.
 	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		cache: cache.New(ssp, cache.WithCatalogSourceLister(&stubCatalogSourceLister{
+			catsrcs: []*v1alpha1.CatalogSource{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "olm",
+						Name:      "high-priority-operator",
+					},
+					Spec: v1alpha1.CatalogSourceSpec{
+						Priority: 100,
+					},
+				},
+			},
+		})),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
@@ -442,23 +422,39 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	}
 
 	// Catsrc with the same priority, ns, different name
-	fakeNamespacedOperatorCache.Snapshots[cache.SourceKey{
+	ssp[cache.SourceKey{
 		Namespace: "olm",
 		Name:      "community-operator",
-	}] = &cache.CatalogSnapshot{
-		Key: cache.SourceKey{
-			Namespace: "olm",
-			Name:      "community-operator",
-		},
-		Priority: 100,
-		Operators: []*cache.Operator{
+	}] = &cache.Snapshot{
+		Entries: []*cache.Operator{
 			genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
 				namespace, nil, nil, nil, "", false),
 		},
 	}
 
 	satResolver = SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		cache: cache.New(ssp, cache.WithCatalogSourceLister(&stubCatalogSourceLister{
+			catsrcs: []*v1alpha1.CatalogSource{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "olm",
+						Name:      "high-priority-operator",
+					},
+					Spec: v1alpha1.CatalogSourceSpec{
+						Priority: 100,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "olm",
+						Name:      "community-operator",
+					},
+					Spec: v1alpha1.CatalogSourceSpec{
+						Priority: 100,
+					},
+				},
+			},
+		})),
 	}
 
 	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
@@ -475,15 +471,11 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	}
 
 	// operators from the same catalogs source should be prioritized.
-	fakeNamespacedOperatorCache.Snapshots[cache.SourceKey{
+	ssp[cache.SourceKey{
 		Namespace: "olm",
 		Name:      "community",
-	}] = &cache.CatalogSnapshot{
-		Key: cache.SourceKey{
-			Namespace: "olm",
-			Name:      "community",
-		},
-		Operators: []*cache.Operator{
+	}] = &cache.Snapshot{
+		Entries: []*cache.Operator{
 			genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", namespace, nil,
 				nil, opToAddVersionDeps, "", false),
 			genOperator("packageB.v1", "0.0.1", "", "packageB", "alpha", "community",
@@ -492,7 +484,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	}
 
 	satResolver = SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		cache: cache.New(ssp),
 	}
 
 	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
@@ -530,27 +522,17 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 		},
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -590,21 +572,17 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 		},
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			community: {
-				Key: community,
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			community: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
 					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, Provides, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -647,25 +625,15 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 		operatorBv1.Properties = append(operatorBv1.Properties, p)
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, deps, "", false),
 					operatorBv1,
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		}),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
@@ -696,25 +664,15 @@ func TestSolveOperators_WithUnsatisfiableLabelDependencies(t *testing.T) {
 		},
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, deps, "", false),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
+		}),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
@@ -749,17 +707,13 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 		},
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
 			cache.SourceKey{
 				Namespace: "olm",
 				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+			}: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
@@ -771,22 +725,15 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 			cache.SourceKey{
 				Namespace: "olm",
 				Name:      "certified",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "certified",
-				},
-				Operators: []*cache.Operator{
+			}: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "certified", "olm", Provides2, Provides, deps2, "", false),
 					genOperator("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "certified", "olm", Provides2, Provides, deps2, "", false),
 					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "certified", "olm", nil, Provides2, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -836,35 +783,24 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 		},
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			community: {
-				Key: community,
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			community: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, unsatisfiableVersionDeps, "", false),
 				},
 			},
-			{
-				Namespace: "olm",
-				Name:      "certified",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "certified",
-				},
-				Operators: []*cache.Operator{
+			{Namespace: "olm", Name: "certified"}: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "certified", "olm", nil, nil, nil, "", false),
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps, "", false),
 					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "certified", "olm", nil, nil, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -896,24 +832,20 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, "", false),
 				},
 			},
-			altnsCatalog: {
-				Operators: []*cache.Operator{
+			altnsCatalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", altnsCatalog.Name, altnsCatalog.Namespace, nil, Provides, nil, "", false),
 				},
 			},
-		},
-		Namespaces: []string{namespace, altNamespace},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -940,19 +872,15 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", otherCatalog.Name, otherCatalog.Namespace, nil, Provides, nil, "", false),
 				},
 			},
-		},
-		Namespaces: []string{otherCatalog.Namespace},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -976,21 +904,17 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					// Default channel is stable in this case
 					genOperator("packageA.v0.0.2", "0.0.2", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 				},
 			},
-		},
-	}
-
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -1017,21 +941,18 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 	subs := []*v1alpha1.Subscription{newSub}
 
 	const defaultChannel = "stable"
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Operators: []*cache.Operator{
+
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, cache.APISetToDependencies(nil, Provides), defaultChannel, false),
 					genOperator("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 					genOperator("packageB.v0.0.2", "0.0.2", "packageB.v0.0.1", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 				},
 			},
-		},
-	}
-
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
@@ -1064,26 +985,16 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 		},
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -1110,26 +1021,16 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, Provides, nil, "", false),
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, Provides, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	_, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
@@ -1151,11 +1052,10 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "stable", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Key: catalog,
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, "", false),
 					// Despite satisfying dependencies of opA, this is not chosen because it is in the same package
 					genOperator("opABC.v1.0.0", "1.0.0", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "", false),
@@ -1164,19 +1064,15 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 					genOperator("opD.v1.0.0", "1.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
 				},
 			},
-			secondaryCatalog: {
-				Key: secondaryCatalog,
-				Operators: []*cache.Operator{
+			secondaryCatalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("opC.v1.0.0", "1.0.0", "", "packageB", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, "stable", false),
 
 					genOperator("opE.v1.0.0", "1.0.0", "", "packageC", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, "", false),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
@@ -1204,14 +1100,13 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 
 	phases := []struct {
 		subs     []*v1alpha1.Subscription
-		catalog  *cache.CatalogSnapshot
+		catalog  cache.Source
 		expected cache.OperatorSet
 	}{
 		{
 			subs: []*v1alpha1.Subscription{newSub(namespace, "packageB", "stable", catalog)},
-			catalog: &cache.CatalogSnapshot{
-				Key: catalog,
-				Operators: []*cache.Operator{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
 					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
 				},
@@ -1227,9 +1122,8 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 				existingSub(namespace, "opA.v1.0.0", "packageA", "stable", catalog),
 				existingSub(namespace, "opB.v1.0.0", "packageB", "stable", catalog),
 			},
-			catalog: &cache.CatalogSnapshot{
-				Key: catalog,
-				Operators: []*cache.Operator{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
 					genOperator("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "packageA", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, "", false),
 					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
@@ -1244,9 +1138,8 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 				existingSub(namespace, "opA.v1.0.0", "packageA", "stable", catalog),
 				existingSub(namespace, "opB.v1.0.0", "packageB", "stable", catalog),
 			},
-			catalog: &cache.CatalogSnapshot{
-				Key: catalog,
-				Operators: []*cache.Operator{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
 					genOperator("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "packageA", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, "", false),
 					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
@@ -1263,14 +1156,11 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 	var operators cache.OperatorSet
 	for i, p := range phases {
 		t.Run(fmt.Sprintf("phase %d", i+1), func(t *testing.T) {
-			fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-				Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-					catalog: p.catalog,
-				},
-			}
 			satResolver := SatResolver{
-				cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-				log:   logrus.New(),
+				cache: cache.New(cache.StaticSourceProvider{
+					catalog: p.catalog,
+				}),
+				log: logrus.New(),
 			}
 			csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
 			for _, o := range operators {
@@ -1291,24 +1181,6 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 			}
 			assert.Equal(t, len(p.expected), len(operators))
 		})
-	}
-}
-
-type FakeOperatorCache struct {
-	fakedNamespacedOperatorCache cache.NamespacedOperatorCache
-}
-
-func (f *FakeOperatorCache) Namespaced(namespaces ...string) cache.MultiCatalogOperatorFinder {
-	return &f.fakedNamespacedOperatorCache
-}
-
-func (f *FakeOperatorCache) Expire(key cache.SourceKey) {
-	return
-}
-
-func getFakeOperatorCache(fakedNamespacedOperatorCache cache.NamespacedOperatorCache) cache.OperatorCacheProvider {
-	return &FakeOperatorCache{
-		fakedNamespacedOperatorCache: fakedNamespacedOperatorCache,
 	}
 }
 
@@ -1351,7 +1223,7 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 		ProvidedAPIs: providedAPIs,
 		RequiredAPIs: requiredAPIs,
 	}
-	cache.EnsurePackageProperty(o, pkg, version)
+	EnsurePackageProperty(o, pkg, version)
 	return o
 }
 
@@ -1367,19 +1239,15 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 		newSub(catalog.Namespace, "packageA", "alpha", catalog),
 	}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Key: catalog,
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", true),
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{catalog.Namespace}, nil, subs)
@@ -1395,15 +1263,12 @@ func TestSolveOperatorsWithDeprecatedInnerChannelEntry(t *testing.T) {
 	}
 	logger, _ := test.NewNullLogger()
 	resolver := SatResolver{
-		cache: getFakeOperatorCache(cache.NamespacedOperatorCache{
-			Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-				catalog: {
-					Key: catalog,
-					Operators: []*cache.Operator{
-						genOperator("a-1", "1.0.0", "", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
-						genOperator("a-2", "2.0.0", "a-1", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", true),
-						genOperator("a-3", "3.0.0", "a-2", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
-					},
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
+					genOperator("a-1", "1.0.0", "", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genOperator("a-2", "2.0.0", "a-1", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", true),
+					genOperator("a-3", "3.0.0", "a-2", "a", "c", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 				},
 			},
 		}),
@@ -1445,25 +1310,15 @@ func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
 	op5.Skips = []string{"packageA.v2", "packageA.v3", "packageA.v4"}
 	op6 := genOperator("packageA.v6", "6.0.0", "packageA.v5", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			cache.SourceKey{
-				Namespace: "olm",
-				Name:      "community",
-			}: {
-				Key: cache.SourceKey{
-					Namespace: "olm",
-					Name:      "community",
-				},
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					opB, opB2, op1, op2, op3, op4, op5, op6,
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
@@ -1487,19 +1342,15 @@ func TestSolveOperators_WithSkips(t *testing.T) {
 	opB2 := genOperator("packageB.v2", "2.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
 	opB2.Skips = []string{"packageB.v1"}
 
-	fakeNamespacedOperatorCache := cache.NamespacedOperatorCache{
-		Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-			catalog: {
-				Key: catalog,
-				Operators: []*cache.Operator{
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
 					opB, opB2,
 				},
 			},
-		},
-	}
-	satResolver := SatResolver{
-		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
-		log:   logrus.New(),
+		}),
+		log: logrus.New(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
@@ -1527,12 +1378,9 @@ func TestSolveOperatorsWithSkipsPreventingSelection(t *testing.T) {
 
 	logger, _ := test.NewNullLogger()
 	satResolver := SatResolver{
-		cache: getFakeOperatorCache(cache.NamespacedOperatorCache{
-			Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-				catalog: {
-					Key:       catalog,
-					Operators: []*cache.Operator{a1, b3, b2, b1},
-				},
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{a1, b3, b2, b1},
 			},
 		}),
 		log: logger,
@@ -1563,13 +1411,10 @@ func TestSolveOperatorsWithClusterServiceVersionHavingDependency(t *testing.T) {
 
 	log, _ := test.NewNullLogger()
 	r := SatResolver{
-		cache: getFakeOperatorCache(cache.NamespacedOperatorCache{
-			Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-				catalog: {
-					Key: catalog,
-					Operators: []*cache.Operator{
-						genOperator("b-2", "2.0.0", "b-1", "b", "default", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
-					},
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Operator{
+					genOperator("b-2", "2.0.0", "b-1", "b", "default", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 				},
 			},
 		}),
@@ -1586,7 +1431,7 @@ func TestInferProperties(t *testing.T) {
 
 	for _, tc := range []struct {
 		Name          string
-		Cache         cache.NamespacedOperatorCache
+		Cache         cache.StaticSourceProvider
 		CSV           *v1alpha1.ClusterServiceVersion
 		Subscriptions []*v1alpha1.Subscription
 		Expected      []*api.Property
@@ -1663,16 +1508,13 @@ func TestInferProperties(t *testing.T) {
 		},
 		{
 			Name: "one matching subscription infers package property",
-			Cache: cache.NamespacedOperatorCache{
-				Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-					catalog: {
-						Key: catalog,
-						Operators: []*cache.Operator{
-							{
-								Name: "a",
-								Bundle: &api.Bundle{
-									PackageName: "x",
-								},
+			Cache: cache.StaticSourceProvider{
+				catalog: &cache.Snapshot{
+					Entries: []*cache.Operator{
+						{
+							Name: "a",
+							Bundle: &api.Bundle{
+								PackageName: "x",
 							},
 						},
 					},
@@ -1692,6 +1534,47 @@ func TestInferProperties(t *testing.T) {
 						Package:                "x",
 						CatalogSource:          catalog.Name,
 						CatalogSourceNamespace: catalog.Namespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstalledCSV: "a",
+					},
+				},
+			},
+			Expected: []*api.Property{
+				{
+					Type:  "olm.package",
+					Value: `{"packageName":"x","version":"1.2.3"}`,
+				},
+			},
+		},
+		{
+			Name: "one matching subscription to other-namespace catalogsource infers package property",
+			Cache: cache.StaticSourceProvider{
+				{Namespace: "other-namespace", Name: "other-name"}: &cache.Snapshot{
+					Entries: []*cache.Operator{
+						{
+							Name: "a",
+							Bundle: &api.Bundle{
+								PackageName: "x",
+							},
+						},
+					},
+				},
+			},
+			CSV: &v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "a",
+				},
+				Spec: v1alpha1.ClusterServiceVersionSpec{
+					Version: version.OperatorVersion{Version: semver.MustParse("1.2.3")},
+				},
+			},
+			Subscriptions: []*v1alpha1.Subscription{
+				{
+					Spec: &v1alpha1.SubscriptionSpec{
+						Package:                "x",
+						CatalogSource:          "other-name",
+						CatalogSourceNamespace: "other-namespace",
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						InstalledCSV: "a",
@@ -1728,16 +1611,13 @@ func TestInferProperties(t *testing.T) {
 		},
 		{
 			Name: "one matching subscription infers package property without csv version",
-			Cache: cache.NamespacedOperatorCache{
-				Snapshots: map[cache.SourceKey]*cache.CatalogSnapshot{
-					catalog: {
-						Key: catalog,
-						Operators: []*cache.Operator{
-							{
-								Name: "a",
-								Bundle: &api.Bundle{
-									PackageName: "x",
-								},
+			Cache: cache.StaticSourceProvider{
+				catalog: &cache.Snapshot{
+					Entries: []*cache.Operator{
+						{
+							Name: "a",
+							Bundle: &api.Bundle{
+								PackageName: "x",
 							},
 						},
 					},
@@ -1772,10 +1652,8 @@ func TestInferProperties(t *testing.T) {
 			require := require.New(t)
 			logger, _ := test.NewNullLogger()
 			r := SatResolver{
-				log: logger,
-				cache: &FakeOperatorCache{
-					fakedNamespacedOperatorCache: tc.Cache,
-				},
+				log:   logger,
+				cache: cache.New(tc.Cache),
 			}
 			actual, err := r.inferProperties(tc.CSV, tc.Subscriptions)
 			require.NoError(err)
