@@ -72,3 +72,12 @@ func BenchmarkSolve(b *testing.B) {
 		s.Solve(context.Background())
 	}
 }
+
+func BenchmarkNewInput(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, err := New(WithInput(BenchmarkInput))
+		if err != nil {
+			b.Fatalf("failed to initialize solver: %s", err)
+		}
+	}
+}

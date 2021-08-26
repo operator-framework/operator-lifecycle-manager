@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/operator-framework/gini/logic"
-	"github.com/operator-framework/gini/z"
+	"github.com/go-air/gini/logic"
+	"github.com/go-air/gini/z"
 )
 
 // Constraint implementations limit the circumstances under which a
