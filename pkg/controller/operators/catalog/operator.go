@@ -55,6 +55,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	resolvercache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/catalogsource"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
@@ -463,7 +464,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	switch state.State {
 	case connectivity.Ready:
-		o.resolver.Expire(state.Key)
+		o.resolver.Expire(resolvercache.SourceKey(state.Key))
 		if o.namespace == state.Key.Namespace {
 			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
 				state.Key.Name, state.Key.Namespace)

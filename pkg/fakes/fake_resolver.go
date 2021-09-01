@@ -5,15 +5,15 @@ import (
 	"sync"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
 type FakeStepResolver struct {
-	ExpireStub        func(registry.CatalogKey)
+	ExpireStub        func(cache.SourceKey)
 	expireMutex       sync.RWMutex
 	expireArgsForCall []struct {
-		arg1 registry.CatalogKey
+		arg1 cache.SourceKey
 	}
 	ResolveStepsStub        func(string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 	resolveStepsMutex       sync.RWMutex
@@ -36,10 +36,10 @@ type FakeStepResolver struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeStepResolver) Expire(arg1 registry.CatalogKey) {
+func (fake *FakeStepResolver) Expire(arg1 cache.SourceKey) {
 	fake.expireMutex.Lock()
 	fake.expireArgsForCall = append(fake.expireArgsForCall, struct {
-		arg1 registry.CatalogKey
+		arg1 cache.SourceKey
 	}{arg1})
 	fake.recordInvocation("Expire", []interface{}{arg1})
 	fake.expireMutex.Unlock()
@@ -54,13 +54,13 @@ func (fake *FakeStepResolver) ExpireCallCount() int {
 	return len(fake.expireArgsForCall)
 }
 
-func (fake *FakeStepResolver) ExpireCalls(stub func(registry.CatalogKey)) {
+func (fake *FakeStepResolver) ExpireCalls(stub func(cache.SourceKey)) {
 	fake.expireMutex.Lock()
 	defer fake.expireMutex.Unlock()
 	fake.ExpireStub = stub
 }
 
-func (fake *FakeStepResolver) ExpireArgsForCall(i int) registry.CatalogKey {
+func (fake *FakeStepResolver) ExpireArgsForCall(i int) cache.SourceKey {
 	fake.expireMutex.RLock()
 	defer fake.expireMutex.RUnlock()
 	argsForCall := fake.expireArgsForCall[i]

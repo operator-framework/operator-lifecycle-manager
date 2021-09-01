@@ -2,88 +2,140 @@ package cache
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/client"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
-type RegistryClientProvider interface {
-	ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface
+const existingOperatorKey = "@existing"
+
+type SourceKey struct {
+	Name      string
+	Namespace string
 }
 
-type DefaultRegistryClientProvider struct {
-	logger logrus.FieldLogger
-	s      RegistryClientProvider
+func (k *SourceKey) String() string {
+	return fmt.Sprintf("%s/%s", k.Name, k.Namespace)
 }
 
-func NewDefaultRegistryClientProvider(log logrus.FieldLogger, store RegistryClientProvider) *DefaultRegistryClientProvider {
-	return &DefaultRegistryClientProvider{
-		logger: log,
-		s:      store,
+func (k *SourceKey) Empty() bool {
+	return k.Name == "" && k.Namespace == ""
+}
+
+func (k *SourceKey) Equal(compare SourceKey) bool {
+	return k.Name == compare.Name && k.Namespace == compare.Namespace
+}
+
+// Virtual indicates if this is a "virtual" catalog representing the currently installed operators in a namespace
+func (k *SourceKey) Virtual() bool {
+	return k.Name == existingOperatorKey && k.Namespace != ""
+}
+
+func NewVirtualSourceKey(namespace string) SourceKey {
+	return SourceKey{
+		Name:      existingOperatorKey,
+		Namespace: namespace,
 	}
 }
 
-func (rcp *DefaultRegistryClientProvider) ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface {
-	return rcp.s.ClientsForNamespaces(namespaces...)
+type Source interface {
+	Snapshot(context.Context) (*Snapshot, error)
+}
+
+type SourceProvider interface {
+	// TODO: namespaces parameter is an artifact of SourceStore
+	Sources(namespaces ...string) map[SourceKey]Source
+}
+
+type StaticSourceProvider map[SourceKey]Source
+
+func (p StaticSourceProvider) Sources(namespaces ...string) map[SourceKey]Source {
+	result := make(map[SourceKey]Source)
+	for key, source := range p {
+		for _, namespace := range namespaces {
+			if key.Namespace == namespace {
+				result[key] = source
+				break
+			}
+		}
+	}
+	return result
 }
 
 type OperatorCacheProvider interface {
 	Namespaced(namespaces ...string) MultiCatalogOperatorFinder
-	Expire(catalog registry.CatalogKey)
+	Expire(catalog SourceKey)
 }
 
-type OperatorCache struct {
-	logger       logrus.FieldLogger
-	rcp          RegistryClientProvider
+type Cache struct {
+	logger       logrus.StdLogger
+	sp           SourceProvider
 	catsrcLister v1alpha1.CatalogSourceLister
-	snapshots    map[registry.CatalogKey]*CatalogSnapshot
+	snapshots    map[SourceKey]*snapshotHeader
 	ttl          time.Duration
 	sem          chan struct{}
 	m            sync.RWMutex
 }
 
-const defaultCatalogSourcePriority int = 0
-
 type catalogSourcePriority int
 
-var _ OperatorCacheProvider = &OperatorCache{}
+var _ OperatorCacheProvider = &Cache{}
 
-func NewOperatorCache(rcp RegistryClientProvider, log logrus.FieldLogger, catsrcLister v1alpha1.CatalogSourceLister) *OperatorCache {
+type Option func(*Cache)
+
+func WithLogger(logger logrus.StdLogger) Option {
+	return func(c *Cache) {
+		c.logger = logger
+	}
+}
+
+func WithCatalogSourceLister(catalogSourceLister v1alpha1.CatalogSourceLister) Option {
+	return func(c *Cache) {
+		c.catsrcLister = catalogSourceLister
+	}
+}
+
+func New(sp SourceProvider, options ...Option) *Cache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
 	)
 
-	return &OperatorCache{
-		logger:       log,
-		rcp:          rcp,
-		catsrcLister: catsrcLister,
-		snapshots:    make(map[registry.CatalogKey]*CatalogSnapshot),
+	cache := Cache{
+		logger: func() logrus.StdLogger {
+			logger := logrus.New()
+			logger.SetOutput(io.Discard)
+			return logger
+		}(),
+		sp:           sp,
+		catsrcLister: operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister(),
+		snapshots:    make(map[SourceKey]*snapshotHeader),
 		ttl:          5 * time.Minute,
 		sem:          make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
+
+	for _, opt := range options {
+		opt(&cache)
+	}
+
+	return &cache
 }
 
 type NamespacedOperatorCache struct {
-	Namespaces []string
-	existing   *registry.CatalogKey
-	Snapshots  map[registry.CatalogKey]*CatalogSnapshot
+	existing  *SourceKey
+	snapshots map[SourceKey]*snapshotHeader
 }
 
 func (c *NamespacedOperatorCache) Error() error {
 	var errs []error
-	for key, snapshot := range c.Snapshots {
+	for key, snapshot := range c.snapshots {
 		snapshot.m.Lock()
 		err := snapshot.err
 		snapshot.m.Unlock()
@@ -94,7 +146,7 @@ func (c *NamespacedOperatorCache) Error() error {
 	return errors.NewAggregate(errs)
 }
 
-func (c *OperatorCache) Expire(catalog registry.CatalogKey) {
+func (c *Cache) Expire(catalog SourceKey) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	s, ok := c.snapshots[catalog]
@@ -104,31 +156,30 @@ func (c *OperatorCache) Expire(catalog registry.CatalogKey) {
 	s.expiry = time.Unix(0, 0)
 }
 
-func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
+func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 	const (
 		CachePopulateTimeout = time.Minute
 	)
 
 	now := time.Now()
-	clients := c.rcp.ClientsForNamespaces(namespaces...)
+	sources := c.sp.Sources(namespaces...)
 
 	result := NamespacedOperatorCache{
-		Namespaces: namespaces,
-		Snapshots:  make(map[registry.CatalogKey]*CatalogSnapshot),
+		snapshots: make(map[SourceKey]*snapshotHeader),
 	}
 
-	var misses []registry.CatalogKey
+	var misses []SourceKey
 	func() {
 		c.m.RLock()
 		defer c.m.RUnlock()
-		for key := range clients {
+		for key := range sources {
 			snapshot, ok := c.snapshots[key]
 			if ok {
 				func() {
 					snapshot.m.RLock()
 					defer snapshot.m.RUnlock()
-					if !snapshot.Expired(now) && snapshot.Operators != nil && len(snapshot.Operators) > 0 {
-						result.Snapshots[key] = snapshot
+					if snapshot.Valid(now) {
+						result.snapshots[key] = snapshot
 					} else {
 						misses = append(misses, key)
 					}
@@ -148,9 +199,9 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	defer c.m.Unlock()
 
 	// Take the opportunity to clear expired snapshots while holding the lock.
-	var expired []registry.CatalogKey
+	var expired []SourceKey
 	for key, snapshot := range c.snapshots {
-		if snapshot.Expired(now) {
+		if !snapshot.Valid(now) {
 			snapshot.Cancel()
 			expired = append(expired, key)
 		}
@@ -162,8 +213,8 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	// Check for any snapshots that were populated while waiting to acquire the lock.
 	var found int
 	for i := range misses {
-		if snapshot, ok := c.snapshots[misses[i]]; ok && !snapshot.Expired(now) && snapshot.Operators != nil && len(snapshot.Operators) > 0 {
-			result.Snapshots[misses[i]] = snapshot
+		if hdr, ok := c.snapshots[misses[i]]; ok && hdr.Valid(now) {
+			result.snapshots[misses[i]] = hdr
 			misses[found], misses[i] = misses[i], misses[found]
 			found++
 		}
@@ -173,120 +224,49 @@ func (c *OperatorCache) Namespaced(namespaces ...string) MultiCatalogOperatorFin
 	for _, miss := range misses {
 		ctx, cancel := context.WithTimeout(context.Background(), CachePopulateTimeout)
 
-		catsrcPriority := defaultCatalogSourcePriority
-		// Ignoring error and treat catsrc priority as 0 if not found.
-		catsrc, err := c.catsrcLister.CatalogSources(miss.Namespace).Get(miss.Name)
-		if err == nil {
-			catsrcPriority = catsrc.Spec.Priority
+		hdr := snapshotHeader{
+			key:    miss,
+			expiry: now.Add(c.ttl),
+			pop:    cancel,
 		}
 
-		s := CatalogSnapshot{
-			logger:   c.logger.WithField("catalog", miss),
-			Key:      miss,
-			expiry:   now.Add(c.ttl),
-			pop:      cancel,
-			Priority: catalogSourcePriority(catsrcPriority),
+		// Ignoring error and treat catsrc priority as 0 if not found.
+		if catsrc, _ := c.catsrcLister.CatalogSources(miss.Namespace).Get(miss.Name); catsrc != nil {
+			hdr.priority = catsrc.Spec.Priority
 		}
-		s.m.Lock()
-		c.snapshots[miss] = &s
-		result.Snapshots[miss] = &s
-		go c.populate(ctx, &s, clients[miss])
+
+		hdr.m.Lock()
+		c.snapshots[miss] = &hdr
+		result.snapshots[miss] = &hdr
+
+		go func(ctx context.Context, hdr *snapshotHeader, source Source) {
+			defer hdr.m.Unlock()
+			c.sem <- struct{}{}
+			defer func() { <-c.sem }()
+			hdr.snapshot, hdr.err = source.Snapshot(ctx)
+		}(ctx, &hdr, sources[miss])
 	}
 
 	return &result
 }
 
-func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot, registry client.Interface) {
-	defer snapshot.m.Unlock()
-	defer func() {
-		// Don't cache an errorred snapshot.
-		if snapshot.err != nil {
-			snapshot.expiry = time.Time{}
-		}
-	}()
-
-	c.sem <- struct{}{}
-	defer func() { <-c.sem }()
-
-	// Fetching default channels this way makes many round trips
-	// -- may need to either add a new API to fetch all at once,
-	// or embed the information into Bundle.
-	defaultChannels := make(map[string]string)
-
-	it, err := registry.ListBundles(ctx)
-	if err != nil {
-		snapshot.logger.Errorf("failed to list bundles: %s", err.Error())
-		snapshot.err = err
-		return
-	}
-	c.logger.WithField("catalog", snapshot.Key.String()).Debug("updating cache")
-	var operators []*Operator
-	for b := it.Next(); b != nil; b = it.Next() {
-		defaultChannel, ok := defaultChannels[b.PackageName]
-		if !ok {
-			if p, err := registry.GetPackage(ctx, b.PackageName); err != nil {
-				snapshot.logger.Warnf("failed to retrieve default channel for bundle, continuing: %v", err)
-				continue
-			} else {
-				defaultChannels[b.PackageName] = p.DefaultChannelName
-				defaultChannel = p.DefaultChannelName
-			}
-		}
-		o, err := NewOperatorFromBundle(b, "", snapshot.Key, defaultChannel)
-		if err != nil {
-			snapshot.logger.Warnf("failed to construct operator from bundle, continuing: %v", err)
-			continue
-		}
-		o.ProvidedAPIs = o.ProvidedAPIs.StripPlural()
-		o.RequiredAPIs = o.RequiredAPIs.StripPlural()
-		o.Replaces = b.Replaces
-		EnsurePackageProperty(o, b.PackageName, b.Version)
-		operators = append(operators, o)
-	}
-	if err := it.Error(); err != nil {
-		snapshot.logger.Warnf("error encountered while listing bundles: %s", err.Error())
-		snapshot.err = err
-	}
-	snapshot.Operators = operators
-}
-
-func EnsurePackageProperty(o *Operator, name, version string) {
-	for _, p := range o.Properties {
-		if p.Type == opregistry.PackageType {
-			return
-		}
-	}
-	prop := opregistry.PackageProperty{
-		PackageName: name,
-		Version:     version,
-	}
-	bytes, err := json.Marshal(prop)
-	if err != nil {
-		return
-	}
-	o.Properties = append(o.Properties, &api.Property{
-		Type:  opregistry.PackageType,
-		Value: string(bytes),
-	})
-}
-
-func (c *NamespacedOperatorCache) Catalog(k registry.CatalogKey) OperatorFinder {
+func (c *NamespacedOperatorCache) Catalog(k SourceKey) OperatorFinder {
 	// all catalogs match the empty catalog
 	if k.Empty() {
 		return c
 	}
-	if snapshot, ok := c.Snapshots[k]; ok {
+	if snapshot, ok := c.snapshots[k]; ok {
 		return snapshot
 	}
 	return EmptyOperatorFinder{}
 }
 
-func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, p ...OperatorPredicate) []*Operator {
+func (c *NamespacedOperatorCache) FindPreferred(preferred *SourceKey, preferredNamespace string, p ...OperatorPredicate) []*Operator {
 	var result []*Operator
 	if preferred != nil && preferred.Empty() {
 		preferred = nil
 	}
-	sorted := NewSortableSnapshots(c.existing, preferred, c.Namespaces, c.Snapshots)
+	sorted := newSortableSnapshots(c.existing, preferred, preferredNamespace, c.snapshots)
 	sort.Sort(sorted)
 	for _, snapshot := range sorted.snapshots {
 		result = append(result, snapshot.Find(p...)...)
@@ -294,65 +274,71 @@ func (c *NamespacedOperatorCache) FindPreferred(preferred *registry.CatalogKey, 
 	return result
 }
 
-func (c *NamespacedOperatorCache) WithExistingOperators(snapshot *CatalogSnapshot) MultiCatalogOperatorFinder {
+func (c *NamespacedOperatorCache) WithExistingOperators(snapshot *Snapshot, namespace string) MultiCatalogOperatorFinder {
+	key := NewVirtualSourceKey(namespace)
 	o := &NamespacedOperatorCache{
-		Namespaces: c.Namespaces,
-		existing:   &snapshot.Key,
-		Snapshots:  c.Snapshots,
+		existing: &key,
+		snapshots: map[SourceKey]*snapshotHeader{
+			key: {
+				key:      key,
+				snapshot: snapshot,
+			},
+		},
 	}
-	o.Snapshots[snapshot.Key] = snapshot
+	for k, v := range c.snapshots {
+		o.snapshots[k] = v
+	}
 	return o
 }
 
 func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
-	return c.FindPreferred(nil, p...)
+	return c.FindPreferred(nil, "", p...)
 }
 
-type CatalogSnapshot struct {
-	logger    logrus.FieldLogger
-	Key       registry.CatalogKey
-	expiry    time.Time
-	Operators []*Operator
-	m         sync.RWMutex
-	pop       context.CancelFunc
-	Priority  catalogSourcePriority
-	err       error
+type Snapshot struct {
+	Entries []*Operator
 }
 
-func (s *CatalogSnapshot) Cancel() {
-	s.pop()
+var _ Source = &Snapshot{}
+
+func (s *Snapshot) Snapshot(context.Context) (*Snapshot, error) {
+	return s, nil
 }
 
-func (s *CatalogSnapshot) Expired(at time.Time) bool {
-	return !at.Before(s.expiry)
+type snapshotHeader struct {
+	snapshot *Snapshot
+
+	key      SourceKey
+	expiry   time.Time
+	m        sync.RWMutex
+	pop      context.CancelFunc
+	err      error
+	priority int
 }
 
-// NewRunningOperatorSnapshot creates a CatalogSnapshot that represents a set of existing installed operators
-// in the cluster.
-func NewRunningOperatorSnapshot(logger logrus.FieldLogger, key registry.CatalogKey, o []*Operator) *CatalogSnapshot {
-	return &CatalogSnapshot{
-		logger:    logger,
-		Key:       key,
-		Operators: o,
-	}
+func (hdr *snapshotHeader) Cancel() {
+	hdr.pop()
 }
 
-type SortableSnapshots struct {
-	snapshots  []*CatalogSnapshot
-	namespaces map[string]int
-	preferred  *registry.CatalogKey
-	existing   *registry.CatalogKey
+func (hdr *snapshotHeader) Valid(at time.Time) bool {
+	hdr.m.RLock()
+	defer hdr.m.RUnlock()
+	return hdr.snapshot != nil && hdr.err == nil && at.Before(hdr.expiry)
 }
 
-func NewSortableSnapshots(existing, preferred *registry.CatalogKey, namespaces []string, snapshots map[registry.CatalogKey]*CatalogSnapshot) SortableSnapshots {
-	sorted := SortableSnapshots{
-		existing:   existing,
-		preferred:  preferred,
-		snapshots:  make([]*CatalogSnapshot, 0),
-		namespaces: make(map[string]int, 0),
-	}
-	for i, n := range namespaces {
-		sorted.namespaces[n] = i
+type sortableSnapshots struct {
+	snapshots          []*snapshotHeader
+	preferredNamespace string
+	preferred          *SourceKey
+	existing           *SourceKey
+}
+
+func newSortableSnapshots(existing, preferred *SourceKey, preferredNamespace string, snapshots map[SourceKey]*snapshotHeader) sortableSnapshots {
+	sorted := sortableSnapshots{
+		existing:           existing,
+		preferred:          preferred,
+		snapshots:          make([]*snapshotHeader, 0),
+		preferredNamespace: preferredNamespace,
 	}
 	for _, s := range snapshots {
 		sorted.snapshots = append(sorted.snapshots, s)
@@ -360,60 +346,69 @@ func NewSortableSnapshots(existing, preferred *registry.CatalogKey, namespaces [
 	return sorted
 }
 
-var _ sort.Interface = SortableSnapshots{}
+var _ sort.Interface = sortableSnapshots{}
 
 // Len is the number of elements in the collection.
-func (s SortableSnapshots) Len() int {
+func (s sortableSnapshots) Len() int {
 	return len(s.snapshots)
 }
 
 // Less reports whether the element with
 // index i should sort before the element with index j.
-func (s SortableSnapshots) Less(i, j int) bool {
+func (s sortableSnapshots) Less(i, j int) bool {
 	// existing operators are preferred over catalog operators
 	if s.existing != nil &&
-		s.snapshots[i].Key.Name == s.existing.Name &&
-		s.snapshots[i].Key.Namespace == s.existing.Namespace {
+		s.snapshots[i].key.Name == s.existing.Name &&
+		s.snapshots[i].key.Namespace == s.existing.Namespace {
 		return true
 	}
 	if s.existing != nil &&
-		s.snapshots[j].Key.Name == s.existing.Name &&
-		s.snapshots[j].Key.Namespace == s.existing.Namespace {
+		s.snapshots[j].key.Name == s.existing.Name &&
+		s.snapshots[j].key.Namespace == s.existing.Namespace {
 		return false
 	}
 
 	// preferred catalog is less than all other catalogs
 	if s.preferred != nil &&
-		s.snapshots[i].Key.Name == s.preferred.Name &&
-		s.snapshots[i].Key.Namespace == s.preferred.Namespace {
+		s.snapshots[i].key.Name == s.preferred.Name &&
+		s.snapshots[i].key.Namespace == s.preferred.Namespace {
 		return true
 	}
 	if s.preferred != nil &&
-		s.snapshots[j].Key.Name == s.preferred.Name &&
-		s.snapshots[j].Key.Namespace == s.preferred.Namespace {
+		s.snapshots[j].key.Name == s.preferred.Name &&
+		s.snapshots[j].key.Namespace == s.preferred.Namespace {
 		return false
 	}
 
 	// the rest are sorted first on priority, namespace and then by name
-	if s.snapshots[i].Priority != s.snapshots[j].Priority {
-		return s.snapshots[i].Priority > s.snapshots[j].Priority
-	}
-	if s.snapshots[i].Key.Namespace != s.snapshots[j].Key.Namespace {
-		return s.namespaces[s.snapshots[i].Key.Namespace] < s.namespaces[s.snapshots[j].Key.Namespace]
+	if s.snapshots[i].priority != s.snapshots[j].priority {
+		return s.snapshots[i].priority > s.snapshots[j].priority
 	}
 
-	return s.snapshots[i].Key.Name < s.snapshots[j].Key.Name
+	if s.snapshots[i].key.Namespace != s.snapshots[j].key.Namespace {
+		if s.snapshots[i].key.Namespace == s.preferredNamespace {
+			return true
+		}
+		if s.snapshots[j].key.Namespace == s.preferredNamespace {
+			return false
+		}
+	}
+
+	return s.snapshots[i].key.Name < s.snapshots[j].key.Name
 }
 
 // Swap swaps the elements with indexes i and j.
-func (s SortableSnapshots) Swap(i, j int) {
+func (s sortableSnapshots) Swap(i, j int) {
 	s.snapshots[i], s.snapshots[j] = s.snapshots[j], s.snapshots[i]
 }
 
-func (s *CatalogSnapshot) Find(p ...OperatorPredicate) []*Operator {
+func (s *snapshotHeader) Find(p ...OperatorPredicate) []*Operator {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	return Filter(s.Operators, p...)
+	if s.snapshot == nil {
+		return nil
+	}
+	return Filter(s.snapshot.Entries, p...)
 }
 
 type OperatorFinder interface {
@@ -421,9 +416,9 @@ type OperatorFinder interface {
 }
 
 type MultiCatalogOperatorFinder interface {
-	Catalog(registry.CatalogKey) OperatorFinder
-	FindPreferred(*registry.CatalogKey, ...OperatorPredicate) []*Operator
-	WithExistingOperators(*CatalogSnapshot) MultiCatalogOperatorFinder
+	Catalog(SourceKey) OperatorFinder
+	FindPreferred(preferred *SourceKey, preferredNamespace string, predicates ...OperatorPredicate) []*Operator
+	WithExistingOperators(snapshot *Snapshot, namespace string) MultiCatalogOperatorFinder
 	Error() error
 	OperatorFinder
 }

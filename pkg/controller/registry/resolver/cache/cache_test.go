@@ -4,113 +4,37 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/client"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
-
-type BundleStreamStub struct {
-	Bundles []*api.Bundle
-}
-
-func (s *BundleStreamStub) Recv() (*api.Bundle, error) {
-	if len(s.Bundles) == 0 {
-		return nil, io.EOF
-	}
-	b := s.Bundles[0]
-	s.Bundles = s.Bundles[1:]
-	return b, nil
-}
-
-type RegistryClientStub struct {
-	BundleIterator *client.BundleIterator
-
-	ListBundlesError error
-}
-
-func (s *RegistryClientStub) Get() (client.Interface, error) {
-	return s, nil
-}
-
-func (s *RegistryClientStub) GetBundle(ctx context.Context, packageName, channelName, csvName string) (*api.Bundle, error) {
-	return nil, nil
-}
-
-func (s *RegistryClientStub) GetBundleInPackageChannel(ctx context.Context, packageName, channelName string) (*api.Bundle, error) {
-	return nil, nil
-}
-
-func (s *RegistryClientStub) GetReplacementBundleInPackageChannel(ctx context.Context, currentName, packageName, channelName string) (*api.Bundle, error) {
-	return nil, nil
-}
-
-func (s *RegistryClientStub) GetBundleThatProvides(ctx context.Context, group, version, kind string) (*api.Bundle, error) {
-	return nil, nil
-}
-
-func (s *RegistryClientStub) ListBundles(ctx context.Context) (*client.BundleIterator, error) {
-	return s.BundleIterator, s.ListBundlesError
-}
-
-func (s *RegistryClientStub) GetPackage(ctx context.Context, packageName string) (*api.Package, error) {
-	return &api.Package{Name: packageName}, nil
-}
-
-func (s *RegistryClientStub) HealthCheck(ctx context.Context, reconnectTimeout time.Duration) (bool, error) {
-	return false, nil
-}
-
-func (s *RegistryClientStub) Close() error {
-	return nil
-}
-
-type RegistryClientProviderStub map[registry.CatalogKey]client.Interface
-
-func (s RegistryClientProviderStub) ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface {
-	return s
-}
 
 func TestOperatorCacheConcurrency(t *testing.T) {
 	const (
 		NWorkers = 64
 	)
-	rcp := RegistryClientProviderStub{}
-	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	var keys []registry.CatalogKey
+
+	sp := make(StaticSourceProvider)
+	var keys []SourceKey
 	for i := 0; i < 128; i++ {
 		for j := 0; j < 8; j++ {
-			key := registry.CatalogKey{Namespace: strconv.Itoa(i), Name: strconv.Itoa(j)}
+			key := SourceKey{Namespace: strconv.Itoa(i), Name: strconv.Itoa(j)}
 			keys = append(keys, key)
-			rcp[key] = &RegistryClientStub{
-				BundleIterator: client.NewBundleIterator(&BundleStreamStub{
-					Bundles: []*api.Bundle{{
-						CsvName: fmt.Sprintf("%s/%s", key.Namespace, key.Name),
-						ProvidedApis: []*api.GroupVersionKind{{
-							Group:   "g",
-							Version: "v1",
-							Kind:    "K",
-							Plural:  "ks",
-						}},
-					}},
-				}),
+			sp[key] = &Snapshot{
+				Entries: []*Operator{
+					{Name: fmt.Sprintf("%s/%s", key.Namespace, key.Name)},
+				},
 			}
 		}
 	}
 
-	c := NewOperatorCache(rcp, logrus.New(), catsrcLister)
+	c := New(sp)
 
 	errs := make(chan error)
 	for w := 0; w < NWorkers; w++ {
@@ -143,56 +67,52 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 }
 
 func TestOperatorCacheExpiration(t *testing.T) {
-	rcp := RegistryClientProviderStub{}
-	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
-	rcp[key] = &RegistryClientStub{
-		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
-			Bundles: []*api.Bundle{{
-				CsvName: "csvname",
-				ProvidedApis: []*api.GroupVersionKind{{
-					Group:   "g",
-					Version: "v1",
-					Kind:    "K",
-					Plural:  "ks",
-				}},
-			}},
-		}),
-	}
-
-	c := NewOperatorCache(rcp, logrus.New(), catsrcLister)
+	key := SourceKey{Namespace: "dummynamespace", Name: "dummyname"}
+	ssp := make(StaticSourceProvider)
+	c := New(ssp)
 	c.ttl = 0 // instantly stale
 
-	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("csvname")), 1)
+	ssp[key] = &Snapshot{
+		Entries: []*Operator{
+			{Name: "v1"},
+		},
+	}
+	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("v1")), 1)
+
+	ssp[key] = &Snapshot{
+		Entries: []*Operator{
+			{Name: "v2"},
+		},
+	}
+	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("v1")), 0)
 }
 
 func TestOperatorCacheReuse(t *testing.T) {
-	rcp := RegistryClientProviderStub{}
-	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
-	rcp[key] = &RegistryClientStub{
-		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
-			Bundles: []*api.Bundle{{
-				CsvName: "csvname",
-				ProvidedApis: []*api.GroupVersionKind{{
-					Group:   "g",
-					Version: "v1",
-					Kind:    "K",
-					Plural:  "ks",
-				}},
-			}},
-		}),
+	key := SourceKey{Namespace: "dummynamespace", Name: "dummyname"}
+	ssp := make(StaticSourceProvider)
+	c := New(ssp)
+
+	ssp[key] = &Snapshot{
+		Entries: []*Operator{
+			{Name: "v1"},
+		},
 	}
+	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("v1")), 1)
 
-	c := NewOperatorCache(rcp, logrus.New(), catsrcLister)
-
-	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("csvname")), 1)
+	ssp[key] = &Snapshot{
+		Entries: []*Operator{
+			{Name: "v2"},
+		},
+	}
+	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("v1")), 1)
 }
 
-func TestCatalogSnapshotExpired(t *testing.T) {
+func TestCatalogSnapshotValid(t *testing.T) {
 	type tc struct {
 		Name     string
 		Expiry   time.Time
+		Snapshot *Snapshot
+		Error    error
 		At       time.Time
 		Expected bool
 	}
@@ -201,25 +121,51 @@ func TestCatalogSnapshotExpired(t *testing.T) {
 		{
 			Name:     "after expiry",
 			Expiry:   time.Unix(0, 1),
+			Snapshot: &Snapshot{},
+			Error:    nil,
 			At:       time.Unix(0, 2),
-			Expected: true,
+			Expected: false,
 		},
 		{
 			Name:     "before expiry",
 			Expiry:   time.Unix(0, 2),
+			Snapshot: &Snapshot{},
+			Error:    nil,
+			At:       time.Unix(0, 1),
+			Expected: true,
+		},
+		{
+			Name:     "nil snapshot",
+			Expiry:   time.Unix(0, 2),
+			Snapshot: nil,
+			Error:    errors.New(""),
+			At:       time.Unix(0, 1),
+			Expected: false,
+		},
+		{
+			Name:     "non-nil error",
+			Expiry:   time.Unix(0, 2),
+			Snapshot: &Snapshot{},
+			Error:    errors.New(""),
 			At:       time.Unix(0, 1),
 			Expected: false,
 		},
 		{
 			Name:     "at expiry",
 			Expiry:   time.Unix(0, 1),
+			Snapshot: &Snapshot{},
+			Error:    nil,
 			At:       time.Unix(0, 1),
-			Expected: true,
+			Expected: false,
 		},
 	} {
 		t.Run(tt.Name, func(t *testing.T) {
-			s := CatalogSnapshot{expiry: tt.Expiry}
-			assert.Equal(t, tt.Expected, s.Expired(tt.At))
+			s := snapshotHeader{
+				expiry:   tt.Expiry,
+				snapshot: tt.Snapshot,
+				err:      tt.Error,
+			}
+			assert.Equal(t, tt.Expected, s.Valid(tt.At))
 		})
 	}
 
@@ -287,7 +233,7 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		},
 	} {
 		t.Run(tt.Name, func(t *testing.T) {
-			s := CatalogSnapshot{Operators: tt.Operators}
+			s := snapshotHeader{snapshot: &Snapshot{Entries: tt.Operators}}
 			assert.Equal(t, tt.Expected, s.Find(tt.Predicate))
 		})
 	}
@@ -295,69 +241,41 @@ func TestCatalogSnapshotFind(t *testing.T) {
 }
 
 func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
-	rcp := RegistryClientProviderStub{}
-	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	key := registry.CatalogKey{Namespace: "testnamespace", Name: "testname"}
-	rcp[key] = &RegistryClientStub{
-		BundleIterator: client.NewBundleIterator(&BundleStreamStub{
-			Bundles: []*api.Bundle{{
-				CsvName: fmt.Sprintf("%s/%s", key.Namespace, key.Name),
-				ProvidedApis: []*api.GroupVersionKind{{
-					Group:   "g",
-					Version: "v1",
-					Kind:    "K",
-					Plural:  "ks",
-				}},
-				RequiredApis: []*api.GroupVersionKind{{
-					Group:   "g2",
-					Version: "v2",
-					Kind:    "K2",
-					Plural:  "ks2",
-				}},
-				Properties: APISetToProperties(map[opregistry.APIKey]struct{}{
-					{
-						Group:   "g",
-						Version: "v1",
-						Kind:    "K",
-						Plural:  "ks",
-					}: {},
-				}, nil, false),
-				Dependencies: APISetToDependencies(map[opregistry.APIKey]struct{}{
-					{
-						Group:   "g2",
-						Version: "v2",
-						Kind:    "K2",
-						Plural:  "ks2",
-					}: {},
-				}, nil),
-			}},
-		}),
-	}
+	key := SourceKey{Namespace: "testnamespace", Name: "testname"}
+	o, err := NewOperatorFromBundle(&api.Bundle{
+		CsvName: fmt.Sprintf("%s/%s", key.Namespace, key.Name),
+		ProvidedApis: []*api.GroupVersionKind{{
+			Group:   "g",
+			Version: "v1",
+			Kind:    "K",
+			Plural:  "ks",
+		}},
+		RequiredApis: []*api.GroupVersionKind{{
+			Group:   "g2",
+			Version: "v2",
+			Kind:    "K2",
+			Plural:  "ks2",
+		}},
+	}, "", key, "")
 
-	c := NewOperatorCache(rcp, logrus.New(), catsrcLister)
-
-	nc := c.Namespaced("testnamespace")
-	result, err := AtLeast(1, nc.Find(ProvidingAPIPredicate(opregistry.APIKey{Group: "g", Version: "v1", Kind: "K"})))
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(result))
-	assert.Equal(t, "K.v1.g", result[0].ProvidedAPIs.String())
-	assert.Equal(t, "K2.v2.g2", result[0].RequiredAPIs.String())
+	assert.Equal(t, "K.v1.g", o.ProvidedAPIs.String())
+	assert.Equal(t, "K2.v2.g2", o.RequiredAPIs.String())
+}
+
+type ErrorSource struct {
+	Error error
+}
+
+func (s ErrorSource) Snapshot(context.Context) (*Snapshot, error) {
+	return nil, s.Error
 }
 
 func TestNamespaceOperatorCacheError(t *testing.T) {
-	rcp := RegistryClientProviderStub{}
-	catsrcLister := operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister()
-	key := registry.CatalogKey{Namespace: "dummynamespace", Name: "dummyname"}
-	rcp[key] = &RegistryClientStub{
-		ListBundlesError: errors.New("testing"),
-	}
+	key := SourceKey{Namespace: "dummynamespace", Name: "dummyname"}
+	c := New(StaticSourceProvider{
+		key: ErrorSource{Error: errors.New("testing")},
+	})
 
-	logger, _ := test.NewNullLogger()
-	c := NewOperatorCache(rcp, logger, catsrcLister)
 	require.EqualError(t, c.Namespaced("dummynamespace").Error(), "error using catalog dummyname (in namespace dummynamespace): testing")
-	if snapshot, ok := c.snapshots[key]; !ok {
-		t.Fatalf("cache snapshot not found")
-	} else {
-		require.Zero(t, snapshot.expiry)
-	}
 }

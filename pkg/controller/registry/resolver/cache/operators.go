@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -194,7 +193,7 @@ type OperatorSourceInfo struct {
 	Package        string
 	Channel        string
 	StartingCSV    string
-	Catalog        registry.CatalogKey
+	Catalog        SourceKey
 	DefaultChannel bool
 	Subscription   *v1alpha1.Subscription
 }
@@ -203,7 +202,7 @@ func (i *OperatorSourceInfo) String() string {
 	return fmt.Sprintf("%s/%s in %s/%s", i.Package, i.Channel, i.Catalog.Name, i.Catalog.Namespace)
 }
 
-var NoCatalog = registry.CatalogKey{Name: "", Namespace: ""}
+var NoCatalog = SourceKey{Name: "", Namespace: ""}
 var ExistingOperator = OperatorSourceInfo{Package: "", Channel: "", StartingCSV: "", Catalog: NoCatalog, DefaultChannel: false}
 
 type Operator struct {
@@ -219,7 +218,7 @@ type Operator struct {
 	Properties   []*api.Property
 }
 
-func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey registry.CatalogKey, defaultChannel string) (*Operator, error) {
+func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey SourceKey, defaultChannel string) (*Operator, error) {
 	parsedVersion, err := semver.ParseTolerant(bundle.Version)
 	version := &parsedVersion
 	if err != nil {
