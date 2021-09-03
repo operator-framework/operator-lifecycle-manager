@@ -211,6 +211,11 @@ func main() {
 	op.Run(ctx)
 	<-op.Ready()
 
+	// Emit CSV metric
+	if err = op.EnsureCSVMetric(); err != nil {
+		logger.WithError(err).Fatalf("error emitting metrics for existing CSV")
+	}
+
 	if *writeStatusName != "" {
 		operatorstatus.MonitorClusterStatus(*writeStatusName, op.AtLevel(), ctx.Done(), opClient, configClient, crClient)
 	}
