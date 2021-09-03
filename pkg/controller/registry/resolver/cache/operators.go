@@ -213,9 +213,15 @@ type Operator struct {
 	ProvidedAPIs APISet
 	RequiredAPIs APISet
 	Version      *semver.Version
-	Bundle       *api.Bundle
 	SourceInfo   *OperatorSourceInfo
 	Properties   []*api.Property
+	BundlePath   string
+
+	// Present exclusively to pipe inlined bundle
+	// content. Resolver components shouldn't need to read this,
+	// and it should eventually be possible to remove the field
+	// altogether.
+	Bundle *api.Bundle
 }
 
 func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey SourceKey, defaultChannel string) (*Operator, error) {
@@ -268,23 +274,20 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Sou
 		Version:      version,
 		ProvidedAPIs: provided,
 		RequiredAPIs: required,
-		Bundle:       bundle,
 		SourceInfo:   sourceInfo,
 		Properties:   properties,
 		Skips:        bundle.Skips,
+		BundlePath:   bundle.BundlePath,
 	}
 
-	if r, err := semver.ParseRange(o.Bundle.SkipRange); err == nil {
+	if r, err := semver.ParseRange(bundle.SkipRange); err == nil {
 		o.SkipRange = r
 	}
 
-	if !o.Inline() {
-		// TODO: Extract any necessary information from the Bundle
-		// up-front and remove the bundle field altogether. For now,
-		// take the easy opportunity to save heap space by discarding
-		// two of the worst offenders.
-		bundle.CsvJson = ""
-		bundle.Object = nil
+	if o.BundlePath == "" {
+		// This bundle's content is embedded within the Bundle
+		// proto message, not specified via image reference.
+		o.Bundle = bundle
 	}
 
 	return o, nil
@@ -344,36 +347,17 @@ func (o *Operator) GetRequiredAPIs() APISet {
 }
 
 func (o *Operator) Package() string {
-	if o.Bundle != nil {
-		return o.Bundle.PackageName
+	if si := o.SourceInfo; si != nil {
+		return si.Package
 	}
 	return ""
 }
 
 func (o *Operator) Channel() string {
-	if o.Bundle != nil {
-		return o.Bundle.ChannelName
+	if si := o.SourceInfo; si != nil {
+		return si.Channel
 	}
 	return ""
-}
-
-func (o *Operator) Inline() bool {
-	return o.Bundle != nil && o.Bundle.GetBundlePath() == ""
-}
-
-func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
-	predicates = make([]OperatorPredicate, 0)
-	for _, property := range o.Properties {
-		predicate, err := PredicateForProperty(property)
-		if err != nil {
-			return nil, err
-		}
-		if predicate == nil {
-			continue
-		}
-		predicates = append(predicates, predicate)
-	}
-	return
 }
 
 func RequiredAPIsToProperties(apis APISet) (out []*api.Property, err error) {

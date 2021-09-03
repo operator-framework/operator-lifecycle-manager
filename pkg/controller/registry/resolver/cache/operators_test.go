@@ -1219,7 +1219,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Value: "{\"group\":\"apis.group.com\",\"kind\":\"RequiredAPI\",\"version\":\"v1\"}",
 					},
 				},
-				Bundle: bundleWithPropsAndDeps,
+				BundlePath: bundleWithPropsAndDeps.BundlePath,
 				SourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",

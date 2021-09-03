@@ -181,7 +181,7 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 		Namespace: sub.Spec.CatalogSourceNamespace,
 	}
 
-	var bundles []*cache.Operator
+	var entries []*cache.Operator
 	{
 		var nall, npkg, nch, ncsv int
 
@@ -200,7 +200,7 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 			cache.CountingPredicate(cache.ChannelPredicate(sub.Spec.Channel), &nch),
 			cache.CountingPredicate(csvPredicate, &ncsv),
 		))
-		bundles = namespacedCache.Catalog(catalog).Find(cachePredicates...)
+		entries = namespacedCache.Catalog(catalog).Find(cachePredicates...)
 
 		var si solver.Installable
 		switch {
@@ -220,36 +220,40 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 		}
 	}
 
-	// bundles in the default channel appear first, then lexicographically order by channel name
-	sort.SliceStable(bundles, func(i, j int) bool {
+	// entries in the default channel appear first, then lexicographically order by channel name
+	sort.SliceStable(entries, func(i, j int) bool {
 		var idef bool
-		if isrc := bundles[i].SourceInfo; isrc != nil {
+		var ichan string
+		if isrc := entries[i].SourceInfo; isrc != nil {
 			idef = isrc.DefaultChannel
+			ichan = isrc.Channel
 		}
 		var jdef bool
-		if jsrc := bundles[j].SourceInfo; jsrc != nil {
+		var jchan string
+		if jsrc := entries[j].SourceInfo; jsrc != nil {
 			jdef = jsrc.DefaultChannel
+			jchan = jsrc.Channel
 		}
 		if idef == jdef {
-			return bundles[i].Bundle.ChannelName < bundles[j].Bundle.ChannelName
+			return ichan < jchan
 		}
 		return idef
 	})
 
 	var sortedBundles []*cache.Operator
 	lastChannel, lastIndex := "", 0
-	for i := 0; i <= len(bundles); i++ {
-		if i != len(bundles) && bundles[i].Bundle.ChannelName == lastChannel {
+	for i := 0; i <= len(entries); i++ {
+		if i != len(entries) && entries[i].Channel() == lastChannel {
 			continue
 		}
-		channel, err := sortChannel(bundles[lastIndex:i])
+		channel, err := sortChannel(entries[lastIndex:i])
 		if err != nil {
 			return nil, err
 		}
 		sortedBundles = append(sortedBundles, channel...)
 
-		if i != len(bundles) {
-			lastChannel = bundles[i].Bundle.ChannelName
+		if i != len(entries) {
+			lastChannel = entries[i].Channel()
 			lastIndex = i
 		}
 	}
@@ -333,7 +337,7 @@ func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleSta
 
 		visited[bundle] = &bundleInstallable
 
-		dependencyPredicates, err := bundle.DependencyPredicates()
+		dependencyPredicates, err := DependencyPredicates(bundle.Properties)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -727,4 +731,77 @@ func sortChannel(bundles []*cache.Operator) ([]*cache.Operator, error) {
 
 	// TODO: do we care if the channel doesn't include every bundle in the input?
 	return chains[0], nil
+}
+
+func DependencyPredicates(properties []*api.Property) ([]cache.OperatorPredicate, error) {
+	var predicates []cache.OperatorPredicate
+	for _, property := range properties {
+		predicate, err := predicateForProperty(property)
+		if err != nil {
+			return nil, err
+		}
+		if predicate == nil {
+			continue
+		}
+		predicates = append(predicates, predicate)
+	}
+	return predicates, nil
+}
+
+func predicateForProperty(property *api.Property) (cache.OperatorPredicate, error) {
+	if property == nil {
+		return nil, nil
+	}
+	p, ok := predicates[property.Type]
+	if !ok {
+		return nil, nil
+	}
+	return p(property.Value)
+}
+
+var predicates = map[string]func(string) (cache.OperatorPredicate, error){
+	"olm.gvk.required":     predicateForRequiredGVKProperty,
+	"olm.package.required": predicateForRequiredPackageProperty,
+	"olm.label.required":   predicateForRequiredLabelProperty,
+}
+
+func predicateForRequiredGVKProperty(value string) (cache.OperatorPredicate, error) {
+	var gvk struct {
+		Group   string `json:"group"`
+		Version string `json:"version"`
+		Kind    string `json:"kind"`
+	}
+	if err := json.Unmarshal([]byte(value), &gvk); err != nil {
+		return nil, err
+	}
+	return cache.ProvidingAPIPredicate(opregistry.APIKey{
+		Group:   gvk.Group,
+		Version: gvk.Version,
+		Kind:    gvk.Kind,
+	}), nil
+}
+
+func predicateForRequiredPackageProperty(value string) (cache.OperatorPredicate, error) {
+	var pkg struct {
+		PackageName  string `json:"packageName"`
+		VersionRange string `json:"versionRange"`
+	}
+	if err := json.Unmarshal([]byte(value), &pkg); err != nil {
+		return nil, err
+	}
+	ver, err := semver.ParseRange(pkg.VersionRange)
+	if err != nil {
+		return nil, err
+	}
+	return cache.And(cache.PkgPredicate(pkg.PackageName), cache.VersionInRangePredicate(ver, pkg.VersionRange)), nil
+}
+
+func predicateForRequiredLabelProperty(value string) (cache.OperatorPredicate, error) {
+	var label struct {
+		Label string `json:"label"`
+	}
+	if err := json.Unmarshal([]byte(value), &label); err != nil {
+		return nil, err
+	}
+	return cache.LabelPredicate(label.Label), nil
 }

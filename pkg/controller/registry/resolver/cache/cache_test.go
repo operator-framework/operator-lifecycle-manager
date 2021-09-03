@@ -240,7 +240,7 @@ func TestCatalogSnapshotFind(t *testing.T) {
 
 }
 
-func TestStripPluralRequiredAndProvidedAPIKeys(t *testing.T) {
+func TestNewOperatorFromBundleStripsPluralRequiredAndProvidedAPIKeys(t *testing.T) {
 	key := SourceKey{Namespace: "testnamespace", Name: "testname"}
 	o, err := NewOperatorFromBundle(&api.Bundle{
 		CsvName: fmt.Sprintf("%s/%s", key.Namespace, key.Name),

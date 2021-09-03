@@ -1165,9 +1165,9 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 			csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
 			for _, o := range operators {
 				var pkg, channel string
-				if b := o.Bundle; b != nil {
-					pkg = b.PackageName
-					channel = b.ChannelName
+				if si := o.SourceInfo; si != nil {
+					pkg = si.Package
+					channel = si.Channel
 				}
 				csvs = append(csvs, existingOperator(namespace, o.Name, pkg, channel, o.Replaces, o.ProvidedAPIs, o.RequiredAPIs, nil, nil))
 			}
@@ -1201,15 +1201,9 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 		properties = append(properties, ps...)
 	}
 	o := &cache.Operator{
-		Name:     name,
-		Version:  &semversion,
-		Replaces: replaces,
-		Bundle: &api.Bundle{
-			PackageName:  pkg,
-			ChannelName:  channel,
-			Dependencies: dependencies,
-			Properties:   properties,
-		},
+		Name:       name,
+		Version:    &semversion,
+		Replaces:   replaces,
 		Properties: properties,
 		SourceInfo: &cache.OperatorSourceInfo{
 			Catalog: cache.SourceKey{
@@ -1224,11 +1218,6 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 		RequiredAPIs: requiredAPIs,
 	}
 	EnsurePackageProperty(o, pkg, version)
-	return o
-}
-
-func stripBundle(o *cache.Operator) *cache.Operator {
-	o.Bundle = nil
 	return o
 }
 
@@ -1513,8 +1502,8 @@ func TestInferProperties(t *testing.T) {
 					Entries: []*cache.Operator{
 						{
 							Name: "a",
-							Bundle: &api.Bundle{
-								PackageName: "x",
+							SourceInfo: &cache.OperatorSourceInfo{
+								Package: "x",
 							},
 						},
 					},
@@ -1554,8 +1543,8 @@ func TestInferProperties(t *testing.T) {
 					Entries: []*cache.Operator{
 						{
 							Name: "a",
-							Bundle: &api.Bundle{
-								PackageName: "x",
+							SourceInfo: &cache.OperatorSourceInfo{
+								Package: "x",
 							},
 						},
 					},
@@ -1616,8 +1605,8 @@ func TestInferProperties(t *testing.T) {
 					Entries: []*cache.Operator{
 						{
 							Name: "a",
-							Bundle: &api.Bundle{
-								PackageName: "x",
+							SourceInfo: &cache.OperatorSourceInfo{
+								Package: "x",
 							},
 						},
 					},
@@ -1674,17 +1663,17 @@ func TestSortChannel(t *testing.T) {
 			In: []*cache.Operator{
 				{
 					Name: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "a",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1692,16 +1681,16 @@ func TestSortChannel(t *testing.T) {
 				{
 					Name:     "a",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1717,17 +1706,17 @@ func TestSortChannel(t *testing.T) {
 				{
 					Name:     "a",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "b",
 					Replaces: "a",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1739,25 +1728,25 @@ func TestSortChannel(t *testing.T) {
 				{
 					Name:     "a",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "b",
 					Replaces: "c",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "c",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1816,24 +1805,24 @@ func TestSortChannel(t *testing.T) {
 			In: []*cache.Operator{
 				{
 					Name: "a",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "b",
 					Replaces: "c",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name: "c",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},

@@ -137,57 +137,55 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 
 		// add steps for any new bundle
 		if op.Bundle != nil {
-			if op.Inline() {
-				bundleSteps, err := NewStepsFromBundle(op.Bundle, namespace, op.Replaces, op.SourceInfo.Catalog.Name, op.SourceInfo.Catalog.Namespace)
-				if err != nil {
-					return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
-				}
-				steps = append(steps, bundleSteps...)
+			bundleSteps, err := NewStepsFromBundle(op.Bundle, namespace, op.Replaces, op.SourceInfo.Catalog.Name, op.SourceInfo.Catalog.Namespace)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
+			}
+			steps = append(steps, bundleSteps...)
+		} else {
+			lookup := v1alpha1.BundleLookup{
+				Path:       op.BundlePath,
+				Identifier: op.Name,
+				Replaces:   op.Replaces,
+				CatalogSourceRef: &corev1.ObjectReference{
+					Namespace: op.SourceInfo.Catalog.Namespace,
+					Name:      op.SourceInfo.Catalog.Name,
+				},
+				Conditions: []v1alpha1.BundleLookupCondition{
+					{
+						Type:    BundleLookupConditionPacked,
+						Status:  corev1.ConditionTrue,
+						Reason:  controllerbundle.NotUnpackedReason,
+						Message: controllerbundle.NotUnpackedMessage,
+					},
+					{
+						Type:    v1alpha1.BundleLookupPending,
+						Status:  corev1.ConditionTrue,
+						Reason:  controllerbundle.JobNotStartedReason,
+						Message: controllerbundle.JobNotStartedMessage,
+					},
+				},
+			}
+			if anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties); err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to serialize operator properties for %q: %w", op.Name, err)
 			} else {
-				lookup := v1alpha1.BundleLookup{
-					Path:       op.Bundle.GetBundlePath(),
-					Identifier: op.Name,
-					Replaces:   op.Replaces,
-					CatalogSourceRef: &corev1.ObjectReference{
-						Namespace: op.SourceInfo.Catalog.Namespace,
-						Name:      op.SourceInfo.Catalog.Name,
-					},
-					Conditions: []v1alpha1.BundleLookupCondition{
-						{
-							Type:    BundleLookupConditionPacked,
-							Status:  corev1.ConditionTrue,
-							Reason:  controllerbundle.NotUnpackedReason,
-							Message: controllerbundle.NotUnpackedMessage,
-						},
-						{
-							Type:    v1alpha1.BundleLookupPending,
-							Status:  corev1.ConditionTrue,
-							Reason:  controllerbundle.JobNotStartedReason,
-							Message: controllerbundle.JobNotStartedMessage,
-						},
-					},
-				}
-				if anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties); err != nil {
-					return nil, nil, nil, fmt.Errorf("failed to serialize operator properties for %q: %w", op.Name, err)
-				} else {
-					lookup.Properties = anno
-				}
-				bundleLookups = append(bundleLookups, lookup)
+				lookup.Properties = anno
 			}
+			bundleLookups = append(bundleLookups, lookup)
+		}
 
-			if len(existingSubscriptions) == 0 {
-				// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
-				op.SourceInfo.StartingCSV = op.Name
-				subStep, err := NewSubscriptionStepResource(namespace, *op.SourceInfo)
-				if err != nil {
-					return nil, nil, nil, err
-				}
-				steps = append(steps, &v1alpha1.Step{
-					Resolving: name,
-					Resource:  subStep,
-					Status:    v1alpha1.StepStatusUnknown,
-				})
+		if len(existingSubscriptions) == 0 {
+			// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
+			op.SourceInfo.StartingCSV = op.Name
+			subStep, err := NewSubscriptionStepResource(namespace, *op.SourceInfo)
+			if err != nil {
+				return nil, nil, nil, err
 			}
+			steps = append(steps, &v1alpha1.Step{
+				Resolving: name,
+				Resource:  subStep,
+				Status:    v1alpha1.StepStatusUnknown,
+			})
 		}
 
 		// add steps for subscriptions for bundles that were added through resolution
