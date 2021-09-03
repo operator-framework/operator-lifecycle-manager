@@ -655,6 +655,23 @@ func (a *Operator) RegisterCSVWatchNotification(csvNotification csvutility.Watch
 	a.csvNotification = csvNotification
 }
 
+func (a *Operator) EnsureCSVMetric() error {
+	csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	for _, csv := range csvs {
+		logger := a.logger.WithFields(logrus.Fields{
+			"name":      csv.GetName(),
+			"namespace": csv.GetNamespace(),
+			"self":      csv.GetSelfLink(),
+		})
+		logger.Debug("emitting metrics for existing CSV")
+		metrics.EmitCSVMetric(csv, csv)
+	}
+	return nil
+}
+
 func (a *Operator) syncGCObject(obj interface{}) (syncError error) {
 	metaObj, ok := obj.(metav1.Object)
 	if !ok {
