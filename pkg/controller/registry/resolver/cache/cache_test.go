@@ -11,8 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 func TestOperatorCacheConcurrency(t *testing.T) {
@@ -238,29 +236,6 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		})
 	}
 
-}
-
-func TestNewOperatorFromBundleStripsPluralRequiredAndProvidedAPIKeys(t *testing.T) {
-	key := SourceKey{Namespace: "testnamespace", Name: "testname"}
-	o, err := NewOperatorFromBundle(&api.Bundle{
-		CsvName: fmt.Sprintf("%s/%s", key.Namespace, key.Name),
-		ProvidedApis: []*api.GroupVersionKind{{
-			Group:   "g",
-			Version: "v1",
-			Kind:    "K",
-			Plural:  "ks",
-		}},
-		RequiredApis: []*api.GroupVersionKind{{
-			Group:   "g2",
-			Version: "v2",
-			Kind:    "K2",
-			Plural:  "ks2",
-		}},
-	}, "", key, "")
-
-	assert.NoError(t, err)
-	assert.Equal(t, "K.v1.g", o.ProvidedAPIs.String())
-	assert.Equal(t, "K2.v2.g2", o.RequiredAPIs.String())
 }
 
 type ErrorSource struct {

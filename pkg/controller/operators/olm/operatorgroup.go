@@ -309,12 +309,12 @@ func (a *Operator) providedAPIsFromCSVs(group *v1.OperatorGroup, logger *logrus.
 		// TODO: Throw out CSVs that aren't members of the group due to group related failures?
 
 		// Union the providedAPIsFromCSVs from existing members of the group
-		operatorSurface, err := cache.NewOperatorFromV1Alpha1CSV(csv)
+		operatorSurface, err := apiSurfaceOfCSV(csv)
 		if err != nil {
 			logger.WithError(err).Warn("could not create OperatorSurface from csv")
 			continue
 		}
-		for providedAPI := range operatorSurface.GetProvidedAPIs().StripPlural() {
+		for providedAPI := range operatorSurface.ProvidedAPIs.StripPlural() {
 			providedAPIsFromCSVs[providedAPI] = csv
 		}
 	}
@@ -1051,12 +1051,12 @@ func (a *Operator) findCSVsThatProvideAnyOf(provide cache.APISet) ([]*v1alpha1.C
 			continue
 		}
 
-		operatorSurface, err := cache.NewOperatorFromV1Alpha1CSV(csv)
+		operatorSurface, err := apiSurfaceOfCSV(csv)
 		if err != nil {
 			continue
 		}
 
-		if len(operatorSurface.GetProvidedAPIs().StripPlural().Intersection(provide)) > 0 {
+		if len(operatorSurface.ProvidedAPIs.StripPlural().Intersection(provide)) > 0 {
 			providers = append(providers, csv)
 		}
 	}

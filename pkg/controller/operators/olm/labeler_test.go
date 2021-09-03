@@ -3,7 +3,6 @@ package olm
 import (
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -63,9 +62,9 @@ func TestLabelSetsFor(t *testing.T) {
 		},
 		{
 			name: "OperatorSurface/Provided",
-			obj: &cache.Operator{
+			obj: operatorSurface{
 				ProvidedAPIs: map[opregistry.APIKey]struct{}{
-					opregistry.APIKey{Group: "ghouls", Version: "v1alpha1", Kind: "Ghost", Plural: "Ghosts"}: {},
+					{Group: "ghouls", Version: "v1alpha1", Kind: "Ghost", Plural: "Ghosts"}: {},
 				},
 			},
 			expected: []labels.Set{
@@ -76,12 +75,12 @@ func TestLabelSetsFor(t *testing.T) {
 		},
 		{
 			name: "OperatorSurface/ProvidedAndRequired",
-			obj: &cache.Operator{
+			obj: operatorSurface{
 				ProvidedAPIs: map[opregistry.APIKey]struct{}{
-					opregistry.APIKey{Group: "ghouls", Version: "v1alpha1", Kind: "Ghost", Plural: "Ghosts"}: {},
+					{Group: "ghouls", Version: "v1alpha1", Kind: "Ghost", Plural: "Ghosts"}: {},
 				},
 				RequiredAPIs: map[opregistry.APIKey]struct{}{
-					opregistry.APIKey{Group: "ghouls", Version: "v1alpha1", Kind: "Goblin", Plural: "Goblins"}: {},
+					{Group: "ghouls", Version: "v1alpha1", Kind: "Goblin", Plural: "Goblins"}: {},
 				},
 			},
 			expected: []labels.Set{

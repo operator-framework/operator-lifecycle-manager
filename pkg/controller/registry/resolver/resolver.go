@@ -76,7 +76,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		var current *cache.Operator
 		for _, csv := range csvs {
 			if csv.Name == sub.Status.InstalledCSV {
-				op, err := cache.NewOperatorFromV1Alpha1CSV(csv)
+				op, err := newOperatorFromV1Alpha1CSV(csv)
 				if err != nil {
 					return nil, err
 				}
@@ -474,7 +474,7 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 	var csvsMissingProperties []*v1alpha1.ClusterServiceVersion
 	standaloneOperators := make([]*cache.Operator, 0)
 	for _, csv := range csvs {
-		op, err := cache.NewOperatorFromV1Alpha1CSV(csv)
+		op, err := newOperatorFromV1Alpha1CSV(csv)
 		if err != nil {
 			return nil, err
 		}
@@ -804,4 +804,100 @@ func predicateForRequiredLabelProperty(value string) (cache.OperatorPredicate, e
 		return nil, err
 	}
 	return cache.LabelPredicate(label.Label), nil
+}
+
+func newOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*cache.Operator, error) {
+	providedAPIs := cache.EmptyAPISet()
+	for _, crdDef := range csv.Spec.CustomResourceDefinitions.Owned {
+		parts := strings.SplitN(crdDef.Name, ".", 2)
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("error parsing crd name: %s", crdDef.Name)
+		}
+		providedAPIs[opregistry.APIKey{Plural: parts[0], Group: parts[1], Version: crdDef.Version, Kind: crdDef.Kind}] = struct{}{}
+	}
+	for _, api := range csv.Spec.APIServiceDefinitions.Owned {
+		providedAPIs[opregistry.APIKey{Group: api.Group, Version: api.Version, Kind: api.Kind, Plural: api.Name}] = struct{}{}
+	}
+
+	requiredAPIs := cache.EmptyAPISet()
+	for _, crdDef := range csv.Spec.CustomResourceDefinitions.Required {
+		parts := strings.SplitN(crdDef.Name, ".", 2)
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("error parsing crd name: %s", crdDef.Name)
+		}
+		requiredAPIs[opregistry.APIKey{Plural: parts[0], Group: parts[1], Version: crdDef.Version, Kind: crdDef.Kind}] = struct{}{}
+	}
+	for _, api := range csv.Spec.APIServiceDefinitions.Required {
+		requiredAPIs[opregistry.APIKey{Group: api.Group, Version: api.Version, Kind: api.Kind, Plural: api.Name}] = struct{}{}
+	}
+
+	properties, err := providedAPIsToProperties(providedAPIs)
+	if err != nil {
+		return nil, err
+	}
+	dependencies, err := requiredAPIsToProperties(requiredAPIs)
+	if err != nil {
+		return nil, err
+	}
+	properties = append(properties, dependencies...)
+
+	return &cache.Operator{
+		Name:         csv.GetName(),
+		Version:      &csv.Spec.Version.Version,
+		ProvidedAPIs: providedAPIs,
+		RequiredAPIs: requiredAPIs,
+		SourceInfo:   &cache.ExistingOperator,
+		Properties:   properties,
+	}, nil
+}
+
+func providedAPIsToProperties(apis cache.APISet) (out []*api.Property, err error) {
+	out = make([]*api.Property, 0)
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Version: a.Version,
+			Kind:    a.Kind,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if len(out) > 0 {
+		return
+	}
+	return nil, nil
+}
+
+func requiredAPIsToProperties(apis cache.APISet) (out []*api.Property, err error) {
+	if len(apis) == 0 {
+		return
+	}
+	out = make([]*api.Property, 0)
+	for a := range apis {
+		val, err := json.Marshal(struct {
+			Group   string `json:"group"`
+			Version string `json:"version"`
+			Kind    string `json:"kind"`
+		}{
+			Group:   a.Group,
+			Version: a.Version,
+			Kind:    a.Kind,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, &api.Property{
+			Type:  "olm.gvk.required",
+			Value: string(val),
+		})
+	}
+	if len(out) > 0 {
+		return
+	}
+	return nil, nil
 }
