@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/operator-framework/api/pkg/lib/version"
+	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
@@ -946,7 +947,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
-					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, cache.APISetToDependencies(nil, Provides), defaultChannel, false),
+					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(nil, Provides), defaultChannel, false),
 					genOperator("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 					genOperator("packageB.v0.0.2", "0.0.2", "packageB.v0.0.1", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 				},
@@ -960,7 +961,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 
 	// operator should be from the default stable channel
 	expected := cache.OperatorSet{
-		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, cache.APISetToDependencies(nil, Provides), defaultChannel, false),
+		"packageA.v0.0.1": genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(nil, Provides), defaultChannel, false),
 		"packageB.v0.0.1": genOperator("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 	}
 	require.EqualValues(t, expected, operators)
@@ -1000,7 +1001,7 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
-		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", catalog.Name, catalog.Namespace, Provides, nil, cache.APISetToDependencies(Provides, nil), "", false),
+		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(Provides, nil), "", false),
 	}
 	assert.Equal(t, len(expected), len(operators))
 	for k := range expected {
@@ -1165,9 +1166,9 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 			csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
 			for _, o := range operators {
 				var pkg, channel string
-				if b := o.Bundle; b != nil {
-					pkg = b.PackageName
-					channel = b.ChannelName
+				if si := o.SourceInfo; si != nil {
+					pkg = si.Package
+					channel = si.Channel
 				}
 				csvs = append(csvs, existingOperator(namespace, o.Name, pkg, channel, o.Replaces, o.ProvidedAPIs, o.RequiredAPIs, nil, nil))
 			}
@@ -1186,30 +1187,24 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 
 func genOperator(name, version, replaces, pkg, channel, catalogName, catalogNamespace string, requiredAPIs, providedAPIs cache.APISet, dependencies []*api.Dependency, defaultChannel string, deprecated bool) *cache.Operator {
 	semversion, _ := semver.Make(version)
-	properties := cache.APISetToProperties(providedAPIs, nil, deprecated)
+	properties := apiSetToProperties(providedAPIs, nil, deprecated)
 	if len(dependencies) == 0 {
-		ps, err := cache.RequiredAPIsToProperties(requiredAPIs)
+		ps, err := requiredAPIsToProperties(requiredAPIs)
 		if err != nil {
 			panic(err)
 		}
 		properties = append(properties, ps...)
 	} else {
-		ps, err := cache.LegacyDependenciesToProperties(dependencies)
+		ps, err := legacyDependenciesToProperties(dependencies)
 		if err != nil {
 			panic(err)
 		}
 		properties = append(properties, ps...)
 	}
 	o := &cache.Operator{
-		Name:     name,
-		Version:  &semversion,
-		Replaces: replaces,
-		Bundle: &api.Bundle{
-			PackageName:  pkg,
-			ChannelName:  channel,
-			Dependencies: dependencies,
-			Properties:   properties,
-		},
+		Name:       name,
+		Version:    &semversion,
+		Replaces:   replaces,
 		Properties: properties,
 		SourceInfo: &cache.OperatorSourceInfo{
 			Catalog: cache.SourceKey{
@@ -1224,11 +1219,6 @@ func genOperator(name, version, replaces, pkg, channel, catalogName, catalogName
 		RequiredAPIs: requiredAPIs,
 	}
 	EnsurePackageProperty(o, pkg, version)
-	return o
-}
-
-func stripBundle(o *cache.Operator) *cache.Operator {
-	o.Bundle = nil
 	return o
 }
 
@@ -1513,8 +1503,8 @@ func TestInferProperties(t *testing.T) {
 					Entries: []*cache.Operator{
 						{
 							Name: "a",
-							Bundle: &api.Bundle{
-								PackageName: "x",
+							SourceInfo: &cache.OperatorSourceInfo{
+								Package: "x",
 							},
 						},
 					},
@@ -1554,8 +1544,8 @@ func TestInferProperties(t *testing.T) {
 					Entries: []*cache.Operator{
 						{
 							Name: "a",
-							Bundle: &api.Bundle{
-								PackageName: "x",
+							SourceInfo: &cache.OperatorSourceInfo{
+								Package: "x",
 							},
 						},
 					},
@@ -1616,8 +1606,8 @@ func TestInferProperties(t *testing.T) {
 					Entries: []*cache.Operator{
 						{
 							Name: "a",
-							Bundle: &api.Bundle{
-								PackageName: "x",
+							SourceInfo: &cache.OperatorSourceInfo{
+								Package: "x",
 							},
 						},
 					},
@@ -1674,17 +1664,17 @@ func TestSortChannel(t *testing.T) {
 			In: []*cache.Operator{
 				{
 					Name: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "a",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1692,16 +1682,16 @@ func TestSortChannel(t *testing.T) {
 				{
 					Name:     "a",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1717,17 +1707,17 @@ func TestSortChannel(t *testing.T) {
 				{
 					Name:     "a",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "b",
 					Replaces: "a",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1739,25 +1729,25 @@ func TestSortChannel(t *testing.T) {
 				{
 					Name:     "a",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "b",
 					Replaces: "c",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "c",
 					Replaces: "b",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1816,24 +1806,24 @@ func TestSortChannel(t *testing.T) {
 			In: []*cache.Operator{
 				{
 					Name: "a",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name:     "b",
 					Replaces: "c",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 				{
 					Name: "c",
-					Bundle: &api.Bundle{
-						PackageName: "package",
-						ChannelName: "channel",
+					SourceInfo: &cache.OperatorSourceInfo{
+						Package: "package",
+						Channel: "channel",
 					},
 				},
 			},
@@ -1849,6 +1839,231 @@ func TestSortChannel(t *testing.T) {
 				assert.EqualError(err, tc.Err.Error())
 			}
 			assert.Equal(tc.Out, actual)
+		})
+	}
+}
+
+func TestNewOperatorFromCSV(t *testing.T) {
+	version := opver.OperatorVersion{Version: semver.MustParse("0.1.0-abc")}
+	type args struct {
+		csv *v1alpha1.ClusterServiceVersion
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *cache.Operator
+		wantErr error
+	}{
+		{
+			name: "NoProvided/NoRequired",
+			args: args{
+				csv: &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "operator.v1",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version,
+					},
+				},
+			},
+			want: &cache.Operator{
+				Name:         "operator.v1",
+				ProvidedAPIs: cache.EmptyAPISet(),
+				RequiredAPIs: cache.EmptyAPISet(),
+				SourceInfo:   &cache.ExistingOperator,
+				Version:      &version.Version,
+			},
+		},
+		{
+			name: "Provided/NoRequired",
+			args: args{
+				csv: &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "operator.v1",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version,
+						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+							Owned: []v1alpha1.CRDDescription{
+								{
+									Name:    "crdkinds.g",
+									Version: "v1",
+									Kind:    "CRDKind",
+								},
+							},
+						},
+						APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+							Owned: []v1alpha1.APIServiceDescription{
+								{
+									Name:    "apikinds",
+									Group:   "g",
+									Version: "v1",
+									Kind:    "APIKind",
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &cache.Operator{
+				Name: "operator.v1",
+				ProvidedAPIs: map[opregistry.APIKey]struct{}{
+					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
+					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
+				},
+				Properties: []*api.Property{
+					{
+						Type:  "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type:  "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
+					},
+				},
+				RequiredAPIs: cache.EmptyAPISet(),
+				SourceInfo:   &cache.ExistingOperator,
+				Version:      &version.Version,
+			},
+		},
+		{
+			name: "NoProvided/Required",
+			args: args{
+				csv: &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "operator.v1",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version,
+						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+							Required: []v1alpha1.CRDDescription{
+								{
+									Name:    "crdkinds.g",
+									Version: "v1",
+									Kind:    "CRDKind",
+								},
+							},
+						},
+						APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+							Required: []v1alpha1.APIServiceDescription{
+								{
+									Name:    "apikinds",
+									Group:   "g",
+									Version: "v1",
+									Kind:    "APIKind",
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &cache.Operator{
+				Name:         "operator.v1",
+				ProvidedAPIs: cache.EmptyAPISet(),
+				RequiredAPIs: map[opregistry.APIKey]struct{}{
+					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
+					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
+				},
+				Properties: []*api.Property{
+					{
+						Type:  "olm.gvk.required",
+						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type:  "olm.gvk.required",
+						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
+					},
+				},
+				SourceInfo: &cache.ExistingOperator,
+				Version:    &version.Version,
+			},
+		},
+		{
+			name: "Provided/Required",
+			args: args{
+				csv: &v1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "operator.v1",
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version,
+						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+							Owned: []v1alpha1.CRDDescription{
+								{
+									Name:    "crdownedkinds.g",
+									Version: "v1",
+									Kind:    "CRDOwnedKind",
+								},
+							},
+							Required: []v1alpha1.CRDDescription{
+								{
+									Name:    "crdreqkinds.g2",
+									Version: "v1",
+									Kind:    "CRDReqKind",
+								},
+							},
+						},
+						APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+							Owned: []v1alpha1.APIServiceDescription{
+								{
+									Name:    "apiownedkinds",
+									Group:   "g",
+									Version: "v1",
+									Kind:    "APIOwnedKind",
+								},
+							},
+							Required: []v1alpha1.APIServiceDescription{
+								{
+									Name:    "apireqkinds",
+									Group:   "g2",
+									Version: "v1",
+									Kind:    "APIReqKind",
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &cache.Operator{
+				Name: "operator.v1",
+				ProvidedAPIs: map[opregistry.APIKey]struct{}{
+					{Group: "g", Version: "v1", Kind: "APIOwnedKind", Plural: "apiownedkinds"}: {},
+					{Group: "g", Version: "v1", Kind: "CRDOwnedKind", Plural: "crdownedkinds"}: {},
+				},
+				RequiredAPIs: map[opregistry.APIKey]struct{}{
+					{Group: "g2", Version: "v1", Kind: "APIReqKind", Plural: "apireqkinds"}: {},
+					{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
+				},
+				Properties: []*api.Property{
+					{
+						Type:  "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"APIOwnedKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type:  "olm.gvk",
+						Value: "{\"group\":\"g\",\"kind\":\"CRDOwnedKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type:  "olm.gvk.required",
+						Value: "{\"group\":\"g2\",\"kind\":\"APIReqKind\",\"version\":\"v1\"}",
+					},
+					{
+						Type:  "olm.gvk.required",
+						Value: "{\"group\":\"g2\",\"kind\":\"CRDReqKind\",\"version\":\"v1\"}",
+					},
+				},
+				SourceInfo: &cache.ExistingOperator,
+				Version:    &version.Version,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := newOperatorFromV1Alpha1CSV(tt.args.csv)
+			require.Equal(t, tt.wantErr, err)
+			requirePropertiesEqual(t, tt.want.Properties, got.Properties)
+			tt.want.Properties, got.Properties = nil, nil
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

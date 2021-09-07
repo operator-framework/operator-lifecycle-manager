@@ -239,8 +239,8 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		ProvidedApis: apiSetToGVK(providedCRDs, providedAPIServices),
 		RequiredApis: apiSetToGVK(requiredCRDs, requiredAPIServices),
 		Replaces:     replaces,
-		Dependencies: cache.APISetToDependencies(requiredCRDs, requiredAPIServices),
-		Properties: append(cache.APISetToProperties(providedCRDs, providedAPIServices, false),
+		Dependencies: apiSetToDependencies(requiredCRDs, requiredAPIServices),
+		Properties: append(apiSetToProperties(providedCRDs, providedAPIServices, false),
 			packageNameToProperty(pkg, "0.0.0"),
 		),
 	}
@@ -299,4 +299,114 @@ func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, re
 func withReplaces(operator *cache.Operator, replaces string) *cache.Operator {
 	operator.Replaces = replaces
 	return operator
+}
+
+func requirePropertiesEqual(t *testing.T, a, b []*api.Property) {
+	type Property struct {
+		Type  string
+		Value interface{}
+	}
+	nice := func(in *api.Property) Property {
+		var i interface{}
+		if err := json.Unmarshal([]byte(in.Value), &i); err != nil {
+			t.Fatalf("property value %q could not be unmarshaled as json: %s", in.Value, err)
+		}
+		return Property{
+			Type:  in.Type,
+			Value: i,
+		}
+	}
+	var l, r []Property
+	for _, p := range a {
+		l = append(l, nice(p))
+	}
+	for _, p := range b {
+		r = append(r, nice(p))
+	}
+	require.ElementsMatch(t, l, r)
+}
+
+func apiSetToProperties(crds, apis cache.APISet, deprecated bool) (out []*api.Property) {
+	out = make([]*api.Property, 0)
+	for a := range crds {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if deprecated {
+		val, err := json.Marshal(opregistry.DeprecatedProperty{})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.DeprecatedType,
+			Value: string(val),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return
+}
+
+func apiSetToDependencies(crds, apis cache.APISet) (out []*api.Dependency) {
+	if len(crds)+len(apis) == 0 {
+		return nil
+	}
+	out = make([]*api.Dependency, 0)
+	for a := range crds {
+		val, err := json.Marshal(opregistry.GVKDependency{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Dependency{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKDependency{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Dependency{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return
 }

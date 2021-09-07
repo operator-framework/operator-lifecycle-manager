@@ -829,7 +829,7 @@ func TestResolver(t *testing.T) {
 			for catalog, bundles := range tt.bundlesByCatalog {
 				snapshot := &resolvercache.Snapshot{}
 				for _, bundle := range bundles {
-					op, err := resolvercache.NewOperatorFromBundle(bundle, "", catalog, "")
+					op, err := newOperatorFromBundle(bundle, "", catalog, "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -974,7 +974,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 
 			stubSnapshot := &resolvercache.Snapshot{}
 			for _, bundle := range tt.bundlesInCatalog {
-				op, err := resolvercache.NewOperatorFromBundle(bundle, "", catalog, "")
+				op, err := newOperatorFromBundle(bundle, "", catalog, "")
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}

@@ -37,7 +37,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
-	resolvercache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
@@ -1381,7 +1380,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	out = in.DeepCopy()
 	now := a.now()
 
-	operatorSurface, err := resolvercache.NewOperatorFromV1Alpha1CSV(out)
+	operatorSurface, err := apiSurfaceOfCSV(out)
 	if err != nil {
 		// If the resolver is unable to retrieve the operator info from the CSV the CSV requires changes, a syncError should not be returned.
 		logger.WithError(err).Warn("Unable to retrieve operator information from CSV")
@@ -1445,7 +1444,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 	groupSurface := NewOperatorGroup(operatorGroup)
 	otherGroupSurfaces := NewOperatorGroupSurfaces(otherGroups...)
-	providedAPIs := operatorSurface.GetProvidedAPIs().StripPlural()
+	providedAPIs := operatorSurface.ProvidedAPIs.StripPlural()
 
 	switch result := a.apiReconciler.Reconcile(providedAPIs, groupSurface, otherGroupSurfaces...); {
 	case operatorGroup.Spec.StaticProvidedAPIs && (result == AddAPIs || result == RemoveAPIs):

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/blang/semver/v4"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -58,7 +59,7 @@ func (s *registrySource) Snapshot(ctx context.Context) (*cache.Snapshot, error) 
 				defaultChannel = p.DefaultChannelName
 			}
 		}
-		o, err := cache.NewOperatorFromBundle(b, "", s.key, defaultChannel)
+		o, err := newOperatorFromBundle(b, "", s.key, defaultChannel)
 		if err != nil {
 			s.logger.Printf("failed to construct operator from bundle, continuing: %v", err)
 			continue
@@ -106,4 +107,133 @@ func EnsurePackageProperty(o *cache.Operator, name, version string) {
 		Type:  opregistry.PackageType,
 		Value: string(bytes),
 	})
+}
+
+func newOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey cache.SourceKey, defaultChannel string) (*cache.Operator, error) {
+	parsedVersion, err := semver.ParseTolerant(bundle.Version)
+	version := &parsedVersion
+	if err != nil {
+		version = nil
+	}
+	provided := cache.APISet{}
+	for _, gvk := range bundle.ProvidedApis {
+		provided[opregistry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
+	}
+	required := cache.APISet{}
+	for _, gvk := range bundle.RequiredApis {
+		required[opregistry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
+	}
+	sourceInfo := &cache.OperatorSourceInfo{
+		Package:     bundle.PackageName,
+		Channel:     bundle.ChannelName,
+		StartingCSV: startingCSV,
+		Catalog:     sourceKey,
+	}
+	sourceInfo.DefaultChannel = sourceInfo.Channel == defaultChannel
+
+	// legacy support - if the api doesn't contain properties/dependencies, build them from required/provided apis
+	properties := bundle.Properties
+	if len(properties) == 0 {
+		properties, err = providedAPIsToProperties(provided)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(bundle.Dependencies) > 0 {
+		ps, err := legacyDependenciesToProperties(bundle.Dependencies)
+		if err != nil {
+			return nil, fmt.Errorf("failed to translate legacy dependencies to properties: %w", err)
+		}
+		properties = append(properties, ps...)
+	} else {
+		ps, err := requiredAPIsToProperties(required)
+		if err != nil {
+			return nil, err
+		}
+		properties = append(properties, ps...)
+	}
+
+	o := &cache.Operator{
+		Name:         bundle.CsvName,
+		Replaces:     bundle.Replaces,
+		Version:      version,
+		ProvidedAPIs: provided,
+		RequiredAPIs: required,
+		SourceInfo:   sourceInfo,
+		Properties:   properties,
+		Skips:        bundle.Skips,
+		BundlePath:   bundle.BundlePath,
+	}
+
+	if r, err := semver.ParseRange(bundle.SkipRange); err == nil {
+		o.SkipRange = r
+	}
+
+	if o.BundlePath == "" {
+		// This bundle's content is embedded within the Bundle
+		// proto message, not specified via image reference.
+		o.Bundle = bundle
+	}
+
+	return o, nil
+}
+
+func legacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Property, error) {
+	var result []*api.Property
+	for _, dependency := range dependencies {
+		switch dependency.Type {
+		case "olm.gvk":
+			type gvk struct {
+				Group   string `json:"group"`
+				Version string `json:"version"`
+				Kind    string `json:"kind"`
+			}
+			var vfrom gvk
+			if err := json.Unmarshal([]byte(dependency.Value), &vfrom); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal legacy 'olm.gvk' dependency: %w", err)
+			}
+			vto := gvk{
+				Group:   vfrom.Group,
+				Version: vfrom.Version,
+				Kind:    vfrom.Kind,
+			}
+			vb, err := json.Marshal(&vto)
+			if err != nil {
+				return nil, fmt.Errorf("unexpected error marshaling generated 'olm.package.required' property: %w", err)
+			}
+			result = append(result, &api.Property{
+				Type:  "olm.gvk.required",
+				Value: string(vb),
+			})
+		case "olm.package":
+			var vfrom struct {
+				PackageName  string `json:"packageName"`
+				VersionRange string `json:"version"`
+			}
+			if err := json.Unmarshal([]byte(dependency.Value), &vfrom); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal legacy 'olm.package' dependency: %w", err)
+			}
+			vto := struct {
+				PackageName  string `json:"packageName"`
+				VersionRange string `json:"versionRange"`
+			}{
+				PackageName:  vfrom.PackageName,
+				VersionRange: vfrom.VersionRange,
+			}
+			vb, err := json.Marshal(&vto)
+			if err != nil {
+				return nil, fmt.Errorf("unexpected error marshaling generated 'olm.package.required' property: %w", err)
+			}
+			result = append(result, &api.Property{
+				Type:  "olm.package.required",
+				Value: string(vb),
+			})
+		case "olm.label":
+			result = append(result, &api.Property{
+				Type:  "olm.label.required",
+				Value: dependency.Value,
+			})
+		}
+	}
+	return result, nil
 }
