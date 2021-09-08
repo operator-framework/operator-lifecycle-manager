@@ -5,6 +5,7 @@ on:
     - '**'
     - '!doc/contributors/**'
     - '!doc/design/**'
+    - '!**/*.md'
   schedule:
   - cron: '0 0 * * *' # daily to pick up releases
 jobs:

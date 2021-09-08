@@ -5,6 +5,7 @@ on:
     - '**'
     - '!doc/contributors/**'
     - '!doc/design/**'
+    - '**/*.md'
 jobs:
   image:
     runs-on: ubuntu-latest
