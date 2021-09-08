@@ -1,10 +1,8 @@
 name: ci
 on:
   pull_request:
-    paths:
-    - '**'
-    - '!doc/contributors/**'
-    - '!doc/design/**'
+    paths-ignore:
+    - '**/*.md'
 jobs:
   image:
     runs-on: ubuntu-latest
