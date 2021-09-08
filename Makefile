@@ -184,6 +184,9 @@ clean:
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
 
+lint:
+	find . -name '*.go' -not -path "./vendor/*" -not -path "./pkg/lib/operatorclient/operatorclientmocks/*" | xargs gofmt -w
+	find . -name '*.go' -not -path "./vendor/*" -not -path "./pkg/lib/operatorclient/operatorclientmocks/*" | xargs goimports -w
 
 # Copy CRD manifests
 manifests: vendor
