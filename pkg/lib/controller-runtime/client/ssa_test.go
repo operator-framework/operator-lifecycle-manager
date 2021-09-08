@@ -2,8 +2,9 @@ package client
 
 import (
 	"context"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/testobj"
 	"github.com/stretchr/testify/require"

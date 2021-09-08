@@ -2,6 +2,7 @@ package openshift
 
 import (
 	"fmt"
+
 	semver "github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
