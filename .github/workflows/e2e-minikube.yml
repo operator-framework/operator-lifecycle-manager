@@ -1,11 +1,9 @@
 name: ci
 on:
   pull_request:
-    paths:
-    - '**'
-    - '!doc/contributors/**'
-    - '!doc/design/**'
-    - '!**/*.md'
+    paths-ignore:
+    - 'doc/**/*.md'
+    - '**/*.md'
   schedule:
   - cron: '0 0 * * *' # daily to pick up releases
 jobs:

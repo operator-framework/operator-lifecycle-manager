@@ -4,10 +4,9 @@ on:
     branches:
       - master
   pull_request:
-    paths:
-      - '**'
-      - '!doc/**'
-      - '!**/*.md'
+    paths-ignore:
+    - 'doc/**/*.md'
+    - '**/*.md'
 jobs:
   unit:
     runs-on: ubuntu-latest
