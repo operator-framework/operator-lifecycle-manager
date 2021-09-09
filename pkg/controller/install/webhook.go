@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"hash/fnv"
 
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-
 	log "github.com/sirupsen/logrus"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/util/retry"
+
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 func ValidWebhookRules(rules []admissionregistrationv1.RuleWithOperations) error {
@@ -200,69 +201,74 @@ func (i *StrategyDeploymentInstaller) createOrUpdateConversionWebhook(caPEM []by
 
 	// iterate over all the ConversionCRDs
 	for _, conversionCRD := range desc.ConversionCRDs {
-		// Get existing CRD on cluster
-		crd, err := i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("Unable to get CRD %s specified in Conversion Webhook: %v", conversionCRD, err)
-		}
-
-		// check if this CRD is an owned CRD
-		foundCRD := false
-		for _, ownedCRD := range csv.Spec.CustomResourceDefinitions.Owned {
-			if ownedCRD.Name == conversionCRD {
-				foundCRD = true
-				break
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			// Get existing CRD on cluster
+			crd, err := i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), conversionCRD, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("Unable to get CRD %s specified in Conversion Webhook: %v", conversionCRD, err)
 			}
-		}
-		if !foundCRD {
-			return fmt.Errorf("CSV %s does not own CRD %s", csv.GetName(), conversionCRD)
-		}
 
-		// crd.Spec.Conversion.Strategy specifies how custom resources are converted between versions.
-		// Allowed values are:
-		// 	- None: The converter only change the apiVersion and would not touch any other field in the custom resource.
-		// 	- Webhook: API Server will call to an external webhook to do the conversion. This requires crd.Spec.preserveUnknownFields to be false.
-		// References:
-		//  - https://docs.openshift.com/container-platform/4.5/rest_api/extension_apis/customresourcedefinition-apiextensions-k8s-io-v1.html
-		// 	- https://kubernetes.io/blog/2019/06/20/crd-structural-schema/#pruning-don-t-preserve-unknown-fields
-		// By default the strategy is none
-		// Reference:
-		// 	- https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#specify-multiple-versions
-		if crd.Spec.PreserveUnknownFields != false {
-			return fmt.Errorf("crd.Spec.PreserveUnknownFields must be false to let API Server call webhook to do the conversion")
-		}
+			// check if this CRD is an owned CRD
+			foundCRD := false
+			for _, ownedCRD := range csv.Spec.CustomResourceDefinitions.Owned {
+				if ownedCRD.Name == conversionCRD {
+					foundCRD = true
+					break
+				}
+			}
+			if !foundCRD {
+				return fmt.Errorf("CSV %s does not own CRD %s", csv.GetName(), conversionCRD)
+			}
 
-		// Conversion WebhookClientConfig should not be set when Strategy is None
-		// https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#specify-multiple-versions
-		// Conversion WebhookClientConfig needs to be set when Strategy is None
-		// https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#configure-customresourcedefinition-to-use-conversion-webhooks
+			// crd.Spec.Conversion.Strategy specifies how custom resources are converted between versions.
+			// Allowed values are:
+			// 	- None: The converter only change the apiVersion and would not touch any other field in the custom resource.
+			// 	- Webhook: API Server will call to an external webhook to do the conversion. This requires crd.Spec.preserveUnknownFields to be false.
+			// References:
+			//  - https://docs.openshift.com/container-platform/4.5/rest_api/extension_apis/customresourcedefinition-apiextensions-k8s-io-v1.html
+			// 	- https://kubernetes.io/blog/2019/06/20/crd-structural-schema/#pruning-don-t-preserve-unknown-fields
+			// By default the strategy is none
+			// Reference:
+			// 	- https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#specify-multiple-versions
+			if crd.Spec.PreserveUnknownFields != false {
+				return fmt.Errorf("crd.Spec.PreserveUnknownFields must be false to let API Server call webhook to do the conversion")
+			}
 
-		// use user defined path for CRD conversion webhook, else set default value
-		conversionWebhookPath := "/"
-		if desc.WebhookPath != nil {
-			conversionWebhookPath = *desc.WebhookPath
-		}
+			// Conversion WebhookClientConfig should not be set when Strategy is None
+			// https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#specify-multiple-versions
+			// Conversion WebhookClientConfig needs to be set when Strategy is None
+			// https://v1-15.docs.kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/#configure-customresourcedefinition-to-use-conversion-webhooks
 
-		// Override Name, Namespace, and CABundle
-		crd.Spec.Conversion = &apiextensionsv1.CustomResourceConversion{
-			Strategy: "Webhook",
-			Webhook: &apiextensionsv1.WebhookConversion{
-				ClientConfig: &apiextensionsv1.WebhookClientConfig{
-					Service: &apiextensionsv1.ServiceReference{
-						Namespace: i.owner.GetNamespace(),
-						Name:      desc.DomainName() + "-service",
-						Path:      &conversionWebhookPath,
-						Port:      &desc.ContainerPort,
+			// use user defined path for CRD conversion webhook, else set default value
+			conversionWebhookPath := "/"
+			if desc.WebhookPath != nil {
+				conversionWebhookPath = *desc.WebhookPath
+			}
+
+			// Override Name, Namespace, and CABundle
+			crd.Spec.Conversion = &apiextensionsv1.CustomResourceConversion{
+				Strategy: "Webhook",
+				Webhook: &apiextensionsv1.WebhookConversion{
+					ClientConfig: &apiextensionsv1.WebhookClientConfig{
+						Service: &apiextensionsv1.ServiceReference{
+							Namespace: i.owner.GetNamespace(),
+							Name:      desc.DomainName() + "-service",
+							Path:      &conversionWebhookPath,
+							Port:      &desc.ContainerPort,
+						},
+						CABundle: caPEM,
 					},
-					CABundle: caPEM,
+					ConversionReviewVersions: desc.AdmissionReviewVersions,
 				},
-				ConversionReviewVersions: desc.AdmissionReviewVersions,
-			},
-		}
+			}
 
-		// update CRD conversion Specs
-		if _, err = i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{}); err != nil {
-			return fmt.Errorf("Error updating CRD with Conversion info: %v", err)
+			// update CRD conversion Specs
+			if _, err = i.strategyClient.GetOpClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{}); err != nil {
+				return fmt.Errorf("Error updating CRD with Conversion info: %w", err)
+			}
+			return nil
+		}); err != nil {
+			return err
 		}
 	}
 
