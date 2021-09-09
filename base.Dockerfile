@@ -2,11 +2,12 @@
 
 FROM openshift/origin-release:golang-1.13
 
-# Install test dependencies
+ARG KUBEBUILDER_RELEASE=2.3.1
 RUN yum install -y skopeo && \
     export OS=$(go env GOOS) && \
     export ARCH=$(go env GOARCH) && \
-    curl -L "https://go.kubebuilder.io/dl/2.3.1/${OS}/${ARCH}" | tar -xz -C /tmp/ && \
-    mv /tmp/kubebuilder_2.3.1_${OS}_${ARCH}/ /usr/local/kubebuilder && \
+    curl -L "https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${KUBEBUILDER_RELEASE}/kubebuilder_${KUBEBUILDER_RELEASE}_${OS}_${ARCH}.tar.gz" | tar -xz -C /tmp/ && \
+    mv /tmp/kubebuilder_${KUBEBUILDER_RELEASE}_${OS}_${ARCH}/ /usr/local/kubebuilder && \
     export PATH=$PATH:/usr/local/kubebuilder/bin && \
+    kubebuilder version && \
     echo "Kubebuilder installation complete!"
