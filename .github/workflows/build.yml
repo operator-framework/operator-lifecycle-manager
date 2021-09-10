@@ -10,8 +10,8 @@ jobs:
     - name: Check out the repo
       uses: actions/checkout@v2
     - name: Build the container image
-      uses: docker/build-push-action@v1
+      uses: docker/build-push-action@v2
       with:
-        repository: operator-framework/olm
-        dockerfile: ./Dockerfile
+        context: .
+        file: Dockerfile
         push: false
