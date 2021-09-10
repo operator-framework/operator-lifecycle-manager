@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"io"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"

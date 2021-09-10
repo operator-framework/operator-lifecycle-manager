@@ -16,12 +16,12 @@ import (
 )
 
 type CertGenerator interface {
-  Generate(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error)
+	Generate(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error)
 }
 
 type CertGeneratorFunc func(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error)
 
-func (f CertGeneratorFunc) Generate(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error)  {
+func (f CertGeneratorFunc) Generate(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error) {
 	return f(notAfter, organization, ca, hosts)
 }
 

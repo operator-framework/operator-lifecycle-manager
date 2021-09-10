@@ -38,4 +38,3 @@ func Version(manifest *string) (string, error) {
 
 	return v, nil
 }
-

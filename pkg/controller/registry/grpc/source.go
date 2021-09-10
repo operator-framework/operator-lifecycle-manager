@@ -2,9 +2,10 @@ package grpc
 
 import (
 	"context"
-	"github.com/operator-framework/operator-registry/pkg/client"
 	"sync"
 	"time"
+
+	"github.com/operator-framework/operator-registry/pkg/client"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"

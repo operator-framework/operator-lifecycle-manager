@@ -3,10 +3,11 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os/exec"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os/exec"
 )
 
 // This module contains helper functions for copying images and creating image registries

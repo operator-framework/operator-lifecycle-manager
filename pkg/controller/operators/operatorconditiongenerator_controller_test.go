@@ -14,8 +14,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 )
 
 var _ = Describe("The OperatorConditionsGenerator Controller", func() {
