@@ -32,7 +32,7 @@ func GetListenAndServeFunc(logger *logrus.Logger, tlsCertPath, tlsKeyPath, clien
 
 		certStore, err := filemonitor.NewCertStore(*tlsCertPath, *tlsKeyPath)
 		if err != nil {
-			return nil, fmt.Errorf("Certificate monitoring for metrics (https) failed: %v", err)
+			return nil, fmt.Errorf("certificate monitoring for metrics (https) failed: %v", err)
 		}
 
 		csw, err := filemonitor.NewWatch(logger, []string{filepath.Dir(*tlsCertPath), filepath.Dir(*tlsKeyPath)}, certStore.HandleFilesystemUpdate)
@@ -41,6 +41,9 @@ func GetListenAndServeFunc(logger *logrus.Logger, tlsCertPath, tlsKeyPath, clien
 		}
 		csw.Run(context.Background())
 		certPoolStore, err := filemonitor.NewCertPoolStore(*clientCAPath)
+		if err != nil {
+			return nil, fmt.Errorf("certificate monitoring for client-ca failed: %v", err)
+		}
 		cpsw, err := filemonitor.NewWatch(logger, []string{filepath.Dir(*clientCAPath)}, certPoolStore.HandleCABundleUpdate)
 		if err != nil {
 			return nil, fmt.Errorf("error creating cert file watcher: %v", err)
