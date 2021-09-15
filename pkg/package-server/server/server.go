@@ -28,8 +28,9 @@ import (
 // with a default PackageServerOptions.
 func NewCommandStartPackageServer(ctx context.Context, defaults *PackageServerOptions) *cobra.Command {
 	cmd := &cobra.Command{
-		Short: "Launch a package API server",
-		Long:  "Launch a package API server",
+		Short:        "Launch a package API server",
+		Long:         "Launch a package API server",
+		SilenceUsage: true,
 		RunE: func(c *cobra.Command, args []string) error {
 			if err := defaults.Run(ctx); err != nil {
 				return err
@@ -94,7 +95,8 @@ func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 	return o
 }
 
-// Config returns config for the PackageServerOptions.
+// Config returns an initialized apiserver config for the PackageServerOptions
+// type when no error has been encountered, else a nil config is returned.
 func (o *PackageServerOptions) Config(ctx context.Context) (*apiserver.Config, error) {
 	if err := o.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
@@ -135,9 +137,11 @@ func (o *PackageServerOptions) Config(ctx context.Context) (*apiserver.Config, e
 		}
 		return true, nil
 	}, pollCtx.Done())
-
 	if err != nil {
-		return nil, lastApplyErr
+		if lastApplyErr != nil {
+			return nil, lastApplyErr
+		}
+		return nil, err
 	}
 
 	if err := o.Authentication.ApplyTo(&config.Authentication, config.SecureServing, nil); err != nil {
@@ -161,9 +165,11 @@ func (o *PackageServerOptions) Config(ctx context.Context) (*apiserver.Config, e
 		}
 		return true, nil
 	}, pollCtx.Done())
-
 	if err != nil {
-		return nil, lastApplyErr
+		if lastApplyErr != nil {
+			return nil, lastApplyErr
+		}
+		return nil, err
 	}
 
 	if err := o.Authorization.ApplyTo(&config.Authorization); err != nil {
