@@ -296,7 +296,7 @@ func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, re
 	}
 }
 
-func withReplaces(operator *cache.Operator, replaces string) *cache.Operator {
+func withReplaces(operator *cache.Entry, replaces string) *cache.Entry {
 	operator.Replaces = replaces
 	return operator
 }

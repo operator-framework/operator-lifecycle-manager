@@ -25,7 +25,7 @@ func TestOperatorCacheConcurrency(t *testing.T) {
 			key := SourceKey{Namespace: strconv.Itoa(i), Name: strconv.Itoa(j)}
 			keys = append(keys, key)
 			sp[key] = &Snapshot{
-				Entries: []*Operator{
+				Entries: []*Entry{
 					{Name: fmt.Sprintf("%s/%s", key.Namespace, key.Name)},
 				},
 			}
@@ -71,14 +71,14 @@ func TestOperatorCacheExpiration(t *testing.T) {
 	c.ttl = 0 // instantly stale
 
 	ssp[key] = &Snapshot{
-		Entries: []*Operator{
+		Entries: []*Entry{
 			{Name: "v1"},
 		},
 	}
 	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("v1")), 1)
 
 	ssp[key] = &Snapshot{
-		Entries: []*Operator{
+		Entries: []*Entry{
 			{Name: "v2"},
 		},
 	}
@@ -91,14 +91,14 @@ func TestOperatorCacheReuse(t *testing.T) {
 	c := New(ssp)
 
 	ssp[key] = &Snapshot{
-		Entries: []*Operator{
+		Entries: []*Entry{
 			{Name: "v1"},
 		},
 	}
 	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("v1")), 1)
 
 	ssp[key] = &Snapshot{
-		Entries: []*Operator{
+		Entries: []*Entry{
 			{Name: "v2"},
 		},
 	}
@@ -172,18 +172,18 @@ func TestCatalogSnapshotValid(t *testing.T) {
 func TestCatalogSnapshotFind(t *testing.T) {
 	type tc struct {
 		Name      string
-		Predicate OperatorPredicate
-		Operators []*Operator
-		Expected  []*Operator
+		Predicate Predicate
+		Operators []*Entry
+		Expected  []*Entry
 	}
 
 	for _, tt := range []tc{
 		{
 			Name: "nothing satisfies predicate",
-			Predicate: OperatorPredicateTestFunc(func(*Operator) bool {
+			Predicate: OperatorPredicateTestFunc(func(*Entry) bool {
 				return false
 			}),
-			Operators: []*Operator{
+			Operators: []*Entry{
 				{Name: "a"},
 				{Name: "b"},
 				{Name: "c"},
@@ -192,7 +192,7 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		},
 		{
 			Name: "no operators in snapshot",
-			Predicate: OperatorPredicateTestFunc(func(*Operator) bool {
+			Predicate: OperatorPredicateTestFunc(func(*Entry) bool {
 				return true
 			}),
 			Operators: nil,
@@ -200,15 +200,15 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		},
 		{
 			Name: "everything satisfies predicate",
-			Predicate: OperatorPredicateTestFunc(func(*Operator) bool {
+			Predicate: OperatorPredicateTestFunc(func(*Entry) bool {
 				return true
 			}),
-			Operators: []*Operator{
+			Operators: []*Entry{
 				{Name: "a"},
 				{Name: "b"},
 				{Name: "c"},
 			},
-			Expected: []*Operator{
+			Expected: []*Entry{
 				{Name: "a"},
 				{Name: "b"},
 				{Name: "c"},
@@ -216,15 +216,15 @@ func TestCatalogSnapshotFind(t *testing.T) {
 		},
 		{
 			Name: "some satisfy predicate",
-			Predicate: OperatorPredicateTestFunc(func(o *Operator) bool {
+			Predicate: OperatorPredicateTestFunc(func(o *Entry) bool {
 				return o.Name != "a"
 			}),
-			Operators: []*Operator{
+			Operators: []*Entry{
 				{Name: "a"},
 				{Name: "b"},
 				{Name: "c"},
 			},
-			Expected: []*Operator{
+			Expected: []*Entry{
 				{Name: "b"},
 				{Name: "c"},
 			},

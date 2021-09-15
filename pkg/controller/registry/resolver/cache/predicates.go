@@ -10,18 +10,18 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
-type OperatorPredicate interface {
-	Test(*Operator) bool
+type Predicate interface {
+	Test(*Entry) bool
 	String() string
 }
 
 type csvNamePredicate string
 
-func CSVNamePredicate(name string) OperatorPredicate {
+func CSVNamePredicate(name string) Predicate {
 	return csvNamePredicate(name)
 }
 
-func (c csvNamePredicate) Test(o *Operator) bool {
+func (c csvNamePredicate) Test(o *Entry) bool {
 	return o.Name == string(c)
 }
 
@@ -31,11 +31,11 @@ func (c csvNamePredicate) String() string {
 
 type channelPredicate string
 
-func ChannelPredicate(channel string) OperatorPredicate {
+func ChannelPredicate(channel string) Predicate {
 	return channelPredicate(channel)
 }
 
-func (ch channelPredicate) Test(o *Operator) bool {
+func (ch channelPredicate) Test(o *Entry) bool {
 	// all operators match the empty channel
 	if string(ch) == "" {
 		return true
@@ -52,11 +52,11 @@ func (ch channelPredicate) String() string {
 
 type pkgPredicate string
 
-func PkgPredicate(pkg string) OperatorPredicate {
+func PkgPredicate(pkg string) Predicate {
 	return pkgPredicate(pkg)
 }
 
-func (pkg pkgPredicate) Test(o *Operator) bool {
+func (pkg pkgPredicate) Test(o *Entry) bool {
 	for _, p := range o.Properties {
 		if p.Type != opregistry.PackageType {
 			continue
@@ -82,11 +82,11 @@ type versionInRangePredicate struct {
 	str string
 }
 
-func VersionInRangePredicate(r semver.Range, version string) OperatorPredicate {
+func VersionInRangePredicate(r semver.Range, version string) Predicate {
 	return versionInRangePredicate{r: r, str: version}
 }
 
-func (v versionInRangePredicate) Test(o *Operator) bool {
+func (v versionInRangePredicate) Test(o *Entry) bool {
 	for _, p := range o.Properties {
 		if p.Type != opregistry.PackageType {
 			continue
@@ -113,10 +113,10 @@ func (v versionInRangePredicate) String() string {
 
 type labelPredicate string
 
-func LabelPredicate(label string) OperatorPredicate {
+func LabelPredicate(label string) Predicate {
 	return labelPredicate(label)
 }
-func (l labelPredicate) Test(o *Operator) bool {
+func (l labelPredicate) Test(o *Entry) bool {
 	for _, p := range o.Properties {
 		if p.Type != opregistry.LabelType {
 			continue
@@ -141,11 +141,11 @@ type catalogPredicate struct {
 	key SourceKey
 }
 
-func CatalogPredicate(key SourceKey) OperatorPredicate {
+func CatalogPredicate(key SourceKey) Predicate {
 	return catalogPredicate{key: key}
 }
 
-func (c catalogPredicate) Test(o *Operator) bool {
+func (c catalogPredicate) Test(o *Entry) bool {
 	return c.key.Equal(o.SourceInfo.Catalog)
 }
 
@@ -157,13 +157,13 @@ type gvkPredicate struct {
 	api opregistry.APIKey
 }
 
-func ProvidingAPIPredicate(api opregistry.APIKey) OperatorPredicate {
+func ProvidingAPIPredicate(api opregistry.APIKey) Predicate {
 	return gvkPredicate{
 		api: api,
 	}
 }
 
-func (g gvkPredicate) Test(o *Operator) bool {
+func (g gvkPredicate) Test(o *Entry) bool {
 	for _, p := range o.Properties {
 		if p.Type != opregistry.GVKType {
 			continue
@@ -188,11 +188,11 @@ type skipRangeIncludesPredication struct {
 	version semver.Version
 }
 
-func SkipRangeIncludesPredicate(version semver.Version) OperatorPredicate {
+func SkipRangeIncludesPredicate(version semver.Version) Predicate {
 	return skipRangeIncludesPredication{version: version}
 }
 
-func (s skipRangeIncludesPredication) Test(o *Operator) bool {
+func (s skipRangeIncludesPredication) Test(o *Entry) bool {
 	return o.SkipRange != nil && o.SkipRange(s.version)
 }
 
@@ -202,11 +202,11 @@ func (s skipRangeIncludesPredication) String() string {
 
 type replacesPredicate string
 
-func ReplacesPredicate(replaces string) OperatorPredicate {
+func ReplacesPredicate(replaces string) Predicate {
 	return replacesPredicate(replaces)
 }
 
-func (r replacesPredicate) Test(o *Operator) bool {
+func (r replacesPredicate) Test(o *Entry) bool {
 	if o.Replaces == string(r) {
 		return true
 	}
@@ -223,16 +223,16 @@ func (r replacesPredicate) String() string {
 }
 
 type andPredicate struct {
-	predicates []OperatorPredicate
+	predicates []Predicate
 }
 
-func And(p ...OperatorPredicate) OperatorPredicate {
+func And(p ...Predicate) Predicate {
 	return andPredicate{
 		predicates: p,
 	}
 }
 
-func (p andPredicate) Test(o *Operator) bool {
+func (p andPredicate) Test(o *Entry) bool {
 	for _, predicate := range p.predicates {
 		if predicate.Test(o) == false {
 			return false
@@ -252,17 +252,17 @@ func (p andPredicate) String() string {
 	return b.String()
 }
 
-func Or(p ...OperatorPredicate) OperatorPredicate {
+func Or(p ...Predicate) Predicate {
 	return orPredicate{
 		predicates: p,
 	}
 }
 
 type orPredicate struct {
-	predicates []OperatorPredicate
+	predicates []Predicate
 }
 
-func (p orPredicate) Test(o *Operator) bool {
+func (p orPredicate) Test(o *Entry) bool {
 	for _, predicate := range p.predicates {
 		if predicate.Test(o) == true {
 			return true
@@ -286,11 +286,11 @@ type booleanPredicate struct {
 	result bool
 }
 
-func BooleanPredicate(result bool) OperatorPredicate {
+func BooleanPredicate(result bool) Predicate {
 	return booleanPredicate{result: result}
 }
 
-func (b booleanPredicate) Test(o *Operator) bool {
+func (b booleanPredicate) Test(o *Entry) bool {
 	return b.result
 }
 
@@ -301,20 +301,20 @@ func (b booleanPredicate) String() string {
 	return fmt.Sprintf("predicate is false")
 }
 
-func True() OperatorPredicate {
+func True() Predicate {
 	return BooleanPredicate(true)
 }
 
-func False() OperatorPredicate {
+func False() Predicate {
 	return BooleanPredicate(false)
 }
 
 type countingPredicate struct {
-	p OperatorPredicate
+	p Predicate
 	n *int
 }
 
-func (c countingPredicate) Test(o *Operator) bool {
+func (c countingPredicate) Test(o *Entry) bool {
 	if c.p.Test(o) {
 		*c.n++
 		return true
@@ -326,6 +326,6 @@ func (c countingPredicate) String() string {
 	return c.p.String()
 }
 
-func CountingPredicate(p OperatorPredicate, n *int) OperatorPredicate {
+func CountingPredicate(p Predicate, n *int) Predicate {
 	return countingPredicate{p: p, n: n}
 }

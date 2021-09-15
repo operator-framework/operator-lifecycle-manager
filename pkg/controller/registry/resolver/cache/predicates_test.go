@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type OperatorPredicateTestFunc func(*Operator) bool
+type OperatorPredicateTestFunc func(*Entry) bool
 
-func (opf OperatorPredicateTestFunc) Test(o *Operator) bool {
+func (opf OperatorPredicateTestFunc) Test(o *Entry) bool {
 	return opf(o)
 }
 
@@ -49,7 +49,7 @@ func TestCountingPredicate(t *testing.T) {
 				result bool
 			)
 
-			p := CountingPredicate(OperatorPredicateTestFunc(func(*Operator) bool {
+			p := CountingPredicate(OperatorPredicateTestFunc(func(*Entry) bool {
 				return result
 			}), &n)
 
