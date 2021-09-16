@@ -3,6 +3,7 @@ package resolver
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
@@ -55,32 +56,110 @@ func bundleId(bundle, channel string, catalog cache.SourceKey) solver.Identifier
 	return solver.IdentifierFromString(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
 }
 
+// ConstraintProvder knows how to provide solver constraints for a given cache entry.
+type ConstraintProvider interface {
+	// Constraints returns a set of solver constraints for a cache entry.
+	Constraints(o *cache.Operator) ([]solver.Constraint, error)
+}
+
+// ConstraintProviderFunc allows a function to implement the ConstraintProvider interface.
+type ConstraintProviderFunc func(o *cache.Operator) ([]solver.Constraint, error)
+
+func (c ConstraintProviderFunc) Constraints(o *cache.Operator) ([]solver.Constraint, error) {
+	return c(o)
+}
+
+// constraintProviderList provides aggregate constraints from a list of ConstraintProviders.
+type constraintProviderList struct {
+	mu        sync.RWMutex
+	providers []ConstraintProvider
+}
+
+// add appends the given ConstraintProviders to the list aggregated over by the constraintProviderList.
+// add is threadsafe.
+func (c *constraintProviderList) add(providers ...ConstraintProvider) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.providers = append(c.providers, providers...)
+}
+
+func (c *constraintProviderList) Constraints(o *cache.Operator) ([]solver.Constraint, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var constraints []solver.Constraint
+	for _, provider := range c.providers {
+		cons, err := provider.Constraints(o)
+		if err != nil {
+			return nil, err
+		}
+
+		constraints = append(constraints, cons...)
+	}
+
+	return constraints, nil
+}
+
+var (
+	// systemConstraintProviders is the list of constraint providers used by all solvers.
+	systemConstraintProviders = constraintProviderList{
+		providers: []ConstraintProvider{
+			freestandingCSVConstraint(),
+			deprecatedConstraint(),
+		},
+	}
+)
+
+func freestandingCSVConstraint() ConstraintProviderFunc {
+	return func(o *cache.Operator) ([]solver.Constraint, error) {
+		if !(o.SourceInfo.Catalog.Virtual() && o.SourceInfo.Subscription == nil) {
+			return nil, nil
+		}
+
+		// CSVs already associated with a Subscription
+		// may be replaced, but freestanding CSVs must
+		// appear in any solution.
+		return []solver.Constraint{PrettyConstraint(
+			solver.Mandatory(),
+			fmt.Sprintf("clusterserviceversion %s exists and is not referenced by a subscription", o.Name),
+		)}, nil
+	}
+}
+
+func deprecatedConstraint() ConstraintProviderFunc {
+	return func(o *cache.Operator) ([]solver.Constraint, error) {
+		id := bundleId(o.Name, o.Channel(), o.SourceInfo.Catalog)
+		for _, p := range o.Properties {
+			if p.GetType() == operatorregistry.DeprecatedType {
+				return []solver.Constraint{PrettyConstraint(
+					solver.Prohibited(),
+					fmt.Sprintf("bundle %s is deprecated", id),
+				)}, nil
+			}
+		}
+
+		return nil, nil
+	}
+}
+
+// AddSystemConstraintProviders adds providers to the list of providers used system-wide, across all solvers.
+func AddSystemConstraintProviders(providers ...ConstraintProvider) {
+	systemConstraintProviders.add(providers...)
+}
+
 func NewBundleInstallableFromOperator(o *cache.Operator) (BundleInstallable, error) {
 	if o.SourceInfo == nil {
 		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Name)
 	}
-	id := bundleId(o.Name, o.Channel(), o.SourceInfo.Catalog)
-	var constraints []solver.Constraint
-	if o.SourceInfo.Catalog.Virtual() && o.SourceInfo.Subscription == nil {
-		// CSVs already associated with a Subscription
-		// may be replaced, but freestanding CSVs must
-		// appear in any solution.
-		constraints = append(constraints, PrettyConstraint(
-			solver.Mandatory(),
-			fmt.Sprintf("clusterserviceversion %s exists and is not referenced by a subscription", o.Name),
-		))
+
+	constraints, err := systemConstraintProviders.Constraints(o)
+	if err != nil {
+		return BundleInstallable{}, err
 	}
-	for _, p := range o.Properties {
-		if p.GetType() == operatorregistry.DeprecatedType {
-			constraints = append(constraints, PrettyConstraint(
-				solver.Prohibited(),
-				fmt.Sprintf("bundle %s is deprecated", id),
-			))
-			break
-		}
-	}
+
 	return BundleInstallable{
-		identifier:  id,
+		identifier:  bundleId(o.Name, o.Channel(), o.SourceInfo.Catalog),
 		constraints: constraints,
 	}, nil
 }
