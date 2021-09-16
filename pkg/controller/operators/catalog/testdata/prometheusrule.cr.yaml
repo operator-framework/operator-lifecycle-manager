@@ -11,6 +11,8 @@ spec:
       rules:
         - alert: SeriousAlert 
           annotations:
+            summary: Serious Alert!
+            description: This is a very serious alert!
             message: A serious alert! 
           expr: alert_status{prioirity="Serious"}
           labels:
