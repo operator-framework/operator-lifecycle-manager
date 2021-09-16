@@ -19,7 +19,7 @@ spec:
           namespace: "{{ "{{ $labels.namespace }}" }}"
         annotations:
           summary: CSV failed for over 2 minutes
-          description: Occurs whenever a CSV has been failing for more than 2 minutes
+          description: Fires whenever a CSV has been in a state other than succeeded for more than 2 minutes
           message: Failed to install Operator {{ printf "{{ $labels.name }}"  }} version {{ printf "{{ $labels.version }}"  }}. Reason-{{ printf "{{ $labels.reason }}" }}
       - alert: CsvAbnormalOver30Min
         expr: csv_abnormal{phase=~"(^Replacing$|^Pending$|^Deleting$|^Unknown$)"}
@@ -29,7 +29,7 @@ spec:
           namespace: "{{ "{{ $labels.namespace }}" }}"
         annotations:
           summary: CSV abnormal for over 30 minutes
-          description: Occurs whenever a CSV is abnormal for more than 30 minutes
+          description: Fires whenever a CSV is abnormal for more than 30 minutes
           message: Failed to install Operator {{ printf "{{ $labels.name }}"  }} version {{ printf "{{ $labels.version }}"  }}. Phase-{{ printf "{{ $labels.phase }}" }} Reason-{{ printf "{{ $labels.reason }}" }}
   - name: olm.installplan.rules
     rules:
@@ -39,6 +39,6 @@ spec:
         severity: warning
       annotations:
         summary: API returned a warning when modifying an operator
-        description: Occurs whenever the API server returns a warning when attempting to modify an operator.
+        description: Fires whenever the API server returns a warning when attempting to modify an operator.
         message: The API server returned a warning during installation or upgrade of an operator. An Event with reason "AppliedWithWarnings" has been created with complete details, including a reference to the InstallPlan step that generated the warning.
 {{ end }}
