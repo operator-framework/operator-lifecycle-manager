@@ -974,7 +974,7 @@ func TestMinKubeVersionStatus(t *testing.T) {
 			minKubeVersion: "0.0.0",
 			expectedMet:    true,
 			expectedRequirementStatuses: []v1alpha1.RequirementStatus{
-				v1alpha1.RequirementStatus{
+				{
 					Status:  v1alpha1.RequirementStatusReasonPresent,
 					Message: fmt.Sprintf("CSV minKubeVersion (%s) less than server version", "0.0.0"),
 					Group:   "operators.coreos.com",
@@ -990,7 +990,7 @@ func TestMinKubeVersionStatus(t *testing.T) {
 			minKubeVersion: "999.999.999",
 			expectedMet:    false,
 			expectedRequirementStatuses: []v1alpha1.RequirementStatus{
-				v1alpha1.RequirementStatus{
+				{
 					Status:  v1alpha1.RequirementStatusReasonPresentNotSatisfied,
 					Message: fmt.Sprintf("CSV version requirement not met: minKubeVersion (%s)", "999.999.999"),
 					Group:   "operators.coreos.com",
@@ -1006,7 +1006,7 @@ func TestMinKubeVersionStatus(t *testing.T) {
 			minKubeVersion: "a.b.c",
 			expectedMet:    false,
 			expectedRequirementStatuses: []v1alpha1.RequirementStatus{
-				v1alpha1.RequirementStatus{
+				{
 					Status:  v1alpha1.RequirementStatusReasonPresentNotSatisfied,
 					Message: "CSV version parsing error",
 					Group:   "operators.coreos.com",

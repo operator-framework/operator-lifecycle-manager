@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
+	semver "github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +39,7 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 		return
 	}
 
-	serverVersion, err := semver.NewVersion(strings.Split(strings.TrimPrefix(serverVersionInfo.String(), "v"), "-")[0])
+	serverVersion, err := semver.Parse(strings.Split(strings.TrimPrefix(serverVersionInfo.String(), "v"), "-")[0])
 	if err != nil {
 		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
 		status.Message = "Server version parsing error"
@@ -48,7 +48,7 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 		return
 	}
 
-	csvVersionInfo, err := semver.NewVersion(strings.TrimPrefix(minKubeVersion, "v"))
+	csvVersionInfo, err := semver.Parse(strings.TrimPrefix(minKubeVersion, "v"))
 	if err != nil {
 		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
 		status.Message = "CSV version parsing error"
@@ -57,7 +57,7 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 		return
 	}
 
-	if csvVersionInfo.Compare(*serverVersion) > 0 {
+	if csvVersionInfo.Compare(serverVersion) > 0 {
 		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
 		status.Message = fmt.Sprintf("CSV version requirement not met: minKubeVersion (%s) > server version (%s)", minKubeVersion, serverVersion.String())
 		met = false
