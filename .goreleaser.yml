@@ -1,0 +1,106 @@
+env:
+- GO111MODULE=on
+- CGO_ENABLED=0
+before:
+  hooks:
+    - go mod tidy
+    - go mod vendor
+builds:
+  - id: olm
+    main: ./cmd/olm
+    binary: olm
+    goos:
+    - linux
+    goarch:
+    - amd64
+    - arm64
+    tags:
+    - json1
+    flags:
+    - -mod=vendor
+    ldflags:
+    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+  - id: catalog
+    main: ./cmd/catalog
+    binary: catalog
+    goos:
+    - linux
+    goarch:
+    - amd64
+    - arm64
+    tags:
+    - json1
+    flags:
+    - -mod=vendor
+    ldflags:
+    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+  - id: cpb
+    main: ./util/cpb
+    binary: cpb
+    goos:
+    - linux
+    goarch:
+    - amd64
+    - arm64
+    tags:
+    - json1
+    flags:
+    - -mod=vendor
+    ldflags:
+    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+  - id: package-server
+    main: ./cmd/package-server
+    binary: package-server
+    goos:
+    - linux
+    goarch:
+    - amd64
+    - arm64
+    tags:
+    - json1
+    flags:
+    - -mod=vendor
+    ldflags:
+    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+dockers:
+- image_templates:
+  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64
+  dockerfile: Dockerfile.goreleaser
+  use: buildx
+  goos: linux
+  goarch: amd64
+  build_flag_templates:
+  - --platform=linux/amd64
+- image_templates:
+  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64
+  dockerfile: Dockerfile.goreleaser
+  use: buildx
+  goos: linux
+  goarch: arm64
+  build_flag_templates:
+  - --platform=linux/arm64
+docker_manifests:
+- name_template: quay.io/{{ .Env.IMAGE_REPO }}:v{{ .Major }}.{{ .Minor }}
+  image_templates:
+  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64
+  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64
+- name_template: quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}
+  image_templates:
+  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64
+  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^doc:'
+      - '^test:'
+release:
+  draft: true

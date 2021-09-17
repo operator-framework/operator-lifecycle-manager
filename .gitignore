@@ -455,3 +455,5 @@ apiserver.key
 
 !vendor/**
 test/e2e-local.image.tar
+
+dist/
