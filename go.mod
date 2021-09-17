@@ -5,7 +5,6 @@ go 1.16
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/bshuster-repo/logrus-logstash-hook v1.0.0 // indirect
-	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/distribution/distribution v2.7.1+incompatible
 	github.com/fsnotify/fsnotify v1.4.9
