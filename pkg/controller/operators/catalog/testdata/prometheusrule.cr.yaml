@@ -12,7 +12,7 @@ spec:
         - alert: SeriousAlert 
           annotations:
             summary: Serious Alert!
-            description: This is a very serious alert!
+            description: This is a test alert, it is not real.
             message: A serious alert! 
           expr: alert_status{prioirity="Serious"}
           labels:
