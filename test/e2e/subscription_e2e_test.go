@@ -2066,7 +2066,7 @@ var _ = Describe("Subscription", func() {
 		}
 		updateInternalCatalog(GinkgoT(), kubeClient, crClient, catalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{crd, crd2}, []operatorsv1alpha1.ClusterServiceVersion{csvNewA, csvA, csvB}, manifests)
 		csvAsub := strings.Join([]string{packageName1, stableChannel, catalogSourceName, testNamespace}, "-")
-		_, err = fetchSubscription(crClient, testNamespace, csvAsub, subscriptionStateUpgradeAvailableChecker)
+		_, err = fetchSubscription(crClient, testNamespace, csvAsub, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		// Ensure csvNewA is not installed
 		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), csvNewA.Name, metav1.GetOptions{})
