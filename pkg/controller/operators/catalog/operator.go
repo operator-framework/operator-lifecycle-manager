@@ -1044,11 +1044,6 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 }
 
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {
-	// Only sync if catalog has been updated since last sync time
-	if o.sourcesLastUpdate.Before(sub.Status.LastUpdated.Time) && sub.Status.State != v1alpha1.SubscriptionStateNone && sub.Status.State != v1alpha1.SubscriptionStateUpgradeAvailable {
-		logger.Debugf("skipping update: no new updates to catalog since last sync at %s", sub.Status.LastUpdated.String())
-		return true
-	}
 	if sub.Status.InstallPlanRef != nil && sub.Status.State == v1alpha1.SubscriptionStateUpgradePending {
 		logger.Debugf("skipping update: installplan already created")
 		return true
@@ -1102,24 +1097,13 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		return sub, false, nil
 	}
 
-	csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(context.TODO(), sub.Status.CurrentCSV, metav1.GetOptions{})
+	_, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(context.TODO(), sub.Status.CurrentCSV, metav1.GetOptions{})
 	out := sub.DeepCopy()
 	if err != nil {
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
 		out.Status.State = v1alpha1.SubscriptionStateUpgradePending
 	} else {
-		// Check if an update is available for the current csv
-		if err := querier.Queryable(); err != nil {
-			return nil, false, err
-		}
-		b, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, registry.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
-		if b != nil {
-			o.logger.Tracef("replacement %s bundle found for current bundle %s", b.CsvName, sub.Status.CurrentCSV)
-			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
-		} else {
-			out.Status.State = v1alpha1.SubscriptionStateAtLatest
-		}
-
+		out.Status.State = v1alpha1.SubscriptionStateAtLatest
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
 	}
 
