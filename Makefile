@@ -119,9 +119,18 @@ setup-bare: clean e2e.namespace
 	. ./scripts/package_release.sh 1.0.0 test/e2e/resources test/e2e/e2e-bare-values.yaml
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
-# e2e test exculding the rh-operators directory which tests rh-operators and their metric cardinality.
+GINKGO_OPTS := -flakeAttempts 3 -randomizeAllSpecs -v --timeout 120m
+
+# TODO(tflannag): Remove this target entirely and move downstream
 e2e:
-	go test -v $(MOD_FLAGS)  -failfast -timeout 150m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest -ginkgo.flakeAttempts=3
+	$(GINKGO) \
+        ./test/e2e \
+        $(GINKGO_OPTS) \
+        $< -- \
+        -namespace=openshift-operators \
+        -kubeconfig=${KUBECONFIG} \
+        -olmNamespace=openshift-operator-lifecycle-manager \
+        -dummyImage=bitnami/nginx:latest
 
 ### Start: End To End Tests ###
 
