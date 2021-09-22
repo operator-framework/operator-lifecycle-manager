@@ -39,6 +39,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -657,6 +658,7 @@ func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, names
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
 			Namespace: namespace,
+			Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 		Data: map[string]string{},
 	}
@@ -703,6 +705,7 @@ func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.Cli
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
 			Namespace: namespace,
+			Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 		Data: map[string]string{},
 	}
