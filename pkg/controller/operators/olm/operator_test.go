@@ -34,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
-	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -3667,9 +3666,13 @@ func TestUpdates(t *testing.T) {
 }
 
 func TestSyncOperatorGroups(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.WarnLevel)
 	clockFake := utilclock.NewFakeClock(time.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600)))
 	now := metav1.NewTime(clockFake.Now().UTC())
+	const (
+		timeout = 5 * time.Second
+		tick    = 50 * time.Millisecond
+	)
 
 	operatorNamespace := "operator-ns"
 	targetNamespace := "target-ns"
@@ -4305,6 +4308,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 			expectedEqual: true,
 			initial: initial{
 				operatorGroup: &v1.OperatorGroup{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1.OperatorGroupKind,
+						APIVersion: v1.GroupVersion.String(),
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "operator-group-1",
 						Namespace: operatorNamespace,
@@ -4334,6 +4341,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
 					&v1.OperatorGroup{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1.OperatorGroupKind,
+							APIVersion: v1.GroupVersion.String(),
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "operator-group-1",
 							Namespace: operatorNamespace,
@@ -4415,46 +4426,65 @@ func TestSyncOperatorGroups(t *testing.T) {
 						"AllNamespaces InstallModeType not supported, cannot configure to watch all namespaces",
 						now),
 				},
-				"":              {},
-				targetNamespace: {},
 			}},
 		},
 	}
 
+	copyObjs := func(objs []runtime.Object) []runtime.Object {
+		if len(objs) < 1 {
+			return nil
+		}
+
+		copied := make([]runtime.Object, len(objs))
+		for i, obj := range objs {
+			copied[i] = obj.DeepCopyObject()
+		}
+
+		return copied
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			namespaces := []string{}
 			// Pick out Namespaces
+			var namespaces []string
 			for _, obj := range tt.initial.k8sObjs {
 				if ns, ok := obj.(*corev1.Namespace); ok {
 					namespaces = append(namespaces, ns.GetName())
 				}
 			}
 
-			// Append operatorGroup to initialObjs
-			tt.initial.clientObjs = append(tt.initial.clientObjs, tt.initial.operatorGroup)
+			// DeepCopy test fixtures to prevent test case pollution
+			var (
+				operatorGroup = tt.initial.operatorGroup.DeepCopy()
+				clientObjs    = copyObjs(append(tt.initial.clientObjs, operatorGroup))
+				k8sObjs       = copyObjs(tt.initial.k8sObjs)
+				extObjs       = copyObjs(tt.initial.crds)
+				regObjs       = copyObjs(tt.initial.apis)
+			)
 
 			// Create test operator
-			ctx, cancel := context.WithCancel(context.TODO())
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+
 			op, err := NewFakeOperator(
 				ctx,
 				withClock(clockFake),
 				withNamespaces(namespaces...),
 				withOperatorNamespace(operatorNamespace),
-				withClientObjs(tt.initial.clientObjs...),
-				withK8sObjs(tt.initial.k8sObjs...),
-				withExtObjs(tt.initial.crds...),
-				withRegObjs(tt.initial.apis...),
+				withClientObjs(clientObjs...),
+				withK8sObjs(k8sObjs...),
+				withExtObjs(extObjs...),
+				withRegObjs(regObjs...),
 			)
 			require.NoError(t, err)
 
-			simulateSuccessfulRollout := func(csv *v1alpha1.ClusterServiceVersion, client operatorclient.ClientInterface) {
-				// get the deployment, which should exist
-				dep, err := client.GetDeployment(tt.initial.operatorGroup.GetNamespace(), deploymentName)
+			simulateSuccessfulRollout := func(csv *v1alpha1.ClusterServiceVersion) {
+				// Get the deployment, which should exist
+				namespace := operatorGroup.GetNamespace()
+				dep, err := op.opClient.GetDeployment(namespace, deploymentName)
 				require.NoError(t, err)
 
-				// force it healthy
+				// Force it healthy
 				dep.Status.Replicas = 1
 				dep.Status.UpdatedReplicas = 1
 				dep.Status.AvailableReplicas = 1
@@ -4462,77 +4492,88 @@ func TestSyncOperatorGroups(t *testing.T) {
 					Type:   appsv1.DeploymentAvailable,
 					Status: corev1.ConditionTrue,
 				}}
-				_, err = client.KubernetesInterface().AppsV1().Deployments(tt.initial.operatorGroup.GetNamespace()).UpdateStatus(context.TODO(), dep, metav1.UpdateOptions{})
+				_, err = op.opClient.KubernetesInterface().AppsV1().Deployments(namespace).UpdateStatus(ctx, dep, metav1.UpdateOptions{})
+				require.NoError(t, err)
+
+				// Wait for the lister cache to catch up
+				err = wait.PollImmediateWithContext(ctx, tick, timeout, func(ctx context.Context) (bool, error) {
+					deployment, err := op.lister.AppsV1().DeploymentLister().Deployments(namespace).Get(dep.GetName())
+					if err != nil || deployment == nil {
+						return false, err
+					}
+
+					for _, condition := range deployment.Status.Conditions {
+						if condition.Type == appsv1.DeploymentAvailable {
+							return condition.Status == corev1.ConditionTrue, nil
+						}
+					}
+
+					return false, nil
+				})
 				require.NoError(t, err)
 			}
 
-			err = op.syncOperatorGroups(tt.initial.operatorGroup)
+			err = op.syncOperatorGroups(operatorGroup)
 			require.NoError(t, err)
 
-			// wait on operator group updated status to be in the cache as it is required for later CSV operations
-			err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
-				operatorGroup, err := op.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName())
+			// Wait on operator group updated status to be in the cache as it is required for later CSV operations
+			err = wait.PollImmediateWithContext(ctx, tick, timeout, func(ctx context.Context) (bool, error) {
+				og, err := op.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(operatorGroup.GetNamespace()).Get(operatorGroup.GetName())
 				if err != nil {
 					return false, err
 				}
 				sort.Strings(tt.expectedStatus.Namespaces)
-				sort.Strings(operatorGroup.Status.Namespaces)
-				if !reflect.DeepEqual(tt.expectedStatus, operatorGroup.Status) {
+				sort.Strings(og.Status.Namespaces)
+				if !reflect.DeepEqual(tt.expectedStatus, og.Status) {
 					return false, err
 				}
+
+				operatorGroup = og
+
 				return true, nil
 			})
 			require.NoError(t, err)
 
-			// this must be done twice to have annotateCSVs run in syncOperatorGroups
-			// and to catch provided API changes
-			err = op.syncOperatorGroups(tt.initial.operatorGroup)
+			// This must be done (at least) twice to have annotateCSVs run in syncOperatorGroups and to catch provided API changes
+			// syncOperatorGroups is eventually consistent and may return errors until the cache has caught up with the cluster (fake client here)
+			wait.PollImmediateWithContext(ctx, tick, timeout, func(ctx context.Context) (bool, error) { // Throw away timeout errors since any timeout will coincide with err != nil anyway
+				err = op.syncOperatorGroups(operatorGroup)
+				return err == nil, nil
+			})
 			require.NoError(t, err)
 
-			// Sync csvs enough to get them back to succeeded state
-			for i := 0; i < 16; i++ {
-				opGroupCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(context.TODO(), metav1.ListOptions{})
-				require.NoError(t, err)
+			// Sync csvs enough to get them back to a succeeded state
+			err = wait.PollImmediateWithContext(ctx, tick, timeout, func(ctx context.Context) (bool, error) {
+				csvs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					return false, err
+				}
 
-				for i, obj := range opGroupCSVs.Items {
-					if obj.Status.Phase == v1alpha1.CSVPhaseInstalling {
-						simulateSuccessfulRollout(&obj, op.opClient)
-					}
-					err = op.syncClusterServiceVersion(&obj)
-					require.NoError(t, err, "%#v", obj)
-
-					err = op.syncCopyCSV(&obj)
-					if !tt.ignoreCopyError {
-						require.NoError(t, err, "%#v", obj)
+				for _, csv := range csvs.Items {
+					if csv.Status.Phase == v1alpha1.CSVPhaseInstalling {
+						simulateSuccessfulRollout(&csv)
 					}
 
-					if i == 0 {
-						err = wait.PollImmediate(1*time.Millisecond, 10*time.Second, func() (bool, error) {
-							for namespace, objects := range tt.final.objects {
-								if err := RequireObjectsInCache(t, op.lister, namespace, objects, false); err != nil {
-									return false, nil
-								}
-							}
-							return true, nil
-						})
-						require.NoError(t, err)
+					if err := op.syncClusterServiceVersion(&csv); err != nil {
+						return false, err
 					}
 
-					if i == 16 {
-						err = wait.PollImmediate(1*time.Millisecond, 10*time.Second, func() (bool, error) {
-							for namespace, objects := range tt.final.objects {
-								if err := RequireObjectsInCache(t, op.lister, namespace, objects, true); err != nil {
-									return false, nil
-								}
-							}
-							return true, nil
-						})
-						require.NoError(t, err)
+					if err := op.syncCopyCSV(&csv); err != nil && !tt.ignoreCopyError {
+						return false, err
 					}
 				}
-			}
 
-			operatorGroup, err := op.client.OperatorsV1().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(context.TODO(), tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
+				for namespace, objects := range tt.final.objects {
+					if err := RequireObjectsInCache(t, op.lister, namespace, objects, true); err != nil {
+						return false, nil
+					}
+				}
+
+				return true, nil
+			})
+			require.NoError(t, err)
+
+			operatorGroup, err = op.client.OperatorsV1().OperatorGroups(operatorGroup.GetNamespace()).Get(ctx, operatorGroup.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			sort.Strings(tt.expectedStatus.Namespaces)
 			sort.Strings(operatorGroup.Status.Namespaces)
@@ -4799,7 +4840,7 @@ func RequireObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInter
 			require.Failf(t, "couldn't find expected object", "%#v", object)
 		}
 		require.NoError(t, err, "couldn't fetch %s %v", namespace, object)
-		require.True(t, reflect.DeepEqual(object, fetched), diff.ObjectDiff(object, fetched))
+		require.True(t, reflect.DeepEqual(object, fetched), cmp.Diff(object, fetched))
 	}
 }
 
