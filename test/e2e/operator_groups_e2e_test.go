@@ -36,7 +36,7 @@ var _ = Describe("Operator Group", func() {
 		TearDown(testNamespace)
 	})
 
-	It("e2e functionality", func() {
+	It("e2e something functionality", func() {
 
 		// Create namespace with specific label
 		// Create CRD
