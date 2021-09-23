@@ -1103,6 +1103,9 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
 		out.Status.State = v1alpha1.SubscriptionStateUpgradePending
 	} else {
+		if err := querier.Queryable(); err != nil {
+			return nil, false, err
+		}
 		out.Status.State = v1alpha1.SubscriptionStateAtLatest
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
 	}
