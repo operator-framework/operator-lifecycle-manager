@@ -28,7 +28,7 @@ import (
 const (
 	catalogNamespaceEnvVarName  = "GLOBAL_CATALOG_NAMESPACE"
 	defaultWakeupInterval       = 15 * time.Minute
-	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
+	defaultCatalogNamespace     = "olm"
 	defaultConfigMapServerImage = "quay.io/operator-framework/configmap-operator-registry:latest"
 	defaultOPMImage             = "quay.io/operator-framework/upstream-opm-builder:latest"
 	defaultUtilImage            = "quay.io/operator-framework/olm:latest"
