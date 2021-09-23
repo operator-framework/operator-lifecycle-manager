@@ -532,12 +532,11 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 			}
 			// TODO: this should do something smarter if the cluster role already exists
 			if cr, err := a.opClient.CreateClusterRole(clusterRole); err != nil {
-				// if the CR already exists, but the label is correct, the cache is just behind
-				if k8serrors.IsAlreadyExists(err) && ownerutil.IsOwnedByLabel(cr, csv) {
+				// If the CR already exists, but the label is correct, the cache is just behind
+				if k8serrors.IsAlreadyExists(err) && cr != nil && ownerutil.IsOwnedByLabel(cr, csv) {
 					continue
-				} else {
-					return err
 				}
+				return err
 			}
 			a.logger.Debug("created cluster role")
 		}
@@ -572,12 +571,11 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 			}
 			// TODO: this should do something smarter if the cluster role binding already exists
 			if crb, err := a.opClient.CreateClusterRoleBinding(clusterRoleBinding); err != nil {
-				// if the CR already exists, but the label is correct, the cache is just behind
-				if k8serrors.IsAlreadyExists(err) && ownerutil.IsOwnedByLabel(crb, csv) {
+				// If the CRB already exists, but the label is correct, the cache is just behind
+				if k8serrors.IsAlreadyExists(err) && crb != nil && ownerutil.IsOwnedByLabel(crb, csv) {
 					continue
-				} else {
-					return err
 				}
+				return err
 			}
 		}
 	}
