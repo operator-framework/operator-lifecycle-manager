@@ -6,7 +6,7 @@ on:
   schedule:
   - cron: '0 0 * * *' # daily to pick up releases
 jobs:
-  e2e-minikube:
+  run-minikube-local:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -21,5 +21,5 @@ jobs:
         sudo mv minikube /bin/
     - name: Setup minikube
       run: minikube config set vm-driver docker
-    - name: Run e2e tests
+    - name: Ensure local OLM installation is successful
       run: make run-local
