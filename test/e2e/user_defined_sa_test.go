@@ -224,13 +224,16 @@ func newServiceAccount(client operatorclient.ClientInterface, namespace, name st
 		},
 	}
 
-	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Create(context.TODO(), request, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(sa).ToNot(BeNil())
+	var err error
+	Eventually(func() error {
+		sa, err = client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Create(context.TODO(), request, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 
 	cleanup = func() {
-		err := client.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Delete(context.TODO(), sa.GetName(), metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return client.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Delete(context.TODO(), sa.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 	}
 
 	return
@@ -250,13 +253,16 @@ func newOperatorGroupWithServiceAccount(client versioned.Interface, namespace, n
 		},
 	}
 
-	og, err := client.OperatorsV1().OperatorGroups(namespace).Create(context.TODO(), request, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(og).ToNot(BeNil())
+	var err error
+	Eventually(func() error {
+		og, err = client.OperatorsV1().OperatorGroups(namespace).Create(context.TODO(), request, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 
 	cleanup = func() {
-		err := client.OperatorsV1().OperatorGroups(og.GetNamespace()).Delete(context.TODO(), og.GetName(), metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return client.OperatorsV1().OperatorGroups(og.GetNamespace()).Delete(context.TODO(), og.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 	}
 
 	return
@@ -459,8 +465,11 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 		},
 	}
 
-	role, err := client.KubernetesInterface().RbacV1().Roles(namespace).Create(context.TODO(), role, metav1.CreateOptions{})
-	require.NoError(t, err)
+	var err error
+	Eventually(func() error {
+		role, err = client.KubernetesInterface().RbacV1().Roles(namespace).Create(context.TODO(), role, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 
 	clusterrole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
@@ -475,8 +484,10 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 		},
 	}
 
-	clusterrole, err = client.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterrole, metav1.CreateOptions{})
-	require.NoError(t, err)
+	Eventually(func() error {
+		clusterrole, err = client.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterrole, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 
 	binding := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -518,24 +529,32 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 		},
 	}
 
-	binding, err = client.KubernetesInterface().RbacV1().RoleBindings(namespace).Create(context.TODO(), binding, metav1.CreateOptions{})
-	require.NoError(t, err)
+	Eventually(func() error {
+		binding, err = client.KubernetesInterface().RbacV1().RoleBindings(namespace).Create(context.TODO(), binding, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 
-	clusterbinding, err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(context.TODO(), clusterbinding, metav1.CreateOptions{})
-	require.NoError(t, err)
+	Eventually(func() error {
+		clusterbinding, err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(context.TODO(), clusterbinding, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 
 	cleanup = func() {
-		err := client.KubernetesInterface().RbacV1().Roles(role.GetNamespace()).Delete(context.TODO(), role.GetName(), metav1.DeleteOptions{})
-		require.NoError(t, err)
+		Eventually(func() error {
+			return client.KubernetesInterface().RbacV1().Roles(role.GetNamespace()).Delete(context.TODO(), role.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 
-		err = client.KubernetesInterface().RbacV1().RoleBindings(binding.GetNamespace()).Delete(context.TODO(), binding.GetName(), metav1.DeleteOptions{})
-		require.NoError(t, err)
+		Eventually(func() error {
+			return client.KubernetesInterface().RbacV1().RoleBindings(binding.GetNamespace()).Delete(context.TODO(), binding.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 
-		err = client.KubernetesInterface().RbacV1().ClusterRoles().Delete(context.TODO(), clusterrole.GetName(), metav1.DeleteOptions{})
-		require.NoError(t, err)
+		Eventually(func() error {
+			return client.KubernetesInterface().RbacV1().ClusterRoles().Delete(context.TODO(), clusterrole.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 
-		err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Delete(context.TODO(), clusterbinding.GetName(), metav1.DeleteOptions{})
-		require.NoError(t, err)
+		Eventually(func() error {
+			return client.KubernetesInterface().RbacV1().ClusterRoleBindings().Delete(context.TODO(), clusterbinding.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 	}
 
 	return

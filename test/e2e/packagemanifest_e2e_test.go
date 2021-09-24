@@ -215,13 +215,16 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			}
 
 			var err error
-			catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() error {
+				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+				return err
+			}).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			err := crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() error {
+				return crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{})
+			}).Should(Succeed())
 		})
 
 		It("lists the CatalogSource contents using the PackageManifest API", func() {
@@ -251,14 +254,23 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 				Expect(pm.GetName()).Should(Equal(packageName))
 				Expect(pm.Status.CatalogSourceDisplayName).Should(Equal(displayName))
 
-				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(context.TODO(), catalogSource.GetName(), metav1.GetOptions{})
-				Expect(err).NotTo(HaveOccurred(), "error getting catalogSource")
+				Eventually(func() bool {
+					catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(context.TODO(), catalogSource.GetName(), metav1.GetOptions{})
+					if err != nil {
+						return false
+					}
+					displayName = "updated Name"
+					catalogSource.Spec.DisplayName = displayName
 
-				displayName = "updated Name"
-				catalogSource.Spec.DisplayName = displayName
-				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(context.TODO(), catalogSource, metav1.UpdateOptions{})
-				Expect(err).NotTo(HaveOccurred(), "error updating catalogSource")
-				Expect(catalogSource.Spec.DisplayName).Should(Equal(displayName))
+					catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(context.TODO(), catalogSource, metav1.UpdateOptions{})
+					if err != nil {
+						return false
+					}
+					if catalogSource.Spec.DisplayName != displayName {
+						return false
+					}
+					return true
+				}).Should(Succeed())
 			})
 			It("should successfully update the CatalogSource field", func() {
 

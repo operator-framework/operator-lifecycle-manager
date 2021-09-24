@@ -503,23 +503,27 @@ func TearDown(namespace string) {
 func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
 	return func() {
 		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
-		err := crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 	}
 }
 
 func buildConfigMapCleanupFunc(c operatorclient.ClientInterface, namespace string, configMap *corev1.ConfigMap) cleanupFunc {
 	return func() {
 		ctx.Ctx().Logf("Deleting config map %s...", configMap.GetName())
-		err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(context.TODO(), configMap.GetName(), metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(context.TODO(), configMap.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 	}
 }
 
 func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string, serviceAccount *corev1.ServiceAccount) cleanupFunc {
 	return func() {
 		t.Logf("Deleting service account %s...", serviceAccount.GetName())
-		require.NoError(t, c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccount.GetName(), metav1.DeleteOptions{}))
+		Eventually(func() error {
+			return c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccount.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 	}
 }
 
@@ -540,9 +544,12 @@ func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace str
 		},
 	}
 
-	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	var err error
+	Eventually(func() error {
+		ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
+		catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 	ctx.Ctx().Logf("Catalog source %s created", name)
 	return catalogSource, buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)
 }
@@ -566,11 +573,12 @@ func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned
 		},
 	}
 
+	var err error
 	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		Expect(err).ToNot(HaveOccurred())
-	}
+	Eventually(func() error {
+		catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 	ctx.Ctx().Logf("Catalog source %s created", name)
 
 	cleanupInternalCatalogSource := func() {
@@ -603,11 +611,12 @@ func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface, c
 	}
 	catalogSource.SetNamespace(namespace)
 
+	var err error
 	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		Expect(err).ToNot(HaveOccurred())
-	}
+	Eventually(func() error {
+		catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 	ctx.Ctx().Logf("Catalog source %s created", name)
 
 	cleanupInternalCatalogSource := func() {
@@ -637,11 +646,12 @@ func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.Clien
 	}
 	catalogSource.SetNamespace(namespace)
 
+	var err error
 	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		require.NoError(t, err)
-	}
+	Eventually(func() error {
+		catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 	ctx.Ctx().Logf("Catalog source %s created", name)
 
 	cleanupInternalCatalogSource := func() {
@@ -691,11 +701,13 @@ func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, names
 		catalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 	}
 
-	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), catalogConfigMap, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		Expect(err).ToNot(HaveOccurred())
-	}
-	return createdConfigMap, buildConfigMapCleanupFunc(c, namespace, createdConfigMap)
+	var err error
+	Eventually(func() error {
+		catalogConfigMap, err = c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), catalogConfigMap, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
+
+	return catalogConfigMap, buildConfigMapCleanupFunc(c, namespace, catalogConfigMap)
 }
 
 func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
@@ -738,11 +750,13 @@ func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.Cli
 		catalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 	}
 
-	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), catalogConfigMap, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		require.NoError(t, err)
-	}
-	return createdConfigMap, buildConfigMapCleanupFunc(c, namespace, createdConfigMap)
+	var err error
+	Eventually(func() error {
+		catalogConfigMap, err = c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), catalogConfigMap, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
+
+	return catalogConfigMap, buildConfigMapCleanupFunc(c, namespace, catalogConfigMap)
 }
 
 func serializeCRD(crd apiextensions.CustomResourceDefinition) string {

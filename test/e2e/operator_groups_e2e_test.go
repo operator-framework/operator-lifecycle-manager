@@ -356,11 +356,19 @@ var _ = Describe("Operator Group", func() {
 
 		// Unsupport all InstallModes
 		log("unsupporting all csv installmodes")
-		fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
-		require.NoError(GinkgoT(), err, "could not fetch csv")
-		fetchedCSV.Spec.InstallModes = []v1alpha1.InstallMode{}
-		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(fetchedCSV.GetNamespace()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err, "could not update csv installmodes")
+
+		Eventually(func() error {
+			fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("could not fetch csv")
+			}
+			fetchedCSV.Spec.InstallModes = []v1alpha1.InstallMode{}
+			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(fetchedCSV.GetNamespace()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("could not update csv installmodes")
+			}
+			return nil
+		}).Should(Succeed())
 
 		// Ensure CSV fails
 		_, err = fetchCSV(crc, csvName, opGroupNamespace, csvFailedChecker)
@@ -1707,15 +1715,26 @@ var _ = Describe("Operator Group", func() {
 
 		newNamespaceName := genName(testNamespace + "-")
 
-		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: newNamespaceName,
-			},
-		}, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(func() error {
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: newNamespaceName,
+				},
+			}
+			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+			if err != nil {
+				return err
+			}
+			return nil
+		}).Should(Succeed())
+
 		defer func() {
-			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), newNamespaceName, metav1.DeleteOptions{})
-			require.NoError(GinkgoT(), err)
+			Eventually(func() error {
+				if err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), newNamespaceName, metav1.DeleteOptions{}); err != nil {
+					return err
+				}
+				return nil
+			}).Should(Succeed())
 		}()
 
 		log("Creating CRD")
@@ -1738,8 +1757,12 @@ var _ = Describe("Operator Group", func() {
 				TargetNamespaces:   []string{newNamespaceName},
 			},
 		}
-		_, err = crc.OperatorsV1().OperatorGroups(newNamespaceName).Create(context.TODO(), &operatorGroup, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(func() error {
+			if _, err = crc.OperatorsV1().OperatorGroups(newNamespaceName).Create(context.TODO(), &operatorGroup, metav1.CreateOptions{}); err != nil {
+				return err
+			}
+			return nil
+		}).Should(Succeed())
 
 		log("Creating CSV")
 
@@ -1775,14 +1798,21 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		// now remove operator group specified service account
-		createdOpGroup, err := crc.OperatorsV1().OperatorGroups(newNamespaceName).Get(context.TODO(), operatorGroup.GetName(), metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
-		createdOpGroup.Spec.ServiceAccountName = ""
-		_, err = crc.OperatorsV1().OperatorGroups(newNamespaceName).Update(context.TODO(), createdOpGroup, metav1.UpdateOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(func() error {
+			createdOpGroup, err := crc.OperatorsV1().OperatorGroups(newNamespaceName).Get(context.TODO(), operatorGroup.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			// now remove operator group specified service account
+			createdOpGroup.Spec.ServiceAccountName = ""
+			_, err = crc.OperatorsV1().OperatorGroups(newNamespaceName).Update(context.TODO(), createdOpGroup, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+			return nil
+		}).Should(Succeed())
 
-		log("wait for CSV to succeeed")
+		log("waiting for CSV to succeeed")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Get(context.TODO(), createdCSV.GetName(), metav1.GetOptions{})
 			if err != nil {

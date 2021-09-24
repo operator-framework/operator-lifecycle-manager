@@ -9,18 +9,19 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var missingAPI = `{"apiVersion":"verticalpodautoscalers.autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"name":"my.thing","namespace":"foo"}}`
 
 var _ = Describe("Not found APIs", func() {
 	BeforeEach(func() {
-		csv := newCSV("test-csv", testNamespace, "", semver.Version{}, nil, nil, nil)
-		Expect(ctx.Ctx().Client().Create(context.TODO(), &csv)).To(Succeed())
+		Eventually(func() error {
+			csv := newCSV("test-csv", testNamespace, "", semver.Version{}, nil, nil, nil)
+			return ctx.Ctx().Client().Create(context.TODO(), &csv)
+		}).Should(Succeed())
 	})
 	AfterEach(func() {
 		TearDown(testNamespace)
@@ -72,8 +73,13 @@ var _ = Describe("Not found APIs", func() {
 		}
 
 		table.DescribeTable("the ip enters a failed state with a helpful error message", func(tt payload) {
-			Expect(ctx.Ctx().Client().Create(context.Background(), tt.ip)).To(Succeed())
-			Expect(ctx.Ctx().Client().Status().Update(context.Background(), tt.ip)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), tt.ip)
+			}).Should(Succeed())
+
+			Eventually(func() error {
+				return ctx.Ctx().Client().Status().Update(context.Background(), tt.ip)
+			}).Should(Succeed())
 
 			// The IP sits in the Installing phase with the GVK missing error
 			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {

@@ -312,12 +312,15 @@ var _ = Describe("CRD Versions", func() {
 				Scope: apiextensionsv1.NamespaceScoped,
 			},
 		}
-		_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), oldCRD, metav1.CreateOptions{})
-		Expect(err).ToNot(HaveOccurred(), "error creating old CRD")
+
+		Eventually(func() error {
+			_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), oldCRD, metav1.CreateOptions{})
+			return err
+		}).Should(Succeed())
 
 		// wrap CRD update in a poll because of the object has been modified related errors
 		Eventually(func() error {
-			oldCRD, err = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), oldCRD.GetName(), metav1.GetOptions{})
+			oldCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), oldCRD.GetName(), metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -396,7 +399,7 @@ var _ = Describe("CRD Versions", func() {
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
@@ -419,24 +422,39 @@ var _ = Describe("CRD Versions", func() {
 			Equal(operatorsv1alpha1.InstallPlanPhaseFailed),
 		))
 
-		// update CRD status to remove the v1alpha1 stored version
-		newCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), oldCRD.GetName(), metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred(), "error getting new CRD")
-		newCRD.Status.StoredVersions = []string{"v1alpha2"}
-		newCRD, err = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().UpdateStatus(context.TODO(), newCRD, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred(), "error updating new CRD")
-		GinkgoT().Logf("new crd status stored versions: %#v", newCRD.Status.StoredVersions) // only v1alpha2 should be in the status now
+		Eventually(func() error {
+			// update CRD status to remove the v1alpha1 stored version
+			newCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), oldCRD.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("error getting new CRD")
+			}
+			newCRD.Status.StoredVersions = []string{"v1alpha2"}
+
+			newCRD, err = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().UpdateStatus(context.TODO(), newCRD, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("error updating new CRD")
+			}
+			GinkgoT().Logf("new crd status stored versions: %#v", newCRD.Status.StoredVersions) // only v1alpha2 should be in the status now
+
+			return nil
+		}).Should(Succeed())
 
 		// install should now succeed
 		oldInstallPlanRef := subscription.Status.InstallPlanRef.Name
-		err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred(), "error deleting failed install plan")
+
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.DeleteOptions{})
+		}).Should(Succeed(), "error deleting failed install plan")
+
 		// remove old subscription
-		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(context.TODO(), subscription.GetName(), metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred(), "error deleting old subscription")
-		// remove old csv
-		crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainPackageStable, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred(), "error deleting old subscription")
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(context.TODO(), subscription.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed(), "error deleting old subscription")
+
+		Eventually(func() error {
+			// remove old csv
+			return crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainPackageStable, metav1.DeleteOptions{})
+		}).Should(Succeed(), "error deleting old subscription")
 
 		// recreate subscription
 		subscriptionNameNew := genName("sub-nginx-update2-new-")

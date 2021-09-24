@@ -30,11 +30,13 @@ const (
 )
 
 var _ = Describe("CSVs with a Webhook", func() {
-	var c operatorclient.ClientInterface
-	var crc versioned.Interface
-	var namespace *corev1.Namespace
-	var nsCleanupFunc cleanupFunc
-	var nsLabels map[string]string
+	var (
+		c             operatorclient.ClientInterface
+		crc           versioned.Interface
+		namespace     *corev1.Namespace
+		nsCleanupFunc cleanupFunc
+		nsLabels      map[string]string
+	)
 	BeforeEach(func() {
 		c = newKubeClient()
 		crc = newCRClient()
@@ -48,11 +50,18 @@ var _ = Describe("CSVs with a Webhook", func() {
 			},
 		}
 
-		var err error
-		namespace, err = c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
-		Expect(err).Should(BeNil())
-		Expect(namespace).ShouldNot(BeNil())
+		Eventually(func() error {
+			ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
+			if err != nil {
+				return err
+			}
+			if ns == nil {
+				return fmt.Errorf("namespace returned from client call is nil")
+			}
+			return nil
+		}).Should(Succeed())
 
+		// TODO(tflannag): Move this to AfterEach?
 		nsCleanupFunc = func() {
 			err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), namespace.GetName(), metav1.DeleteOptions{})
 			Expect(err).Should(BeNil())
@@ -64,8 +73,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 		}
 	})
 	When("Installed in an OperatorGroup that defines a selector", func() {
-		var cleanupCSV cleanupFunc
-		var ogSelector *metav1.LabelSelector
+		var (
+			cleanupCSV cleanupFunc
+			ogSelector *metav1.LabelSelector
+		)
 		BeforeEach(func() {
 			ogSelector = &metav1.LabelSelector{
 				MatchLabels: nsLabels,
@@ -106,8 +117,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 		})
 	})
 	When("Installed in a SingleNamespace OperatorGroup", func() {
-		var cleanupCSV cleanupFunc
-		var og *v1.OperatorGroup
+		var (
+			cleanupCSV cleanupFunc
+			og         *v1.OperatorGroup
+		)
 		BeforeEach(func() {
 			og = newOperatorGroup(namespace.Name, genName("single-namespace-og-"), nil, nil, []string{namespace.Name}, false)
 			var err error
@@ -222,9 +235,13 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err = awaitCSV(crc, namespace.GetName(), csv.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
-			// Get the updated secret
-			updatedSecret, err := c.KubernetesInterface().CoreV1().Secrets(namespace.GetName()).Get(context.TODO(), webhookSecretName, metav1.GetOptions{})
-			require.NoError(GinkgoT(), err)
+			var updatedSecret *corev1.Secret
+			Eventually(func() error {
+				var err error
+				// Get the updated secret
+				updatedSecret, err = c.KubernetesInterface().CoreV1().Secrets(namespace.GetName()).Get(context.TODO(), webhookSecretName, metav1.GetOptions{})
+				return err
+			}).Should(Succeed())
 
 			require.Equal(GinkgoT(), existingSecret.GetAnnotations()[install.OLMCAHashAnnotationKey], updatedSecret.GetAnnotations()[install.OLMCAHashAnnotationKey])
 			require.Equal(GinkgoT(), existingSecret.Data[install.OLMCAPEMKey], updatedSecret.Data[install.OLMCAPEMKey])
@@ -259,7 +276,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"*"},
@@ -290,7 +307,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"operators.coreos.com"},
@@ -321,7 +338,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"admissionregistration.k8s.io"},
@@ -352,7 +369,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{
 							admissionregistrationv1.OperationAll,
 						},
@@ -384,7 +401,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{
 							admissionregistrationv1.OperationAll,
 						},

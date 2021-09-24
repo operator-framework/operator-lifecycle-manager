@@ -1,3 +1,4 @@
+//go:build bare
 // +build bare
 
 package e2e
@@ -56,6 +57,7 @@ var (
 	communityOperatorsImage = ""
 )
 
+// TODO(tflannag): Is this test still relevant?
 func TestMain(m *testing.M) {
 	if err := flag.Set("logtostderr", "true"); err != nil {
 		panic(err)

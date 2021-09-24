@@ -31,7 +31,6 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 		c = newKubeClient()
 		crc = newCRClient()
 		dynamicClient = ctx.Ctx().DynamicClient()
-
 		deleteOpts = &metav1.DeleteOptions{}
 	})
 
@@ -54,12 +53,14 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 
 					// Create Namespace
 					var err error
-					ns, err = c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: genName("ns-"),
-						},
-					}, metav1.CreateOptions{})
-					Expect(err).NotTo(HaveOccurred())
+					Eventually(func() error {
+						ns, err = c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: genName("ns-"),
+							},
+						}, metav1.CreateOptions{})
+						return err
+					}).Should(Succeed())
 
 					// Create CatalogSource
 					catsrc = &v1alpha1.CatalogSource{
@@ -73,8 +74,10 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 						},
 					}
 
-					catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
-					Expect(err).NotTo(HaveOccurred())
+					Eventually(func() error {
+						catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
+						return err
+					}).Should(Succeed())
 
 					// Wait for the CatalogSource to be ready
 					_, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
@@ -87,22 +90,21 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 				})
 
 				AfterEach(func() {
-
 					// clean up subscription
 					if cleanupSub != nil {
 						cleanupSub()
 					}
-
 					// Delete CatalogSource
 					if catsrc != nil {
-						err := crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(context.TODO(), catsrc.GetName(), *deleteOpts)
-						Expect(err).NotTo(HaveOccurred())
+						Eventually(func() error {
+							return crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(context.TODO(), catsrc.GetName(), *deleteOpts)
+						}).Should(Succeed())
 					}
-
 					// Delete Namespace
 					if ns != nil {
-						err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
-						Expect(err).NotTo(HaveOccurred())
+						Eventually(func() error {
+							return c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+						}).Should(Succeed())
 					}
 
 				})
@@ -158,7 +160,5 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 				})
 			})
 		})
-
 	})
-
 })

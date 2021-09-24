@@ -52,6 +52,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 
 		BeforeEach(func() {
 			By("first installing the VPA CRD on cluster")
+
 			const (
 				sourceName = "test-catalog"
 				imageName  = "quay.io/olmtest/single-bundle-index:pdb-v1"
@@ -67,10 +68,8 @@ var _ = Describe("Installing bundles with new object types", func() {
 
 			Eventually(func() error {
 				err := ctx.Ctx().Client().Create(context.TODO(), &vpaCRD)
-				if err != nil {
-					if !k8serrors.IsAlreadyExists(err) {
-						return err
-					}
+				if err != nil && !k8serrors.IsAlreadyExists(err) {
+					return err
 				}
 				return nil
 			}).Should(Succeed())
@@ -107,7 +106,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 			}).Should(Succeed())
 
 			// Create a Subscription for package
-			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+			createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
 			sub, err := fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
