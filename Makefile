@@ -217,15 +217,16 @@ verify: verify-codegen verify-mockgen verify-manifests
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
-release: ver=$(shell cat OLM_VERSION)
+release: ver=v$(shell cat OLM_VERSION)
 release: manifests
-	docker pull quay.io/operator-framework/olm:v$(ver)
+	@echo "Generating the $(ver) release"
+	docker pull $(IMAGE_REPO):$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 
 verify-release: release
 	$(MAKE) diff
 
-package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/operator-framework/olm:v$(ver))
+package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(IMAGE_REPO):$(ver))
 package:
 ifndef target
 	$(error target is undefined)
