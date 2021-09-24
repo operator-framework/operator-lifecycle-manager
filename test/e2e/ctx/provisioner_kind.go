@@ -80,7 +80,6 @@ func Provision(ctx *TestContext) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory: %s", err.Error())
 	}
-	defer os.RemoveAll(dir)
 	kubeconfigPath := filepath.Join(dir, "kubeconfig")
 
 	provider := cluster.NewProvider(
@@ -140,6 +139,7 @@ func Provision(ctx *TestContext) (func(), error) {
 	deprovision := func() {
 		once.Do(func() {
 			provider.Delete(name, kubeconfigPath)
+			os.RemoveAll(dir)
 		})
 	}
 
