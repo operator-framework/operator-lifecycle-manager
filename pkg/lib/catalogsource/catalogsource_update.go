@@ -84,16 +84,23 @@ even if the provided conditions result in no changes.
 • conditions: condition values to be updated
 */
 func UpdateSpecAndStatusConditions(logger *logrus.Entry, client versioned.Interface, catsrc *v1alpha1.CatalogSource, conditions ...metav1.Condition) error {
-
-	// update the conditions
-	for _, condition := range conditions {
-		meta.SetStatusCondition(&catsrc.Status.Conditions, condition)
-	}
-
 	// make the update if possible
-	if _, err := client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Update(context.TODO(), catsrc, metav1.UpdateOptions{}); err != nil {
+	catsrc, err := client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Update(context.TODO(), catsrc, metav1.UpdateOptions{})
+	if err != nil {
 		logger.WithError(err).Error("UpdateSpecAndStatusConditions - unable to update CatalogSource image reference")
 		return err
+	}
+
+	if conditions != nil && len(conditions) > 0 {
+		// update the conditions
+		for _, condition := range conditions {
+			meta.SetStatusCondition(&catsrc.Status.Conditions, condition)
+		}
+
+		if _, err := client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).UpdateStatus(context.TODO(), catsrc, metav1.UpdateOptions{}); err != nil {
+			logger.WithError(err).Error("UpdateSpecAndStatusConditions - unable to update CatalogSource status condition")
+			return err
+		}
 	}
 	return nil
 }

@@ -130,6 +130,13 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 		return nil
 	}
 
+	// This catalog template feature is not usable in configmap/internal catalogsource
+	// TODO: Filter the cache on catalogsource type (perhaps via labels)
+	if inputCatalogSource.Spec.SourceType == v1alpha1.SourceTypeInternal || inputCatalogSource.Spec.SourceType == v1alpha1.SourceTypeConfigmap {
+		o.logger.Debugf("skipping unsupported catalogsource type (%s): %s", inputCatalogSource.Spec.SourceType, inputCatalogSource.GetName())
+		return nil
+	}
+
 	outputCatalogSource := inputCatalogSource.DeepCopy()
 
 	logger := o.logger.WithFields(logrus.Fields{
