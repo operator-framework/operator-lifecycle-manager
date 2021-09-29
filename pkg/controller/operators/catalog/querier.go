@@ -26,6 +26,7 @@ type SourceRef struct {
 }
 
 type SourceQuerier interface {
+	// Deprecated: This FindReplacement function will be deprecated soon
 	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
 	Queryable() error
 }
@@ -49,6 +50,7 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 	return nil
 }
 
+// Deprecated: This FindReplacement function will be deprecated soon
 func (q *NamespaceSourceQuerier) FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error) {
 	errs := []error{}
 
