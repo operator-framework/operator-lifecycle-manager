@@ -394,7 +394,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		}
 	}
 
-	// Setup the BundleUnpacker
+	// Setup the BundleUnpacker 2
 	op.bundleUnpacker, err = bundle.NewConfigmapUnpacker(
 		bundle.WithLogger(op.logger),
 		bundle.WithClient(op.opClient.KubernetesInterface()),
