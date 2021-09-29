@@ -1,3 +1,4 @@
+//go:build !bare
 // +build !bare
 
 package e2e
@@ -165,7 +166,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 		When("A subscription object is created", func() {
 			BeforeEach(func() {
-				subscriptionCleanup, _ = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-create", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				subscriptionCleanup, _ = createSubscription(crc, testNamespace, "metric-subscription-for-create", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 			})
 
 			AfterEach(func() {
@@ -206,7 +207,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		When("A subscription object is updated after emitting metrics", func() {
 
 			BeforeEach(func() {
-				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-update", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				subscriptionCleanup, subscription = createSubscription(crc, testNamespace, "metric-subscription-for-update", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-update"))))
@@ -291,7 +292,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		When("A subscription object is deleted after emitting metrics", func() {
 
 			BeforeEach(func() {
-				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-delete", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				subscriptionCleanup, subscription = createSubscription(crc, testNamespace, "metric-subscription-for-delete", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-delete"))))

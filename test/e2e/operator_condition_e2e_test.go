@@ -6,7 +6,6 @@ import (
 	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/require"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	meta "k8s.io/apimachinery/pkg/api/meta"
@@ -69,7 +68,7 @@ var _ = Describe("Operator Condition", func() {
 
 		// Await csvA's success
 		_, err = awaitCSV(crc, testNamespace, csvA.GetName(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Get the OperatorCondition for csvA and report that it is not upgradeable
 		var cond *operatorsv2.OperatorCondition
@@ -104,16 +103,16 @@ var _ = Describe("Operator Condition", func() {
 				DefaultChannelName: stableChannel,
 			},
 		}
-		updateInternalCatalog(GinkgoT(), c, crc, catalog, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, manifests)
+		updateInternalCatalog(c, crc, catalog, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, manifests)
 
 		// Attempt to get the catalog source before creating install plan(s)
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// csvB will be in Pending phase due to csvA reports Upgradeable=False condition
 		fetchedCSV, err := fetchCSV(crc, csvB.GetName(), testNamespace, buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOperatorConditionNotUpgradeable))
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), fetchedCSV.Status.Phase, operatorsv1alpha1.CSVPhasePending)
+		Expect(err).To(BeNil())
+		Expect(fetchedCSV.Status.Phase).To(Equal(operatorsv1alpha1.CSVPhasePending))
 
 		// Get the OperatorCondition for csvA and report that it is upgradeable, unblocking csvB
 		upgradeableTrueCondition := metav1.Condition{
@@ -137,7 +136,7 @@ var _ = Describe("Operator Condition", func() {
 
 		// Await csvB's success
 		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Get the OperatorCondition for csvB and purposedly change ObservedGeneration
 		// to cause mismatch generation situation
@@ -164,15 +163,15 @@ var _ = Describe("Operator Condition", func() {
 			},
 		}
 
-		updateInternalCatalog(GinkgoT(), c, crc, catalog, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvD}, manifests)
+		updateInternalCatalog(c, crc, catalog, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvD}, manifests)
 		// Attempt to get the catalog source before creating install plan(s)
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// CSVD will be in Pending status due to overrides in csvB's condition
 		fetchedCSV, err = fetchCSV(crc, csvD.GetName(), testNamespace, buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOperatorConditionNotUpgradeable))
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), fetchedCSV.Status.Phase, operatorsv1alpha1.CSVPhasePending)
+		Expect(err).To(BeNil())
+		Expect(fetchedCSV.Status.Phase).To(Equal(operatorsv1alpha1.CSVPhasePending))
 
 		// Get the OperatorCondition for csvB and override the upgradeable false condition
 		Eventually(func() error {
@@ -185,10 +184,10 @@ var _ = Describe("Operator Condition", func() {
 			_, err = crc.OperatorsV2().OperatorConditions(testNamespace).Update(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 		_, err = awaitCSV(crc, testNamespace, csvD.GetName(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 	})
 })

@@ -116,7 +116,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 			installPlanRef = sub.Status.InstallPlanRef.Name
 
 			// Wait for the installplan to complete (5 minute timeout)
-			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			_, err = fetchInstallPlan(operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 			ctx.Ctx().Logf("install plan %s completed", installPlanRef)

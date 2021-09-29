@@ -8,9 +8,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -71,7 +69,7 @@ func newCRClient() versioned.Interface {
 	return ctx.Ctx().OperatorClient()
 }
 
-func newDynamicClient(t GinkgoTInterface, config *rest.Config) dynamic.Interface {
+func newDynamicClient(config *rest.Config) dynamic.Interface {
 	return ctx.Ctx().DynamicClient()
 }
 
@@ -80,7 +78,7 @@ func newPMClient() pmversioned.Interface {
 }
 
 // awaitPods waits for a set of pods to exist in the cluster
-func awaitPods(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, selector string, checkPods podsCheckFunc) (*corev1.PodList, error) {
+func awaitPods(c operatorclient.ClientInterface, namespace, selector string, checkPods podsCheckFunc) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList
 	var err error
 
@@ -93,16 +91,16 @@ func awaitPods(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, 
 			return false, err
 		}
 
-		t.Logf("Waiting for pods matching selector %s to match given conditions", selector)
+		ctx.Ctx().Logf("Waiting for pods matching selector %s to match given conditions", selector)
 
 		return checkPods(fetchedPodList), nil
 	})
 
-	require.NoError(t, err)
+	Expect(err).To(BeNil())
 	return fetchedPodList, err
 }
 
-func awaitPodsWithInterval(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, selector string, interval time.Duration,
+func awaitPodsWithInterval(c operatorclient.ClientInterface, namespace, selector string, interval time.Duration,
 	duration time.Duration, checkPods podsCheckFunc) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList
 	var err error
@@ -116,12 +114,12 @@ func awaitPodsWithInterval(t GinkgoTInterface, c operatorclient.ClientInterface,
 			return false, err
 		}
 
-		t.Logf("Waiting for pods matching selector %s to match given conditions", selector)
+		ctx.Ctx().Logf("Waiting for pods matching selector %s to match given conditions", selector)
 
 		return checkPods(fetchedPodList), nil
 	})
 
-	require.NoError(t, err)
+	Expect(err).To(BeNil())
 	return fetchedPodList, err
 }
 
@@ -184,7 +182,7 @@ func podReady(pod *corev1.Pod) bool {
 	return status == corev1.ConditionTrue
 }
 
-func awaitPod(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, name string, checkPod podCheckFunc) *corev1.Pod {
+func awaitPod(c operatorclient.ClientInterface, namespace, name string, checkPod podCheckFunc) *corev1.Pod {
 	var pod *corev1.Pod
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		p, err := c.KubernetesInterface().CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
@@ -194,20 +192,20 @@ func awaitPod(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, n
 		pod = p
 		return checkPod(pod), nil
 	})
-	require.NoError(t, err)
+	Expect(err).To(BeNil())
 
 	return pod
 }
 
-func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error), expected map[string]string) error {
+func awaitAnnotations(query func() (metav1.ObjectMeta, error), expected map[string]string) error {
 	var err error
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		t.Logf("Waiting for annotations to match %v", expected)
+		ctx.Ctx().Logf("Waiting for annotations to match %v", expected)
 		obj, err := query()
 		if err != nil && !apierrors.IsNotFound(err) {
 			return false, err
 		}
-		t.Logf("current annotations: %v", obj.GetAnnotations())
+		ctx.Ctx().Logf("current annotations: %v", obj.GetAnnotations())
 
 		if len(obj.GetAnnotations()) != len(expected) {
 			return false, nil
@@ -219,7 +217,7 @@ func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error
 			}
 		}
 
-		t.Logf("Annotations match")
+		ctx.Ctx().Logf("Annotations match")
 		return true, nil
 	})
 
@@ -227,11 +225,9 @@ func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error
 }
 
 // compareResources compares resource equality then prints a diff for easier debugging
-func compareResources(t GinkgoTInterface, expected, actual interface{}) {
-	if eq := equality.Semantic.DeepEqual(expected, actual); !eq {
-		t.Fatalf("Resource does not match expected value: %s",
-			diff.ObjectDiff(expected, actual))
-	}
+func compareResources(expected, actual interface{}) {
+	eq := equality.Semantic.DeepEqual(expected, actual)
+	Expect(eq).To(BeTrue(), "Resource does not match expected value: %s", diff.ObjectDiff(expected, actual))
 }
 
 type checkResourceFunc func() error
@@ -516,15 +512,16 @@ func buildConfigMapCleanupFunc(c operatorclient.ClientInterface, namespace strin
 	}
 }
 
-func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string, serviceAccount *corev1.ServiceAccount) cleanupFunc {
+func buildServiceAccountCleanupFunc(c operatorclient.ClientInterface, namespace string, serviceAccount *corev1.ServiceAccount) cleanupFunc {
 	return func() {
-		t.Logf("Deleting service account %s...", serviceAccount.GetName())
-		require.NoError(t, c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccount.GetName(), metav1.DeleteOptions{}))
+		ctx.Ctx().Logf("Deleting service account %s...", serviceAccount.GetName())
+		err := c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(context.TODO(), serviceAccount.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
 	}
 }
 
+// TODO(tflannag): This is only used in the metrics_e2e_test.go - inline this code and remove this function?
 func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace string) (*v1alpha1.CatalogSource, cleanupFunc) {
-
 	catalogSource := &v1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.CatalogSourceKind,
@@ -541,12 +538,16 @@ func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace str
 	}
 
 	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	Eventually(func() error {
+		_, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+		return err
+	}).Should(Succeed())
 	ctx.Ctx().Logf("Catalog source %s created", name)
+
 	return catalogSource, buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)
 }
 
+// TODO(tflannag): This seems like an area of potential tech debt
 func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
 	configMap, configMapCleanup := createConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
 
@@ -617,8 +618,9 @@ func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface, c
 	return catalogSource, cleanupInternalCatalogSource
 }
 
-func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
-	configMap, configMapCleanup := createV1CRDConfigMapForCatalogData(t, c, name, namespace, manifests, crds, csvs)
+// TODO(tflannag): There's only a single call site here in the crd_e2e_test.go
+func createV1CRDInternalCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
+	configMap, configMapCleanup := createV1CRDConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
 	catalogSource := &v1alpha1.CatalogSource{
@@ -638,10 +640,13 @@ func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.Clien
 	catalogSource.SetNamespace(namespace)
 
 	ctx.Ctx().Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		require.NoError(t, err)
-	}
+	Eventually(func() error {
+		_, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+		return nil
+	}).Should(Succeed())
 	ctx.Ctx().Logf("Catalog source %s created", name)
 
 	cleanupInternalCatalogSource := func() {
@@ -698,7 +703,7 @@ func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, names
 	return createdConfigMap, buildConfigMapCleanupFunc(c, namespace, createdConfigMap)
 }
 
-func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
+func createV1CRDConfigMapForCatalogData(c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
@@ -714,7 +719,7 @@ func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.Cli
 	// Add raw manifests
 	if manifests != nil {
 		manifestsRaw, err := yaml.Marshal(manifests)
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 		catalogConfigMap.Data[registry.ConfigMapPackageName] = string(manifestsRaw)
 	}
 
@@ -723,24 +728,24 @@ func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.Cli
 	if crds != nil {
 		crdStrings := []string{}
 		for _, crd := range crds {
-			crdStrings = append(crdStrings, serializeV1CRD(t, &crd))
+			crdStrings = append(crdStrings, serializeV1CRD(&crd))
 		}
 		var err error
 		crdsRaw, err = yaml.Marshal(crdStrings)
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 	}
 	catalogConfigMap.Data[registry.ConfigMapCRDName] = strings.Replace(string(crdsRaw), "- |\n  ", "- ", -1)
 
 	// Add raw CSVs
 	if csvs != nil {
 		csvsRaw, err := yaml.Marshal(csvs)
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 		catalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 	}
 
 	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.TODO(), catalogConfigMap, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		require.NoError(t, err)
+		Expect(err).ToNot(HaveOccurred())
 	}
 	return createdConfigMap, buildConfigMapCleanupFunc(c, namespace, createdConfigMap)
 }
@@ -768,16 +773,16 @@ func serializeCRD(crd apiextensions.CustomResourceDefinition) string {
 	return manifest.String()
 }
 
-func serializeV1CRD(t GinkgoTInterface, crd *apiextensionsv1.CustomResourceDefinition) string {
+func serializeV1CRD(crd *apiextensionsv1.CustomResourceDefinition) string {
 	scheme := runtime.NewScheme()
-	require.NoError(t, apiextensionsv1.AddToScheme(scheme))
+	Expect(apiextensionsv1.AddToScheme(scheme)).To(BeNil())
 
 	// set up object serializer
 	serializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme, scheme)
 
 	// create an object manifest
 	var manifest bytes.Buffer
-	require.NoError(t, serializer.Encode(crd, &manifest))
+	Expect(serializer.Encode(crd, &manifest)).To(BeNil())
 	return manifest.String()
 }
 

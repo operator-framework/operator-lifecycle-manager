@@ -8,7 +8,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/require"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -142,7 +141,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			Expect(err).Should(BeNil())
 
 			ogLabel, err := getOGLabelKey(og)
-			require.NoError(GinkgoT(), err)
+			Expect(err).ToNot(HaveOccurred())
 
 			expected := &metav1.LabelSelector{
 				MatchLabels:      map[string]string{ogLabel: ""},
@@ -200,7 +199,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			// Get the existing secret
 			webhookSecretName := webhook.DeploymentName + "-service-cert"
 			existingSecret, err := c.KubernetesInterface().CoreV1().Secrets(namespace.GetName()).Get(context.TODO(), webhookSecretName, metav1.GetOptions{})
-			require.NoError(GinkgoT(), err)
+			Expect(err).ToNot(HaveOccurred())
 
 			// Modify the phase
 			Eventually(func() bool {
@@ -220,14 +219,14 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			// Wait for webhook-operator to succeed
 			_, err = awaitCSV(crc, namespace.GetName(), csv.GetName(), csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).ToNot(HaveOccurred())
 
 			// Get the updated secret
 			updatedSecret, err := c.KubernetesInterface().CoreV1().Secrets(namespace.GetName()).Get(context.TODO(), webhookSecretName, metav1.GetOptions{})
-			require.NoError(GinkgoT(), err)
+			Expect(err).ToNot(HaveOccurred())
 
-			require.Equal(GinkgoT(), existingSecret.GetAnnotations()[install.OLMCAHashAnnotationKey], updatedSecret.GetAnnotations()[install.OLMCAHashAnnotationKey])
-			require.Equal(GinkgoT(), existingSecret.Data[install.OLMCAPEMKey], updatedSecret.Data[install.OLMCAPEMKey])
+			Expect(existingSecret.GetAnnotations()[install.OLMCAHashAnnotationKey]).To(Equal(updatedSecret.GetAnnotations()[install.OLMCAHashAnnotationKey]))
+			Expect(existingSecret.Data[install.OLMCAPEMKey]).To(Equal(updatedSecret.Data[install.OLMCAPEMKey]))
 		})
 		It("Fails to install a CSV if multiple Webhooks share the same name", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
@@ -259,7 +258,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"*"},
@@ -290,7 +289,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"operators.coreos.com"},
@@ -321,7 +320,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"admissionregistration.k8s.io"},
@@ -352,7 +351,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{
 							admissionregistrationv1.OperationAll,
 						},
@@ -384,7 +383,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{
 							admissionregistrationv1.OperationAll,
 						},
@@ -668,9 +667,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			crc := newCRClient()
 			source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
-			require.NoError(GinkgoT(), err)
+			Expect(err).ToNot(HaveOccurred())
 			cleanupCatSrc = func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
+				Expect(crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{})).To(BeNil())
 			}
 
 			// Create a Subscription for the webhook-operator
@@ -680,7 +679,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			// Wait for webhook-operator v2 csv to succeed
 			csv, err := awaitCSV(crc, testNamespace, "webhook-operator.v0.0.1", csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).ToNot(HaveOccurred())
 
 			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, testNamespace, true, true)
 		})
@@ -735,36 +734,36 @@ var _ = Describe("CSVs with a Webhook", func() {
 			}
 			crCleanupFunc, err := createCR(c, validCR, "webhook.operators.coreos.io", "v1", testNamespace, "webhooktests", "my-cr-1")
 			defer crCleanupFunc()
-			require.NoError(GinkgoT(), err, "The valid CR should have been approved by the validating webhook")
+			Expect(err).To(BeNil(), "The valid CR should have been approved by the validating webhook")
 
 			// Check that you can get v1 of the webhooktest cr
 			v1UnstructuredObject, err := c.GetCustomResource("webhook.operators.coreos.io", "v1", testNamespace, "webhooktests", "my-cr-1")
-			require.NoError(GinkgoT(), err, "Unable to get the v1 of the valid CR")
+			Expect(err).To(BeNil(), "Unable to get the v1 of the valid CR")
 			v1Object := v1UnstructuredObject.Object
 			v1Spec, ok := v1Object["spec"].(map[string]interface{})
-			require.True(GinkgoT(), ok, "Unable to get spec of v1 object")
+			Expect(ok, "Unable to get spec of v1 object")
 			v1SpecMutate, ok := v1Spec["mutate"].(bool)
-			require.True(GinkgoT(), ok, "Unable to get spec.mutate of v1 object")
+			Expect(ok, "Unable to get spec.mutate of v1 object")
 			v1SpecValid, ok := v1Spec["valid"].(bool)
-			require.True(GinkgoT(), ok, "Unable to get spec.valid of v1 object")
+			Expect(ok, "Unable to get spec.valid of v1 object")
 
-			require.True(GinkgoT(), v1SpecMutate, "The mutating webhook should have set the valid CR's spec.mutate field to true")
-			require.True(GinkgoT(), v1SpecValid, "The validating webhook should have required that the CR's spec.valid field is true")
+			Expect(v1SpecMutate).To(BeTrue(), "The mutating webhook should have set the valid CR's spec.mutate field to true")
+			Expect(v1SpecValid).To(BeTrue(), "The validating webhook should have required that the CR's spec.valid field is true")
 
 			// Check that you can get v2 of the webhooktest cr
 			v2UnstructuredObject, err := c.GetCustomResource("webhook.operators.coreos.io", "v2", testNamespace, "webhooktests", "my-cr-1")
-			require.NoError(GinkgoT(), err, "Unable to get the v2 of the valid CR")
+			Expect(err).ToNot(HaveOccurred(), "Unable to get the v2 of the valid CR")
 			v2Object := v2UnstructuredObject.Object
 			v2Spec := v2Object["spec"].(map[string]interface{})
-			require.True(GinkgoT(), ok, "Unable to get spec of v2 object")
+			Expect(ok).To(BeTrue(), "Unable to get spec of v2 object")
 			v2SpecConversion, ok := v2Spec["conversion"].(map[string]interface{})
-			require.True(GinkgoT(), ok, "Unable to get spec.conversion of v2 object")
+			Expect(ok).To(BeTrue(), "Unable to get spec.conversion of v2 object")
 			v2SpecConversionMutate := v2SpecConversion["mutate"].(bool)
-			require.True(GinkgoT(), ok, "Unable to get spec.conversion.mutate of v2 object")
+			Expect(ok).To(BeTrue(), "Unable to get spec.conversion.mutate of v2 object")
 			v2SpecConversionValid := v2SpecConversion["valid"].(bool)
-			require.True(GinkgoT(), ok, "Unable to get spec.conversion.valid of v2 object")
-			require.True(GinkgoT(), v2SpecConversionMutate)
-			require.True(GinkgoT(), v2SpecConversionValid)
+			Expect(ok).To(BeTrue(), "Unable to get spec.conversion.valid of v2 object")
+			Expect(v2SpecConversionMutate).To(BeTrue())
+			Expect(v2SpecConversionValid).To(BeTrue())
 		})
 	})
 	When("WebhookDescription has conversionCRDs field", func() {
@@ -785,14 +784,14 @@ var _ = Describe("CSVs with a Webhook", func() {
 			crdAPlural := genName("mockcrda")
 			crdA := newV1CRD(crdAPlural)
 			cleanupCRD, er := createV1CRD(c, crdA)
-			require.NoError(GinkgoT(), er)
+			Expect(er).To(BeNil())
 			defer cleanupCRD()
 
 			// create another CRD (crdB)
 			crdBPlural := genName("mockcrdb")
 			crdB := newV1CRD(crdBPlural)
 			cleanupCRD2, er := createV1CRD(c, crdB)
-			require.NoError(GinkgoT(), er)
+			Expect(er).To(BeNil())
 			defer cleanupCRD2()
 
 			// describe webhook
@@ -854,7 +853,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			crdAPlural := genName("mockcrda")
 			crdA := newV1CRD(crdAPlural)
 			cleanupCRD, er := createV1CRD(c, crdA)
-			require.NoError(GinkgoT(), er)
+			Expect(er).To(BeNil())
 			defer cleanupCRD()
 
 			// describe webhook

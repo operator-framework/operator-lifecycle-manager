@@ -623,7 +623,7 @@ var _ = Describe("Install Plan", func() {
 	It("with CSVs across multiple catalog sources", func() {
 
 		log := func(s string) {
-			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+			ctx.Ctx().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
 		mainPackageName := genName("nginx-")
@@ -641,7 +641,9 @@ var _ = Describe("Install Plan", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			Expect(err).To(BeNil())
+
 		}()
 
 		dependentCatalogName := genName("mock-ocs-dependent-")
@@ -675,14 +677,14 @@ var _ = Describe("Install Plan", func() {
 
 		// Attempt to get the catalog source before creating install plan
 		_, err := fetchCatalogSourceOnStatus(crc, dependentCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, nil, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
 		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Create expected install plan step sources
 		expectedStepSources := map[registry.ResourceKey]registry.ResourceKey{
@@ -697,26 +699,26 @@ var _ = Describe("Install Plan", func() {
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).To(BeNil())
+		Expect(subscription).ToNot(BeNil())
 
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-		require.NoError(GinkgoT(), err)
+		fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		Expect(err).To(BeNil())
 		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 		// Fetch installplan again to check for unnecessary control loops
-		fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
+		fetchedInstallPlan, err = fetchInstallPlan(crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
 			// Don't compare object meta as labels can be applied by the operator controller.
-			compareResources(GinkgoT(), fetchedInstallPlan.Spec, fip.Spec)
-			compareResources(GinkgoT(), fetchedInstallPlan.Status, fip.Status)
+			compareResources(fetchedInstallPlan.Spec, fip.Spec)
+			compareResources(fetchedInstallPlan.Status, fip.Status)
 			return true
 		})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 		require.Equal(GinkgoT(), len(expectedStepSources), len(fetchedInstallPlan.Status.Plan), "Number of resolved steps matches the number of expected steps")
 
 		// Ensure resolved step resources originate from the correct catalog sources
@@ -725,9 +727,9 @@ var _ = Describe("Install Plan", func() {
 			log(fmt.Sprintf("checking %s", step.Resource))
 			key := registry.ResourceKey{Name: step.Resource.Name, Kind: step.Resource.Kind}
 			expectedSource, ok := expectedStepSources[key]
-			require.True(GinkgoT(), ok, "didn't find %v", key)
-			require.Equal(GinkgoT(), expectedSource.Name, step.Resource.CatalogSource)
-			require.Equal(GinkgoT(), expectedSource.Namespace, step.Resource.CatalogSourceNamespace)
+			Expect(ok).To(BeTrue(), "didn't find %v", key)
+			Expect(expectedSource.Name).To(Equal(step.Resource.CatalogSource))
+			Expect(expectedSource.Namespace).To(Equal(step.Resource.CatalogSourceNamespace))
 
 			// delete
 		}
@@ -745,14 +747,14 @@ var _ = Describe("Install Plan", func() {
 
 		// Verify that the dependent subscription is in a good state
 		dependentSubscription, err := fetchSubscription(crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), dependentSubscription)
-		require.NotNil(GinkgoT(), dependentSubscription.Status.InstallPlanRef)
-		require.Equal(GinkgoT(), dependentCSV.GetName(), dependentSubscription.Status.CurrentCSV)
+		Expect(err).To(BeNil())
+		Expect(dependentSubscription).ToNot(BeNil())
+		Expect(dependentSubscription.Status.InstallPlanRef).ToNot(BeNil())
+		Expect(dependentCSV.GetName()).To(Equal(dependentSubscription.Status.CurrentCSV))
 
 		// Verify CSV is created
 		_, err = awaitCSV(crc, testNamespace, dependentCSV.GetName(), csvAnyChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Update dependent subscription in catalog and wait for csv to update
 		updatedDependentCSV := newCSV(dependentPackageStable+"-v2", testNamespace, dependentPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
@@ -766,21 +768,21 @@ var _ = Describe("Install Plan", func() {
 			},
 		}
 
-		updateInternalCatalog(GinkgoT(), c, crc, dependentCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []operatorsv1alpha1.ClusterServiceVersion{dependentCSV, updatedDependentCSV}, dependentManifests)
+		updateInternalCatalog(c, crc, dependentCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []operatorsv1alpha1.ClusterServiceVersion{dependentCSV, updatedDependentCSV}, dependentManifests)
 
 		// Wait for subscription to update
 		updatedDepSubscription, err := fetchSubscription(crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionHasCurrentCSV(updatedDependentCSV.GetName()))
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Verify installplan created and installed
-		fetchedUpdatedDepInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedDepSubscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-		require.NoError(GinkgoT(), err)
+		fetchedUpdatedDepInstallPlan, err := fetchInstallPlan(crc, updatedDepSubscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		Expect(err).To(BeNil())
 		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedUpdatedDepInstallPlan.GetName(), fetchedUpdatedDepInstallPlan.Status.Phase))
 		require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), fetchedUpdatedDepInstallPlan.GetName())
 
 		// Wait for csv to update
 		_, err = awaitCSV(crc, testNamespace, updatedDependentCSV.GetName(), csvAnyChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 	})
 
 	Context("creation with pre existing CRD owners", func() {
@@ -830,7 +832,8 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient()
 			crc := newCRClient()
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+				err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+				Expect(err).To(BeNil())
 			}()
 
 			// Create the catalog source
@@ -840,7 +843,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			expectedSteps := map[registry.ResourceKey]struct{}{
 				{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:                       {},
@@ -849,42 +852,42 @@ var _ = Describe("Install Plan", func() {
 
 			// Create the preexisting CRD and CSV
 			cleanupCRD, err := createCRD(c, dependentCRD)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 			defer cleanupCRD()
 			cleanupCSV, err := createCSV(c, crc, dependentBetaCSV, testNamespace, true, false)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 			defer cleanupCSV()
-			GinkgoT().Log("Dependent CRD and preexisting CSV created")
+			ctx.Ctx().Logf("Dependent CRD and preexisting CSV created")
 
 			subscriptionName := genName("sub-nginx-")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
 
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
-			require.NoError(GinkgoT(), err)
-			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+			fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+			Expect(err).To(BeNil())
+			ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Fetch installplan again to check for unnecessary control loops
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				compareResources(GinkgoT(), fetchedInstallPlan, fip)
+			fetchedInstallPlan, err = fetchInstallPlan(crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
+				compareResources(fetchedInstallPlan, fip)
 				return true
 			})
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			for _, step := range fetchedInstallPlan.Status.Plan {
-				GinkgoT().Logf("%#v", step)
+				ctx.Ctx().Logf("%#v", step)
 			}
 			require.Equal(GinkgoT(), len(fetchedInstallPlan.Status.Plan), len(expectedSteps), "number of expected steps does not match installed")
-			GinkgoT().Logf("Number of resolved steps matches the number of expected steps")
+			ctx.Ctx().Logf("Number of resolved steps matches the number of expected steps")
 
 			for _, step := range fetchedInstallPlan.Status.Plan {
 				key := registry.ResourceKey{
@@ -892,7 +895,7 @@ var _ = Describe("Install Plan", func() {
 					Kind: step.Resource.Kind,
 				}
 				_, ok := expectedSteps[key]
-				require.True(GinkgoT(), ok)
+				Expect(ok).To(BeTrue())
 
 				// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
 				delete(expectedSteps, key)
@@ -1249,23 +1252,23 @@ var _ = Describe("Install Plan", func() {
 
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			subscriptionName := genName("sub-nginx-alpha-")
 			cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer cleanupSubscription()
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
 
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or failed before checking resource presence
 			completeOrFailedFunc := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed)
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, completeOrFailedFunc)
-			require.NoError(GinkgoT(), err)
-			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+			fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, completeOrFailedFunc)
+			Expect(err).To(BeNil())
+			ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Ensure that the desired resources have been created
@@ -1282,7 +1285,7 @@ var _ = Describe("Install Plan", func() {
 					Kind: step.Resource.Kind,
 				}
 				_, ok := expectedSteps[key]
-				require.True(GinkgoT(), ok, "couldn't find %v in expected steps: %#v", key, expectedSteps)
+				Expect(ok).To(BeTrue(), "couldn't find %v in expected steps: %#v", key, expectedSteps)
 
 				// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
 				delete(expectedSteps, key)
@@ -1293,20 +1296,20 @@ var _ = Describe("Install Plan", func() {
 
 			// Create initial CR
 			cleanupCR, err := createCR(c, existingCR, "cluster.com", "v1alpha1", testNamespace, tt.oldCRD.Spec.Names.Plural, "my-cr-1")
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 			defer cleanupCR()
 
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
+			updateInternalCatalog(c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
 
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Update the subscription resource to point to the beta CSV
 			err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 				subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-				require.NoError(GinkgoT(), err)
-				require.NotNil(GinkgoT(), subscription)
+				Expect(err).To(BeNil())
+				Expect(subscription).ToNot(BeNil())
 
 				subscription.Spec.Channel = betaChannel
 				subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), subscription, metav1.UpdateOptions{})
@@ -1316,23 +1319,23 @@ var _ = Describe("Install Plan", func() {
 
 			// Wait for subscription to have a new installplan
 			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
 
 			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(tt.expectedPhase))
-			require.NoError(GinkgoT(), err)
-			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+			fetchedInstallPlan, err = fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(tt.expectedPhase))
+			Expect(err).To(BeNil())
+			ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
 			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), testNamespace, csvAnyChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
-			GinkgoT().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
+			ctx.Ctx().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
 		}, tableEntries...)
 
 	})
@@ -1478,7 +1481,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			subscriptionName := genName("sub-nginx-")
 
@@ -1486,16 +1489,16 @@ var _ = Describe("Install Plan", func() {
 			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
 
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or failed before checking resource presence
 			completeOrFailedFunc := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed)
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, completeOrFailedFunc)
-			require.NoError(GinkgoT(), err)
-			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+			fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, completeOrFailedFunc)
+			Expect(err).To(BeNil())
+			ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Ensure CRD versions are accurate
@@ -1503,7 +1506,7 @@ var _ = Describe("Install Plan", func() {
 				"v1alpha1": {},
 			}
 
-			validateCRDVersions(GinkgoT(), c, tt.oldCRD.GetName(), expectedVersions)
+			validateCRDVersions(c, tt.oldCRD.GetName(), expectedVersions)
 
 			// Update the manifest
 			mainManifests = []registry.PackageManifest{
@@ -1516,26 +1519,26 @@ var _ = Describe("Install Plan", func() {
 				},
 			}
 
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
+			updateInternalCatalog(c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
 
 			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
-			require.NoError(GinkgoT(), err)
-			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+			fetchedInstallPlan, err = fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+			Expect(err).To(BeNil())
+			ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
 			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Ensure CRD versions are accurate
 			expectedVersions = map[string]struct{}{
@@ -1543,7 +1546,7 @@ var _ = Describe("Install Plan", func() {
 				"v1alpha2": {},
 			}
 
-			validateCRDVersions(GinkgoT(), c, tt.oldCRD.GetName(), expectedVersions)
+			validateCRDVersions(c, tt.oldCRD.GetName(), expectedVersions)
 
 			// Update the manifest
 			mainManifests = []registry.PackageManifest{
@@ -1556,26 +1559,26 @@ var _ = Describe("Install Plan", func() {
 				},
 			}
 
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV, mainDeltaCSV}, mainManifests)
+			updateInternalCatalog(c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV, mainDeltaCSV}, mainManifests)
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 			subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
 
 			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
-			require.NoError(GinkgoT(), err)
-			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+			fetchedInstallPlan, err = fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+			Expect(err).To(BeNil())
+			ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
 			fetchedCSV, err = fetchCSV(crc, mainDeltaCSV.GetName(), testNamespace, csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Ensure CRD versions are accurate
 			expectedVersions = map[string]struct{}{
@@ -1584,8 +1587,8 @@ var _ = Describe("Install Plan", func() {
 				"v1alpha1": {},
 			}
 
-			validateCRDVersions(GinkgoT(), c, tt.oldCRD.GetName(), expectedVersions)
-			GinkgoT().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
+			validateCRDVersions(c, tt.oldCRD.GetName(), expectedVersions)
+			ctx.Ctx().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
 		}, tableEntries...)
 
 	})
@@ -1603,7 +1606,8 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient()
 			crc := newCRClient()
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+				err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+				Expect(err).To(BeNil())
 			}()
 
 			// Build initial catalog
@@ -1688,29 +1692,28 @@ var _ = Describe("Install Plan", func() {
 
 			// Attempt to get the catalog source before creating install plan
 			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			subscriptionName := genName("sub-nginx-update-perms1")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
-			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
-			require.Equal(GinkgoT(), mainCSV.GetName(), subscription.Status.CurrentCSV)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
+			Expect(subscription.Status.InstallPlanRef).ToNot(BeNil())
+			Expect(mainCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
 
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
+			fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
 
-			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
-
+			Expect(operatorsv1alpha1.InstallPlanPhaseComplete).To(Equal(fetchedInstallPlan.Status.Phase))
 			// Verify CSV is created
 			_, err = awaitCSV(crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Update CatalogSource with a new CSV with more permissions
 			updatedPermissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
@@ -1762,21 +1765,21 @@ var _ = Describe("Install Plan", func() {
 			}
 
 			// Update catalog with updated CSV with more permissions
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, updatedCSV}, updatedManifests)
+			updateInternalCatalog(c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, updatedCSV}, updatedManifests)
 
 			_, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			updatedInstallPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
+			fetchedUpdatedInstallPlan, err := fetchInstallPlan(crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
 
 			// Wait for csv to update
 			_, err = awaitCSV(crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// If the CSV is succeeded, we successfully rolled out the RBAC changes
 		})
@@ -1785,7 +1788,8 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient()
 			crc := newCRClient()
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+				err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+				Expect(err).To(BeNil())
 			}()
 
 			// Build initial catalog
@@ -1881,29 +1885,29 @@ var _ = Describe("Install Plan", func() {
 
 			// Attempt to get the catalog source before creating install plan
 			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			subscriptionName := genName("sub-nginx-update-perms1")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
-			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
-			require.Equal(GinkgoT(), mainCSV.GetName(), subscription.Status.CurrentCSV)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
+			Expect(subscription.Status.InstallPlanRef).ToNot(BeNil())
+			Expect(mainCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
 
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
+			fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
 
-			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+			Expect(operatorsv1alpha1.InstallPlanPhaseComplete).To(Equal(fetchedInstallPlan.Status.Phase))
 
 			// Verify CSV is created
 			_, err = awaitCSV(crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Update CatalogSource with a new CSV with more permissions
 			updatedPermissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
@@ -1932,7 +1936,7 @@ var _ = Describe("Install Plan", func() {
 			}
 
 			oldSecrets, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).List(context.TODO(), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err, "error listing secrets")
+			Expect(err).To(BeNil(), "error listing secrets")
 
 			// Create the catalog sources
 			updatedNamedStrategy := newNginxInstallStrategy(genName("dep-"), updatedPermissions, updatedClusterPermissions)
@@ -1948,31 +1952,31 @@ var _ = Describe("Install Plan", func() {
 			}
 
 			// Update catalog with updated CSV with more permissions
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, updatedCSV}, updatedManifests)
+			updateInternalCatalog(c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, updatedCSV}, updatedManifests)
 
 			// Wait for subscription to update its status
 			_, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			updatedInstallPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
-			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
+			fetchedUpdatedInstallPlan, err := fetchInstallPlan(crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
+			Expect(operatorsv1alpha1.InstallPlanPhaseComplete).To(Equal(fetchedUpdatedInstallPlan.Status.Phase))
 
 			// Wait for csv to update
 			_, err = awaitCSV(crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			newSecrets, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).List(context.TODO(), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err, "error listing secrets")
+			Expect(err).To(BeNil(), "error listing secrets")
 
 			// Assert that the number of secrets is not increased from updating service account as part of the install plan,
 			assert.EqualValues(GinkgoT(), len(oldSecrets.Items), len(newSecrets.Items))
 
 			// And that the secret list is indeed updated.
-			assert.Equal(GinkgoT(), oldSecrets.Items, newSecrets.Items)
+			Expect(oldSecrets.Items).To(Equal(newSecrets.Items))
 
 			// Wait for ServiceAccount to not have access anymore
 			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -1993,7 +1997,7 @@ var _ = Describe("Install Plan", func() {
 				if res == nil {
 					return false, nil
 				}
-				GinkgoT().Log("checking serviceaccount for permission")
+				ctx.Ctx().Logf("checking serviceaccount for permission")
 
 				// should not be allowed
 				return !res.Status.Allowed, nil
@@ -2005,7 +2009,8 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient()
 			crc := newCRClient()
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+				err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+				Expect(err).To(BeNil())
 			}()
 
 			// Build initial catalog
@@ -2091,29 +2096,29 @@ var _ = Describe("Install Plan", func() {
 
 			// Attempt to get the catalog source before creating install plan
 			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			subscriptionName := genName("sub-nginx-stompy-")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
-			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
-			require.Equal(GinkgoT(), mainCSV.GetName(), subscription.Status.CurrentCSV)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
+			Expect(subscription.Status.InstallPlanRef).ToNot(BeNil())
+			Expect(mainCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
 
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
+			fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Verify CSV is created
 			csv, err := awaitCSV(crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			addedEnvVar := corev1.EnvVar{Name: "EXAMPLE", Value: "value"}
 			modifiedDetails := operatorsv1alpha1.StrategyDetailsDeployment{
@@ -2150,11 +2155,11 @@ var _ = Describe("Install Plan", func() {
 				StrategySpec: modifiedDetails,
 			}
 			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(context.TODO(), csv, metav1.UpdateOptions{})
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Wait for csv to update
 			_, err = awaitCSV(crc, testNamespace, csv.GetName(), csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Should have the updated env var
 			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -2172,7 +2177,7 @@ var _ = Describe("Install Plan", func() {
 				}
 				return false, nil
 			})
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Create the catalog sources
 			// Updated csv has the same deployment strategy as main
@@ -2188,30 +2193,30 @@ var _ = Describe("Install Plan", func() {
 			}
 
 			// Update catalog with updated CSV with more permissions
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, updatedCSV}, updatedManifests)
+			updateInternalCatalog(c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{mainCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, updatedCSV}, updatedManifests)
 
 			_, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			updatedInstallPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
+			fetchedUpdatedInstallPlan, err := fetchInstallPlan(crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
 
 			// Wait for csv to update
 			_, err = awaitCSV(crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Should have created deployment and stomped on the env changes
 			updatedDep, err := c.GetDeployment(testNamespace, deploymentName)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), updatedDep)
+			Expect(err).To(BeNil())
+			Expect(updatedDep).ToNot(BeNil())
 
 			// Should have the updated env var
 			for _, envVar := range updatedDep.Spec.Template.Spec.Containers[0].Env {
-				require.False(GinkgoT(), envVar == addedEnvVar)
+				Expect(envVar == addedEnvVar).ToNot(BeTrue())
 			}
 		})
 		It("UpdateSingleExistingCRDOwner", func() {
@@ -2300,7 +2305,8 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient()
 			crc := newCRClient()
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+				err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+				Expect(err).To(BeNil())
 			}()
 
 			mainCatalogName := genName("mock-ocs-main-update-")
@@ -2322,35 +2328,35 @@ var _ = Describe("Install Plan", func() {
 
 			// Attempt to get the catalog source before creating install plan
 			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			subscriptionName := genName("sub-nginx-update-")
 			createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
-			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
-			require.Equal(GinkgoT(), mainCSV.GetName(), subscription.Status.CurrentCSV)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
+			Expect(subscription.Status.InstallPlanRef).ToNot(BeNil())
+			Expect(mainCSV.GetName()).To(Equal(subscription.Status.CurrentCSV))
 
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
+			fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
 
-			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+			Expect(operatorsv1alpha1.InstallPlanPhaseComplete).To(Equal(fetchedInstallPlan.Status.Phase))
 
 			// Fetch installplan again to check for unnecessary control loops
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				compareResources(GinkgoT(), fetchedInstallPlan, fip)
+			fetchedInstallPlan, err = fetchInstallPlan(crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
+				compareResources(fetchedInstallPlan, fip)
 				return true
 			})
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Verify CSV is created
 			_, err = awaitCSV(crc, testNamespace, mainCSV.GetName(), csvAnyChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			mainManifests = []registry.PackageManifest{
 				{
@@ -2362,24 +2368,24 @@ var _ = Describe("Install Plan", func() {
 				},
 			}
 
-			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{updatedCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, betaCSV}, mainManifests)
+			updateInternalCatalog(c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{updatedCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV, betaCSV}, mainManifests)
 			// Wait for subscription to update
 			updatedSubscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Verify installplan created and installed
-			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedSubscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
-			require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), fetchedUpdatedInstallPlan.GetName())
+			fetchedUpdatedInstallPlan, err := fetchInstallPlan(crc, updatedSubscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
+			Expect(fetchedInstallPlan.GetName()).To(Equal(fetchedUpdatedInstallPlan.GetName()))
 
 			// Wait for csv to update
 			_, err = awaitCSV(crc, testNamespace, betaCSV.GetName(), csvAnyChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Get the CRD to see if it is updated
 			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
-			require.NoError(GinkgoT(), err)
-			require.Equal(GinkgoT(), len(fetchedCRD.Spec.Versions), len(updatedCRD.Spec.Versions), "The CRD versions counts don't match")
+			Expect(err).To(BeNil())
+			Expect(len(fetchedCRD.Spec.Versions)).To(Equal(len(updatedCRD.Spec.Versions)), "The CRD versions counts don't match")
 
 			fetchedCRDVersions := map[crdVersionKey]struct{}{}
 			for _, version := range fetchedCRD.Spec.Versions {
@@ -2398,7 +2404,7 @@ var _ = Describe("Install Plan", func() {
 					storage: version.Storage,
 				}
 				_, ok := fetchedCRDVersions[key]
-				require.True(GinkgoT(), ok, "couldn't find %v in fetched CRD versions: %#v", key, fetchedCRDVersions)
+				Expect(ok).To(BeTrue(), "couldn't find %v in fetched CRD versions: %#v", key, fetchedCRDVersions)
 			}
 		})
 		It("UpdatePreexistingCRDFailed", func() {
@@ -2406,7 +2412,8 @@ var _ = Describe("Install Plan", func() {
 			c := newKubeClient()
 			crc := newCRClient()
 			defer func() {
-				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+				err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+				Expect(err).To(BeNil())
 			}()
 
 			mainPackageName := genName("nginx-update2-")
@@ -2498,7 +2505,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Create the initial CSV
 			cleanupCRD, err := createCRD(c, mainCRD)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 			defer cleanupCRD()
 
 			mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
@@ -2522,40 +2529,40 @@ var _ = Describe("Install Plan", func() {
 
 			// Attempt to get the catalog source before creating install plan
 			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			subscriptionName := genName("sub-nginx-update2-")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
 			subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(GinkgoT(), err)
-			require.NotNil(GinkgoT(), subscription)
-			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
+			Expect(err).To(BeNil())
+			Expect(subscription).ToNot(BeNil())
+			Expect(subscription.Status.InstallPlanRef).ToNot(BeNil())
 			require.Equal(GinkgoT(), mainCSV.GetName(), subscription.Status.CurrentCSV)
 
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-			require.NoError(GinkgoT(), err)
+			fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Fetch installplan again to check for unnecessary control loops
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				compareResources(GinkgoT(), fetchedInstallPlan, fip)
+			fetchedInstallPlan, err = fetchInstallPlan(crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
+				compareResources(fetchedInstallPlan, fip)
 				return true
 			})
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Verify CSV is created
 			_, err = awaitCSV(crc, testNamespace, mainCSV.GetName(), csvAnyChecker)
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 
 			// Get the CRD to see if it is updated
 			fetchedCRD, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
-			require.NoError(GinkgoT(), err)
+			Expect(err).To(BeNil())
 			require.Equal(GinkgoT(), len(fetchedCRD.Spec.Versions), len(mainCRD.Spec.Versions), "The CRD versions counts don't match")
 
 			fetchedCRDVersions := map[crdVersionKey]struct{}{}
@@ -2575,7 +2582,7 @@ var _ = Describe("Install Plan", func() {
 					storage: version.Storage,
 				}
 				_, ok := fetchedCRDVersions[key]
-				require.True(GinkgoT(), ok, "couldn't find %v in fetched CRD versions: %#v", key, fetchedCRDVersions)
+				Expect(ok).To(BeTrue(), "couldn't find %v in fetched CRD versions: %#v", key, fetchedCRDVersions)
 			}
 		})
 		AfterEach(func() {
@@ -2652,7 +2659,8 @@ var _ = Describe("Install Plan", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			Expect(err).To(BeNil())
 		}()
 
 		// Create CatalogSource
@@ -2662,21 +2670,21 @@ var _ = Describe("Install Plan", func() {
 
 		// Attempt to get CatalogSource
 		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		subscriptionName := genName("sub-nginx-")
 		subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogSourceName, packageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).To(BeNil())
+		Expect(subscription).ToNot(BeNil())
 
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Attempt to get InstallPlan
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
-		require.NoError(GinkgoT(), err)
+		fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
+		Expect(err).To(BeNil())
 		require.NotEqual(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase, "InstallPlan failed")
 
 		// Expect correct RBAC resources to be resolved and created
@@ -2703,7 +2711,7 @@ var _ = Describe("Install Plan", func() {
 				} else if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
 					delete(expectedSteps, expected)
 				} else {
-					GinkgoT().Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
+					ctx.Ctx().Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
 				}
 			}
 
@@ -2719,7 +2727,7 @@ var _ = Describe("Install Plan", func() {
 					}
 					return true, nil
 				})
-				require.NoError(GinkgoT(), err)
+				Expect(err).To(BeNil())
 			}
 			if step.Resource.Kind == "RoleBinding" {
 				err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -2732,7 +2740,7 @@ var _ = Describe("Install Plan", func() {
 					}
 					return true, nil
 				})
-				require.NoError(GinkgoT(), err)
+				Expect(err).To(BeNil())
 			}
 		}
 
@@ -2744,20 +2752,20 @@ var _ = Describe("Install Plan", func() {
 		createdClusterRoleNames := map[string]struct{}{}
 		for _, role := range createdClusterRoles.Items {
 			createdClusterRoleNames[role.GetName()] = struct{}{}
-			GinkgoT().Logf("Monitoring cluster role %v", role.GetName())
+			ctx.Ctx().Logf("Monitoring cluster role %v", role.GetName())
 		}
 
 		createdClusterRoleBindings, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 		createdClusterRoleBindingNames := map[string]struct{}{}
 		for _, binding := range createdClusterRoleBindings.Items {
 			createdClusterRoleBindingNames[binding.GetName()] = struct{}{}
-			GinkgoT().Logf("Monitoring cluster role binding %v", binding.GetName())
+			ctx.Ctx().Logf("Monitoring cluster role binding %v", binding.GetName())
 		}
 
 		crWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoles().Watch(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 		crbWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Watch(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		done := make(chan struct{})
 		errExit := make(chan error)
@@ -2803,8 +2811,9 @@ var _ = Describe("Install Plan", func() {
 				}
 			}
 		}()
-		GinkgoT().Logf("Deleting CSV '%v' in namespace %v", stableCSVName, testNamespace)
-		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+		ctx.Ctx().Logf("Deleting CSV '%v' in namespace %v", stableCSVName, testNamespace)
+		err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+		Expect(err).To(BeNil())
 		select {
 		case <-done:
 			break
@@ -2905,22 +2914,22 @@ var _ = Describe("Install Plan", func() {
 
 		// Attempt to get the catalog source before creating install plan
 		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		subscriptionName := genName("sub-nginx-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanupSubscription()
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).To(BeNil())
+		Expect(subscription).ToNot(BeNil())
 
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
-		require.NoError(GinkgoT(), err)
-		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+		fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+		Expect(err).To(BeNil())
+		ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 	})
@@ -2935,16 +2944,17 @@ var _ = Describe("Install Plan", func() {
 				Name: genName("ns-"),
 			},
 		}, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		og := &operatorsv1.OperatorGroup{}
 		og.SetName("og")
 		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
+			err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+			Expect(err).To(BeNil())
 		}()
 
 		catsrc := &operatorsv1alpha1.CatalogSource{
@@ -2959,23 +2969,23 @@ var _ = Describe("Install Plan", func() {
 			},
 		}
 		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Wait for the CatalogSource to be ready
 		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Generate a Subscription
 		subName := genName("kiali-")
 		createSubscriptionForCatalog(crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
 		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Wait for the expected InstallPlan's execution to either fail or succeed
 		ipName := sub.Status.InstallPlanRef.Name
 		ip, err := waitForInstallPlan(crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, ip.Status.Phase, "InstallPlan not complete")
 
 		// Ensure the InstallPlan contains the steps resolved from the bundle image
@@ -3016,7 +3026,7 @@ var _ = Describe("Install Plan", func() {
 		// Should see the main CSV installed
 
 		log := func(s string) {
-			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+			ctx.Ctx().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
 		ns := &corev1.Namespace{}
@@ -3027,16 +3037,17 @@ var _ = Describe("Install Plan", func() {
 
 		// Create a namespace an OperatorGroup
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts))
+			err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
+			Expect(err).To(BeNil())
 		}()
 
 		og := &operatorsv1.OperatorGroup{}
 		og.SetName("og")
 		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		mainPackageName := genName("nginx-")
 		dependentPackageName := genName("nginxdep-")
@@ -3051,7 +3062,8 @@ var _ = Describe("Install Plan", func() {
 		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			err := crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			Expect(err).To(BeNil())
 		}()
 
 		dependentCatalogName := genName("mock-ocs-dependent-")
@@ -3084,7 +3096,7 @@ var _ = Describe("Install Plan", func() {
 
 		// Attempt to get the catalog source before creating install plan
 		dependentCatalogSource, err := fetchCatalogSourceOnStatus(crc, dependentCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Create the alt dependent catalog sources
 		var wg sync.WaitGroup
@@ -3106,11 +3118,11 @@ var _ = Describe("Install Plan", func() {
 				addressSource.SetName(genName("alt-dep-"))
 
 				_, err := crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Create(context.TODO(), addressSource, metav1.CreateOptions{})
-				require.NoError(GinkgoT(), err)
+				Expect(err).To(BeNil())
 
 				// Attempt to get the catalog source before creating install plan
 				_, err = fetchCatalogSourceOnStatus(crc, addressSource.GetName(), ns.GetName(), catalogSourceRegistryPodSynced)
-				require.NoError(GinkgoT(), err)
+				Expect(err).To(BeNil())
 				wg.Done()
 			}(i)
 		}
@@ -3122,37 +3134,38 @@ var _ = Describe("Install Plan", func() {
 
 		// Attempt to get the catalog source before creating install plan
 		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		subscriptionName := genName("sub-nginx-")
 		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		Expect(err).To(BeNil())
+		Expect(subscription).ToNot(BeNil())
 
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
-		require.NoError(GinkgoT(), err)
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		Expect(err).To(BeNil())
 		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 		// Verify CSV is created
 		_, err = awaitCSV(crc, ns.GetName(), mainCSV.GetName(), csvSucceededChecker)
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 
 		// Make sure to clean up the installed CRD
 		defer func() {
-			require.NoError(GinkgoT(), c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), *deleteOpts))
+			err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), *deleteOpts)
+			Expect(err).To(BeNil())
 		}()
 
 		// ensure there is only one installplan
 		ips, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).List(context.TODO(), metav1.ListOptions{})
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 		require.Equal(GinkgoT(), 1, len(ips.Items), "If this test fails it should be taken seriously and not treated as a flake. \n%v", ips.Items)
 	})
 
@@ -3193,7 +3206,7 @@ var _ = Describe("Install Plan", func() {
 		It("should clear clear up the condition in the InstallPlan status that contains an error message when a valid OperatorGroup is created", func() {
 
 			// first check that a condition with a message exists
-			fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
+			fetchedInstallPlan, err := fetchInstallPlanWithNamespace(crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(fetchedInstallPlan).NotTo(BeNil())
 			cond := v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
@@ -3228,7 +3241,7 @@ var _ = Describe("Install Plan", func() {
 
 			// check that the condition has been cleared up
 			Eventually(func() (bool, error) {
-				fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
+				fetchedInstallPlan, err := fetchInstallPlanWithNamespace(crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
 				if err != nil {
 					return false, err
 				}
@@ -4001,23 +4014,21 @@ var _ = Describe("Install Plan", func() {
 
 type checkInstallPlanFunc func(fip *operatorsv1alpha1.InstallPlan) bool
 
-func validateCRDVersions(t GinkgoTInterface, c operatorclient.ClientInterface, name string, expectedVersions map[string]struct{}) {
+func validateCRDVersions(c operatorclient.ClientInterface, name string, expectedVersions map[string]struct{}) {
 	// Retrieve CRD information
 	crd, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), name, metav1.GetOptions{})
-	require.NoError(t, err)
-
-	require.Equal(t, len(expectedVersions), len(crd.Spec.Versions), "number of CRD versions don't not match installed")
+	Expect(err).To(BeNil())
+	Expect(len(expectedVersions)).To(Equal(len(crd.Spec.Versions)), "number of CRD versions don't not match installed")
 
 	for _, version := range crd.Spec.Versions {
 		_, ok := expectedVersions[version.Name]
-		require.True(t, ok, "couldn't find %v in expected versions: %#v", version.Name, expectedVersions)
-
+		Expect(ok).To(BeTrue(), "couldn't find %v in expected versions: %#v", version.Name, expectedVersions)
 		// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
 		delete(expectedVersions, version.Name)
 	}
 
 	// Should have removed every matching version
-	require.Equal(t, 0, len(expectedVersions), "Actual CRD versions do not match expected")
+	Expect(len(expectedVersions)).To(Equal(0), "Actual CRD versions do not match expected")
 }
 
 func buildInstallPlanPhaseCheckFunc(phases ...operatorsv1alpha1.InstallPlanPhase) checkInstallPlanFunc {
@@ -4057,11 +4068,11 @@ func buildInstallPlanCleanupFunc(crc versioned.Interface, namespace string, inst
 	}
 }
 
-func fetchInstallPlan(t GinkgoTInterface, c versioned.Interface, name string, checkPhase checkInstallPlanFunc) (*operatorsv1alpha1.InstallPlan, error) {
-	return fetchInstallPlanWithNamespace(t, c, name, testNamespace, checkPhase)
+func fetchInstallPlan(c versioned.Interface, name string, checkPhase checkInstallPlanFunc) (*operatorsv1alpha1.InstallPlan, error) {
+	return fetchInstallPlanWithNamespace(c, name, testNamespace, checkPhase)
 }
 
-func fetchInstallPlanWithNamespace(t GinkgoTInterface, c versioned.Interface, name string, namespace string, checkPhase checkInstallPlanFunc) (*operatorsv1alpha1.InstallPlan, error) {
+func fetchInstallPlanWithNamespace(c versioned.Interface, name string, namespace string, checkPhase checkInstallPlanFunc) (*operatorsv1alpha1.InstallPlan, error) {
 	var fetchedInstallPlan *operatorsv1alpha1.InstallPlan
 	var err error
 

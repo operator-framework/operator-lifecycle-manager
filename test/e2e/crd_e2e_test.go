@@ -68,7 +68,7 @@ var _ = Describe("CRD Versions", func() {
 		}
 
 		// Create the catalog sources
-		_, cleanupMainCatalogSource := createV1CRDInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensionsv1.CustomResourceDefinition{v1crd}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
+		_, cleanupMainCatalogSource := createV1CRDInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensionsv1.CustomResourceDefinition{v1crd}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
@@ -88,9 +88,9 @@ var _ = Describe("CRD Versions", func() {
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 		Expect(err).ToNot(HaveOccurred())
-		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+		ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
 	})
 
@@ -223,9 +223,9 @@ var _ = Describe("CRD Versions", func() {
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 		Expect(err).ToNot(HaveOccurred())
-		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+		ctx.Ctx().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
 
 		// old CRD has been installed onto the cluster - now upgrade the subscription to point to the channel with the new CRD
@@ -321,7 +321,7 @@ var _ = Describe("CRD Versions", func() {
 			if err != nil {
 				return err
 			}
-			GinkgoT().Logf("old crd status stored versions: %#v", oldCRD.Status.StoredVersions)
+			ctx.Ctx().Logf("old crd status stored versions: %#v", oldCRD.Status.StoredVersions)
 
 			// set v1alpha1 to no longer stored
 			oldCRD.Spec.Versions[0].Storage = false
@@ -341,7 +341,7 @@ var _ = Describe("CRD Versions", func() {
 			if err != nil {
 				return err
 			}
-			GinkgoT().Logf("updated crd status stored versions: %#v", updatedCRD.Status.StoredVersions) // both v1alpha1 and v1alpha2 should be in the status
+			ctx.Ctx().Logf("updated crd status stored versions: %#v", updatedCRD.Status.StoredVersions) // both v1alpha1 and v1alpha2 should be in the status
 			return nil
 		}).Should(BeNil())
 
@@ -425,7 +425,7 @@ var _ = Describe("CRD Versions", func() {
 		newCRD.Status.StoredVersions = []string{"v1alpha2"}
 		newCRD, err = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().UpdateStatus(context.TODO(), newCRD, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred(), "error updating new CRD")
-		GinkgoT().Logf("new crd status stored versions: %#v", newCRD.Status.StoredVersions) // only v1alpha2 should be in the status now
+		ctx.Ctx().Logf("new crd status stored versions: %#v", newCRD.Status.StoredVersions) // only v1alpha2 should be in the status now
 
 		// install should now succeed
 		oldInstallPlanRef := subscription.Status.InstallPlanRef.Name
@@ -451,7 +451,7 @@ var _ = Describe("CRD Versions", func() {
 		// eventually the subscription should create a new install plan
 		Eventually(func() bool {
 			sub, _ := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
-			GinkgoT().Logf("waiting for subscription %s to generate a new install plan...", subscription.GetName())
+			ctx.Ctx().Logf("waiting for subscription %s to generate a new install plan...", subscription.GetName())
 			return sub.Status.InstallPlanRef.Name != oldInstallPlanRef
 		}, 5*time.Minute, 10*time.Second).Should(BeTrue())
 
@@ -462,9 +462,9 @@ var _ = Describe("CRD Versions", func() {
 			if k8serrors.IsNotFound(err) {
 				return false
 			}
-			GinkgoT().Logf("waiting for installplan to succeed...currently %s", ip.Status.Phase)
+			ctx.Ctx().Logf("waiting for installplan to succeed...currently %s", ip.Status.Phase)
 			return ip.Status.Phase == operatorsv1alpha1.InstallPlanPhaseComplete
 		}).Should(BeTrue())
-		GinkgoT().Log("manually reconciled potentially unsafe CRD upgrade")
+		ctx.Ctx().Logf("manually reconciled potentially unsafe CRD upgrade")
 	})
 })

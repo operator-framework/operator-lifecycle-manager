@@ -62,7 +62,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 			// The service account does have permission granted to it.
 			// We expect the get api call to return 'NotFound' error.
 			grant: func(namespace, name string) (cleanup cleanupFunc) {
-				cleanup = grantPermission(GinkgoT(), kubeclient, namespace, name)
+				cleanup = grantPermission(kubeclient, namespace, name)
 				return
 			},
 			assertFunc: func(errGot error) {

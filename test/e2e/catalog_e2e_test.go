@@ -1,4 +1,5 @@
-//  +build !bare
+//go:build !bare
+// +build !bare
 
 package e2e
 
@@ -154,7 +155,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		createSubscriptionForCatalogWithSpec(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionSpec)
+		createSubscriptionForCatalogWithSpec(crc, testNamespace, subscriptionName, subscriptionSpec)
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -162,7 +163,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		installPlanName := subscription.Status.Install.Name
 		requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval)
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, requiresApprovalChecker)
+		fetchedInstallPlan, err := fetchInstallPlan(crc, installPlanName, requiresApprovalChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		fetchedInstallPlan.Spec.Approved = true
@@ -184,7 +185,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		// Update catalog configmap
-		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, globalNS, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, replacementCSV}, mainManifests)
+		updateInternalCatalog(c, crc, mainCatalogName, globalNS, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, replacementCSV}, mainManifests)
 
 		// Get updated catalogsource
 		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
@@ -254,7 +255,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		Expect(initialPods.Items).To(HaveLen(1))
 
 		// Update catalog configmap
-		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
+		updateInternalCatalog(c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
 
 		// Get updated configmap
 		updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
@@ -280,13 +281,13 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// Await 1 CatalogSource registry pod matching the updated labels
 		singlePod := podCount(1)
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName, "olm.configMapResourceVersion": updatedConfigMap.GetResourceVersion()})
-		podList, err := awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
+		podList, err := awaitPods(c, testNamespace, selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(podList.Items).To(HaveLen(1), "expected pod list not of length 1")
 
 		// Await 1 CatalogSource registry pod matching the updated labels
 		selector = labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName})
-		podList, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
+		podList, err = awaitPods(c, testNamespace, selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(podList.Items).To(HaveLen(1), "expected pod list not of length 1")
 
@@ -304,7 +305,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		ipCount := 0
 		for _, ip := range ipList.Items {
 			if ownerutil.IsOwnedBy(&ip, subscription) {
-				ipCount += 1
+				ipCount++
 			}
 		}
 		Expect(err).ShouldNot(HaveOccurred())
@@ -453,9 +454,9 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		// Replicate catalog pods with no OwnerReferences
 		mainCopy := replicateCatalogPod(c, mainSource)
-		mainCopy = awaitPod(GinkgoT(), c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
+		mainCopy = awaitPod(c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
 		replacementCopy := replicateCatalogPod(c, replacementSource)
-		replacementCopy = awaitPod(GinkgoT(), c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
+		replacementCopy = awaitPod(c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
 
 		addressSourceName := genName("address-catalog-")
 
@@ -541,7 +542,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// Wait for a new registry pod to be created
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": sourceName})
 		singlePod := podCount(1)
-		registryPods, err := awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
+		registryPods, err := awaitPods(c, testNamespace, selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 		Expect(registryPods).ToNot(BeNil(), "nil registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
@@ -568,7 +569,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			ctx.Ctx().Logf("waiting for %v to not be empty and not contain %s", uids, uid)
 			return len(pods.Items) > 0
 		}
-		registryPods, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
+		registryPods, err = awaitPods(c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
 		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
 		Expect(registryPods).ToNot(BeNil(), "nil replacement registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
@@ -603,7 +604,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// Wait for a new registry pod to be created
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
 		singlePod := podCount(1)
-		registryPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
+		registryPods, err := awaitPods(c, source.GetNamespace(), selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 		Expect(registryPods).ToNot(BeNil(), "nil registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
@@ -630,7 +631,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			ctx.Ctx().Logf("waiting for %v to not be empty and not contain %s", uids, uid)
 			return len(pods.Items) > 0
 		}
-		registryPods, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
+		registryPods, err = awaitPods(c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
 		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
 		Expect(registryPods).ShouldNot(BeNil(), "nil replacement registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
@@ -662,7 +663,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			defer deleteDockerRegistry(c, testNamespace)
 
 			// ensure registry pod is ready before attempting port-forwarding
-			_ = awaitPod(GinkgoT(), c, testNamespace, registryName, podReady)
+			_ = awaitPod(c, testNamespace, registryName, podReady)
 
 			err = registryPortForward(testNamespace)
 			Expect(err).NotTo(HaveOccurred(), "port-forwarding local registry: %s", err)
@@ -688,7 +689,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			Expect(err).NotTo(HaveOccurred(), "error creating skopeo pod: %s", err)
 
 			// wait for skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			awaitPod(c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
@@ -739,7 +740,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// Wait for a new registry pod to be created
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
 		singlePod := podCount(1)
-		registryPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
+		registryPods, err := awaitPods(c, source.GetNamespace(), selector.String(), singlePod)
 		Expect(err).ToNot(HaveOccurred(), "error awaiting registry pod")
 		Expect(registryPods).ShouldNot(BeNil(), "nil registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
@@ -765,7 +766,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			return podList.Items[0].Status.ContainerStatuses[0].ImageID != ""
 		}
 		// get old catalog source pod
-		registryPod, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), registryCheckFunc)
+		registryPod, err := awaitPods(c, source.GetNamespace(), selector.String(), registryCheckFunc)
 		// 3. Update image on registry via skopeo: this should trigger a newly updated version of the catalog source pod
 		// to be deployed after some time
 		// Make another skopeo pod to do the work of copying the image
@@ -778,7 +779,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			Expect(err).NotTo(HaveOccurred(), "error creating skopeo pod: %s", err)
 
 			// wait for skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			awaitPod(c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
@@ -819,7 +820,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			return false
 		}
 		// await new catalog source and ensure old one was deleted
-		registryPods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
+		registryPods, err = awaitPodsWithInterval(c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
 		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 		Expect(registryPods).ShouldNot(BeNil(), "nil registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
@@ -999,7 +1000,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// wait for new catalog source pod to be created and report ready
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
 		singlePod := podCount(1)
-		catalogPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
+		catalogPods, err := awaitPods(c, source.GetNamespace(), selector.String(), singlePod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(catalogPods).ToNot(BeNil())
 
@@ -1021,14 +1022,14 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		// Wait roughly the polling interval for update pod to show up
 		updateSelector := labels.SelectorFromSet(map[string]string{"catalogsource.operators.coreos.com/update": source.GetName()})
-		updatePods, err := awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 5*time.Second, 2*time.Minute, singlePod)
+		updatePods, err := awaitPodsWithInterval(c, source.GetNamespace(), updateSelector.String(), 5*time.Second, 2*time.Minute, singlePod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(updatePods).ToNot(BeNil())
 		Expect(updatePods.Items).To(HaveLen(1))
 
 		// No update to image: update pod should be deleted quickly
 		noPod := podCount(0)
-		updatePods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 1*time.Second, 30*time.Second, noPod)
+		updatePods, err = awaitPodsWithInterval(c, source.GetNamespace(), updateSelector.String(), 1*time.Second, 30*time.Second, noPod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(updatePods.Items).To(HaveLen(0))
 	})
