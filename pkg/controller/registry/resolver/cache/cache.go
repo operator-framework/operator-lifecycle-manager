@@ -136,9 +136,9 @@ type NamespacedOperatorCache struct {
 func (c *NamespacedOperatorCache) Error() error {
 	var errs []error
 	for key, snapshot := range c.snapshots {
-		snapshot.m.Lock()
+		snapshot.m.RLock()
 		err := snapshot.err
-		snapshot.m.Unlock()
+		snapshot.m.RUnlock()
 		if err != nil {
 			errs = append(errs, fmt.Errorf("error using catalog %s (in namespace %s): %w", key.Name, key.Namespace, err))
 		}
