@@ -3739,27 +3739,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ToNot(HaveOccurred())
 		defer cleanupCSV()
 
-		csv, err = fetchCSV(crc, csv.GetName(), csv.GetNamespace(), csvPendingChecker)
-		Expect(err).ToNot(HaveOccurred())
-
 		By("emitting when requirements are not met")
 		nextReason := func() string {
-			e := <-w.ResultChan()
-			if e.Object == nil {
-				return ""
+			if e := <-w.ResultChan(); e.Object != nil {
+				return e.Object.(*corev1.Event).Reason
 			}
-
-			return e.Object.(*corev1.Event).Reason
+			return ""
 		}
 		Eventually(nextReason).Should(Equal("RequirementsNotMet"))
 
-		// Update the CSV to require an API that we know exists
-		csv.Spec.APIServiceDefinitions.Required[0].Group = "packages.operators.coreos.com"
-		updateOpts := metav1.UpdateOptions{}
-		Eventually(func() error {
-			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(clientCtx, csv, updateOpts)
-			return err
-		}).Should(Succeed())
+		// Patch the CSV to require an API that we know exists
+		Eventually(ctx.Ctx().SSAClient().Apply(clientCtx, csv, func(c *v1alpha1.ClusterServiceVersion) error {
+			c.Spec.APIServiceDefinitions.Required[0].Group = "packages.operators.coreos.com"
+			return nil
+		})).Should(Succeed())
 
 		By("emitting when requirements are met")
 		Eventually(nextReason).Should(Equal("AllRequirementsMet"))
