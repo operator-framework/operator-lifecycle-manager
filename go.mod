@@ -38,7 +38,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
-	google.golang.org/grpc v1.38.0
+	google.golang.org/grpc v1.41.0
 	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.6.1
 	k8s.io/api v0.22.0
