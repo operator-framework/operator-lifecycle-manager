@@ -22,5 +22,5 @@ jobs:
       run: |
         kind create cluster
         kind export kubeconfig
-    - name: Run e2e tests
+    - name: Run OLM
       run: make run-local
