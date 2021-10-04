@@ -467,9 +467,11 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the subscription to begin upgrading to csvB
-		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), subscription.Status.InstallPlanRef.Name, "expected new installplan for upgraded csv")
+		// The upgrade changes the installplanref on the subscription
+		Eventually(func() (bool, error) {
+			subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subscriptionName, metav1.GetOptions{})
+			return subscription != nil && subscription.Status.InstallPlanRef.Name != fetchedInstallPlan.GetName() && subscription.Status.State == operatorsv1alpha1.SubscriptionStateUpgradePending, err
+		}, 5*time.Minute, 1*time.Second).Should(BeTrue(), "expected new installplan for upgraded csv")
 
 		upgradeInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, requiresApprovalChecker)
 		require.NoError(GinkgoT(), err)
