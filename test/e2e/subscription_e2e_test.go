@@ -138,11 +138,20 @@ var _ = Describe("Subscription", func() {
 		cleanup, _ := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanup()
 
-		subscription, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		var currentCSV string
+		Eventually(func() bool {
+			fetched, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), testSubscriptionName, metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			if fetched != nil {
+				currentCSV = fetched.Status.CurrentCSV
+				return fetched.Status.State == operatorsv1alpha1.SubscriptionStateAtLatest
+			}
+			return false
+		}, 5*time.Minute, 10*time.Second).Should(BeTrue())
 
-		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+		csv, err := fetchCSV(crc, currentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 
 		// Check for the olm.package property as a proxy for
