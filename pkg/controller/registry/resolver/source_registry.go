@@ -47,7 +47,7 @@ func (s *registrySource) Snapshot(ctx context.Context) (*cache.Snapshot, error) 
 		return nil, fmt.Errorf("failed to list bundles: %w", err)
 	}
 
-	var operators []*cache.Operator
+	var operators []*cache.Entry
 	for b := it.Next(); b != nil; b = it.Next() {
 		defaultChannel, ok := defaultChannels[b.PackageName]
 		if !ok {
@@ -89,7 +89,7 @@ func (a *registryClientAdapter) Sources(namespaces ...string) map[cache.SourceKe
 	return result
 }
 
-func EnsurePackageProperty(o *cache.Operator, name, version string) {
+func EnsurePackageProperty(o *cache.Entry, name, version string) {
 	for _, p := range o.Properties {
 		if p.Type == opregistry.PackageType {
 			return
@@ -109,7 +109,7 @@ func EnsurePackageProperty(o *cache.Operator, name, version string) {
 	})
 }
 
-func newOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey cache.SourceKey, defaultChannel string) (*cache.Operator, error) {
+func newOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey cache.SourceKey, defaultChannel string) (*cache.Entry, error) {
 	parsedVersion, err := semver.ParseTolerant(bundle.Version)
 	version := &parsedVersion
 	if err != nil {
@@ -153,7 +153,7 @@ func newOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey cac
 		properties = append(properties, ps...)
 	}
 
-	o := &cache.Operator{
+	o := &cache.Entry{
 		Name:         bundle.CsvName,
 		Replaces:     bundle.Replaces,
 		Version:      version,

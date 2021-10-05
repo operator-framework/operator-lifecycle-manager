@@ -197,7 +197,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *cache.Operator
+		want    *cache.Entry
 		wantErr error
 	}{
 		{
@@ -206,7 +206,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				bundle:    bundleNoAPIs,
 				sourceKey: cache.SourceKey{Name: "source", Namespace: "testNamespace"},
 			},
-			want: &cache.Operator{
+			want: &cache.Entry{
 				Name:         "testBundle",
 				Version:      &version.Version,
 				ProvidedAPIs: cache.EmptyAPISet(),
@@ -225,7 +225,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				bundle:    bundleWithAPIs,
 				sourceKey: cache.SourceKey{Name: "source", Namespace: "testNamespace"},
 			},
-			want: &cache.Operator{
+			want: &cache.Entry{
 				Name:    "testBundle",
 				Version: &version.Version,
 				ProvidedAPIs: cache.APISet{
@@ -288,7 +288,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				bundle:    bundleWithAPIsUnextracted,
 				sourceKey: cache.SourceKey{Name: "source", Namespace: "testNamespace"},
 			},
-			want: &cache.Operator{
+			want: &cache.Entry{
 				Name:         "testBundle",
 				ProvidedAPIs: cache.EmptyAPISet(),
 				RequiredAPIs: cache.EmptyAPISet(),
@@ -307,7 +307,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceKey:      cache.SourceKey{Name: "source", Namespace: "testNamespace"},
 				defaultChannel: "testChannel",
 			},
-			want: &cache.Operator{
+			want: &cache.Entry{
 				Name:         "testBundle",
 				Version:      &version.Version,
 				ProvidedAPIs: cache.EmptyAPISet(),
@@ -327,7 +327,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				bundle:    bundleWithPropsAndDeps,
 				sourceKey: cache.SourceKey{Name: "source", Namespace: "testNamespace"},
 			},
-			want: &cache.Operator{
+			want: &cache.Entry{
 				Name:         "testBundle",
 				Version:      &version.Version,
 				ProvidedAPIs: cache.EmptyAPISet(),

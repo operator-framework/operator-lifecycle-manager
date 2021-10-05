@@ -261,8 +261,8 @@ func (c *NamespacedOperatorCache) Catalog(k SourceKey) OperatorFinder {
 	return EmptyOperatorFinder{}
 }
 
-func (c *NamespacedOperatorCache) FindPreferred(preferred *SourceKey, preferredNamespace string, p ...OperatorPredicate) []*Operator {
-	var result []*Operator
+func (c *NamespacedOperatorCache) FindPreferred(preferred *SourceKey, preferredNamespace string, p ...Predicate) []*Entry {
+	var result []*Entry
 	if preferred != nil && preferred.Empty() {
 		preferred = nil
 	}
@@ -291,12 +291,12 @@ func (c *NamespacedOperatorCache) WithExistingOperators(snapshot *Snapshot, name
 	return o
 }
 
-func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
+func (c *NamespacedOperatorCache) Find(p ...Predicate) []*Entry {
 	return c.FindPreferred(nil, "", p...)
 }
 
 type Snapshot struct {
-	Entries []*Operator
+	Entries []*Entry
 }
 
 var _ Source = &Snapshot{}
@@ -402,7 +402,7 @@ func (s sortableSnapshots) Swap(i, j int) {
 	s.snapshots[i], s.snapshots[j] = s.snapshots[j], s.snapshots[i]
 }
 
-func (s *snapshotHeader) Find(p ...OperatorPredicate) []*Operator {
+func (s *snapshotHeader) Find(p ...Predicate) []*Entry {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	if s.snapshot == nil {
@@ -412,12 +412,12 @@ func (s *snapshotHeader) Find(p ...OperatorPredicate) []*Operator {
 }
 
 type OperatorFinder interface {
-	Find(...OperatorPredicate) []*Operator
+	Find(...Predicate) []*Entry
 }
 
 type MultiCatalogOperatorFinder interface {
 	Catalog(SourceKey) OperatorFinder
-	FindPreferred(preferred *SourceKey, preferredNamespace string, predicates ...OperatorPredicate) []*Operator
+	FindPreferred(preferred *SourceKey, preferredNamespace string, predicates ...Predicate) []*Entry
 	WithExistingOperators(snapshot *Snapshot, namespace string) MultiCatalogOperatorFinder
 	Error() error
 	OperatorFinder
@@ -425,26 +425,26 @@ type MultiCatalogOperatorFinder interface {
 
 type EmptyOperatorFinder struct{}
 
-func (f EmptyOperatorFinder) Find(...OperatorPredicate) []*Operator {
+func (f EmptyOperatorFinder) Find(...Predicate) []*Entry {
 	return nil
 }
 
-func AtLeast(n int, operators []*Operator) ([]*Operator, error) {
+func AtLeast(n int, operators []*Entry) ([]*Entry, error) {
 	if len(operators) < n {
 		return nil, fmt.Errorf("expected at least %d operator(s), got %d", n, len(operators))
 	}
 	return operators, nil
 }
 
-func ExactlyOne(operators []*Operator) (*Operator, error) {
+func ExactlyOne(operators []*Entry) (*Entry, error) {
 	if len(operators) != 1 {
 		return nil, fmt.Errorf("expected exactly one operator, got %d", len(operators))
 	}
 	return operators[0], nil
 }
 
-func Filter(operators []*Operator, p ...OperatorPredicate) []*Operator {
-	var result []*Operator
+func Filter(operators []*Entry, p ...Predicate) []*Entry {
+	var result []*Entry
 	for _, o := range operators {
 		if Matches(o, p...) {
 			result = append(result, o)
@@ -453,6 +453,6 @@ func Filter(operators []*Operator, p ...OperatorPredicate) []*Operator {
 	return result
 }
 
-func Matches(o *Operator, p ...OperatorPredicate) bool {
+func Matches(o *Entry, p ...Predicate) bool {
 	return And(p...).Test(o)
 }

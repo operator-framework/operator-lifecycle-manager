@@ -135,21 +135,21 @@ func (s APISet) StripPlural() APISet {
 	return set
 }
 
-type APIOwnerSet map[opregistry.APIKey]*Operator
+type APIOwnerSet map[opregistry.APIKey]*Entry
 
 func EmptyAPIOwnerSet() APIOwnerSet {
-	return map[opregistry.APIKey]*Operator{}
+	return map[opregistry.APIKey]*Entry{}
 }
 
-type OperatorSet map[string]*Operator
+type OperatorSet map[string]*Entry
 
 func EmptyOperatorSet() OperatorSet {
-	return map[string]*Operator{}
+	return map[string]*Entry{}
 }
 
 // Snapshot returns a new set, pointing to the same values
 func (o OperatorSet) Snapshot() OperatorSet {
-	out := make(map[string]*Operator)
+	out := make(map[string]*Entry)
 	for key, val := range o {
 		out[key] = val
 	}
@@ -204,7 +204,7 @@ func (i *OperatorSourceInfo) String() string {
 var NoCatalog = SourceKey{Name: "", Namespace: ""}
 var ExistingOperator = OperatorSourceInfo{Package: "", Channel: "", StartingCSV: "", Catalog: NoCatalog, DefaultChannel: false}
 
-type Operator struct {
+type Entry struct {
 	Name         string
 	Replaces     string
 	Skips        []string
@@ -223,14 +223,14 @@ type Operator struct {
 	Bundle *api.Bundle
 }
 
-func (o *Operator) Package() string {
+func (o *Entry) Package() string {
 	if si := o.SourceInfo; si != nil {
 		return si.Package
 	}
 	return ""
 }
 
-func (o *Operator) Channel() string {
+func (o *Entry) Channel() string {
 	if si := o.SourceInfo; si != nil {
 		return si.Channel
 	}

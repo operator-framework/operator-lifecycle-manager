@@ -55,7 +55,7 @@ func bundleId(bundle, channel string, catalog cache.SourceKey) solver.Identifier
 	return solver.IdentifierFromString(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
 }
 
-func NewBundleInstallableFromOperator(o *cache.Operator) (BundleInstallable, error) {
+func NewBundleInstallableFromOperator(o *cache.Entry) (BundleInstallable, error) {
 	if o.SourceInfo == nil {
 		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Name)
 	}
