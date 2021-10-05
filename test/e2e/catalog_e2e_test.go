@@ -1,4 +1,5 @@
-//  +build !bare
+//go:build !bare
+// +build !bare
 
 package e2e
 
@@ -1056,27 +1057,31 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		By("creating a catalog source")
-		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
-		Expect(err).ToNot(HaveOccurred())
+
+		var err error
+		Eventually(func() error {
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			return err
+		}).Should(Succeed())
 
 		By("update the catalog source with template annotation")
 
-		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
-		Expect(err).ShouldNot(HaveOccurred(), "error getting catalog source")
-
-		// create an annotation using the kube templates
-
-		source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV)})
-
 		// Update the catalog image
 		Eventually(func() error {
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			// create an annotation using the kube templates
+			source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV)})
+
 			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
 			return err
 		}).Should(Succeed())
 
 		// wait for status condition to show up
 		Eventually(func() (bool, error) {
-			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), sourceName, metav1.GetOptions{})
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
 			if err != nil {
 				return false, err
 			}
