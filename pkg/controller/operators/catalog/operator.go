@@ -962,30 +962,33 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// not-satisfiable error
 		if _, ok := err.(solver.NotSatisfiable); ok {
 			logger.WithError(err).Debug("resolution failed")
-			subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ConstraintsNotSatisfiable", err.Error(), true)
-			_, updateErr := o.updateSubscriptionStatuses(subs)
+			_, updateErr := o.updateSubscriptionStatuses(
+				o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+					Type:    v1alpha1.SubscriptionResolutionFailed,
+					Reason:  "ConstraintsNotSatisfiable",
+					Message: err.Error(),
+					Status:  corev1.ConditionTrue,
+				}))
 			if updateErr != nil {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")
 				return updateErr
 			}
 			return nil
 		}
-		subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ErrorPreventedResolution", err.Error(), true)
-		_, updateErr := o.updateSubscriptionStatuses(subs)
+
+		_, updateErr := o.updateSubscriptionStatuses(
+			o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+				Type:    v1alpha1.SubscriptionResolutionFailed,
+				Reason:  "ErrorPreventedResolution",
+				Message: err.Error(),
+				Status:  corev1.ConditionTrue,
+			}))
 		if updateErr != nil {
 			logger.WithError(updateErr).Debug("failed to update subs conditions")
 			return updateErr
 		}
 		return err
 	}
-
-	defer func() {
-		subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
-		_, updateErr := o.updateSubscriptionStatuses(subs)
-		if updateErr != nil {
-			logger.WithError(updateErr).Warn("failed to update subscription conditions")
-		}
-	}()
 
 	// create installplan if anything updated
 	if len(updatedSubs) > 0 {
@@ -1017,15 +1020,34 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			return err
 		}
 		updatedSubs = o.setIPReference(updatedSubs, maxGeneration+1, installPlanReference)
-		for _, updatedSub := range updatedSubs {
-			for i, sub := range subs {
-				if sub.Name == updatedSub.Name && sub.Namespace == updatedSub.Namespace {
-					subs[i] = updatedSub
-				}
-			}
-		}
 	} else {
 		logger.Debugf("no subscriptions were updated")
+	}
+
+	// Remove resolutionfailed condition from subscriptions
+	subs = o.removeSubsCond(subs, v1alpha1.SubscriptionResolutionFailed)
+	newSub := true
+	for _, updatedSub := range updatedSubs {
+		updatedSub.Status.RemoveConditions(v1alpha1.SubscriptionResolutionFailed)
+		for i, sub := range subs {
+			if sub.Name == updatedSub.Name && sub.Namespace == updatedSub.Namespace {
+				subs[i] = updatedSub
+				newSub = false
+				break
+			}
+		}
+		if newSub {
+			subs = append(subs, updatedSub)
+			continue
+		}
+		newSub = true
+	}
+
+	// Update subscriptions with all changes so far
+	_, updateErr := o.updateSubscriptionStatuses(subs)
+	if updateErr != nil {
+		logger.WithError(updateErr).Warn("failed to update subscription conditions")
+		return updateErr
 	}
 
 	return nil
@@ -1084,12 +1106,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	out.Status.CurrentCSV = out.Spec.StartingCSV
 	out.Status.LastUpdated = o.now()
 
-	updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
-	if err != nil {
-		return nil, false, err
-	}
-
-	return updated, true, nil
+	return out, true, nil
 }
 
 func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription, querier SourceQuerier) (*v1alpha1.Subscription, bool, error) {
@@ -1225,23 +1242,45 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 	return reference.GetReference(res)
 }
 
-func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType, reason, message string, setTrue bool) []*v1alpha1.Subscription {
+// setSubsCond will set the condition to the subscription if it doesn't already
+// exist or if it is different
+// Only return the list of updated subscriptions
+func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, cond v1alpha1.SubscriptionCondition) []*v1alpha1.Subscription {
+	var (
+		lastUpdated = o.now()
+		subList     []*v1alpha1.Subscription
+	)
+
+	for _, sub := range subs {
+		subCond := sub.Status.GetCondition(cond.Type)
+		if subCond.Equals(cond) {
+			continue
+		}
+		sub.Status.LastUpdated = lastUpdated
+		sub.Status.SetCondition(cond)
+		subList = append(subList, sub)
+	}
+	return subList
+}
+
+// removeSubsCond will remove the condition to the subscription if it exists
+// Only return the list of updated subscriptions
+func (o *Operator) removeSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType) []*v1alpha1.Subscription {
 	var (
 		lastUpdated = o.now()
 	)
+	var subList []*v1alpha1.Subscription
 	for _, sub := range subs {
-		sub.Status.LastUpdated = lastUpdated
 		cond := sub.Status.GetCondition(condType)
-		cond.Reason = reason
-		cond.Message = message
-		if setTrue {
-			cond.Status = corev1.ConditionTrue
-		} else {
-			cond.Status = corev1.ConditionFalse
+		// if status is ConditionUnknown, the condition doesn't exist. Just skip
+		if cond.Status == corev1.ConditionUnknown {
+			continue
 		}
-		sub.Status.SetCondition(cond)
+		sub.Status.LastUpdated = lastUpdated
+		sub.Status.RemoveConditions(condType)
+		subList = append(subList, sub)
 	}
-	return subs
+	return subList
 }
 
 func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]*v1alpha1.Subscription, error) {
