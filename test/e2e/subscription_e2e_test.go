@@ -2199,14 +2199,14 @@ var _ = Describe("Subscription", func() {
 
 				updateInternalCatalog(GinkgoT(), c, crc, catSrcName, generatedNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, packages)
 			})
-			It("the ResolutionFailed condition previously set in it's status that indicated the resolution error is cleared off", func() {
+			It("the ResolutionFailed condition previously set in its status that indicated the resolution error is cleared off", func() {
 				Eventually(func() (corev1.ConditionStatus, error) {
 					sub, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).Get(context.Background(), subName, metav1.GetOptions{})
 					if err != nil {
-						return corev1.ConditionUnknown, err
+						return corev1.ConditionFalse, err
 					}
 					return sub.Status.GetCondition(operatorsv1alpha1.SubscriptionResolutionFailed).Status, nil
-				}).Should(Equal(corev1.ConditionFalse))
+				}).Should(Equal(corev1.ConditionUnknown))
 			})
 		})
 	})
