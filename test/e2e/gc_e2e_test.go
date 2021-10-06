@@ -76,7 +76,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			// Create a CustomResourceDefinition
 			var err error
 			Eventually(func() error {
-				crd, err = kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
+				crd, err = kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
 				return err
 			}).Should(Succeed())
 
@@ -100,7 +100,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			IgnoreError(kubeClient.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
 
 			// Clean up CRD
-			IgnoreError(kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.GetName(), metav1.DeleteOptions{}))
+			IgnoreError(kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{}))
 		})
 
 		When("CustomResourceDefinition is deleted", func() {
@@ -108,7 +108,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			BeforeEach(func() {
 				// Delete CRD
 				Eventually(func() bool {
-					err := kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.GetName(), metav1.DeleteOptions{})
+					err := kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 			})
@@ -220,12 +220,12 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			// create all owners
 			var err error
 			Eventually(func() error {
-				fetchedA, err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(context.TODO(), &ownerA, metav1.CreateOptions{})
+				fetchedA, err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(context.Background(), &ownerA, metav1.CreateOptions{})
 				return err
 			}).Should(Succeed())
 
 			Eventually(func() error {
-				fetchedB, err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(context.TODO(), &ownerB, metav1.CreateOptions{})
+				fetchedB, err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(context.Background(), &ownerB, metav1.CreateOptions{})
 				return err
 			}).Should(Succeed())
 
@@ -242,7 +242,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 			// create ConfigMap dependent
 			Eventually(func() error {
-				_, err = kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.TODO(), dependent, metav1.CreateOptions{})
+				_, err = kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.Background(), dependent, metav1.CreateOptions{})
 				return err
 			}).Should(Succeed(), "dependent could not be created")
 
@@ -255,20 +255,20 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			BeforeEach(func() {
 				// delete ownerA in the foreground (to ensure any "blocking" dependents are deleted before ownerA)
 				Eventually(func() bool {
-					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), fetchedA.GetName(), options)
+					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.Background(), fetchedA.GetName(), options)
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 
 				// wait for deletion of ownerA
 				Eventually(func() bool {
-					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), ownerA.GetName(), metav1.GetOptions{})
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), ownerA.GetName(), metav1.GetOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 			})
 
 			It("should not have deleted the dependent since ownerB CSV is still present", func() {
 				Eventually(func() error {
-					_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), dependent.GetName(), metav1.GetOptions{})
+					_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.Background(), dependent.GetName(), metav1.GetOptions{})
 					return err
 				}).Should(Succeed(), "dependent deleted after one of the owner was deleted")
 				ctx.Ctx().Logf("dependent still exists after one owner was deleted")
@@ -280,32 +280,32 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			BeforeEach(func() {
 				// delete ownerA in the foreground (to ensure any "blocking" dependents are deleted before ownerA)
 				Eventually(func() bool {
-					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), fetchedA.GetName(), options)
+					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.Background(), fetchedA.GetName(), options)
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 
 				// wait for deletion of ownerA
 				Eventually(func() bool {
-					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), ownerA.GetName(), metav1.GetOptions{})
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), ownerA.GetName(), metav1.GetOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 
 				// delete ownerB in the foreground (to ensure any "blocking" dependents are deleted before ownerB)
 				Eventually(func() bool {
-					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), fetchedB.GetName(), options)
+					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.Background(), fetchedB.GetName(), options)
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 
 				// wait for deletion of ownerB
 				Eventually(func() bool {
-					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), ownerB.GetName(), metav1.GetOptions{})
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), ownerB.GetName(), metav1.GetOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 			})
 
 			It("should have deleted the dependent since both the owners were deleted", func() {
 				Eventually(func() bool {
-					_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), dependent.GetName(), metav1.GetOptions{})
+					_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.Background(), dependent.GetName(), metav1.GetOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue(), "expected dependency configmap would be properly garabage collected")
 				ctx.Ctx().Logf("dependent successfully garbage collected after both owners were deleted")
@@ -349,7 +349,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			}
 
 			Eventually(func() error {
-				cs, err := operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+				cs, err := operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 				if err != nil {
 					return err
 				}
@@ -391,25 +391,25 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			BeforeEach(func() {
 				// Delete subscription first
 				Eventually(func() bool {
-					err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(context.TODO(), subName, metav1.DeleteOptions{})
+					err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(context.Background(), subName, metav1.DeleteOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 
 				// wait for deletion
 				Eventually(func() bool {
-					_, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subName, metav1.GetOptions{})
+					_, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subName, metav1.GetOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 
 				// Delete CSV
 				Eventually(func() bool {
-					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), csvName, metav1.DeleteOptions{})
+					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.Background(), csvName, metav1.DeleteOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 
 				// wait for deletion
 				Eventually(func() bool {
-					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), csvName, metav1.GetOptions{})
 					return k8serrors.IsNotFound(err)
 				}).Should(BeTrue())
 			})
@@ -464,7 +464,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 			var err error
 			Eventually(func() error {
-				source, err = operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+				source, err = operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 				return err
 			}).Should(Succeed(), "could not create catalog source")
 
@@ -497,13 +497,13 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			BeforeEach(func() {
 				Eventually(func() error {
 					// update subscription first
-					sub, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subName, metav1.GetOptions{})
+					sub, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subName, metav1.GetOptions{})
 					if err != nil {
 						return fmt.Errorf("could not get subscription")
 					}
 					// update channel on sub
 					sub.Spec.Channel = upgradeChannelName
-					_, err = operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), sub, metav1.UpdateOptions{})
+					_, err = operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.Background(), sub, metav1.UpdateOptions{})
 					return err
 				}).Should(Succeed(), "could not update subscription")
 
@@ -519,7 +519,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 				// Ensure the new csv is installed
 				Eventually(func() error {
-					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), newCSVname, metav1.GetOptions{})
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), newCSVname, metav1.GetOptions{})
 					return err
 				}).Should(BeNil())
 			})
@@ -573,7 +573,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 			var err error
 			Eventually(func() error {
-				source, err = operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+				source, err = operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 				return err
 			}).Should(Succeed())
 
@@ -607,13 +607,13 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			BeforeEach(func() {
 				Eventually(func() error {
 					// update subscription first
-					sub, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subName, metav1.GetOptions{})
+					sub, err := operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subName, metav1.GetOptions{})
 					if err != nil {
 						return fmt.Errorf("could not get subscription")
 					}
 					// update channel on sub
 					sub.Spec.Channel = upgradeChannelName
-					_, err = operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.TODO(), sub, metav1.UpdateOptions{})
+					_, err = operatorClient.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.Background(), sub, metav1.UpdateOptions{})
 					return err
 				}).Should(Succeed(), "could not update subscription")
 
@@ -629,7 +629,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 				// Ensure the new csv is installed
 				Eventually(func() error {
-					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), newCSVname, metav1.GetOptions{})
+					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), newCSVname, metav1.GetOptions{})
 					return err
 				}).Should(BeNil())
 			})
