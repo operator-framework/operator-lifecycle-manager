@@ -30,3 +30,10 @@ func (s *SharedTime) Set(current time.Time) {
 
 	s.time = current
 }
+
+func (s *SharedTime) Current() time.Time {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.time
+}
