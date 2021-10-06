@@ -2023,19 +2023,13 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateCSV))
 
 		// wait for CSV to be gc'd
-		Eventually(func() (bool, error) {
-			csv, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
-			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
-					return true, nil
-				}
-				GinkgoT().Logf("Error (in %v): %v", opGroupNamespace, fetchErr.Error())
-				return false, fetchErr
+		Eventually(func() error {
+			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.Background(), csvName, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return nil
 			}
-			GinkgoT().Logf("%#v", csv.Annotations)
-			GinkgoT().Logf(csv.GetNamespace())
-			return false, nil
-		}).Should(BeTrue())
+			return err
+		}).Should(Succeed())
 	})
 	It("OperatorGroupLabels", func() {
 		c := newKubeClient()
