@@ -432,7 +432,6 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha
 		healthy = false
 		return
 	}
-
 	healthy = true
 	return
 }

@@ -50,6 +50,16 @@ func grpcCatalogSourceWithSecret(secretNames []string) *v1alpha1.CatalogSource {
 	}
 }
 
+func injectPodReadiness(objs []runtime.Object) []runtime.Object {
+	pod, ok := objs[0].(*corev1.Pod)
+	if !ok {
+		return nil
+	}
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, corev1.ContainerStatus{Name: "ready", Ready: true})
+	objs[0] = pod
+	return objs
+}
+
 func grpcCatalogSourceWithAnnotations(annotations map[string]string) *v1alpha1.CatalogSource {
 	catsrc := validGrpcCatalogSource("image", "")
 	catsrc.ObjectMeta.Annotations = annotations
@@ -428,12 +438,24 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/Image/Healthy",
 			in: in{
 				cluster: cluster{
-					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("test-img", "")),
+					k8sObjs: injectPodReadiness(objectsForCatalogSource(validGrpcCatalogSource("test-img", ""))),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
 			out: out{
 				healthy: true,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/Image/NotHealthy/PodNotReportingReady",
+			in: in{
+				cluster: cluster{
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("test-img", "")),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: false,
 			},
 		},
 		{
@@ -494,7 +516,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/AddressAndImage/Healthy",
 			in: in{
 				cluster: cluster{
-					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001")),
+					k8sObjs: injectPodReadiness(objectsForCatalogSource(validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"))),
 				},
 				catsrc: validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
 			},
