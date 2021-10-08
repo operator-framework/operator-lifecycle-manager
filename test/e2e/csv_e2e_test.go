@@ -69,7 +69,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Name: "test-namespace-1",
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.Background(), &ns)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), &ns)
+			}).Should(Succeed())
 
 			og := v1.OperatorGroup{
 				ObjectMeta: metav1.ObjectMeta{
@@ -80,7 +82,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 					TargetNamespaces: []string{ns.GetName()},
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.TODO(), &og)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), &og)
+			}).Should(Succeed())
 
 			crd = apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
@@ -110,7 +114,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 					}},
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.Background(), &crd)).To(Succeed())
+			Eventually(func() error {
+				return ctx.Ctx().Client().Create(context.Background(), &crd)
+			}).Should(Succeed())
 		})
 
 		AfterEach(func() {
