@@ -54,7 +54,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 			By("first installing the VPA CRD on cluster")
 			const (
 				sourceName = "test-catalog"
-				imageName  = "quay.io/olmtest/single-bundle-index:pdb"
+				imageName  = "quay.io/olmtest/single-bundle-index:pdb-v1"
 			)
 
 			// create VPA CRD on cluster
@@ -140,11 +140,6 @@ var _ = Describe("Installing bundles with new object types", func() {
 
 			// confirm extra bundle objects are installed
 			Eventually(func() error {
-				_, err := kubeClient.KubernetesInterface().PolicyV1beta1().PodDisruptionBudgets(testNamespace).Get(context.TODO(), pdbName, metav1.GetOptions{})
-				return err
-			}).Should(Succeed(), "expected no error getting pdb object associated with CSV")
-
-			Eventually(func() error {
 				_, err := kubeClient.KubernetesInterface().SchedulingV1().PriorityClasses().Get(context.TODO(), priorityClassName, metav1.GetOptions{})
 				return err
 			}).Should(Succeed(), "expected no error getting priorityclass object associated with CSV")
@@ -153,6 +148,11 @@ var _ = Describe("Installing bundles with new object types", func() {
 				_, err := dynamicClient.Resource(resource).Namespace(testNamespace).Get(context.TODO(), vpaName, metav1.GetOptions{})
 				return err
 			}).Should(Succeed(), "expected no error finding vpa object associated with csv")
+
+			Eventually(func() error {
+				_, err := kubeClient.KubernetesInterface().PolicyV1().PodDisruptionBudgets(testNamespace).Get(context.TODO(), pdbName, metav1.GetOptions{})
+				return err
+			}).Should(Succeed(), "expected no error getting pdb object associated with CSV")
 		})
 
 		AfterEach(func() {
