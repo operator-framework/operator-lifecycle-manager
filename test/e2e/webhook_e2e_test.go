@@ -667,6 +667,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			}
 
 			crc := newCRClient()
+			kc := newKubeClient()
 			source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
 			require.NoError(GinkgoT(), err)
 			cleanupCatSrc = func() {
@@ -679,7 +680,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			defer cleanupSubscription()
 
 			// Wait for webhook-operator v2 csv to succeed
-			csv, err := awaitCSV(crc, testNamespace, "webhook-operator.v0.0.1", csvSucceededChecker)
+			csv, err := awaitCSVAndPrintDeployment(crc, kc, testNamespace, "webhook-operator.v0.0.1", csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, testNamespace, true, true)
@@ -695,7 +696,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				cleanupSubscription()
 			}
 		})
-		It("Validating, Mutating and Conversion webhooks work as intended", func() {
+		FIt("Validating, Mutating and Conversion webhooks work as intended", func() {
 			// An invalid custom resource is rejected by the validating webhook
 			invalidCR := &unstructured.Unstructured{
 				Object: map[string]interface{}{

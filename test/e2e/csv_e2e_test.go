@@ -4380,6 +4380,7 @@ func newMockExtServerDeployment(labelName string, mGVKs []mockGroupVersionKind) 
 
 type csvConditionChecker func(csv *v1alpha1.ClusterServiceVersion) bool
 
+// TODO: Does this even work?
 func buildCSVConditionChecker(phases ...v1alpha1.ClusterServiceVersionPhase) csvConditionChecker {
 	return func(csv *v1alpha1.ClusterServiceVersion) bool {
 		conditionMet := false
@@ -4439,6 +4440,34 @@ func awaitCSV(c versioned.Interface, namespace, name string, checker csvConditio
 			return false, err
 		}
 		ctx.Ctx().Logf("%s - %s (%s): %s", name, fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
+		return checker(fetched), nil
+	}).Should(BeTrue())
+
+	if err != nil {
+		ctx.Ctx().Logf("never got correct status: %#v", fetched.Status)
+	}
+	return fetched, err
+}
+func awaitCSVAndPrintDeployment(c versioned.Interface, co operatorclient.ClientInterface, namespace, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
+	var fetched *v1alpha1.ClusterServiceVersion
+	var err error
+
+	Eventually(func() (bool, error) {
+		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		ctx.Ctx().Logf("%s - %s (%s): %s", name, fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
+
+		dep, err := co.GetDeployment(testNamespace, "webhook-operator-webhook")
+		if err != nil {
+			ctx.Ctx().Logf("Error getting webhook deployment: %v", err)
+		}
+		ctx.Ctx().Logf("Deployment: %v", dep)
+
 		return checker(fetched), nil
 	}).Should(BeTrue())
 
