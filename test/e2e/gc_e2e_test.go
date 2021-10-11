@@ -358,6 +358,10 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				return nil
 			}).Should(Succeed(), "could not create catalog source")
 
+			// Wait for the CatalogSource to be ready
+			_, err := fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
+
 			// Create a Subscription for package
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
@@ -468,6 +472,10 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				return err
 			}).Should(Succeed(), "could not create catalog source")
 
+			// Wait for the CatalogSource to be ready
+			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
+
 			// Create a Subscription for package
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
@@ -576,6 +584,10 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				source, err = operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 				return err
 			}).Should(Succeed())
+
+			// Wait for the CatalogSource to be ready
+			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
 			// Create a Subscription for package
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)

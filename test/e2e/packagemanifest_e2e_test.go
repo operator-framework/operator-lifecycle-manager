@@ -217,6 +217,10 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			var err error
 			catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
+
+			// Wait for the CatalogSource to be ready
+			_, err = fetchCatalogSourceOnStatus(crc, catalogSource.GetName(), catalogSource.GetNamespace(), catalogSourceRegistryPodSynced)
+			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 		})
 
 		AfterEach(func() {

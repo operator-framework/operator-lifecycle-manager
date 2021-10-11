@@ -847,6 +847,10 @@ var _ = Describe("Subscription", func() {
 						Expect(err).ToNot(HaveOccurred())
 					}()
 
+					// Wait for the CatalogSource status to be updated to reflect its invalid spec
+					_, err = fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceInvalidSpec)
+					Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
+
 					subName := genName("sub-")
 					cleanup := createSubscriptionForCatalog(
 						crc,

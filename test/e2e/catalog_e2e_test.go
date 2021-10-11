@@ -482,6 +482,10 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
+		// Wait for the CatalogSource to be ready
+		_, err = fetchCatalogSourceOnStatus(crc, addressSource.GetName(), addressSource.GetNamespace(), catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
+
 		// Delete CatalogSources
 		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), mainSourceName, metav1.DeleteOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -892,6 +896,10 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
+		// Wait for the CatalogSource to be ready
+		_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
+
 		// Create a Subscription for busybox
 		subscriptionName := genName("sub-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
@@ -934,6 +942,10 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			}
 			return false, nil
 		}).Should(BeTrue())
+
+		// Wait for the CatalogSource to be ready
+		_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
 		// Wait for the busybox v2 Subscription to succeed
 		subChecker := func(sub *v1alpha1.Subscription) bool {
@@ -1065,7 +1077,6 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		Expect(err).ShouldNot(HaveOccurred(), "error getting catalog source")
 
 		// create an annotation using the kube templates
-
 		source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV)})
 
 		// Update the catalog image
