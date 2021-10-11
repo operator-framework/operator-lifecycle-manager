@@ -29,7 +29,7 @@ const (
 	webhookName = "webhook.test.com"
 )
 
-var _ = Describe("CSVs with a Webhook", func() {
+var _ = FDescribe("CSVs with a Webhook", func() {
 	var c operatorclient.ClientInterface
 	var crc versioned.Interface
 	var namespace *corev1.Namespace
@@ -696,7 +696,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				cleanupSubscription()
 			}
 		})
-		FIt("Validating, Mutating and Conversion webhooks work as intended", func() {
+		It("Validating, Mutating and Conversion webhooks work as intended", func() {
 			// An invalid custom resource is rejected by the validating webhook
 			invalidCR := &unstructured.Unstructured{
 				Object: map[string]interface{}{
