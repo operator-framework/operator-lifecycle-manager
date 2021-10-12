@@ -2916,7 +2916,7 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 		before := fetchedInitialCatalog.Status.ConfigMapResource
 		after := catalog.Status.ConfigMapResource
 		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion &&
-			catalog.Status.GRPCConnectionState.LastConnectTime.After(after.LastUpdateTime.Time) && catalog.Status.GRPCConnectionState.LastObservedState == "READY" {
+			catalog.Status.GRPCConnectionState.LastConnectTime.After(after.LastUpdateTime.Time) {
 			fmt.Println("catalog updated")
 			return true
 		}
