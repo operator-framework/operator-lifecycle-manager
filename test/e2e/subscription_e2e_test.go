@@ -286,35 +286,39 @@ var _ = Describe("Subscription", func() {
 
 	// If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 	It("creation manual approval", func() {
-
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			Eventually(func() error {
+				return crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			}).Should(Succeed())
 		}()
-		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
 
-		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, testNamespace, "manual-subscription", testPackageName, stableChannel, operatorsv1alpha1.ApprovalManual)
+		err := initCatalog(GinkgoT(), c, crc)
+		Expect(err).To(BeNil())
+
+		subscriptionCleanup, subscription := createSubscription(GinkgoT(), crc, testNamespace, "manual-subscription", testPackageName, stableChannel, operatorsv1alpha1.ApprovalManual)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		subscription, err = fetchSubscription(crc, subscription.GetNamespace(), subscription.GetName(), subscriptionStateUpgradePendingChecker)
+		Expect(err).To(BeNil())
+		Expect(subscription).ToNot(BeNil())
 
 		installPlan, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.Install.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval))
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), installPlan)
+		Expect(err).To(BeNil())
+		Expect(installPlan).ToNot(BeNil())
 
-		require.Equal(GinkgoT(), operatorsv1alpha1.ApprovalManual, installPlan.Spec.Approval)
-		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
+		Expect(installPlan.Spec.Approval).To(Equal(operatorsv1alpha1.ApprovalManual))
+		Expect(installPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseRequiresApproval))
 
 		// Delete the current installplan
-		err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.Background(), installPlan.Name, metav1.DeleteOptions{})
-		require.NoError(GinkgoT(), err)
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.Background(), installPlan.Name, metav1.DeleteOptions{})
+		}).Should(Succeed())
 
 		var ipName string
 		Eventually(func() bool {
-			fetched, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), "manual-subscription", metav1.GetOptions{})
+			fetched, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subscription.GetName(), metav1.GetOptions{})
 			if err != nil {
 				return false
 			}
@@ -327,12 +331,12 @@ var _ = Describe("Subscription", func() {
 
 		// Fetch new installplan
 		newInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, ipName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval))
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), newInstallPlan)
+		Expect(err).To(BeNil())
+		Expect(newInstallPlan).ToNot(BeNil())
 
-		require.NotEqual(GinkgoT(), installPlan.Name, newInstallPlan.Name, "expected new installplan recreated")
-		require.Equal(GinkgoT(), operatorsv1alpha1.ApprovalManual, newInstallPlan.Spec.Approval)
-		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseRequiresApproval, newInstallPlan.Status.Phase)
+		Expect(installPlan.Name).ToNot(Equal(newInstallPlan.Name), "expected new installplan recreated")
+		Expect(newInstallPlan.Spec.Approval).To(Equal(operatorsv1alpha1.ApprovalManual))
+		Expect(newInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseRequiresApproval))
 
 		// Set the InstallPlan's approved to True
 		Eventually(Apply(newInstallPlan, func(p *operatorsv1alpha1.InstallPlan) error {
@@ -340,12 +344,12 @@ var _ = Describe("Subscription", func() {
 			return nil
 		})).Should(Succeed())
 
-		subscription, err = fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), subscription)
+		subscription, err = fetchSubscription(crc, testNamespace, subscription.GetName(), subscriptionStateAtLatestChecker)
+		Expect(err).To(BeNil())
+		Expect(subscription).ToNot(BeNil())
 
 		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
-		require.NoError(GinkgoT(), err)
+		Expect(err).To(BeNil())
 	})
 
 	It("with starting CSV", func() {
@@ -2255,7 +2259,8 @@ var _ = Describe("Subscription", func() {
 
 	When("there exists a Subscription to an operator having dependency candidates in both default and nondefault channels", func() {
 		var (
-			teardown func()
+			teardown          func()
+			catalogSourceName string
 		)
 
 		BeforeEach(func() {
@@ -2285,9 +2290,14 @@ var _ = Describe("Subscription", func() {
 				newCSV("csv-root", testNamespace, "", semver.MustParse("1.0.0"), nil, crds, nil),
 			}
 
-			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", testNamespace, packages, crds, csvs)
+			catalogSourceName = genName("test-dependency-catalog-")
+			catalogsource, catalogSourceCleanFn := createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), catalogSourceName, testNamespace, packages, crds, csvs)
+			subscriptionCleanupFn := createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription", catalogsource.GetName(), "root", "unimportant", "", operatorsv1alpha1.ApprovalAutomatic)
 
-			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription", "test-catalog", "root", "unimportant", "", operatorsv1alpha1.ApprovalAutomatic)
+			teardown = func() {
+				catalogSourceCleanFn()
+				subscriptionCleanupFn()
+			}
 		})
 
 		AfterEach(func() {
@@ -2311,7 +2321,7 @@ var _ = Describe("Subscription", func() {
 					}
 				},
 				Equal(operatorsv1alpha1.SubscriptionSpec{
-					CatalogSource:          "test-catalog",
+					CatalogSource:          catalogSourceName,
 					CatalogSourceNamespace: testNamespace,
 					Package:                "dependency",
 					Channel:                "default",
