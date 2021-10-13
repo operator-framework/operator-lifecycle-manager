@@ -6,36 +6,37 @@ import (
 )
 
 type profileConfig struct {
-	pprof   bool
-	cmdline bool
-	profile bool
-	symbol  bool
-	trace   bool
+	pprof     bool
+	cmdline   bool
+	profile   bool
+	symbol    bool
+	trace     bool
+	enableTLS bool
 }
 
 // Option applies a configuration option to the given config.
 type Option func(p *profileConfig)
 
 func (p *profileConfig) apply(options []Option) {
-	if len(options) == 0 {
-		// If no options are given, default to all
-		p.pprof = true
-		p.cmdline = true
-		p.profile = true
-		p.symbol = true
-		p.trace = true
-
-		return
-	}
-
 	for _, o := range options {
 		o(p)
 	}
 }
 
+func DisableTLS(p *profileConfig) {
+	p.enableTLS = false
+}
+
 func defaultProfileConfig() *profileConfig {
 	// Initialize config
-	return &profileConfig{}
+	return &profileConfig{
+		pprof:     true,
+		cmdline:   true,
+		profile:   true,
+		symbol:    true,
+		trace:     true,
+		enableTLS: true,
+	}
 }
 
 // RegisterHandlers registers profile Handlers with the given ServeMux.
@@ -47,25 +48,25 @@ func RegisterHandlers(mux *http.ServeMux, options ...Option) {
 	config.apply(options)
 
 	if config.pprof {
-		mux.Handle("/debug/pprof/", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Index)))
+		mux.Handle("/debug/pprof/", pprofHandlerFunc(http.HandlerFunc(pprof.Index), config.enableTLS))
 	}
 	if config.cmdline {
-		mux.Handle("/debug/pprof/cmdline", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Cmdline)))
+		mux.Handle("/debug/pprof/cmdline", pprofHandlerFunc(http.HandlerFunc(pprof.Cmdline), config.enableTLS))
 	}
 	if config.profile {
-		mux.Handle("/debug/pprof/profile", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Profile)))
+		mux.Handle("/debug/pprof/profile", pprofHandlerFunc(http.HandlerFunc(pprof.Profile), config.enableTLS))
 	}
 	if config.symbol {
-		mux.Handle("/debug/pprof/symbol", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Symbol)))
+		mux.Handle("/debug/pprof/symbol", pprofHandlerFunc(http.HandlerFunc(pprof.Symbol), config.enableTLS))
 	}
 	if config.trace {
-		mux.Handle("/debug/pprof/trace", requireVerifiedClientCertificate(http.HandlerFunc(pprof.Trace)))
+		mux.Handle("/debug/pprof/trace", pprofHandlerFunc(http.HandlerFunc(pprof.Trace), config.enableTLS))
 	}
 }
 
-func requireVerifiedClientCertificate(h http.Handler) http.Handler {
+func pprofHandlerFunc(h http.Handler, enableTLS bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 {
+		if enableTLS && (r.TLS == nil || len(r.TLS.VerifiedChains) == 0) {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}

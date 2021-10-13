@@ -13,9 +13,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func GetListenAndServeFunc(logger *logrus.Logger, tlsCertPath, tlsKeyPath, clientCAPath *string) (func() error, error) {
+func GetListenAndServeFunc(logger *logrus.Logger, tlsCertPath, tlsKeyPath, clientCAPath *string, debug bool) (func() error, error) {
 	mux := http.NewServeMux()
-	profile.RegisterHandlers(mux)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -25,10 +24,11 @@ func GetListenAndServeFunc(logger *logrus.Logger, tlsCertPath, tlsKeyPath, clien
 		Handler: mux,
 		Addr:    ":8080",
 	}
-	listenAndServe := s.ListenAndServe
+	var listenAndServe func() error
 
-	if *tlsCertPath != "" && *tlsKeyPath != "" {
+	if !debug && *tlsCertPath != "" && *tlsKeyPath != "" {
 		logger.Info("TLS keys set, using https for metrics")
+		profile.RegisterHandlers(mux)
 
 		certStore, err := filemonitor.NewCertStore(*tlsCertPath, *tlsKeyPath)
 		if err != nil {
@@ -74,7 +74,19 @@ func GetListenAndServeFunc(logger *logrus.Logger, tlsCertPath, tlsKeyPath, clien
 	} else if *tlsCertPath != "" || *tlsKeyPath != "" {
 		return nil, fmt.Errorf("both --tls-key and --tls-crt must be provided for TLS to be enabled")
 	} else {
-		logger.Info("TLS keys not set, using non-https for metrics")
+		options := []profile.Option{}
+		if debug {
+			logger.Info("TLS keys not set and debug mode enabled, requests to pprof endpoint no longer require certificates")
+			options = append(options, profile.DisableTLS)
+		}
+
+		profile.RegisterHandlers(mux, options...)
+		logger.Info("TLS keys not set, using non-https for metrics and healthz endpoints")
+		listenAndServe = s.ListenAndServe
+	}
+
+	if listenAndServe == nil {
+		return nil, fmt.Errorf("unable to configure healthz/metrics/pprof server")
 	}
 	return listenAndServe, nil
 }

@@ -118,7 +118,7 @@ func main() {
 	}
 	logger.Infof("log level %s", logger.Level)
 
-	listenAndServe, err := server.GetListenAndServeFunc(logger, tlsCertPath, tlsKeyPath, clientCAPath)
+	listenAndServe, err := server.GetListenAndServeFunc(logger, tlsCertPath, tlsKeyPath, clientCAPath, *debug)
 	if err != nil {
 		logger.Fatal("Error setting up health/metric/pprof service: %v", err)
 	}
