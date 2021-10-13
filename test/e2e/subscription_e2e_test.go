@@ -50,8 +50,21 @@ const (
 var _ = By
 
 var _ = Describe("Subscription", func() {
+	var (
+		ns                 corev1.Namespace
+		generatedNamespace string
+	)
+
+	BeforeEach(func() {
+		generatedNamespace, ns = SetUpGeneratedTestNamespace(testNamespace)
+	})
+
 	AfterEach(func() {
 		TearDown(testNamespace)
+		TearDown(generatedNamespace)
+		Eventually(func() error {
+			return ctx.Ctx().Client().Delete(context.Background(), &ns)
+		}).Should(Succeed())
 	})
 
 	When("an entry in the middle of a channel does not provide a required GVK", func() {
@@ -61,7 +74,6 @@ var _ = Describe("Subscription", func() {
 
 		BeforeEach(func() {
 			teardown = func() {}
-
 			packages := []registry.PackageManifest{
 				{
 					PackageName: "dependency",
@@ -81,15 +93,15 @@ var _ = Describe("Subscription", func() {
 
 			crds := []apiextensions.CustomResourceDefinition{newCRD(genName("crd-"))}
 			csvs := []operatorsv1alpha1.ClusterServiceVersion{
-				newCSV("csv-dependency-1", testNamespace, "", semver.MustParse("1.0.0"), crds, nil, nil),
-				newCSV("csv-dependency-2", testNamespace, "csv-dependency-1", semver.MustParse("2.0.0"), nil, nil, nil),
-				newCSV("csv-dependency-3", testNamespace, "csv-dependency-2", semver.MustParse("3.0.0"), crds, nil, nil),
-				newCSV("csv-root", testNamespace, "", semver.MustParse("1.0.0"), nil, crds, nil),
+				newCSV("csv-dependency-1", generatedNamespace, "", semver.MustParse("1.0.0"), crds, nil, nil),
+				newCSV("csv-dependency-2", generatedNamespace, "csv-dependency-1", semver.MustParse("2.0.0"), nil, nil, nil),
+				newCSV("csv-dependency-3", generatedNamespace, "csv-dependency-2", semver.MustParse("3.0.0"), crds, nil, nil),
+				newCSV("csv-root", generatedNamespace, "", semver.MustParse("1.0.0"), nil, crds, nil),
 			}
 
-			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", testNamespace, packages, crds, csvs)
+			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", generatedNamespace, packages, crds, csvs)
 
-			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription", "test-catalog", "root", "channel-root", "", operatorsv1alpha1.ApprovalAutomatic)
+			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), generatedNamespace, "test-subscription", "test-catalog", "root", "channel-root", "", operatorsv1alpha1.ApprovalAutomatic)
 		})
 
 		AfterEach(func() {
@@ -115,7 +127,7 @@ var _ = Describe("Subscription", func() {
 				},
 				Equal(operatorsv1alpha1.SubscriptionSpec{
 					CatalogSource:          "test-catalog",
-					CatalogSourceNamespace: testNamespace,
+					CatalogSourceNamespace: generatedNamespace,
 					Package:                "dependency",
 					Channel:                "channel-dependency",
 					StartingCSV:            "csv-dependency-3",
@@ -131,16 +143,16 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
-		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
+		require.NoError(GinkgoT(), initCatalog(GinkgoT(), generatedNamespace, c, crc))
 
-		cleanup, _ := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, operatorsv1alpha1.ApprovalAutomatic)
+		cleanup, _ := createSubscription(GinkgoT(), crc, generatedNamespace, testSubscriptionName, testPackageName, betaChannel, operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanup()
 
 		var currentCSV string
 		Eventually(func() bool {
-			fetched, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), testSubscriptionName, metav1.GetOptions{})
+			fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).Get(context.TODO(), testSubscriptionName, metav1.GetOptions{})
 			if err != nil {
 				return false
 			}
@@ -151,7 +163,7 @@ var _ = Describe("Subscription", func() {
 			return false
 		}, 5*time.Minute, 10*time.Second).Should(BeTrue())
 
-		csv, err := fetchCSV(crc, currentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+		csv, err := fetchCSV(crc, currentCSV, generatedNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 
 		// Check for the olm.package property as a proxy for
@@ -171,21 +183,21 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
-		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
+		require.NoError(GinkgoT(), initCatalog(GinkgoT(), generatedNamespace, c, crc))
 
 		// Will be cleaned up by the upgrade process
-		_, err := createCSV(c, crc, stableCSV, testNamespace, false, false)
+		_, err := createCSV(c, crc, stableCSV, generatedNamespace, false, false)
 		require.NoError(GinkgoT(), err)
 
-		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, operatorsv1alpha1.ApprovalAutomatic)
+		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, generatedNamespace, testSubscriptionName, testPackageName, alphaChannel, operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 	})
 	It("skip range", func() {
@@ -225,14 +237,14 @@ var _ = Describe("Subscription", func() {
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		updatedPackageStable := fmt.Sprintf("%s-updated", mainPackageName)
 		stableChannel := "stable"
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661347"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
-		updatedCSV := newCSV(updatedPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661832"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace, "", semver.MustParse("0.1.0-1556661347"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		updatedCSV := newCSV(updatedPackageStable, generatedNamespace, "", semver.MustParse("0.1.0-1556661832"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 		updatedCSV.SetAnnotations(map[string]string{"olm.skipRange": ">=0.1.0-1556661347 <0.1.0-1556661832"})
 
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 
 		mainCatalogName := genName("mock-ocs-main-")
@@ -258,26 +270,26 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create catalog source
-		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
+		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, generatedNamespace, mainManifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanupMainCatalogSource()
 		// Attempt to get the catalog source before creating subscription
-		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create a subscription
 		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(crc, generatedNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		// Wait for csv to install
-		firstCSV, err := awaitCSV(crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+		firstCSV, err := awaitCSV(crc, generatedNamespace, mainCSV.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update catalog with a new csv in the channel with a skip range
-		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{updatedCSV}, updatedManifests)
+		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, generatedNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{updatedCSV}, updatedManifests)
 
 		// Wait for csv to update
-		finalCSV, err := awaitCSV(crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
+		finalCSV, err := awaitCSV(crc, generatedNamespace, updatedCSV.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Ensure we set the replacement field based on the registry data
@@ -290,18 +302,18 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
-		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
+		require.NoError(GinkgoT(), initCatalog(GinkgoT(), generatedNamespace, c, crc))
 
-		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, testNamespace, "manual-subscription", testPackageName, stableChannel, operatorsv1alpha1.ApprovalManual)
+		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, generatedNamespace, "manual-subscription", testPackageName, stableChannel, operatorsv1alpha1.ApprovalManual)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		installPlan, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.Install.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval))
+		installPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, subscription.Status.Install.Name, generatedNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval))
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), installPlan)
 
@@ -309,12 +321,12 @@ var _ = Describe("Subscription", func() {
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
 
 		// Delete the current installplan
-		err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.Background(), installPlan.Name, metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).Delete(context.Background(), installPlan.Name, metav1.DeleteOptions{})
 		require.NoError(GinkgoT(), err)
 
 		var ipName string
 		Eventually(func() bool {
-			fetched, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), "manual-subscription", metav1.GetOptions{})
+			fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).Get(context.TODO(), "manual-subscription", metav1.GetOptions{})
 			if err != nil {
 				return false
 			}
@@ -326,7 +338,7 @@ var _ = Describe("Subscription", func() {
 		}, 5*time.Minute, 10*time.Second).Should(BeTrue())
 
 		// Fetch new installplan
-		newInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, ipName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval))
+		newInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ipName, generatedNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval))
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), newInstallPlan)
 
@@ -340,11 +352,11 @@ var _ = Describe("Subscription", func() {
 			return nil
 		})).Should(Succeed())
 
-		subscription, err = fetchSubscription(crc, testNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 	})
 
@@ -386,8 +398,8 @@ var _ = Describe("Subscription", func() {
 		packageName := genName("nginx-")
 		stableChannel := "stable"
 
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
-		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvA := newCSV("nginx-a", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvB := newCSV("nginx-b", generatedNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		// Create PackageManifests
 		manifests := []registry.PackageManifest{
@@ -404,18 +416,18 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
-		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, generatedNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalManual)
+		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalManual)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -423,11 +435,11 @@ var _ = Describe("Subscription", func() {
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
 		requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval)
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, requiresApprovalChecker)
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, generatedNamespace, requiresApprovalChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Ensure that only 1 installplan was created
-		ips, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.Background(), metav1.ListOptions{})
+		ips, err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).List(context.Background(), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 		require.Len(GinkgoT(), ips.Items, 1)
 
@@ -469,32 +481,32 @@ var _ = Describe("Subscription", func() {
 
 		// Approve the installplan and wait for csvA to be installed
 		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		_, err = awaitCSV(crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the subscription to begin upgrading to csvB
 		// The upgrade changes the installplanref on the subscription
 		Eventually(func() (bool, error) {
-			subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subscriptionName, metav1.GetOptions{})
+			subscription, err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).Get(context.Background(), subscriptionName, metav1.GetOptions{})
 			return subscription != nil && subscription.Status.InstallPlanRef.Name != fetchedInstallPlan.GetName() && subscription.Status.State == operatorsv1alpha1.SubscriptionStateUpgradePending, err
 		}, 5*time.Minute, 1*time.Second).Should(BeTrue(), "expected new installplan for upgraded csv")
 
-		upgradeInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, requiresApprovalChecker)
+		upgradeInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, generatedNamespace, requiresApprovalChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Approve the upgrade installplan and wait for
 		upgradeInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), upgradeInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).Update(context.Background(), upgradeInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Ensure that 2 installplans were created
-		ips, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.Background(), metav1.ListOptions{})
+		ips, err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).List(context.Background(), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 		require.Len(GinkgoT(), ips.Items, 2)
 	})
@@ -507,9 +519,9 @@ var _ = Describe("Subscription", func() {
 		packageName := genName("nginx-")
 		stableChannel := "stable"
 
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
-		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
-		csvC := newCSV("nginx-c", testNamespace, "nginx-b", semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvA := newCSV("nginx-a", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvB := newCSV("nginx-b", generatedNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvC := newCSV("nginx-c", generatedNamespace, "nginx-b", semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		// Create PackageManifests
 		manifests := []registry.PackageManifest{
@@ -526,23 +538,23 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
-		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, generatedNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalAutomatic)
+		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
 		// Wait for csvA to be installed
-		_, err = awaitCSV(crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Set up async watches that will fail the test if csvB doesn't get created in between csvA and csvC
@@ -551,7 +563,7 @@ var _ = Describe("Subscription", func() {
 			defer GinkgoRecover()
 			wg.Add(1)
 			defer wg.Done()
-			_, err := awaitCSV(crc, testNamespace, csvB.GetName(), csvReplacingChecker)
+			_, err := awaitCSV(crc, generatedNamespace, csvB.GetName(), csvReplacingChecker)
 			require.NoError(GinkgoT(), err)
 		}(GinkgoT())
 		// Update the catalog to include multiple updates
@@ -565,13 +577,13 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 
-		updateInternalCatalog(GinkgoT(), c, crc, catalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvC}, packages)
+		updateInternalCatalog(GinkgoT(), c, crc, catalogSourceName, generatedNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvC}, packages)
 
 		// wait for checks on intermediate csvs to succeed
 		wg.Wait()
 
 		// Wait for csvC to be installed
-		_, err = awaitCSV(crc, testNamespace, csvC.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, csvC.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Should eventually GC the CSVs
@@ -596,8 +608,8 @@ var _ = Describe("Subscription", func() {
 		packageName := genName("nginx-")
 		stableChannel := "stable"
 
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
-		csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, nil, nil)
+		csvA := newCSV("nginx-a", generatedNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
+		csvB := newCSV("nginx-b", generatedNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, nil, nil)
 
 		// Create PackageManifests
 		manifests := []registry.PackageManifest{
@@ -614,35 +626,35 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
-		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, testNamespace, manifests, nil, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, generatedNamespace, manifests, nil, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create a subscription to just get an InstallPlan for csvB
 		subscriptionName := genName("sub-nginx-")
-		createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvB.GetName(), operatorsv1alpha1.ApprovalAutomatic)
+		createSubscriptionForCatalog(crc, generatedNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvB.GetName(), operatorsv1alpha1.ApprovalAutomatic)
 
 		// Wait for csvB to be installed
-		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, generatedNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 
 		// Delete this subscription
-		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
+		err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).DeleteCollection(context.Background(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
 		require.NoError(GinkgoT(), err)
 		// Delete orphaned csvB
-		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.Background(), csvB.GetName(), metav1.DeleteOptions{}))
+		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace).Delete(context.Background(), csvB.GetName(), metav1.DeleteOptions{}))
 
 		// Create an InstallPlan for csvB
 		ip := &operatorsv1alpha1.InstallPlan{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "install-",
-				Namespace:    testNamespace,
+				Namespace:    generatedNamespace,
 			},
 			Spec: operatorsv1alpha1.InstallPlanSpec{
 				ClusterServiceVersionNames: []string{csvB.GetName()},
@@ -650,7 +662,7 @@ var _ = Describe("Subscription", func() {
 				Approved:                   false,
 			},
 		}
-		ip2, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(context.Background(), ip, metav1.CreateOptions{})
+		ip2, err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).Create(context.Background(), ip, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		ip2.Status = operatorsv1alpha1.InstallPlanStatus{
@@ -658,14 +670,14 @@ var _ = Describe("Subscription", func() {
 			CatalogSources: []string{catalogSourceName},
 		}
 
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).UpdateStatus(context.Background(), ip2, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).UpdateStatus(context.Background(), ip2, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName = genName("sub-nginx-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalManual)
+		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalManual)
 		defer cleanupSubscription()
 
-		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -673,34 +685,34 @@ var _ = Describe("Subscription", func() {
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
 		requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseRequiresApproval)
-		fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, requiresApprovalChecker)
+		fetchedInstallPlan, err = fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, generatedNamespace, requiresApprovalChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Approve the installplan and wait for csvA to be installed
 		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Wait for csvA to be installed
-		_, err = awaitCSV(crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the subscription to begin upgrading to csvB
-		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Fetch existing csvB installPlan
-		fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, requiresApprovalChecker)
+		fetchedInstallPlan, err = fetchInstallPlanWithNamespace(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, generatedNamespace, requiresApprovalChecker)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), ip2.GetName(), subscription.Status.InstallPlanRef.Name, "expected new installplan is the same with pre-exising one")
 
 		// Approve the installplan and wait for csvB to be installed
 		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		// Wait for csvB to be installed
-		_, err = awaitCSV(crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
 
@@ -720,8 +732,7 @@ var _ = Describe("Subscription", func() {
 		})
 
 		AfterEach(func() {
-
-			err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -737,30 +748,30 @@ var _ = Describe("Subscription", func() {
 			// 5. Wait for sub's status to show SubscriptionCatalogSourcesUnhealthy with status False, reason AllCatalogSourcesHealthy, and reason "all available catalogsources are healthy"
 			// 6. Wait for sub to succeed
 			It("should surface the missing catalog", func() {
-				err := initCatalog(GinkgoT(), c, crc)
+				err := initCatalog(GinkgoT(), generatedNamespace, c, crc)
 				Expect(err).NotTo(HaveOccurred())
 
 				missingName := "missing"
-				cleanup := createSubscriptionForCatalog(crc, testNamespace, testSubscriptionName, missingName, testPackageName, betaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+				cleanup := createSubscriptionForCatalog(crc, generatedNamespace, testSubscriptionName, missingName, testPackageName, betaChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 				defer cleanup()
 
 				By("detecting its absence")
-				sub, err := fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionHasCondition(operatorsv1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, operatorsv1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", testNamespace, missingName)))
+				sub, err := fetchSubscription(crc, generatedNamespace, testSubscriptionName, subscriptionHasCondition(operatorsv1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, operatorsv1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", generatedNamespace, missingName)))
 				Expect(err).NotTo(HaveOccurred())
 				Expect(sub).ToNot(BeNil())
 
 				// Update sub to target an existing CatalogSource
 				sub.Spec.CatalogSource = catalogSourceName
-				_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(context.Background(), sub, metav1.UpdateOptions{})
+				_, err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).Update(context.Background(), sub, metav1.UpdateOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
 				// Wait for SubscriptionCatalogSourcesUnhealthy to be false
 				By("detecting a new existing target")
-				_, err = fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionHasCondition(operatorsv1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionFalse, operatorsv1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy"))
+				_, err = fetchSubscription(crc, generatedNamespace, testSubscriptionName, subscriptionHasCondition(operatorsv1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionFalse, operatorsv1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy"))
 				Expect(err).NotTo(HaveOccurred())
 
 				// Wait for success
-				_, err = fetchSubscription(crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+				_, err = fetchSubscription(crc, generatedNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
@@ -782,7 +793,7 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
 						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
 						Expect(err).ToNot(HaveOccurred())
@@ -833,7 +844,7 @@ var _ = Describe("Subscription", func() {
 						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      genName("cs-"),
-							Namespace: testNamespace,
+							Namespace: generatedNamespace,
 						},
 						Spec: operatorsv1alpha1.CatalogSourceSpec{
 							SourceType: operatorsv1alpha1.SourceTypeGrpc,
@@ -841,7 +852,7 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
 						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
 						Expect(err).ToNot(HaveOccurred())
@@ -890,7 +901,7 @@ var _ = Describe("Subscription", func() {
 						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      genName("cs-"),
-							Namespace: testNamespace,
+							Namespace: generatedNamespace,
 						},
 						Spec: operatorsv1alpha1.CatalogSourceSpec{
 							SourceType: operatorsv1alpha1.SourceTypeInternal,
@@ -898,7 +909,7 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
 						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
 						Expect(err).ToNot(HaveOccurred())
@@ -943,7 +954,7 @@ var _ = Describe("Subscription", func() {
 						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      genName("cs-"),
-							Namespace: testNamespace,
+							Namespace: generatedNamespace,
 						},
 						Spec: operatorsv1alpha1.CatalogSourceSpec{
 							SourceType: operatorsv1alpha1.SourceTypeInternal,
@@ -951,7 +962,7 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
 						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
 						Expect(err).ToNot(HaveOccurred())
@@ -1252,10 +1263,10 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 
-		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.Background(), testConfigMap, metav1.CreateOptions{})
+		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace).Create(context.Background(), testConfigMap, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
+			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
@@ -1316,23 +1327,23 @@ var _ = Describe("Subscription", func() {
 		}
 
 		permissions := deploymentPermissions()
-		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), kubeClient, crClient, "podconfig", testNamespace, permissions)
+		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), kubeClient, crClient, "podconfig", generatedNamespace, permissions)
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("podconfig-sub-")
 		subSpec.Config = podConfig
-		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subSpec)
+		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+		csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, generatedNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 
 		proxyEnv := proxyEnvVarFunc(GinkgoT(), config)
@@ -1354,10 +1365,10 @@ var _ = Describe("Subscription", func() {
 			},
 		}
 
-		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.Background(), testConfigMap, metav1.CreateOptions{})
+		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace).Create(context.Background(), testConfigMap, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
-			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
+			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
@@ -1371,23 +1382,23 @@ var _ = Describe("Subscription", func() {
 		}
 
 		permissions := deploymentPermissions()
-		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), kubeClient, crClient, "podconfig", testNamespace, permissions)
+		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), kubeClient, crClient, "podconfig", generatedNamespace, permissions)
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("podconfig-sub-")
 		subSpec.Config = podConfig
-		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subSpec)
+		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseInstalling))
+		csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, generatedNamespace, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseInstalling, operatorsv1alpha1.CSVPhaseSucceeded))
 		require.NoError(GinkgoT(), err)
 
 		Eventually(func() error {
@@ -1403,34 +1414,34 @@ var _ = Describe("Subscription", func() {
 
 		permissions := deploymentPermissions()
 
-		catsrc, subSpec, catsrcCleanup := newCatalogSourceWithDependencies(GinkgoT(), kubeClient, crClient, "podconfig", testNamespace, permissions)
+		catsrc, subSpec, catsrcCleanup := newCatalogSourceWithDependencies(GinkgoT(), kubeClient, crClient, "podconfig", generatedNamespace, permissions)
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		// Create duplicates of the CatalogSource
 		for i := 0; i < 10; i++ {
-			duplicateCatsrc, _, duplicateCatSrcCleanup := newCatalogSourceWithDependencies(GinkgoT(), kubeClient, crClient, "podconfig", testNamespace, permissions)
+			duplicateCatsrc, _, duplicateCatSrcCleanup := newCatalogSourceWithDependencies(GinkgoT(), kubeClient, crClient, "podconfig", generatedNamespace, permissions)
 			defer duplicateCatSrcCleanup()
 
 			// Ensure that the catalog source is resolved before we create a subscription.
-			_, err = fetchCatalogSourceOnStatus(crClient, duplicateCatsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crClient, duplicateCatsrc.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
 		}
 
 		// Create a subscription that has a dependency
 		subscriptionName := genName("podconfig-sub-")
-		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subSpec)
+		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
 		// Check that a single catalog source was used to resolve the InstallPlan
-		installPlan, err := fetchInstallPlan(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		installPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, generatedNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 		require.NoError(GinkgoT(), err)
 		require.Len(GinkgoT(), installPlan.Status.CatalogSources, 1)
 	})
@@ -1457,7 +1468,7 @@ var _ = Describe("Subscription", func() {
 
 			Step(1, "Channel Stable", func() {
 				Step(2, "Operator A (Requires CRD, CRD 2)", func() {
-					csvA := newCSV("csv-a", testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd, crd2}, nil)
+					csvA := newCSV("csv-a", generatedNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd, crd2}, nil)
 					packageA.Channels = append(packageA.Channels, registry.PackageChannel{Name: stableChannel, CurrentCSVName: csvA.GetName()})
 					csvs1 = append(csvs1, csvA)
 				})
@@ -1465,7 +1476,7 @@ var _ = Describe("Subscription", func() {
 
 			Step(1, "Channel Alpha", func() {
 				Step(2, "Operator ABC (Provides: CRD, CRD 2)", func() {
-					csvABC := newCSV("csv-abc", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, nil)
+					csvABC := newCSV("csv-abc", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, nil)
 					packageA.Channels = append(packageA.Channels, registry.PackageChannel{Name: alphaChannel, CurrentCSVName: csvABC.GetName()})
 					csvs1 = append(csvs1, csvABC)
 				})
@@ -1480,7 +1491,7 @@ var _ = Describe("Subscription", func() {
 
 			Step(1, "Channel Stable", func() {
 				Step(2, "Operator B (Provides: CRD)", func() {
-					csvB := newCSV("csv-b", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+					csvB := newCSV("csv-b", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 					packageB.Channels = append(packageB.Channels, registry.PackageChannel{Name: stableChannel, CurrentCSVName: csvB.GetName()})
 					csvs1 = append(csvs1, csvB)
 				})
@@ -1488,7 +1499,7 @@ var _ = Describe("Subscription", func() {
 
 			Step(1, "Channel Alpha", func() {
 				Step(2, "Operator D (Provides: CRD)", func() {
-					csvD := newCSV("csv-d", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+					csvD := newCSV("csv-d", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 					packageB.Channels = append(packageB.Channels, registry.PackageChannel{Name: alphaChannel, CurrentCSVName: csvD.GetName()})
 					csvs1 = append(csvs1, csvD)
 				})
@@ -1503,7 +1514,7 @@ var _ = Describe("Subscription", func() {
 
 			Step(1, "Channel Stable", func() {
 				Step(2, "Operator C (Provides: CRD 2)", func() {
-					csvC := newCSV("csv-c", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, nil)
+					csvC := newCSV("csv-c", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, nil)
 					packageBInCatsrc2.Channels = append(packageBInCatsrc2.Channels, registry.PackageChannel{Name: stableChannel, CurrentCSVName: csvC.GetName()})
 					csvs2 = append(csvs2, csvC)
 				})
@@ -1518,7 +1529,7 @@ var _ = Describe("Subscription", func() {
 
 			Step(1, "Channel Stable", func() {
 				Step(2, "Operator E (Provides: CRD 2)", func() {
-					csvE := newCSV("csv-e", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, nil)
+					csvE := newCSV("csv-e", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, nil, nil)
 					packageC.Channels = append(packageC.Channels, registry.PackageChannel{Name: stable, CurrentCSVName: csvE.GetName()})
 					csvs2 = append(csvs2, csvE)
 				})
@@ -1530,8 +1541,8 @@ var _ = Describe("Subscription", func() {
 		var cleanup cleanupFunc
 		By("creating catalogsources", func() {
 			var c1, c2 cleanupFunc
-			catsrc, c1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace, []registry.PackageManifest{packageA, packageB}, []apiextensions.CustomResourceDefinition{crd, crd2}, csvs1)
-			catsrc2, c2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc2"), testNamespace, []registry.PackageManifest{packageBInCatsrc2, packageC}, []apiextensions.CustomResourceDefinition{crd, crd2}, csvs2)
+			catsrc, c1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), generatedNamespace, []registry.PackageManifest{packageA, packageB}, []apiextensions.CustomResourceDefinition{crd, crd2}, csvs1)
+			catsrc2, c2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc2"), generatedNamespace, []registry.PackageManifest{packageBInCatsrc2, packageC}, []apiextensions.CustomResourceDefinition{crd, crd2}, csvs2)
 			cleanup = func() {
 				c1()
 				c2()
@@ -1540,9 +1551,9 @@ var _ = Describe("Subscription", func() {
 		defer cleanup()
 
 		By("waiting for catalogsources to be ready", func() {
-			_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
-			_, err = fetchCatalogSourceOnStatus(crClient, catsrc2.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crClient, catsrc2.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
 		})
 
@@ -1555,17 +1566,17 @@ var _ = Describe("Subscription", func() {
 			InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
 		}
 		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
+		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subscriptionSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
 		// ensure correct CSVs were picked
 		var got []string
 		Eventually(func() []string {
-			ip, err := crClient.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 			if err != nil {
 				return nil
 			}
@@ -1595,7 +1606,7 @@ var _ = Describe("Subscription", func() {
 			crd = newCRD(genName("ins"))
 
 			packageMain = registry.PackageManifest{PackageName: genName("PkgMain-")}
-			csv := newCSV(mainCSVName, testNamespace, "", semver.MustParse("0.1.0"), nil,
+			csv := newCSV(mainCSVName, generatedNamespace, "", semver.MustParse("0.1.0"), nil,
 				[]apiextensions.CustomResourceDefinition{crd}, nil)
 			packageMain.DefaultChannelName = stableChannel
 			packageMain.Channels = append(packageMain.Channels, registry.PackageChannel{Name: stableChannel, CurrentCSVName: csv.GetName()})
@@ -1611,7 +1622,7 @@ var _ = Describe("Subscription", func() {
 			BeforeEach(func() {
 
 				packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
-				csv := newCSV(rightCSVName, testNamespace, "", semver.MustParse("0.1.0"),
+				csv := newCSV(rightCSVName, generatedNamespace, "", semver.MustParse("0.1.0"),
 					[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
 				packageDepRight.DefaultChannelName = alphaChannel
 				packageDepRight.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
@@ -1622,20 +1633,20 @@ var _ = Describe("Subscription", func() {
 				packageDepWrong.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
 				csvsWrong = append(csvsWrong, csv)
 
-				catsrcMain, catsrcCleanup1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+				catsrcMain, catsrcCleanup1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), generatedNamespace,
 					[]registry.PackageManifest{packageMain}, nil, csvsMain)
 
-				catsrcDepRight, catsrcCleanup2 = createInternalCatalogSource(kubeClient, crClient, "catsrc1", testNamespace,
+				catsrcDepRight, catsrcCleanup2 = createInternalCatalogSource(kubeClient, crClient, "catsrc1", generatedNamespace,
 					[]registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd}, csvsRight)
 
-				catsrcDepWrong, catsrcCleanup3 = createInternalCatalogSource(kubeClient, crClient, "catsrc2", testNamespace,
+				catsrcDepWrong, catsrcCleanup3 = createInternalCatalogSource(kubeClient, crClient, "catsrc2", generatedNamespace,
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
 
-				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
 			})
 			AfterEach(func() {
@@ -1663,14 +1674,14 @@ var _ = Describe("Subscription", func() {
 						InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
 					}
 					subscriptionName := genName("sub-")
-					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
+					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subscriptionSpec)
 
 					var err error
-					subscription, err = fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+					subscription, err = fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(subscription).ToNot(BeNil())
 
-					_, err = fetchCSV(crClient, mainCSVName, testNamespace, csvSucceededChecker)
+					_, err = fetchCSV(crClient, mainCSVName, generatedNamespace, csvSucceededChecker)
 					Expect(err).ToNot(HaveOccurred())
 
 				})
@@ -1686,7 +1697,7 @@ var _ = Describe("Subscription", func() {
 				It("choose the dependency from the right CatalogSource based on lexicographical name ordering of catalogs", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
-						ip, err := crClient.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 						if err != nil {
 							return nil, err
 						}
@@ -1702,7 +1713,7 @@ var _ = Describe("Subscription", func() {
 			BeforeEach(func() {
 
 				packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
-				csv := newCSV(rightCSVName, testNamespace, "", semver.MustParse("0.1.0"),
+				csv := newCSV(rightCSVName, generatedNamespace, "", semver.MustParse("0.1.0"),
 					[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
 				packageDepRight.DefaultChannelName = alphaChannel
 				packageDepRight.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
@@ -1713,17 +1724,17 @@ var _ = Describe("Subscription", func() {
 				packageDepWrong.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
 				csvsWrong = append(csvsWrong, csv)
 
-				catsrcMain, catsrcCleanup1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+				catsrcMain, catsrcCleanup1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), generatedNamespace,
 					[]registry.PackageManifest{packageDepRight, packageMain}, []apiextensions.CustomResourceDefinition{crd}, csvsMain)
 
 				catsrcDepWrong, catsrcCleanup2 = createInternalCatalogSourceWithPriority(kubeClient, crClient,
-					genName("catsrc"), testNamespace, []registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd},
+					genName("catsrc"), generatedNamespace, []registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd},
 					csvsWrong, 100)
 
 				// waiting for catalogsources to be ready
-				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
 			})
 			AfterEach(func() {
@@ -1748,14 +1759,14 @@ var _ = Describe("Subscription", func() {
 						InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
 					}
 					subscriptionName := genName("sub-")
-					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
+					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subscriptionSpec)
 
 					var err error
-					subscription, err = fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+					subscription, err = fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(subscription).ToNot(BeNil())
 
-					_, err = fetchCSV(crClient, mainCSVName, testNamespace, csvSucceededChecker)
+					_, err = fetchCSV(crClient, mainCSVName, generatedNamespace, csvSucceededChecker)
 					Expect(err).ToNot(HaveOccurred())
 
 				})
@@ -1770,7 +1781,7 @@ var _ = Describe("Subscription", func() {
 				It("choose the dependent package from the same catsrc as the installing operator", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
-						ip, err := crClient.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 						if err != nil {
 							return nil, err
 						}
@@ -1788,7 +1799,7 @@ var _ = Describe("Subscription", func() {
 			BeforeEach(func() {
 
 				packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
-				csv := newCSV(rightCSVName, testNamespace, "", semver.MustParse("0.1.0"),
+				csv := newCSV(rightCSVName, generatedNamespace, "", semver.MustParse("0.1.0"),
 					[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
 				packageDepRight.DefaultChannelName = alphaChannel
 				packageDepRight.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
@@ -1799,22 +1810,22 @@ var _ = Describe("Subscription", func() {
 				packageDepWrong.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
 				csvsWrong = append(csvsWrong, csv)
 
-				catsrcMain, catsrcCleanup1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+				catsrcMain, catsrcCleanup1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), generatedNamespace,
 					[]registry.PackageManifest{packageMain}, nil, csvsMain)
 
 				catsrcDepRight, catsrcCleanup2 = createInternalCatalogSourceWithPriority(kubeClient, crClient,
-					genName("catsrc"), testNamespace, []registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd},
+					genName("catsrc"), generatedNamespace, []registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd},
 					csvsRight, 100)
 
-				catsrcDepWrong, catsrcCleanup3 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+				catsrcDepWrong, catsrcCleanup3 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), generatedNamespace,
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
 
 				// waiting for catalogsources to be ready
-				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
 			})
 			AfterEach(func() {
@@ -1842,14 +1853,14 @@ var _ = Describe("Subscription", func() {
 						InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
 					}
 					subscriptionName := genName("sub-")
-					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
+					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subscriptionSpec)
 
 					var err error
-					subscription, err = fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+					subscription, err = fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(subscription).ToNot(BeNil())
 
-					_, err = fetchCSV(crClient, mainCSVName, testNamespace, csvSucceededChecker)
+					_, err = fetchCSV(crClient, mainCSVName, generatedNamespace, csvSucceededChecker)
 					Expect(err).ToNot(HaveOccurred())
 
 				})
@@ -1864,7 +1875,7 @@ var _ = Describe("Subscription", func() {
 				It("choose the dependent package from the catsrc with higher priority", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
-						ip, err := crClient.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 						if err != nil {
 							return nil, err
 						}
@@ -1882,7 +1893,7 @@ var _ = Describe("Subscription", func() {
 			BeforeEach(func() {
 
 				packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
-				csv := newCSV(rightCSVName, testNamespace, "", semver.MustParse("0.1.0"),
+				csv := newCSV(rightCSVName, generatedNamespace, "", semver.MustParse("0.1.0"),
 					[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
 				packageDepRight.DefaultChannelName = alphaChannel
 				packageDepRight.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
@@ -1893,19 +1904,19 @@ var _ = Describe("Subscription", func() {
 				packageDepWrong.Channels = []registry.PackageChannel{{Name: alphaChannel, CurrentCSVName: csv.GetName()}}
 				csvsWrong = append(csvsWrong, csv)
 
-				catsrcMain, catsrcCleanup1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+				catsrcMain, catsrcCleanup1 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), generatedNamespace,
 					[]registry.PackageManifest{packageMain}, nil, csvsMain)
 
-				catsrcDepRight, catsrcCleanup2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), testNamespace,
+				catsrcDepRight, catsrcCleanup2 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), generatedNamespace,
 					[]registry.PackageManifest{packageDepRight}, []apiextensions.CustomResourceDefinition{crd}, csvsRight)
 
 				catsrcDepWrong, catsrcCleanup3 = createInternalCatalogSource(kubeClient, crClient, genName("catsrc"), operatorNamespace,
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
 
 				// waiting for catalogsources to be ready
-				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
 				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), operatorNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
@@ -1935,14 +1946,14 @@ var _ = Describe("Subscription", func() {
 						InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
 					}
 					subscriptionName := genName("sub-")
-					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
+					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subscriptionSpec)
 
 					var err error
-					subscription, err = fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+					subscription, err = fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(subscription).ToNot(BeNil())
 
-					_, err = fetchCSV(crClient, mainCSVName, testNamespace, csvSucceededChecker)
+					_, err = fetchCSV(crClient, mainCSVName, generatedNamespace, csvSucceededChecker)
 					Expect(err).ToNot(HaveOccurred())
 
 				})
@@ -1957,7 +1968,7 @@ var _ = Describe("Subscription", func() {
 				It("choose the dependent package from the catsrc in the same namespace as the installing operator", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
-						ip, err := crClient.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 						if err != nil {
 							return nil, err
 						}
@@ -1994,13 +2005,13 @@ var _ = Describe("Subscription", func() {
 		packageName2 := genName("bpackage")
 
 		// csvA provides CRD
-		csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csvA := newCSV("nginx-a", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 		// csvB provides CRD2 and requires CRD
-		csvB := newCSV("nginx-b", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, []apiextensions.CustomResourceDefinition{crd}, nil)
+		csvB := newCSV("nginx-b", generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd2}, []apiextensions.CustomResourceDefinition{crd}, nil)
 		// New csvA requires CRD (transfer CRD ownership to the new csvB)
-		csvNewA := newCSV("nginx-new-a", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
+		csvNewA := newCSV("nginx-new-a", generatedNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
 		// New csvB provides CRD and CRD2
-		csvNewB := newCSV("nginx-new-b", testNamespace, "nginx-b", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, nil)
+		csvNewB := newCSV("nginx-new-b", generatedNamespace, "nginx-b", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd, crd2}, nil, nil)
 
 		// constraints not satisfiable:
 		// apackagert6cq requires at least one of catsrcc6xgr/operators/stable/nginx-new-a,
@@ -2028,11 +2039,11 @@ var _ = Describe("Subscription", func() {
 		}
 
 		catalogSourceName := genName("catsrc")
-		catsrc, cleanup := createInternalCatalogSource(kubeClient, crClient, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB})
+		catsrc, cleanup := createInternalCatalogSource(kubeClient, crClient, catalogSourceName, generatedNamespace, manifests, []apiextensions.CustomResourceDefinition{crd, crd2}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
 		subscriptionSpec := &operatorsv1alpha1.SubscriptionSpec{
@@ -2046,20 +2057,20 @@ var _ = Describe("Subscription", func() {
 
 		// Create a subscription that has a dependency
 		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, testNamespace, subscriptionName, subscriptionSpec)
+		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace, subscriptionName, subscriptionSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
 		// Check that a single catalog source was used to resolve the InstallPlan
-		_, err = fetchInstallPlan(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		_, err = fetchInstallPlanWithNamespace(GinkgoT(), crClient, subscription.Status.InstallPlanRef.Name, generatedNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 		require.NoError(GinkgoT(), err)
 		// Fetch CSVs A and B
-		_, err = fetchCSV(crClient, csvA.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crClient, csvA.Name, generatedNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
-		_, err = fetchCSV(crClient, csvB.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crClient, csvB.Name, generatedNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update PackageManifest
@@ -2079,15 +2090,15 @@ var _ = Describe("Subscription", func() {
 				DefaultChannelName: stableChannel,
 			},
 		}
-		updateInternalCatalog(GinkgoT(), kubeClient, crClient, catalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{crd, crd2}, []operatorsv1alpha1.ClusterServiceVersion{csvNewA, csvA, csvB}, manifests)
-		csvAsub := strings.Join([]string{packageName1, stableChannel, catalogSourceName, testNamespace}, "-")
-		_, err = fetchSubscription(crClient, testNamespace, csvAsub, subscriptionStateAtLatestChecker)
+		updateInternalCatalog(GinkgoT(), kubeClient, crClient, catalogSourceName, generatedNamespace, []apiextensions.CustomResourceDefinition{crd, crd2}, []operatorsv1alpha1.ClusterServiceVersion{csvNewA, csvA, csvB}, manifests)
+		csvAsub := strings.Join([]string{packageName1, stableChannel, catalogSourceName, generatedNamespace}, "-")
+		_, err = fetchSubscription(crClient, generatedNamespace, csvAsub, subscriptionStateAtLatestChecker)
 		require.NoError(GinkgoT(), err)
 		// Ensure csvNewA is not installed
-		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.Background(), csvNewA.Name, metav1.GetOptions{})
+		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace).Get(context.Background(), csvNewA.Name, metav1.GetOptions{})
 		require.Error(GinkgoT(), err)
 		// Ensure csvA still exists
-		_, err = fetchCSV(crClient, csvA.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crClient, csvA.Name, generatedNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update packagemanifest again
@@ -2107,15 +2118,15 @@ var _ = Describe("Subscription", func() {
 				DefaultChannelName: stableChannel,
 			},
 		}
-		updateInternalCatalog(GinkgoT(), kubeClient, crClient, catalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{crd, crd2}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvNewA, csvNewB}, manifests)
+		updateInternalCatalog(GinkgoT(), kubeClient, crClient, catalogSourceName, generatedNamespace, []apiextensions.CustomResourceDefinition{crd, crd2}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvNewA, csvNewB}, manifests)
 
-		_, err = fetchSubscription(crClient, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(subscription.Status.InstallPlanRef.Name))
+		_, err = fetchSubscription(crClient, generatedNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(subscription.Status.InstallPlanRef.Name))
 		require.NoError(GinkgoT(), err)
 		// Ensure csvNewA is installed
-		_, err = fetchCSV(crClient, csvNewA.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crClient, csvNewA.Name, generatedNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		// Ensure csvNewB is installed
-		_, err = fetchCSV(crClient, csvNewB.Name, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crClient, csvNewB.Name, generatedNamespace, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
 
@@ -2147,15 +2158,15 @@ var _ = Describe("Subscription", func() {
 					DefaultChannelName: "alpha",
 				},
 			}
-			csvA = newCSV("csvA", testNamespace, "", semver.MustParse("1.0.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
+			csvA = newCSV("csvA", generatedNamespace, "", semver.MustParse("1.0.0"), nil, []apiextensions.CustomResourceDefinition{crd}, nil)
 
-			_, teardown = createInternalCatalogSource(c, ctx.Ctx().OperatorClient(), catSrcName, testNamespace, packages, nil, []operatorsv1alpha1.ClusterServiceVersion{csvA})
+			_, teardown = createInternalCatalogSource(c, ctx.Ctx().OperatorClient(), catSrcName, generatedNamespace, packages, nil, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 
 			// Ensure that the catalog source is resolved before we create a subscription.
-			_, err := fetchCatalogSourceOnStatus(crc, catSrcName, testNamespace, catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, catSrcName, generatedNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(GinkgoT(), err)
 
-			cleanup = createSubscriptionForCatalog(crc, testNamespace, subName, catSrcName, "packageA", "alpha", "", operatorsv1alpha1.ApprovalAutomatic)
+			cleanup = createSubscriptionForCatalog(crc, generatedNamespace, subName, catSrcName, "packageA", "alpha", "", operatorsv1alpha1.ApprovalAutomatic)
 		})
 
 		AfterEach(func() {
@@ -2165,7 +2176,7 @@ var _ = Describe("Subscription", func() {
 
 		It("the subscription has a condition in it's status that indicates the resolution error", func() {
 			Eventually(func() (corev1.ConditionStatus, error) {
-				sub, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subName, metav1.GetOptions{})
+				sub, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).Get(context.Background(), subName, metav1.GetOptions{})
 				if err != nil {
 					return corev1.ConditionUnknown, err
 				}
@@ -2184,13 +2195,13 @@ var _ = Describe("Subscription", func() {
 				}
 				packages = append(packages, newPkg)
 
-				csvB = newCSV("csvB", testNamespace, "", semver.MustParse("1.0.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+				csvB = newCSV("csvB", generatedNamespace, "", semver.MustParse("1.0.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
-				updateInternalCatalog(GinkgoT(), c, crc, catSrcName, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, packages)
+				updateInternalCatalog(GinkgoT(), c, crc, catSrcName, generatedNamespace, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, packages)
 			})
 			It("the ResolutionFailed condition previously set in it's status that indicated the resolution error is cleared off", func() {
 				Eventually(func() (corev1.ConditionStatus, error) {
-					sub, err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.Background(), subName, metav1.GetOptions{})
+					sub, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace).Get(context.Background(), subName, metav1.GetOptions{})
 					if err != nil {
 						return corev1.ConditionUnknown, err
 					}
@@ -2219,16 +2230,16 @@ var _ = Describe("Subscription", func() {
 				},
 			}
 
-			x := newCSV("csv-x", testNamespace, "", semver.MustParse("1.0.0"), nil, nil, nil)
-			y := newCSV("csv-y", testNamespace, "", semver.MustParse("1.0.0"), nil, nil, nil)
+			x := newCSV("csv-x", generatedNamespace, "", semver.MustParse("1.0.0"), nil, nil, nil)
+			y := newCSV("csv-y", generatedNamespace, "", semver.MustParse("1.0.0"), nil, nil, nil)
 
-			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", testNamespace, packages, nil, []operatorsv1alpha1.ClusterServiceVersion{x, y})
+			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", generatedNamespace, packages, nil, []operatorsv1alpha1.ClusterServiceVersion{x, y})
 
-			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription-x", "test-catalog", "package", "channel-x", "", operatorsv1alpha1.ApprovalAutomatic)
+			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), generatedNamespace, "test-subscription-x", "test-catalog", "package", "channel-x", "", operatorsv1alpha1.ApprovalAutomatic)
 
 			Eventually(func() error {
 				var unannotated operatorsv1alpha1.ClusterServiceVersion
-				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKey{Namespace: testNamespace, Name: "csv-x"}, &unannotated); err != nil {
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKey{Namespace: generatedNamespace, Name: "csv-x"}, &unannotated); err != nil {
 					return err
 				}
 				if _, ok := unannotated.Annotations["operatorframework.io/properties"]; !ok {
@@ -2244,11 +2255,11 @@ var _ = Describe("Subscription", func() {
 		})
 
 		It("uses inferred properties to prevent a duplicate installation from the same package ", func() {
-			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription-y", "test-catalog", "package", "channel-y", "", operatorsv1alpha1.ApprovalAutomatic)
+			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), generatedNamespace, "test-subscription-y", "test-catalog", "package", "channel-y", "", operatorsv1alpha1.ApprovalAutomatic)
 
 			Consistently(func() error {
 				var no operatorsv1alpha1.ClusterServiceVersion
-				return ctx.Ctx().Client().Get(context.Background(), client.ObjectKey{Namespace: testNamespace, Name: "csv-y"}, &no)
+				return ctx.Ctx().Client().Get(context.Background(), client.ObjectKey{Namespace: generatedNamespace, Name: "csv-y"}, &no)
 			}).ShouldNot(Succeed())
 		})
 	})
@@ -2281,13 +2292,13 @@ var _ = Describe("Subscription", func() {
 
 			crds := []apiextensions.CustomResourceDefinition{newCRD(genName("crd-"))}
 			csvs := []operatorsv1alpha1.ClusterServiceVersion{
-				newCSV("csv-dependency", testNamespace, "", semver.MustParse("1.0.0"), crds, nil, nil),
-				newCSV("csv-root", testNamespace, "", semver.MustParse("1.0.0"), nil, crds, nil),
+				newCSV("csv-dependency", generatedNamespace, "", semver.MustParse("1.0.0"), crds, nil, nil),
+				newCSV("csv-root", generatedNamespace, "", semver.MustParse("1.0.0"), nil, crds, nil),
 			}
 
-			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", testNamespace, packages, crds, csvs)
+			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", generatedNamespace, packages, crds, csvs)
 
-			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), testNamespace, "test-subscription", "test-catalog", "root", "unimportant", "", operatorsv1alpha1.ApprovalAutomatic)
+			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), generatedNamespace, "test-subscription", "test-catalog", "root", "unimportant", "", operatorsv1alpha1.ApprovalAutomatic)
 		})
 
 		AfterEach(func() {
@@ -2312,7 +2323,7 @@ var _ = Describe("Subscription", func() {
 				},
 				Equal(operatorsv1alpha1.SubscriptionSpec{
 					CatalogSource:          "test-catalog",
-					CatalogSourceNamespace: testNamespace,
+					CatalogSourceNamespace: generatedNamespace,
 					Package:                "dependency",
 					Channel:                "default",
 				}),
@@ -2552,18 +2563,18 @@ func init() {
 	dummyCatalogConfigMap.Data[registry.ConfigMapCRDName] = ""
 }
 
-func initCatalog(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface) error {
+func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientInterface, crc versioned.Interface) error {
 
-	dummyCatalogConfigMap.SetNamespace(testNamespace)
-	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(context.Background(), dummyCatalogConfigMap, metav1.CreateOptions{}); err != nil {
+	dummyCatalogConfigMap.SetNamespace(namespace)
+	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.Background(), dummyCatalogConfigMap, metav1.CreateOptions{}); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
 		return err
 	}
 
-	dummyCatalogSource.SetNamespace(testNamespace)
-	if _, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), &dummyCatalogSource, metav1.CreateOptions{}); err != nil {
+	dummyCatalogSource.SetNamespace(namespace)
+	if _, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.Background(), &dummyCatalogSource, metav1.CreateOptions{}); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}

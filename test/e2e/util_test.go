@@ -36,6 +36,7 @@ import (
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gtypes "github.com/onsi/gomega/types"
+	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -917,4 +918,31 @@ func HaveMessage(goal string) gtypes.GomegaMatcher {
 	return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) string {
 		return plan.Status.Message
 	}, ContainSubstring(goal))
+}
+
+func SetUpGeneratedTestNamespace(name string) (string, corev1.Namespace) {
+	generatedNamespace := genName(name)
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: generatedNamespace,
+		},
+	}
+	Eventually(func() error {
+		return ctx.Ctx().Client().Create(context.Background(), &ns)
+	}).Should(Succeed())
+
+	og := v1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-operatorgroup", ns.GetName()),
+			Namespace: ns.GetName(),
+		},
+		Spec: v1.OperatorGroupSpec{
+			TargetNamespaces: []string{ns.GetName()},
+		},
+	}
+	Eventually(func() error {
+		return ctx.Ctx().Client().Create(context.Background(), &og)
+	}).Should(Succeed())
+
+	return generatedNamespace, ns
 }
