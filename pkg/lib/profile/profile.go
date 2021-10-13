@@ -23,8 +23,10 @@ func (p *profileConfig) apply(options []Option) {
 	}
 }
 
-func DisableTLS(p *profileConfig) {
-	p.enableTLS = false
+func WithTLS(enabled bool) Option {
+	return func(p *profileConfig) {
+		p.enableTLS = enabled
+	}
 }
 
 func defaultProfileConfig() *profileConfig {
