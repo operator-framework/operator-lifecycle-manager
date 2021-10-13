@@ -673,6 +673,10 @@ var _ = Describe("CSVs with a Webhook", func() {
 				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{}))
 			}
 
+			// Wait for the CatalogSource to be ready
+			_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			require.NoError(GinkgoT(), err)
+
 			// Create a Subscription for the webhook-operator
 			subscriptionName := genName("sub-")
 			cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, source.GetName(), packageName, channelName, "", operatorsv1alpha1.ApprovalAutomatic)

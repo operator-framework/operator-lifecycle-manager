@@ -325,6 +325,10 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	return false
 }
 
+func catalogSourceInvalidSpec(catalog *v1alpha1.CatalogSource) bool {
+	return catalog.Status.Reason == v1alpha1.CatalogSourceSpecInvalidError
+}
+
 func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
 	var fetched *v1alpha1.CatalogSource
 	var err error

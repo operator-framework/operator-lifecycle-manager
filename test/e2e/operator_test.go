@@ -274,6 +274,10 @@ var _ = Describe("Operator API", func() {
 				return client.Create(clientCtx, cs)
 			}).Should(Succeed())
 
+			// Wait for the CatalogSource to be ready
+			_, err := fetchCatalogSourceOnStatus(newCRClient(), cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced)
+			Expect(err).ToNot(HaveOccurred())
+
 			sub = &operatorsv1alpha1.Subscription{
 				Spec: &operatorsv1alpha1.SubscriptionSpec{
 					CatalogSource:          cs.GetName(),
