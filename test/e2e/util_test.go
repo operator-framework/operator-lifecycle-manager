@@ -918,3 +918,21 @@ func HaveMessage(goal string) gtypes.GomegaMatcher {
 		return plan.Status.Message
 	}, ContainSubstring(goal))
 }
+
+func inKind(client operatorclient.ClientInterface) (bool, error) {
+	nodes, err := client.KubernetesInterface().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		// error finding nodes
+		return false, err
+	}
+	for _, node := range nodes.Items {
+		if !strings.HasPrefix(node.GetName(), "kind-") {
+			continue
+		}
+		if !strings.HasSuffix(node.GetName(), "-control-plane") {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
+}
