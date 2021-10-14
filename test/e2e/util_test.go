@@ -963,3 +963,21 @@ func TeardownNamespace(ns string) {
 		return ctx.Ctx().KubeClient().KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), ns, metav1.DeleteOptions{})
 	}).Should(Succeed())
 }
+
+func inKind(client operatorclient.ClientInterface) (bool, error) {
+	nodes, err := client.KubernetesInterface().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		// error finding nodes
+		return false, err
+	}
+	for _, node := range nodes.Items {
+		if !strings.HasPrefix(node.GetName(), "kind-") {
+			continue
+		}
+		if !strings.HasSuffix(node.GetName(), "-control-plane") {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
+}
