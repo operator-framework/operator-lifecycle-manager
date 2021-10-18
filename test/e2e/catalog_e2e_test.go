@@ -34,17 +34,23 @@ import (
 
 var _ = Describe("Catalog represents a store of bundles which OLM can use to install Operators", func() {
 	var (
-		c   operatorclient.ClientInterface
-		crc versioned.Interface
+		c                  operatorclient.ClientInterface
+		crc                versioned.Interface
+		ns                 corev1.Namespace
+		generatedNamespace string
 	)
 	BeforeEach(func() {
-
 		c = newKubeClient()
 		crc = newCRClient()
+		generatedNamespace, ns = SetUpGeneratedTestNamespace(testNamespace)
 	})
 
 	AfterEach(func() {
 		TearDown(testNamespace)
+		TearDown(generatedNamespace)
+		Eventually(func() error {
+			return ctx.Ctx().Client().Delete(context.Background(), &ns)
+		}).Should(Succeed())
 	})
 
 	It("loading between restarts", func() {
@@ -63,7 +69,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		crd := newCRD(genName("ins"))
-		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csv := newCSV(packageStable, generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		catalogSourceName := genName("mock-ocs-")
 		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
@@ -120,8 +126,8 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		stableChannel := "stable"
 
 		mainCRD := newCRD(genName("ins-"))
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
-		replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+		replacementCSV := newCSV(mainPackageReplacement, generatedNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
 
 		mainCatalogName := genName("mock-ocs-main-")
 
@@ -154,22 +160,22 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		createSubscriptionForCatalogWithSpec(GinkgoT(), crc, testNamespace, subscriptionName, subscriptionSpec)
+		createSubscriptionForCatalogWithSpec(GinkgoT(), crc, generatedNamespace, subscriptionName, subscriptionSpec)
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
 
 		installPlanName := subscription.Status.Install.Name
 		requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval)
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, requiresApprovalChecker)
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, generatedNamespace, requiresApprovalChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(context.TODO(), fetchedInstallPlan, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).Update(context.TODO(), fetchedInstallPlan, metav1.UpdateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
-		_, err = awaitCSV(crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, mainCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update manifest
@@ -190,7 +196,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -211,8 +217,8 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		stableChannel := "stable"
 
 		dependentCRD := newCRD(genName("ins-"))
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		mainCatalogName := genName("mock-ocs-main-")
 
@@ -238,29 +244,29 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		// Create the initial catalogsource
-		createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+		createInternalCatalogSource(c, crc, mainCatalogName, generatedNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 
 		// Attempt to get the catalog source before creating install plan
-		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace, catalogSourceRegistryPodSynced)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Get initial configmap
-		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Check pod created
-		initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+		initialPods, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(initialPods.Items).To(HaveLen(1))
 
 		// Update catalog configmap
-		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
+		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, generatedNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
 
 		// Get updated configmap
-		updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+		updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
-		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
+		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace, func(catalog *v1alpha1.CatalogSource) bool {
 			before := fetchedInitialCatalog.Status.ConfigMapResource
 			after := catalog.Status.ConfigMapResource
 			if after != nil && before.LastUpdateTime.Before(&after.LastUpdateTime) &&
@@ -280,27 +286,27 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// Await 1 CatalogSource registry pod matching the updated labels
 		singlePod := podCount(1)
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName, "olm.configMapResourceVersion": updatedConfigMap.GetResourceVersion()})
-		podList, err := awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
+		podList, err := awaitPods(GinkgoT(), c, generatedNamespace, selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(podList.Items).To(HaveLen(1), "expected pod list not of length 1")
 
 		// Await 1 CatalogSource registry pod matching the updated labels
 		selector = labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName})
-		podList, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
+		podList, err = awaitPods(GinkgoT(), c, generatedNamespace, selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(podList.Items).To(HaveLen(1), "expected pod list not of length 1")
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		createSubscriptionForCatalog(crc, testNamespace, subscriptionName, fetchedUpdatedCatalog.GetName(), mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		createSubscriptionForCatalog(crc, generatedNamespace, subscriptionName, fetchedUpdatedCatalog.GetName(), mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		Expect(err).ShouldNot(HaveOccurred())
 
-		ipList, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
+		ipList, err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace).List(context.TODO(), metav1.ListOptions{})
 		ipCount := 0
 		for _, ip := range ipList.Items {
 			if ownerutil.IsOwnedBy(&ip, subscription) {
@@ -322,8 +328,8 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		stableChannel := "stable"
 
 		dependentCRD := newCRD(genName("ins-"))
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		mainCatalogName := genName("mock-ocs-main-")
 
@@ -349,17 +355,17 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		// Create the initial catalogsource
-		_, cleanupSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+		_, cleanupSource := createInternalCatalogSource(c, crc, mainCatalogName, generatedNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 
 		// Attempt to get the catalog source before creating install plan
-		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace, catalogSourceRegistryPodSynced)
 		Expect(err).ShouldNot(HaveOccurred())
 		// Get initial configmap
-		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace).Get(context.TODO(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Check pod created
-		initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+		initialPods, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace).List(context.TODO(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(initialPods.Items).To(HaveLen(1))
 
@@ -367,16 +373,16 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		cleanupSource()
 
 		// create a catalog with the same name
-		createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, mainCatalogName, generatedNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		createSubscriptionForCatalog(crc, generatedNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -403,9 +409,9 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		stableChannel := "stable"
 
 		dependentCRD := newCRD(genName("ins-"))
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-		replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-		dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		replacementCSV := newCSV(mainPackageReplacement, generatedNamespace, mainPackageStable, semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		mainSourceName := genName("mock-ocs-main-")
 		replacementSourceName := genName("mock-ocs-main-with-replacement-")
@@ -442,13 +448,13 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		// Create ConfigMap CatalogSources
-		createInternalCatalogSource(c, crc, mainSourceName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
-		createInternalCatalogSource(c, crc, replacementSourceName, testNamespace, append(replacementManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{replacementCSV, mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, mainSourceName, generatedNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, replacementSourceName, generatedNamespace, append(replacementManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{replacementCSV, mainCSV, dependentCSV})
 
 		// Wait for ConfigMap CatalogSources to be ready
-		mainSource, err := fetchCatalogSourceOnStatus(crc, mainSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		mainSource, err := fetchCatalogSourceOnStatus(crc, mainSourceName, generatedNamespace, catalogSourceRegistryPodSynced)
 		Expect(err).ShouldNot(HaveOccurred())
-		replacementSource, err := fetchCatalogSourceOnStatus(crc, replacementSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		replacementSource, err := fetchCatalogSourceOnStatus(crc, replacementSourceName, generatedNamespace, catalogSourceRegistryPodSynced)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Replicate catalog pods with no OwnerReferences
@@ -467,7 +473,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      addressSourceName,
-				Namespace: testNamespace,
+				Namespace: generatedNamespace,
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
@@ -475,10 +481,10 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 		}
 
-		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.TODO(), addressSource, metav1.CreateOptions{})
+		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Create(context.TODO(), addressSource, metav1.CreateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 		defer func() {
-			err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), addressSourceName, metav1.DeleteOptions{})
+			err := crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Delete(context.TODO(), addressSourceName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
@@ -487,31 +493,31 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
 		// Delete CatalogSources
-		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), mainSourceName, metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Delete(context.TODO(), mainSourceName, metav1.DeleteOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
-		err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.TODO(), replacementSourceName, metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Delete(context.TODO(), replacementSourceName, metav1.DeleteOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace, subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update the catalog's address to point at the other registry pod's cluster ip
-		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(context.TODO(), addressSourceName, metav1.GetOptions{})
+		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Get(context.TODO(), addressSourceName, metav1.GetOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 		addressSource.Spec.Address = net.JoinHostPort(replacementCopy.Status.PodIP, "50051")
-		_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(context.TODO(), addressSource, metav1.UpdateOptions{})
+		_, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace).Update(context.TODO(), addressSource, metav1.UpdateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Wait for the replacement CSV to be installed
-		_, err = awaitCSV(crc, testNamespace, replacementCSV.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace, replacementCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -528,7 +534,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		stableChannel := "stable"
 		sourceName := genName("catalog-")
 		crd := newCRD(genName("ins-"))
-		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csv := newCSV(packageStable, generatedNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: packageName,
@@ -539,13 +545,13 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 		}
 
-		_, cleanupSource := createInternalCatalogSource(c, crc, sourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		_, cleanupSource := createInternalCatalogSource(c, crc, sourceName, generatedNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
 
 		// Wait for a new registry pod to be created
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": sourceName})
 		singlePod := podCount(1)
-		registryPods, err := awaitPods(GinkgoT(), c, testNamespace, selector.String(), singlePod)
+		registryPods, err := awaitPods(GinkgoT(), c, generatedNamespace, selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 		Expect(registryPods).ToNot(BeNil(), "nil registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
@@ -556,7 +562,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// Delete the registry pod
 		Eventually(func() error {
 			backgroundDeletion := metav1.DeletePropagationBackground
-			return c.KubernetesInterface().CoreV1().Pods(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
+			return c.KubernetesInterface().CoreV1().Pods(generatedNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
 		}).Should(Succeed())
 
 		// Wait for a new registry pod to be created
@@ -572,7 +578,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			ctx.Ctx().Logf("waiting for %v to not be empty and not contain %s", uids, uid)
 			return len(pods.Items) > 0
 		}
-		registryPods, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
+		registryPods, err = awaitPods(GinkgoT(), c, generatedNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
 		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
 		Expect(registryPods).ToNot(BeNil(), "nil replacement registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
@@ -593,7 +599,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("catalog-"),
-				Namespace: testNamespace,
+				Namespace: generatedNamespace,
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
@@ -618,7 +624,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// Delete the registry pod
 		Eventually(func() error {
 			backgroundDeletion := metav1.DeletePropagationBackground
-			return c.KubernetesInterface().CoreV1().Pods(testNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
+			return c.KubernetesInterface().CoreV1().Pods(generatedNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
 		}).Should(Succeed())
 
 		// Wait for a new registry pod to be created
@@ -634,7 +640,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			ctx.Ctx().Logf("waiting for %v to not be empty and not contain %s", uids, uid)
 			return len(pods.Items) > 0
 		}
-		registryPods, err = awaitPods(GinkgoT(), c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
+		registryPods, err = awaitPods(GinkgoT(), c, generatedNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
 		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
 		Expect(registryPods).ShouldNot(BeNil(), "nil replacement registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
@@ -661,18 +667,18 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		var registryURL string
 		var registryAuth string
 		if local {
-			registryURL, err = createDockerRegistry(c, testNamespace)
+			registryURL, err = createDockerRegistry(c, generatedNamespace)
 			Expect(err).NotTo(HaveOccurred(), "error creating container registry: %s", err)
-			defer deleteDockerRegistry(c, testNamespace)
+			defer deleteDockerRegistry(c, generatedNamespace)
 
 			// ensure registry pod is ready before attempting port-forwarding
-			_ = awaitPod(GinkgoT(), c, testNamespace, registryName, podReady)
+			_ = awaitPod(GinkgoT(), c, generatedNamespace, registryName, podReady)
 
-			err = registryPortForward(testNamespace)
+			err = registryPortForward(generatedNamespace)
 			Expect(err).NotTo(HaveOccurred(), "port-forwarding local registry: %s", err)
 		} else {
 			registryURL = openshiftregistryFQDN
-			registryAuth, err = openshiftRegistryAuth(c, testNamespace)
+			registryAuth, err = openshiftRegistryAuth(c, generatedNamespace)
 			Expect(err).NotTo(HaveOccurred(), "error getting openshift registry authentication: %s", err)
 		}
 
@@ -688,15 +694,15 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			Expect(err).NotTo(HaveOccurred(), "error copying old registry file: %s", err)
 		} else {
 			skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "old", registryAuth)
-			err = createSkopeoPod(c, skopeoArgs, testNamespace)
+			err = createSkopeoPod(c, skopeoArgs, generatedNamespace)
 			Expect(err).NotTo(HaveOccurred(), "error creating skopeo pod: %s", err)
 
 			// wait for skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			awaitPod(GinkgoT(), c, generatedNamespace, skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
-			err = deleteSkopeoPod(c, testNamespace)
+			err = deleteSkopeoPod(c, generatedNamespace)
 			Expect(err).NotTo(HaveOccurred(), "error deleting skopeo pod: %s", err)
 		}
 
@@ -718,7 +724,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      sourceName,
-				Namespace: testNamespace,
+				Namespace: generatedNamespace,
 				Labels:    map[string]string{"olm.catalogSource": sourceName},
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
@@ -754,7 +760,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		defer cleanupSubscription()
 
 		// Wait for the Subscription to succeed
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -778,15 +784,15 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			Expect(err).NotTo(HaveOccurred(), "error copying new registry file: %s", err)
 		} else {
 			skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "new", registryAuth)
-			err = createSkopeoPod(c, skopeoArgs, testNamespace)
+			err = createSkopeoPod(c, skopeoArgs, generatedNamespace)
 			Expect(err).NotTo(HaveOccurred(), "error creating skopeo pod: %s", err)
 
 			// wait for skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			awaitPod(GinkgoT(), c, generatedNamespace, skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
-			err = deleteSkopeoPod(c, testNamespace)
+			err = deleteSkopeoPod(c, generatedNamespace)
 			Expect(err).NotTo(HaveOccurred(), "error deleting skopeo pod: %s", err)
 		}
 
@@ -839,7 +845,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			return sub.Status.InstalledCSV == "busybox.v2.0.0"
 		}
 		// Wait for the Subscription to succeed
-		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace, subscriptionName, subChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -881,7 +887,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      sourceName,
-				Namespace: testNamespace,
+				Namespace: generatedNamespace,
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
@@ -906,7 +912,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		defer cleanupSubscription()
 
 		// Wait for the Subscription to succeed
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 		Expect(subscription.Status.InstalledCSV).To(Equal("busybox.v1.0.0"))
@@ -923,7 +929,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		Expect(dependencySubscriptionName).ToNot(BeEmpty())
 
 		// Wait for the Subscription to succeed
-		subscription, err = fetchSubscription(crc, testNamespace, dependencySubscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace, dependencySubscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 		Expect(subscription.Status.InstalledCSV).To(Equal("busybox-dependency.v1.0.0"))
@@ -951,7 +957,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		subChecker := func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox.v2.0.0"
 		}
-		subscription, err = fetchSubscription(crc, testNamespace, subscriptionName, subChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace, subscriptionName, subChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -964,7 +970,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		subChecker = func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox-dependency.v2.0.0"
 		}
-		subscription, err = fetchSubscription(crc, testNamespace, dependencySubscriptionName, subChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace, dependencySubscriptionName, subChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -991,7 +997,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      sourceName,
-				Namespace: testNamespace,
+				Namespace: generatedNamespace,
 				Labels:    map[string]string{"olm.catalogSource": sourceName},
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
@@ -1058,7 +1064,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      sourceName,
-				Namespace: testNamespace,
+				Namespace: generatedNamespace,
 				Labels:    map[string]string{"olm.catalogSource": sourceName},
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
