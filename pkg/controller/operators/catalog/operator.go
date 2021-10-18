@@ -962,16 +962,25 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// not-satisfiable error
 		if _, ok := err.(solver.NotSatisfiable); ok {
 			logger.WithError(err).Debug("resolution failed")
-			subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ConstraintsNotSatisfiable", err.Error(), true)
-			_, updateErr := o.updateSubscriptionStatuses(subs)
+			_, updateErr := o.updateSubscriptionStatuses(o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+				Type:    v1alpha1.SubscriptionResolutionFailed,
+				Reason:  "ConstraintsNotSatisfiable",
+				Message: err.Error(),
+				Status:  corev1.ConditionTrue,
+			}))
 			if updateErr != nil {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")
 				return updateErr
 			}
 			return nil
 		}
-		subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "ErrorPreventedResolution", err.Error(), true)
-		_, updateErr := o.updateSubscriptionStatuses(subs)
+
+		_, updateErr := o.updateSubscriptionStatuses(o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+			Type:    v1alpha1.SubscriptionResolutionFailed,
+			Reason:  "ErrorPreventedResolution",
+			Message: err.Error(),
+			Status:  corev1.ConditionTrue,
+		}))
 		if updateErr != nil {
 			logger.WithError(updateErr).Debug("failed to update subs conditions")
 			return updateErr
@@ -980,8 +989,13 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	}
 
 	defer func() {
-		subs = o.setSubsCond(subs, v1alpha1.SubscriptionResolutionFailed, "", "", false)
-		_, updateErr := o.updateSubscriptionStatuses(subs)
+		// TODO(tflannag): Why aren't we setting the reason/message fields here?
+		_, updateErr := o.updateSubscriptionStatuses(o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+			Type:    v1alpha1.SubscriptionResolutionFailed,
+			Reason:  "",
+			Message: "",
+			Status:  corev1.ConditionFalse,
+		}))
 		if updateErr != nil {
 			logger.WithError(updateErr).Warn("failed to update subscription conditions")
 		}
@@ -1225,23 +1239,48 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 	return reference.GetReference(res)
 }
 
-func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType, reason, message string, setTrue bool) []*v1alpha1.Subscription {
+func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, cond v1alpha1.SubscriptionCondition) []*v1alpha1.Subscription {
 	var (
 		lastUpdated = o.now()
 	)
+
 	for _, sub := range subs {
-		sub.Status.LastUpdated = lastUpdated
-		cond := sub.Status.GetCondition(condType)
-		cond.Reason = reason
-		cond.Message = message
-		if setTrue {
-			cond.Status = corev1.ConditionTrue
-		} else {
-			cond.Status = corev1.ConditionFalse
+		current := getCondition(sub.Status, cond.Type)
+
+		// avoid updating the conditions array if the current condition already has
+		// the correct reason and status present in the array.
+		if current != nil && current.Status == cond.Status && current.Reason == cond.Reason {
+			continue
 		}
-		sub.Status.SetCondition(cond)
+		// avoid updating lastTransitionTime if the status of the condition doesn't change.
+		if current != nil && current.Status == cond.Status {
+			cond.LastTransitionTime = current.LastTransitionTime
+		}
+		newConditions := filterOutCondition(sub.Status.Conditions, cond.Type)
+		sub.Status.Conditions = append(newConditions, cond)
+		sub.Status.LastUpdated = lastUpdated
 	}
 	return subs
+}
+
+func getCondition(status v1alpha1.SubscriptionStatus, condType v1alpha1.SubscriptionConditionType) *v1alpha1.SubscriptionCondition {
+	for _, c := range status.Conditions {
+		if c.Type == condType {
+			return &c
+		}
+	}
+	return nil
+}
+
+func filterOutCondition(conditions []v1alpha1.SubscriptionCondition, condType v1alpha1.SubscriptionConditionType) []v1alpha1.SubscriptionCondition {
+	var newConditions []v1alpha1.SubscriptionCondition
+	for _, cond := range conditions {
+		if cond.Type == condType {
+			continue
+		}
+		newConditions = append(newConditions, cond)
+	}
+	return newConditions
 }
 
 func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]*v1alpha1.Subscription, error) {
