@@ -67,11 +67,12 @@ None --> Pending --> InstallReady --> Installing -|               |
     v
 Replacing --> Deleting
 ```
+*Note: The transition to replacing happens out-of-band when the controller detects a new CSV that replaces the current one.*
 
 | Phase      | Description                                                                                                                                                                                                                           |
 |------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | None       | initial phase, once seen by the Operator, it is immediately transitioned to `Pending`                                                                                                                                                 |
-| Pending    | requirements in the CSV are not met, once they are this phase transitions to `Installing`                                                                                                                                             |
+| Pending    | requirements in the CSV are not met, once they are this phase transitions to `InstallReady`                                                                                                                                             |
 | InstallReady | all requirements in the CSV are present, the Operator will begin executing the install strategy                                                                                                                                     |
 | Installing | the install strategy is being executed and resources are being created, but not all components are reporting as ready                                                                                                                 |
 | Succeeded  | the execution of the Install Strategy was successful; if requirements disappear, or an APIService cert needs to be rotated this may transition back to `Pending`; if an installed component disappears this may transition to `Failed`|
