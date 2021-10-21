@@ -278,31 +278,6 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		properties = append(properties, ps...)
 	}
 
-	// legacy support - if the grpc api doesn't contain required/provided apis, fallback to csv parsing
-	if len(required) == 0 && len(provided) == 0 && len(properties) == 0 {
-		// fallback to csv parsing
-		if bundle.CsvJson == "" {
-			if bundle.GetBundlePath() != "" {
-				return nil, fmt.Errorf("couldn't parse bundle path, missing provided and required apis")
-			}
-
-			return nil, fmt.Errorf("couldn't parse bundle, missing provided and required apis")
-		}
-
-		csv := &v1alpha1.ClusterServiceVersion{}
-		if err := json.Unmarshal([]byte(bundle.CsvJson), csv); err != nil {
-			return nil, err
-		}
-
-		op, err := NewOperatorFromV1Alpha1CSV(csv)
-		if err != nil {
-			return nil, err
-		}
-		op.sourceInfo = sourceInfo
-		op.bundle = bundle
-		return op, nil
-	}
-
 	return &Operator{
 		name:         bundle.CsvName,
 		replaces:     bundle.Replaces,
