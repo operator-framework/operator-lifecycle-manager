@@ -128,14 +128,25 @@ func (o *Operator) ComponentLabelKey() (string, error) {
 		return o.componentLabelKey, nil
 	}
 
-	if o.GetName() == "" {
+	name := o.GetName()
+	if name == "" {
 		return "", fmt.Errorf(componentLabelKeyError, "empty name field")
 	}
 
-	name := o.GetName()
 	if len(name) > 63 {
 		// Truncate
 		name = name[0:63]
+		for true {
+			lastChar := name[len(name)-1:]
+			if lastChar != "." && lastChar != "_" && lastChar != "-" {
+				break
+			}
+			if len(name)-1 == 0 {
+				return "", fmt.Errorf(componentLabelKeyError, "unsupported name field")
+			}
+
+			name = name[0 : len(name)-1]
+		}
 	}
 	o.componentLabelKey = ComponentLabelKeyPrefix + name
 
