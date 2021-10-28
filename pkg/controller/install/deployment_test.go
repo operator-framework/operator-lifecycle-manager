@@ -3,6 +3,9 @@ package install
 import (
 	"fmt"
 	"testing"
+	"context"
+	gomock "github.com/golang/mock/gomock"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,10 +16,50 @@ import (
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1"
 	clientfakes "github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes"
+	clientv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/operatorclientmocks"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
+
+// operatorGroupNamespaceLister implements the OperatorGroupLister interface.
+type fake_operatorGroupNamespaceLister struct {
+	name string
+	ret  []*v1.OperatorGroup
+}
+
+// List lists all OperatorGroups in the indexer.
+func (s *fake_operatorGroupNamespaceLister) List(selector k8slabels.Selector) (ret []*v1.OperatorGroup, err error) {
+	s.ret = make([]*v1.OperatorGroup, 1)
+	og := new(v1.OperatorGroup)
+	s.ret[0] = og
+	return s.ret, nil
+}
+
+// OperatorGroups returns an object that can list and get OperatorGroups.
+func (s *fake_operatorGroupNamespaceLister) Get(name string) (*v1.OperatorGroup, error) {
+	return nil, nil
+}
+
+// operatorGroupLister implements the OperatorGroupLister interface.
+type fake_operatorGroupLister struct {
+	name string
+	operatorGroupNamespaceLister clientv1.OperatorGroupNamespaceLister
+}
+
+// List lists all OperatorGroups in the indexer.
+func (s *fake_operatorGroupLister) List(selector k8slabels.Selector) (ret []*v1.OperatorGroup, err error) {
+	return nil, nil
+}
+
+// OperatorGroups returns an object that can list and get OperatorGroups.
+func (s *fake_operatorGroupLister) OperatorGroups(namespace string) clientv1.OperatorGroupNamespaceLister {
+	s.operatorGroupNamespaceLister = new(fake_operatorGroupNamespaceLister)
+	return s.operatorGroupNamespaceLister
+}
 
 func testDeployment(name, namespace string, mockOwner ownerutil.Owner) appsv1.Deployment {
 	testDeploymentLabels := map[string]string{"olm.owner": mockOwner.GetName(), "olm.owner.namespace": mockOwner.GetNamespace(), "olm.owner.kind": "ClusterServiceVersion"}
@@ -91,7 +134,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "clusterserviceversion-owner",
-				Namespace: "olm-test-deployment",
+// TODO - add namespae to fake				Namespace: "olm-test-deployment",
 			},
 		}
 		mockOwnerRefs = []metav1.OwnerReference{{
@@ -116,12 +159,17 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 		expectedDeployment appsv1.Deployment
 		returnError        error
 	}
+	type label struct {
+		key   string
+		value string
+	}
 	tests := []struct {
 		description         string
 		inputs              inputs
 		setup               setup
 		createOrUpdateMocks []createOrUpdateMock
 		output              error
+		customLabel         label
 	}{
 		{
 			description: "updates/creates correctly",
@@ -259,15 +307,32 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 				},
 			},
 			output: nil,
+			customLabel: label {
+				key:   "custom-label",
+				value: "custom-label-value",
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			mockOpClient := operatorclientmocks.NewMockClientInterface(ctrl)
 
+			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
+			fakeOperatorLister := new(operatorlisterfakes.FakeOperatorLister)
+			fakeOperatorsV1Lister := new(operatorlisterfakes.FakeOperatorsV1Lister)
+			fakeOperatorsV1Lister.OperatorGroupListerReturns(new(fake_operatorGroupLister))
+			fakeOperatorLister.OperatorsV1Returns(fakeOperatorsV1Lister)
+			fake := fake.NewSimpleClientset()
 			for i, m := range tt.createOrUpdateMocks {
 				fakeClient.CreateDeploymentReturns(nil, m.returnError)
+				fakeClient.GetOpListerReturns(fakeOperatorLister)
+				fakeClient.GetOpClientReturns(mockOpClient)
+				mockOpClient.EXPECT().KubernetesInterface().Return(fake)
+				mockOpClient.EXPECT().KubernetesInterface().Return(fake)
+
 				defer func(i int, expectedDeployment appsv1.Deployment) {
 					dep := fakeClient.CreateOrUpdateDeploymentArgsForCall(i)
 					expectedDeployment.Spec.Template.Annotations = map[string]string{}
@@ -279,16 +344,22 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					require.Equal(t, expectedDeployment.Spec.RevisionHistoryLimit, dep.Spec.RevisionHistoryLimit)
 				}(i, m.expectedDeployment)
 			}
-
+			fake_certResources := make([]certResource, 1)
+			fake_certResources[0] = &webhookDescriptionWithCAPEM{v1alpha1.WebhookDescription{Type: v1alpha1.ValidatingAdmissionWebhook}, []byte{}}
 			installer := &StrategyDeploymentInstaller{
 				strategyClient: fakeClient,
 				owner:          &mockOwner,
+				webhookDescriptions: fake_certResources,
 			}
 			result := installer.installDeployments(tt.inputs.strategyDeploymentSpecs)
 			assert.Equal(t, tt.output, result)
+			got, _ := fake.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{})
+			assert.Equal(t, tt.customLabel.value, got.Items[0].ObjectMeta.Labels[tt.customLabel.key])
 		})
 	}
 }
+
+
 
 type BadStrategy struct{}
 

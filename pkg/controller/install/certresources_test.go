@@ -14,6 +14,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -138,6 +139,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 		rotateAt       time.Time
 		depSpec        appsv1.DeploymentSpec
 		ports          []corev1.ServicePort
+		label          labels.Set
 	}
 
 	type expectedExternalFunc func(clientInterface *operatorclientmocks.MockClientInterface, fakeLister *operatorlisterfakes.FakeOperatorLister, namespace string, args args)
@@ -159,6 +161,10 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Name: "test-service",
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(&v1alpha1.ClusterServiceVersion{}),
+						},
+						Labels: labels.Set{
+							"LABEL1": "VALUE1",
+							"LABEL2": "VALUE2",
 						},
 					},
 					Spec: corev1.ServiceSpec{
@@ -184,7 +190,8 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Name:        "test-service-cert",
 						Namespace:   namespace,
 						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
-						Labels:      map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
+						Labels:      labels.Merge(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue}, labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",}),
+
 					},
 					Data: map[string][]byte{
 						"tls.crt":   certPEM,
@@ -199,6 +206,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -215,6 +223,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -254,6 +263,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				mockOpClient.EXPECT().UpdateClusterRoleBinding(authDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, nil)
 
 				authReaderRoleBinding := &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secret.GetName(),
+						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
+					},
 					Subjects: []rbacv1.Subject{
 						{
 							Kind:      "ServiceAccount",
@@ -320,6 +334,10 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						},
 					},
 				},
+				label: labels.Set{
+					"LABEL1": "VALUE1",
+					"LABEL2": "VALUE2",
+				},
 			},
 			want: &appsv1.DeploymentSpec{
 				Selector: selector(t, "test=label"),
@@ -384,6 +402,10 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(owner),
 						},
+						Labels: labels.Set{
+							"LABEL1": "VALUE1",
+							"LABEL2": "VALUE2",
+						},
 					},
 					Spec: corev1.ServiceSpec{
 						Ports:    args.ports,
@@ -408,7 +430,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Name:        "test-service-cert",
 						Namespace:   namespace,
 						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
-						Labels:      map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
+						Labels:      labels.Merge(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue}, labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",}),
 					},
 					Data: map[string][]byte{
 						"tls.crt":   certPEM,
@@ -423,6 +445,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -439,6 +462,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -478,6 +502,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				mockOpClient.EXPECT().UpdateClusterRoleBinding(authDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, nil)
 
 				authReaderRoleBinding := &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secret.GetName(),
+						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
+					},
 					Subjects: []rbacv1.Subject{
 						{
 							Kind:      "ServiceAccount",
@@ -540,6 +569,10 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						},
 					},
 				},
+				label: labels.Set{
+					"LABEL1": "VALUE1",
+					"LABEL2": "VALUE2",
+				},
 			},
 			want: &appsv1.DeploymentSpec{
 				Selector: selector(t, "test=label"),
@@ -601,6 +634,10 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(&v1alpha1.ClusterServiceVersion{}),
 						},
+						Labels: labels.Set{
+							"LABEL1": "VALUE1",
+							"LABEL2": "VALUE2",
+						},
 					},
 					Spec: corev1.ServiceSpec{
 						Ports:    args.ports,
@@ -625,7 +662,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Name:        "test-service-cert",
 						Namespace:   namespace,
 						Annotations: map[string]string{OLMCAHashAnnotationKey: caHash},
-						Labels:      map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
+						Labels:      labels.Merge(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue}, labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",}),
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(&v1alpha1.ClusterServiceVersion{}),
 						},
@@ -650,6 +687,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -666,6 +704,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -705,6 +744,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				mockOpClient.EXPECT().UpdateClusterRoleBinding(authDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, nil)
 
 				authReaderRoleBinding := &rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secret.GetName(),
+						Namespace: namespace,
+						Labels:    labels.Set{"LABEL1": "VALUE1","LABEL2": "VALUE2",},
+					},
 					Subjects: []rbacv1.Subject{
 						{
 							Kind:      "ServiceAccount",
@@ -772,6 +816,10 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 							},
 						},
 					},
+				},
+				label: labels.Set{
+					"LABEL1": "VALUE1",
+					"LABEL2": "VALUE2",
 				},
 			},
 			want: &appsv1.DeploymentSpec{
@@ -848,7 +896,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				apiServiceDescriptions: tt.fields.apiServiceDescriptions,
 				webhookDescriptions:    tt.fields.webhookDescriptions,
 			}
-			got, _, err := i.installCertRequirementsForDeployment(tt.args.deploymentName, tt.args.ca, tt.args.rotateAt, tt.args.depSpec, tt.args.ports)
+			got, _, err := i.installCertRequirementsForDeployment(tt.args.deploymentName, tt.args.ca, tt.args.rotateAt, tt.args.depSpec, tt.args.ports, tt.args.label)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("installCertRequirementsForDeployment() error = %v, wantErr %v", err, tt.wantErr)
 				return

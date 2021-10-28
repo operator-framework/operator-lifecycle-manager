@@ -98,18 +98,18 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.Strateg
 			return err
 		}
 
-		if err := i.createOrUpdateCertResourcesForDeployment(); err != nil {
+		if err := i.createOrUpdateCertResourcesForDeployment(d.Label); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment() error {
+func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment(label k8slabels.Set) error {
 	for _, desc := range i.getCertResources() {
 		switch d := desc.(type) {
 		case *apiServiceDescriptionsWithCAPEM:
-			err := i.createOrUpdateAPIService(d.caPEM, d.apiServiceDescription)
+			err := i.createOrUpdateAPIService(d.caPEM, d.apiServiceDescription, label)
 			if err != nil {
 				return err
 			}
@@ -120,7 +120,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment()
 				return err
 			}
 		case *webhookDescriptionWithCAPEM:
-			err := i.createOrUpdateWebhook(d.caPEM, d.webhookDescription)
+			err := i.createOrUpdateWebhook(d.caPEM, d.webhookDescription, label)
 			if err != nil {
 				return err
 			}

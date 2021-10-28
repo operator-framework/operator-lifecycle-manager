@@ -55,7 +55,7 @@ func contains(m map[string]struct{}, tar string) bool {
 	return present
 }
 
-func (i *StrategyDeploymentInstaller) createOrUpdateWebhook(caPEM []byte, desc v1alpha1.WebhookDescription) error {
+func (i *StrategyDeploymentInstaller) createOrUpdateWebhook(caPEM []byte, desc v1alpha1.WebhookDescription, label labels.Set) error {
 	operatorGroups, err := i.strategyClient.GetOpLister().OperatorsV1().OperatorGroupLister().OperatorGroups(i.owner.GetNamespace()).List(labels.Everything())
 	if err != nil || len(operatorGroups) != 1 {
 		return fmt.Errorf("Error retrieving OperatorGroup info")
@@ -67,16 +67,16 @@ func (i *StrategyDeploymentInstaller) createOrUpdateWebhook(caPEM []byte, desc v
 
 	switch desc.Type {
 	case v1alpha1.ValidatingAdmissionWebhook:
-		i.createOrUpdateValidatingWebhook(ogNamespacelabelSelector, caPEM, desc)
+		i.createOrUpdateValidatingWebhook(ogNamespacelabelSelector, caPEM, desc, label)
 	case v1alpha1.MutatingAdmissionWebhook:
-		i.createOrUpdateMutatingWebhook(ogNamespacelabelSelector, caPEM, desc)
+		i.createOrUpdateMutatingWebhook(ogNamespacelabelSelector, caPEM, desc, label)
 	case v1alpha1.ConversionWebhook:
-		i.createOrUpdateConversionWebhook(caPEM, desc)
+		i.createOrUpdateConversionWebhook(caPEM, desc, label)
 	}
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacelabelSelector *metav1.LabelSelector, caPEM []byte, desc v1alpha1.WebhookDescription) error {
+func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacelabelSelector *metav1.LabelSelector, caPEM []byte, desc v1alpha1.WebhookDescription, label labels.Set) error {
 	webhookLabels := ownerutil.OwnerLabel(i.owner, i.owner.GetObjectKind().GroupVersionKind().Kind)
 	webhookLabels[WebhookDescKey] = desc.GenerateName
 	webhookSelector := labels.SelectorFromSet(webhookLabels).String()
@@ -92,7 +92,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: desc.GenerateName + "-",
 				Namespace:    i.owner.GetNamespace(),
-				Labels:       ownerutil.OwnerLabel(i.owner, i.owner.GetObjectKind().GroupVersionKind().Kind),
+				Labels:       labels.Merge(ownerutil.OwnerLabel(i.owner, i.owner.GetObjectKind().GroupVersionKind().Kind), label),
 			},
 			Webhooks: []admissionregistrationv1.MutatingWebhook{
 				desc.GetMutatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
@@ -111,6 +111,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 			desc.GetMutatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
 		}
 		addWebhookLabels(&webhook, desc)
+		webhook.ObjectMeta.Labels = labels.Merge(webhook.ObjectMeta.Labels, label) 
 
 		// Attempt an update
 		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Update(context.TODO(), &webhook, metav1.UpdateOptions{}); err != nil {
@@ -122,7 +123,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespacelabelSelector *metav1.LabelSelector, caPEM []byte, desc v1alpha1.WebhookDescription) error {
+func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespacelabelSelector *metav1.LabelSelector, caPEM []byte, desc v1alpha1.WebhookDescription, label labels.Set) error {
 	webhookLabels := ownerutil.OwnerLabel(i.owner, i.owner.GetObjectKind().GroupVersionKind().Kind)
 	webhookLabels[WebhookDescKey] = desc.GenerateName
 	webhookSelector := labels.SelectorFromSet(webhookLabels).String()
@@ -138,7 +139,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: desc.GenerateName + "-",
 				Namespace:    i.owner.GetNamespace(),
-				Labels:       ownerutil.OwnerLabel(i.owner, i.owner.GetObjectKind().GroupVersionKind().Kind),
+				Labels:       labels.Merge(ownerutil.OwnerLabel(i.owner, i.owner.GetObjectKind().GroupVersionKind().Kind), label),
 			},
 			Webhooks: []admissionregistrationv1.ValidatingWebhook{
 				desc.GetValidatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
@@ -150,7 +151,6 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 			log.Errorf("Webhooks: Error creating ValidatingWebhookConfiguration: %v", err)
 			return err
 		}
-
 		return nil
 	}
 	for _, webhook := range existingWebhooks.Items {
@@ -159,6 +159,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 			desc.GetValidatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
 		}
 		addWebhookLabels(&webhook, desc)
+		webhook.ObjectMeta.Labels = labels.Merge(webhook.ObjectMeta.Labels, label) 
 
 		// Attempt an update
 		if _, err := i.strategyClient.GetOpClient().KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(context.TODO(), &webhook, metav1.UpdateOptions{}); err != nil {
@@ -184,7 +185,7 @@ func isSingletonOperator(csv v1alpha1.ClusterServiceVersion) bool {
 	return true
 }
 
-func (i *StrategyDeploymentInstaller) createOrUpdateConversionWebhook(caPEM []byte, desc v1alpha1.WebhookDescription) error {
+func (i *StrategyDeploymentInstaller) createOrUpdateConversionWebhook(caPEM []byte, desc v1alpha1.WebhookDescription, label labels.Set) error {
 	// get a list of owned CRDs
 	csv, ok := i.owner.(*v1alpha1.ClusterServiceVersion)
 	if !ok {

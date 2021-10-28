@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -202,7 +203,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 		}
 
 		// Update the deployment for each certResource
-		newDepSpec, caPEM, err := i.installCertRequirementsForDeployment(sddSpec.Name, ca, rotateAt, sddSpec.Spec, getServicePorts(certResources))
+		newDepSpec, caPEM, err := i.installCertRequirementsForDeployment(sddSpec.Name, ca, rotateAt, sddSpec.Spec, getServicePorts(certResources), sddSpec.Label)
 		if err != nil {
 			return nil, err
 		}
@@ -223,11 +224,14 @@ func ShouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	return false
 }
 
-func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deploymentName string, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, ports []corev1.ServicePort) (*appsv1.DeploymentSpec, []byte, error) {
+func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deploymentName string, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, ports []corev1.ServicePort, label labels.Set) (*appsv1.DeploymentSpec, []byte, error) {
 	logger := log.WithFields(log.Fields{})
 
 	// Create a service for the deployment
 	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta {
+			Labels: label,
+		},
 		Spec: corev1.ServiceSpec{
 			Ports:    ports,
 			Selector: depSpec.Selector.MatchLabels,
@@ -236,7 +240,6 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	service.SetName(ServiceName(deploymentName))
 	service.SetNamespace(i.owner.GetNamespace())
 	ownerutil.AddNonBlockingOwner(service, i.owner)
-
 	existingService, err := i.strategyClient.GetOpLister().CoreV1().ServiceLister().Services(i.owner.GetNamespace()).Get(service.GetName())
 	if err == nil {
 		if !ownerutil.Adoptable(i.owner, existingService.GetOwnerReferences()) {
@@ -295,7 +298,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	secret.SetName(SecretName(service.GetName()))
 	secret.SetNamespace(i.owner.GetNamespace())
 	secret.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
-	secret.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
+	secret.SetLabels(labels.Merge(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue}, label))
 
 	existingSecret, err := i.strategyClient.GetOpLister().CoreV1().SecretLister().Secrets(i.owner.GetNamespace()).Get(secret.GetName())
 	if err == nil {
@@ -348,6 +351,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	}
 	secretRole.SetName(secret.GetName())
 	secretRole.SetNamespace(i.owner.GetNamespace())
+	secretRole.SetLabels(label)
 
 	existingSecretRole, err := i.strategyClient.GetOpLister().RbacV1().RoleLister().Roles(i.owner.GetNamespace()).Get(secretRole.GetName())
 	if err == nil {
@@ -394,6 +398,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	}
 	secretRoleBinding.SetName(secret.GetName())
 	secretRoleBinding.SetNamespace(i.owner.GetNamespace())
+	secretRoleBinding.SetLabels(label)
 
 	existingSecretRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().RoleBindingLister().RoleBindings(i.owner.GetNamespace()).Get(secretRoleBinding.GetName())
 	if err == nil {
@@ -445,6 +450,8 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			if err := ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, i.owner); err != nil {
 				return nil, nil, err
 			}
+			authDelegatorClusterRoleBinding.SetLabels(labels.Merge(label,authDelegatorClusterRoleBinding.ObjectMeta.Labels ))
+
 		}
 
 		// Attempt an update.
@@ -457,6 +464,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		if err := ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, i.owner); err != nil {
 			return nil, nil, err
 		}
+		authDelegatorClusterRoleBinding.SetLabels(labels.Merge(label,authDelegatorClusterRoleBinding.ObjectMeta.Labels ))
 		_, err = i.strategyClient.GetOpClient().CreateClusterRoleBinding(authDelegatorClusterRoleBinding)
 		if err != nil {
 			log.Warnf("could not create auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
@@ -484,6 +492,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	}
 	authReaderRoleBinding.SetName(service.GetName() + "-auth-reader")
 	authReaderRoleBinding.SetNamespace(KubeSystem)
+	authReaderRoleBinding.SetLabels(label)
 
 	existingAuthReaderRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().RoleBindingLister().RoleBindings(KubeSystem).Get(authReaderRoleBinding.GetName())
 	if err == nil {

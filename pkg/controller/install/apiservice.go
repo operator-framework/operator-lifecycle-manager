@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
@@ -15,7 +16,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
-func (i *StrategyDeploymentInstaller) createOrUpdateAPIService(caPEM []byte, desc v1alpha1.APIServiceDescription) error {
+func (i *StrategyDeploymentInstaller) createOrUpdateAPIService(caPEM []byte, desc v1alpha1.APIServiceDescription, label labels.Set) error {
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 	logger := log.WithFields(log.Fields{
 		"owner":      i.owner.GetName(),
@@ -32,6 +33,9 @@ func (i *StrategyDeploymentInstaller) createOrUpdateAPIService(caPEM []byte, des
 
 		exists = false
 		apiService = &apiregistrationv1.APIService{
+			ObjectMeta: metav1.ObjectMeta {
+				Labels: label,
+			},
 			Spec: apiregistrationv1.APIServiceSpec{
 				Group:                desc.Group,
 				Version:              desc.Version,
