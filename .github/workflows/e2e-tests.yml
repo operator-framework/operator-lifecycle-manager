@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '~1.16'
-      - run: make e2e-local E2E_NODES=2 JUNIT_DIRECTORY=./artifacts/
+      - run: make e2e-local E2E_NODES=2 ARTIFACTS_DIR=./artifacts/
       - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
         if: ${{ always() }}
         uses: actions/upload-artifact@v2

@@ -43,6 +43,7 @@ var (
 	testNamespace           = ""
 	operatorNamespace       = ""
 	communityOperatorsImage = ""
+	junitDir                = "junit"
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -52,8 +53,9 @@ func TestEndToEnd(t *testing.T) {
 	SetDefaultConsistentlyDuration(30 * time.Second)
 	SetDefaultConsistentlyPollingInterval(1 * time.Second)
 
-	if junitDir := os.Getenv("JUNIT_DIRECTORY"); junitDir != "" {
-		junitReporter := reporters.NewJUnitReporter(path.Join(junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
+	// always configure a junit report when ARTIFACTS_DIR has been set
+	if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
+		junitReporter := reporters.NewJUnitReporter(path.Join(artifactsDir, junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
 		RunSpecsWithDefaultAndCustomReporters(t, "End-to-end", []Reporter{junitReporter})
 	} else {
 		RunSpecs(t, "End-to-end")
