@@ -22,6 +22,7 @@ import (
 
 var (
 	images = flag.String("kind.images", "", "comma-separated list of image archives to load on cluster nodes, relative to the test binary or test package path")
+	logDir = "logs"
 
 	verbosity int
 )
@@ -139,6 +140,12 @@ func Provision(ctx *TestContext) (func(), error) {
 	var once sync.Once
 	deprovision := func() {
 		once.Do(func() {
+			if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
+				ctx.Logf("collecting container logs for the %s cluster", name)
+				if err := provider.CollectLogs(name, filepath.Join(artifactsDir, logDir)); err != nil {
+					ctx.Logf("failed to collect logs: %v", err)
+				}
+			}
 			provider.Delete(name, kubeconfigPath)
 		})
 	}
