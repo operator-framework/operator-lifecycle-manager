@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
@@ -43,6 +43,7 @@ var (
 	testNamespace           = ""
 	operatorNamespace       = ""
 	communityOperatorsImage = ""
+	junitDir                = "junit"
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -52,8 +53,9 @@ func TestEndToEnd(t *testing.T) {
 	SetDefaultConsistentlyDuration(30 * time.Second)
 	SetDefaultConsistentlyPollingInterval(1 * time.Second)
 
-	if junitDir := os.Getenv("JUNIT_DIRECTORY"); junitDir != "" {
-		junitReporter := reporters.NewJUnitReporter(path.Join(junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
+	// always configure a junit report when ARTIFACTS_DIR has been set
+	if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
+		junitReporter := reporters.NewJUnitReporter(path.Join(artifactsDir, junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
 		RunSpecsWithDefaultAndCustomReporters(t, "End-to-end", []Reporter{junitReporter})
 	} else {
 		RunSpecs(t, "End-to-end")
@@ -75,10 +77,10 @@ var _ = BeforeSuite(func() {
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 
-	var groups v1.OperatorGroupList
+	var groups operatorsv1.OperatorGroupList
 	Expect(ctx.Ctx().Client().List(context.Background(), &groups, client.InNamespace(testNamespace))).To(Succeed())
 	if len(groups.Items) == 0 {
-		og := v1.OperatorGroup{
+		og := operatorsv1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "opgroup",
 				Namespace: testNamespace,
@@ -88,12 +90,12 @@ var _ = BeforeSuite(func() {
 	}
 
 	// Tests can assume the group in the test namespace has been reconciled at least once.
-	Eventually(func() ([]v1.OperatorGroupStatus, error) {
-		var groups v1.OperatorGroupList
+	Eventually(func() ([]operatorsv1.OperatorGroupStatus, error) {
+		var groups operatorsv1.OperatorGroupList
 		if err := ctx.Ctx().Client().List(context.Background(), &groups, client.InNamespace(testNamespace)); err != nil {
 			return nil, err
 		}
-		var statuses []v1.OperatorGroupStatus
+		var statuses []operatorsv1.OperatorGroupStatus
 		for _, group := range groups.Items {
 			statuses = append(statuses, group.Status)
 		}
