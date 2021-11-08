@@ -22,6 +22,7 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 const (
@@ -94,6 +95,7 @@ func (r *OperatorConditionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(2).Info("reconciling operatorcondition")
+	metrics.EmitOperatorConditionReconcile(req.Namespace, req.Name)
 
 	operatorCondition := &operatorsv2.OperatorCondition{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, operatorCondition)

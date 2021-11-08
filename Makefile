@@ -12,6 +12,7 @@ SHELL := /bin/bash
 ORG := github.com/operator-framework
 PKG   := $(ORG)/operator-lifecycle-manager
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.1[1-9]") && echo -mod=vendor)
+BUILD_TAGS := "json1"
 CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
 TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
 MOCKGEN := ./scripts/update_mockgen.sh
@@ -101,7 +102,7 @@ bin/cpb: FORCE
 
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
-	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags "json1" -o bin/$(shell basename $@) $@
+	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags $(BUILD_TAGS) -o bin/$(shell basename $@) $@
 
 build: clean $(CMDS)
 
@@ -143,6 +144,7 @@ e2e:
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
+e2e-local: BUILD_TAGS="json1 experimental_metrics"
 e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar
 e2e-local: run=bin/e2e-local.test
 e2e-local: bin/e2e-local.test test/e2e-local.image.tar

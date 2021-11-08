@@ -20,6 +20,7 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 // OperatorConditionGeneratorReconciler reconciles a ClusterServiceVersion object and creates an OperatorCondition.
@@ -90,6 +91,7 @@ var _ reconcile.Reconciler = &OperatorConditionGeneratorReconciler{}
 func (r *OperatorConditionGeneratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
+	metrics.EmitOperatorConditionGeneratorReconcile(req.Namespace, req.Name)
 
 	in := &operatorsv1alpha1.ClusterServiceVersion{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, in)

@@ -30,6 +30,7 @@ import (
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 // AdoptionReconciler automagically associates Operator components with their respective operator resource.
@@ -113,6 +114,7 @@ func (r *AdoptionReconciler) ReconcileSubscription(ctx context.Context, req ctrl
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(1).Info("reconciling subscription")
+	metrics.EmitAdoptionSubscriptionReconcile(req.Namespace, req.Name)
 
 	// Fetch the Subscription from the cache
 	in := &operatorsv1alpha1.Subscription{}
@@ -175,6 +177,7 @@ func (r *AdoptionReconciler) ReconcileClusterServiceVersion(ctx context.Context,
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(1).Info("reconciling csv")
+	metrics.EmitAdoptionCSVReconcile(req.Namespace, req.Name)
 
 	// Fetch the CSV from the cache
 	in := &operatorsv1alpha1.ClusterServiceVersion{}
