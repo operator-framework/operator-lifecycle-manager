@@ -1410,14 +1410,31 @@ var _ = Describe("Subscription", func() {
 		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(GinkgoT(), err)
 
-		// Create duplicates of the CatalogSource
-		for i := 0; i < 10; i++ {
-			duplicateCatsrc, _, duplicateCatSrcCleanup := newCatalogSourceWithDependencies(GinkgoT(), kubeClient, crClient, "podconfig", testNamespace, permissions)
-			defer duplicateCatSrcCleanup()
+		duplicateCatalogSources := 10
+		var (
+			wg                  sync.WaitGroup
+			cleanupDuplicatesFn []cleanupFunc
+		)
+		wg.Add(duplicateCatalogSources)
 
-			// Ensure that the catalog source is resolved before we create a subscription.
-			_, err = fetchCatalogSourceOnStatus(crClient, duplicateCatsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
-			require.NoError(GinkgoT(), err)
+		// Create duplicates of the CatalogSource
+		for i := 0; i < duplicateCatalogSources; i++ {
+			go func() {
+				defer GinkgoRecover()
+				defer wg.Done()
+
+				duplicateCatsrc, _, duplicateCatSrcCleanup := newCatalogSourceWithDependencies(GinkgoT(), kubeClient, crClient, "podconfig", testNamespace, permissions)
+				cleanupDuplicatesFn = append(cleanupDuplicatesFn, duplicateCatSrcCleanup)
+
+				// Ensure that the catalog source is resolved before we create a subscription.
+				_, err = fetchCatalogSourceOnStatus(crClient, duplicateCatsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+				require.NoError(GinkgoT(), err)
+			}()
+		}
+		wg.Wait()
+
+		for _, cleanup := range cleanupDuplicatesFn {
+			defer cleanup()
 		}
 
 		// Create a subscription that has a dependency
