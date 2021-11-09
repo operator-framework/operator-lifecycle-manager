@@ -108,7 +108,7 @@ var _ = Describe("Subscription", func() {
 		It("should create a Subscription for the latest entry providing the required GVK", func() {
 			Eventually(func() ([]operatorsv1alpha1.Subscription, error) {
 				var list operatorsv1alpha1.SubscriptionList
-				if err := ctx.Ctx().Client().List(context.TODO(), &list); err != nil {
+				if err := ctx.Ctx().Client().List(context.Background(), &list); err != nil {
 					return nil, err
 				}
 				return list.Items, nil
@@ -149,7 +149,7 @@ var _ = Describe("Subscription", func() {
 
 		var currentCSV string
 		Eventually(func() bool {
-			fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.TODO(), testSubscriptionName, metav1.GetOptions{})
+			fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), testSubscriptionName, metav1.GetOptions{})
 			if err != nil {
 				return false
 			}
@@ -323,7 +323,7 @@ var _ = Describe("Subscription", func() {
 
 		var ipName string
 		Eventually(func() bool {
-			fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.TODO(), "manual-subscription", metav1.GetOptions{})
+			fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), "manual-subscription", metav1.GetOptions{})
 			if err != nil {
 				return false
 			}
@@ -1556,7 +1556,7 @@ var _ = Describe("Subscription", func() {
 		// ensure correct CSVs were picked
 		var got []string
 		Eventually(func() []string {
-			ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.Background(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 			if err != nil {
 				return nil
 			}
@@ -1677,7 +1677,7 @@ var _ = Describe("Subscription", func() {
 				It("choose the dependency from the right CatalogSource based on lexicographical name ordering of catalogs", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
-						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.Background(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 						if err != nil {
 							return nil, err
 						}
@@ -1761,7 +1761,7 @@ var _ = Describe("Subscription", func() {
 				It("choose the dependent package from the same catsrc as the installing operator", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
-						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.Background(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 						if err != nil {
 							return nil, err
 						}
@@ -1855,7 +1855,7 @@ var _ = Describe("Subscription", func() {
 				It("choose the dependent package from the catsrc with higher priority", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
-						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.Background(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 						if err != nil {
 							return nil, err
 						}
@@ -1948,7 +1948,7 @@ var _ = Describe("Subscription", func() {
 				It("choose the dependent package from the catsrc in the same namespace as the installing operator", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
-						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+						ip, err := crClient.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.Background(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 						if err != nil {
 							return nil, err
 						}
@@ -2288,7 +2288,7 @@ var _ = Describe("Subscription", func() {
 		It("should create a Subscription using the candidate's default channel", func() {
 			Eventually(func() ([]operatorsv1alpha1.Subscription, error) {
 				var list operatorsv1alpha1.SubscriptionList
-				if err := ctx.Ctx().Client().List(context.TODO(), &list); err != nil {
+				if err := ctx.Ctx().Client().List(context.Background(), &list); err != nil {
 					return nil, err
 				}
 				return list.Items, nil
@@ -2919,6 +2919,6 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 
 func updateCatSrcPriority(crClient versioned.Interface, namespace string, catsrc *operatorsv1alpha1.CatalogSource, priority int) {
 	catsrc.Spec.Priority = priority
-	_, err := crClient.OperatorsV1alpha1().CatalogSources(namespace).Update(context.TODO(), catsrc, metav1.UpdateOptions{})
+	_, err := crClient.OperatorsV1alpha1().CatalogSources(namespace).Update(context.Background(), catsrc, metav1.UpdateOptions{})
 	Expect(err).Should(BeNil())
 }
