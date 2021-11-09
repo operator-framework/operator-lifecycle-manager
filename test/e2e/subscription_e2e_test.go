@@ -1002,27 +1002,26 @@ var _ = Describe("Subscription", func() {
 	// InstallPlan states.
 	//
 	// Steps:
-	// 1. Create namespace, ns
-	// 2. Create CatalogSource, cs, in ns
-	// 3. Create OperatorGroup, og, in ns selecting its own namespace
-	// 4. Create Subscription to a package of cs in ns, sub
-	// 5. Wait for the package from sub to install successfully with no remaining InstallPlan status conditions
-	// 6. Store conditions for later comparision
-	// 7. Get the InstallPlan
-	// 8. Set the InstallPlan's approval mode to Manual
-	// 9. Set the InstallPlan's phase to None
-	// 10. Wait for sub to have status condition SubscriptionInstallPlanPending true and reason InstallPlanNotYetReconciled
-	// 11. Get the latest IntallPlan and set the phase to InstallPlanPhaseRequiresApproval
-	// 12. Wait for sub to have status condition SubscriptionInstallPlanPending true and reason RequiresApproval
-	// 13. Get the latest InstallPlan and set the phase to InstallPlanPhaseInstalling
-	// 14. Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
-	// 15. Get the latest InstallPlan and set the phase to InstallPlanPhaseFailed and remove all status conditions
-	// 16. Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallPlanFailed
-	// 17. Get the latest InstallPlan and set status condition of type Installed to false with reason InstallComponentFailed
-	// 18. Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallComponentFailed
-	// 19. Delete the referenced InstallPlan
-	// 20. Wait for sub to have status condition SubscriptionInstallPlanMissing true
-	// 21. Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
+	// - Utilize the namespace and OG targeting that namespace created in the BeforeEach clause
+	// - Create CatalogSource, cs, in ns
+	// - Create Subscription to a package of cs in ns, sub
+	// - Wait for the package from sub to install successfully with no remaining InstallPlan status conditions
+	// - Store conditions for later comparision
+	// - Get the InstallPlan
+	// - Set the InstallPlan's approval mode to Manual
+	// - Set the InstallPlan's phase to None
+	// - Wait for sub to have status condition SubscriptionInstallPlanPending true and reason InstallPlanNotYetReconciled
+	// - Get the latest IntallPlan and set the phase to InstallPlanPhaseRequiresApproval
+	// - Wait for sub to have status condition SubscriptionInstallPlanPending true and reason RequiresApproval
+	// - Get the latest InstallPlan and set the phase to InstallPlanPhaseInstalling
+	// - Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
+	// - Get the latest InstallPlan and set the phase to InstallPlanPhaseFailed and remove all status conditions
+	// - Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallPlanFailed
+	// - Get the latest InstallPlan and set status condition of type Installed to false with reason InstallComponentFailed
+	// - Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallComponentFailed
+	// - Delete the referenced InstallPlan
+	// - Wait for sub to have status condition SubscriptionInstallPlanMissing true
+	// - Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
 	It("can reconcile InstallPlan status", func() {
 		c := newKubeClient()
 		crc := newCRClient()
@@ -1046,13 +1045,6 @@ var _ = Describe("Subscription", func() {
 		defer cleanupCatalogSource()
 		_, err := fetchCatalogSourceOnStatus(crc, catalogName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred())
-
-		// Create OperatorGroup, og, in ns selecting its own namespace
-		og := newOperatorGroup(generatedNamespace.GetName(), genName("og-"), nil, nil, []string{generatedNamespace.GetName()}, false)
-		Eventually(func() error {
-			_, err = crc.OperatorsV1().OperatorGroups(og.GetNamespace()).Create(context.Background(), og, metav1.CreateOptions{})
-			return err
-		}).Should(Succeed())
 
 		// Create Subscription to a package of cs in ns, sub
 		subName := genName("sub-")
