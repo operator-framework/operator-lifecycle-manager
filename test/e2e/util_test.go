@@ -36,7 +36,6 @@ import (
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	gtypes "github.com/onsi/gomega/types"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -282,7 +281,7 @@ func waitForGVR(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource
 	})
 }
 
-type catalogSourceCheckFunc func(*v1alpha1.CatalogSource) bool
+type catalogSourceCheckFunc func(*operatorsv1alpha1.CatalogSource) bool
 
 // This check is disabled for most test runs, but can be enabled for verifying pod health if the e2e tests are running
 // in the same kubernetes cluster as the registry pods (currently this only happens with e2e-local-docker)
@@ -311,7 +310,7 @@ func registryPodHealthy(address string) bool {
 	return true
 }
 
-func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
+func catalogSourceRegistryPodSynced(catalog *operatorsv1alpha1.CatalogSource) bool {
 	registry := catalog.Status.RegistryServiceStatus
 	connState := catalog.Status.GRPCConnectionState
 	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
@@ -326,12 +325,12 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	return false
 }
 
-func catalogSourceInvalidSpec(catalog *v1alpha1.CatalogSource) bool {
-	return catalog.Status.Reason == v1alpha1.CatalogSourceSpecInvalidError
+func catalogSourceInvalidSpec(catalog *operatorsv1alpha1.CatalogSource) bool {
+	return catalog.Status.Reason == operatorsv1alpha1.CatalogSourceSpecInvalidError
 }
 
-func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
-	var fetched *v1alpha1.CatalogSource
+func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*operatorsv1alpha1.CatalogSource, error) {
+	var fetched *operatorsv1alpha1.CatalogSource
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -405,11 +404,11 @@ func TearDown(namespace string) {
 
 	logf("deleting test subscriptions...")
 	Eventually(func() error {
-		return client.DeleteAllOf(clientCtx, &v1alpha1.Subscription{}, inNamespace)
+		return client.DeleteAllOf(clientCtx, &operatorsv1alpha1.Subscription{}, inNamespace)
 	}).Should(Succeed(), "failed to delete test subscriptions")
 
-	Eventually(func() (remaining []v1alpha1.Subscription, err error) {
-		list := &v1alpha1.SubscriptionList{}
+	Eventually(func() (remaining []operatorsv1alpha1.Subscription, err error) {
+		list := &operatorsv1alpha1.SubscriptionList{}
 		err = client.List(clientCtx, list, inNamespace)
 		if list != nil {
 			remaining = list.Items
@@ -420,11 +419,11 @@ func TearDown(namespace string) {
 
 	logf("deleting test installplans...")
 	Eventually(func() error {
-		return client.DeleteAllOf(clientCtx, &v1alpha1.InstallPlan{}, inNamespace)
+		return client.DeleteAllOf(clientCtx, &operatorsv1alpha1.InstallPlan{}, inNamespace)
 	}).Should(Succeed(), "failed to delete test installplans")
 
-	Eventually(func() (remaining []v1alpha1.InstallPlan, err error) {
-		list := &v1alpha1.InstallPlanList{}
+	Eventually(func() (remaining []operatorsv1alpha1.InstallPlan, err error) {
+		list := &operatorsv1alpha1.InstallPlanList{}
 		err = client.List(clientCtx, list, inNamespace)
 		if list != nil {
 			remaining = list.Items
@@ -435,11 +434,11 @@ func TearDown(namespace string) {
 
 	logf("deleting test catalogsources...")
 	Eventually(func() error {
-		return client.DeleteAllOf(clientCtx, &v1alpha1.CatalogSource{}, inNamespace, ephemeralCatalogFieldSelector)
+		return client.DeleteAllOf(clientCtx, &operatorsv1alpha1.CatalogSource{}, inNamespace, ephemeralCatalogFieldSelector)
 	}).Should(Succeed(), "failed to delete test catalogsources")
 
-	Eventually(func() (remaining []v1alpha1.CatalogSource, err error) {
-		list := &v1alpha1.CatalogSourceList{}
+	Eventually(func() (remaining []operatorsv1alpha1.CatalogSource, err error) {
+		list := &operatorsv1alpha1.CatalogSourceList{}
 		err = client.List(clientCtx, list, inNamespace, ephemeralCatalogFieldSelector)
 		if list != nil {
 			remaining = list.Items
@@ -449,8 +448,8 @@ func TearDown(namespace string) {
 	}).Should(BeEmpty(), "failed to await deletion of test catalogsources")
 
 	logf("deleting test crds...")
-	remainingCSVs := func() (csvs []v1alpha1.ClusterServiceVersion, err error) {
-		list := &v1alpha1.ClusterServiceVersionList{}
+	remainingCSVs := func() (csvs []operatorsv1alpha1.ClusterServiceVersion, err error) {
+		list := &operatorsv1alpha1.ClusterServiceVersionList{}
 		err = client.List(clientCtx, list, inNamespace, ephemeralCSVFieldSelector)
 		if list != nil {
 			csvs = list.Items
@@ -497,7 +496,7 @@ func TearDown(namespace string) {
 
 	logf("deleting test csvs...")
 	Eventually(func() error {
-		return client.DeleteAllOf(clientCtx, &v1alpha1.ClusterServiceVersion{}, inNamespace, ephemeralCSVFieldSelector)
+		return client.DeleteAllOf(clientCtx, &operatorsv1alpha1.ClusterServiceVersion{}, inNamespace, ephemeralCSVFieldSelector)
 	}).Should(Succeed(), "failed to delete test csvs")
 
 	Eventually(remainingCSVs).Should(BeEmpty(), "failed to await deletion of test csvs")
@@ -505,7 +504,7 @@ func TearDown(namespace string) {
 	logf("test resources deleted")
 }
 
-func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
+func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, catalogSource *operatorsv1alpha1.CatalogSource) cleanupFunc {
 	return func() {
 		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
 		err := crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.TODO(), catalogSource.GetName(), metav1.DeleteOptions{})
@@ -528,18 +527,18 @@ func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientI
 	}
 }
 
-func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace string) (*v1alpha1.CatalogSource, cleanupFunc) {
+func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace string) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 
-	catalogSource := &v1alpha1.CatalogSource{
+	catalogSource := &operatorsv1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.CatalogSourceKind,
-			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			Kind:       operatorsv1alpha1.CatalogSourceKind,
+			APIVersion: operatorsv1alpha1.CatalogSourceCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: v1alpha1.CatalogSourceSpec{
+		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "grpc",
 			Image:      "localhost:0/not/exists:catsrc",
 		},
@@ -552,20 +551,20 @@ func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace str
 	return catalogSource, buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)
 }
 
-func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
+func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 	configMap, configMapCleanup := createConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
-	catalogSource := &v1alpha1.CatalogSource{
+	catalogSource := &operatorsv1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.CatalogSourceKind,
-			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			Kind:       operatorsv1alpha1.CatalogSourceKind,
+			APIVersion: operatorsv1alpha1.CatalogSourceCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: v1alpha1.CatalogSourceSpec{
+		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
 		},
@@ -587,20 +586,20 @@ func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned
 
 func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface, crc versioned.Interface, name,
 	namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition,
-	csvs []v1alpha1.ClusterServiceVersion, priority int) (*v1alpha1.CatalogSource, cleanupFunc) {
+	csvs []operatorsv1alpha1.ClusterServiceVersion, priority int) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 
 	configMap, configMapCleanup := createConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
-	catalogSource := &v1alpha1.CatalogSource{
+	catalogSource := &operatorsv1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.CatalogSourceKind,
-			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			Kind:       operatorsv1alpha1.CatalogSourceKind,
+			APIVersion: operatorsv1alpha1.CatalogSourceCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: v1alpha1.CatalogSourceSpec{
+		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
 			Priority:   priority,
@@ -622,20 +621,20 @@ func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface, c
 	return catalogSource, cleanupInternalCatalogSource
 }
 
-func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
+func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 	configMap, configMapCleanup := createV1CRDConfigMapForCatalogData(t, c, name, namespace, manifests, crds, csvs)
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
-	catalogSource := &v1alpha1.CatalogSource{
+	catalogSource := &operatorsv1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.CatalogSourceKind,
-			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			Kind:       operatorsv1alpha1.CatalogSourceKind,
+			APIVersion: operatorsv1alpha1.CatalogSourceCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: v1alpha1.CatalogSourceSpec{
+		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
 		},
@@ -656,7 +655,7 @@ func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.Clien
 	return catalogSource, cleanupInternalCatalogSource
 }
 
-func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
+func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
@@ -703,7 +702,7 @@ func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, names
 	return createdConfigMap, buildConfigMapCleanupFunc(c, namespace, createdConfigMap)
 }
 
-func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
+func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
