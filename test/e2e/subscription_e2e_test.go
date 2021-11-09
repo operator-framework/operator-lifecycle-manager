@@ -59,9 +59,7 @@ var _ = Describe("Subscription", func() {
 	})
 
 	AfterEach(func() {
-		Eventually(func() error {
-			return ctx.Ctx().Client().Delete(context.Background(), &generatedNamespace)
-		}).Should(Succeed())
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	When("an entry in the middle of a channel does not provide a required GVK", func() {

@@ -2,6 +2,9 @@ package ctx
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -32,6 +35,7 @@ type TestContext struct {
 	dynamicClient  dynamic.Interface
 	packageClient  pversioned.Interface
 	ssaClient      *controllerclient.ServerSideApplier
+	artifactsDir   string
 
 	scheme *runtime.Scheme
 
@@ -84,6 +88,35 @@ func (ctx TestContext) Client() k8scontrollerclient.Client {
 
 func (ctx TestContext) SSAClient() *controllerclient.ServerSideApplier {
 	return ctx.ssaClient
+}
+
+func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
+	if ctx.artifactsDir == "" {
+		ctx.Logf("$ARTIFACTS_DIR is unset -- not collecting failed test case logs")
+		return nil
+	}
+	ctx.Logf("collecting logs in the %s artifacts directory", ctx.artifactsDir)
+
+	logDir := filepath.Join(ctx.artifactsDir, namespace)
+	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
+		return err
+	}
+	envvars := []string{
+		"TEST_NAMESPACE=" + namespace,
+		"TEST_ARTIFACTS_DIR=" + logDir,
+		"KUBECONFIG=" + os.Getenv("KUBECONFIG"),
+	}
+
+	// compiled test binary running e2e tests is run from the root ./bin directory
+	cmd := exec.Command("../test/e2e/collect-ci-artifacts.sh")
+	cmd.Env = append(cmd.Env, envvars...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func setDerivedFields(ctx *TestContext) error {
