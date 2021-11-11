@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/ghodss/yaml"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -27,19 +28,23 @@ var vpaCRDRaw []byte
 
 var _ = Describe("Installing bundles with new object types", func() {
 	var (
-		kubeClient     operatorclient.ClientInterface
-		operatorClient versioned.Interface
-		dynamicClient  dynamic.Interface
+		kubeClient         operatorclient.ClientInterface
+		operatorClient     versioned.Interface
+		dynamicClient      dynamic.Interface
+		generatedNamespace corev1.Namespace
 	)
 
 	BeforeEach(func() {
 		kubeClient = ctx.Ctx().KubeClient()
 		operatorClient = ctx.Ctx().OperatorClient()
 		dynamicClient = ctx.Ctx().DynamicClient()
+
+		By("creating a test namespace")
+		generatedNamespace = SetupGeneratedTestNamespace(genName("bundle-e2e-"))
 	})
 
 	AfterEach(func() {
-		TearDown(testNamespace)
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	When("a bundle with a pdb, priorityclass, and VPA object is installed", func() {
@@ -66,7 +71,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 			Expect(err).ToNot(HaveOccurred(), "could not convert vpa crd to unstructured")
 
 			Eventually(func() error {
-				err := ctx.Ctx().Client().Create(context.TODO(), &vpaCRD)
+				err := ctx.Ctx().Client().Create(context.Background(), &vpaCRD)
 				if err != nil {
 					if !k8serrors.IsAlreadyExists(err) {
 						return err
@@ -77,14 +82,13 @@ var _ = Describe("Installing bundles with new object types", func() {
 
 			// ensure vpa crd is established and accepted on the cluster before continuing
 			Eventually(func() (bool, error) {
-				crd, err := kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), vpaCRD.GetName(), metav1.GetOptions{})
+				crd, err := kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.Background(), vpaCRD.GetName(), metav1.GetOptions{})
 				if err != nil {
 					return false, err
 				}
 				return crdReady(&crd.Status), nil
 			}).Should(BeTrue())
 
-			var installPlanRef string
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       v1alpha1.CatalogSourceKind,
@@ -92,7 +96,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      sourceName,
-					Namespace: testNamespace,
+					Namespace: generatedNamespace.GetName(),
 					Labels:    map[string]string{"olm.catalogSource": sourceName},
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
@@ -102,7 +106,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 			}
 
 			Eventually(func() error {
-				source, err = operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+				source, err = operatorClient.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 				return err
 			}).Should(Succeed())
 
@@ -114,13 +118,13 @@ var _ = Describe("Installing bundles with new object types", func() {
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			sub, err := fetchSubscription(operatorClient, testNamespace, subName, subscriptionStateAtLatestChecker)
+			sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker)
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
-			installPlanRef = sub.Status.InstallPlanRef.Name
+			installPlanRef := sub.Status.InstallPlanRef
 
 			// Wait for the installplan to complete (5 minute timeout)
-			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			_, err = fetchInstallPlanWithNamespace(GinkgoT(), operatorClient, installPlanRef.Name, installPlanRef.Namespace, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 			ctx.Ctx().Logf("install plan %s completed", installPlanRef)
@@ -144,17 +148,17 @@ var _ = Describe("Installing bundles with new object types", func() {
 
 			// confirm extra bundle objects are installed
 			Eventually(func() error {
-				_, err := kubeClient.KubernetesInterface().SchedulingV1().PriorityClasses().Get(context.TODO(), priorityClassName, metav1.GetOptions{})
+				_, err := kubeClient.KubernetesInterface().SchedulingV1().PriorityClasses().Get(context.Background(), priorityClassName, metav1.GetOptions{})
 				return err
 			}).Should(Succeed(), "expected no error getting priorityclass object associated with CSV")
 
 			Eventually(func() error {
-				_, err := dynamicClient.Resource(resource).Namespace(testNamespace).Get(context.TODO(), vpaName, metav1.GetOptions{})
+				_, err := dynamicClient.Resource(resource).Namespace(generatedNamespace.GetName()).Get(context.Background(), vpaName, metav1.GetOptions{})
 				return err
 			}).Should(Succeed(), "expected no error finding vpa object associated with csv")
 
 			Eventually(func() error {
-				_, err := kubeClient.KubernetesInterface().PolicyV1().PodDisruptionBudgets(testNamespace).Get(context.TODO(), pdbName, metav1.GetOptions{})
+				_, err := kubeClient.KubernetesInterface().PolicyV1().PodDisruptionBudgets(generatedNamespace.GetName()).Get(context.Background(), pdbName, metav1.GetOptions{})
 				return err
 			}).Should(Succeed(), "expected no error getting pdb object associated with CSV")
 		})
@@ -162,7 +166,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 		AfterEach(func() {
 			By("Deleting the VPA CRD")
 			Eventually(func() error {
-				err := ctx.Ctx().Client().Delete(context.TODO(), &vpaCRD)
+				err := ctx.Ctx().Client().Delete(context.Background(), &vpaCRD)
 				if k8serrors.IsNotFound(err) {
 					return nil
 				}

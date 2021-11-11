@@ -946,3 +946,20 @@ func SetupGeneratedTestNamespace(name string) corev1.Namespace {
 
 	return ns
 }
+
+func TeardownNamespace(ns string) {
+	log := ctx.Ctx().Logf
+
+	currentTest := CurrentGinkgoTestDescription()
+	if currentTest.Failed {
+		log("collecting the %s namespace artifacts as the '%s' test case failed", ns, currentTest.TestText)
+		if err := ctx.Ctx().DumpNamespaceArtifacts(ns); err != nil {
+			log("failed to collect namespace artifacts: %v", err)
+		}
+	}
+
+	log("tearing down the %s namespace", ns)
+	Eventually(func() error {
+		return ctx.Ctx().KubeClient().KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), ns, metav1.DeleteOptions{})
+	}).Should(Succeed())
+}

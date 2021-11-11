@@ -134,15 +134,18 @@ func Provision(ctx *TestContext) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("error loading kubeconfig: %s", err.Error())
 	}
-
 	ctx.restConfig = restConfig
+
+	if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
+		ctx.artifactsDir = artifactsDir
+	}
 
 	var once sync.Once
 	deprovision := func() {
 		once.Do(func() {
-			if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
+			if ctx.artifactsDir != "" {
 				ctx.Logf("collecting container logs for the %s cluster", name)
-				if err := provider.CollectLogs(name, filepath.Join(artifactsDir, logDir)); err != nil {
+				if err := provider.CollectLogs(name, filepath.Join(ctx.artifactsDir, logDir)); err != nil {
 					ctx.Logf("failed to collect logs: %v", err)
 				}
 			}
