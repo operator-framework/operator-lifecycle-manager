@@ -1,4 +1,4 @@
-name: ci
+name: run-olm-minikube
 on:
   pull_request:
     paths-ignore:

@@ -1,4 +1,4 @@
-name: ci
+name: run-olm-kind
 on:
   pull_request:
     paths-ignore:
