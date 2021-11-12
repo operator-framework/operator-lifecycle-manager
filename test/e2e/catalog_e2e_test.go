@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -641,8 +640,10 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 	})
 
 	It("image update", func() {
-		if os.Getenv("GITHUB_ACTIONS") == "true" {
-			Skip("This spec fails when run using KIND cluster. See https://github.com/operator-framework/operator-lifecycle-manager/issues/1380 for more details")
+		if ok, err := inKind(c); ok && err == nil {
+			Skip("This spec fails when run using KIND cluster. See https://github.com/operator-framework/operator-lifecycle-manager/issues/2420 for more details")
+		} else if err != nil {
+			Skip("Could not determine whether running in a kind cluster. Skipping.")
 		}
 		// Create an image based catalog source from public Quay image
 		// Use a unique tag as identifier
