@@ -17,7 +17,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage/names"
@@ -224,14 +222,6 @@ func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error
 	})
 
 	return err
-}
-
-// compareResources compares resource equality then prints a diff for easier debugging
-func compareResources(t GinkgoTInterface, expected, actual interface{}) {
-	if eq := equality.Semantic.DeepEqual(expected, actual); !eq {
-		t.Fatalf("Resource does not match expected value: %s",
-			diff.ObjectDiff(expected, actual))
-	}
 }
 
 type checkResourceFunc func() error

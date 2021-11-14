@@ -16,10 +16,12 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
@@ -1551,7 +1553,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Fetch cluster service version again to check for unnecessary control loops
 		sameCSV, err := fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
-		compareResources(GinkgoT(), fetchedCSV, sameCSV)
+		Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 	})
 	It("create with owned API service", func() {
 
@@ -2547,7 +2549,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Fetch cluster service version again to check for unnecessary control loops
 		sameCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
-		compareResources(GinkgoT(), fetchedCSV, sameCSV)
+		Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 	})
 	It("update different deployment name", func() {
 
@@ -2725,7 +2727,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Fetch cluster service version again to check for unnecessary control loops
 		sameCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
-		compareResources(GinkgoT(), fetchedCSV, sameCSV)
+		Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
 		// Should have created new deployment and deleted old
 		depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
@@ -2915,7 +2917,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Fetch cluster service version again to check for unnecessary control loops
 		sameCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
-		compareResources(GinkgoT(), fetchedCSV, sameCSV)
+		Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
 		// Should have created new deployment and deleted old
 		depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
@@ -3285,7 +3287,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Fetch cluster service version again to check for unnecessary control loops
 		sameCSV, err := fetchCSV(crc, csvNew.Name, testNamespace, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
-		compareResources(GinkgoT(), fetchedCSV, sameCSV)
+		Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
 		// Should have created new deployment and deleted old one
 		depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
@@ -3364,7 +3366,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Fetch cluster service version again to check for unnecessary control loops
 		sameCSV, err = fetchCSV(crc, csvNew2.Name, testNamespace, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
-		compareResources(GinkgoT(), fetchedCSV, sameCSV)
+		Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
 		// Should have created new deployment and deleted old one
 		depNew, err = c.GetDeployment(testNamespace, strategyNew2.DeploymentSpecs[0].Name)
