@@ -754,14 +754,16 @@ var _ = Describe("Subscription", func() {
 				defer cleanup()
 
 				By("detecting its absence")
-				sub, err := fetchSubscription(crc, generatedNamespace.GetName(), testSubscriptionName, subscriptionHasCondition(operatorsv1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, operatorsv1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", generatedNamespace.GetName(), missingName)))
-				Expect(err).NotTo(HaveOccurred())
-				Expect(sub).ToNot(BeNil())
-
-				// Update sub to target an existing CatalogSource
-				sub.Spec.CatalogSource = catalogSourceName
-				_, err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
-				Expect(err).NotTo(HaveOccurred())
+				Eventually(func() error {
+					sub, err := fetchSubscription(crc, generatedNamespace.GetName(), testSubscriptionName, subscriptionHasCondition(operatorsv1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, operatorsv1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", generatedNamespace.GetName(), missingName)))
+					if err != nil {
+						return err
+					}
+					// Update sub to target an existing CatalogSource
+					sub.Spec.CatalogSource = catalogSourceName
+					_, err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
+					return err
+				})
 
 				// Wait for SubscriptionCatalogSourcesUnhealthy to be false
 				By("detecting a new existing target")
