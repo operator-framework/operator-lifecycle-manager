@@ -140,9 +140,13 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			Eventually(func() error {
+				return crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			}).Should(Succeed())
 		}()
-		require.NoError(GinkgoT(), initCatalog(GinkgoT(), generatedNamespace.GetName(), c, crc))
+
+		err := initCatalog(GinkgoT(), generatedNamespace.GetName(), c, crc)
+		Expect(err).To(BeNil())
 
 		cleanup, _ := createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), testSubscriptionName, testPackageName, betaChannel, operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanup()
@@ -180,7 +184,9 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			Eventually(func() error {
+				return crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			}).Should(Succeed())
 		}()
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), generatedNamespace.GetName(), c, crc))
 
@@ -241,7 +247,9 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			Eventually(func() error {
+				return crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			}).Should(Succeed())
 		}()
 
 		mainCatalogName := genName("mock-ocs-main-")
@@ -299,7 +307,9 @@ var _ = Describe("Subscription", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
+			Eventually(func() error {
+				return crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			}).Should(Succeed())
 		}()
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), generatedNamespace.GetName(), c, crc))
 
@@ -318,8 +328,9 @@ var _ = Describe("Subscription", func() {
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
 
 		// Delete the current installplan
-		err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Delete(context.Background(), installPlan.Name, metav1.DeleteOptions{})
-		Expect(err).To(BeNil())
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Delete(context.Background(), installPlan.Name, metav1.DeleteOptions{})
+		}).Should(Succeed())
 
 		var ipName string
 		Eventually(func() bool {
@@ -643,10 +654,14 @@ var _ = Describe("Subscription", func() {
 		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 
 		// Delete this subscription
-		err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
-		Expect(err).To(BeNil())
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), *metav1.NewDeleteOptions(0), metav1.ListOptions{})
+		}).Should(Succeed())
+
 		// Delete orphaned csvB
-		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), csvB.GetName(), metav1.DeleteOptions{}))
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), csvB.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 
 		// Create an InstallPlan for csvB
 		ip := &operatorsv1alpha1.InstallPlan{
@@ -730,8 +745,9 @@ var _ = Describe("Subscription", func() {
 		})
 
 		AfterEach(func() {
-			err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() error {
+				return crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{})
+			}).Should(Succeed())
 		})
 
 		When("missing target catalog", func() {
@@ -763,7 +779,7 @@ var _ = Describe("Subscription", func() {
 					sub.Spec.CatalogSource = catalogSourceName
 					_, err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
 					return err
-				})
+				}).Should(Succeed())
 
 				// Wait for SubscriptionCatalogSourcesUnhealthy to be false
 				By("detecting a new existing target")
@@ -795,8 +811,9 @@ var _ = Describe("Subscription", func() {
 					var err error
 					cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
-						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
-						Expect(err).ToNot(HaveOccurred())
+						Eventually(func() error {
+							return crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
+						}).Should(Succeed())
 					}()
 
 					subName := genName("sub-")
@@ -854,8 +871,9 @@ var _ = Describe("Subscription", func() {
 					var err error
 					cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
-						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
-						Expect(err).ToNot(HaveOccurred())
+						Eventually(func() error {
+							return crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
+						}).Should(Succeed())
 					}()
 
 					// Wait for the CatalogSource status to be updated to reflect its invalid spec
@@ -909,10 +927,15 @@ var _ = Describe("Subscription", func() {
 					}
 
 					var err error
-					cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Create(context.Background(), cs, metav1.CreateOptions{})
+					Eventually(func() error {
+						cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Create(context.Background(), cs, metav1.CreateOptions{})
+						return err
+					}).Should(Succeed())
+
 					defer func() {
-						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
-						Expect(err).ToNot(HaveOccurred())
+						Eventually(func() error {
+							return crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
+						}).Should(Succeed())
 					}()
 
 					subName := genName("sub-")
@@ -964,8 +987,9 @@ var _ = Describe("Subscription", func() {
 					var err error
 					cs, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Create(context.Background(), cs, metav1.CreateOptions{})
 					defer func() {
-						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
-						Expect(err).ToNot(HaveOccurred())
+						Eventually(func() error {
+							return crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(context.Background(), cs.GetName(), *deleteOpts)
+						}).Should(Succeed())
 					}()
 
 					subName := genName("sub-")
@@ -1242,8 +1266,9 @@ var _ = Describe("Subscription", func() {
 		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Create(context.Background(), testConfigMap, metav1.CreateOptions{})
 		Expect(err).To(BeNil())
 		defer func() {
-			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
-			Expect(err).To(BeNil())
+			Eventually(func() error {
+				return kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
+			}).Should(Succeed())
 		}()
 
 		// Configure the Subscription.
@@ -1348,8 +1373,9 @@ var _ = Describe("Subscription", func() {
 		_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Create(context.Background(), testConfigMap, metav1.CreateOptions{})
 		Expect(err).To(BeNil())
 		defer func() {
-			err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
-			Expect(err).To(BeNil())
+			Eventually(func() error {
+				return kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Delete(context.Background(), testConfigMap.Name, metav1.DeleteOptions{})
+			}).Should(Succeed())
 		}()
 
 		// Configure the Subscription.
@@ -2656,8 +2682,9 @@ func buildSubscriptionCleanupFunc(crc versioned.Interface, subscription *operato
 			}
 		}
 
-		err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(context.Background(), subscription.GetName(), metav1.DeleteOptions{})
-		Expect(err).NotTo(HaveOccurred())
+		Eventually(func() error {
+			return crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(context.Background(), subscription.GetName(), metav1.DeleteOptions{})
+		}).Should(Succeed())
 	}
 }
 
