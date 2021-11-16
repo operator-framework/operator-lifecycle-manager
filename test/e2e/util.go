@@ -338,6 +338,20 @@ func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string,
 		return check(fetched), nil
 	})
 
+	if err != nil && fetched != nil {
+		pod, err1 := newKubeClient().KubernetesInterface().CoreV1().Pods(fetched.GetNamespace()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.catalogSource=" + fetched.GetName()})
+		if err1 != nil {
+			ctx.Ctx().Logf("Error: getting catalog source pod: %s\n", err1)
+		}
+		if len(pod.Items) != 1 {
+			ctx.Ctx().Logf("Error: Number of catalog source pod: %v\n", len(pod.Items))
+			for _, item := range pod.Items {
+				ctx.Ctx().Logf("Error: Pod name: %s\n", item.ObjectMeta.Name)
+			}
+		} else {
+			ctx.Ctx().Logf("Pod status: %+v\n", pod.Items[0].Status)
+		}
+	}
 	return fetched, err
 }
 
