@@ -2921,9 +2921,3 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	})
 	require.NoError(t, err)
 }
-
-func updateCatSrcPriority(crClient versioned.Interface, namespace string, catsrc *operatorsv1alpha1.CatalogSource, priority int) {
-	catsrc.Spec.Priority = priority
-	_, err := crClient.OperatorsV1alpha1().CatalogSources(namespace).Update(context.Background(), catsrc, metav1.UpdateOptions{})
-	Expect(err).Should(BeNil())
-}
