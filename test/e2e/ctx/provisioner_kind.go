@@ -81,7 +81,6 @@ func Provision(ctx *TestContext) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory: %s", err.Error())
 	}
-	defer os.RemoveAll(dir)
 	kubeconfigPath := filepath.Join(dir, "kubeconfig")
 
 	provider := cluster.NewProvider(
@@ -139,10 +138,15 @@ func Provision(ctx *TestContext) (func(), error) {
 	if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
 		ctx.artifactsDir = artifactsDir
 	}
+	ctx.kubeconfigPath = kubeconfigPath
 
 	var once sync.Once
 	deprovision := func() {
 		once.Do(func() {
+			// remove the temporary kubeconfig directory
+			if err := os.RemoveAll(dir); err != nil {
+				ctx.Logf("failed to remove the %s kubeconfig directory: %v", dir, err)
+			}
 			if ctx.artifactsDir != "" {
 				ctx.Logf("collecting container logs for the %s cluster", name)
 				if err := provider.CollectLogs(name, filepath.Join(ctx.artifactsDir, logDir)); err != nil {

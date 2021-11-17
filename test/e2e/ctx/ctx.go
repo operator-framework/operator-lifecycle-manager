@@ -35,6 +35,8 @@ type TestContext struct {
 	dynamicClient  dynamic.Interface
 	packageClient  pversioned.Interface
 	ssaClient      *controllerclient.ServerSideApplier
+
+	kubeconfigPath string
 	artifactsDir   string
 
 	scheme *runtime.Scheme
@@ -101,10 +103,16 @@ func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
 	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
 		return err
 	}
+	kubeconfigPath := ctx.kubeconfigPath
+	if kubeconfigPath == "" {
+		ctx.Logf("unable to determine kubeconfig path so defaulting to the $KUBECONFIG value")
+		kubeconfigPath = os.Getenv("KUBECONFIG")
+	}
+
 	envvars := []string{
 		"TEST_NAMESPACE=" + namespace,
 		"TEST_ARTIFACTS_DIR=" + logDir,
-		"KUBECONFIG=" + os.Getenv("KUBECONFIG"),
+		"KUBECONFIG=" + kubeconfigPath,
 	}
 
 	// compiled test binary running e2e tests is run from the root ./bin directory
