@@ -1050,7 +1050,6 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// This test attempts to create a catalog source, and update it with a template annotation
 		// and ensure that the image gets changed according to what's in the template as well as
 		// check the status conditions are updated accordingly
-
 		sourceName := genName("catalog-")
 		source := &v1alpha1.CatalogSource{
 			TypeMeta: metav1.TypeMeta{
@@ -1069,20 +1068,27 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		By("creating a catalog source")
-		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
-		Expect(err).ToNot(HaveOccurred())
 
-		By("update the catalog source with template annotation")
-
-		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
-		Expect(err).ShouldNot(HaveOccurred(), "error getting catalog source")
-
-		// create an annotation using the kube templates
-		source.SetAnnotations(map[string]string{catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV)})
-
-		// Update the catalog image
+		var err error
 		Eventually(func() error {
-			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			return err
+		}).Should(Succeed())
+
+		By("updating the catalog source with template annotation")
+
+		Eventually(func() error {
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			// create an annotation using the kube templates
+			source.SetAnnotations(map[string]string{
+				catalogsource.CatalogImageTemplateAnnotation: fmt.Sprintf("quay.io/olmtest/catsrc-update-test:%s.%s.%s", catalogsource.TemplKubeMajorV, catalogsource.TemplKubeMinorV, catalogsource.TemplKubePatchV),
+			})
+
+			// Update the catalog image
+			_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.TODO(), source, metav1.UpdateOptions{})
 			return err
 		}).Should(Succeed())
 
@@ -1099,7 +1105,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			}
 
 			return false, nil
-		}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+		}).Should(BeTrue())
 
 		// source should be the latest we got from the eventually block
 		Expect(source.Status.Conditions).ToNot(BeNil())
