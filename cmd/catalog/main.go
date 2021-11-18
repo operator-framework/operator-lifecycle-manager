@@ -92,8 +92,6 @@ func main() {
 	// Check if version flag was set
 	if *version {
 		fmt.Print(olmversion.String())
-
-		// Exit early
 		os.Exit(0)
 	}
 
@@ -111,7 +109,7 @@ func main() {
 
 	listenAndServe, err := server.GetListenAndServeFunc(server.WithLogger(logger), server.WithTLS(tlsCertPath, tlsKeyPath, clientCAPath), server.WithDebug(*debug))
 	if err != nil {
-		logger.Fatal("Error setting up health/metric/pprof service: %v", err)
+		logger.Fatalf("Error setting up health/metric/pprof service: %v", err)
 	}
 
 	go func() {
@@ -138,12 +136,12 @@ func main() {
 	// Create a new instance of the operator.
 	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
 	if err != nil {
-		log.Panicf("error configuring catalog operator: %s", err.Error())
+		log.Fatalf("error configuring catalog operator: %s", err.Error())
 	}
 
 	opCatalogTemplate, err := catalogtemplate.NewOperator(ctx, *kubeConfigPath, logger, *wakeupInterval, *catalogNamespace)
 	if err != nil {
-		log.Panicf("error configuring catalog template operator: %s", err.Error())
+		log.Fatalf("error configuring catalog template operator: %s", err.Error())
 	}
 
 	op.Run(ctx)

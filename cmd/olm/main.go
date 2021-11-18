@@ -120,7 +120,7 @@ func main() {
 
 	listenAndServe, err := server.GetListenAndServeFunc(server.WithLogger(logger), server.WithTLS(tlsCertPath, tlsKeyPath, clientCAPath), server.WithDebug(*debug))
 	if err != nil {
-		logger.Fatal("Error setting up health/metric/pprof service: %v", err)
+		logger.Fatalf("Error setting up health/metric/pprof service: %v", err)
 	}
 
 	go func() {
@@ -131,7 +131,7 @@ func main() {
 
 	mgr, err := Manager(ctx, *debug)
 	if err != nil {
-		logger.WithError(err).Fatalf("error configuring controller manager")
+		logger.WithError(err).Fatal("error configuring controller manager")
 	}
 	config := mgr.GetConfig()
 
@@ -164,7 +164,7 @@ func main() {
 		olm.WithConfigClient(versionedConfigClient),
 	)
 	if err != nil {
-		logger.WithError(err).Fatalf("error configuring operator")
+		logger.WithError(err).Fatal("error configuring operator")
 		return
 	}
 
@@ -173,7 +173,7 @@ func main() {
 
 	// Emit CSV metric
 	if err = op.EnsureCSVMetric(); err != nil {
-		logger.WithError(err).Fatalf("error emitting metrics for existing CSV")
+		logger.WithError(err).Fatal("error emitting metrics for existing CSV")
 	}
 
 	if *writeStatusName != "" {
@@ -187,12 +187,12 @@ func main() {
 			openshift.WithOLMOperator(),
 		)
 		if err != nil {
-			logger.WithError(err).Fatalf("error configuring openshift integration")
+			logger.WithError(err).Fatal("error configuring openshift integration")
 			return
 		}
 
 		if err := reconciler.SetupWithManager(mgr); err != nil {
-			logger.WithError(err).Fatalf("error configuring openshift integration")
+			logger.WithError(err).Fatal("error configuring openshift integration")
 			return
 		}
 	}
