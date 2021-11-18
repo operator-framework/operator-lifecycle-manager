@@ -25,11 +25,13 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -712,8 +714,8 @@ var _ = Describe("Install Plan", func() {
 		// Fetch installplan again to check for unnecessary control loops
 		fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
 			// Don't compare object meta as labels can be applied by the operator controller.
-			compareResources(GinkgoT(), fetchedInstallPlan.Spec, fip.Spec)
-			compareResources(GinkgoT(), fetchedInstallPlan.Status, fip.Status)
+			Expect(equality.Semantic.DeepEqual(fetchedInstallPlan.Spec, fip.Spec)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
+			Expect(equality.Semantic.DeepEqual(fetchedInstallPlan.Status, fip.Status)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
 			return true
 		})
 		require.NoError(GinkgoT(), err)
@@ -875,7 +877,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Fetch installplan again to check for unnecessary control loops
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				compareResources(GinkgoT(), fetchedInstallPlan, fip)
+				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
 				return true
 			})
 			require.NoError(GinkgoT(), err)
@@ -2343,7 +2345,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Fetch installplan again to check for unnecessary control loops
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				compareResources(GinkgoT(), fetchedInstallPlan, fip)
+				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
 				return true
 			})
 			require.NoError(GinkgoT(), err)
@@ -2544,7 +2546,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Fetch installplan again to check for unnecessary control loops
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
-				compareResources(GinkgoT(), fetchedInstallPlan, fip)
+				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
 				return true
 			})
 			require.NoError(GinkgoT(), err)
