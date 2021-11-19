@@ -2734,7 +2734,12 @@ func createSubscriptionForCatalog(crc versioned.Interface, namespace, name, cata
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.Background(), subscription, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
-	return buildSubscriptionCleanupFunc(crc, subscription)
+
+	cleanup := func() {
+		buildSubscriptionCleanupFunc(crc, subscription)
+	}
+
+	return cleanup
 }
 
 func createSubscriptionForCatalogWithSpec(t GinkgoTInterface, crc versioned.Interface, namespace, name string, spec *operatorsv1alpha1.SubscriptionSpec) cleanupFunc {

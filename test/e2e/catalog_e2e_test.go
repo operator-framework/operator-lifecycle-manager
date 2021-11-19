@@ -67,8 +67,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		catalogSourceName := genName("mock-ocs-")
-		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
-		defer cleanupSource()
+		createInternalCatalogSource(c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 
 		// ensure the mock catalog exists and has been synced by the catalog operator
 		catalogSource, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
@@ -488,10 +487,6 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(context.Background(), addressSource, metav1.CreateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
-		defer func() {
-			err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(context.Background(), addressSourceName, metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-		}()
 
 		// Wait for the CatalogSource to be ready
 		_, err = fetchCatalogSourceOnStatus(crc, addressSource.GetName(), addressSource.GetNamespace(), catalogSourceRegistryPodSynced)
@@ -505,8 +500,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
-		defer cleanupSubscription()
+		createSubscriptionForCatalog(crc, testNamespace, subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -550,8 +544,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 		}
 
-		_, cleanupSource := createInternalCatalogSource(c, crc, sourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
-		defer cleanupSource()
+		createInternalCatalogSource(c, crc, sourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 
 		// Wait for a new registry pod to be created
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": sourceName})
@@ -747,10 +740,6 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
-		defer func() {
-			err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.Background(), source.GetName(), metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-		}()
 
 		// wait for new catalog source pod to be created
 		// Wait for a new registry pod to be created
@@ -763,8 +752,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		// Create a Subscription for package
 		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
-		defer cleanupSubscription()
+		createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 		// Wait for the Subscription to succeed
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
@@ -905,10 +893,6 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
-		defer func() {
-			err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.Background(), source.GetName(), metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-		}()
 
 		// Wait for the CatalogSource to be ready
 		_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
@@ -916,8 +900,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		// Create a Subscription for busybox
 		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
-		defer cleanupSubscription()
+		createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 		// Wait for the Subscription to succeed
 		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
