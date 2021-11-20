@@ -1,4 +1,0 @@
-apiVersion: v1
-description: A Helm chart for Kubernetes
-name: olm-e2e
-version: 1.0.0
