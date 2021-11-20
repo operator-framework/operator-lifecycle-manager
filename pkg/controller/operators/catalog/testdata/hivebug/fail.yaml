@@ -1,6 +1,0 @@
-apiVersion: hive.openshift.io/v1
-kind: MachinePool
-metadata:
-  name: test
-spec:
-  clusterDeploymentRef: null

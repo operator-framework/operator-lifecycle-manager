@@ -1,7 +1,0 @@
-apiVersion: some.unsupported.group/v1
-kind: UnsupportedKind
-metadata:
-  name: my-unsupported-kind
-  namespace: olm
-spec:
-  unsupported: true
