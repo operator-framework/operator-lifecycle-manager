@@ -803,6 +803,7 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 		// Set connection status and return.
 		out.Status.GRPCConnectionState.LastConnectTime = now
 		out.Status.GRPCConnectionState.LastObservedState = source.ConnectionState.String()
+		out.Status.GRPCConnectionState.Address = source.Address
 	}
 
 	return

@@ -50,6 +50,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
@@ -759,6 +760,12 @@ func TestExecutePlanDynamicResources(t *testing.T) {
 	}
 }
 
+func withStatus(catalogSource v1alpha1.CatalogSource, status v1alpha1.CatalogSourceStatus) *v1alpha1.CatalogSource {
+	copy := catalogSource.DeepCopy()
+	copy.Status = status
+	return copy
+}
+
 func TestSyncCatalogSources(t *testing.T) {
 	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
@@ -787,14 +794,15 @@ func TestSyncCatalogSources(t *testing.T) {
 		},
 	}
 	tests := []struct {
-		testName       string
-		namespace      string
-		catalogSource  *v1alpha1.CatalogSource
-		k8sObjs        []runtime.Object
-		configMap      *corev1.ConfigMap
-		expectedStatus *v1alpha1.CatalogSourceStatus
-		expectedObjs   []runtime.Object
-		expectedError  error
+		testName        string
+		namespace       string
+		catalogSource   *v1alpha1.CatalogSource
+		k8sObjs         []runtime.Object
+		configMap       *corev1.ConfigMap
+		expectedStatus  *v1alpha1.CatalogSourceStatus
+		expectedObjs    []runtime.Object
+		expectedError   error
+		existingSources []sourceAddress
 	}{
 		{
 			testName:  "CatalogSourceWithInvalidSourceType",
@@ -1014,6 +1022,47 @@ func TestSyncCatalogSources(t *testing.T) {
 			},
 			expectedError: nil,
 		},
+		{
+			testName:  "GRPCConnectionStateAddressIsUpdated",
+			namespace: "cool-namespace",
+			catalogSource: withStatus(*grpcCatalog, v1alpha1.CatalogSourceStatus{
+				RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+					Protocol:         "grpc",
+					ServiceName:      "cool-catalog",
+					ServiceNamespace: "cool-namespace",
+					Port:             "50051",
+					CreatedAt:        now,
+				},
+				GRPCConnectionState: &v1alpha1.GRPCConnectionState{
+					Address: "..svc:", // Needs to be updated to cool-catalog.cool-namespace.svc:50051
+				},
+			}),
+			k8sObjs: []runtime.Object{
+				pod(*grpcCatalog),
+				service(grpcCatalog.GetName(), grpcCatalog.GetNamespace()),
+			},
+			existingSources: []sourceAddress{
+				{
+					sourceKey: registry.CatalogKey{Name: "cool-catalog", Namespace: "cool-namespace"},
+					address:   "cool-catalog.cool-namespace.svc:50051",
+				},
+			},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+					Protocol:         "grpc",
+					ServiceName:      "cool-catalog",
+					ServiceNamespace: "cool-namespace",
+					Port:             "50051",
+					CreatedAt:        now,
+				},
+				GRPCConnectionState: &v1alpha1.GRPCConnectionState{
+					Address:           "cool-catalog.cool-namespace.svc:50051",
+					LastObservedState: "",
+					LastConnectTime:   now,
+				},
+			},
+			expectedError: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
@@ -1024,7 +1073,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			op, err := NewFakeOperator(ctx, tt.namespace, []string{tt.namespace}, withClock(clockFake), withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...))
+			op, err := NewFakeOperator(ctx, tt.namespace, []string{tt.namespace}, withClock(clockFake), withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...), withSources(tt.existingSources...))
 			require.NoError(t, err)
 
 			// Run sync
@@ -1041,6 +1090,13 @@ func TestSyncCatalogSources(t *testing.T) {
 			require.NotEmpty(t, updated)
 
 			if tt.expectedStatus != nil {
+				if tt.expectedStatus.GRPCConnectionState != nil {
+					updated.Status.GRPCConnectionState.LastConnectTime = now
+					// Ignore LastObservedState difference if an expected LastObservedState is no provided
+					if tt.expectedStatus.GRPCConnectionState.LastObservedState == "" {
+						updated.Status.GRPCConnectionState.LastObservedState = ""
+					}
+				}
 				require.NotEmpty(t, updated.Status)
 				require.Equal(t, *tt.expectedStatus, updated.Status)
 
@@ -1385,6 +1441,7 @@ type fakeOperatorConfig struct {
 	resolver      resolver.StepResolver
 	recorder      record.EventRecorder
 	reconciler    reconciler.RegistryReconcilerFactory
+	sources       []sourceAddress
 }
 
 // fakeOperatorOption applies an option to the given fake operator configuration.
@@ -1393,6 +1450,12 @@ type fakeOperatorOption func(*fakeOperatorConfig)
 func withResolver(res resolver.StepResolver) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.resolver = res
+	}
+}
+
+func withSources(sources ...sourceAddress) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.sources = sources
 	}
 }
 
@@ -1430,6 +1493,11 @@ func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.clientOptions = options
 	}
+}
+
+type sourceAddress struct {
+	address   string
+	sourceKey registry.CatalogKey
 }
 
 // NewFakeOperator creates a new operator using fake clients.
@@ -1549,6 +1617,9 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 
 	op.RunInformers(ctx)
 	op.sources.Start(ctx)
+	for _, source := range config.sources {
+		op.sources.Add(source.sourceKey, source.address)
+	}
 
 	if ok := cache.WaitForCacheSync(ctx.Done(), op.HasSynced); !ok {
 		return nil, fmt.Errorf("failed to wait for caches to sync")

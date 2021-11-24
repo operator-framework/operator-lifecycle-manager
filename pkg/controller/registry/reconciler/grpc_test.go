@@ -49,6 +49,11 @@ func grpcCatalogSourceWithSecret(secretNames []string) *v1alpha1.CatalogSource {
 		},
 	}
 }
+func grpcCatalogSourceWithStatus(status v1alpha1.CatalogSourceStatus) *v1alpha1.CatalogSource {
+	catsrc := validGrpcCatalogSource("image", "")
+	catsrc.Status = status
+	return catsrc
+}
 
 func grpcCatalogSourceWithAnnotations(annotations map[string]string) *v1alpha1.CatalogSource {
 	catsrc := validGrpcCatalogSource("image", "")
@@ -272,6 +277,29 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
 					"annotation1": "value1",
 					"annotation2": "value2",
+				}),
+			},
+			out: out{
+				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        now(),
+					Protocol:         "grpc",
+					ServiceName:      "img-catalog",
+					ServiceNamespace: testNamespace,
+					Port:             "50051",
+				},
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/UpdateInvalidRegistryServiceStatus",
+			in: in{
+				cluster: cluster{
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("image", "")),
+				},
+				catsrc: grpcCatalogSourceWithStatus(v1alpha1.CatalogSourceStatus{
+					RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+						CreatedAt: now(),
+						Protocol:  "grpc",
+					},
 				}),
 			},
 			out: out{
