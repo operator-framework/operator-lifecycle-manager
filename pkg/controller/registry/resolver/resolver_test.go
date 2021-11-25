@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/runtime_constraints"
+
 	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -80,6 +82,99 @@ func TestDisjointChannelGraph(t *testing.T) {
 
 	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
 	require.Error(t, err, "a unique replacement chain within a channel is required to determine the relative order between channel entries, but 2 replacement chains were found in channel \"alpha\" of package \"packageA\": packageA.side1.v2...packageA.side1.v1, packageA.side2.v2...packageA.side2.v1")
+}
+
+func TestRuntimeConstraints(t *testing.T) {
+	const namespace = "test-namespace"
+	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
+
+	packageASub := newSub(namespace, "packageA", "alpha", catalog)
+	packageDSub := existingSub(namespace, "packageD.v1", "packageD", "alpha", catalog)
+
+	APISet := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
+
+	// packageA requires an API that can be provided by B or C
+	packageA := genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, APISet, nil, nil, "", false)
+	packageB := genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
+	packageC := genOperator("packageC.v1", "1.0.0", "", "packageC", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
+	packageD := genOperator("packageD.v1", "1.0.0", "", "packageD", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
+
+	// Existing operators
+	existingPackageD := existingOperator(namespace, "packageD.v1", "packageD", "alpha", "", nil, nil, nil, nil)
+	existingPackageD.Annotations = map[string]string{"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"packageD","version":"1.0.0"}}]}`}
+
+	testCases := []struct {
+		title              string
+		runtimeConstraints []cache.Predicate
+		expectedOperators  cache.OperatorSet
+		csvs               []*v1alpha1.ClusterServiceVersion
+		subs               []*v1alpha1.Subscription
+		snapshotEntries    []*cache.Entry
+		err                string
+	}{
+		{
+			title:              "No runtime constraints",
+			snapshotEntries:    []*cache.Entry{packageA, packageB, packageC, packageD},
+			runtimeConstraints: []cache.Predicate{},
+			expectedOperators:  cache.OperatorSet{"packageA.v1": packageA, "packageB.v1": packageB},
+			csvs:               nil,
+			subs:               []*v1alpha1.Subscription{packageASub},
+			err:                "",
+		},
+		{
+			title:           "Runtime constraints only accept packages A and C",
+			snapshotEntries: []*cache.Entry{packageA, packageB, packageC, packageD},
+			runtimeConstraints: []cache.Predicate{
+				cache.Or(cache.PkgPredicate("packageA"), cache.PkgPredicate("packageC")),
+			},
+			expectedOperators: cache.OperatorSet{"packageA.v1": packageA, "packageC.v1": packageC},
+			csvs:              nil,
+			subs:              []*v1alpha1.Subscription{packageASub},
+			err:               "",
+		},
+		{
+			title:           "Existing packages are ignored",
+			snapshotEntries: []*cache.Entry{packageA, packageB, packageC, packageD},
+			runtimeConstraints: []cache.Predicate{
+				cache.Or(cache.PkgPredicate("packageA"), cache.PkgPredicate("packageC")),
+			},
+			expectedOperators: cache.OperatorSet{"packageA.v1": packageA, "packageC.v1": packageC},
+			csvs:              []*v1alpha1.ClusterServiceVersion{existingPackageD},
+			subs:              []*v1alpha1.Subscription{packageASub, packageDSub},
+			err:               "",
+		},
+		{
+			title:           "Runtime constraints don't allow A",
+			snapshotEntries: []*cache.Entry{packageA, packageB, packageC, packageD},
+			runtimeConstraints: []cache.Predicate{
+				cache.Not(cache.PkgPredicate("packageA")),
+			},
+			expectedOperators: nil,
+			csvs:              nil,
+			subs:              []*v1alpha1.Subscription{packageASub},
+			err:               "test-catalog/test-namespace/alpha/packageA.v1 violates a cluster runtime constraint: not with package: packageA",
+		},
+	}
+
+	for _, testCase := range testCases {
+		satResolver := SatResolver{
+			cache: cache.New(cache.StaticSourceProvider{
+				catalog: &cache.Snapshot{
+					Entries: testCase.snapshotEntries,
+				},
+			}),
+			log:                        logrus.New(),
+			runtimeConstraintsProvider: runtime_constraints.New(testCase.runtimeConstraints),
+		}
+		operators, err := satResolver.SolveOperators([]string{namespace}, testCase.csvs, testCase.subs)
+
+		if testCase.err != "" {
+			require.Containsf(t, err.Error(), testCase.err, "Test %s failed", testCase.title)
+		} else {
+			require.NoErrorf(t, err, "Test %s failed", testCase.title)
+		}
+		require.EqualValuesf(t, testCase.expectedOperators, operators, "Test %s failed", testCase.title)
+	}
 }
 
 func TestPropertiesAnnotationHonored(t *testing.T) {

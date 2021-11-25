@@ -122,7 +122,7 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 		},
 		Spec: v1.PodSpec{
 			// TODO: Remove this before merging
-			HostNetwork: true,
+			// HostNetwork: true,
 			Containers: []v1.Container{
 				{
 					Name:  name,

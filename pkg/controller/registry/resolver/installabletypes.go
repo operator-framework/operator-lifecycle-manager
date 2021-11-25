@@ -36,6 +36,11 @@ func (i *BundleInstallable) AddConstraint(c solver.Constraint) {
 	i.constraints = append(i.constraints, c)
 }
 
+func (i *BundleInstallable) AddRuntimeConstraintFailure(message string) {
+	msg := fmt.Sprintf("%s violates a cluster runtime constraint: %s", i.identifier, message)
+	i.AddConstraint(PrettyConstraint(solver.Prohibited(), msg))
+}
+
 func (i *BundleInstallable) BundleSourceInfo() (string, string, cache.SourceKey, error) {
 	info := strings.Split(i.identifier.String(), "/")
 	// This should be enforced by Kube naming constraints

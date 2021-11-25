@@ -3,9 +3,13 @@ package resolver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/runtime_constraints"
 
 	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
@@ -20,25 +24,42 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
+const (
+	runtimeConstraintsFilePath = "runtime_constraints.yaml"
+)
+
 type OperatorResolver interface {
 	SolveOperators(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[cache.OperatorSourceInfo]struct{}) (cache.OperatorSet, error)
 }
 
 type SatResolver struct {
-	cache cache.OperatorCacheProvider
-	log   logrus.FieldLogger
+	cache                      cache.OperatorCacheProvider
+	log                        logrus.FieldLogger
+	runtimeConstraintsProvider *runtime_constraints.RuntimeConstraintsProvider
 }
 
 func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger) *SatResolver {
-	// Get runtime constraints somehow
-	runtimeConstraints := []cache.Predicate{
-		// Only etcd can be installed on this system!
-		cache.PkgPredicate("etcd"),
+
+	runtimeConstraintProvider, err := runtime_constraints.NewFromFile(runtimeConstraintsFilePath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) {
+			logger.Warning("No cluster runtime constraints file found")
+		} else {
+			logger.Errorf("Error creating runtime constraints from file: %s", err)
+			panic(err)
+		}
 	}
 
+	// Two solutions:
+	// #1: Global cache filters
+	// globalFilters := cache.WithGlobalFilters(runtimeConstraintProvider.Constraints()...)
+
 	return &SatResolver{
-		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister), cache.WithGlobalFilters(runtimeConstraints...)),
+		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister) /*, globalFilters*/),
 		log:   logger,
+		// #2: apply constraints in addInvariants
+		runtimeConstraintsProvider: runtimeConstraintProvider, // uncomment when using option #2
+		// runtimeConstraintsProvider: nil                     // uncomment when using option #1
 	}
 }
 
@@ -573,6 +594,16 @@ func (r *SatResolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFi
 				continue
 			}
 			packageConflictToInstallable[prop.PackageName] = append(packageConflictToInstallable[prop.PackageName], installable.Identifier())
+		}
+
+		// apply runtime constraints to packages that aren't already installed
+		if !catalog.Virtual() && r.runtimeConstraintsProvider != nil {
+			for _, predicate := range r.runtimeConstraintsProvider.Constraints() {
+				if !predicate.Test(op) {
+					bundleInstallable.AddRuntimeConstraintFailure(predicate.String())
+					break
+				}
+			}
 		}
 	}
 
