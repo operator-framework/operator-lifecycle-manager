@@ -30,8 +30,14 @@ type SatResolver struct {
 }
 
 func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger) *SatResolver {
+	// Get runtime constraints somehow
+	runtimeConstraints := []cache.Predicate{
+		// Only etcd can be installed on this system!
+		cache.PkgPredicate("etcd"),
+	}
+
 	return &SatResolver{
-		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
+		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister), cache.WithGlobalFilters(runtimeConstraints...)),
 		log:   logger,
 	}
 }

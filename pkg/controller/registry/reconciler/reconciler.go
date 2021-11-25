@@ -121,6 +121,8 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 			Annotations:  annotations,
 		},
 		Spec: v1.PodSpec{
+			// TODO: Remove this before merging
+			HostNetwork: true,
 			Containers: []v1.Container{
 				{
 					Name:  name,
