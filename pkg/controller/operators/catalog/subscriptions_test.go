@@ -155,14 +155,6 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 						LastUpdated:           now,
 						InstallPlanGeneration: 1,
-						Conditions: []v1alpha1.SubscriptionCondition{
-							{
-								Type:    "ResolutionFailed",
-								Status:  corev1.ConditionFalse,
-								Reason:  "",
-								Message: "",
-							},
-						},
 					},
 				},
 			},
@@ -306,14 +298,6 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 						LastUpdated:           now,
 						InstallPlanGeneration: 1,
-						Conditions: []v1alpha1.SubscriptionCondition{
-							{
-								Type:    "ResolutionFailed",
-								Status:  corev1.ConditionFalse,
-								Reason:  "",
-								Message: "",
-							},
-						},
 					},
 				},
 			},
@@ -462,14 +446,6 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 						InstallPlanGeneration: 1,
 						LastUpdated:           now,
-						Conditions: []v1alpha1.SubscriptionCondition{
-							{
-								Type:    "ResolutionFailed",
-								Status:  corev1.ConditionFalse,
-								Reason:  "",
-								Message: "",
-							},
-						},
 					},
 				},
 			},
@@ -623,14 +599,6 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 						LastUpdated:           now,
 						InstallPlanGeneration: 1,
-						Conditions: []v1alpha1.SubscriptionCondition{
-							{
-								Type:    "ResolutionFailed",
-								Status:  corev1.ConditionFalse,
-								Reason:  "",
-								Message: "",
-							},
-						},
 					},
 				},
 			},
@@ -807,14 +775,6 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 						LastUpdated:           now,
 						InstallPlanGeneration: 1,
-						Conditions: []v1alpha1.SubscriptionCondition{
-							{
-								Type:    "ResolutionFailed",
-								Status:  corev1.ConditionFalse,
-								Reason:  "",
-								Message: "",
-							},
-						},
 					},
 				},
 			},
@@ -998,14 +958,6 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 						LastUpdated:           now,
 						InstallPlanGeneration: 2,
-						Conditions: []v1alpha1.SubscriptionCondition{
-							{
-								Type:    "ResolutionFailed",
-								Status:  corev1.ConditionFalse,
-								Reason:  "",
-								Message: "",
-							},
-						},
 					},
 				},
 			},
