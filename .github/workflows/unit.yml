@@ -1,4 +1,4 @@
-name: ci
+name: unit
 on:
   push:
     branches:
