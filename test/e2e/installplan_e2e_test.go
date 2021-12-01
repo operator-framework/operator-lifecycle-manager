@@ -37,11 +37,9 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
@@ -614,7 +612,7 @@ var _ = Describe("Install Plan", func() {
 			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
-			key := runtimeclient.ObjectKeyFromObject(plan)
+			key := client.ObjectKeyFromObject(plan)
 
 			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 				return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
@@ -3198,9 +3196,9 @@ var _ = Describe("Install Plan", func() {
 			fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(fetchedInstallPlan).NotTo(BeNil())
-			cond := v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
+			cond := operatorsv1alpha1.InstallPlanCondition{Type: operatorsv1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: operatorsv1alpha1.InstallPlanReasonInstallCheckFailed,
 				Message: "no operator group found that is managing this namespace"}
-			Expect(fetchedInstallPlan.Status.Phase).To(Equal(v1alpha1.InstallPlanPhaseInstalling))
+			Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseInstalling))
 			Expect(hasCondition(fetchedInstallPlan, cond)).To(BeTrue())
 
 			// Create an operatorgroup for the same namespace
@@ -3316,7 +3314,7 @@ var _ = Describe("Install Plan", func() {
 				},
 				Spec: operatorsv1alpha1.InstallPlanSpec{
 					ClusterServiceVersionNames: []string{"foobar"},
-					Approval:                   v1alpha1.ApprovalAutomatic,
+					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
 					Approved:                   true,
 				},
 				Status: operatorsv1alpha1.InstallPlanStatus{
@@ -3676,7 +3674,7 @@ var _ = Describe("Install Plan", func() {
 		Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
-		key := runtimeclient.ObjectKeyFromObject(plan)
+		key := client.ObjectKeyFromObject(plan)
 
 		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 			return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
@@ -3747,7 +3745,7 @@ var _ = Describe("Install Plan", func() {
 		Expect(ctx.Ctx().Client().Create(context.Background(), newPlan)).To(Succeed())
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), newPlan)).To(Succeed())
 
-		newKey := runtimeclient.ObjectKeyFromObject(newPlan)
+		newKey := client.ObjectKeyFromObject(newPlan)
 
 		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 			return newPlan, ctx.Ctx().Client().Get(context.Background(), newKey, newPlan)
@@ -3946,7 +3944,7 @@ var _ = Describe("Install Plan", func() {
 		Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
-		key := runtimeclient.ObjectKeyFromObject(plan)
+		key := client.ObjectKeyFromObject(plan)
 
 		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 			return plan, ctx.Ctx().Client().Get(context.Background(), key, plan)
@@ -3992,7 +3990,7 @@ var _ = Describe("Install Plan", func() {
 		Expect(ctx.Ctx().Client().Create(context.Background(), newPlan)).To(Succeed())
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), newPlan)).To(Succeed())
 
-		newKey := runtimeclient.ObjectKeyFromObject(newPlan)
+		newKey := client.ObjectKeyFromObject(newPlan)
 
 		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 			return newPlan, ctx.Ctx().Client().Get(context.Background(), newKey, newPlan)
@@ -4286,7 +4284,7 @@ func newInstallPlanWithDummySteps(name, namespace string, phase operatorsv1alpha
 	}
 }
 
-func hasCondition(ip *v1alpha1.InstallPlan, expectedCondition v1alpha1.InstallPlanCondition) bool {
+func hasCondition(ip *operatorsv1alpha1.InstallPlan, expectedCondition operatorsv1alpha1.InstallPlanCondition) bool {
 	for _, cond := range ip.Status.Conditions {
 		if cond.Type == expectedCondition.Type && cond.Message == expectedCondition.Message && cond.Status == expectedCondition.Status {
 			return true

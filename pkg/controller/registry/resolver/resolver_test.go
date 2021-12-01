@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/operator-framework/api/pkg/lib/version"
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
@@ -1515,7 +1514,7 @@ func TestInferProperties(t *testing.T) {
 					Name: "a",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
-					Version: version.OperatorVersion{Version: semver.MustParse("1.2.3")},
+					Version: opver.OperatorVersion{Version: semver.MustParse("1.2.3")},
 				},
 			},
 			Subscriptions: []*v1alpha1.Subscription{
@@ -1556,7 +1555,7 @@ func TestInferProperties(t *testing.T) {
 					Name: "a",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
-					Version: version.OperatorVersion{Version: semver.MustParse("1.2.3")},
+					Version: opver.OperatorVersion{Version: semver.MustParse("1.2.3")},
 				},
 			},
 			Subscriptions: []*v1alpha1.Subscription{
@@ -1585,7 +1584,7 @@ func TestInferProperties(t *testing.T) {
 					Name: "a",
 				},
 				Spec: v1alpha1.ClusterServiceVersionSpec{
-					Version: version.OperatorVersion{Version: semver.MustParse("1.2.3")},
+					Version: opver.OperatorVersion{Version: semver.MustParse("1.2.3")},
 				},
 			},
 			Subscriptions: []*v1alpha1.Subscription{

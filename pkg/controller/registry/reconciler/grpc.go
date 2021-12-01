@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	k8serror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -326,7 +325,7 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 	return err
 }
 
-func (c *GrpcRegistryReconciler) ensureSA(source grpcCatalogSourceDecorator) (*v1.ServiceAccount, error) {
+func (c *GrpcRegistryReconciler) ensureSA(source grpcCatalogSourceDecorator) (*corev1.ServiceAccount, error) {
 	sa := source.ServiceAccount()
 	if _, err := c.OpClient.CreateServiceAccount(sa); err != nil {
 		return sa, err
