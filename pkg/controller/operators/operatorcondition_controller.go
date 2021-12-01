@@ -100,8 +100,7 @@ func (r *OperatorConditionReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	operatorCondition := &operatorsv2.OperatorCondition{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, operatorCondition)
 	if err != nil {
-		log.V(1).Error(err, "Unable to find operatorcondition")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	err = r.ensureOperatorConditionRole(operatorCondition)

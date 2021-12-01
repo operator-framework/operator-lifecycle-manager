@@ -96,8 +96,7 @@ func (r *OperatorConditionGeneratorReconciler) Reconcile(ctx context.Context, re
 	in := &operatorsv1alpha1.ClusterServiceVersion{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, in)
 	if err != nil {
-		log.V(1).Error(err, "Unable to find ClusterServiceVersion")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	operatorCondition := &operatorsv2.OperatorCondition{
