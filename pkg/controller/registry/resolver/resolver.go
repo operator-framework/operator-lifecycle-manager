@@ -15,6 +15,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/constraints"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -344,6 +345,30 @@ func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleSta
 		if err != nil {
 			errs = append(errs, err)
 			continue
+		}
+
+		for _, prop := range bundle.Properties {
+			if prop.Type != "olm.constraint" {
+				continue
+			}
+
+			var val struct {
+				Message string           `json:"message"`
+				Cel     *constraints.Cel `json:"cel"`
+			}
+
+			if err := json.Unmarshal([]byte(prop.Value), &val); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+
+			pred, err := cache.EvaluatorPredicate(r.evaluatorProvider, val.Cel.Rule, val.Message)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+
+			dependencyPredicates = append(dependencyPredicates, pred)
 		}
 
 		for _, d := range dependencyPredicates {
