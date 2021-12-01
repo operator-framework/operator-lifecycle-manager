@@ -3,6 +3,7 @@ package runtime_constraints
 import (
 	"encoding/json"
 	"io/ioutil"
+	"os"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-registry/pkg/registry"
@@ -11,6 +12,7 @@ import (
 
 const (
 	maxRuntimeConstraints = 10
+	RuntimeConstraintEnvVarName = "RUNTIME_CONSTRAINTS_FILE_PATH"
 )
 
 type RuntimeConstraintsProvider struct {
@@ -25,6 +27,14 @@ func New(runtimeConstraints []cache.Predicate) *RuntimeConstraintsProvider {
 	return &RuntimeConstraintsProvider{
 		runtimeConstraints: runtimeConstraints,
 	}
+}
+
+func NewFromEnv() (*RuntimeConstraintsProvider, error) {
+	runtimeConstraintsFilePath, isSet := os.LookupEnv(RuntimeConstraintEnvVarName)
+	if !isSet {
+		return nil, nil
+	}
+	return NewFromFile(runtimeConstraintsFilePath)
 }
 
 func NewFromFile(runtimeConstraintsFilePath string) (*RuntimeConstraintsProvider, error) {

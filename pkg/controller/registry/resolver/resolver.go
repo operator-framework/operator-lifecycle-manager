@@ -39,8 +39,7 @@ type SatResolver struct {
 }
 
 func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger) *SatResolver {
-
-	runtimeConstraintProvider, err := runtime_constraints.NewFromFile(runtimeConstraintsFilePath)
+	runtimeConstraintProvider, err := runtime_constraints.NewFromEnv()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			logger.Warning("No cluster runtime constraints file found. Proceeding without...")
