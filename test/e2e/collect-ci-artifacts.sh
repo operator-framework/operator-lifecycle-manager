@@ -11,6 +11,7 @@ set -o errexit
 mkdir -p "${TEST_ARTIFACTS_DIR}"
 
 commands=()
+commands+=("get catalogsources -o yaml")
 commands+=("get subscriptions -o yaml")
 commands+=("get operatorgroups -o yaml")
 commands+=("get clusterserviceversions -o yaml")
