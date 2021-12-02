@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/runtime_constraints"
@@ -13,24 +16,22 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"regexp"
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 const (
-	runtimeConstraintsVolumeMountName="runtime-constraints"
-	runtimeConstraintsConfigMapName="runtime-constraints"
-	runtimeConstraintsFileName="runtime_constraints.yaml"
-	defaultOlmNamespace="operator-lifecycle-manager"
-	olmOperatorName="olm-operator"
-	olmContainerIndex=0
+	runtimeConstraintsVolumeMountName = "runtime-constraints"
+	runtimeConstraintsConfigMapName   = "runtime-constraints"
+	runtimeConstraintsFileName        = "runtime_constraints.yaml"
+	defaultOlmNamespace               = "operator-lifecycle-manager"
+	olmOperatorName                   = "olm-operator"
+	olmContainerIndex                 = 0
 )
 
 var (
 	olmOperatorKey = k8scontrollerclient.ObjectKey{
 		Namespace: defaultOlmNamespace,
-		Name: olmOperatorName,
+		Name:      olmOperatorName,
 	}
 )
 
@@ -85,7 +86,7 @@ func mustDeployRuntimeConstraintsConfigMap(kubeClient k8scontrollerclient.Client
 	isImmutable := true
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: runtimeConstraintsConfigMapName,
+			Name:      runtimeConstraintsConfigMapName,
 			Namespace: defaultOlmNamespace,
 		},
 		Immutable: &isImmutable,
@@ -103,7 +104,7 @@ func mustDeployRuntimeConstraintsConfigMap(kubeClient k8scontrollerclient.Client
 func mustUndeployRuntimeConstraintsConfigMap(kubeClient k8scontrollerclient.Client) {
 	if err := kubeClient.Delete(context.TODO(), &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "runtime-constraints",
+			Name:      "runtime-constraints",
 			Namespace: "operator-lifecycle-manager",
 		},
 	}); err != nil {
@@ -114,7 +115,7 @@ func mustUndeployRuntimeConstraintsConfigMap(kubeClient k8scontrollerclient.Clie
 	Eventually(func() bool {
 		configMap := &corev1.ConfigMap{}
 		err := kubeClient.Get(context.TODO(), k8scontrollerclient.ObjectKey{
-			Name: runtimeConstraintsConfigMapName,
+			Name:      runtimeConstraintsConfigMapName,
 			Namespace: defaultOlmNamespace,
 		}, configMap)
 		return k8serrors.IsNotFound(err)
@@ -145,15 +146,15 @@ func mustPatchOlmDeployment(kubeClient k8scontrollerclient.Client) {
 
 	mountPath := "/constraints"
 	newVolumeMount := corev1.VolumeMount{
-		Name: runtimeConstraintsVolumeMountName,
+		Name:      runtimeConstraintsVolumeMountName,
 		MountPath: mountPath,
-		ReadOnly: true,
+		ReadOnly:  true,
 	}
 
 	olmDeployment.Spec.Template.Spec.Volumes = append(volumes, newVolume)
 	olmDeployment.Spec.Template.Spec.Containers[olmContainerIndex].VolumeMounts = append(olmContainer.VolumeMounts, newVolumeMount)
 	olmDeployment.Spec.Template.Spec.Containers[olmContainerIndex].Env = append(olmContainer.Env, corev1.EnvVar{
-		Name: runtime_constraints.RuntimeConstraintEnvVarName,
+		Name:  runtime_constraints.RuntimeConstraintEnvVarName,
 		Value: fmt.Sprintf("/%s/%s", mountPath, runtimeConstraintsFileName),
 	})
 
@@ -214,7 +215,6 @@ func setupRuntimeConstraints(kubeClient k8scontrollerclient.Client) {
 	mustDeployRuntimeConstraintsConfigMap(kubeClient)
 	mustPatchOlmDeployment(kubeClient)
 }
-
 
 func teardownRuntimeConstraints(kubeClient k8scontrollerclient.Client) {
 	mustUndeployRuntimeConstraintsConfigMap(kubeClient)

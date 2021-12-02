@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxRuntimeConstraints = 10
+	maxRuntimeConstraints       = 10
 	RuntimeConstraintEnvVarName = "RUNTIME_CONSTRAINTS_FILE_PATH"
 )
 
