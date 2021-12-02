@@ -28,8 +28,7 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -75,12 +74,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 				return ctx.Ctx().Client().Create(context.Background(), &ns)
 			}).Should(Succeed())
 
-			og := v1.OperatorGroup{
+			og := operatorsv1.OperatorGroup{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("%s-operatorgroup", ns.GetName()),
 					Namespace: ns.GetName(),
 				},
-				Spec: v1.OperatorGroupSpec{
+				Spec: operatorsv1.OperatorGroupSpec{
 					TargetNamespaces: []string{ns.GetName()},
 				},
 			}
@@ -132,23 +131,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 
 		It("can satisfy an associated ClusterServiceVersion's ownership requirement", func() {
-			associated := v1alpha1.ClusterServiceVersion{
+			associated := operatorsv1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "associated-csv",
 					Namespace: ns.GetName(),
 				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned: []v1alpha1.CRDDescription{{
+				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+						Owned: []operatorsv1alpha1.CRDDescription{{
 							Name:    "tests.example.com",
 							Version: "v1",
 							Kind:    "Test",
 						}},
 					},
 					InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
-					InstallModes: []v1alpha1.InstallMode{
+					InstallModes: []operatorsv1alpha1.InstallMode{
 						{
-							Type:      v1alpha1.InstallModeTypeOwnNamespace,
+							Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 							Supported: true,
 						},
 					},
@@ -156,13 +155,13 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			Expect(ctx.Ctx().Client().Create(context.Background(), &associated)).To(Succeed())
 
-			Eventually(func() ([]v1alpha1.RequirementStatus, error) {
+			Eventually(func() ([]operatorsv1alpha1.RequirementStatus, error) {
 				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&associated), &associated); err != nil {
 					return nil, err
 				}
-				var result []v1alpha1.RequirementStatus
+				var result []operatorsv1alpha1.RequirementStatus
 				for _, s := range associated.Status.RequirementStatus {
-					result = append(result, v1alpha1.RequirementStatus{
+					result = append(result, operatorsv1alpha1.RequirementStatus{
 						Group:   s.Group,
 						Version: s.Version,
 						Kind:    s.Kind,
@@ -172,12 +171,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 				}
 				return result, nil
 			}).Should(ContainElement(
-				v1alpha1.RequirementStatus{
+				operatorsv1alpha1.RequirementStatus{
 					Group:   apiextensionsv1.SchemeGroupVersion.Group,
 					Version: apiextensionsv1.SchemeGroupVersion.Version,
 					Kind:    "CustomResourceDefinition",
 					Name:    crd.GetName(),
-					Status:  v1alpha1.RequirementStatusReasonPresent,
+					Status:  operatorsv1alpha1.RequirementStatusReasonPresent,
 				},
 			))
 		})
@@ -186,23 +185,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// when the original CSV's CRD requirement becomes
 		// unsatisfied.
 		It("can satisfy an unassociated ClusterServiceVersion's ownership requirement if replaced by an associated ClusterServiceVersion", func() {
-			unassociated := v1alpha1.ClusterServiceVersion{
+			unassociated := operatorsv1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "unassociated-csv",
 					Namespace: ns.GetName(),
 				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned: []v1alpha1.CRDDescription{{
+				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+						Owned: []operatorsv1alpha1.CRDDescription{{
 							Name:    "tests.example.com",
 							Version: "v1",
 							Kind:    "Test",
 						}},
 					},
 					InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
-					InstallModes: []v1alpha1.InstallMode{
+					InstallModes: []operatorsv1alpha1.InstallMode{
 						{
-							Type:      v1alpha1.InstallModeTypeOwnNamespace,
+							Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 							Supported: true,
 						},
 					},
@@ -210,23 +209,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			Expect(ctx.Ctx().Client().Create(context.Background(), &unassociated)).To(Succeed())
 
-			associated := v1alpha1.ClusterServiceVersion{
+			associated := operatorsv1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "associated-csv",
 					Namespace: ns.GetName(),
 				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned: []v1alpha1.CRDDescription{{
+				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+						Owned: []operatorsv1alpha1.CRDDescription{{
 							Name:    "tests.example.com",
 							Version: "v1",
 							Kind:    "Test",
 						}},
 					},
 					InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
-					InstallModes: []v1alpha1.InstallMode{
+					InstallModes: []operatorsv1alpha1.InstallMode{
 						{
-							Type:      v1alpha1.InstallModeTypeOwnNamespace,
+							Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 							Supported: true,
 						},
 					},
@@ -241,23 +240,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 
 		It("can satisfy an unassociated ClusterServiceVersion's non-ownership requirement", func() {
-			unassociated := v1alpha1.ClusterServiceVersion{
+			unassociated := operatorsv1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "unassociated-csv",
 					Namespace: ns.GetName(),
 				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Required: []v1alpha1.CRDDescription{{
+				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+						Required: []operatorsv1alpha1.CRDDescription{{
 							Name:    "tests.example.com",
 							Version: "v1",
 							Kind:    "Test",
 						}},
 					},
 					InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
-					InstallModes: []v1alpha1.InstallMode{
+					InstallModes: []operatorsv1alpha1.InstallMode{
 						{
-							Type:      v1alpha1.InstallModeTypeOwnNamespace,
+							Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 							Supported: true,
 						},
 					},
@@ -265,13 +264,13 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			Expect(ctx.Ctx().Client().Create(context.Background(), &unassociated)).To(Succeed())
 
-			Eventually(func() ([]v1alpha1.RequirementStatus, error) {
+			Eventually(func() ([]operatorsv1alpha1.RequirementStatus, error) {
 				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated); err != nil {
 					return nil, err
 				}
-				var result []v1alpha1.RequirementStatus
+				var result []operatorsv1alpha1.RequirementStatus
 				for _, s := range unassociated.Status.RequirementStatus {
-					result = append(result, v1alpha1.RequirementStatus{
+					result = append(result, operatorsv1alpha1.RequirementStatus{
 						Group:   s.Group,
 						Version: s.Version,
 						Kind:    s.Kind,
@@ -281,12 +280,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 				}
 				return result, nil
 			}).Should(ContainElement(
-				v1alpha1.RequirementStatus{
+				operatorsv1alpha1.RequirementStatus{
 					Group:   apiextensionsv1.SchemeGroupVersion.Group,
 					Version: apiextensionsv1.SchemeGroupVersion.Version,
 					Kind:    "CustomResourceDefinition",
 					Name:    crd.GetName(),
-					Status:  v1alpha1.RequirementStatusReasonPresent,
+					Status:  operatorsv1alpha1.RequirementStatusReasonPresent,
 				},
 			))
 		})
@@ -304,12 +303,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 				}
 				Expect(ctx.Ctx().Client().Create(context.Background(), &ns)).To(Succeed())
 
-				og := v1.OperatorGroup{
+				og := operatorsv1.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("%s-operatorgroup", ns.GetName()),
 						Namespace: ns.GetName(),
 					},
-					Spec: v1.OperatorGroupSpec{
+					Spec: operatorsv1.OperatorGroupSpec{
 						TargetNamespaces: []string{ns.GetName()},
 					},
 				}
@@ -323,23 +322,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 			})
 
 			It("can satisfy the unassociated ClusterServiceVersion's ownership requirement", func() {
-				associated := v1alpha1.ClusterServiceVersion{
+				associated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "associated-csv",
 						Namespace: ns.GetName(),
 					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-							Owned: []v1alpha1.CRDDescription{{
+					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+							Owned: []operatorsv1alpha1.CRDDescription{{
 								Name:    "tests.example.com",
 								Version: "v1",
 								Kind:    "Test",
 							}},
 						},
 						InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
-						InstallModes: []v1alpha1.InstallMode{
+						InstallModes: []operatorsv1alpha1.InstallMode{
 							{
-								Type:      v1alpha1.InstallModeTypeOwnNamespace,
+								Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 								Supported: true,
 							},
 						},
@@ -347,23 +346,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 				}
 				Expect(ctx.Ctx().Client().Create(context.Background(), &associated)).To(Succeed())
 
-				unassociated := v1alpha1.ClusterServiceVersion{
+				unassociated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "unassociated-csv",
 						Namespace: ns.GetName(),
 					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-							Owned: []v1alpha1.CRDDescription{{
+					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+							Owned: []operatorsv1alpha1.CRDDescription{{
 								Name:    "tests.example.com",
 								Version: "v1",
 								Kind:    "Test",
 							}},
 						},
 						InstallStrategy: newNginxInstallStrategy(genName("deployment-"), nil, nil),
-						InstallModes: []v1alpha1.InstallMode{
+						InstallModes: []operatorsv1alpha1.InstallMode{
 							{
-								Type:      v1alpha1.InstallModeTypeOwnNamespace,
+								Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 								Supported: true,
 							},
 						},
@@ -371,13 +370,13 @@ var _ = Describe("ClusterServiceVersion", func() {
 				}
 				Expect(ctx.Ctx().Client().Create(context.Background(), &unassociated)).To(Succeed())
 
-				Eventually(func() ([]v1alpha1.RequirementStatus, error) {
+				Eventually(func() ([]operatorsv1alpha1.RequirementStatus, error) {
 					if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated); err != nil {
 						return nil, err
 					}
-					var result []v1alpha1.RequirementStatus
+					var result []operatorsv1alpha1.RequirementStatus
 					for _, s := range unassociated.Status.RequirementStatus {
-						result = append(result, v1alpha1.RequirementStatus{
+						result = append(result, operatorsv1alpha1.RequirementStatus{
 							Group:   s.Group,
 							Version: s.Version,
 							Kind:    s.Kind,
@@ -387,12 +386,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 					}
 					return result, nil
 				}).Should(ContainElement(
-					v1alpha1.RequirementStatus{
+					operatorsv1alpha1.RequirementStatus{
 						Group:   apiextensionsv1.SchemeGroupVersion.Group,
 						Version: apiextensionsv1.SchemeGroupVersion.Version,
 						Kind:    "CustomResourceDefinition",
 						Name:    crd.GetName(),
-						Status:  v1alpha1.RequirementStatusReasonPresent,
+						Status:  operatorsv1alpha1.RequirementStatusReasonPresent,
 					},
 				))
 			})
@@ -401,7 +400,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 	When("a csv exists specifying two replicas with one max unavailable", func() {
 		var (
-			csv v1alpha1.ClusterServiceVersion
+			csv operatorsv1alpha1.ClusterServiceVersion
 		)
 
 		const (
@@ -409,12 +408,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 		)
 
 		BeforeEach(func() {
-			csv = v1alpha1.ClusterServiceVersion{
+			csv = operatorsv1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-csv",
 					Namespace:    testNamespace,
 				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
+				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
 						StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 						StrategySpec: operatorsv1alpha1.StrategyDetailsDeployment{
@@ -453,15 +452,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 							},
 						},
 					},
-					InstallModes: []v1alpha1.InstallMode{{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					InstallModes: []operatorsv1alpha1.InstallMode{{
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					}},
 				},
 			}
 			Expect(ctx.Ctx().Client().Create(context.Background(), &csv)).To(Succeed())
 
-			Eventually(func() (*v1alpha1.ClusterServiceVersion, error) {
+			Eventually(func() (*operatorsv1alpha1.ClusterServiceVersion, error) {
 				var ps corev1.PodList
 				if err := ctx.Ctx().Client().List(context.Background(), &ps, client.MatchingLabels{"app": "foobar"}); err != nil {
 					return nil, err
@@ -515,8 +514,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 	When("a copied csv exists", func() {
 		var (
 			target   corev1.Namespace
-			original v1alpha1.ClusterServiceVersion
-			copy     v1alpha1.ClusterServiceVersion
+			original operatorsv1alpha1.ClusterServiceVersion
+			copy     operatorsv1alpha1.ClusterServiceVersion
 		)
 
 		BeforeEach(func() {
@@ -527,20 +526,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			Expect(ctx.Ctx().Client().Create(context.Background(), &target)).To(Succeed())
 
-			original = v1alpha1.ClusterServiceVersion{
+			original = operatorsv1alpha1.ClusterServiceVersion{
 				TypeMeta: metav1.TypeMeta{
-					Kind:       v1alpha1.ClusterServiceVersionKind,
-					APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+					Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+					APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "csv-",
 					Namespace:    testNamespace,
 				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
+				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					InstallStrategy: newNginxInstallStrategy(genName("csv-"), nil, nil),
-					InstallModes: []v1alpha1.InstallMode{
+					InstallModes: []operatorsv1alpha1.InstallMode{
 						{
-							Type:      v1alpha1.InstallModeTypeAllNamespaces,
+							Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 							Supported: true,
 						},
 					},
@@ -595,7 +594,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		var (
 			cm  corev1.ConfigMap
 			sa  corev1.ServiceAccount
-			csv v1alpha1.ClusterServiceVersion
+			csv operatorsv1alpha1.ClusterServiceVersion
 		)
 
 		BeforeEach(func() {
@@ -623,20 +622,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			Expect(ctx.Ctx().Client().Create(context.Background(), &sa)).To(Succeed())
 
-			csv = v1alpha1.ClusterServiceVersion{
+			csv = operatorsv1alpha1.ClusterServiceVersion{
 				TypeMeta: metav1.TypeMeta{
-					Kind:       v1alpha1.ClusterServiceVersionKind,
-					APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+					Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+					APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "csv-",
 					Namespace:    testNamespace,
 				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName: v1alpha1.InstallStrategyNameDeployment,
-						StrategySpec: v1alpha1.StrategyDetailsDeployment{
-							DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+					InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+						StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
+						StrategySpec: operatorsv1alpha1.StrategyDetailsDeployment{
+							DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 								{
 									Name: "foo",
 									Spec: appsv1.DeploymentSpec{
@@ -657,7 +656,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 									},
 								},
 							},
-							Permissions: []v1alpha1.StrategyDeploymentPermissions{
+							Permissions: []operatorsv1alpha1.StrategyDeploymentPermissions{
 								{
 									ServiceAccountName: sa.GetName(),
 									Rules:              []rbacv1.PolicyRule{},
@@ -665,9 +664,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 							},
 						},
 					},
-					InstallModes: []v1alpha1.InstallMode{
+					InstallModes: []operatorsv1alpha1.InstallMode{
 						{
-							Type:      v1alpha1.InstallModeTypeAllNamespaces,
+							Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 							Supported: true,
 						},
 					},
@@ -683,7 +682,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 
 		It("considers the serviceaccount requirement satisfied", func() {
-			Eventually(func() (v1alpha1.StatusReason, error) {
+			Eventually(func() (operatorsv1alpha1.StatusReason, error) {
 				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&csv), &csv); err != nil {
 					return "", err
 				}
@@ -694,38 +693,38 @@ var _ = Describe("ClusterServiceVersion", func() {
 					return requirement.Status, nil
 				}
 				return "", fmt.Errorf("missing expected requirement %q", sa.GetName())
-			}).Should(Equal(v1alpha1.RequirementStatusReasonPresent))
+			}).Should(Equal(operatorsv1alpha1.RequirementStatusReasonPresent))
 		})
 	})
 
 	It("create with unmet requirements min kube version", func() {
 
 		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "999.999.999",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
@@ -750,37 +749,37 @@ var _ = Describe("ClusterServiceVersion", func() {
 	It("create with unmet requirements CRD", func() {
 
 		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
 				InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							DisplayName: "Not In Cluster",
 							Description: "A CRD that is not currently in the cluster",
@@ -810,7 +809,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 	It("create with unmet permissions CRD", func() {
 
 		saName := genName("dep-")
-		permissions := []v1alpha1.StrategyDeploymentPermissions{
+		permissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
@@ -823,7 +822,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
+		clusterPermissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
@@ -839,36 +838,36 @@ var _ = Describe("ClusterServiceVersion", func() {
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
 		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
-				InstallModes: []v1alpha1.InstallMode{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
 				InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -929,37 +928,37 @@ var _ = Describe("ClusterServiceVersion", func() {
 	It("create with unmet requirements API service", func() {
 
 		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
 				InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
-					Required: []v1alpha1.APIServiceDescription{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
+					Required: []operatorsv1alpha1.APIServiceDescription{
 						{
 							DisplayName: "Not In Cluster",
 							Description: "An apiservice that is not currently in the cluster",
@@ -988,7 +987,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 	It("create with unmet permissions API service", func() {
 
 		saName := genName("dep-")
-		permissions := []v1alpha1.StrategyDeploymentPermissions{
+		permissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
@@ -1001,7 +1000,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
+		clusterPermissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
@@ -1015,38 +1014,38 @@ var _ = Describe("ClusterServiceVersion", func() {
 		}
 
 		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
 				InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
 				// Cheating a little; this is an APIservice that will exist for the e2e tests
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
-					Required: []v1alpha1.APIServiceDescription{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
+					Required: []operatorsv1alpha1.APIServiceDescription{
 						{
 							Group:       "packages.operators.coreos.com",
 							Version:     "v1",
@@ -1075,31 +1074,31 @@ var _ = Describe("ClusterServiceVersion", func() {
 	It("create with unmet requirements native API", func() {
 
 		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
@@ -1125,7 +1124,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 	It("create requirements met CRD", func() {
 
 		saName := genName("sa-")
-		permissions := []v1alpha1.StrategyDeploymentPermissions{
+		permissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
@@ -1138,7 +1137,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
+		clusterPermissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: saName,
 				Rules: []rbacv1.PolicyRule{
@@ -1158,37 +1157,37 @@ var _ = Describe("ClusterServiceVersion", func() {
 		crdPlural := genName("ins")
 		crdName := crdPlural + ".cluster.com"
 		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
 				InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -1214,8 +1213,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		sa.SetNamespace(testNamespace)
 		sa.SetOwnerReferences([]metav1.OwnerReference{{
 			Name:       fetchedCSV.GetName(),
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
 			UID:        fetchedCSV.GetUID(),
 		}})
 		_, err = c.CreateServiceAccount(&sa)
@@ -1251,8 +1250,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		}
 		crd.SetOwnerReferences([]metav1.OwnerReference{{
 			Name:       fetchedCSV.GetName(),
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
 			UID:        fetchedCSV.GetUID(),
 		}})
 		cleanupCRD, err := createCRD(c, crd)
@@ -1405,7 +1404,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		_, err := c.CreateServiceAccount(&sa)
 		Expect(err).ShouldNot(HaveOccurred(), "could not create ServiceAccount")
 
-		permissions := []v1alpha1.StrategyDeploymentPermissions{
+		permissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: sa.GetName(),
 				Rules: []rbacv1.PolicyRule{
@@ -1418,7 +1417,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
+		clusterPermissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: sa.GetName(),
 				Rules: []rbacv1.PolicyRule{
@@ -1432,38 +1431,38 @@ var _ = Describe("ClusterServiceVersion", func() {
 		}
 
 		depName := genName("dep-")
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
 				InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
 				// Cheating a little; this is an APIservice that will exist for the e2e tests
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
-					Required: []v1alpha1.APIServiceDescription{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
+					Required: []operatorsv1alpha1.APIServiceDescription{
 						{
 							Group:       "packages.operators.coreos.com",
 							Version:     "v1",
@@ -1566,8 +1565,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSV for the package-server
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: depName,
 					Spec: depSpec,
@@ -1575,9 +1574,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+		owned := make([]operatorsv1alpha1.APIServiceDescription, len(mockKinds))
 		for i, kind := range mockKinds {
-			owned[i] = v1alpha1.APIServiceDescription{
+			owned[i] = operatorsv1alpha1.APIServiceDescription{
 				Name:           apiServiceName,
 				Group:          mockGroup,
 				Version:        version,
@@ -1589,32 +1588,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 		}
 
-		csv := v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					Owned: owned,
 				},
 			},
@@ -1691,14 +1690,14 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(ok).Should(BeTrue(), "expected olm sha annotation not present on existing pod template")
 
 		// Induce a cert rotation
-		Eventually(Apply(fetchedCSV, func(csv *v1alpha1.ClusterServiceVersion) error {
+		Eventually(Apply(fetchedCSV, func(csv *operatorsv1alpha1.ClusterServiceVersion) error {
 			now := metav1.Now()
 			csv.Status.CertsLastUpdated = &now
 			csv.Status.CertsRotateAt = &now
 			return nil
 		})).Should(Succeed())
 
-		_, err = fetchCSV(crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		_, err = fetchCSV(crc, csv.Name, testNamespace, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 			// Should create deployment
 			dep, err = c.GetDeployment(testNamespace, depName)
 			if err != nil {
@@ -1729,7 +1728,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Wait for CSV success
-		fetchedCSV, err = fetchCSV(crc, csv.GetName(), testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		fetchedCSV, err = fetchCSV(crc, csv.GetName(), testNamespace, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 			// Should create an APIService
 			apiService, err := c.GetAPIService(apiServiceName)
 			if err != nil {
@@ -1754,8 +1753,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSVs for the hat-server
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: depName,
 					Spec: depSpec,
@@ -1763,9 +1762,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+		owned := make([]operatorsv1alpha1.APIServiceDescription, len(mockKinds))
 		for i, kind := range mockKinds {
-			owned[i] = v1alpha1.APIServiceDescription{
+			owned[i] = operatorsv1alpha1.APIServiceDescription{
 				Name:           apiServiceName,
 				Group:          mockGroup,
 				Version:        version,
@@ -1777,32 +1776,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 		}
 
-		csv := v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					Owned: owned,
 				},
 			},
@@ -1851,33 +1850,33 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred(), "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
 		// Create a new CSV that owns the same API Service and replace the old CSV
-		csv2 := v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv2 := operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				Replaces:       csv.Name,
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					Owned: owned,
 				},
 			},
@@ -1952,9 +1951,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		defer cleanupCSV()
 
-		fetched, err := fetchCSV(crc, csv.Name, testNamespace, buildCSVReasonChecker(v1alpha1.CSVReasonOwnerConflict))
+		fetched, err := fetchCSV(crc, csv.Name, testNamespace, buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOwnerConflict))
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(fetched.Status.Phase).Should(Equal(v1alpha1.CSVPhaseFailed))
+		Expect(fetched.Status.Phase).Should(Equal(operatorsv1alpha1.CSVPhaseFailed))
 	})
 	It("create same CSV with owned API service multi namespace", func() {
 
@@ -1975,12 +1974,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 		}()
 
 		// Create a new operator group for the new namespace
-		operatorGroup := v1.OperatorGroup{
+		operatorGroup := operatorsv1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("e2e-operator-group-"),
 				Namespace: secondNamespaceName,
 			},
-			Spec: v1.OperatorGroupSpec{
+			Spec: operatorsv1.OperatorGroupSpec{
 				Selector: &metav1.LabelSelector{
 					MatchLabels: matchingLabel,
 				},
@@ -2011,8 +2010,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSVs for the hat-server
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: depName,
 					Spec: depSpec,
@@ -2020,9 +2019,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+		owned := make([]operatorsv1alpha1.APIServiceDescription, len(mockKinds))
 		for i, kind := range mockKinds {
-			owned[i] = v1alpha1.APIServiceDescription{
+			owned[i] = operatorsv1alpha1.APIServiceDescription{
 				Name:           apiServiceName,
 				Group:          mockGroup,
 				Version:        version,
@@ -2034,32 +2033,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 		}
 
-		csv := v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					Owned: owned,
 				},
 			},
@@ -2109,32 +2108,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred(), "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
 		// Create a new CSV that owns the same API Service but in a different namespace
-		csv2 := v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv2 := operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					Owned: owned,
 				},
 			},
@@ -2214,8 +2213,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 	It("CSV annotations overwrite pod template annotations defined in a StrategyDetailsDeployment", func() {
 		// Create a StrategyDetailsDeployment that defines the `foo1` and `foo2` annotations on a pod template
 		nginxName := genName("nginx-")
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(nginxName),
@@ -2228,10 +2227,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 		}
 
 		// Create a CSV that defines the `foo1` and `foo3` annotations
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
@@ -2240,28 +2239,28 @@ var _ = Describe("ClusterServiceVersion", func() {
 					"foo3": "bar3",
 				},
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
 			},
@@ -2290,8 +2289,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 	It("Set labels for the Deployment created via the ClusterServiceVersion", func() {
 		// Create a StrategyDetailsDeployment that defines labels for Deployment inside
 		nginxName := genName("nginx-")
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(nginxName),
@@ -2303,36 +2302,36 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
 			},
@@ -2395,8 +2394,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		// Create "current" CSV
 		nginxName := genName("nginx-")
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(nginxName),
@@ -2408,40 +2407,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 		defer cleanupCRD()
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -2468,8 +2467,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(dep).ShouldNot(BeNil())
 
 		// Create "updated" CSV
-		strategyNew := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					// Same name
 					Name: strategy.DeploymentSpecs[0].Name,
@@ -2481,40 +2480,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 
-		csvNew := v1alpha1.ClusterServiceVersion{
+		csvNew := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				Replaces: csv.Name,
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategyNew,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -2588,8 +2587,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		defer cleanupCRD()
 
 		// create "current" CSV
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -2599,40 +2598,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -2659,8 +2658,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(dep).ShouldNot(BeNil())
 
 		// Create "updated" CSV
-		strategyNew := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep2"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -2670,40 +2669,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 
-		csvNew := v1alpha1.ClusterServiceVersion{
+		csvNew := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv2"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				Replaces: csv.Name,
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategyNew,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -2778,8 +2777,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		defer cleanupCRD()
 
 		// create "current" CSV
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -2789,40 +2788,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -2849,8 +2848,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(dep).ShouldNot(BeNil())
 
 		// Create "updated" CSV
-		strategyNew := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep2"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -2860,40 +2859,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 
-		csvNew := v1alpha1.ClusterServiceVersion{
+		csvNew := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv2"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				Replaces: csv.Name,
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategyNew,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -2967,8 +2966,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		// Create "current" CSV
 		nginxName := genName("nginx-")
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(nginxName),
@@ -2980,40 +2979,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 		defer cleanupCRD()
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -3139,8 +3138,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		defer cleanupCRD()
 
 		// create initial deployment strategy
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep1-"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -3151,40 +3150,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// First CSV with owning CRD v1alpha1
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -3211,8 +3210,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(dep).ShouldNot(BeNil())
 
 		// Create updated deployment strategy
-		strategyNew := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep2-"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -3223,40 +3222,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Second CSV with owning CRD v1alpha1 and v1alpha2
-		csvNew := v1alpha1.ClusterServiceVersion{
+		csvNew := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv2"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				Replaces: csv.Name,
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategyNew,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -3297,8 +3296,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Create updated deployment strategy
-		strategyNew2 := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategyNew2 := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep3-"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -3308,40 +3307,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Third CSV with owning CRD v1alpha2
-		csvNew2 := v1alpha1.ClusterServiceVersion{
+		csvNew2 := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv3"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				Replaces: csvNew.Name,
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategyNew2,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha2",
@@ -3417,8 +3416,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		defer cleanupCRD()
 
 		// create "current" CSV
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -3432,39 +3431,39 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
-				InstallModes: []v1alpha1.InstallMode{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -3494,8 +3493,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(dep2).ShouldNot(BeNil())
 
 		// Create "updated" CSV
-		strategyNew := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep3-"),
 					Spec: newNginxDeployment(genName("nginx3-")),
@@ -3582,8 +3581,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		// Create "current" CSV
 		nginxName := genName("nginx-")
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(nginxName),
@@ -3591,40 +3590,40 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "v1alpha1",
@@ -3651,8 +3650,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(dep).ShouldNot(BeNil())
 
 		// Create "updated" CSV
-		strategyNew := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					// Same name
 					Name: strategy.DeploymentSpecs[0].Name,
@@ -3676,7 +3675,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		}).Should(Succeed())
 
 		// Wait for updated CSV to succeed
-		_, err = fetchCSV(crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		_, err = fetchCSV(crc, csv.Name, testNamespace, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 
 			// Should have updated existing deployment
 			depUpdated, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
@@ -3693,31 +3692,31 @@ var _ = Describe("ClusterServiceVersion", func() {
 	})
 	It("emits CSV requirement events", func() {
 
-		csv := &v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv := &operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
 				InstallStrategy: newNginxInstallStrategy(genName("dep-"), nil, nil),
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					// Require an API that we know won't exist under our domain
-					Required: []v1alpha1.APIServiceDescription{
+					Required: []operatorsv1alpha1.APIServiceDescription{
 						{
 							Group:   "bad.packages.operators.coreos.com",
 							Version: "v1",
@@ -3757,7 +3756,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Eventually(nextReason).Should(Equal("RequirementsNotMet"))
 
 		// Patch the CSV to require an API that we know exists
-		Eventually(ctx.Ctx().SSAClient().Apply(clientCtx, csv, func(c *v1alpha1.ClusterServiceVersion) error {
+		Eventually(ctx.Ctx().SSAClient().Apply(clientCtx, csv, func(c *operatorsv1alpha1.ClusterServiceVersion) error {
 			c.Spec.APIServiceDefinitions.Required[0].Group = "packages.operators.coreos.com"
 			return nil
 		})).Should(Succeed())
@@ -3804,8 +3803,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		defer cleanupCRD()
 
 		// create CSV
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: genName("dep-"),
 					Spec: newNginxDeployment(genName("nginx-")),
@@ -3815,39 +3814,39 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(err).ShouldNot(HaveOccurred())
 
-		csv := v1alpha1.ClusterServiceVersion{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.ClusterServiceVersionKind,
-				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+				Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("csv"),
 			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
-				InstallModes: []v1alpha1.InstallMode{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
+				CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
+					Owned: []operatorsv1alpha1.CRDDescription{
 						{
 							Name:        crdName,
 							Version:     "apiextensions.k8s.io/v1alpha1", // purposely invalid, should be just v1alpha1 to match CRD
@@ -3864,16 +3863,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		defer cleanupCSV()
 
-		notServedStatus := v1alpha1.RequirementStatus{
+		notServedStatus := operatorsv1alpha1.RequirementStatus{
 			Group:   "apiextensions.k8s.io",
 			Version: "v1",
 			Kind:    "CustomResourceDefinition",
 			Name:    crdName,
-			Status:  v1alpha1.RequirementStatusReasonNotPresent,
+			Status:  operatorsv1alpha1.RequirementStatusReasonNotPresent,
 			Message: "CRD version not served",
 		}
-		csvCheckPhaseAndRequirementStatus := func(csv *v1alpha1.ClusterServiceVersion) bool {
-			if csv.Status.Phase == v1alpha1.CSVPhasePending {
+		csvCheckPhaseAndRequirementStatus := func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
+			if csv.Status.Phase == operatorsv1alpha1.CSVPhasePending {
 				for _, status := range csv.Status.RequirementStatus {
 					if status.Message == notServedStatus.Message {
 						return true
@@ -3900,8 +3899,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSVs for the hat-server
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: depName,
 					Spec: depSpec,
@@ -3909,9 +3908,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+		owned := make([]operatorsv1alpha1.APIServiceDescription, len(mockKinds))
 		for i, kind := range mockKinds {
-			owned[i] = v1alpha1.APIServiceDescription{
+			owned[i] = operatorsv1alpha1.APIServiceDescription{
 				Name:           apiServiceName,
 				Group:          mockGroup,
 				Version:        version,
@@ -3923,32 +3922,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 		}
 
-		csv := v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					Owned: owned,
 				},
 			},
@@ -3980,8 +3979,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 		// Create CSVs for the hat-server
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: depName,
 					Spec: depSpec,
@@ -3989,9 +3988,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+		owned := make([]operatorsv1alpha1.APIServiceDescription, len(mockKinds))
 		for i, kind := range mockKinds {
-			owned[i] = v1alpha1.APIServiceDescription{
+			owned[i] = operatorsv1alpha1.APIServiceDescription{
 				Name:           apiServiceName,
 				Group:          mockGroup,
 				Version:        version,
@@ -4003,32 +4002,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 		}
 
-		csv := v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					Owned: owned,
 				},
 			},
@@ -4087,8 +4086,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 		depSpec := newMockExtServerDeployment(depName, mockGroupVersionKinds)
 
 		// Create the CSV.
-		strategy := v1alpha1.StrategyDetailsDeployment{
-			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+		strategy := operatorsv1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 				{
 					Name: depName,
 					Spec: depSpec,
@@ -4097,7 +4096,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		}
 
 		// Update the owned APIServices two include the two APIServices.
-		owned := []v1alpha1.APIServiceDescription{
+		owned := []operatorsv1alpha1.APIServiceDescription{
 			{
 				Name:           apiService1Name,
 				Group:          apiService1Group,
@@ -4120,32 +4119,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			},
 		}
 
-		csv := v1alpha1.ClusterServiceVersion{
-			Spec: v1alpha1.ClusterServiceVersionSpec{
+		csv := operatorsv1alpha1.ClusterServiceVersion{
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 				MinKubeVersion: "0.0.0",
-				InstallModes: []v1alpha1.InstallMode{
+				InstallModes: []operatorsv1alpha1.InstallMode{
 					{
-						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeOwnNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeSingleNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Type:      operatorsv1alpha1.InstallModeTypeMultiNamespace,
 						Supported: true,
 					},
 					{
-						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
 						Supported: true,
 					},
 				},
-				InstallStrategy: v1alpha1.NamedInstallStrategy{
-					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
 					StrategySpec: strategy,
 				},
-				APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 					Owned: owned,
 				},
 			},
@@ -4194,7 +4193,7 @@ func findLastEvent(events *corev1.EventList) (event corev1.Event) {
 	return events.Items[latestInd]
 }
 
-func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
+func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interface, csv operatorsv1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
 	return func() {
 		err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
@@ -4220,9 +4219,9 @@ func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interfa
 	}
 }
 
-func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs, cleanupAPIServices bool) (cleanupFunc, error) {
-	csv.Kind = v1alpha1.ClusterServiceVersionKind
-	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
+func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv operatorsv1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs, cleanupAPIServices bool) (cleanupFunc, error) {
+	csv.Kind = operatorsv1alpha1.ClusterServiceVersionKind
+	csv.APIVersion = operatorsv1alpha1.SchemeGroupVersion.String()
 	Eventually(func() error {
 		_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(context.TODO(), &csv, metav1.CreateOptions{})
 		return err
@@ -4386,10 +4385,10 @@ func newMockExtServerDeployment(labelName string, mGVKs []mockGroupVersionKind) 
 	}
 }
 
-type csvConditionChecker func(csv *v1alpha1.ClusterServiceVersion) bool
+type csvConditionChecker func(csv *operatorsv1alpha1.ClusterServiceVersion) bool
 
-func buildCSVConditionChecker(phases ...v1alpha1.ClusterServiceVersionPhase) csvConditionChecker {
-	return func(csv *v1alpha1.ClusterServiceVersion) bool {
+func buildCSVConditionChecker(phases ...operatorsv1alpha1.ClusterServiceVersionPhase) csvConditionChecker {
+	return func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 		conditionMet := false
 		for _, phase := range phases {
 			conditionMet = conditionMet || csv.Status.Phase == phase
@@ -4398,8 +4397,8 @@ func buildCSVConditionChecker(phases ...v1alpha1.ClusterServiceVersionPhase) csv
 	}
 }
 
-func buildCSVReasonChecker(reasons ...v1alpha1.ConditionReason) csvConditionChecker {
-	return func(csv *v1alpha1.ClusterServiceVersion) bool {
+func buildCSVReasonChecker(reasons ...operatorsv1alpha1.ConditionReason) csvConditionChecker {
+	return func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 		conditionMet := false
 		for _, reason := range reasons {
 			conditionMet = conditionMet || csv.Status.Reason == reason
@@ -4408,15 +4407,15 @@ func buildCSVReasonChecker(reasons ...v1alpha1.ConditionReason) csvConditionChec
 	}
 }
 
-var csvPendingChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending)
-var csvSucceededChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded)
-var csvReplacingChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting)
-var csvFailedChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseFailed)
-var csvAnyChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting, v1alpha1.CSVPhaseFailed)
-var csvCopiedChecker = buildCSVReasonChecker(v1alpha1.CSVReasonCopied)
+var csvPendingChecker = buildCSVConditionChecker(operatorsv1alpha1.CSVPhasePending)
+var csvSucceededChecker = buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded)
+var csvReplacingChecker = buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseReplacing, operatorsv1alpha1.CSVPhaseDeleting)
+var csvFailedChecker = buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseFailed)
+var csvAnyChecker = buildCSVConditionChecker(operatorsv1alpha1.CSVPhasePending, operatorsv1alpha1.CSVPhaseSucceeded, operatorsv1alpha1.CSVPhaseReplacing, operatorsv1alpha1.CSVPhaseDeleting, operatorsv1alpha1.CSVPhaseFailed)
+var csvCopiedChecker = buildCSVReasonChecker(operatorsv1alpha1.CSVReasonCopied)
 
-func fetchCSV(c versioned.Interface, name, namespace string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
-	var fetchedCSV *v1alpha1.ClusterServiceVersion
+func fetchCSV(c versioned.Interface, name, namespace string, checker csvConditionChecker) (*operatorsv1alpha1.ClusterServiceVersion, error) {
+	var fetchedCSV *operatorsv1alpha1.ClusterServiceVersion
 	var err error
 
 	Eventually(func() (bool, error) {
@@ -4434,8 +4433,8 @@ func fetchCSV(c versioned.Interface, name, namespace string, checker csvConditio
 	return fetchedCSV, err
 }
 
-func awaitCSV(c versioned.Interface, namespace, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
-	var fetched *v1alpha1.ClusterServiceVersion
+func awaitCSV(c versioned.Interface, namespace, name string, checker csvConditionChecker) (*operatorsv1alpha1.ClusterServiceVersion, error) {
+	var fetched *operatorsv1alpha1.ClusterServiceVersion
 	var err error
 
 	Eventually(func() (bool, error) {
@@ -4501,7 +4500,7 @@ func csvExists(c versioned.Interface, name string) bool {
 	return true
 }
 
-func deleteLegacyAPIResources(desc v1alpha1.APIServiceDescription) {
+func deleteLegacyAPIResources(desc operatorsv1alpha1.APIServiceDescription) {
 	c := newKubeClient()
 
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
@@ -4525,7 +4524,7 @@ func deleteLegacyAPIResources(desc v1alpha1.APIServiceDescription) {
 	Expect(err).ShouldNot(HaveOccurred())
 }
 
-func createLegacyAPIResources(csv *v1alpha1.ClusterServiceVersion, desc v1alpha1.APIServiceDescription) {
+func createLegacyAPIResources(csv *operatorsv1alpha1.ClusterServiceVersion, desc operatorsv1alpha1.APIServiceDescription) {
 	c := newKubeClient()
 
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
@@ -4612,7 +4611,7 @@ func createLegacyAPIResources(csv *v1alpha1.ClusterServiceVersion, desc v1alpha1
 	Expect(err).ShouldNot(HaveOccurred())
 }
 
-func checkLegacyAPIResources(desc v1alpha1.APIServiceDescription, expectedIsNotFound bool) {
+func checkLegacyAPIResources(desc operatorsv1alpha1.APIServiceDescription, expectedIsNotFound bool) {
 	c := newKubeClient()
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 
