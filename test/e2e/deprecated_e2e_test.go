@@ -30,7 +30,7 @@ var _ = Describe("Not found APIs", func() {
 		// each entry is an installplan with a deprecated resource
 		type payload struct {
 			name       string
-			ip         *operatorsv1alpha1.InstallPlan
+			IP         *operatorsv1alpha1.InstallPlan
 			errMessage string
 		}
 
@@ -38,7 +38,7 @@ var _ = Describe("Not found APIs", func() {
 		tableEntries = []table.TableEntry{
 			table.Entry("contains an entry with a missing API not found on cluster ", payload{
 				name: "installplan contains a missing API",
-				ip: &operatorsv1alpha1.InstallPlan{
+				IP: &operatorsv1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: *namespace, // this is necessary due to ginkgo table semantics, see https://github.com/onsi/ginkgo/issues/378
 						Name:      "test-plan-api",
@@ -48,23 +48,6 @@ var _ = Describe("Not found APIs", func() {
 						Approved:                   true,
 						ClusterServiceVersionNames: []string{},
 					},
-					Status: operatorsv1alpha1.InstallPlanStatus{
-						Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-						CatalogSources: []string{},
-						Plan: []*operatorsv1alpha1.Step{
-							{
-								Resolving: "test-csv",
-								Status:    operatorsv1alpha1.StepStatusUnknown,
-								Resource: operatorsv1alpha1.StepResource{
-									Name:     "my.thing",
-									Group:    "verticalpodautoscalers.autoscaling.k8s.io",
-									Version:  "v1",
-									Kind:     "VerticalPodAutoscaler",
-									Manifest: missingAPI,
-								},
-							},
-						},
-					},
 				},
 				errMessage: "api-server resource not found installing VerticalPodAutoscaler my.thing: GroupVersionKind " +
 					"verticalpodautoscalers.autoscaling.k8s.io/v1, Kind=VerticalPodAutoscaler not found on the cluster",
@@ -72,17 +55,36 @@ var _ = Describe("Not found APIs", func() {
 		}
 
 		table.DescribeTable("the ip enters a failed state with a helpful error message", func(tt payload) {
-			Expect(ctx.Ctx().Client().Create(context.Background(), tt.ip)).To(Succeed())
-			Expect(ctx.Ctx().Client().Status().Update(context.Background(), tt.ip)).To(Succeed())
+			Expect(ctx.Ctx().Client().Create(context.Background(), tt.IP)).To(Succeed())
+
+			tt.IP.Status = operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Resolving: "test-csv",
+						Status:    operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     "my.thing",
+							Group:    "verticalpodautoscalers.autoscaling.k8s.io",
+							Version:  "v1",
+							Kind:     "VerticalPodAutoscaler",
+							Manifest: missingAPI,
+						},
+					},
+				},
+			}
+
+			Expect(ctx.Ctx().Client().Status().Update(context.Background(), tt.IP)).To(Succeed(), "failed to update the resource")
 
 			// The IP sits in the Installing phase with the GVK missing error
 			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
-				return tt.ip, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(tt.ip), tt.ip)
+				return tt.IP, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(tt.IP), tt.IP)
 			}).Should(And(HavePhase(operatorsv1alpha1.InstallPlanPhaseInstalling)), HaveMessage(tt.errMessage))
 
 			// Eventually the IP fails with the GVK missing error, after installplan retries, which is by default 1 minute.
 			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
-				return tt.ip, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(tt.ip), tt.ip)
+				return tt.IP, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(tt.IP), tt.IP)
 			}, 2*time.Minute).Should(And(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed)), HaveMessage(tt.errMessage))
 		}, tableEntries...)
 	})
