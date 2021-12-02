@@ -3,6 +3,7 @@ package resolver
 import (
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/runtime_constraints"
@@ -24,6 +25,23 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
+
+type fakeSourceProvider struct {
+}
+
+func (f *fakeSourceProvider) Sources(namespaces ...string) map[cache.SourceKey]cache.Source {
+	return nil
+}
+
+type fakeCatalogSourceLister struct{}
+
+func (l *fakeCatalogSourceLister) List(selector labels.Selector) (ret []*v1alpha1.CatalogSource, err error) {
+	return nil, nil
+}
+
+func (l *fakeCatalogSourceLister) CatalogSources(namespace string) listersv1alpha1.CatalogSourceNamespaceLister {
+	return nil
+}
 
 func TestSolveOperators(t *testing.T) {
 	APISet := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
@@ -2160,4 +2178,76 @@ func TestNewOperatorFromCSV(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestNewDefaultSatResolver_NoClusterRuntimeConstraints(t *testing.T) {
+	// Ensure no runtime constraints are loaded if the runtime constraints env
+	// var is not set
+	sourceProvider := &fakeSourceProvider{}
+	catSrcLister := &fakeCatalogSourceLister{}
+	logger := logrus.New()
+
+	// Unset the runtime constraints file path environment variable
+	// signaling that no runtime constraints should be considered by the resolver
+	require.Nil(t, os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName))
+	resolver := NewDefaultSatResolver(sourceProvider, catSrcLister, logger)
+	require.Nil(t, resolver.runtimeConstraintsProvider)
+}
+
+func TestNewDefaultSatResolver_BadClusterRuntimeConstraintsEnvVar(t *testing.T) {
+	// Ensure TestNewDefaultSatResolver panics if the runtime constraints
+	// environment variable does not point to an existing file or valid path
+	sourceProvider := &fakeSourceProvider{}
+	catSrcLister := &fakeCatalogSourceLister{}
+	logger := logrus.New()
+	t.Cleanup(func() { _ = os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName) })
+
+	// This test expects a panic to happen
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+
+	// Set the runtime constraints env var to something that isn't a valid filesystem path
+	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, "%#$%#$ %$#%#$%"))
+	_ = NewDefaultSatResolver(sourceProvider, catSrcLister, logger)
+}
+
+func TestNewDefaultSatResolver_BadClusterRuntimeConstraintsFile(t *testing.T) {
+	// Ensure TestNewDefaultSatResolver panics if the runtime constraints
+	// environment variable points to a poorly formatted runtime constraints file
+	sourceProvider := &fakeSourceProvider{}
+	catSrcLister := &fakeCatalogSourceLister{}
+	logger := logrus.New()
+	t.Cleanup(func() { _ = os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName) })
+
+	// This test expects a panic to happen
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+
+	runtimeConstraintsFilePath := "testdata/bad_runtime_constraints.yaml"
+	// set the runtime constraints env var to something that isn't a valid filesystem path
+	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, runtimeConstraintsFilePath))
+	_ = NewDefaultSatResolver(sourceProvider, catSrcLister, logger)
+}
+
+func TestNewDefaultSatResolver_GoodClusterRuntimeConstraintsFile(t *testing.T) {
+	// Ensure TestNewDefaultSatResolver loads the runtime constraints
+	// defined in a well formatted file point to by the runtime constraints env var
+	sourceProvider := &fakeSourceProvider{}
+	catSrcLister := &fakeCatalogSourceLister{}
+	logger := logrus.New()
+	t.Cleanup(func() { _ = os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName) })
+
+	runtimeConstraintsFilePath := "testdata/runtime_constraints.yaml"
+	// set the runtime constraints env var to something that isn't a valid filesystem path
+	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, runtimeConstraintsFilePath))
+	resolver := NewDefaultSatResolver(sourceProvider, catSrcLister, logger)
+	runtimeConstraints := resolver.runtimeConstraintsProvider.Constraints()
+	require.Len(t, runtimeConstraints, 1)
+	require.Equal(t, "with package: etcd", runtimeConstraints[0].String())
 }

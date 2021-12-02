@@ -3,9 +3,7 @@ package resolver
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -41,12 +39,8 @@ type SatResolver struct {
 func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger) *SatResolver {
 	runtimeConstraintProvider, err := runtime_constraints.NewFromEnv()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			logger.Warning("No cluster runtime constraints file found. Proceeding without...")
-		} else {
-			logger.Errorf("Error creating runtime constraints from file: %s", err)
-			panic(err)
-		}
+		logger.Errorf("Error creating runtime constraints from file: %s", err)
+		panic(err)
 	}
 
 	// Two solutions:
