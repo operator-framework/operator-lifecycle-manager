@@ -480,7 +480,7 @@ github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
 # github.com/opencontainers/runc v0.1.1
 github.com/opencontainers/runc/libcontainer/user
-# github.com/openshift/api v0.0.0-20200331152225-585af27e34fd => github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
+# github.com/openshift/api v0.0.0-20200331152225-585af27e34fd => github.com/openshift/api v0.0.0-20211014063134-be2a7fb8aa44
 ## explicit
 github.com/openshift/api/config/v1
 # github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0 => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
@@ -1857,5 +1857,5 @@ sigs.k8s.io/structured-merge-diff/v4/typed
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/openshift/api => github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
+# github.com/openshift/api => github.com/openshift/api v0.0.0-20211014063134-be2a7fb8aa44
 # github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
