@@ -2229,7 +2229,7 @@ func TestNewDefaultSatResolver_BadClusterRuntimeConstraintsFile(t *testing.T) {
 		}
 	}()
 
-	runtimeConstraintsFilePath := "testdata/bad_runtime_constraints.yaml"
+	runtimeConstraintsFilePath := "testdata/bad_runtime_constraints.json"
 	// set the runtime constraints env var to something that isn't a valid filesystem path
 	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, runtimeConstraintsFilePath))
 	_ = NewDefaultSatResolver(sourceProvider, catSrcLister, logger)
@@ -2243,7 +2243,7 @@ func TestNewDefaultSatResolver_GoodClusterRuntimeConstraintsFile(t *testing.T) {
 	logger := logrus.New()
 	t.Cleanup(func() { _ = os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName) })
 
-	runtimeConstraintsFilePath := "testdata/runtime_constraints.yaml"
+	runtimeConstraintsFilePath := "testdata/runtime_constraints.json"
 	// set the runtime constraints env var to something that isn't a valid filesystem path
 	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, runtimeConstraintsFilePath))
 	resolver := NewDefaultSatResolver(sourceProvider, catSrcLister, logger)

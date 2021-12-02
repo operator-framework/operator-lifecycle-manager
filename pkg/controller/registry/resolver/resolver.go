@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	runtimeConstraintsFilePath = "runtime_constraints.yaml"
+	runtimeConstraintsFilePath = "runtime_constraints.json"
 )
 
 type OperatorResolver interface {
