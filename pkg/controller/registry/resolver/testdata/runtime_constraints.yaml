@@ -1,0 +1,11 @@
+{
+  "properties": [
+    {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd",
+        "version": "1.0.0"
+      }
+    }
+  ]
+}
