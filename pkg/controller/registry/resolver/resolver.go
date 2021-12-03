@@ -41,6 +41,8 @@ func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1lister
 	if err != nil {
 		logger.Errorf("Error creating runtime constraints from file: %s", err)
 		panic(err)
+	} else {
+		logger.Info("Cluster runtime constraints are in effect")
 	}
 
 	// Two solutions:

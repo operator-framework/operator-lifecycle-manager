@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -22,16 +23,16 @@ import (
 const (
 	runtimeConstraintsVolumeMountName = "runtime-constraints"
 	runtimeConstraintsConfigMapName   = "runtime-constraints"
-	runtimeConstraintsFileName        = "runtime_constraints.yaml"
+	runtimeConstraintsFileName        = "runtime_constraints.json"
 	defaultOlmNamespace               = "operator-lifecycle-manager"
-	olmOperatorName                   = "olm-operator"
-	olmContainerIndex                 = 0
+	catalogOperatorName               = "catalog-operator"
+	catalogContainerIndex             = 0
 )
 
 var (
 	olmOperatorKey = k8scontrollerclient.ObjectKey{
 		Namespace: defaultOlmNamespace,
-		Name:      olmOperatorName,
+		Name:      catalogOperatorName,
 	}
 )
 
@@ -45,7 +46,7 @@ var _ = By
 // Before each test:
 //  1. Create a new config map in the operator-lifecycle-manager namespace that contains the
 //     runtime constraints
-//  2. Update the deployment to mount the contents of the config map to /constraints/runtime_constraints.yaml
+//  2. Update the deployment to mount the contents of the config map to /constraints/runtime_constraints.json
 //  3. Update the deployment to include the environment variable pointing to the runtime constraints file
 //  4. Wait for the deployment to finish updating
 //
@@ -67,21 +68,29 @@ var _ = Describe("Cluster Runtime Constraints", func() {
 
 	AfterEach(func() {
 		teardownRuntimeConstraints(ctx.Ctx().Client())
+		time.Sleep(1 * time.Minute)
 		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	It("Runtime", func() {
+		time.Sleep(2 * time.Minute)
 		require.Equal(GinkgoT(), true, true)
 	})
 })
 
 func mustDeployRuntimeConstraintsConfigMap(kubeClient k8scontrollerclient.Client) {
 	runtimeConstraints := stripMargin(`
-	    |properties:
-	    |  - type: olm.package
-        |    value:
-        |      packageName: etcd
-        |      version: 1.0.0`)
+		|{
+	    |  "properties": [
+        |    {
+		|      "type": "olm.package",
+        |      "value": {
+        |        "packageName": "",
+        |        "version": "1.0.0"
+        |      }
+        |    }
+        |  ]
+        |}`)
 
 	isImmutable := true
 	configMap := &corev1.ConfigMap{
@@ -122,16 +131,16 @@ func mustUndeployRuntimeConstraintsConfigMap(kubeClient k8scontrollerclient.Clie
 	}).Should(BeTrue())
 }
 
-func mustPatchOlmDeployment(kubeClient k8scontrollerclient.Client) {
-	olmDeployment := &appsv1.Deployment{}
-	err := kubeClient.Get(context.TODO(), olmOperatorKey, olmDeployment)
+func mustPatchCatalogOperatorDeployment(kubeClient k8scontrollerclient.Client) {
+	catalogDeployment := &appsv1.Deployment{}
+	err := kubeClient.Get(context.TODO(), olmOperatorKey, catalogDeployment)
 
 	if err != nil {
 		panic(err)
 	}
 
-	volumes := olmDeployment.Spec.Template.Spec.Volumes
-	olmContainer := olmDeployment.Spec.Template.Spec.Containers[0]
+	volumes := catalogDeployment.Spec.Template.Spec.Volumes
+	olmContainer := catalogDeployment.Spec.Template.Spec.Containers[0]
 
 	newVolume := corev1.Volume{
 		Name: runtimeConstraintsVolumeMountName,
@@ -151,74 +160,75 @@ func mustPatchOlmDeployment(kubeClient k8scontrollerclient.Client) {
 		ReadOnly:  true,
 	}
 
-	olmDeployment.Spec.Template.Spec.Volumes = append(volumes, newVolume)
-	olmDeployment.Spec.Template.Spec.Containers[olmContainerIndex].VolumeMounts = append(olmContainer.VolumeMounts, newVolumeMount)
-	olmDeployment.Spec.Template.Spec.Containers[olmContainerIndex].Env = append(olmContainer.Env, corev1.EnvVar{
+	catalogDeployment.Spec.Template.Spec.Volumes = append(volumes, newVolume)
+	catalogDeployment.Spec.Template.Spec.Containers[catalogContainerIndex].VolumeMounts = append(olmContainer.VolumeMounts, newVolumeMount)
+	catalogDeployment.Spec.Template.Spec.Containers[catalogContainerIndex].Env = append(olmContainer.Env, corev1.EnvVar{
 		Name:  runtime_constraints.RuntimeConstraintEnvVarName,
-		Value: fmt.Sprintf("/%s/%s", mountPath, runtimeConstraintsFileName),
+		Value: fmt.Sprintf("%s/%s", mountPath, runtimeConstraintsFileName),
 	})
 
-	err = kubeClient.Update(context.TODO(), olmDeployment)
+	err = kubeClient.Update(context.TODO(), catalogDeployment)
 
 	if err != nil {
 		panic(err)
 	}
 
-	waitForOLMDeploymentToUpdate(kubeClient)
+	waitForCatalogOperatorDeploymentToUpdate(kubeClient)
 }
 
-func mustUnpatchOlmDeployment(kubeClient k8scontrollerclient.Client) {
-	olmDeployment := &appsv1.Deployment{}
-	err := kubeClient.Get(context.TODO(), olmOperatorKey, olmDeployment)
+func mustUnpatchCatalogOperatorDeployment(kubeClient k8scontrollerclient.Client) {
+	catalogDeployment := &appsv1.Deployment{}
+	err := kubeClient.Get(context.TODO(), olmOperatorKey, catalogDeployment)
 
 	if err != nil {
 		panic(err)
 	}
 
 	// Remove volume
-	volumes := olmDeployment.Spec.Template.Spec.Volumes
+	volumes := catalogDeployment.Spec.Template.Spec.Volumes
 	for index, volume := range volumes {
 		if volume.Name == runtimeConstraintsVolumeMountName {
 			volumes = append(volumes[:index], volumes[index+1:]...)
 			break
 		}
 	}
-	olmDeployment.Spec.Template.Spec.Volumes = volumes
+	catalogDeployment.Spec.Template.Spec.Volumes = volumes
 
 	// Remove volume mount
-	volumeMounts := olmDeployment.Spec.Template.Spec.Containers[olmContainerIndex].VolumeMounts
+	volumeMounts := catalogDeployment.Spec.Template.Spec.Containers[catalogContainerIndex].VolumeMounts
 	for index, volumeMount := range volumeMounts {
 		if volumeMount.Name == runtimeConstraintsVolumeMountName {
 			volumeMounts = append(volumeMounts[:index], volumeMounts[index+1:]...)
 		}
 	}
-	olmDeployment.Spec.Template.Spec.Containers[olmContainerIndex].VolumeMounts = volumeMounts
+	catalogDeployment.Spec.Template.Spec.Containers[catalogContainerIndex].VolumeMounts = volumeMounts
 
 	// Remove environment variable
-	envVars := olmDeployment.Spec.Template.Spec.Containers[olmContainerIndex].Env
+	envVars := catalogDeployment.Spec.Template.Spec.Containers[catalogContainerIndex].Env
 	for index, envVar := range envVars {
 		if envVar.Name == runtime_constraints.RuntimeConstraintEnvVarName {
 			envVars = append(envVars[:index], envVars[index+1:]...)
 		}
 	}
+	catalogDeployment.Spec.Template.Spec.Containers[catalogContainerIndex].Env = envVars
 
-	err = kubeClient.Update(context.TODO(), olmDeployment)
+	err = kubeClient.Update(context.TODO(), catalogDeployment)
 
 	if err != nil {
 		panic(err)
 	}
 
-	waitForOLMDeploymentToUpdate(kubeClient)
+	waitForCatalogOperatorDeploymentToUpdate(kubeClient)
 }
 
 func setupRuntimeConstraints(kubeClient k8scontrollerclient.Client) {
 	mustDeployRuntimeConstraintsConfigMap(kubeClient)
-	mustPatchOlmDeployment(kubeClient)
+	mustPatchCatalogOperatorDeployment(kubeClient)
 }
 
 func teardownRuntimeConstraints(kubeClient k8scontrollerclient.Client) {
+	mustUnpatchCatalogOperatorDeployment(kubeClient)
 	mustUndeployRuntimeConstraintsConfigMap(kubeClient)
-	mustUnpatchOlmDeployment(kubeClient)
 }
 
 func stripMargin(text string) string {
@@ -226,8 +236,8 @@ func stripMargin(text string) string {
 	return strings.TrimSpace(regex.ReplaceAllString(text, ""))
 }
 
-// waitForOLMDeploymentToUpdate waits for the olm operator deployment to be ready after an update
-func waitForOLMDeploymentToUpdate(kubeClient k8scontrollerclient.Client) {
+// waitForCatalogOperatorDeploymentToUpdate waits for the olm operator deployment to be ready after an update
+func waitForCatalogOperatorDeploymentToUpdate(kubeClient k8scontrollerclient.Client) {
 	Eventually(func() error {
 		deployment := &appsv1.Deployment{}
 		err := kubeClient.Get(context.TODO(), olmOperatorKey, deployment)

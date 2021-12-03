@@ -12,7 +12,7 @@ import (
 
 const (
 	maxRuntimeConstraints       = 10
-	RuntimeConstraintEnvVarName = "RUNTIME_CONSTRAINTS_FILE_PATH"
+	RuntimeConstraintEnvVarName = "RUNTIME_CONSTRAINTS"
 )
 
 type RuntimeConstraintsProvider struct {
