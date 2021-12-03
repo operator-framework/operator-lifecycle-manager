@@ -9,24 +9,24 @@ debug: true
 olm:
   replicaCount: 1
   image:
-    ref: quay.io/operator-framework/olm:local
-    pullPolicy: IfNotPresent
+    ref: akihikokuroda/olm:dev
+    pullPolicy: Always
   service:
     internalPort: 8080
 
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/operator-framework/olm:local
-    pullPolicy: IfNotPresent
+    ref: akihikokuroda/olm:dev
+    pullPolicy: Always
   service:
     internalPort: 8080
 
 package:
   replicaCount: 1
   image:
-    ref: quay.io/operator-framework/olm:local
-    pullPolicy: IfNotPresent
+    ref: akihikokuroda/olm:dev
+    pullPolicy: Always
   service:
     internalPort: 5443
   tolerations:

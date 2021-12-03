@@ -2835,6 +2835,20 @@ func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclie
 	}
 
 	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
+
+		if len(volumes) != 0 {
+			Eventually(func() bool {
+				deployment, err := client.KubernetesInterface().AppsV1().Deployments(csv.GetNamespace()).Get(context.Background(), deploymentSpec.Name, metav1.GetOptions{})
+				fmt.Println("Waiting for injection")
+				if err == nil && deployment.Spec.Template.Spec.Volumes != nil {
+					return true
+				} else {
+				fmt.Println("Waiting for injection - err: ", err, " volumes: ", deployment.Spec.Template.Spec.Volumes)
+					return false
+				}
+			}).Should(BeTrue())
+		}
+
 		deployment, err := client.KubernetesInterface().AppsV1().Deployments(csv.GetNamespace()).Get(context.Background(), deploymentSpec.Name, metav1.GetOptions{})
 		require.NoError(t, err)
 		for _, v := range volumes {

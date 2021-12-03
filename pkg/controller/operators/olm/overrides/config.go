@@ -45,8 +45,10 @@ func (o *operatorConfig) GetConfigOverrides(ownerCSV ownerutil.Owner) (envVarOve
 }
 
 func findOwner(list []*v1alpha1.Subscription, ownerCSV ownerutil.Owner) *v1alpha1.Subscription {
+fmt.Println("XXXXX: ownerCSV: ", ownerCSV.GetName())
 	for i := range list {
 		sub := list[i]
+fmt.Println("XXXXX: sub: ", sub.ObjectMeta.Name, ", InstalledCSV: ", sub.Status.InstalledCSV)
 		if sub.Status.InstalledCSV == ownerCSV.GetName() {
 			return sub
 		}

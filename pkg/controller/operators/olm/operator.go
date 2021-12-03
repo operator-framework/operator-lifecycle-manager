@@ -1914,6 +1914,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
 			return
 		}
+time.Sleep(10 * time.Second) 
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonWaiting); installErr != nil {
 			// Re-sync if kube-apiserver was unavailable
 			if k8serrors.IsServiceUnavailable(installErr) {
