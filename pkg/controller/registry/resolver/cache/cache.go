@@ -76,14 +76,13 @@ type OperatorCacheProvider interface {
 }
 
 type Cache struct {
-	logger        logrus.StdLogger
-	sp            SourceProvider
-	catsrcLister  v1alpha1.CatalogSourceLister
-	snapshots     map[SourceKey]*snapshotHeader
-	ttl           time.Duration
-	sem           chan struct{}
-	m             sync.RWMutex
-	globalFilters []Predicate
+	logger       logrus.StdLogger
+	sp           SourceProvider
+	catsrcLister v1alpha1.CatalogSourceLister
+	snapshots    map[SourceKey]*snapshotHeader
+	ttl          time.Duration
+	sem          chan struct{}
+	m            sync.RWMutex
 }
 
 type catalogSourcePriority int
@@ -104,12 +103,6 @@ func WithCatalogSourceLister(catalogSourceLister v1alpha1.CatalogSourceLister) O
 	}
 }
 
-func WithGlobalFilters(globalFilters ...Predicate) Option {
-	return func(c *Cache) {
-		c.globalFilters = globalFilters
-	}
-}
-
 func New(sp SourceProvider, options ...Option) *Cache {
 	const (
 		MaxConcurrentSnapshotUpdates = 4
@@ -121,12 +114,11 @@ func New(sp SourceProvider, options ...Option) *Cache {
 			logger.SetOutput(io.Discard)
 			return logger
 		}(),
-		sp:            sp,
-		catsrcLister:  operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister(),
-		snapshots:     make(map[SourceKey]*snapshotHeader),
-		ttl:           5 * time.Minute,
-		sem:           make(chan struct{}, MaxConcurrentSnapshotUpdates),
-		globalFilters: make([]Predicate, 0),
+		sp:           sp,
+		catsrcLister: operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister(),
+		snapshots:    make(map[SourceKey]*snapshotHeader),
+		ttl:          5 * time.Minute,
+		sem:          make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
 
 	for _, opt := range options {
@@ -137,9 +129,8 @@ func New(sp SourceProvider, options ...Option) *Cache {
 }
 
 type NamespacedOperatorCache struct {
-	existing      *SourceKey
-	snapshots     map[SourceKey]*snapshotHeader
-	globalFilters []Predicate
+	existing  *SourceKey
+	snapshots map[SourceKey]*snapshotHeader
 }
 
 func (c *NamespacedOperatorCache) Error() error {
@@ -174,8 +165,7 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 	sources := c.sp.Sources(namespaces...)
 
 	result := NamespacedOperatorCache{
-		snapshots:     make(map[SourceKey]*snapshotHeader),
-		globalFilters: c.globalFilters,
+		snapshots: make(map[SourceKey]*snapshotHeader),
 	}
 
 	var misses []SourceKey
@@ -275,10 +265,6 @@ func (c *NamespacedOperatorCache) FindPreferred(preferred *SourceKey, preferredN
 	var result []*Entry
 	if preferred != nil && preferred.Empty() {
 		preferred = nil
-	}
-
-	if c.globalFilters != nil {
-		p = append(p, c.globalFilters...)
 	}
 
 	sorted := newSortableSnapshots(c.existing, preferred, preferredNamespace, c.snapshots)

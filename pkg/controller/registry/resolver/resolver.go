@@ -7,8 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/runtime_constraints"
-
 	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -17,13 +15,10 @@ import (
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/runtime_constraints"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
-)
-
-const (
-	runtimeConstraintsFilePath = "runtime_constraints.json"
 )
 
 type OperatorResolver interface {
@@ -45,16 +40,10 @@ func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1lister
 		logger.Info("Cluster runtime constraints are in effect")
 	}
 
-	// Two solutions:
-	// #1: Global cache filters
-	// globalFilters := cache.WithGlobalFilters(runtimeConstraintProvider.Constraints()...)
-
 	return &SatResolver{
-		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister) /*, globalFilters*/),
-		log:   logger,
-		// #2: apply constraints in addInvariants
-		runtimeConstraintsProvider: runtimeConstraintProvider, // uncomment when using option #2
-		// runtimeConstraintsProvider: nil                     // uncomment when using option #1
+		cache:                      cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
+		log:                        logger,
+		runtimeConstraintsProvider: runtimeConstraintProvider,
 	}
 }
 
