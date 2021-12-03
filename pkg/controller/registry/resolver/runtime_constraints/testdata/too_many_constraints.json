@@ -1,0 +1,77 @@
+{
+  "properties": [
+    {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd12",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd11",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd10",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd9",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd8",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd7",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd6",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd5",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd4",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd3",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd2",
+        "version": "1.0.0"
+      }
+    }, {
+      "type": "olm.package",
+      "value": {
+        "packageName": "etcd1",
+        "version": "1.0.0"
+      }
+    }
+  ]
+}

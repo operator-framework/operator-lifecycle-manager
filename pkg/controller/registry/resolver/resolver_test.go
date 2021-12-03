@@ -175,6 +175,8 @@ func TestRuntimeConstraints(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		provider, err := runtime_constraints.New(testCase.runtimeConstraints)
+		require.Nil(t, err)
 		satResolver := SatResolver{
 			cache: cache.New(cache.StaticSourceProvider{
 				catalog: &cache.Snapshot{
@@ -182,7 +184,7 @@ func TestRuntimeConstraints(t *testing.T) {
 				},
 			}),
 			log:                        logrus.New(),
-			runtimeConstraintsProvider: runtime_constraints.New(testCase.runtimeConstraints),
+			runtimeConstraintsProvider: provider,
 		}
 		operators, err := satResolver.SolveOperators([]string{namespace}, testCase.csvs, testCase.subs)
 
@@ -2229,7 +2231,7 @@ func TestNewDefaultSatResolver_BadClusterRuntimeConstraintsFile(t *testing.T) {
 		}
 	}()
 
-	runtimeConstraintsFilePath := "testdata/bad_runtime_constraints.json"
+	runtimeConstraintsFilePath := "runtime_constraints/testdata/bad_runtime_constraints.json"
 	// set the runtime constraints env var to something that isn't a valid filesystem path
 	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, runtimeConstraintsFilePath))
 	_ = NewDefaultSatResolver(sourceProvider, catSrcLister, logger)
@@ -2243,7 +2245,7 @@ func TestNewDefaultSatResolver_GoodClusterRuntimeConstraintsFile(t *testing.T) {
 	logger := logrus.New()
 	t.Cleanup(func() { _ = os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName) })
 
-	runtimeConstraintsFilePath := "testdata/runtime_constraints.json"
+	runtimeConstraintsFilePath := "runtime_constraints/testdata/runtime_constraints.json"
 	// set the runtime constraints env var to something that isn't a valid filesystem path
 	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, runtimeConstraintsFilePath))
 	resolver := NewDefaultSatResolver(sourceProvider, catSrcLister, logger)

@@ -85,7 +85,7 @@ func mustDeployRuntimeConstraintsConfigMap(kubeClient k8scontrollerclient.Client
         |    {
 		|      "type": "olm.package",
         |      "value": {
-        |        "packageName": "",
+        |        "packageName": "etcd",
         |        "version": "1.0.0"
         |      }
         |    }

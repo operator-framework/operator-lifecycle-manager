@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxRuntimeConstraints       = 10
+	MaxRuntimeConstraints       = 10
 	RuntimeConstraintEnvVarName = "RUNTIME_CONSTRAINTS"
 )
 
@@ -23,10 +23,14 @@ func (p *RuntimeConstraintsProvider) Constraints() []cache.Predicate {
 	return p.runtimeConstraints
 }
 
-func New(runtimeConstraints []cache.Predicate) *RuntimeConstraintsProvider {
+func New(runtimeConstraints []cache.Predicate) (*RuntimeConstraintsProvider, error) {
+	if len(runtimeConstraints) >= MaxRuntimeConstraints {
+		return nil, errors.Errorf("Too many runtime constraints defined (%d/%d)", len(runtimeConstraints), MaxRuntimeConstraints)
+	}
+
 	return &RuntimeConstraintsProvider{
 		runtimeConstraints: runtimeConstraints,
-	}
+	}, nil
 }
 
 func NewFromEnv() (*RuntimeConstraintsProvider, error) {
@@ -64,12 +68,9 @@ func NewFromFile(runtimeConstraintsFilePath string) (*RuntimeConstraintsProvider
 			}
 			constraints = append(constraints, cache.LabelPredicate(dep.Label))
 		}
-		if len(constraints) >= maxRuntimeConstraints {
-			return nil, errors.Errorf("Too many runtime constraints defined (%d/%d)", len(constraints), maxRuntimeConstraints)
-		}
 	}
 
-	return New(constraints), nil
+	return New(constraints)
 }
 
 func readRuntimeConstraintsYaml(yamlPath string) (*registry.PropertiesFile, error) {
