@@ -182,7 +182,7 @@ func legacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Prop
 	var result []*api.Property
 	for _, dependency := range dependencies {
 		switch dependency.Type {
-		case "olm.gvk":
+		case opregistry.GVKType:
 			type gvk struct {
 				Group   string `json:"group"`
 				Version string `json:"version"`
@@ -205,7 +205,7 @@ func legacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Prop
 				Type:  "olm.gvk.required",
 				Value: string(vb),
 			})
-		case "olm.package":
+		case opregistry.PackageType:
 			var vfrom struct {
 				PackageName  string `json:"packageName"`
 				VersionRange string `json:"version"`
@@ -228,7 +228,7 @@ func legacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Prop
 				Type:  "olm.package.required",
 				Value: string(vb),
 			})
-		case "olm.label":
+		case opregistry.LabelType:
 			result = append(result, &api.Property{
 				Type:  "olm.label.required",
 				Value: dependency.Value,

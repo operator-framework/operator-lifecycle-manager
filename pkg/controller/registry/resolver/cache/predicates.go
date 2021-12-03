@@ -282,24 +282,6 @@ func (p orPredicate) String() string {
 	return b.String()
 }
 
-type notPredicate struct {
-	predicate Predicate
-}
-
-func Not(predicate Predicate) Predicate {
-	return notPredicate{
-		predicate: predicate,
-	}
-}
-
-func (p notPredicate) Test(o *Entry) bool {
-	return !p.predicate.Test(o)
-}
-
-func (p notPredicate) String() string {
-	return fmt.Sprintf("not %s", p.predicate.String())
-}
-
 type booleanPredicate struct {
 	result bool
 }
