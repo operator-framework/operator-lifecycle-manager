@@ -254,7 +254,7 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1al
 	// compare deployments to see if any need to be created/updated
 	existingMap := map[string]*appsv1.Deployment{}
 	for _, d := range existingDeployments {
-		existingMap[d.GetName()] = d
+		existingMap[d.GetName()] = d.DeepCopy()
 	}
 	for _, spec := range deploymentSpecs {
 		dep, exists := existingMap[spec.Name]
