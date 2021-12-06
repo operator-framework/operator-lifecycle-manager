@@ -383,7 +383,7 @@ func (ep *evaluatorPredicate) Test(entry *Entry) bool {
 	return ok
 }
 
-func EvaluatorPredicate(provider constraints.EvaluatorProvider, rule, message string) (Predicate, error) {
+func EvaluatorPredicate(provider constraints.EvaluatorProvider, rule string, message string) (Predicate, error) {
 	eval, err := provider.Evaluator(rule)
 	if err != nil {
 		return nil, err

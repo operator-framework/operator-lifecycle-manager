@@ -233,6 +233,11 @@ func legacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Prop
 				Type:  "olm.label.required",
 				Value: dependency.Value,
 			})
+		case "olm.constraint":
+			result = append(result, &api.Property{
+				Type:  "olm.constraint",
+				Value: dependency.Value,
+			})
 		}
 	}
 	return result, nil

@@ -43,9 +43,23 @@ type celEvaluatorProvider struct {
 }
 
 type celEvaluator struct {
-	p cel.Program
+	program cel.Program
 }
 
+/*
+This section of code is for custom library for semver comparison in CEL
+The code is inspired by https://github.com/google/cel-go/blob/master/cel/cel_test.go#L46
+
+The semver_compare is wrriten based on `Compare` function in https://github.com/blang/semver
+particularly in https://github.com/blang/semver/blob/master/semver.go#L125
+
+Example:
+`semver_compare(v1, v2)` is equivalent of `v1.Compare(v2)` in blang/semver library
+
+The result is `semver_compare` is an integer just like `Compare`. So, the CEL
+expression `semver_compare(v1, v2) == 0` is equivalent v1.Compare(v2) == 0. In
+the other words, it checks if v1 is equal to v2 in term of semver comparision.
+*/
 type semverLib struct{}
 
 func (semverLib) CompileOptions() []cel.EnvOption {
@@ -69,8 +83,21 @@ func (semverLib) ProgramOptions() []cel.ProgramOption {
 	}
 }
 
+func semverCompare(val1, val2 ref.Val) ref.Val {
+	v1, err := semver.ParseTolerant(fmt.Sprint(val1.Value()))
+	if err != nil {
+		return types.ValOrErr(val1, "unable to parse '%v' to semver format", val1.Value())
+	}
+
+	v2, err := semver.ParseTolerant(fmt.Sprint(val2.Value()))
+	if err != nil {
+		return types.ValOrErr(val2, "unable to parse '%v' to semver format", val2.Value())
+	}
+	return types.Int(v1.Compare(v2))
+}
+
 func (e celEvaluator) Evaluate(env map[string]interface{}) (bool, error) {
-	result, _, err := e.p.Eval(env)
+	result, _, err := e.program.Eval(env)
 	if err != nil {
 		return false, err
 	}
@@ -92,22 +119,9 @@ func (e *celEvaluatorProvider) Evaluator(rule string) (Evaluator, error) {
 		return nil, fmt.Errorf("cel expressions must have type Bool")
 	}
 
-	p, err := e.env.Program(ast)
+	prog, err := e.env.Program(ast)
 	if err != nil {
 		return nil, err
 	}
-	return celEvaluator{p: p}, nil
-}
-
-func semverCompare(val1, val2 ref.Val) ref.Val {
-	v1, err := semver.ParseTolerant(fmt.Sprint(val1.Value()))
-	if err != nil {
-		return types.ValOrErr(val1, "unable to parse '%v' to semver format", val1.Value())
-	}
-
-	v2, err := semver.ParseTolerant(fmt.Sprint(val2.Value()))
-	if err != nil {
-		return types.ValOrErr(val2, "unable to parse '%v' to semver format", val2.Value())
-	}
-	return types.Int(v1.Compare(v2))
+	return celEvaluator{program: prog}, nil
 }
