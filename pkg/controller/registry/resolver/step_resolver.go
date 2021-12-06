@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/runtime_constraints"
+
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -48,6 +50,21 @@ var _ StepResolver = &OperatorStepResolver{}
 
 func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface,
 	globalCatalogNamespace string, provider RegistryClientProvider, log logrus.FieldLogger) *OperatorStepResolver {
+
+	runtimeConstraintProvider, err := runtime_constraints.NewFromEnv()
+	if err != nil {
+		log.Errorf("Error creating runtime constraints from file: %s", err)
+		panic(err)
+	} else {
+		log.Info("Cluster runtime constraints are in effect")
+	}
+
+	satResolver := NewDefaultSatResolver(
+		SourceProviderFromRegistryClientProvider(provider, log),
+		lister.OperatorsV1alpha1().CatalogSourceLister(),
+		log,
+		WithRuntimeConstraintsProvider(runtimeConstraintProvider))
+
 	return &OperatorStepResolver{
 		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
@@ -55,7 +72,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(SourceProviderFromRegistryClientProvider(provider, log), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
+		satResolver:            satResolver,
 		log:                    log,
 	}
 }

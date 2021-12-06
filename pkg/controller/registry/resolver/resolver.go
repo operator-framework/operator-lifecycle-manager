@@ -31,20 +31,28 @@ type SatResolver struct {
 	runtimeConstraintsProvider *runtime_constraints.RuntimeConstraintsProvider
 }
 
-func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger) *SatResolver {
-	runtimeConstraintProvider, err := runtime_constraints.NewFromEnv()
-	if err != nil {
-		logger.Errorf("Error creating runtime constraints from file: %s", err)
-		panic(err)
-	} else {
-		logger.Info("Cluster runtime constraints are in effect")
+type SatSolverOption func(resolver *SatResolver)
+
+func WithRuntimeConstraintsProvider(provider *runtime_constraints.RuntimeConstraintsProvider) SatSolverOption {
+	return func(satSolver *SatResolver) {
+		if satSolver != nil {
+			satSolver.runtimeConstraintsProvider = provider
+		}
+	}
+}
+
+func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger, opts ...SatSolverOption) *SatResolver {
+	satSolver := &SatResolver{
+		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
+		log:   logger,
 	}
 
-	return &SatResolver{
-		cache:                      cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
-		log:                        logger,
-		runtimeConstraintsProvider: runtimeConstraintProvider,
+	// apply options
+	for _, opt := range opts {
+		opt(satSolver)
 	}
+
+	return satSolver
 }
 
 type debugWriter struct {

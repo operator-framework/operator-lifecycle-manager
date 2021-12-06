@@ -2,9 +2,12 @@ package resolver
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/runtime_constraints"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -46,6 +49,74 @@ var (
 	Provides4 = APISet4
 	Requires4 = APISet4
 )
+
+func TestNewOperatorStepResolver_NoClusterRuntimeConstraints(t *testing.T) {
+	// Ensure no runtime constraints are loaded if the runtime constraints env
+	// var is not set
+	logger := logrus.New()
+	lister := operatorlister.NewLister()
+
+	// Unset the runtime constraints file path environment variable
+	// signaling that no runtime constraints should be considered by the resolver
+	require.Nil(t, os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName))
+	resolver := NewOperatorStepResolver(lister, nil, nil, "", nil, logger)
+	require.Nil(t, resolver.satResolver.runtimeConstraintsProvider)
+}
+
+func TestNewOperatorStepResolver_BadClusterRuntimeConstraintsEnvVar(t *testing.T) {
+	// Ensure TestNewDefaultSatResolver panics if the runtime constraints
+	// environment variable does not point to an existing file or valid path
+	lister := operatorlister.NewLister()
+	logger := logrus.New()
+	t.Cleanup(func() { _ = os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName) })
+
+	// This test expects a panic to happen
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+
+	// Set the runtime constraints env var to something that isn't a valid filesystem path
+	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, "%#$%#$ %$#%#$%"))
+	_ = NewOperatorStepResolver(lister, nil, nil, "", nil, logger)
+}
+
+func TestNewOperatorStepResolver_BadClusterRuntimeConstraintsFile(t *testing.T) {
+	// Ensure TestNewDefaultSatResolver panics if the runtime constraints
+	// environment variable points to a poorly formatted runtime constraints file
+	lister := operatorlister.NewLister()
+	logger := logrus.New()
+	t.Cleanup(func() { _ = os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName) })
+
+	// This test expects a panic to happen
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+
+	runtimeConstraintsFilePath := "runtime_constraints/testdata/bad_runtime_constraints.json"
+	// set the runtime constraints env var to something that isn't a valid filesystem path
+	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, runtimeConstraintsFilePath))
+	_ = NewOperatorStepResolver(lister, nil, nil, "", nil, logger)
+}
+
+func TestNewOperatorStepResolver_GoodClusterRuntimeConstraintsFile(t *testing.T) {
+	// Ensure TestNewDefaultSatResolver loads the runtime constraints
+	// defined in a well formatted file point to by the runtime constraints env var
+	lister := operatorlister.NewLister()
+	logger := logrus.New()
+	t.Cleanup(func() { _ = os.Unsetenv(runtime_constraints.RuntimeConstraintEnvVarName) })
+
+	runtimeConstraintsFilePath := "runtime_constraints/testdata/runtime_constraints.json"
+	// set the runtime constraints env var to something that isn't a valid filesystem path
+	require.Nil(t, os.Setenv(runtime_constraints.RuntimeConstraintEnvVarName, runtimeConstraintsFilePath))
+	resolver := NewOperatorStepResolver(lister, nil, nil, "", nil, logger)
+	runtimeConstraints := resolver.satResolver.runtimeConstraintsProvider.Constraints()
+	require.Len(t, runtimeConstraints, 1)
+	require.Equal(t, "with package: etcd", runtimeConstraints[0].String())
+}
 
 func TestResolver(t *testing.T) {
 	const namespace = "catsrc-namespace"
