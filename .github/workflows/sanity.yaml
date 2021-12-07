@@ -4,8 +4,6 @@ on:
     branches:
       - '**'
   pull_request:
-    paths-ignore:
-    - '**/*.md'
 jobs:
   sanity:
     runs-on: ubuntu-latest
