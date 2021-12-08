@@ -18,6 +18,8 @@ limitations under the License.
 
 package v1
 
+type OLMConfigExpansion interface{}
+
 type OperatorExpansion interface{}
 
 type OperatorConditionExpansion interface{}

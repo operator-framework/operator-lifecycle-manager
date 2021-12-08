@@ -18,9 +18,13 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -29,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -4169,6 +4175,210 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		Expect(apiService2.Spec.CABundle).Should(Equal(apiService1.Spec.CABundle))
 	})
+
+	It("Disabling copied csvs", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("csv-toggle-test-"),
+			},
+		}
+
+		// Create a new operator group for the new namespace
+		operatorGroup := v1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("csv-toggle-test-"),
+				Namespace: ns.GetName(),
+			},
+		}
+
+		csv := v1alpha1.ClusterServiceVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("csv-toggle-test-"),
+				Namespace: ns.GetName(),
+			},
+			Spec: v1alpha1.ClusterServiceVersionSpec{
+				InstallStrategy: newNginxInstallStrategy(genName("csv-toggle-test-"), nil, nil),
+				InstallModes: []v1alpha1.InstallMode{
+					{
+						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					},
+				},
+			},
+		}
+		Context("When an operator is installed in all namespace mode", func() {
+			Eventually(func() error {
+				if err := ctx.Ctx().Client().Create(context.TODO(), ns); err != nil && !k8serrors.IsAlreadyExists(err) {
+					ctx.Ctx().Logf("Unable to create ns: %v", err)
+					return err
+				}
+
+				if err := ctx.Ctx().Client().Create(context.TODO(), &operatorGroup); err != nil && !k8serrors.IsAlreadyExists(err) {
+					ctx.Ctx().Logf("Unable to create og: %v", err)
+					return err
+				}
+
+				if err := ctx.Ctx().Client().Create(context.TODO(), &csv); err != nil && !k8serrors.IsAlreadyExists(err) {
+					ctx.Ctx().Logf("Unable to create csv: %v", err)
+					return err
+				}
+
+				return nil
+			}).Should(Succeed())
+		})
+
+		Context("Copied CSVs should be generated in all other namespaces", func() {
+			Eventually(func() error {
+				requirement, err := labels.NewRequirement(v1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
+				if err != nil {
+					return err
+				}
+
+				var copiedCSVs v1alpha1.ClusterServiceVersionList
+				err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
+					LabelSelector: labels.NewSelector().Add(*requirement),
+				})
+				if err != nil {
+					return err
+				}
+
+				var namespaces corev1.NamespaceList
+				if err := ctx.Ctx().Client().List(context.TODO(), &namespaces, &client.ListOptions{}); err != nil {
+					return err
+				}
+
+				if len(namespaces.Items) != len(copiedCSVs.Items)+1 {
+					return fmt.Errorf("CSVs are not copied to every namespace %v vs %v", len(namespaces.Items), (copiedCSVs.Items))
+				}
+
+				return nil
+			}).Should(Succeed())
+		})
+
+		When("Copied CSVs are disabled", func() {
+			Eventually(func() error {
+				var olmConfig v1.OLMConfig
+				if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
+					ctx.Ctx().Logf("Error getting olmConfig %v", err)
+					return err
+				}
+
+				olmConfig.Spec = v1.OLMConfigSpec{
+					Features: &v1.Features{
+						DisableCopiedCSVs: getPointer(true),
+					},
+				}
+
+				if err := ctx.Ctx().Client().Update(context.TODO(), &olmConfig); err != nil {
+					ctx.Ctx().Logf("Error setting olmConfig %v", err)
+					return err
+				}
+
+				return nil
+			}).Should(Succeed())
+		})
+		Context("OLM should delete existing copied csvs", func() {
+			Eventually(func() error {
+				requirement, err := labels.NewRequirement(v1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
+				if err != nil {
+					return err
+				}
+
+				var copiedCSVs v1alpha1.ClusterServiceVersionList
+				err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
+					LabelSelector: labels.NewSelector().Add(*requirement),
+				})
+				if err != nil {
+					return err
+				}
+
+				if len(copiedCSVs.Items) != 0 {
+					return fmt.Errorf("Number of copied csvs should be 0")
+				}
+				return nil
+			}).Should(Succeed())
+		})
+
+		Context("Should updated the olmConfig status to reflect that the cluster is in the expected state", func() {
+			Eventually(func() error {
+				var olmConfig v1.OLMConfig
+				if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
+					return err
+				}
+
+				if !meta.IsStatusConditionPresentAndEqual(olmConfig.Status.Conditions, "ready", metav1.ConditionTrue) {
+					return fmt.Errorf("Copied CSVs not ready not ready")
+				}
+
+				return nil
+			}).Should(Succeed())
+		})
+		When("Copied CSVs are toggled back on", func() {
+			Eventually(func() error {
+
+				var olmConfig v1.OLMConfig
+				if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
+					return err
+				}
+
+				olmConfig.Spec = v1.OLMConfigSpec{
+					Features: &v1.Features{
+						DisableCopiedCSVs: getPointer(false),
+					},
+				}
+
+				if err := ctx.Ctx().Client().Update(context.TODO(), &olmConfig); err != nil {
+					return err
+				}
+
+				return nil
+			}).Should(Succeed())
+		})
+
+		Context("OLM should recreate existing copied csvs", func() {
+			Eventually(func() error {
+				// find copied csvs...
+				requirement, err := labels.NewRequirement(v1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
+				if err != nil {
+					return err
+				}
+
+				var copiedCSVs v1alpha1.ClusterServiceVersionList
+				err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
+					LabelSelector: labels.NewSelector().Add(*requirement),
+				})
+				if err != nil {
+					return err
+				}
+
+				var namespaces corev1.NamespaceList
+				if err := ctx.Ctx().Client().List(context.TODO(), &namespaces, &client.ListOptions{}); err != nil {
+					return err
+				}
+
+				if len(namespaces.Items) != len(copiedCSVs.Items)+1 {
+					return fmt.Errorf("CSVs are not copied to every namespace")
+				}
+
+				return nil
+			}).Should(Succeed())
+		})
+
+		Context("Should updated the olmConfig status to reflect that the cluster is in the expected state", func() {
+			Eventually(func() error {
+				var olmConfig v1.OLMConfig
+				if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
+					return err
+				}
+
+				if !meta.IsStatusConditionPresentAndEqual(olmConfig.Status.Conditions, "ready", metav1.ConditionTrue) {
+					return fmt.Errorf("Copied CSVs not ready not ready")
+				}
+
+				return nil
+			}).Should(Succeed())
+		})
+	})
 })
 
 var singleInstance = int32(1)
@@ -4217,6 +4427,10 @@ func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interfa
 		Expect(err).ShouldNot(HaveOccurred())
 
 	}
+}
+
+func getPointer(b bool) *bool {
+	return &b
 }
 
 func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv operatorsv1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs, cleanupAPIServices bool) (cleanupFunc, error) {

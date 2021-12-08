@@ -42,6 +42,10 @@ var OperatorGroupValidator = internal.OperatorGroupValidator
 // for the Community Operator requirements.
 var CommunityOperatorValidator = internal.CommunityOperatorValidator
 
+// AlphaDeprecatedAPIsValidator implements Validator to validate bundle objects
+// for API deprecation requirements.
+var AlphaDeprecatedAPIsValidator = internal.AlphaDeprecatedAPIsValidator
+
 // AllValidators implements Validator to validate all Operator manifest types.
 var AllValidators = interfaces.Validators{
 	PackageManifestValidator,
@@ -52,6 +56,7 @@ var AllValidators = interfaces.Validators{
 	ObjectValidator,
 	OperatorGroupValidator,
 	CommunityOperatorValidator,
+	AlphaDeprecatedAPIsValidator,
 }
 
 var DefaultBundleValidators = interfaces.Validators{

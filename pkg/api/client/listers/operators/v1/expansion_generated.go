@@ -18,6 +18,10 @@ limitations under the License.
 
 package v1
 
+// OLMConfigListerExpansion allows custom methods to be added to
+// OLMConfigLister.
+type OLMConfigListerExpansion interface{}
+
 // OperatorListerExpansion allows custom methods to be added to
 // OperatorLister.
 type OperatorListerExpansion interface{}
