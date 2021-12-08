@@ -1,6 +1,7 @@
 package ctx
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -138,6 +139,30 @@ func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
 	}
 
 	return nil
+}
+
+func (ctx TestContext) DescribeResource(command string) error {
+	ctx.Logf("Running command %s", command)
+	stdout, stderr, err := ctx.ExecCommand(command)
+	if err != nil {
+		return fmt.Errorf("failed to run command: %s", strings.TrimSpace(stderr+err.Error()))
+	}
+	ctx.Logf("%s", strings.TrimSpace(stdout))
+	return nil
+}
+
+func (ctx TestContext) ExecCommand(command string) (string, string, error) {
+	var (
+		stdoutBuf bytes.Buffer
+		stderrBuf bytes.Buffer
+	)
+	cmd := exec.Command("bash", "-c", command)
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	cmd.Env = []string{"KUBECONFIG=" + ctx.kubeconfigPath}
+
+	err := cmd.Run()
+	return stdoutBuf.String(), stderrBuf.String(), err
 }
 
 func setDerivedFields(ctx *TestContext) error {
