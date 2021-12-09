@@ -21,7 +21,6 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/constraints"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
@@ -2483,8 +2482,8 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 				cache: cache.New(cache.StaticSourceProvider{
 					catalog: tt.catalog,
 				}),
-				log:               logrus.New(),
-				evaluatorProvider: constraints.NewCelEvaluatorProvider(),
+				log:    logrus.New(),
+				celEnv: constraints.NewCelEnvironment(),
 			}
 
 			operators, err = satResolver.SolveOperators([]string{namespace}, nil, tt.subs)

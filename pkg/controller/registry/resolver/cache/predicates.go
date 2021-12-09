@@ -7,7 +7,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/constraints"
+	"github.com/operator-framework/api/pkg/constraints"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
@@ -357,13 +357,13 @@ func CountingPredicate(p Predicate, n *int) Predicate {
 	return countingPredicate{p: p, n: n}
 }
 
-type evaluatorPredicate struct {
-	evaluator constraints.Evaluator
-	rule      string
-	message   string
+type celPredicate struct {
+	program constraints.CelProgram
+	rule    string
+	message string
 }
 
-func (ep *evaluatorPredicate) Test(entry *Entry) bool {
+func (cp *celPredicate) Test(entry *Entry) bool {
 	props := make([]map[string]interface{}, len(entry.Properties))
 	for i, p := range entry.Properties {
 		var v interface{}
@@ -376,21 +376,21 @@ func (ep *evaluatorPredicate) Test(entry *Entry) bool {
 		}
 	}
 
-	ok, err := ep.evaluator.Evaluate(map[string]interface{}{"properties": props})
+	ok, err := cp.program.Evaluate(map[string]interface{}{"properties": props})
 	if err != nil {
 		return false
 	}
 	return ok
 }
 
-func EvaluatorPredicate(provider constraints.EvaluatorProvider, rule string, message string) (Predicate, error) {
-	eval, err := provider.Evaluator(rule)
+func CreateCelPredicate(env *constraints.CelEnvironment, rule string, message string) (Predicate, error) {
+	prog, err := env.Validate(rule)
 	if err != nil {
 		return nil, err
 	}
-	return &evaluatorPredicate{evaluator: eval, rule: rule, message: message}, nil
+	return &celPredicate{program: prog, rule: rule, message: message}, nil
 }
 
-func (ep *evaluatorPredicate) String() string {
-	return fmt.Sprintf("with constraint: %q and message: %q", ep.rule, ep.message)
+func (cp *celPredicate) String() string {
+	return fmt.Sprintf("with constraint: %q and message: %q", cp.rule, cp.message)
 }
