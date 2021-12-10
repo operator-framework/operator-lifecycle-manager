@@ -120,24 +120,24 @@ var _ = Describe("Install Plan", func() {
 					Approved:                   true,
 					ClusterServiceVersionNames: []string{},
 				},
-				Status: operatorsv1alpha1.InstallPlanStatus{
-					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{},
-					Plan: []*operatorsv1alpha1.Step{
-						{
-							Resolving: "test-csv",
-							Status:    operatorsv1alpha1.StepStatusUnknown,
-							Resource: operatorsv1alpha1.StepResource{
-								Name:     pdb.GetName(),
-								Version:  pdb.APIVersion,
-								Kind:     pdb.Kind,
-								Manifest: manifest,
-							},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
+			plan.Status = operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Resolving: "test-csv",
+						Status:    operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     pdb.GetName(),
+							Version:  pdb.APIVersion,
+							Kind:     pdb.Kind,
+							Manifest: manifest,
 						},
 					},
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), &plan)).To(Succeed())
 			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 				return &plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&plan), &plan)
@@ -248,24 +248,24 @@ var _ = Describe("Install Plan", func() {
 					Approved:                   true,
 					ClusterServiceVersionNames: []string{},
 				},
-				Status: operatorsv1alpha1.InstallPlanStatus{
-					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{},
-					Plan: []*operatorsv1alpha1.Step{
-						{
-							Resolving: "test-csv",
-							Status:    operatorsv1alpha1.StepStatusUnknown,
-							Resource: operatorsv1alpha1.StepResource{
-								Name:     crd.GetName(),
-								Version:  apiextensionsv1.SchemeGroupVersion.String(),
-								Kind:     "CustomResourceDefinition",
-								Manifest: manifest,
-							},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
+			plan.Status = operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Resolving: "test-csv",
+						Status:    operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     crd.GetName(),
+							Version:  apiextensionsv1.SchemeGroupVersion.String(),
+							Kind:     "CustomResourceDefinition",
+							Manifest: manifest,
 						},
 					},
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), &plan)).To(Succeed())
 			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 				return &plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&plan), &plan)
@@ -305,24 +305,24 @@ var _ = Describe("Install Plan", func() {
 						Approved:                   true,
 						ClusterServiceVersionNames: []string{},
 					},
-					Status: operatorsv1alpha1.InstallPlanStatus{
-						Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-						CatalogSources: []string{},
-						Plan: []*operatorsv1alpha1.Step{
-							{
-								Resolving: "test-csv-two",
-								Status:    operatorsv1alpha1.StepStatusUnknown,
-								Resource: operatorsv1alpha1.StepResource{
-									Name:     crd.GetName(),
-									Version:  apiextensionsv1.SchemeGroupVersion.String(),
-									Kind:     "CustomResourceDefinition",
-									Manifest: manifest,
-								},
+				}
+				Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
+				plan.Status = operatorsv1alpha1.InstallPlanStatus{
+					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+					CatalogSources: []string{},
+					Plan: []*operatorsv1alpha1.Step{
+						{
+							Resolving: "test-csv-two",
+							Status:    operatorsv1alpha1.StepStatusUnknown,
+							Resource: operatorsv1alpha1.StepResource{
+								Name:     crd.GetName(),
+								Version:  apiextensionsv1.SchemeGroupVersion.String(),
+								Kind:     "CustomResourceDefinition",
+								Manifest: manifest,
 							},
 						},
 					},
 				}
-				Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
 				Expect(ctx.Ctx().Client().Status().Update(context.Background(), &plan)).To(Succeed())
 				Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 					return &plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&plan), &plan)
@@ -393,23 +393,23 @@ var _ = Describe("Install Plan", func() {
 					Approved:                   true,
 					ClusterServiceVersionNames: []string{},
 				},
-				Status: operatorsv1alpha1.InstallPlanStatus{
-					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{},
-					Plan: []*operatorsv1alpha1.Step{
-						{
-							Status: operatorsv1alpha1.StepStatusUnknown,
-							Resource: operatorsv1alpha1.StepResource{
-								Name:     owned.GetName(),
-								Version:  "v1",
-								Kind:     "ConfigMap",
-								Manifest: manifest.String(),
-							},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+			plan.Status = operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Status: operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     owned.GetName(),
+							Version:  "v1",
+							Kind:     "ConfigMap",
+							Manifest: manifest.String(),
 						},
 					},
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 		})
 
@@ -494,23 +494,23 @@ var _ = Describe("Install Plan", func() {
 					Approved:                   true,
 					ClusterServiceVersionNames: []string{},
 				},
-				Status: operatorsv1alpha1.InstallPlanStatus{
-					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{},
-					Plan: []*operatorsv1alpha1.Step{
-						{
-							Status: operatorsv1alpha1.StepStatusUnknown,
-							Resource: operatorsv1alpha1.StepResource{
-								Name:     sa.GetName(),
-								Version:  "v1",
-								Kind:     "ServiceAccount",
-								Manifest: manifest.String(),
-							},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
+			plan.Status = operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Status: operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     sa.GetName(),
+							Version:  "v1",
+							Kind:     "ServiceAccount",
+							Manifest: manifest.String(),
 						},
 					},
 				},
 			}
-			Expect(ctx.Ctx().Client().Create(context.Background(), &plan)).To(Succeed())
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), &plan)).To(Succeed())
 		})
 
@@ -592,24 +592,24 @@ var _ = Describe("Install Plan", func() {
 					Approved:                   true,
 					ClusterServiceVersionNames: []string{},
 				},
-				Status: operatorsv1alpha1.InstallPlanStatus{
-					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{},
-					Plan: []*operatorsv1alpha1.Step{
-						{
-							Status: operatorsv1alpha1.StepStatusUnknown,
-							Resource: operatorsv1alpha1.StepResource{
-								Name:     service.Name,
-								Version:  "v1",
-								Kind:     "Service",
-								Manifest: manifest.String(),
-							},
+			}
+
+			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+			plan.Status = operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				Plan: []*operatorsv1alpha1.Step{
+					{
+						Status: operatorsv1alpha1.StepStatusUnknown,
+						Resource: operatorsv1alpha1.StepResource{
+							Name:     service.Name,
+							Version:  "v1",
+							Kind:     "Service",
+							Manifest: manifest.String(),
 						},
 					},
 				},
 			}
-
-			Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
 			Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
 			key := client.ObjectKeyFromObject(plan)
@@ -3306,7 +3306,6 @@ var _ = Describe("Install Plan", func() {
 				interval,
 			).Should(ContainElement(ns.GetName()))
 
-			now := metav1.Now()
 			ip = &operatorsv1alpha1.InstallPlan{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ip",
@@ -3316,28 +3315,6 @@ var _ = Describe("Install Plan", func() {
 					ClusterServiceVersionNames: []string{"foobar"},
 					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
 					Approved:                   true,
-				},
-				Status: operatorsv1alpha1.InstallPlanStatus{
-					Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-					CatalogSources: []string{},
-					BundleLookups: []operatorsv1alpha1.BundleLookup{
-						{
-							Identifier: "foobar.v0.0.1",
-							CatalogSourceRef: &corev1.ObjectReference{
-								Namespace: ns.GetName(),
-								Name:      catsrcName,
-							},
-							Conditions: []operatorsv1alpha1.BundleLookupCondition{
-								{
-									Type:               operatorsv1alpha1.BundleLookupPending,
-									Status:             corev1.ConditionTrue,
-									Reason:             "JobIncomplete",
-									Message:            "unpack job not completed",
-									LastTransitionTime: &now,
-								},
-							},
-						},
-					},
 				},
 			}
 		})
@@ -3349,20 +3326,42 @@ var _ = Describe("Install Plan", func() {
 		})
 
 		It("should show an error on the bundlelookup condition for a non-existent bundle image", func() {
-			// Create an InstallPlan status.bundleLookups.Path specified for a non-existent bundle image
-			ip.Status.BundleLookups[0].Path = "localhost:0/not/exist:v0.0.1"
-
 			// We wait for some time over the bundle unpack timeout (i.e ActiveDeadlineSeconds) so that the Job can eventually fail
 			// Since the default --bundle-unpack-timeout=10m, we override with a shorter timeout via the
 			// unpack timeout annotation on the InstallPlan
 			annotations := make(map[string]string)
 			annotations[bundle.BundleUnpackTimeoutAnnotationKey] = "1m"
 			ip.SetAnnotations(annotations)
-			waitFor := 1*time.Minute + 30*time.Second
 
 			Eventually(func() error {
 				return ctx.Ctx().Client().Create(context.Background(), ip)
 			}, timeout, interval).Should(Succeed(), "could not create InstallPlan")
+
+			now := metav1.Now()
+			// Create an InstallPlan status.bundleLookups.Path specified for a non-existent bundle image
+			ip.Status = operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				BundleLookups: []operatorsv1alpha1.BundleLookup{
+					{
+						Path:       "localhost:0/not/exist:v0.0.1",
+						Identifier: "foobar.v0.0.1",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: ns.GetName(),
+							Name:      catsrcName,
+						},
+						Conditions: []operatorsv1alpha1.BundleLookupCondition{
+							{
+								Type:               operatorsv1alpha1.BundleLookupPending,
+								Status:             corev1.ConditionTrue,
+								Reason:             "JobIncomplete",
+								Message:            "unpack job not completed",
+								LastTransitionTime: &now,
+							},
+						},
+					},
+				},
+			}
 
 			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 			// InstallPlans without any steps or bundle lookups
@@ -3393,6 +3392,7 @@ var _ = Describe("Install Plan", func() {
 				interval,
 			).Should(ContainSubstring("ErrImagePull"))
 
+			waitFor := 1*time.Minute + 30*time.Second
 			// The InstallPlan should eventually fail due to the ActiveDeadlineSeconds limit
 			Eventually(
 				func() (*operatorsv1alpha1.InstallPlan, error) {
@@ -3405,15 +3405,38 @@ var _ = Describe("Install Plan", func() {
 		})
 
 		It("should timeout and fail the InstallPlan for an invalid bundle image", func() {
-			// Create an InstallPlan status.bundleLookups.Path specified for an invalid bundle image
-			ip.Status.BundleLookups[0].Path = "alpine:3.13"
-
 			Eventually(func() error {
 				return ctx.Ctx().Client().Create(context.Background(), ip)
 			}, timeout, interval).Should(Succeed(), "could not create InstallPlan")
 
 			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
 			// InstallPlans without any steps or bundle lookups
+			// Create an InstallPlan status.bundleLookups.Path specified for an invalid bundle image
+			now := metav1.Now()
+			ip.Status = operatorsv1alpha1.InstallPlanStatus{
+				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+				CatalogSources: []string{},
+				BundleLookups: []operatorsv1alpha1.BundleLookup{
+					{
+						Path:       "alpine:3.13",
+						Identifier: "foobar.v0.0.1",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: ns.GetName(),
+							Name:      catsrcName,
+						},
+						Conditions: []operatorsv1alpha1.BundleLookupCondition{
+							{
+								Type:               operatorsv1alpha1.BundleLookupPending,
+								Status:             corev1.ConditionTrue,
+								Reason:             "JobIncomplete",
+								Message:            "unpack job not completed",
+								LastTransitionTime: &now,
+							},
+						},
+					},
+				},
+			}
+
 			Eventually(func() error {
 				return ctx.Ctx().Client().Status().Update(context.Background(), ip)
 			}, timeout, interval).Should(Succeed(), "could not update InstallPlan status")
@@ -3649,29 +3672,29 @@ var _ = Describe("Install Plan", func() {
 				Approved:                   true,
 				ClusterServiceVersionNames: []string{},
 			},
-			Status: operatorsv1alpha1.InstallPlanStatus{
-				AttenuatedServiceAccountRef: &corev1.ObjectReference{
-					Name:      sa.GetName(),
-					Namespace: sa.GetNamespace(),
-					Kind:      "ServiceAccount",
-				},
-				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-				CatalogSources: []string{},
-				Plan: []*operatorsv1alpha1.Step{
-					{
-						Status: operatorsv1alpha1.StepStatusUnknown,
-						Resource: operatorsv1alpha1.StepResource{
-							Name:     crd.GetName(),
-							Version:  "v1",
-							Kind:     "CustomResourceDefinition",
-							Manifest: crdManifest.String(),
-						},
+		}
+
+		Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+		plan.Status = operatorsv1alpha1.InstallPlanStatus{
+			AttenuatedServiceAccountRef: &corev1.ObjectReference{
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+				Kind:      "ServiceAccount",
+			},
+			Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+			CatalogSources: []string{},
+			Plan: []*operatorsv1alpha1.Step{
+				{
+					Status: operatorsv1alpha1.StepStatusUnknown,
+					Resource: operatorsv1alpha1.StepResource{
+						Name:     crd.GetName(),
+						Version:  "v1",
+						Kind:     "CustomResourceDefinition",
+						Manifest: crdManifest.String(),
 					},
 				},
 			},
 		}
-
-		Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
 		key := client.ObjectKeyFromObject(plan)
@@ -3719,30 +3742,30 @@ var _ = Describe("Install Plan", func() {
 				Approved:                   true,
 				ClusterServiceVersionNames: []string{},
 			},
-			Status: operatorsv1alpha1.InstallPlanStatus{
-				StartTime: &metav1.Time{Time: time.Unix(0, 0)}, // disable retries
-				AttenuatedServiceAccountRef: &corev1.ObjectReference{
-					Name:      sa.GetName(),
-					Namespace: sa.GetNamespace(),
-					Kind:      "ServiceAccount",
-				},
-				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-				CatalogSources: []string{},
-				Plan: []*operatorsv1alpha1.Step{
-					{
-						Status: operatorsv1alpha1.StepStatusUnknown,
-						Resource: operatorsv1alpha1.StepResource{
-							Name:     service.Name,
-							Version:  "v1",
-							Kind:     "Service",
-							Manifest: manifest.String(),
-						},
+		}
+
+		Expect(ctx.Ctx().Client().Create(context.Background(), newPlan)).To(Succeed())
+		newPlan.Status = operatorsv1alpha1.InstallPlanStatus{
+			StartTime: &metav1.Time{Time: time.Unix(0, 0)}, // disable retries
+			AttenuatedServiceAccountRef: &corev1.ObjectReference{
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+				Kind:      "ServiceAccount",
+			},
+			Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+			CatalogSources: []string{},
+			Plan: []*operatorsv1alpha1.Step{
+				{
+					Status: operatorsv1alpha1.StepStatusUnknown,
+					Resource: operatorsv1alpha1.StepResource{
+						Name:     service.Name,
+						Version:  "v1",
+						Kind:     "Service",
+						Manifest: manifest.String(),
 					},
 				},
 			},
 		}
-
-		Expect(ctx.Ctx().Client().Create(context.Background(), newPlan)).To(Succeed())
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), newPlan)).To(Succeed())
 
 		newKey := client.ObjectKeyFromObject(newPlan)
@@ -3910,38 +3933,38 @@ var _ = Describe("Install Plan", func() {
 				Approved:                   true,
 				ClusterServiceVersionNames: []string{csv.GetName()},
 			},
-			Status: operatorsv1alpha1.InstallPlanStatus{
-				AttenuatedServiceAccountRef: &corev1.ObjectReference{
-					Name:      sa.GetName(),
-					Namespace: sa.GetNamespace(),
-					Kind:      "ServiceAccount",
-				},
-				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-				CatalogSources: []string{},
-				Plan: []*operatorsv1alpha1.Step{
-					{
-						Status: operatorsv1alpha1.StepStatusUnknown,
-						Resource: operatorsv1alpha1.StepResource{
-							Name:     csv.GetName(),
-							Version:  "v1alpha1",
-							Kind:     "ClusterServiceVersion",
-							Manifest: csvManifest.String(),
-						},
+		}
+
+		Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
+		plan.Status = operatorsv1alpha1.InstallPlanStatus{
+			AttenuatedServiceAccountRef: &corev1.ObjectReference{
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+				Kind:      "ServiceAccount",
+			},
+			Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+			CatalogSources: []string{},
+			Plan: []*operatorsv1alpha1.Step{
+				{
+					Status: operatorsv1alpha1.StepStatusUnknown,
+					Resource: operatorsv1alpha1.StepResource{
+						Name:     csv.GetName(),
+						Version:  "v1alpha1",
+						Kind:     "ClusterServiceVersion",
+						Manifest: csvManifest.String(),
 					},
-					{
-						Status: operatorsv1alpha1.StepStatusUnknown,
-						Resource: operatorsv1alpha1.StepResource{
-							Name:     crd.GetName(),
-							Version:  "v1",
-							Kind:     "CustomResourceDefinition",
-							Manifest: crdManifest.String(),
-						},
+				},
+				{
+					Status: operatorsv1alpha1.StepStatusUnknown,
+					Resource: operatorsv1alpha1.StepResource{
+						Name:     crd.GetName(),
+						Version:  "v1",
+						Kind:     "CustomResourceDefinition",
+						Manifest: crdManifest.String(),
 					},
 				},
 			},
 		}
-
-		Expect(ctx.Ctx().Client().Create(context.Background(), plan)).To(Succeed())
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), plan)).To(Succeed())
 
 		key := client.ObjectKeyFromObject(plan)
@@ -3965,29 +3988,29 @@ var _ = Describe("Install Plan", func() {
 				Approved:                   true,
 				ClusterServiceVersionNames: []string{csv.GetName()},
 			},
-			Status: operatorsv1alpha1.InstallPlanStatus{
-				AttenuatedServiceAccountRef: &corev1.ObjectReference{
-					Name:      sa.GetName(),
-					Namespace: sa.GetNamespace(),
-					Kind:      "ServiceAccount",
-				},
-				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-				CatalogSources: []string{},
-				Plan: []*operatorsv1alpha1.Step{
-					{
-						Status: operatorsv1alpha1.StepStatusUnknown,
-						Resource: operatorsv1alpha1.StepResource{
-							Name:     csv.GetName(),
-							Version:  "v1alpha1",
-							Kind:     "ClusterServiceVersion",
-							Manifest: csvManifest.String(),
-						},
+		}
+
+		Expect(ctx.Ctx().Client().Create(context.Background(), newPlan)).To(Succeed())
+		newPlan.Status = operatorsv1alpha1.InstallPlanStatus{
+			AttenuatedServiceAccountRef: &corev1.ObjectReference{
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+				Kind:      "ServiceAccount",
+			},
+			Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
+			CatalogSources: []string{},
+			Plan: []*operatorsv1alpha1.Step{
+				{
+					Status: operatorsv1alpha1.StepStatusUnknown,
+					Resource: operatorsv1alpha1.StepResource{
+						Name:     csv.GetName(),
+						Version:  "v1alpha1",
+						Kind:     "ClusterServiceVersion",
+						Manifest: csvManifest.String(),
 					},
 				},
 			},
 		}
-
-		Expect(ctx.Ctx().Client().Create(context.Background(), newPlan)).To(Succeed())
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), newPlan)).To(Succeed())
 
 		newKey := client.ObjectKeyFromObject(newPlan)

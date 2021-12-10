@@ -232,7 +232,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					Name: "version",
 				},
 				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Update{
+					Desired: configv1.Release{
 						Version: "1.0.0",
 					},
 				},
@@ -266,7 +266,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					Name: "version",
 				},
 				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Update{
+					Desired: configv1.Release{
 						Version: "1.0.0",
 					},
 				},
@@ -336,7 +336,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					Name: "version",
 				},
 				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Update{
+					Desired: configv1.Release{
 						Version: "1.0.0",
 					},
 				},
@@ -381,7 +381,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					Name: "version",
 				},
 				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Update{
+					Desired: configv1.Release{
 						Version: "1.0.0",
 					},
 				},
@@ -429,7 +429,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					Name: "version",
 				},
 				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Update{
+					Desired: configv1.Release{
 						Version: "", // This should result in an transient error
 					},
 				},
@@ -458,7 +458,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					Name: "version",
 				},
 				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Update{
+					Desired: configv1.Release{
 						Version: "1.0.1", // Next Y-stream is 1.1.0, NOT 1.1.1
 					},
 				},
@@ -482,7 +482,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					Name: "version",
 				},
 				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Update{
+					Desired: configv1.Release{
 						Version: "1.1.0-pre", // Next Y-stream is 1.1.0, NOT 1.2.0
 					},
 				},

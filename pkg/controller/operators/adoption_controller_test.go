@@ -80,10 +80,6 @@ var _ = Describe("Adoption Controller", func() {
 						Spec: &operatorsv1alpha1.SubscriptionSpec{
 							Package: "poultry",
 						},
-						Status: operatorsv1alpha1.SubscriptionStatus{
-							InstalledCSV: "turkey",
-							LastUpdated:  metav1.Now(),
-						},
 					}
 					sub.SetNamespace(ns.GetName())
 					sub.SetName(sub.Spec.Package)
@@ -94,13 +90,14 @@ var _ = Describe("Adoption Controller", func() {
 					created = append(created, sub)
 
 					// Set the Subscription's status separately
-					status := sub.DeepCopy().Status
 					Eventually(func() error {
 						if err := k8sClient.Get(ctx, testobj.NamespacedName(sub), sub); err != nil {
 							return err
 						}
-						sub.Status = status
-
+						sub.Status = operatorsv1alpha1.SubscriptionStatus{
+							InstalledCSV: "turkey",
+							LastUpdated:  metav1.Now(),
+						}
 						return k8sClient.Status().Update(ctx, sub)
 					}, timeout, interval).Should(Succeed())
 

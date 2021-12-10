@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/crds"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -54,8 +55,8 @@ var _ = BeforeSuite(func() {
 	base := filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")
 	testEnv = &envtest.Environment{
 		ErrorIfCRDPathMissing: true,
-		CRDs: []client.Object{
-			crds.ClusterServiceVersion(),
+		CRDs: []apiextensionsv1.CustomResourceDefinition{
+			*crds.ClusterServiceVersion(),
 		},
 		CRDDirectoryPaths: []string{
 			filepath.Join(base, "0000_00_cluster-version-operator_01_clusteroperator.crd.yaml"),

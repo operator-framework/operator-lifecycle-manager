@@ -64,7 +64,7 @@ var _ = Describe("ClusterOperator controller", func() {
 		}).Should(Succeed())
 
 		cv.Status = configv1.ClusterVersionStatus{
-			Desired: configv1.Update{
+			Desired: configv1.Release{
 				Version: clusterVersion,
 			},
 		}
@@ -161,7 +161,7 @@ var _ = Describe("ClusterOperator controller", func() {
 		}))
 
 		cv.Status = configv1.ClusterVersionStatus{
-			Desired: configv1.Update{
+			Desired: configv1.Release{
 				Version: clusterVersion,
 			},
 		}
