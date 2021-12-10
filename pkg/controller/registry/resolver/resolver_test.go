@@ -3,7 +3,9 @@ package resolver
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
@@ -14,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	"github.com/operator-framework/api/pkg/constraints"
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
@@ -23,8 +26,14 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
+var testGVKKey = opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 func TestSolveOperators(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	const namespace = "test-namespace"
@@ -86,7 +95,7 @@ func TestPropertiesAnnotationHonored(t *testing.T) {
 	const (
 		namespace = "olm"
 	)
-	community := cache.SourceKey{"community", namespace}
+	community := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", nil, nil, nil, nil)
 	csv.Annotations = map[string]string{"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"packageA","version":"1.0.0"}}]}`}
@@ -116,11 +125,11 @@ func TestPropertiesAnnotationHonored(t *testing.T) {
 }
 
 func TestSolveOperators_MultipleChannels(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -153,11 +162,11 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 }
 
 func TestSolveOperators_FindLatestVersion(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -200,11 +209,11 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 }
 
 func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -259,11 +268,11 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 }
 
 func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -367,7 +376,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	}
 
 	namespace := "olm"
-	customCatalog := cache.SourceKey{"community", namespace}
+	customCatalog := cache.SourceKey{Name: "community", Namespace: namespace}
 	newSub := newSub(namespace, "packageA", "alpha", customCatalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
@@ -502,12 +511,12 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 
 }
 
-func TestSolveOperators_WithDependencies(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+func TestSolveOperators_WithPackageDependencies(t *testing.T) {
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -551,11 +560,11 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 }
 
 func TestSolveOperators_WithGVKDependencies(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	community := cache.SourceKey{"community", namespace}
+	community := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csvs := []*v1alpha1.ClusterServiceVersion{
 		existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", nil, nil, nil, nil),
@@ -601,7 +610,7 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 
 func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	newSub := newSub(namespace, "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
@@ -652,7 +661,7 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 
 func TestSolveOperators_WithUnsatisfiableLabelDependencies(t *testing.T) {
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	newSub := newSub(namespace, "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
@@ -681,11 +690,11 @@ func TestSolveOperators_WithUnsatisfiableLabelDependencies(t *testing.T) {
 }
 
 func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -757,10 +766,315 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 	}
 }
 
+type operatorGenerator struct {
+	name, version                string
+	replaces                     string
+	pkg, channel, defaultChannel string
+	catName, catNamespace        string
+	requiredAPIs, providedAPIs   cache.APISet
+	properties                   []*api.Property
+	deprecated                   bool
+}
+
+func (g operatorGenerator) gen() *cache.Entry {
+	entry := genOperator(g.name, g.version, g.replaces, g.pkg, g.channel, g.catName, g.catNamespace, g.requiredAPIs, g.providedAPIs, nil, g.defaultChannel, g.deprecated)
+	entry.Properties = append(entry.Properties, g.properties...)
+	return entry
+}
+
+func genOperatorsRandom(ops ...operatorGenerator) []*cache.Entry {
+	entries := make([]*cache.Entry, len(ops))
+	// Randomize entry order to fuzz input operators over time.
+	idxs := rand.Perm(len(ops))
+	for destIdx, srcIdx := range idxs {
+		entries[destIdx] = ops[srcIdx].gen()
+	}
+	return entries
+}
+
+func TestSolveOperators_OLMConstraint_CompoundAll(t *testing.T) {
+	namespace := "olm"
+	csName := "community"
+	catalog := cache.SourceKey{Name: csName, Namespace: namespace}
+
+	newOperatorGens := []operatorGenerator{{
+		name: "bar.v1.0.0", version: "1.0.0",
+		pkg: "bar", channel: "stable",
+		catName: csName, catNamespace: namespace,
+		properties: []*api.Property{{
+			Type: constraints.OLMConstraintType,
+			Value: `{"message": "all constraint",
+				"all": {"constraints": [
+					{"package": {"packageName": "foo", "versionRange": ">=1.0.0"}},
+					{"gvk": {"group": "g1", "version": "v1", "kind": "k1"}},
+					{"gvk": {"group": "g2", "version": "v2", "kind": "k2"}}
+				]}
+			}`,
+		}},
+	}}
+	dependeeOperatorGens := []operatorGenerator{{
+		name: "foo.v1.0.1", version: "1.0.1",
+		pkg: "foo", channel: "stable", replaces: "foo.v1.0.0",
+		catName: csName, catNamespace: namespace,
+		providedAPIs: cache.APISet{
+			opregistry.APIKey{Group: "g1", Version: "v1", Kind: "k1"}: {},
+			opregistry.APIKey{Group: "g2", Version: "v2", Kind: "k2"}: {},
+			opregistry.APIKey{Group: "g3", Version: "v3", Kind: "k3"}: {},
+		},
+	}}
+
+	inputs := append(dependeeOperatorGens, newOperatorGens...)
+
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: genOperatorsRandom(append(
+					inputs,
+					operatorGenerator{
+						name: "foo.v0.99.0", version: "0.99.0",
+						pkg: "foo", channel: "stable",
+						catName: csName, catNamespace: namespace,
+						providedAPIs: cache.APISet{
+							opregistry.APIKey{Group: "g1", Version: "v1", Kind: "k1"}: {},
+							opregistry.APIKey{Group: "g2", Version: "v2", Kind: "k2"}: {},
+							opregistry.APIKey{Group: "g3", Version: "v3", Kind: "k3"}: {},
+						},
+					},
+					operatorGenerator{
+						name: "foo.v1.0.0", version: "1.0.0",
+						pkg: "foo", channel: "stable", replaces: "foo.v0.99.0",
+						catName: csName, catNamespace: namespace,
+						providedAPIs: cache.APISet{
+							opregistry.APIKey{Group: "g2", Version: "v2", Kind: "k2"}: {},
+							opregistry.APIKey{Group: "g3", Version: "v3", Kind: "k3"}: {},
+						},
+					},
+				)...),
+			},
+		}),
+		log: logrus.New(),
+	}
+
+	newSub := newSub(namespace, "bar", "stable", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(operators))
+
+	expected := make(cache.OperatorSet, len(inputs))
+	for _, gen := range inputs {
+		op := gen.gen()
+		expected[op.Name] = op
+	}
+	for k := range expected {
+		if assert.Contains(t, operators, k) {
+			assert.EqualValues(t, k, operators[k].Name)
+		}
+	}
+}
+
+func TestSolveOperators_OLMConstraint_CompoundAny(t *testing.T) {
+	namespace := "olm"
+	csName := "community"
+	catalog := cache.SourceKey{Name: csName, Namespace: namespace}
+
+	newOperatorGens := []operatorGenerator{{
+		name: "bar.v1.0.0", version: "1.0.0",
+		pkg: "bar", channel: "stable",
+		catName: csName, catNamespace: namespace,
+		properties: []*api.Property{{
+			Type: constraints.OLMConstraintType,
+			Value: `{"message": "any constraint",
+				"any": {"constraints": [
+					{"gvk": {"group": "g1", "version": "v1", "kind": "k1"}},
+					{"gvk": {"group": "g2", "version": "v2", "kind": "k2"}}
+				]}
+			}`,
+		}},
+	}}
+	dependeeOperatorGens := []operatorGenerator{{
+		name: "foo.v1.0.1", version: "1.0.1",
+		pkg: "foo", channel: "stable", replaces: "foo.v1.0.0",
+		catName: csName, catNamespace: namespace,
+		providedAPIs: cache.APISet{
+			opregistry.APIKey{Group: "g1", Version: "v1", Kind: "k1"}: {},
+			opregistry.APIKey{Group: "g2", Version: "v2", Kind: "k2"}: {},
+			opregistry.APIKey{Group: "g3", Version: "v3", Kind: "k3"}: {},
+		},
+	}}
+
+	inputs := append(dependeeOperatorGens, newOperatorGens...)
+
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: genOperatorsRandom(append(
+					inputs,
+					operatorGenerator{
+						name: "foo.v0.99.0", version: "0.99.0",
+						pkg: "foo", channel: "stable",
+						catName: csName, catNamespace: namespace,
+						providedAPIs: cache.APISet{
+							opregistry.APIKey{Group: "g0", Version: "v0", Kind: "k0"}: {},
+						},
+					},
+					operatorGenerator{
+						name: "foo.v1.0.0", version: "1.0.0",
+						pkg: "foo", channel: "stable", replaces: "foo.v0.99.0",
+						catName: csName, catNamespace: namespace,
+						providedAPIs: cache.APISet{
+							opregistry.APIKey{Group: "g1", Version: "v1", Kind: "k1"}: {},
+							opregistry.APIKey{Group: "g2", Version: "v2", Kind: "k2"}: {},
+						},
+					},
+				)...),
+			},
+		}),
+		log: logrus.New(),
+	}
+
+	newSub := newSub(namespace, "bar", "stable", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(operators))
+
+	expected := make(cache.OperatorSet, len(inputs))
+	for _, gen := range inputs {
+		op := gen.gen()
+		expected[op.Name] = op
+	}
+	for k := range expected {
+		if assert.Contains(t, operators, k) {
+			assert.EqualValues(t, k, operators[k].Name)
+		}
+	}
+}
+
+func TestSolveOperators_OLMConstraint_CompoundNone(t *testing.T) {
+	namespace := "olm"
+	csName := "community"
+	catalog := cache.SourceKey{Name: csName, Namespace: namespace}
+
+	newOperatorGens := []operatorGenerator{{
+		name: "bar.v1.0.0", version: "1.0.0",
+		pkg: "bar", channel: "stable",
+		catName: csName, catNamespace: namespace,
+		properties: []*api.Property{
+			{
+				Type: constraints.OLMConstraintType,
+				Value: `{"message": "compound none constraint",
+					"all": {"constraints": [
+						{"gvk": {"group": "g0", "version": "v0", "kind": "k0"}},
+						{"none": {"constraints": [
+							{"gvk": {"group": "g1", "version": "v1", "kind": "k1"}},
+							{"gvk": {"group": "g2", "version": "v2", "kind": "k2"}}
+						]}}
+					]}
+				}`,
+			},
+		},
+	}}
+	dependeeOperatorGens := []operatorGenerator{{
+		name: "foo.v0.99.0", version: "0.99.0",
+		pkg: "foo", channel: "stable",
+		catName: csName, catNamespace: namespace,
+		providedAPIs: cache.APISet{
+			opregistry.APIKey{Group: "g0", Version: "v0", Kind: "k0"}: {},
+		},
+	}}
+
+	inputs := append(dependeeOperatorGens, newOperatorGens...)
+
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: genOperatorsRandom(append(
+					inputs,
+					operatorGenerator{
+						name: "foo.v1.0.0", version: "1.0.0",
+						pkg: "foo", channel: "stable", replaces: "foo.v0.99.0",
+						catName: csName, catNamespace: namespace,
+						providedAPIs: cache.APISet{
+							opregistry.APIKey{Group: "g0", Version: "v0", Kind: "k0"}: {},
+							opregistry.APIKey{Group: "g1", Version: "v1", Kind: "k1"}: {},
+							opregistry.APIKey{Group: "g2", Version: "v2", Kind: "k2"}: {},
+						},
+					},
+					operatorGenerator{
+						name: "foo.v1.0.1", version: "1.0.1",
+						pkg: "foo", channel: "stable", replaces: "foo.v1.0.0",
+						catName: csName, catNamespace: namespace,
+						providedAPIs: cache.APISet{
+							opregistry.APIKey{Group: "g0", Version: "v0", Kind: "k0"}: {},
+							opregistry.APIKey{Group: "g1", Version: "v1", Kind: "k1"}: {},
+							opregistry.APIKey{Group: "g2", Version: "v2", Kind: "k2"}: {},
+							opregistry.APIKey{Group: "g3", Version: "v3", Kind: "k3"}: {},
+						},
+					},
+				)...),
+			},
+		}),
+		log: logrus.New(),
+	}
+
+	newSub := newSub(namespace, "bar", "stable", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(operators))
+
+	expected := make(cache.OperatorSet, len(inputs))
+	for _, gen := range inputs {
+		op := gen.gen()
+		expected[op.Name] = op
+	}
+	for k := range expected {
+		if assert.Contains(t, operators, k) {
+			assert.EqualValues(t, k, operators[k].Name)
+		}
+	}
+}
+
+func TestSolveOperators_OLMConstraint_Unknown(t *testing.T) {
+	namespace := "olm"
+	csName := "community"
+	catalog := cache.SourceKey{Name: csName, Namespace: namespace}
+
+	newOperatorGens := []operatorGenerator{{
+		name: "bar.v1.0.0", version: "1.0.0",
+		pkg: "bar", channel: "stable",
+		catName: csName, catNamespace: namespace,
+		properties: []*api.Property{{
+			Type:  constraints.OLMConstraintType,
+			Value: `{"message": "unknown constraint", "unknown": {"foo": "bar"}}`,
+		}},
+	}}
+
+	satResolver := SatResolver{
+		cache: cache.New(cache.StaticSourceProvider{
+			catalog: &cache.Snapshot{
+				Entries: genOperatorsRandom(newOperatorGens...),
+			},
+		}),
+		log: logrus.New(),
+	}
+
+	newSub := newSub(namespace, "bar", "stable", catalog)
+	subs := []*v1alpha1.Subscription{newSub}
+
+	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `json: unknown field "unknown"`)
+}
+
 func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	const namespace = "olm"
 
-	Provides := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
+	Provides := cache.APISet{testGVKKey: struct{}{}}
 	community := cache.SourceKey{Name: "community", Namespace: namespace}
 	csvs := []*v1alpha1.ClusterServiceVersion{
 		existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil),
@@ -819,13 +1133,13 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 // Behavior: The resolver should prefer catalogs in the same namespace as the subscription.
 // It should also prefer the same catalog over global catalogs in terms of the operator cache.
 func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
 	altNamespace := "alt-olm"
-	catalog := cache.SourceKey{"community", namespace}
-	altnsCatalog := cache.SourceKey{"alt-community", altNamespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
+	altnsCatalog := cache.SourceKey{Name: "alt-community", Namespace: altNamespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -860,11 +1174,11 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 // Behavior: The resolver should not look in catalogs not in the same namespace or the global catalog namespace when resolving the subscription.
 // This test should not result in a successful resolution because the catalog fulfilling the subscription is not in the operator cache.
 func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 	otherCatalog := cache.SourceKey{Name: "secret", Namespace: "secret"}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
@@ -891,7 +1205,7 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 
 // Behavior: the resolver should always prefer the default channel for the subscribed bundle (unless we implement ordering for channels)
 func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
@@ -929,7 +1243,7 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 
 // Behavior: the resolver should always prefer the default channel for bundles satisfying transitive dependencies
 func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencies(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
@@ -967,11 +1281,11 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 }
 
 func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -1010,11 +1324,11 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 }
 
 func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
 	csvs := []*v1alpha1.ClusterServiceVersion{csv}
@@ -1038,10 +1352,10 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 }
 
 func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
-	Provides1 := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
-	Requires1 := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
-	Provides2 := cache.APISet{opregistry.APIKey{"g2", "v", "k", "ks"}: struct{}{}}
-	Requires2 := cache.APISet{opregistry.APIKey{"g2", "v", "k", "ks"}: struct{}{}}
+	Provides1 := cache.APISet{testGVKKey: struct{}{}}
+	Requires1 := cache.APISet{testGVKKey: struct{}{}}
+	Provides2 := cache.APISet{opregistry.APIKey{Group: "g2", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
+	Requires2 := cache.APISet{opregistry.APIKey{Group: "g2", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
 	ProvidesBoth := Provides1.Union(Provides2)
 	RequiresBoth := Requires1.Union(Requires2)
 
@@ -1090,9 +1404,9 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 }
 
 func TestSolveOperators_TransferApiOwnership(t *testing.T) {
-	Provides1 := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
-	Requires1 := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
-	Provides2 := cache.APISet{opregistry.APIKey{"g2", "v", "k", "ks"}: struct{}{}}
+	Provides1 := cache.APISet{testGVKKey: struct{}{}}
+	Requires1 := cache.APISet{testGVKKey: struct{}{}}
+	Provides2 := cache.APISet{opregistry.APIKey{Group: "g2", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
 	ProvidesBoth := Provides1.Union(Provides2)
 
 	namespace := "olm"
@@ -1271,11 +1585,11 @@ func TestSolveOperatorsWithDeprecatedInnerChannelEntry(t *testing.T) {
 }
 
 func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
-	APISet := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
 
 	namespace := "olm"
-	catalog := cache.SourceKey{"community", namespace}
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	newSub := newSub(namespace, "packageB", "alpha", catalog, withStartingCSV("packageB.v1"))
 	subs := []*v1alpha1.Subscription{newSub}
@@ -1353,7 +1667,7 @@ func TestSolveOperators_WithSkips(t *testing.T) {
 func TestSolveOperatorsWithSkipsPreventingSelection(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
-	gvks := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
+	gvks := cache.APISet{testGVKKey: struct{}{}}
 
 	// Subscription candidate a-1 requires a GVK provided
 	// exclusively by b-1, but b-1 is skipped by b-3 and can't be

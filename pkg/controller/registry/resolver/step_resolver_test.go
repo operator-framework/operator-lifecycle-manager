@@ -33,16 +33,16 @@ var (
 	// conventions for tests: packages are letters (a,b,c) and apis are numbers (1,2,3)
 
 	// APISets used for tests
-	APISet1   = resolvercache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	APISet1   = resolvercache.APISet{testGVKKey: struct{}{}}
 	Provides1 = APISet1
 	Requires1 = APISet1
-	APISet2   = resolvercache.APISet{opregistry.APIKey{"g2", "v2", "k2", "k2s"}: struct{}{}}
+	APISet2   = resolvercache.APISet{opregistry.APIKey{Group: "g2", Version: "v2", Kind: "k2", Plural: "k2s"}: struct{}{}}
 	Provides2 = APISet2
 	Requires2 = APISet2
-	APISet3   = resolvercache.APISet{opregistry.APIKey{"g3", "v3", "k3", "k3s"}: struct{}{}}
+	APISet3   = resolvercache.APISet{opregistry.APIKey{Group: "g3", Version: "v3", Kind: "k3", Plural: "k3s"}: struct{}{}}
 	Provides3 = APISet3
 	Requires3 = APISet3
-	APISet4   = resolvercache.APISet{opregistry.APIKey{"g4", "v4", "k4", "k4s"}: struct{}{}}
+	APISet4   = resolvercache.APISet{opregistry.APIKey{Group: "g4", Version: "v4", Kind: "k4", Plural: "k4s"}: struct{}{}}
 	Provides4 = APISet4
 	Requires4 = APISet4
 )
@@ -886,7 +886,7 @@ func (stub *stubOperatorCacheProvider) Expire(key resolvercache.SourceKey) {
 
 func TestNamespaceResolverRBAC(t *testing.T) {
 	namespace := "catsrc-namespace"
-	catalog := resolvercache.SourceKey{"catsrc", namespace}
+	catalog := resolvercache.SourceKey{Name: "catsrc", Namespace: namespace}
 
 	simplePermissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
