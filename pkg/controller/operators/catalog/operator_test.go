@@ -1413,6 +1413,69 @@ func TestValidateExistingCRs(t *testing.T) {
 	}
 }
 
+func TestSyncOperatorGroup(t *testing.T) {
+	namespace := "ns"
+	inOperatorGroup := operatorGroup("og", "sa", namespace,
+		&corev1.ObjectReference{
+			Kind:      "ServiceAccount",
+			Namespace: namespace,
+			Name:      "sa",
+		})
+	tests := []struct {
+		testName          string
+		err               error
+		in                *operatorsv1.OperatorGroup
+		expectedPhase     v1alpha1.InstallPlanPhase
+		expectedCondition *v1alpha1.InstallPlanCondition
+		clientObjs        []runtime.Object
+	}{
+		{
+			testName: "OnComplete",
+			in:       inOperatorGroup,
+			clientObjs: []runtime.Object{
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseComplete, "csv"),
+			},
+			err:               nil,
+			expectedPhase:     v1alpha1.InstallPlanPhaseComplete,
+			expectedCondition: &v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanResolved, Status: corev1.ConditionTrue},
+		},
+		{
+			testName: "OnOnstalling",
+			in:       inOperatorGroup,
+			clientObjs: []runtime.Object{
+				installPlan("p", namespace, v1alpha1.InstallPlanPhaseNone, "csv"),
+			},
+			err:               nil,
+			expectedPhase:     v1alpha1.InstallPlanPhaseNone,
+			expectedCondition: &v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanResolved, Status: corev1.ConditionTrue},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			tt.clientObjs = append(tt.clientObjs, tt.in)
+
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.clientObjs...))
+			require.NoError(t, err)
+
+			err = op.syncOperatorGroup(tt.in)
+			require.Equal(t, tt.err, err)
+
+			ip, err := op.client.OperatorsV1alpha1().InstallPlans(namespace).Get(ctx, "p", metav1.GetOptions{})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectedPhase, ip.Status.Phase)
+
+			if tt.expectedCondition != nil {
+				require.True(t, hasExpectedCondition(ip, *tt.expectedCondition))
+			}
+		})
+	}
+}
+
 func fakeConfigMapData() map[string]string {
 	data := make(map[string]string)
 	yaml, err := yaml.Marshal([]apiextensionsv1beta1.CustomResourceDefinition{crd("fake-crd")})

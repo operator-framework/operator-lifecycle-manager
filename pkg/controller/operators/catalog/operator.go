@@ -102,6 +102,7 @@ type Operator struct {
 	catsrcQueueSet           *queueinformer.ResourceQueueSet
 	subQueueSet              *queueinformer.ResourceQueueSet
 	ipQueueSet               *queueinformer.ResourceQueueSet
+	ogQueueSet               *queueinformer.ResourceQueueSet
 	nsResolveQueue           workqueue.RateLimitingInterface
 	namespace                string
 	recorder                 record.EventRecorder
@@ -181,6 +182,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
+		ogQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient),
@@ -272,6 +274,25 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 	if err := op.RegisterQueueInformer(catsrcQueueInformer); err != nil {
+		return nil, err
+	}
+
+	// Wire OperatorGroup reconciliation
+	operatorGroupInformer := crInformerFactory.Operators().V1().OperatorGroups()
+	op.lister.OperatorsV1().RegisterOperatorGroupLister(metav1.NamespaceAll, operatorGroupInformer.Lister())
+	ogQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "og")
+	op.ogQueueSet.Set(metav1.NamespaceAll, ogQueue)
+	operatorGroupQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(ogQueue),
+		queueinformer.WithInformer(operatorGroupInformer.Informer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncOperatorGroup).ToSyncer()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(operatorGroupQueueInformer); err != nil {
 		return nil, err
 	}
 
@@ -529,8 +550,17 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 	}
 
 	o.requeueOwners(metaObj)
-
 	return o.triggerInstallPlanRetry(obj)
+}
+
+func (o *Operator) syncOperatorGroup(obj interface{}) (syncError error) {
+	_, ok := obj.(metav1.Object)
+	if !ok {
+		syncError = errors.New("casting to metav1 object failed")
+		o.logger.Warn(syncError.Error())
+		return
+	}
+	return o.triggerInstallPlanUpdateForOperatorGroup(obj)
 }
 
 func (o *Operator) handleDeletion(obj interface{}) {
@@ -1583,7 +1613,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	// Attempt to unpack bundles before installing
 	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
-	if len(plan.Status.BundleLookups) > 0 {
+	if plan.Status.BundleLookups != nil && len(plan.Status.BundleLookups) > 0 {
 		unpacked, out, err := o.unpackBundles(plan)
 		if err != nil {
 			// Retry sync if non-fatal error
