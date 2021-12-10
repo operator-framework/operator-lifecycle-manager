@@ -104,3 +104,8 @@ func Subscription() *apiextensionsv1.CustomResourceDefinition {
 func OperatorCondition() *apiextensionsv1.CustomResourceDefinition {
 	return getCRD("operators.coreos.com_operatorconditions.yaml").DeepCopy()
 }
+
+// OLMConfig returns a copy of the CustomResourceDefinition for the latest version of the OLMConfig API.
+func OLMConfig() *apiextensionsv1.CustomResourceDefinition {
+	return getCRD("operators.coreos.com_olmconfigs.yaml").DeepCopy()
+}

@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.0
+    controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
   name: catalogsources.operators.coreos.com
 spec:
@@ -67,6 +67,41 @@ spec:
                 displayName:
                   description: Metadata
                   type: string
+                grpcPodConfig:
+                  description: GrpcPodConfig exposes different overrides for the pod spec of the CatalogSource Pod. Only used when SourceType = SourceTypeGrpc and Image is set.
+                  type: object
+                  properties:
+                    nodeSelector:
+                      description: NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node.
+                      type: object
+                      additionalProperties:
+                        type: string
+                    priorityClassName:
+                      description: If specified, indicates the pod's priority. If not specified, the pod priority will be default or zero if there is no default.
+                      type: string
+                    tolerations:
+                      description: Tolerations are the catalog source's pod's tolerations.
+                      type: array
+                      items:
+                        description: The pod this Toleration is attached to tolerates any taint that matches the triple <key,value,effect> using the matching operator <operator>.
+                        type: object
+                        properties:
+                          effect:
+                            description: Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                            type: string
+                          key:
+                            description: Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                            type: string
+                          operator:
+                            description: Operator represents a key's relationship to the value. Valid operators are Exists and Equal. Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.
+                            type: string
+                          tolerationSeconds:
+                            description: TolerationSeconds represents the period of time the toleration (which must be of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default, it is not set, which means tolerate the taint forever (do not evict). Zero and negative values will be treated as 0 (evict immediately) by the system.
+                            type: integer
+                            format: int64
+                          value:
+                            description: Value is the taint value the toleration matches to. If the operator is Exists, the value should be empty, otherwise just a regular string.
+                            type: string
                 icon:
                   type: object
                   required:
