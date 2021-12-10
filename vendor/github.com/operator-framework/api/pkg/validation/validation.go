@@ -40,7 +40,18 @@ var OperatorGroupValidator = internal.OperatorGroupValidator
 
 // CommunityOperatorValidator implements Validator to validate bundle objects
 // for the Community Operator requirements.
+//
+// Deprecated - The checks made for this validator were moved to the external one:
+// https://github.com/redhat-openshift-ecosystem/ocp-olm-catalog-validator.
+// Please no longer use this check it will be removed in the next releases.
 var CommunityOperatorValidator = internal.CommunityOperatorValidator
+
+// AlphaDeprecatedAPIsValidator implements Validator to validate bundle objects
+// for API deprecation requirements.
+var AlphaDeprecatedAPIsValidator = internal.AlphaDeprecatedAPIsValidator
+
+// GoodPracticesValidator implements Validator to validate the criteria defined as good practices
+var GoodPracticesValidator = internal.GoodPracticesValidator
 
 // AllValidators implements Validator to validate all Operator manifest types.
 var AllValidators = interfaces.Validators{
@@ -52,6 +63,8 @@ var AllValidators = interfaces.Validators{
 	ObjectValidator,
 	OperatorGroupValidator,
 	CommunityOperatorValidator,
+	AlphaDeprecatedAPIsValidator,
+	GoodPracticesValidator,
 }
 
 var DefaultBundleValidators = interfaces.Validators{

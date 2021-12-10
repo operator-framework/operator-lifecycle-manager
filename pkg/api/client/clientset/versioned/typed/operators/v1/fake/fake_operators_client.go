@@ -28,6 +28,10 @@ type FakeOperatorsV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeOperatorsV1) OLMConfigs() v1.OLMConfigInterface {
+	return &FakeOLMConfigs{c}
+}
+
 func (c *FakeOperatorsV1) Operators() v1.OperatorInterface {
 	return &FakeOperators{c}
 }

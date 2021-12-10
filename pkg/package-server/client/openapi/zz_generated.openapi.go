@@ -36,11 +36,28 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions":                                      schema_api_pkg_operators_v1alpha1_APIServiceDefinitions(ref),
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDescription":                                      schema_api_pkg_operators_v1alpha1_APIServiceDescription(ref),
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.ActionDescriptor":                                           schema_api_pkg_operators_v1alpha1_ActionDescriptor(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink":                                                    schema_api_pkg_operators_v1alpha1_AppLink(ref),
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.CRDDescription":                                             schema_api_pkg_operators_v1alpha1_CRDDescription(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupSpec":                                                schema_api_pkg_operators_v1alpha1_CleanupSpec(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupStatus":                                              schema_api_pkg_operators_v1alpha1_CleanupStatus(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionCondition":                             schema_api_pkg_operators_v1alpha1_ClusterServiceVersionCondition(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionSpec":                                  schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionStatus":                                schema_api_pkg_operators_v1alpha1_ClusterServiceVersionStatus(ref),
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions":                                  schema_api_pkg_operators_v1alpha1_CustomResourceDefinitions(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.DependentStatus":                                            schema_api_pkg_operators_v1alpha1_DependentStatus(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.Icon":                                                       schema_api_pkg_operators_v1alpha1_Icon(ref),
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode":                                                schema_api_pkg_operators_v1alpha1_InstallMode(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.Maintainer":                                                 schema_api_pkg_operators_v1alpha1_Maintainer(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.NamedInstallStrategy":                                       schema_api_pkg_operators_v1alpha1_NamedInstallStrategy(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.RelatedImage":                                               schema_api_pkg_operators_v1alpha1_RelatedImage(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.RequirementStatus":                                          schema_api_pkg_operators_v1alpha1_RequirementStatus(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceInstance":                                           schema_api_pkg_operators_v1alpha1_ResourceInstance(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceList":                                               schema_api_pkg_operators_v1alpha1_ResourceList(ref),
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.SpecDescriptor":                                             schema_api_pkg_operators_v1alpha1_SpecDescriptor(ref),
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.StatusDescriptor":                                           schema_api_pkg_operators_v1alpha1_StatusDescriptor(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentPermissions":                              schema_api_pkg_operators_v1alpha1_StrategyDeploymentPermissions(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentSpec":                                     schema_api_pkg_operators_v1alpha1_StrategyDeploymentSpec(ref),
+		"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDetailsDeployment":                                  schema_api_pkg_operators_v1alpha1_StrategyDetailsDeployment(ref),
 		"github.com/operator-framework/api/pkg/operators/v1alpha1.WebhookDescription":                                         schema_api_pkg_operators_v1alpha1_WebhookDescription(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink":               schema_package_server_apis_operators_v1_AppLink(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription":        schema_package_server_apis_operators_v1_CSVDescription(ref),
@@ -367,6 +384,30 @@ func schema_api_pkg_operators_v1alpha1_ActionDescriptor(ref common.ReferenceCall
 	}
 }
 
+func schema_api_pkg_operators_v1alpha1_AppLink(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_api_pkg_operators_v1alpha1_CRDDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -468,6 +509,443 @@ func schema_api_pkg_operators_v1alpha1_CRDDescription(ref common.ReferenceCallba
 	}
 }
 
+func schema_api_pkg_operators_v1alpha1_CleanupSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Default: false,
+							Type:    []string{"boolean"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"enabled"},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_CleanupStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CleanupStatus represents information about the status of cleanup while a CSV is pending deletion",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"pendingDeletion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PendingDeletion is the list of custom resource objects that are pending deletion and blocked on finalizers. This indicates the progress of cleanup that is blocking CSV deletion or operator uninstall.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceList"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceList"},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Conditions appear in the status as a record of state transitions on the ClusterServiceVersion",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Condition of the ClusterServiceVersion",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A human readable message indicating details about why the ClusterServiceVersion is in this condition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A brief CamelCase message indicating details about why the ClusterServiceVersion is in this state. e.g. 'RequirementsNotMet'",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"lastUpdateTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time we updated the status",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the status transitioned from one status to another.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterServiceVersionSpec declarations tell OLM how to install an operator that can manage apps for a given version.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"install": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.NamedInstallStrategy"),
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/operator-framework/api/pkg/lib/version.OperatorVersion"),
+						},
+					},
+					"maturity": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"customresourcedefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions"),
+						},
+					},
+					"apiservicedefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions"),
+						},
+					},
+					"webhookdefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.WebhookDescription"),
+									},
+								},
+							},
+						},
+					},
+					"nativeAPIs": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind"),
+									},
+								},
+							},
+						},
+					},
+					"minKubeVersion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"keywords": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"maintainers": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.Maintainer"),
+									},
+								},
+							},
+						},
+					},
+					"provider": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink"),
+						},
+					},
+					"links": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink"),
+									},
+								},
+							},
+						},
+					},
+					"icon": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.Icon"),
+									},
+								},
+							},
+						},
+					},
+					"installModes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstallModes specify supported installation types",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode"),
+									},
+								},
+							},
+						},
+					},
+					"replaces": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The name of a CSV this one replaces. Should match the `metadata.Name` field of the old CSV.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"labels": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Map of string keys and values that can be used to organize and categorize (scope and select) objects.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"annotations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"selector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Label selector for related resources.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+					"cleanup": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Cleanup specifies the cleanup behaviour when the CSV gets deleted",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupSpec"),
+						},
+					},
+					"skips": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The name(s) of one or more CSV(s) that should be skipped in the upgrade graph. Should match the `metadata.Name` field of the CSV that should be skipped. This field is only used during catalog creation and plays no part in cluster runtime.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"relatedImages": {
+						SchemaProps: spec.SchemaProps{
+							Description: "List any related images, or other container images that your Operator might require to perform their functions. This list should also include operand images as well. All image references should be specified by digest (SHA) and not by tag. This field is only used during catalog creation and plays no part in cluster runtime.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.RelatedImage"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"install", "displayName"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/api/pkg/lib/version.OperatorVersion", "github.com/operator-framework/api/pkg/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink", "github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupSpec", "github.com/operator-framework/api/pkg/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/api/pkg/operators/v1alpha1.Icon", "github.com/operator-framework/api/pkg/operators/v1alpha1.InstallMode", "github.com/operator-framework/api/pkg/operators/v1alpha1.Maintainer", "github.com/operator-framework/api/pkg/operators/v1alpha1.NamedInstallStrategy", "github.com/operator-framework/api/pkg/operators/v1alpha1.RelatedImage", "github.com/operator-framework/api/pkg/operators/v1alpha1.WebhookDescription", "k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterServiceVersionStatus represents information about the status of a CSV. Status may trail the actual state of a system.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Current condition of the ClusterServiceVersion",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A human readable message indicating details about why the ClusterServiceVersion is in this condition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A brief CamelCase message indicating details about why the ClusterServiceVersion is in this state. e.g. 'RequirementsNotMet'",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"lastUpdateTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time we updated the status",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the status transitioned from one status to another.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "List of conditions, a history of state transitions",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionCondition"),
+									},
+								},
+							},
+						},
+					},
+					"requirementStatus": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The status of each requirement for this CSV",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.RequirementStatus"),
+									},
+								},
+							},
+						},
+					},
+					"certsLastUpdated": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the owned APIService certs were updated",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"certsRotateAt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Time the owned APIService certs will rotate next",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"cleanup": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CleanupStatus represents information about the status of cleanup while a CSV is pending deletion",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/api/pkg/operators/v1alpha1.CleanupStatus", "github.com/operator-framework/api/pkg/operators/v1alpha1.ClusterServiceVersionCondition", "github.com/operator-framework/api/pkg/operators/v1alpha1.RequirementStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
 func schema_api_pkg_operators_v1alpha1_CustomResourceDefinitions(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -509,6 +987,87 @@ func schema_api_pkg_operators_v1alpha1_CustomResourceDefinitions(ref common.Refe
 	}
 }
 
+func schema_api_pkg_operators_v1alpha1_DependentStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DependentStatus is the status for a dependent requirement (to prevent infinite nesting)",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"uuid": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"group", "version", "kind", "status"},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_Icon(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"base64data": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"mediatype": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"base64data", "mediatype"},
+			},
+		},
+	}
+}
+
 func schema_api_pkg_operators_v1alpha1_InstallMode(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -534,6 +1093,232 @@ func schema_api_pkg_operators_v1alpha1_InstallMode(ref common.ReferenceCallback)
 				Required: []string{"type", "supported"},
 			},
 		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_Maintainer(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"email": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_NamedInstallStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "NamedInstallStrategy represents the block of an ClusterServiceVersion resource where the install strategy is specified.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"strategy": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDetailsDeployment"),
+						},
+					},
+				},
+				Required: []string{"strategy"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDetailsDeployment"},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_RelatedImage(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"image": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"name", "image"},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_RequirementStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"uuid": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"dependents": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.DependentStatus"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"group", "version", "kind", "name", "status", "message"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/api/pkg/operators/v1alpha1.DependentStatus"},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_ResourceInstance(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Namespace can be empty for cluster-scoped resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_ResourceList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ResourceList represents a list of resources which are of the same Group/Kind",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"instances": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceInstance"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"group", "kind", "instances"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/api/pkg/operators/v1alpha1.ResourceInstance"},
 	}
 }
 
@@ -640,6 +1425,141 @@ func schema_api_pkg_operators_v1alpha1_StatusDescriptor(ref common.ReferenceCall
 				Required: []string{"path"},
 			},
 		},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_StrategyDeploymentPermissions(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StrategyDeploymentPermissions describe the rbac rules and service account needed by the install strategy",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"serviceAccountName": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"rules": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/api/rbac/v1.PolicyRule"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"serviceAccountName", "rules"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/rbac/v1.PolicyRule"},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_StrategyDeploymentSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StrategyDeploymentSpec contains the name, spec and labels for the deployment ALM should create",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/api/apps/v1.DeploymentSpec"),
+						},
+					},
+					"label": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"name", "spec"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/apps/v1.DeploymentSpec"},
+	}
+}
+
+func schema_api_pkg_operators_v1alpha1_StrategyDetailsDeployment(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StrategyDetailsDeployment represents the parsed details of a Deployment InstallStrategy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"deployments": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentSpec"),
+									},
+								},
+							},
+						},
+					},
+					"permissions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentPermissions"),
+									},
+								},
+							},
+						},
+					},
+					"clusterPermissions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentPermissions"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"deployments"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentPermissions", "github.com/operator-framework/api/pkg/operators/v1alpha1.StrategyDeploymentSpec"},
 	}
 }
 

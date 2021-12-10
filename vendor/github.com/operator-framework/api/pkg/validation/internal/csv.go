@@ -48,6 +48,8 @@ func validateCSV(csv *v1alpha1.ClusterServiceVersion) errors.ManifestResult {
 	result.Add(checkFields(*csv)...)
 	// validate case sensitive annotation names
 	result.Add(ValidateAnnotationNames(csv.GetAnnotations(), csv.GetName())...)
+	// validate Version and Kind
+	result.Add(validateVersionKind(csv)...)
 	return result
 }
 
@@ -193,4 +195,16 @@ func validateInstallModes(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Er
 		errs = append(errs, errors.ErrInvalidCSV("none of InstallModeTypes are supported", csv.GetName()))
 	}
 	return errs
+}
+
+// validateVersionKind checks presence of GroupVersionKind.Version and GroupVersionKind.Kind
+func validateVersionKind(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Error) {
+	gvk := csv.GroupVersionKind()
+	if gvk.Version == "" {
+		errs = append(errs, errors.ErrInvalidCSV("'apiVersion' is missing", csv.GetName()))
+	}
+	if gvk.Kind == "" {
+		errs = append(errs, errors.ErrInvalidCSV("'kind' is missing", csv.GetName()))
+	}
+	return
 }

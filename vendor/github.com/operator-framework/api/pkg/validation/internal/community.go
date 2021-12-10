@@ -21,11 +21,19 @@ const IndexImagePathKey = "index-path"
 // where the bundle will be distributed
 const ocpLabelindex = "com.redhat.openshift.versions"
 
+// OCP version where the apis v1beta1 is no longer supported
+const ocpVerV1beta1Unsupported = "4.9"
+
 // CommunityOperatorValidator validates the bundle manifests against the required criteria to publish
 // the projects on the community operators
 //
 // Note that this validator allows to receive a List of optional values as key=values. Currently, only the
 // `index-path` key is allowed. If informed, it will check the labels on the image index according to its criteria.
+//
+// Deprecated - The checks made for this validator were moved to the external one:
+// https://github.com/redhat-openshift-ecosystem/ocp-olm-catalog-validator
+//
+// Please no longer use this check it will be removed in the next releases.
 var CommunityOperatorValidator interfaces.Validator = interfaces.ValidatorFunc(communityValidator)
 
 func communityValidator(objs ...interface{}) (results []errors.ManifestResult) {
@@ -149,9 +157,17 @@ func checkMaxOpenShiftVersion(checks CommunityOperatorChecks, v1beta1MsgForResou
 
 	semVerVersionMaxOcp, err := semver.ParseTolerant(olmMaxOpenShiftVersionValue)
 	if err != nil {
-		checks.errs = append(checks.errs, fmt.Errorf("csv.Annotations.%s has an invalid value."+
+		checks.errs = append(checks.errs, fmt.Errorf("csv.Annotations.%s has an invalid value. "+
 			"Unable to parse (%s) using semver : %s",
 			olmproperties, olmMaxOpenShiftVersionValue, err))
+		return checks
+	}
+
+	truncatedMaxOcp := semver.Version{Major: semVerVersionMaxOcp.Major, Minor: semVerVersionMaxOcp.Minor}
+	if !semVerVersionMaxOcp.EQ(truncatedMaxOcp) {
+		checks.warns = append(checks.warns, fmt.Errorf("csv.Annotations.%s has an invalid value. "+
+			"%s must specify only major.minor versions, %s will be truncated to %s",
+			olmproperties, olmmaxOpenShiftVersion, semVerVersionMaxOcp, truncatedMaxOcp))
 		return checks
 	}
 
@@ -231,75 +247,71 @@ func validateImageFile(checks CommunityOperatorChecks, deprecatedAPImsg string) 
 				}
 
 				value := strings.Split(line[i], "=")
-				indexRange := value[1]
-				doubleCote := "\""
-				singleCote := "'"
-				indexRange = strings.ReplaceAll(indexRange, singleCote, "")
-				indexRange = strings.ReplaceAll(indexRange, doubleCote, "")
+				// It means that the OCP label is =OCP version
+				if len(value) > 2 && len(value[2]) > 0 {
+					version := cleanStringToGetTheVersionToParse(value[2])
+					verParsed, err := semver.ParseTolerant(version)
+					if err != nil {
+						checks.errs = append(checks.errs, fmt.Errorf("unable to parse the value (%s) on (%s)",
+							version, ocpLabelindex))
+						return checks
+					}
+
+					if verParsed.GE(semVerOCPV1beta1Unsupported) {
+						checks.errs = append(checks.errs, fmt.Errorf("this bundle is using APIs which were "+
+							"deprecated and removed in v1.22. "+
+							"More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22. "+
+							"Migrate the API(s) for "+
+							"%s or provide compatible version(s) by using the %s annotation in "+
+							"`metadata/annotations.yaml` to ensure that the index image will be geneared "+
+							"with its label. (e.g. LABEL %s='4.6-4.8')",
+							deprecatedAPImsg,
+							ocpLabelindex,
+							ocpLabelindex))
+						return checks
+					}
+					return checks
+				}
+				indexRange := cleanStringToGetTheVersionToParse(value[1])
 				if len(indexRange) > 1 {
 					// if has the = then, the value needs to be < 4.9
-					if strings.Contains(indexRange, "=") {
-						version := strings.Split(indexRange, "=")[1]
-						verParsed, err := semver.ParseTolerant(version)
-						if err != nil {
-							checks.errs = append(checks.errs, fmt.Errorf("unable to parse the value (%s) on (%s)",
-								version, ocpLabelindex))
-							return checks
-						}
+					// if not has not the = then the value needs contains - value less < 4.9
+					if !strings.Contains(indexRange, "-") {
+						checks.errs = append(checks.errs, fmt.Errorf("this bundle is using APIs which were "+
+							"deprecated and removed in v1.22. "+
+							"More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22 "+
+							"The %s allows to distribute it on >= %s. Migrate the API(s) for "+
+							"%s or provide compatible version(s) by using the %s annotation in "+
+							"`metadata/annotations.yaml` to ensure that the index image will be generated "+
+							"with its label. (e.g. LABEL %s='4.6-4.8')",
+							indexRange,
+							ocpVerV1beta1Unsupported,
+							deprecatedAPImsg,
+							ocpLabelindex,
+							ocpLabelindex))
+						return checks
+					}
 
-						if verParsed.GE(semVerOCPV1beta1Unsupported) {
-							checks.errs = append(checks.errs, fmt.Errorf("this bundle is using APIs which were " +
-								"deprecated and removed in v1.22. " +
-								"More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22. " +
-								"Migrate the API(s) for "+
-								"%s or provide compatible version(s) by using the %s annotation in " +
-								"`metadata/annotations.yaml` to ensure that the index image will be geneared " +
-								"with its label. (e.g. LABEL %s='4.6-4.8')",
-								deprecatedAPImsg,
-								ocpLabelindex,
-								ocpLabelindex))
-							return checks
-						}
-					} else {
-						// if not has not the = then the value needs contains - value less < 4.9
-						if !strings.Contains(indexRange, "-") {
-							checks.errs = append(checks.errs, fmt.Errorf("this bundle is using APIs which were " +
-								"deprecated and removed in v1.22. " +
-								"More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22 "+
-								"The %s allows to distribute it on >= %s. Migrate the API(s) for "+
-								"%s or provide compatible version(s) by using the %s annotation in " +
-								"`metadata/annotations.yaml` to ensure that the index image will be generated " +
-								"with its label. (e.g. LABEL %s='4.6-4.8')",
-								indexRange,
-								ocpVerV1beta1Unsupported,
-								deprecatedAPImsg,
-								ocpLabelindex,
-								ocpLabelindex))
-							return checks
-						}
+					version := strings.Split(indexRange, "-")[1]
+					verParsed, err := semver.ParseTolerant(version)
+					if err != nil {
+						checks.errs = append(checks.errs, fmt.Errorf("unable to parse the value (%s) on (%s)",
+							version, ocpLabelindex))
+						return checks
+					}
 
-						version := strings.Split(indexRange, "-")[1]
-						verParsed, err := semver.ParseTolerant(version)
-						if err != nil {
-							checks.errs = append(checks.errs, fmt.Errorf("unable to parse the value (%s) on (%s)",
-								version, ocpLabelindex))
-							return checks
-						}
-
-						if verParsed.GE(semVerOCPV1beta1Unsupported) {
-							checks.errs = append(checks.errs, fmt.Errorf("this bundle is using APIs which were " +
-								"deprecated and removed in v1.22. " +
-								"More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22. " +
-								"Upgrade the APIs from "+
-								"for %s or provide compatible distribution version(s) by using the %s " +
-								"annotation in `metadata/annotations.yaml` to ensure that the index image will " +
-								"be generated with its label. (e.g. LABEL %s='4.6-4.8')",
-								deprecatedAPImsg,
-								ocpLabelindex,
-								ocpLabelindex))
-							return checks
-						}
-
+					if verParsed.GE(semVerOCPV1beta1Unsupported) {
+						checks.errs = append(checks.errs, fmt.Errorf("this bundle is using APIs which were "+
+							"deprecated and removed in v1.22. "+
+							"More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22. "+
+							"Upgrade the APIs from "+
+							"for %s or provide compatible distribution version(s) by using the %s "+
+							"annotation in `metadata/annotations.yaml` to ensure that the index image will "+
+							"be generated with its label. (e.g. LABEL %s='4.6-4.8')",
+							deprecatedAPImsg,
+							ocpLabelindex,
+							ocpLabelindex))
+						return checks
 					}
 				} else {
 					checks.errs = append(checks.errs, fmt.Errorf("unable to get the range informed on %s",
@@ -310,8 +322,8 @@ func validateImageFile(checks CommunityOperatorChecks, deprecatedAPImsg string) 
 			}
 		}
 	} else {
-		checks.errs = append(checks.errs, fmt.Errorf("this bundle is using APIs which were deprecated and " +
-			"removed in v1.22. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22. " +
+		checks.errs = append(checks.errs, fmt.Errorf("this bundle is using APIs which were deprecated and "+
+			"removed in v1.22. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22. "+
 			"Migrate the APIs "+
 			"for %s or provide compatible version(s) via the labels. (e.g. LABEL %s='4.6-4.8')",
 			deprecatedAPImsg,
@@ -319,4 +331,15 @@ func validateImageFile(checks CommunityOperatorChecks, deprecatedAPImsg string) 
 		return checks
 	}
 	return checks
+}
+
+// cleanStringToGetTheVersionToParse will remove the expected characters for
+// we are able to parse the version informed.
+func cleanStringToGetTheVersionToParse(value string) string {
+	doubleQuote := "\""
+	singleQuote := "'"
+	value = strings.ReplaceAll(value, singleQuote, "")
+	value = strings.ReplaceAll(value, doubleQuote, "")
+	value = strings.ReplaceAll(value, "v", "")
+	return value
 }

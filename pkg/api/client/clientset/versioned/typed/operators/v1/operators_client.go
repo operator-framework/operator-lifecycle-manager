@@ -26,6 +26,7 @@ import (
 
 type OperatorsV1Interface interface {
 	RESTClient() rest.Interface
+	OLMConfigsGetter
 	OperatorsGetter
 	OperatorConditionsGetter
 	OperatorGroupsGetter
@@ -34,6 +35,10 @@ type OperatorsV1Interface interface {
 // OperatorsV1Client is used to interact with features provided by the operators.coreos.com group.
 type OperatorsV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *OperatorsV1Client) OLMConfigs() OLMConfigInterface {
+	return newOLMConfigs(c)
 }
 
 func (c *OperatorsV1Client) Operators() OperatorInterface {
