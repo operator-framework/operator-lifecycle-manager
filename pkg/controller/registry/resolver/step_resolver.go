@@ -26,6 +26,9 @@ const (
 	BundleLookupConditionPacked v1alpha1.BundleLookupConditionType = "BundleLookupNotPersisted"
 )
 
+// init hooks provides the downstream a way to modify the upstream behavior
+var initHooks []stepResolverInitHook
+
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 type StepResolver interface {
@@ -48,7 +51,7 @@ var _ StepResolver = &OperatorStepResolver{}
 
 func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface,
 	globalCatalogNamespace string, provider RegistryClientProvider, log logrus.FieldLogger) *OperatorStepResolver {
-	return &OperatorStepResolver{
+	stepResolver := &OperatorStepResolver{
 		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
 		ipLister:               lister.OperatorsV1alpha1().InstallPlanLister(),
@@ -58,6 +61,15 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		satResolver:            NewDefaultSatResolver(SourceProviderFromRegistryClientProvider(provider, log), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
 		log:                    log,
 	}
+
+	// init hooks can be added to the downstream to
+	// modify resolver behaviour
+	for _, initHook := range initHooks {
+		if err := initHook(stepResolver); err != nil {
+			panic(err)
+		}
+	}
+	return stepResolver
 }
 
 func (r *OperatorStepResolver) Expire(key cache.SourceKey) {

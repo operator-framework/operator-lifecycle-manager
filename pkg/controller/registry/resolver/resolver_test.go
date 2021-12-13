@@ -66,6 +66,109 @@ func TestSolveOperators(t *testing.T) {
 	require.EqualValues(t, expected, operators)
 }
 
+func TestSolveOperators_WithSystemConstraints(t *testing.T) {
+	const namespace = "test-namespace"
+	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
+
+	packageASub := newSub(namespace, "packageA", "alpha", catalog)
+	packageDSub := existingSub(namespace, "packageD.v1", "packageD", "alpha", catalog)
+
+	APISet := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
+
+	// packageA requires an API that can be provided by B or C
+	packageA := genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, APISet, nil, nil, "", false)
+	packageB := genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
+	packageC := genOperator("packageC.v1", "1.0.0", "", "packageC", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
+
+	// Existing operators
+	packageD := genOperator("packageD.v1", "1.0.0", "", "packageD", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
+	existingPackageD := existingOperator(namespace, "packageD.v1", "packageD", "alpha", "", nil, nil, nil, nil)
+	existingPackageD.Annotations = map[string]string{"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"packageD","version":"1.0.0"}}]}`}
+
+	whiteListConstraintProvider := func(whiteList ...*cache.Entry) solver.ConstraintProviderFunc {
+		return func(entry *cache.Entry) ([]solver.Constraint, error) {
+			for _, whiteListedEntry := range whiteList {
+				if whiteListedEntry.Package() == entry.Package() &&
+					whiteListedEntry.Name == entry.Name &&
+					whiteListedEntry.Version == entry.Version {
+					return nil, nil
+				}
+			}
+			return []solver.Constraint{PrettyConstraint(
+				solver.Prohibited(),
+				fmt.Sprintf("package: %s is not white listed", entry.Package()),
+			)}, nil
+		}
+	}
+
+	testCases := []struct {
+		title                     string
+		systemConstraintsProvider solver.ConstraintProvider
+		expectedOperators         cache.OperatorSet
+		csvs                      []*v1alpha1.ClusterServiceVersion
+		subs                      []*v1alpha1.Subscription
+		snapshotEntries           []*cache.Entry
+		err                       string
+	}{
+		{
+			title:                     "No runtime constraints",
+			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
+			systemConstraintsProvider: nil,
+			expectedOperators:         cache.OperatorSet{"packageA.v1": packageA, "packageB.v1": packageB},
+			csvs:                      nil,
+			subs:                      []*v1alpha1.Subscription{packageASub},
+			err:                       "",
+		},
+		{
+			title:                     "Runtime constraints only accept packages A and C",
+			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
+			systemConstraintsProvider: whiteListConstraintProvider(packageA, packageC),
+			expectedOperators:         cache.OperatorSet{"packageA.v1": packageA, "packageC.v1": packageC},
+			csvs:                      nil,
+			subs:                      []*v1alpha1.Subscription{packageASub},
+			err:                       "",
+		},
+		{
+			title:                     "Existing packages are ignored",
+			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
+			systemConstraintsProvider: whiteListConstraintProvider(packageA, packageC),
+			expectedOperators:         cache.OperatorSet{"packageA.v1": packageA, "packageC.v1": packageC},
+			csvs:                      []*v1alpha1.ClusterServiceVersion{existingPackageD},
+			subs:                      []*v1alpha1.Subscription{packageASub, packageDSub},
+			err:                       "",
+		},
+		{
+			title:                     "Runtime constraints don't allow A",
+			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
+			systemConstraintsProvider: whiteListConstraintProvider(),
+			expectedOperators:         nil,
+			csvs:                      nil,
+			subs:                      []*v1alpha1.Subscription{packageASub},
+			err:                       "packageA is not white listed",
+		},
+	}
+
+	for _, testCase := range testCases {
+		satResolver := SatResolver{
+			cache: cache.New(cache.StaticSourceProvider{
+				catalog: &cache.Snapshot{
+					Entries: testCase.snapshotEntries,
+				},
+			}),
+			log:                       logrus.New(),
+			systemConstraintsProvider: testCase.systemConstraintsProvider,
+		}
+		operators, err := satResolver.SolveOperators([]string{namespace}, testCase.csvs, testCase.subs)
+
+		if testCase.err != "" {
+			require.Containsf(t, err.Error(), testCase.err, "Test %s failed", testCase.title)
+		} else {
+			require.NoErrorf(t, err, "Test %s failed", testCase.title)
+		}
+		require.EqualValuesf(t, testCase.expectedOperators, operators, "Test %s failed", testCase.title)
+	}
+}
+
 func TestDisjointChannelGraph(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
