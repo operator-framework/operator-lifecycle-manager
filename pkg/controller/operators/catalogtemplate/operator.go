@@ -6,13 +6,14 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/rest"
+
 	"github.com/distribution/distribution/reference"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -43,13 +44,8 @@ type Operator struct {
 	resyncPeriod                  func() time.Duration            // period of time between resync
 }
 
-func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logger, resync time.Duration, operatorNamespace string) (*Operator, error) {
+func NewOperator(ctx context.Context, config *rest.Config, logger *logrus.Logger, resync time.Duration, operatorNamespace string) (*Operator, error) {
 	resyncPeriod := queueinformer.ResyncWithJitter(resync, 0.2)
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	if err != nil {
-		return nil, err
-	}
 
 	// Create a new client for OLM types (CRs)
 	crClient, err := versioned.NewForConfig(config)

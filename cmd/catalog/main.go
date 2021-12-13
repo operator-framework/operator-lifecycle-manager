@@ -8,12 +8,9 @@ import (
 	"os"
 	"time"
 
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	log "github.com/sirupsen/logrus"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
-	k8sscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtemplate"
@@ -23,6 +20,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
+	log "github.com/sirupsen/logrus"
+	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 )
 
 const (
@@ -37,9 +37,6 @@ const (
 
 // config flags defined globally so that they appear on the test binary as well
 var (
-	kubeConfigPath = flag.String(
-		"kubeconfig", os.Getenv("KUBECONFIG"), "absolute path to the kubeconfig file")
-
 	wakeupInterval = flag.Duration(
 		"interval", defaultWakeupInterval, "wakeup interval")
 
@@ -119,27 +116,31 @@ func main() {
 	}()
 
 	// create a config client for operator status
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+	kubeconfig, err := config.GetConfig()
+	if err != nil {
+		log.Fatalf("error getting kubeconfig: %s", err.Error())
+	}
+	configClient, err := configv1client.NewForConfig(kubeconfig)
 	if err != nil {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
-	configClient, err := configv1client.NewForConfig(config)
+	opClient, err := operatorclient.NewClientFromRestConfig(kubeconfig)
 	if err != nil {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
-	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
-	crClient, err := client.NewClient(*kubeConfigPath)
+
+	crClient, err := client.NewClient(kubeconfig)
 	if err != nil {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
 
 	// Create a new instance of the operator.
-	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
+	op, err := catalog.NewOperator(ctx, kubeconfig, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
 	if err != nil {
 		log.Fatalf("error configuring catalog operator: %s", err.Error())
 	}
 
-	opCatalogTemplate, err := catalogtemplate.NewOperator(ctx, *kubeConfigPath, logger, *wakeupInterval, *catalogNamespace)
+	opCatalogTemplate, err := catalogtemplate.NewOperator(ctx, kubeconfig, logger, *wakeupInterval, *catalogNamespace)
 	if err != nil {
 		log.Fatalf("error configuring catalog template operator: %s", err.Error())
 	}

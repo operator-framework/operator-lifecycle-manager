@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/client-go/rest"
+
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
@@ -36,7 +38,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
@@ -122,12 +123,8 @@ type Operator struct {
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, opmImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration, bundleUnpackTimeout time.Duration) (*Operator, error) {
+func NewOperator(ctx context.Context, config *rest.Config, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, opmImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration, bundleUnpackTimeout time.Duration) (*Operator, error) {
 	resyncPeriod := queueinformer.ResyncWithJitter(resync, 0.2)
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	if err != nil {
-		return nil, err
-	}
 
 	// Create a new client for OLM types (CRs)
 	crClient, err := versioned.NewForConfig(config)

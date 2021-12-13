@@ -85,6 +85,8 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 	existingPackageD := existingOperator(namespace, "packageD.v1", "packageD", "alpha", "", nil, nil, nil, nil)
 	existingPackageD.Annotations = map[string]string{"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"packageD","version":"1.0.0"}}]}`}
 
+	// Fake system constraints provider
+	// In this case it behaves as a whitelist. Only whitelisted operators can be installed.
 	whiteListConstraintProvider := func(whiteList ...*cache.Entry) solver.ConstraintProviderFunc {
 		return func(entry *cache.Entry) ([]solver.Constraint, error) {
 			for _, whiteListedEntry := range whiteList {
@@ -111,7 +113,7 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 		err                       string
 	}{
 		{
-			title:                     "No runtime constraints",
+			title:                     "no system constraints should output A and B operators",
 			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
 			systemConstraintsProvider: nil,
 			expectedOperators:         cache.OperatorSet{"packageA.v1": packageA, "packageB.v1": packageB},
@@ -120,7 +122,7 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 			err:                       "",
 		},
 		{
-			title:                     "Runtime constraints only accept packages A and C",
+			title:                     "system constraints (whitelist = [A, C]) should output A and C operators",
 			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
 			systemConstraintsProvider: whiteListConstraintProvider(packageA, packageC),
 			expectedOperators:         cache.OperatorSet{"packageA.v1": packageA, "packageC.v1": packageC},
@@ -129,7 +131,7 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 			err:                       "",
 		},
 		{
-			title:                     "Existing packages are ignored",
+			title:                     "system constraints (whitelist = [A, C]) and D already installed should output A and C operators",
 			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
 			systemConstraintsProvider: whiteListConstraintProvider(packageA, packageC),
 			expectedOperators:         cache.OperatorSet{"packageA.v1": packageA, "packageC.v1": packageC},
@@ -138,7 +140,7 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 			err:                       "",
 		},
 		{
-			title:                     "Runtime constraints don't allow A",
+			title:                     "system constraints (whitelist = []) raises error",
 			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
 			systemConstraintsProvider: whiteListConstraintProvider(packageB, packageC, packageD),
 			expectedOperators:         nil,

@@ -6,11 +6,6 @@ import (
 )
 
 // NewClient creates a client that can interact with OLM resources in k8s api
-func NewClient(kubeconfig string) (client versioned.Interface, err error) {
-	var config *rest.Config
-	config, err = getConfig(kubeconfig)
-	if err != nil {
-		return
-	}
+func NewClient(config *rest.Config) (client versioned.Interface, err error) {
 	return versioned.NewForConfig(config)
 }

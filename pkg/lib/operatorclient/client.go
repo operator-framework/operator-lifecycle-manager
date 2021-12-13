@@ -2,7 +2,6 @@
 package operatorclient
 
 import (
-	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -12,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistration "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 )
@@ -144,26 +142,6 @@ type Client struct {
 	kubernetes.Interface
 	extInterface apiextensions.Interface
 	regInterface apiregistration.Interface
-}
-
-// NewClient creates a kubernetes client or bails out on on failures.
-func NewClientFromConfig(kubeconfig string, logger *logrus.Logger) ClientInterface {
-	var config *rest.Config
-	var err error
-
-	if kubeconfig != "" {
-		logger.Infof("Loading kube client config from path %q", kubeconfig)
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-	} else {
-		logger.Infof("Using in-cluster kube client config")
-		config, err = rest.InClusterConfig()
-	}
-
-	if err != nil {
-		logger.Fatalf("Cannot load config for REST client: %v", err)
-	}
-
-	return &Client{kubernetes.NewForConfigOrDie(config), apiextensions.NewForConfigOrDie(config), apiregistration.NewForConfigOrDie(config)}
 }
 
 func NewClientFromRestConfig(config *rest.Config) (client ClientInterface, err error) {

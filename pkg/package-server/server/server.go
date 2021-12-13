@@ -205,7 +205,7 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("unable to construct lister client: %v", err)
 	}
 
-	crClient, err := client.NewClient(o.Kubeconfig)
+	crClient, err := client.NewClient(clientConfig)
 	if err != nil {
 		return err
 	}
