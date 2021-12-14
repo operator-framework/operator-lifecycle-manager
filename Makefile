@@ -43,7 +43,7 @@ all: test build
 test: clean cover.out
 
 unit: kubebuilder
-	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/...
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
 # Ensure kubebuilder is installed before continuing
 KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://book.kubebuilder.io/quick-start.html
@@ -126,17 +126,14 @@ setup-bare: clean e2e.namespace
 E2E_NODES ?= 1
 E2E_FLAKE_ATTEMPTS ?= 1
 E2E_TIMEOUT ?= 90m
-E2E_COND_OPTS := $(if $(E2E_SEED),-seed '$(E2E_SEED)')
 # Optionally run an individual chunk of e2e test specs.
 # Do not use this from the CLI; this is intended to be used by CI only.
 E2E_TEST_CHUNK ?= all
 E2E_TEST_NUM_CHUNKS ?= 4
-ifeq (all,$(E2E_TEST_CHUNK))
-E2E_COND_OPTS := $(E2E_COND_OPTS) $(if $(TEST),-focus '$(TEST)')
-else
-E2E_COND_OPTS := $(E2E_COND_OPTS) -focus "$(shell go run ./test/e2e/split/... -chunks $(E2E_TEST_NUM_CHUNKS) -print-chunk $(E2E_TEST_CHUNK) ./test/e2e)"
+ifneq (all,$(E2E_TEST_CHUNK))
+TEST := $(shell go run ./test/e2e/split/... -chunks $(E2E_TEST_NUM_CHUNKS) -print-chunk $(E2E_TEST_CHUNK) ./test/e2e)
 endif
-E2E_OPTS ?= $(E2E_COND_OPTS) -flakeAttempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) -timeout $(E2E_TIMEOUT) -v -randomizeSuites -race -trace -progress
+E2E_OPTS ?= $(if $(E2E_SEED),-seed '$(E2E_SEED)') $(if $(TEST),-focus '$(TEST)') -flakeAttempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) -timeout $(E2E_TIMEOUT) -v -randomizeSuites -race -trace -progress
 E2E_INSTALL_NS ?= operator-lifecycle-manager
 E2E_TEST_NS ?= operators
 

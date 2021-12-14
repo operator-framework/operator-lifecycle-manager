@@ -10,6 +10,7 @@ on:
 jobs:
   e2e-tests:
     strategy:
+      fail-fast: false
       matrix:
         parallel-id: [0, 1, 2, 3]
     runs-on: ubuntu-latest
@@ -25,3 +26,4 @@ jobs:
         with:
           name: e2e-test-output-${{ (github.event.pull_request.head.sha || github.sha) }}-${{ github.run_id }}-${{ matrix.parallel-id }}
           path: ${{ github.workspace }}/bin/artifacts/*
+# TODO: create job to combine test artifacts using code in https://github.com/operator-framework/operator-lifecycle-manager/pull/1476
