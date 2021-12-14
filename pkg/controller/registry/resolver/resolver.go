@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/operator-framework/api/pkg/constraints"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
@@ -27,12 +28,14 @@ type OperatorResolver interface {
 type SatResolver struct {
 	cache cache.OperatorCacheProvider
 	log   logrus.FieldLogger
+	pc    *predicateConverter
 }
 
 func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger) *SatResolver {
 	return &SatResolver{
 		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
 		log:   logger,
+		pc:    &predicateConverter{},
 	}
 }
 
@@ -337,7 +340,7 @@ func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleSta
 
 		visited[bundle] = &bundleInstallable
 
-		dependencyPredicates, err := DependencyPredicates(bundle.Properties)
+		dependencyPredicates, err := r.pc.convertDependencyProperties(bundle.Properties)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -733,10 +736,14 @@ func sortChannel(bundles []*cache.Entry) ([]*cache.Entry, error) {
 	return chains[0], nil
 }
 
-func DependencyPredicates(properties []*api.Property) ([]cache.Predicate, error) {
+// predicateConverter configures olm.constraint value -> predicate conversion for the resolver.
+type predicateConverter struct{}
+
+// convertDependencyProperties converts all known constraint properties to predicates.
+func (pc *predicateConverter) convertDependencyProperties(properties []*api.Property) ([]cache.Predicate, error) {
 	var predicates []cache.Predicate
 	for _, property := range properties {
-		predicate, err := predicateForProperty(property)
+		predicate, err := pc.predicateForProperty(property)
 		if err != nil {
 			return nil, err
 		}
@@ -748,18 +755,80 @@ func DependencyPredicates(properties []*api.Property) ([]cache.Predicate, error)
 	return predicates, nil
 }
 
-func predicateForProperty(property *api.Property) (cache.Predicate, error) {
+func (pc *predicateConverter) predicateForProperty(property *api.Property) (cache.Predicate, error) {
 	if property == nil {
 		return nil, nil
 	}
-	p, ok := predicates[property.Type]
+
+	// olm.constraint holds all constraint types except legacy types,
+	// so defer error handling to its parser.
+	if property.Type == constraints.OLMConstraintType {
+		return pc.predicateForConstraintProperty(property.Value)
+	}
+
+	// Legacy behavior dictates that unknown properties are ignored. See enhancement for details:
+	// https://github.com/operator-framework/enhancements/blob/master/enhancements/compound-bundle-constraints.md
+	p, ok := legacyPredicateParsers[property.Type]
 	if !ok {
 		return nil, nil
 	}
 	return p(property.Value)
 }
 
-var predicates = map[string]func(string) (cache.Predicate, error){
+func (pc *predicateConverter) predicateForConstraintProperty(value string) (cache.Predicate, error) {
+	constraint, err := constraints.Parse(json.RawMessage([]byte(value)))
+	if err != nil {
+		return nil, fmt.Errorf("parse olm.constraint: %v", err)
+	}
+
+	preds, err := pc.convertConstraints(constraint)
+	if err != nil {
+		return nil, fmt.Errorf("convert olm.constraint to resolver predicate: %v", err)
+	}
+	return preds[0], nil
+}
+
+// convertConstraints creates predicates from each element of constraints, recursing on compound constraints.
+// New constraint types added to the constraints package must be handled here.
+func (pc *predicateConverter) convertConstraints(constraints ...constraints.Constraint) ([]cache.Predicate, error) {
+
+	preds := make([]cache.Predicate, len(constraints))
+	for i, constraint := range constraints {
+
+		var err error
+		switch {
+		case constraint.GVK != nil:
+			preds[i] = cache.ProvidingAPIPredicate(opregistry.APIKey{
+				Group:   constraint.GVK.Group,
+				Version: constraint.GVK.Version,
+				Kind:    constraint.GVK.Kind,
+			})
+		case constraint.Package != nil:
+			preds[i], err = newPackageRequiredPredicate(constraint.Package.PackageName, constraint.Package.VersionRange)
+		case constraint.All != nil:
+			subs, perr := pc.convertConstraints(constraint.All.Constraints...)
+			preds[i], err = cache.And(subs...), perr
+		case constraint.Any != nil:
+			subs, perr := pc.convertConstraints(constraint.Any.Constraints...)
+			preds[i], err = cache.Or(subs...), perr
+		case constraint.None != nil:
+			subs, perr := pc.convertConstraints(constraint.None.Constraints...)
+			preds[i], err = cache.Not(subs...), perr
+		default:
+			// Unknown constraint types are handled by constraints.Parse(),
+			// but parsed constraints may be empty.
+			return nil, fmt.Errorf("constraint is empty")
+		}
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	return preds, nil
+}
+
+var legacyPredicateParsers = map[string]func(string) (cache.Predicate, error){
 	"olm.gvk.required":     predicateForRequiredGVKProperty,
 	"olm.package.required": predicateForRequiredPackageProperty,
 	"olm.label.required":   predicateForRequiredLabelProperty,
@@ -789,11 +858,15 @@ func predicateForRequiredPackageProperty(value string) (cache.Predicate, error) 
 	if err := json.Unmarshal([]byte(value), &pkg); err != nil {
 		return nil, err
 	}
-	ver, err := semver.ParseRange(pkg.VersionRange)
+	return newPackageRequiredPredicate(pkg.PackageName, pkg.VersionRange)
+}
+
+func newPackageRequiredPredicate(name, verRange string) (cache.Predicate, error) {
+	ver, err := semver.ParseRange(verRange)
 	if err != nil {
 		return nil, err
 	}
-	return cache.And(cache.PkgPredicate(pkg.PackageName), cache.VersionInRangePredicate(ver, pkg.VersionRange)), nil
+	return cache.And(cache.PkgPredicate(name), cache.VersionInRangePredicate(ver, verRange)), nil
 }
 
 func predicateForRequiredLabelProperty(value string) (cache.Predicate, error) {

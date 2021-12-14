@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/blang/semver/v4"
-
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
@@ -277,6 +276,32 @@ func (p orPredicate) String() string {
 		b.WriteString(predicate.String())
 		if i != len(p.predicates)-1 {
 			b.WriteString(" or ")
+		}
+	}
+	return b.String()
+}
+
+func Not(p ...Predicate) Predicate {
+	return notPredicate{
+		predicates: p,
+	}
+}
+
+type notPredicate struct {
+	predicates []Predicate
+}
+
+func (p notPredicate) Test(o *Entry) bool {
+	// !pred && !pred is equivalent to !(pred || pred).
+	return !orPredicate{p.predicates}.Test(o)
+}
+
+func (p notPredicate) String() string {
+	var b bytes.Buffer
+	for i, predicate := range p.predicates {
+		b.WriteString(predicate.String())
+		if i != len(p.predicates)-1 {
+			b.WriteString(" and not ")
 		}
 	}
 	return b.String()
