@@ -95,7 +95,7 @@ func (r *manifestResolver) unpackedStepsForBundle(bundleName string, ref *Unpack
 		bundle.Properties = props
 	}
 
-	steps, err := resolver.NewStepResourceFromBundle(bundle, r.namespace, ref.Replaces, ref.CatalogSourceName, ref.CatalogSourceNamespace)
+	steps, _, err := resolver.NewStepResourceFromBundle(bundle, r.namespace, ref.Replaces, ref.CatalogSourceName, ref.CatalogSourceNamespace)
 	if err != nil {
 		return nil, errorwrap.Wrapf(err, "error calculating steps for ref %v", *ref)
 	}

@@ -40,6 +40,11 @@ var K8sVersionsSupportedByValidator = []string{"1.22.0", "1.25.0", "1.26.0"}
 // - 1.25 : https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-25
 //
 // - 1.26 : https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-26
+//
+// IMPORTANT: Note that in the case scenarios of 1.25 and 1.26 it is very unlikely the OperatorAuthors
+// add manifests on the bundle using these APIs. On top of that some Kinds such as the CronJob
+// are not currently a valid/supported by OLM and never would to be added to bundle.
+// See: https://github.com/operator-framework/operator-registry/blob/v1.19.5/pkg/lib/bundle/supported_resources.go#L3-L23
 var AlphaDeprecatedAPIsValidator interfaces.Validator = interfaces.ValidatorFunc(validateDeprecatedAPIsValidator)
 
 func validateDeprecatedAPIsValidator(objs ...interface{}) (results []errors.ManifestResult) {
@@ -277,6 +282,11 @@ func getRemovedAPIsOn1_22From(bundle *manifests.Bundle) map[string][]string {
 
 // getRemovedAPIsOn1_25From return the list of resources which were deprecated
 // and are no longer be supported in 1.25. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-25
+//
+// IMPORTANT: Note that in the case scenarios of 1.25 and 1.26 it is very unlikely the OperatorAuthors
+// add manifests on the bundle using these APIs. On top of that some Kinds such as the CronJob
+// are not currently a valid/supported by OLM and never would to be added to bundle.
+// See: https://github.com/operator-framework/operator-registry/blob/v1.19.5/pkg/lib/bundle/supported_resources.go#L3-L23
 func getRemovedAPIsOn1_25From(bundle *manifests.Bundle) map[string][]string {
 	deprecatedAPIs := make(map[string][]string)
 	for _, obj := range bundle.Objects {
@@ -315,6 +325,11 @@ func getRemovedAPIsOn1_25From(bundle *manifests.Bundle) map[string][]string {
 
 // getRemovedAPIsOn1_26From return the list of resources which were deprecated
 // and are no longer be supported in 1.26. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-26
+//
+// IMPORTANT: Note that in the case scenarios of 1.25 and 1.26 it is very unlikely the OperatorAuthors
+// add manifests on the bundle using these APIs. On top of that some Kinds such as the CronJob
+// are not currently a valid/supported by OLM and never would to be added to bundle.
+// See: https://github.com/operator-framework/operator-registry/blob/v1.19.5/pkg/lib/bundle/supported_resources.go#L3-L23
 func getRemovedAPIsOn1_26From(bundle *manifests.Bundle) map[string][]string {
 	deprecatedAPIs := make(map[string][]string)
 	for _, obj := range bundle.Objects {

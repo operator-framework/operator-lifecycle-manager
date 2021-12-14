@@ -1392,11 +1392,12 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 
 		// if packed condition is missing, bundle has already been unpacked into steps, continue
 		if res.GetCondition(resolver.BundleLookupConditionPacked).Status == corev1.ConditionUnknown {
+			o.logger.Debug("Bundle already unpacked")
 			continue
 		}
 
 		// Ensure that bundle can be applied by the current version of OLM by converting to steps
-		steps, err := resolver.NewStepsFromBundle(res.Bundle(), out.GetNamespace(), res.Replaces, res.CatalogSourceRef.Name, res.CatalogSourceRef.Namespace)
+		steps, err := resolver.NewQualifiedStepsFromBundle(res.Bundle(), out.GetNamespace(), res.Replaces, res.CatalogSourceRef.Name, res.CatalogSourceRef.Namespace, o.logger)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to turn bundle into steps: %v", err))
 			unpacked = false
@@ -1590,7 +1591,6 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
 			return
 		}
-
 		if !reflect.DeepEqual(plan.Status, out.Status) {
 			logger.Warnf("status not equal, updating...")
 			if _, err := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
@@ -1631,7 +1631,6 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 			return
 		}
 	}
-
 	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan, o.now(), o.installPlanTimeout)
 
 	if syncError != nil {
@@ -1983,7 +1982,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			}
 
 			switch step.Status {
-			case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated, v1alpha1.StepStatusWaitingForAPI:
+			case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated, v1alpha1.StepStatusWaitingForAPI, v1alpha1.StepStatusNotCreated:
 				return nil
 			case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
 				manifest, err := r.ManifestForStep(step)
@@ -2252,6 +2251,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					if !isSupported(step.Resource.Kind) {
 						// Not a supported resource
 						plan.Status.Plan[i].Status = v1alpha1.StepStatusUnsupportedResource
+						o.logger.WithError(err).Debug("resource kind not supported")
 						return v1alpha1.ErrInvalidInstallPlan
 					}
 
@@ -2266,7 +2266,14 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					gvk := unstructuredObject.GroupVersionKind()
 					r, err := o.apiresourceFromGVK(gvk)
 					if err != nil {
-						return err
+						if step.Optional {
+							// Special handling of the unavailability of the API for optional resources: no error
+							o.logger.WithFields(logrus.Fields{"InstallPlan": plan.Name, "kind": step.Resource.Kind, "name": step.Resource.Name}).Warnf("Optional manifest could not be created. Optional capabilities of the operator may not be available.")
+							plan.Status.Plan[i].Status = v1alpha1.StepStatusNotCreated
+							return nil
+						} else {
+							return err
+						}
 					}
 
 					// Create the GVR
@@ -2312,7 +2319,26 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					// Ensure Unstructured Object
 					status, err := ensurer.EnsureUnstructuredObject(resourceInterface, unstructuredObject)
 					if err != nil {
-						return err
+						if step.Optional {
+							switch apierrors.ReasonForError(err) {
+							case
+								metav1.StatusReasonUnauthorized,
+								metav1.StatusReasonForbidden,
+								metav1.StatusReasonNotFound,
+								metav1.StatusReasonInvalid,
+								metav1.StatusReasonNotAcceptable,
+								metav1.StatusReasonUnsupportedMediaType,
+								metav1.StatusReasonConflict:
+								o.logger.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).WithError(err).Warnf("Optional manifest could not be created. Optional capabilities of the operator may not be available.")
+								status = v1alpha1.StepStatusNotCreated
+								// no error
+							default:
+								o.logger.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).WithError(err).Warnf("Optional manifest could not be created, possibly due to a recoverable error, retrying")
+								return err
+							}
+						} else {
+							return err
+						}
 					}
 
 					plan.Status.Plan[i].Status = status
@@ -2337,7 +2363,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	// Loop over one final time to check and see if everything is good.
 	for _, step := range plan.Status.Plan {
 		switch step.Status {
-		case v1alpha1.StepStatusCreated, v1alpha1.StepStatusPresent:
+		case v1alpha1.StepStatusCreated, v1alpha1.StepStatusPresent, v1alpha1.StepStatusNotCreated:
 		default:
 			return nil
 		}

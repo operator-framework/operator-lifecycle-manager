@@ -1120,7 +1120,7 @@ func bundleSteps(bundle *api.Bundle, ns, replaces string, catalog resolvercache.
 		csv, _ := V1alpha1CSVFromBundle(bundle)
 		replaces = csv.Spec.Replaces
 	}
-	stepresources, err := NewStepResourceFromBundle(bundle, ns, replaces, catalog.Name, catalog.Namespace)
+	stepresources, _, err := NewStepResourceFromBundle(bundle, ns, replaces, catalog.Name, catalog.Namespace)
 	if err != nil {
 		panic(err)
 	}

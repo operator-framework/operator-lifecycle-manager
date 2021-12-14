@@ -13,6 +13,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/operator-framework/api/pkg/encoding"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
@@ -35,6 +36,8 @@ func (b *bundleLoader) LoadBundle() error {
 		errs = append(errs, err)
 	}
 
+	errs = append(errs, b.calculateCompressedBundleSize())
+
 	if !b.foundCSV {
 		errs = append(errs, fmt.Errorf("unable to find a csv in bundle directory %s", b.dir))
 	} else if b.bundle == nil {
@@ -42,6 +45,39 @@ func (b *bundleLoader) LoadBundle() error {
 	}
 
 	return utilerrors.NewAggregate(errs)
+}
+
+// Compress the bundle to check its size
+func (b *bundleLoader) calculateCompressedBundleSize() error {
+	if b.bundle == nil {
+		return nil
+	}
+	err := filepath.Walk(b.dir,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err == nil {
+				// Sum the bundle amount
+				b.bundle.Size += info.Size()
+
+				// Sum the compressed amount
+				contentGzip, err := encoding.GzipBase64Encode(data)
+				if err != nil {
+					return err
+				}
+				b.bundle.CompressedSize += int64(len(contentGzip))
+			}
+			return err
+		})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // collectWalkErrs calls the given walk func and appends any non-nil, non skip dir error returned to the given errors slice.

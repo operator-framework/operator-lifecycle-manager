@@ -604,6 +604,118 @@ func TestExecutePlan(t *testing.T) {
 				},
 			},
 		},
+		{
+			testName: "OptionalManifestWithCRD",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resolving: "csv",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(t, csv("csv", namespace, nil, nil)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+					{
+						Resolving: "csv",
+						Optional:  true,
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "monitoring.coreos.com",
+							Version:                "v1",
+							Kind:                   "PrometheusRule",
+							Name:                   "rule",
+							Manifest:               toManifest(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{})),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			extObjs: []runtime.Object{decodeFile(t, "./testdata/prometheusrule.crd.yaml", &apiextensionsv1beta1.CustomResourceDefinition{})},
+			want: []runtime.Object{
+				csv("csv", namespace, nil, nil),
+				modify(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{}),
+					withNamespace(namespace),
+					withOwner(csv("csv", namespace, nil, nil)),
+				),
+			},
+			err: nil,
+		},
+		{
+			testName: "NotOptionalManifestWithoutCRD",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resolving: "csv",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(t, csv("csv", namespace, nil, nil)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+					{
+						Resolving: "csv",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "monitoring.coreos.com",
+							Version:                "v1",
+							Kind:                   "PrometheusRule",
+							Name:                   "rule",
+							Manifest:               toManifest(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{})),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			err: gvkNotFoundError{gvk: schema.GroupVersionKind{Group: "monitoring.coreos.com", Version: "v1", Kind: "PrometheusRule"}, name: "rule"},
+		},
+		{
+			testName: "OptionalManifestWithoutCRD",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resolving: "csv",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(t, csv("csv", namespace, nil, nil)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+					{
+						Resolving: "csv",
+						Optional:  true,
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "monitoring.coreos.com",
+							Version:                "v1",
+							Kind:                   "PrometheusRule",
+							Name:                   "rule",
+							Manifest:               toManifest(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{})),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			err: nil,
+		},
 	}
 
 	for _, tt := range tests {
