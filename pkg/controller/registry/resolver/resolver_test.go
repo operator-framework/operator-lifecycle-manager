@@ -2482,8 +2482,10 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 				cache: cache.New(cache.StaticSourceProvider{
 					catalog: tt.catalog,
 				}),
-				log:    logrus.New(),
-				celEnv: constraints.NewCelEnvironment(),
+				log: logrus.New(),
+				pc: &predicateConverter{
+					celEnv: constraints.NewCelEnvironment(),
+				},
 			}
 
 			operators, err = satResolver.SolveOperators([]string{namespace}, nil, tt.subs)

@@ -35,7 +35,9 @@ func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1lister
 	return &SatResolver{
 		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
 		log:   logger,
-		pc:    &predicateConverter{},
+		pc: &predicateConverter{
+			celEnv: constraints.NewCelEnvironment(),
+		},
 	}
 }
 
@@ -344,26 +346,6 @@ func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleSta
 		if err != nil {
 			errs = append(errs, err)
 			continue
-		}
-
-		for _, prop := range bundle.Properties {
-			if prop.Type != "olm.constraint" {
-				continue
-			}
-
-			var val constraints.Constraint
-			if err := json.Unmarshal([]byte(prop.Value), &val); err != nil {
-				errs = append(errs, err)
-				continue
-			}
-
-			pred, err := cache.CreateCelPredicate(r.celEnv, val.Cel.Rule, val.Message)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-
-			dependencyPredicates = append(dependencyPredicates, pred)
 		}
 
 		for _, d := range dependencyPredicates {
@@ -757,7 +739,9 @@ func sortChannel(bundles []*cache.Entry) ([]*cache.Entry, error) {
 }
 
 // predicateConverter configures olm.constraint value -> predicate conversion for the resolver.
-type predicateConverter struct{}
+type predicateConverter struct {
+	celEnv *constraints.CelEnvironment
+}
 
 // convertDependencyProperties converts all known constraint properties to predicates.
 func (pc *predicateConverter) convertDependencyProperties(properties []*api.Property) ([]cache.Predicate, error) {
@@ -834,6 +818,8 @@ func (pc *predicateConverter) convertConstraints(constraints ...constraints.Cons
 		case constraint.None != nil:
 			subs, perr := pc.convertConstraints(constraint.None.Constraints...)
 			preds[i], err = cache.Not(subs...), perr
+		case constraint.Cel != nil:
+			preds[i], err = cache.CreateCelPredicate(pc.celEnv, constraint.Cel.Rule, constraint.Message)
 		default:
 			// Unknown constraint types are handled by constraints.Parse(),
 			// but parsed constraints may be empty.
