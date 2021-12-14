@@ -94,3 +94,179 @@ func TestPodContainerSecurityContext(t *testing.T) {
 	gotContainerSecCtx := gotPod.Spec.Containers[0].SecurityContext
 	require.Equal(t, expectedContainerSecCtx, gotContainerSecCtx)
 }
+
+func TestPodSchedulingOverrides(t *testing.T) {
+	// This test ensures that any overriding pod scheduling configuration elements
+	// defined in spec.grpcPodConfig are applied to the catalog source pod created
+	// when spec.sourceType = 'grpc' and spec.image is set.
+	var tolerationSeconds int64 = 120
+	var overriddenPriorityClassName = "some-prio-class"
+	var overriddenNodeSelectors = map[string]string{
+		"label":  "value",
+		"label2": "value2",
+	}
+	var defaultNodeSelectors = map[string]string{
+		"kubernetes.io/os": "linux",
+	}
+	var defaultPriorityClassName = ""
+
+	var overriddenTolerations = []corev1.Toleration{
+		{
+			Key:               "some/key",
+			Operator:          corev1.TolerationOpExists,
+			Effect:            corev1.TaintEffectNoExecute,
+			TolerationSeconds: &tolerationSeconds,
+		},
+		{
+			Key:      "someother/key",
+			Operator: corev1.TolerationOpEqual,
+			Effect:   corev1.TaintEffectNoSchedule,
+		},
+	}
+
+	testCases := []struct {
+		title                     string
+		catalogSource             *v1alpha1.CatalogSource
+		expectedNodeSelectors     map[string]string
+		expectedTolerations       []corev1.Toleration
+		expectedPriorityClassName string
+		annotations               map[string]string
+	}{
+		{
+			title: "no overrides",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+				},
+			},
+			expectedTolerations:       nil,
+			expectedPriorityClassName: defaultPriorityClassName,
+			expectedNodeSelectors:     defaultNodeSelectors,
+		}, {
+			title: "override node selectors",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						NodeSelector: overriddenNodeSelectors,
+					},
+				},
+			},
+			expectedTolerations:       nil,
+			expectedPriorityClassName: defaultPriorityClassName,
+			expectedNodeSelectors:     overriddenNodeSelectors,
+		}, {
+			title: "override priority class name",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						PriorityClassName: &overriddenPriorityClassName,
+					},
+				},
+			},
+			expectedTolerations:       nil,
+			expectedPriorityClassName: overriddenPriorityClassName,
+			expectedNodeSelectors:     defaultNodeSelectors,
+		}, {
+			title: "doesn't override priority class name when its nil",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						PriorityClassName: nil,
+					},
+				},
+			},
+			expectedTolerations:       nil,
+			expectedPriorityClassName: defaultPriorityClassName,
+			expectedNodeSelectors:     defaultNodeSelectors,
+		}, {
+			title: "Override node tolerations",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						Tolerations: overriddenTolerations,
+					},
+				},
+			},
+			expectedTolerations:       overriddenTolerations,
+			expectedPriorityClassName: defaultPriorityClassName,
+			expectedNodeSelectors:     defaultNodeSelectors,
+		}, {
+			title: "Override all the things",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						NodeSelector:      overriddenNodeSelectors,
+						PriorityClassName: &overriddenPriorityClassName,
+						Tolerations:       overriddenTolerations,
+					},
+				},
+			},
+			expectedTolerations:       overriddenTolerations,
+			expectedPriorityClassName: overriddenPriorityClassName,
+			expectedNodeSelectors:     overriddenNodeSelectors,
+		}, {
+			title: "priorityClassName annotation takes precedence",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						PriorityClassName: &overriddenPriorityClassName,
+					},
+				},
+			},
+			expectedTolerations: nil,
+			annotations: map[string]string{
+				CatalogPriorityClassKey: "some-OTHER-prio-class",
+			},
+			expectedPriorityClassName: "some-OTHER-prio-class",
+			expectedNodeSelectors:     defaultNodeSelectors,
+		},
+	}
+
+	for _, testCase := range testCases {
+		pod := Pod(testCase.catalogSource, "hello", "busybox", "", map[string]string{}, testCase.annotations, int32(0), int32(0))
+		require.Equal(t, testCase.expectedNodeSelectors, pod.Spec.NodeSelector)
+		require.Equal(t, testCase.expectedPriorityClassName, pod.Spec.PriorityClassName)
+		require.Equal(t, testCase.expectedTolerations, pod.Spec.Tolerations)
+	}
+}

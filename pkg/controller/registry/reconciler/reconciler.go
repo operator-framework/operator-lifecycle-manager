@@ -169,6 +169,32 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 		},
 	}
 
+	// Override scheduling options if specified
+	if source.Spec.GrpcPodConfig != nil {
+		grpcPodConfig := source.Spec.GrpcPodConfig
+
+		// Override node selector
+		if grpcPodConfig.NodeSelector != nil {
+			pod.Spec.NodeSelector = make(map[string]string, len(grpcPodConfig.NodeSelector))
+			for key, value := range grpcPodConfig.NodeSelector {
+				pod.Spec.NodeSelector[key] = value
+			}
+		}
+
+		// Override priority class name
+		if grpcPodConfig.PriorityClassName != nil {
+			pod.Spec.PriorityClassName = *grpcPodConfig.PriorityClassName
+		}
+
+		// Override tolerations
+		if grpcPodConfig.Tolerations != nil {
+			pod.Spec.Tolerations = make([]v1.Toleration, len(grpcPodConfig.Tolerations))
+			for index, toleration := range grpcPodConfig.Tolerations {
+				pod.Spec.Tolerations[index] = *toleration.DeepCopy()
+			}
+		}
+	}
+
 	// Set priorityclass if its annotation exists
 	if prio, ok := annotations[CatalogPriorityClassKey]; ok && prio != "" {
 		pod.Spec.PriorityClassName = prio

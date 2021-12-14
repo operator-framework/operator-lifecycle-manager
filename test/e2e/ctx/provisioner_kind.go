@@ -83,6 +83,7 @@ func Provision(ctx *TestContext) (func(), error) {
 	}
 	kubeconfigPath := filepath.Join(dir, "kubeconfig")
 
+	ctx.Logf("e2e cluster kubeconfig: %s\n", kubeconfigPath)
 	provider := cluster.NewProvider(
 		cluster.ProviderWithLogger(kindLogAdapter{ctx}),
 	)
