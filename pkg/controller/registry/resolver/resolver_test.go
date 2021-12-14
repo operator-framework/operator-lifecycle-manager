@@ -2380,3 +2380,126 @@ func TestNewOperatorFromCSV(t *testing.T) {
 		})
 	}
 }
+
+func TestSolveOperators_GenericConstraint(t *testing.T) {
+	Provides1 := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	namespace := "olm"
+	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
+
+	deps1 := []*api.Dependency{
+		{
+			Type: "olm.constraint",
+			Value: `{"message":"gvk-constraint",
+				"cel":{"rule":"properties.exists(p, p.type == 'olm.gvk' && p.value == {'group': 'g', 'version': 'v', 'kind': 'k'})"}}`,
+		},
+	}
+	deps2 := []*api.Dependency{
+		{
+			Type: "olm.constraint",
+			Value: `{"message":"gvk2-constraint",
+				"cel":{"rule":"properties.exists(p, p.type == 'olm.gvk' && p.value == {'group': 'g2', 'version': 'v', 'kind': 'k'})"}}`,
+		},
+	}
+	deps3 := []*api.Dependency{
+		{
+			Type: "olm.constraint",
+			Value: `{"message":"package-constraint",
+				"cel":{"rule":"properties.exists(p, p.type == 'olm.package' && p.value.packageName == 'packageB' && (semver_compare(p.value.version, '1.0.1') == 0))"}}`,
+		},
+	}
+
+	tests := []struct {
+		name     string
+		isErr    bool
+		subs     []*v1alpha1.Subscription
+		catalog  cache.Source
+		expected cache.OperatorSet
+		message  string
+	}{
+		{
+			// generic constraint for satisfiable gvk dependency
+			name:  "Generic Constraint/Satisfiable GVK Dependency",
+			isErr: false,
+			subs: []*v1alpha1.Subscription{
+				newSub(namespace, "packageA", "stable", catalog),
+			},
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Entry{
+					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps1, "", false),
+					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
+				},
+			},
+			expected: cache.OperatorSet{
+				"opA.v1.0.0": genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps1, "", false),
+				"opB.v1.0.0": genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
+			},
+		},
+		{
+			// generic constraint for NotSatisfiable gvk dependency
+			name:  "Generic Constraint/NotSatisfiable GVK Dependency",
+			isErr: true,
+			subs: []*v1alpha1.Subscription{
+				newSub(namespace, "packageA", "stable", catalog),
+			},
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Entry{
+					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps2, "", false),
+					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
+				},
+			},
+			// unable to find satisfiable gvk dependency
+			// resolve into nothing
+			expected: cache.OperatorSet{},
+			message:  "gvk2-constraint",
+		},
+		{
+			// generic constraint for package constraint
+			name:  "Generic Constraint/Satisfiable Package Dependency",
+			isErr: false,
+			subs: []*v1alpha1.Subscription{
+				newSub(namespace, "packageA", "stable", catalog),
+			},
+			catalog: &cache.Snapshot{
+				Entries: []*cache.Entry{
+					genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps3, "", false),
+					genOperator("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genOperator("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "packageB", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
+					genOperator("opB.v1.0.2", "1.0.2", "opB.v1.0.1", "packageB", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
+				},
+			},
+			expected: cache.OperatorSet{
+				"opA.v1.0.0": genOperator("opA.v1.0.1", "1.0.1", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps3, "", false),
+				"opB.v1.0.1": genOperator("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "packageB", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			var operators cache.OperatorSet
+			satResolver := SatResolver{
+				cache: cache.New(cache.StaticSourceProvider{
+					catalog: tt.catalog,
+				}),
+				log: logrus.New(),
+				pc: &predicateConverter{
+					celEnv: constraints.NewCelEnvironment(),
+				},
+			}
+
+			operators, err = satResolver.SolveOperators([]string{namespace}, nil, tt.subs)
+			if tt.isErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.message)
+			} else {
+				assert.NoError(t, err)
+				for k := range tt.expected {
+					require.NotNil(t, operators[k])
+					assert.EqualValues(t, k, operators[k].Name)
+				}
+			}
+			assert.Equal(t, len(tt.expected), len(operators))
+		})
+	}
+}
