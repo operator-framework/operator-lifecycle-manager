@@ -191,7 +191,7 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	source := grpcCatalogSourceDecorator{catalogSource}
 
 	// if service status is nil, we force create every object to ensure they're created the first time
-	overwrite := source.Status.RegistryServiceStatus == nil
+	overwrite := source.Status.RegistryServiceStatus == nil || !isRegistryServiceStatusValid(&source)
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	sa, err := c.ensureSA(source)
@@ -216,15 +216,31 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 
 	if overwritePod {
 		now := c.now()
+		service := source.Service()
 		catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
 			CreatedAt:        now,
 			Protocol:         "grpc",
-			ServiceName:      source.Service().GetName(),
+			ServiceName:      service.GetName(),
 			ServiceNamespace: source.GetNamespace(),
-			Port:             fmt.Sprintf("%d", source.Service().Spec.Ports[0].Port),
+			Port:             getPort(service),
 		}
 	}
 	return nil
+}
+
+func getPort(service *corev1.Service) string {
+	return fmt.Sprintf("%d", service.Spec.Ports[0].Port)
+}
+
+func isRegistryServiceStatusValid(source *grpcCatalogSourceDecorator) bool {
+	service := source.Service()
+	if source.Status.RegistryServiceStatus.ServiceName != service.GetName() ||
+		source.Status.RegistryServiceStatus.ServiceNamespace != service.GetNamespace() ||
+		source.Status.RegistryServiceStatus.Port != getPort(service) ||
+		source.Status.RegistryServiceStatus.Protocol != "grpc" {
+		return false
+	}
+	return true
 }
 
 func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, saName string, overwrite bool) error {
