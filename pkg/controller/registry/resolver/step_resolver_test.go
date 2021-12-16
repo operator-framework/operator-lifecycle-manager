@@ -47,6 +47,33 @@ var (
 	Requires4 = APISet4
 )
 
+func TestInitHooks(t *testing.T) {
+	clientFake := fake.NewSimpleClientset()
+	lister := operatorlister.NewLister()
+	kClientFake := k8sfake.NewSimpleClientset()
+	log := logrus.New()
+
+	// no init hooks
+	resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
+	require.NotNil(t, resolver.satResolver)
+
+	// with init hook
+	var testHook stepResolverInitHook = func(resolver *OperatorStepResolver) error {
+		resolver.satResolver = nil
+		return nil
+	}
+
+	// defined in step_resolver.go
+	initHooks = append(initHooks, testHook)
+	defer func() {
+		// reset initHooks
+		initHooks = nil
+	}()
+
+	resolver = NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
+	require.Nil(t, resolver.satResolver)
+}
+
 func TestResolver(t *testing.T) {
 	const namespace = "catsrc-namespace"
 	catalog := resolvercache.SourceKey{Name: "catsrc", Namespace: namespace}
