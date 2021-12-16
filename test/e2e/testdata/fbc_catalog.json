@@ -1,0 +1,38 @@
+{
+  "schema": "olm.package",
+  "name": "packageA",
+  "defaultChannel": "stable"
+}
+{
+  "schema": "olm.channel",
+  "name": "stable",
+  "package": "packageA",
+  "entries": [
+    {
+      "name": "packageA.v1.0.0"
+    }
+  ]
+}
+{
+  "schema": "olm.bundle",
+  "name": "packageA.v1.0.0",
+  "package": "packageA",
+  "image": "packageA:v1.0.0",
+  "properties": [
+    {
+      "type": "olm.gvk",
+      "value": {
+        "group": "example.com",
+        "kind": "TestA",
+        "version": "v1alpha1"
+      }
+    },
+    {
+      "type": "olm.package",
+      "value": {
+        "packageName": "packageA",
+        "version": "1.0.0"
+      }
+    }
+  ]
+}
