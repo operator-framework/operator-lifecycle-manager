@@ -149,9 +149,13 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					restartDeploymentWithLabel(c, "app=olm-operator")
 				})
 				It("CSV metric is preserved", func() {
-					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).To(
-						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(csv.Name), WithValue(1))),
-					)
+					Eventually(func() []Metric {
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))
+					}).Should(ContainElement(LikeMetric(
+						WithFamily("csv_succeeded"),
+						WithName(csv.Name),
+						WithValue(1),
+					)))
 				})
 			})
 		})
