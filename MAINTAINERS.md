@@ -5,8 +5,8 @@ for general contribution guidelines.
 
 ## Maintainers (in alphabetical order)
 
-- [Alexander Greene](github.com/awgreene), Red Hat
-- [Evan Cordell](github.com/ecordell), Authzed
-- [Kevin Rizza](github.com/kevinrizza), Red Hat
-- [Nick Hale](github.com/njhale), Red Hat
-- [Vu Dinh](github.com/dinhxuanvu), Red Hat
+- [Alexander Greene](https://github.com/awgreene), Red Hat
+- [Evan Cordell](https://github.com/ecordell), Authzed
+- [Kevin Rizza](https://github.com/kevinrizza), Red Hat
+- [Nick Hale](https://github.com/njhale), Red Hat
+- [Vu Dinh](https://github.com/dinhxuanvu), Red Hat
