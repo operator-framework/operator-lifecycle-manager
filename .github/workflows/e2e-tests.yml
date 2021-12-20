@@ -1,5 +1,7 @@
 name: e2e
 on:
+  schedule:
+    - cron: '30 5,17 * * *' # run this every day at 5:30 and 17:30 UTC (00:30 and 12:30 ET)
   push:
     branches:
       - master
