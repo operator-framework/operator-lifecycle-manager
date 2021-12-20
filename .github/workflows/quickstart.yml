@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
     - 'deploy/upstream/quickstart/**'
+  workflow_dispatch:
 jobs:
   install-quickstart:
     runs-on: ubuntu-latest

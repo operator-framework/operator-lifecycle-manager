@@ -1,6 +1,7 @@
 name: build
 on:
   pull_request:
+  workflow_dispatch:
 jobs:
   image:
     runs-on: ubuntu-latest
