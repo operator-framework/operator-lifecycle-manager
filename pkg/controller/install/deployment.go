@@ -179,23 +179,6 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 	return
 }
 
-func (i *StrategyDeploymentInstaller) cleanupPrevious(current *v1alpha1.StrategyDetailsDeployment, previous *v1alpha1.StrategyDetailsDeployment) error {
-	previousDeploymentsMap := map[string]struct{}{}
-	for _, d := range previous.DeploymentSpecs {
-		previousDeploymentsMap[d.Name] = struct{}{}
-	}
-	for _, d := range current.DeploymentSpecs {
-		delete(previousDeploymentsMap, d.Name)
-	}
-	log.Debugf("preparing to cleanup: %s", previousDeploymentsMap)
-	// delete deployments in old strategy but not new
-	var err error = nil
-	for name := range previousDeploymentsMap {
-		err = i.strategyClient.DeleteDeployment(name)
-	}
-	return err
-}
-
 func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	strategy, ok := s.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
@@ -235,11 +218,6 @@ func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (installed bool
 }
 
 func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1alpha1.StrategyDeploymentSpec) error {
-	var depNames []string
-	for _, dep := range deploymentSpecs {
-		depNames = append(depNames, dep.Name)
-	}
-
 	// Check the owner is a CSV
 	csv, ok := i.owner.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
@@ -273,7 +251,7 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1al
 
 		// check annotations
 		if len(i.templateAnnotations) > 0 && dep.Spec.Template.Annotations == nil {
-			return StrategyError{Reason: StrategyErrReasonAnnotationsMissing, Message: fmt.Sprintf("no annotations found on deployment")}
+			return StrategyError{Reason: StrategyErrReasonAnnotationsMissing, Message: "no annotations found on deployment"}
 		}
 		for key, value := range i.templateAnnotations {
 			if actualValue, ok := dep.Spec.Template.Annotations[key]; !ok {
@@ -286,11 +264,11 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1al
 		// check that the deployment spec hasn't changed since it was created
 		labels := dep.GetLabels()
 		if len(labels) == 0 {
-			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment doesn't have a spec hash, update it")}
+			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment %s doesn't have a spec hash, update it", dep.Name)}
 		}
 		existingDeploymentSpecHash, ok := labels[DeploymentSpecHashLabelKey]
 		if !ok {
-			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment doesn't have a spec hash, update it")}
+			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment %s doesn't have a spec hash, update it", dep.Name)}
 		}
 
 		_, calculatedDeploymentHash, err := i.deploymentForSpec(spec.Name, spec.Spec, labels)

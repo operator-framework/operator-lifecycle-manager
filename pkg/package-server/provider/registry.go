@@ -61,7 +61,7 @@ func catalogIndexFunc(obj interface{}) ([]string, error) {
 
 func PackageManifestKeyFunc(obj interface{}) (string, error) {
 	if key, ok := obj.(string); ok {
-		return string(key), nil
+		return key, nil
 	}
 
 	pkg, ok := obj.(*operators.PackageManifest)
@@ -351,7 +351,7 @@ func (p *RegistryProvider) gcPackages(key registry.CatalogKey, keep map[string]s
 				continue
 			}
 		}
-		if err := p.cache.Delete(string(storedPkgKey)); err != nil {
+		if err := p.cache.Delete(storedPkgKey); err != nil {
 			logger.WithField("pkg", name).WithError(err).Warn("failed to delete cache entry")
 			errs = append(errs, err)
 		}
@@ -363,18 +363,16 @@ func (p *RegistryProvider) gcPackages(key registry.CatalogKey, keep map[string]s
 func (p *RegistryProvider) catalogSourceDeleted(obj interface{}) {
 	catsrc, ok := obj.(metav1.Object)
 	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-			if !ok {
-				utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
-				return
-			}
+			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
+			return
+		}
 
-			catsrc, ok = tombstone.Obj.(metav1.Object)
-			if !ok {
-				utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Namespace %#v", obj))
-				return
-			}
+		catsrc, ok = tombstone.Obj.(metav1.Object)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Namespace %#v", obj))
+			return
 		}
 	}
 

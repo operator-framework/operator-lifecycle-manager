@@ -4208,7 +4208,7 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 		},
 		Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 			Replaces:       replaces,
-			Version:        opver.OperatorVersion{version},
+			Version:        opver.OperatorVersion{Version: version},
 			MinKubeVersion: "0.0.0",
 			InstallModes: []operatorsv1alpha1.InstallMode{
 				{

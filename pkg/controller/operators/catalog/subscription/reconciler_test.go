@@ -1696,7 +1696,6 @@ type fakeReconcilerConfig struct {
 	now                       func() *metav1.Time
 	registryReconcilerFactory registryreconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
-	subscriptionNamespace     string
 	existingObjs              existingObjs
 }
 

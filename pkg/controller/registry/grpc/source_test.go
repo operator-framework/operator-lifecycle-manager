@@ -3,7 +3,6 @@ package grpc
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -25,7 +24,7 @@ import (
 )
 
 func server(store opregistry.Query) (func(), string, func()) {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:"))
+	lis, err := net.Listen("tcp", "localhost:")
 	if err != nil {
 		logrus.Fatalf("failed to listen: %v", err)
 	}
@@ -61,7 +60,7 @@ func (f *FakeSourceSyncer) sync(state SourceState) {
 		f.History[state.Key] = []connectivity.State{}
 	}
 	f.History[state.Key] = append(f.History[state.Key], state.State)
-	f.expectedEvents -= 1
+	f.expectedEvents--
 	if f.expectedEvents == 0 {
 		f.done <- struct{}{}
 	}
@@ -126,7 +125,7 @@ func TestConnectionEvents(t *testing.T) {
 		{
 			name: "Basic",
 			expectedHistory: map[registry.CatalogKey][]connectivity.State{
-				registry.CatalogKey{Name: "test", Namespace: "test"}: {
+				{Name: "test", Namespace: "test"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
 				},
@@ -135,11 +134,11 @@ func TestConnectionEvents(t *testing.T) {
 		{
 			name: "Multiple",
 			expectedHistory: map[registry.CatalogKey][]connectivity.State{
-				registry.CatalogKey{Name: "test", Namespace: "test"}: {
+				{Name: "test", Namespace: "test"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
 				},
-				registry.CatalogKey{Name: "test2", Namespace: "test2"}: {
+				{Name: "test2", Namespace: "test2"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
 				},
@@ -333,8 +332,8 @@ func TestGRPCProxyURL(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			proxyUrl, err := grpcProxyURL(tt.address)
-			require.Equal(t, expectedProxyURL, proxyUrl)
+			proxyURL, err := grpcProxyURL(tt.address)
+			require.Equal(t, expectedProxyURL, proxyURL)
 			require.Equal(t, tt.expectedError, err)
 		}
 	}

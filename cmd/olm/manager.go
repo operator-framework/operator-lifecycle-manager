@@ -118,7 +118,6 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 		if err = adoptionReconciler.SetupWithManager(mgr); err != nil {
 			return nil, err
 		}
-
 	}
 	setupLog.Info("manager configured")
 

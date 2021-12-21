@@ -102,9 +102,8 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 			if err != nil {
 				if k8serrors.IsNotFound(err) {
 					return v1alpha1.StepStatusNotPresent, nil
-				} else {
-					return v1alpha1.StepStatusNotPresent, errors.Wrapf(err, "error finding the %s CRD", crd.Name)
 				}
+				return v1alpha1.StepStatusNotPresent, errors.Wrapf(err, "error finding the %s CRD", crd.Name)
 			}
 			established, namesAccepted := false, false
 			for _, cdt := range crd.Status.Conditions {
@@ -167,7 +166,7 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 				// Unexpected error creating the CRD.
 				return v1alpha1.StepStatusUnknown, createError
 			}
-			// If no error occured, make sure to wait for the API to become available.
+			// If no error occurred, make sure to wait for the API to become available.
 			return v1alpha1.StepStatusWaitingForAPI, nil
 		}
 		return v1alpha1.StepStatusUnknown, nil
@@ -186,9 +185,8 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 			if err != nil {
 				if k8serrors.IsNotFound(err) {
 					return v1alpha1.StepStatusNotPresent, nil
-				} else {
-					return v1alpha1.StepStatusNotPresent, fmt.Errorf("error finding the %q CRD: %w", crd.Name, err)
 				}
+				return v1alpha1.StepStatusNotPresent, fmt.Errorf("error finding the %q CRD: %w", crd.Name, err)
 			}
 			established, namesAccepted := false, false
 			for _, cdt := range crd.Status.Conditions {
@@ -252,7 +250,7 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 				// Unexpected error creating the CRD.
 				return v1alpha1.StepStatusUnknown, createError
 			}
-			// If no error occured, make sure to wait for the API to become available.
+			// If no error occurred, make sure to wait for the API to become available.
 			return v1alpha1.StepStatusWaitingForAPI, nil
 		}
 		return v1alpha1.StepStatusUnknown, nil

@@ -100,7 +100,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 			csvAlpha = *csv.DeepCopy()
 			csvAlpha.SetName(packageAlpha)
-			csvAlpha.Spec.Version = opver.OperatorVersion{semver.MustParse("0.1.1")}
+			csvAlpha.Spec.Version = opver.OperatorVersion{Version: semver.MustParse("0.1.1")}
 			csvAlpha.Spec.Replaces = csv.GetName()
 			csvAlpha.Spec.Icon = []v1alpha1.Icon{
 				{

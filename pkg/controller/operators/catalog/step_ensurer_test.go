@@ -10,8 +10,8 @@ import (
 
 func TestMergedOwnerReferences(t *testing.T) {
 	var (
-		True  bool = true
-		False bool = false
+		True  = true
+		False = false
 	)
 
 	for _, tc := range []struct {

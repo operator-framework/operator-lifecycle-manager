@@ -19,8 +19,7 @@ func TestSync(t *testing.T) {
 		event kubestate.ResourceEvent
 	}
 	type want struct {
-		err           error
-		subscriptions []v1alpha1.Subscription
+		err error
 	}
 
 	tests := []struct {
@@ -56,5 +55,4 @@ func TestSync(t *testing.T) {
 			require.Equal(t, tt.want.err, tt.fields.syncer.Sync(ctx, tt.args.event))
 		})
 	}
-
 }

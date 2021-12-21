@@ -315,7 +315,6 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			logger.Warnf("could not update secret %s", secret.GetName())
 			return nil, nil, err
 		}
-
 	} else if k8serrors.IsNotFound(err) {
 		// Create the secret
 		ownerutil.AddNonBlockingOwner(secret, i.owner)

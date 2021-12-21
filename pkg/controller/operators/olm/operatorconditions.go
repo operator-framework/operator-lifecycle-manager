@@ -37,17 +37,17 @@ func (a *Operator) isOperatorUpgradeable(csv *v1alpha1.ClusterServiceVersion) (b
 			return true, nil
 		}
 		logger.Infof("Upgradeable condition is overridden to false: %s", o.Message)
-		return false, fmt.Errorf("The operator is not upgradeable: %s", o.Message)
+		return false, fmt.Errorf("the operator is not upgradeable: %s", o.Message)
 	}
 
 	// Check for OperatorUpgradeable condition status
 	if c := meta.FindStatusCondition(cond.Status.Conditions, operatorsv2.Upgradeable); c != nil {
 		if c.ObservedGeneration != cond.ObjectMeta.Generation {
 			logger.Debugf("Upgradeable condition's generation doesn't match: %d/%d", c.ObservedGeneration, cond.ObjectMeta.Generation)
-			return false, fmt.Errorf("The operatorcondition status %q=%q is outdated", c.Type, c.Status)
+			return false, fmt.Errorf("the operatorcondition status %q=%q is outdated", c.Type, c.Status)
 		}
 		if c.Status == metav1.ConditionFalse {
-			return false, fmt.Errorf("The operator is not upgradeable: %s", c.Message)
+			return false, fmt.Errorf("the operator is not upgradeable: %s", c.Message)
 		}
 	}
 

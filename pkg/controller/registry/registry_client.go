@@ -88,7 +88,7 @@ func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, ki
 	}
 	entry := rc.filterChannelEntries(ctx, it, excludedPackages)
 	if entry == nil {
-		return nil, fmt.Errorf("Unable to find a channel entry that satisfies the requirements")
+		return nil, fmt.Errorf("unable to find a channel entry that satisfies the requirements")
 	}
 	bundle, err := rc.Client.Registry.GetBundle(ctx, &registryapi.GetBundleRequest{PkgName: entry.PackageName, ChannelName: entry.ChannelName, CsvName: entry.BundleName})
 	if err != nil {
@@ -101,7 +101,7 @@ func (rc *Client) FindBundleThatProvides(ctx context.Context, group, version, ki
 // API and come from the same package with original operator and returns the
 // first entry on the list from the default channel of that package
 func (rc *Client) filterChannelEntries(ctx context.Context, it *ChannelEntryIterator, excludedPackages map[string]struct{}) *opregistry.ChannelEntry {
-	defChannels := make(map[string]string, 0)
+	defChannels := make(map[string]string)
 
 	var entries []*opregistry.ChannelEntry
 	for e := it.Next(); e != nil; e = it.Next() {

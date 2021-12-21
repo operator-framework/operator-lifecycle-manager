@@ -43,7 +43,7 @@ func TestSyncCount(t *testing.T) {
 		}()
 
 		go func() {
-			err := fmt.Errorf("failure!")
+			err := fmt.Errorf("failure")
 			f := uint(failed)
 			s := uint(successful)
 			for f > 0 || s > 0 {

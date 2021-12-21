@@ -246,7 +246,6 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 			if tt.expectedCondition != nil {
 				require.True(t, hasExpectedCondition(ip, *tt.expectedCondition))
 			}
-
 		})
 	}
 }
@@ -258,7 +257,6 @@ func (ipSet) Generate(rand *rand.Rand, size int) reflect.Value {
 
 	// each i is the generation value
 	for i := 0; i < rand.Intn(size)+1; i++ {
-
 		// generate a few at each generation to account for bugs that don't increment the generation
 		for j := 0; j < rand.Intn(3); j++ {
 			ips = append(ips, v1alpha1.InstallPlan{
@@ -283,7 +281,7 @@ func TestGCInstallPlans(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 
-		var maxGen int64 = 0
+		var maxGen int64
 		for _, i := range ips {
 			if g := i.Generation; g > maxGen {
 				maxGen = g
@@ -296,7 +294,7 @@ func TestGCInstallPlans(t *testing.T) {
 		op, err := NewFakeOperator(ctx, "ns", []string{"ns"}, withClientObjs(objs...))
 		require.NoError(t, err)
 
-		out := make([]v1alpha1.InstallPlan, 0)
+		var out []v1alpha1.InstallPlan
 		for {
 			op.gcInstallPlans(logrus.New(), "ns")
 			require.NoError(t, err)
@@ -1107,7 +1105,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			}
 
 			for _, o := range tt.expectedObjs {
-				switch o.(type) {
+				switch o := o.(type) {
 				case *corev1.Pod:
 					t.Log("verifying pod")
 					pods, err := op.opClient.KubernetesInterface().CoreV1().Pods(tt.catalogSource.Namespace).List(context.TODO(), metav1.ListOptions{})
@@ -1115,7 +1113,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					require.Len(t, pods.Items, 1)
 
 					// set the name to the generated name
-					o.(*corev1.Pod).SetName(pods.Items[0].GetName())
+					o.SetName(pods.Items[0].GetName())
 					require.EqualValues(t, o, &pods.Items[0])
 				}
 			}
@@ -1133,9 +1131,6 @@ func TestSyncResolvingNamespace(t *testing.T) {
 		resolveErr        error
 		existingOLMObjs   []runtime.Object
 		existingObjects   []runtime.Object
-	}
-	type args struct {
-		obj interface{}
 	}
 	tests := []struct {
 		name    string
@@ -1281,6 +1276,7 @@ func TestSyncResolvingNamespace(t *testing.T) {
 }
 
 func TestCompetingCRDOwnersExist(t *testing.T) {
+	t.Parallel()
 
 	testNamespace := "default"
 	tests := []struct {
@@ -1458,12 +1454,6 @@ func withSources(sources ...sourceAddress) fakeOperatorOption {
 	}
 }
 
-func withReconciler(rec reconciler.RegistryReconcilerFactory) fakeOperatorOption {
-	return func(config *fakeOperatorConfig) {
-		config.reconciler = rec
-	}
-}
-
 func withClock(clock utilclock.Clock) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.clock = clock
@@ -1571,6 +1561,9 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperator(opClientFake.KubernetesInterface().Discovery())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create queueinformer operator: %w", err)
+	}
 	for _, informer := range sharedInformers {
 		queueOperator.RegisterInformer(informer)
 	}
@@ -1698,26 +1691,6 @@ func crd(name string) apiextensionsv1beta1.CustomResourceDefinition {
 	}
 }
 
-func v1crd(name string) apiextensionsv1.CustomResourceDefinition {
-	return apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group: name + "group",
-			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
-				{
-					Name:   "v1",
-					Served: true,
-				},
-			},
-			Names: apiextensionsv1.CustomResourceDefinitionNames{
-				Kind: name,
-			},
-		},
-	}
-}
-
 func service(name, namespace string) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -1832,37 +1805,12 @@ func withOwner(owner ownerutil.Owner) modifierFunc {
 	})
 }
 
-func withObjectMeta(t *testing.T, obj runtime.Object, m *metav1.ObjectMeta) runtime.Object {
-	o := obj.DeepCopyObject()
-	accessor, err := meta.Accessor(o)
-	require.NoError(t, err)
-
-	accessor.SetAnnotations(m.GetAnnotations())
-	accessor.SetClusterName(m.GetClusterName())
-	accessor.SetCreationTimestamp(m.GetCreationTimestamp())
-	accessor.SetDeletionGracePeriodSeconds(m.GetDeletionGracePeriodSeconds())
-	accessor.SetDeletionTimestamp(m.GetDeletionTimestamp())
-	accessor.SetFinalizers(m.GetFinalizers())
-	accessor.SetGenerateName(m.GetGenerateName())
-	accessor.SetGeneration(m.GetGeneration())
-	accessor.SetLabels(m.GetLabels())
-	accessor.SetManagedFields(m.GetManagedFields())
-	accessor.SetName(m.GetName())
-	accessor.SetNamespace(m.GetNamespace())
-	accessor.SetOwnerReferences(m.GetOwnerReferences())
-	accessor.SetResourceVersion(m.GetResourceVersion())
-	accessor.SetSelfLink(m.GetSelfLink())
-	accessor.SetUID(m.GetUID())
-
-	return o
-}
-
 func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	apis := []*metav1.APIResourceList{}
 	for _, o := range objs {
-		switch o.(type) {
+		switch o := o.(type) {
 		case *apiextensionsv1beta1.CustomResourceDefinition:
-			crd := o.(*apiextensionsv1beta1.CustomResourceDefinition)
+			crd := o
 			apis = append(apis, &metav1.APIResourceList{
 				GroupVersion: metav1.GroupVersion{Group: crd.Spec.Group, Version: crd.Spec.Versions[0].Name}.String(),
 				APIResources: []metav1.APIResource{
@@ -1877,7 +1825,7 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 				},
 			})
 		case *apiregistrationv1.APIService:
-			a := o.(*apiregistrationv1.APIService)
+			a := o
 			names := strings.Split(a.Name, ".")
 			apis = append(apis, &metav1.APIResourceList{
 				GroupVersion: metav1.GroupVersion{Group: names[1], Version: a.Spec.Version}.String(),

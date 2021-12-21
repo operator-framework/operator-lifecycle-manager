@@ -85,7 +85,7 @@ var _ = Describe("ClusterOperator controller", func() {
 	})
 
 	It("should ensure the ClusterOperator always exists", func() {
-		By("initally creating it")
+		By("initially creating it")
 		co := &configv1.ClusterOperator{}
 		Eventually(func() error {
 			return k8sClient.Get(ctx, clusterOperatorName, co)
@@ -156,7 +156,7 @@ var _ = Describe("ClusterOperator controller", func() {
 			Type:               configv1.OperatorUpgradeable,
 			Status:             configv1.ConditionFalse,
 			Reason:             ErrorCheckingOperatorCompatibility,
-			Message:            "Encountered errors while checking compatibility with the next minor version of OpenShift: Desired release version missing from ClusterVersion",
+			Message:            "Encountered errors while checking compatibility with the next minor version of OpenShift: desired release version missing from ClusterVersion",
 			LastTransitionTime: fixedNow(),
 		}))
 
@@ -296,7 +296,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace: ns.GetName(),
 					name:      incompatible.GetName(),
-					err:       fmt.Errorf(`Failed to parse "garbage" as semver: %w`, parseErr),
+					err:       fmt.Errorf(`failed to parse "garbage" as semver: %w`, parseErr),
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
@@ -320,7 +320,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace: ns.GetName(),
 					name:      incompatible.GetName(),
-					err:       fmt.Errorf(`Defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty),
+					err:       fmt.Errorf(`defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty),
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),

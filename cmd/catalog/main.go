@@ -69,7 +69,7 @@ var (
 	tlsCertPath = flag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
 
-	profiling = flag.Bool("profiling", false, "deprecated")
+	_ = flag.Bool("profiling", false, "deprecated")
 
 	clientCAPath = flag.String("client-ca", "", "path to watch for client ca bundle")
 

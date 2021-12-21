@@ -13,20 +13,20 @@ import (
 )
 
 const (
-	NAME_LABEL      = "name"
-	INSTALLED_LABEL = "installed"
-	NAMESPACE_LABEL = "namespace"
-	CHANNEL_LABEL   = "channel"
-	VERSION_LABEL   = "version"
-	PHASE_LABEL     = "phase"
-	REASON_LABEL    = "reason"
-	PACKAGE_LABEL   = "package"
-	Outcome         = "outcome"
-	Succeeded       = "succeeded"
-	Failed          = "failed"
-	APPROVAL_LABEL  = "approval"
-	WARNING_LABEL   = "warning"
-	GVK_LABEL       = "gvk"
+	NameLabel      = "name"
+	InstalledLabel = "installed"
+	NamespaceLabel = "namespace"
+	ChannelLabel   = "channel"
+	VersionLabel   = "version"
+	PhaseLabel     = "phase"
+	ReasonLabel    = "reason"
+	PackageLabel   = "package"
+	Outcome        = "outcome"
+	Succeeded      = "succeeded"
+	Failed         = "failed"
+	ApprovalLabel  = "approval"
+	WarningLabel   = "warning"
+	GVKLabel       = "gvk"
 )
 
 type MetricsProvider interface {
@@ -90,7 +90,6 @@ type metricsCatalogSource struct {
 
 func NewMetricsCatalogSource(lister v1alpha1.CatalogSourceLister) MetricsProvider {
 	return &metricsCatalogSource{lister}
-
 }
 
 func (m *metricsCatalogSource) HandleMetrics() error {
@@ -149,7 +148,7 @@ var (
 			Name: "catalogsource_ready",
 			Help: "State of a CatalogSource. 1 indicates that the CatalogSource is in a READY state. 0 indicates CatalogSource is in a Non READY state.",
 		},
-		[]string{NAMESPACE_LABEL, NAME_LABEL},
+		[]string{NamespaceLabel, NameLabel},
 	)
 
 	// exported since it's not handled by HandleMetrics
@@ -165,7 +164,7 @@ var (
 			Name: "subscription_sync_total",
 			Help: "Monotonic count of subscription syncs",
 		},
-		[]string{NAME_LABEL, INSTALLED_LABEL, CHANNEL_LABEL, PACKAGE_LABEL, APPROVAL_LABEL},
+		[]string{NameLabel, InstalledLabel, ChannelLabel, PackageLabel, ApprovalLabel},
 	)
 
 	csvSucceeded = prometheus.NewGaugeVec(
@@ -173,7 +172,7 @@ var (
 			Name: "csv_succeeded",
 			Help: "Successful CSV install",
 		},
-		[]string{NAMESPACE_LABEL, NAME_LABEL, VERSION_LABEL},
+		[]string{NamespaceLabel, NameLabel, VersionLabel},
 	)
 
 	csvAbnormal = prometheus.NewGaugeVec(
@@ -181,7 +180,7 @@ var (
 			Name: "csv_abnormal",
 			Help: "CSV is not installed",
 		},
-		[]string{NAMESPACE_LABEL, NAME_LABEL, VERSION_LABEL, PHASE_LABEL, REASON_LABEL},
+		[]string{NamespaceLabel, NameLabel, VersionLabel, PhaseLabel, ReasonLabel},
 	)
 
 	dependencyResolutionSummary = prometheus.NewSummaryVec(
@@ -200,7 +199,7 @@ var (
 		},
 	)
 
-	// subscriptionSyncCounters keeps a record of the promethues counters emitted by
+	// subscriptionSyncCounters keeps a record of the Prometheus counters emitted by
 	// Subscription objects. The key of a record is the Subscription name, while the value
 	//  is struct containing label values used in the counter
 	subscriptionSyncCounters = make(map[string]subscriptionSyncLabelValues)
@@ -310,7 +309,6 @@ func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
 		sub.Spec.Package != counterValues.pkg ||
 		sub.Status.InstalledCSV != counterValues.installedCSV ||
 		approvalStrategy != counterValues.approvalStrategy {
-
 		// Delete metric will label values of old Subscription first
 		SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), counterValues.installedCSV, counterValues.channel, counterValues.pkg, counterValues.approvalStrategy)
 

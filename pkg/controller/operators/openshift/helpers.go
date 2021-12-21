@@ -27,12 +27,6 @@ func stripObject(obj client.Object) {
 	obj.SetUID("")
 }
 
-func watchNamespace(namespace *string) predicate.Funcs {
-	return predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetNamespace() == *namespace
-	})
-}
-
 func watchName(name *string) predicate.Funcs {
 	return predicate.NewPredicateFuncs(func(object client.Object) bool {
 		return object.GetName() == *name
@@ -58,7 +52,7 @@ func versionsMatch(a []configv1.OperandVersion, b []configv1.OperandVersion) boo
 
 	counts := map[configv1.OperandVersion]int{}
 	for _, av := range a {
-		counts[av] += 1
+		counts[av]++
 	}
 
 	for _, bv := range b {
@@ -72,7 +66,7 @@ func versionsMatch(a []configv1.OperandVersion, b []configv1.OperandVersion) boo
 			continue
 		}
 
-		counts[bv] -= 1
+		counts[bv]--
 	}
 
 	return len(counts) < 1
@@ -132,7 +126,7 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 
 	if desired == nil {
 		// Note: This shouldn't happen
-		return nil, fmt.Errorf("Failed to determine current OpenShift Y-stream release")
+		return nil, fmt.Errorf("failed to determine current OpenShift Y-stream release")
 	}
 
 	next, err := nextY(*desired)
@@ -142,7 +136,7 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 
 	csvList := &operatorsv1alpha1.ClusterServiceVersionList{}
 	if err := cli.List(ctx, csvList); err != nil {
-		return nil, &transientError{fmt.Errorf("Failed to list ClusterServiceVersions: %w", err)}
+		return nil, &transientError{fmt.Errorf("failed to list ClusterServiceVersions: %w", err)}
 	}
 
 	var incompatible skews
@@ -177,18 +171,18 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 func desiredRelease(ctx context.Context, cli client.Client) (*semver.Version, error) {
 	cv := configv1.ClusterVersion{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: "version"}, &cv); err != nil { // "version" is the name of OpenShift's ClusterVersion singleton
-		return nil, &transientError{fmt.Errorf("Failed to get ClusterVersion: %w", err)}
+		return nil, &transientError{fmt.Errorf("failed to get ClusterVersion: %w", err)}
 	}
 
 	v := cv.Status.Desired.Version
 	if v == "" {
 		// The release version hasn't been set yet
-		return nil, fmt.Errorf("Desired release version missing from ClusterVersion")
+		return nil, fmt.Errorf("desired release version missing from ClusterVersion")
 	}
 
 	desired, err := semver.ParseTolerant(v)
 	if err != nil {
-		return nil, fmt.Errorf("ClusterVersion has invalid desired release version: %w", err)
+		return nil, fmt.Errorf("cluster version has invalid desired release version: %w", err)
 	}
 
 	return &desired, nil
@@ -231,7 +225,7 @@ func maxOpenShiftVersion(csv *operatorsv1alpha1.ClusterServiceVersion) (*semver.
 		}
 
 		if max != nil {
-			return nil, fmt.Errorf(`Defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty)
+			return nil, fmt.Errorf(`defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty)
 		}
 
 		max = &property.Value
@@ -245,12 +239,12 @@ func maxOpenShiftVersion(csv *operatorsv1alpha1.ClusterServiceVersion) (*semver.
 	value := strings.Trim(*max, "\"")
 	if value == "" {
 		// Handle "" separately, so parse doesn't treat it as a zero
-		return nil, fmt.Errorf(`Value cannot be "" (an empty string)`)
+		return nil, fmt.Errorf(`value cannot be "" (an empty string)`)
 	}
 
 	version, err := semver.ParseTolerant(value)
 	if err != nil {
-		return nil, fmt.Errorf(`Failed to parse "%s" as semver: %w`, value, err)
+		return nil, fmt.Errorf(`failed to parse "%s" as semver: %w`, value, err)
 	}
 
 	truncatedVersion := semver.Version{Major: version.Major, Minor: version.Minor}

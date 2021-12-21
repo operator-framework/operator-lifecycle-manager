@@ -418,7 +418,6 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err := op.RegisterQueueInformer(objGCQueueInformer); err != nil {
 			return nil, err
 		}
-
 	}
 
 	// add queue for all namespaces as well
@@ -617,8 +616,6 @@ func (a *Operator) syncSubscriptionDeleted(obj interface{}) {
 	if !ok {
 		a.logger.Debugf("casting Subscription failed, wrong type: %#v\n", obj)
 	}
-
-	return
 }
 
 func (a *Operator) syncAPIService(obj interface{}) (syncError error) {
@@ -823,7 +820,6 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 				return
 			}
 		}
-
 	}
 
 	// Requeue all owner CSVs
@@ -890,7 +886,6 @@ func (a *Operator) namespaceAddedOrRemoved(obj interface{}) {
 			}
 		}
 	}
-	return
 }
 
 func (a *Operator) syncNamespace(obj interface{}) error {
@@ -1192,7 +1187,6 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		outCSV.Status.Phase == clusterServiceVersion.Status.Phase &&
 		outCSV.Status.Reason == clusterServiceVersion.Status.Reason &&
 		outCSV.Status.Message == clusterServiceVersion.Status.Message) {
-
 		// Update CSV with status of transition. Log errors if we can't write them to the status.
 		_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(outCSV.GetNamespace()).UpdateStatus(context.TODO(), outCSV, metav1.UpdateOptions{})
 		if err != nil {
@@ -1336,7 +1330,7 @@ func getCopiedCSVsCondition(isDisabled, csvIsRequeued bool) metav1.Condition {
 	}
 	if !isDisabled {
 		condition.Reason = "CopiedCSVsEnabled"
-		condition.Message = "Copied CSVs are enabled and present accross the cluster"
+		condition.Message = "Copied CSVs are enabled and present across the cluster"
 		if csvIsRequeued {
 			condition.Message = "Copied CSVs are enabled and at least one copied CSVs is missing"
 		}
@@ -1718,6 +1712,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 	// Check for intersecting provided APIs in intersecting OperatorGroups
 	allGroups, err := a.lister.OperatorsV1().OperatorGroupLister().List(labels.Everything())
+	if err != nil {
+		logger.WithError(err).Warn("failed to list operatorgroups")
+		return
+	}
 	otherGroups := make([]v1.OperatorGroup, 0, len(allGroups))
 	for _, g := range allGroups {
 		if g.GetName() != operatorGroup.GetName() || g.GetNamespace() != operatorGroup.GetNamespace() {
@@ -1834,7 +1832,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		for _, desc := range out.Spec.WebhookDefinitions {
 			_, present := webhookNames[desc.GenerateName]
 			if present {
-				logger.WithError(fmt.Errorf("Repeated WebhookDescription name %s", desc.GenerateName)).Warn("CSV is invalid")
+				logger.WithError(fmt.Errorf("repeated WebhookDescription name %s", desc.GenerateName)).Warn("CSV is invalid")
 				out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidWebhookDescription, "CSV contains repeated WebhookDescription name", now, a.recorder)
 				return
 			}
@@ -1910,7 +1908,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		strategy, err := a.updateDeploymentSpecsWithApiServiceData(out, strategy)
+		strategy, err := a.updateDeploymentSpecsWithAPIServiceData(out, strategy)
 		if err != nil {
 			logger.WithError(err).Debug("Unable to calculate expected deployment")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
@@ -1926,7 +1924,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			// Set phase to failed if it's been a long time since the last transition (5 minutes)
 			if out.Status.LastTransitionTime != nil && a.now().Sub(out.Status.LastTransitionTime.Time) >= 5*time.Minute {
 				logger.Warn("install timed out")
-				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install timeout"), now, a.recorder)
+				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, "install timeout", now, a.recorder)
 				return
 			}
 		}
@@ -1967,12 +1965,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		} else if !met {
 			logger.Debug("CSV Requirements are no longer met")
 			out.SetRequirementStatus(statuses)
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonRequirementsNotMet, fmt.Sprintf("requirements no longer met"), now, a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonRequirementsNotMet, "requirements no longer met", now, a.recorder)
 			return
 		}
 
 		// Check install status
-		strategy, err = a.updateDeploymentSpecsWithApiServiceData(out, strategy)
+		strategy, err = a.updateDeploymentSpecsWithAPIServiceData(out, strategy)
 		if err != nil {
 			logger.WithError(err).Debug("Unable to calculate expected deployment")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
@@ -2038,7 +2036,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		} else if !met {
 			logger.Debug("CSV Requirements are not met")
 			out.SetRequirementStatus(statuses)
-			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, fmt.Sprintf("requirements not met"), now, a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "requirements not met", now, a.recorder)
 			return
 		}
 
@@ -2060,7 +2058,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check install status
-		strategy, err = a.updateDeploymentSpecsWithApiServiceData(out, strategy)
+		strategy, err = a.updateDeploymentSpecsWithAPIServiceData(out, strategy)
 		if err != nil {
 			logger.WithError(err).Debug("Unable to calculate expected deployment")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
@@ -2167,17 +2165,18 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	}
 
 	if !apiServicesInstalled {
-		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf("APIServices not installed"), now, a.recorder)
+		msg := "apiServices not installed"
+		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, msg, now, a.recorder)
 		if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
 			a.logger.Warn(err.Error())
 		}
 
-		return fmt.Errorf("APIServices not installed")
+		return fmt.Errorf(msg)
 	}
 
 	if !webhooksInstalled || webhookErr != nil {
-		msg := "Webhooks not installed"
-		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf(msg), now, a.recorder)
+		msg := "webhooks not installed"
+		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, msg, now, a.recorder)
 		if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
 			a.logger.Warn(err.Error())
 		}
@@ -2239,10 +2238,14 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	querierFunc := a.serviceAccountQuerier.NamespaceQuerier(csv.GetNamespace())
 	attenuate, err := a.clientAttenuator.AttenuateToServiceAccount(querierFunc)
 	if err != nil {
-		a.logger.Errorf("failed to get a client for operator deployment- %v", err)
+		a.logger.Errorf("failed to get a client for operator deployment - %v", err)
 		return nil, nil
 	}
 	kubeclient, err := a.clientFactory.WithConfigTransformer(attenuate).NewOperatorClient()
+	if err != nil {
+		a.logger.Errorf("failed to get an operator client for operator deployment - %v", err)
+		return nil, nil
+	}
 
 	strName := strategy.GetStrategyName()
 	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.GetAnnotations(), csv.GetAllAPIServiceDescriptions(), csv.Spec.WebhookDefinitions, previousStrategy)

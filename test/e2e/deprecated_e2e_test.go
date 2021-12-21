@@ -34,8 +34,7 @@ var _ = Describe("Not found APIs", func() {
 			errMessage string
 		}
 
-		var tableEntries []table.TableEntry
-		tableEntries = []table.TableEntry{
+		tableEntries := []table.TableEntry{
 			table.Entry("contains an entry with a missing API not found on cluster ", payload{
 				name: "installplan contains a missing API",
 				IP: &operatorsv1alpha1.InstallPlan{

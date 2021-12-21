@@ -43,7 +43,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateAPIService(caPEM []byte, des
 	} else {
 		csv, ok := i.owner.(*v1alpha1.ClusterServiceVersion)
 		if !ok {
-			return fmt.Errorf("APIServices require a CSV Owner.")
+			return fmt.Errorf("failed to typecast the APIService owner: APIServices require a CSV owner")
 		}
 
 		adoptable, err := IsAPIServiceAdoptable(i.strategyClient.GetOpLister(), csv, apiService)

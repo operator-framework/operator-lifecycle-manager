@@ -23,7 +23,6 @@ import (
 )
 
 func TestRuleSatisfied(t *testing.T) {
-
 	csv := &v1alpha1.ClusterServiceVersion{}
 	csv.SetName("barista-operator")
 	csv.SetUID(types.UID("barista-operator"))
@@ -606,7 +605,6 @@ func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *v1alpha1.ClusterServic
 	ruleChecker := NewCSVRuleChecker(roleInformer.Lister(), roleBindingInformer.Lister(), clusterRoleInformer.Lister(), clusterRoleBindingInformer.Lister(), csv)
 
 	return ruleChecker, nil
-
 }
 
 func Objs(roles []*rbacv1.Role, roleBindings []*rbacv1.RoleBinding, clusterRoles []*rbacv1.ClusterRole, clusterRoleBindings []*rbacv1.ClusterRoleBinding) []runtime.Object {

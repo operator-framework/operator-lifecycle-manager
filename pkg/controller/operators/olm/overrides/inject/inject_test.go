@@ -12,36 +12,36 @@ import (
 
 var (
 	defaultEnvVars = []corev1.EnvVar{
-		corev1.EnvVar{
+		{
 			Name:  "HTTP_PROXY",
 			Value: "http://foo.com:8080",
 		},
-		corev1.EnvVar{
+		{
 			Name:  "HTTPS_PROXY",
 			Value: "https://foo.com:443",
 		},
-		corev1.EnvVar{
+		{
 			Name:  "NO_PROXY",
 			Value: "a.com,b.com",
 		},
 	}
 
 	defaultVolumeMounts = []corev1.VolumeMount{
-		corev1.VolumeMount{
+		{
 			Name:      "foo",
 			MountPath: "/bar",
 		},
 	}
 
 	defaultVolumes = []corev1.Volume{
-		corev1.Volume{
+		{
 			Name:         "foo",
 			VolumeSource: corev1.VolumeSource{},
 		},
 	}
 
 	defaultTolerations = []corev1.Toleration{
-		corev1.Toleration{
+		{
 			Key:      "my-toleration-key",
 			Effect:   corev1.TaintEffectNoSchedule,
 			Value:    "my-toleration-value",
@@ -79,15 +79,11 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 			// Expected: The container's VolumeMount list remains empty.
 			name: "EmptyVolumeMounts",
 			podSpec: &corev1.PodSpec{
-				Containers: []corev1.Container{
-					corev1.Container{},
-				},
+				Containers: []corev1.Container{},
 			},
 			volumeMounts: []corev1.VolumeMount{},
 			expected: &corev1.PodSpec{
-				Containers: []corev1.Container{
-					corev1.Container{},
-				},
+				Containers: []corev1.Container{},
 			},
 		},
 		{
@@ -95,14 +91,12 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 			// Expected: The container contains the injected VolumeMount.
 			name: "WithContainerHasNoVolumeMounts",
 			podSpec: &corev1.PodSpec{
-				Containers: []corev1.Container{
-					corev1.Container{},
-				},
+				Containers: []corev1.Container{{}},
 			},
 			volumeMounts: defaultVolumeMounts,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						VolumeMounts: defaultVolumeMounts,
 					},
 				},
@@ -114,7 +108,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 			name: "WithContainerHasVolumeMountsEmptyDefaults",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						VolumeMounts: defaultVolumeMounts,
 					},
 				},
@@ -122,7 +116,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 			volumeMounts: []corev1.VolumeMount{},
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						VolumeMounts: defaultVolumeMounts,
 					},
 				},
@@ -134,9 +128,9 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 			name: "WithContainerHasNonOverlappingEnvVar",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						VolumeMounts: []corev1.VolumeMount{
-							corev1.VolumeMount{
+							{
 								Name:      "bar",
 								MountPath: "/foo",
 							},
@@ -147,13 +141,13 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 			volumeMounts: defaultVolumeMounts,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						VolumeMounts: []corev1.VolumeMount{
-							corev1.VolumeMount{
+							{
 								Name:      "bar",
 								MountPath: "/foo",
 							},
-							corev1.VolumeMount{
+							{
 								Name:      "foo",
 								MountPath: "/bar",
 							},
@@ -169,9 +163,9 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 			name: "WithContainerHasOverlappingVolumeMounts",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						VolumeMounts: []corev1.VolumeMount{
-							corev1.VolumeMount{
+							{
 								Name:      "foo",
 								MountPath: "/barbar",
 							},
@@ -182,9 +176,9 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 			volumeMounts: defaultVolumeMounts,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						VolumeMounts: []corev1.VolumeMount{
-							corev1.VolumeMount{
+							{
 								Name:      "foo",
 								MountPath: "/bar",
 							},
@@ -254,7 +248,7 @@ func TestInjectVolumeIntoDeployment(t *testing.T) {
 			name: "WithContainerHasNonOverlappingEnvVar",
 			podSpec: &corev1.PodSpec{
 				Volumes: []corev1.Volume{
-					corev1.Volume{
+					{
 						Name:         "bar",
 						VolumeSource: corev1.VolumeSource{},
 					},
@@ -263,11 +257,11 @@ func TestInjectVolumeIntoDeployment(t *testing.T) {
 			volumes: defaultVolumes,
 			expected: &corev1.PodSpec{
 				Volumes: []corev1.Volume{
-					corev1.Volume{
+					{
 						Name:         "bar",
 						VolumeSource: corev1.VolumeSource{},
 					},
-					corev1.Volume{
+					{
 						Name:         "foo",
 						VolumeSource: corev1.VolumeSource{},
 					},
@@ -280,7 +274,7 @@ func TestInjectVolumeIntoDeployment(t *testing.T) {
 			name: "WithContainerHasOverlappingVolumeMounts",
 			podSpec: &corev1.PodSpec{
 				Volumes: []corev1.Volume{
-					corev1.Volume{
+					{
 						Name: "foo",
 					},
 				},
@@ -288,7 +282,7 @@ func TestInjectVolumeIntoDeployment(t *testing.T) {
 			volumes: defaultVolumes,
 			expected: &corev1.PodSpec{
 				Volumes: []corev1.Volume{
-					corev1.Volume{
+					{
 						Name:         "foo",
 						VolumeSource: corev1.VolumeSource{},
 					},
@@ -321,14 +315,12 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 			// Expected: All env variable(s) specified are injected.
 			name: "WithContainerHasNoEnvVar",
 			podSpec: &corev1.PodSpec{
-				Containers: []corev1.Container{
-					corev1.Container{},
-				},
+				Containers: []corev1.Container{{}},
 			},
 			envVar: defaultEnvVars,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Env: defaultEnvVars,
 					},
 				},
@@ -341,9 +333,9 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 			name: "WithContainerHasNonOverlappingEnvVar",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "foo",
 								Value: "foo_value",
 							},
@@ -354,9 +346,9 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 			envVar: defaultEnvVars,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Env: append([]corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "foo",
 								Value: "foo_value",
 							},
@@ -372,13 +364,13 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 			name: "WithContainerHasOverlappingEnvVar",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "foo",
 								Value: "foo_value",
 							},
-							corev1.EnvVar{
+							{
 								Name:  "bar",
 								Value: "bar_value",
 							},
@@ -387,32 +379,32 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 				},
 			},
 			envVar: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  "extra",
 					Value: "extra_value",
 				},
-				corev1.EnvVar{
+				{
 					Name:  "foo",
 					Value: "new_foo_value",
 				},
-				corev1.EnvVar{
+				{
 					Name:  "bar",
 					Value: "new_bar_value",
 				},
 			},
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "foo",
 								Value: "new_foo_value",
 							},
-							corev1.EnvVar{
+							{
 								Name:  "bar",
 								Value: "new_bar_value",
 							},
-							corev1.EnvVar{
+							{
 								Name:  "extra",
 								Value: "extra_value",
 							},
@@ -428,13 +420,13 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 			name: "WithContainerEnvVarBeingUnset",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "foo",
 								Value: "foo_value",
 							},
-							corev1.EnvVar{
+							{
 								Name:  "bar",
 								Value: "bar_value",
 							},
@@ -443,20 +435,20 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 				},
 			},
 			envVar: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  "bar",
 					Value: "",
 				},
 			},
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "foo",
 								Value: "foo_value",
 							},
-							corev1.EnvVar{
+							{
 								Name:  "bar",
 								Value: "",
 							},
@@ -472,18 +464,18 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 			name: "WithMultipleContainers",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{},
-					corev1.Container{
+					{},
+					{
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "foo",
 								Value: "foo_value",
 							},
 						},
 					},
-					corev1.Container{
+					{
 						Env: []corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "bar",
 								Value: "bar_value",
 							},
@@ -494,20 +486,20 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 			envVar: defaultEnvVars,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Env: defaultEnvVars,
 					},
-					corev1.Container{
+					{
 						Env: append([]corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "foo",
 								Value: "foo_value",
 							},
 						}, defaultEnvVars...),
 					},
-					corev1.Container{
+					{
 						Env: append([]corev1.EnvVar{
-							corev1.EnvVar{
+							{
 								Name:  "bar",
 								Value: "bar_value",
 							},
@@ -567,7 +559,7 @@ func TestInjectTolerationsIntoDeployment(t *testing.T) {
 			name: "WithDeploymentHasOneNonOverlappingToleration",
 			podSpec: &corev1.PodSpec{
 				Tolerations: []corev1.Toleration{
-					corev1.Toleration{
+					{
 						Key:      "my-different-toleration-key",
 						Operator: corev1.TolerationOpExists,
 					},
@@ -576,7 +568,7 @@ func TestInjectTolerationsIntoDeployment(t *testing.T) {
 			tolerations: defaultTolerations,
 			expected: &corev1.PodSpec{
 				Tolerations: append([]corev1.Toleration{
-					corev1.Toleration{
+					{
 						Key:      "my-different-toleration-key",
 						Operator: corev1.TolerationOpExists,
 					},
@@ -601,21 +593,21 @@ func TestInjectTolerationsIntoDeployment(t *testing.T) {
 			name: "WithDeploymentHasOverlappingAndNonOverlappingTolerations",
 			podSpec: &corev1.PodSpec{
 				Tolerations: []corev1.Toleration{
-					corev1.Toleration{
+					{
 						Key:      "my-different-toleration-key",
 						Operator: corev1.TolerationOpExists,
 					},
 				},
 			},
 			tolerations: append([]corev1.Toleration{
-				corev1.Toleration{
+				{
 					Key:      "my-different-toleration-key",
 					Operator: corev1.TolerationOpExists,
 				},
 			}, defaultTolerations...),
 			expected: &corev1.PodSpec{
 				Tolerations: append([]corev1.Toleration{
-					corev1.Toleration{
+					{
 						Key:      "my-different-toleration-key",
 						Operator: corev1.TolerationOpExists,
 					},
@@ -649,7 +641,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 			name: "WithNilResources",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Resources: defaultResources,
 					},
 				},
@@ -657,7 +649,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 			resources: nil,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Resources: defaultResources,
 					},
 				},
@@ -669,7 +661,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 			name: "WithDeploymentHasNoResources",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Resources: corev1.ResourceRequirements{},
 					},
 				},
@@ -677,7 +669,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 			resources: &defaultResources,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Resources: defaultResources,
 					},
 				},
@@ -690,7 +682,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 			name: "WithDeploymentHasResources",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Resources: defaultResources,
 					},
 				},
@@ -698,7 +690,7 @@ func TestInjectResourcesIntoDeployment(t *testing.T) {
 			resources: &corev1.ResourceRequirements{},
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Resources: corev1.ResourceRequirements{},
 					},
 				},
