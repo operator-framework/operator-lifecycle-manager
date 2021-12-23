@@ -73,8 +73,9 @@ var (
 
 	clientCAPath = flag.String("client-ca", "", "path to watch for client ca bundle")
 
-	installPlanTimeout  = flag.Duration("install-plan-retry-timeout", 1*time.Minute, "time since first attempt at which plan execution errors are considered fatal")
-	bundleUnpackTimeout = flag.Duration("bundle-unpack-timeout", 10*time.Minute, "The time limit for bundle unpacking, after which InstallPlan execution is considered to have failed. 0 is considered as having no timeout.")
+	installPlanTimeout        = flag.Duration("install-plan-retry-timeout", 1*time.Minute, "time since first attempt at which plan execution errors are considered fatal")
+	bundleUnpackTimeout       = flag.Duration("bundle-unpack-timeout", 10*time.Minute, "The time limit for bundle unpacking, after which InstallPlan execution is considered to have failed. 0 is considered as having no timeout.")
+	catalogSourceReadyTimeout = flag.Duration("catalog-source-ready-timeout", 10*time.Minute, "The time limit for catalogsource ready, after which catalogsource is no longer regarded as the latest source and will resync the catalogsource")
 )
 
 func init() {
@@ -134,7 +135,7 @@ func main() {
 	}
 
 	// Create a new instance of the operator.
-	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
+	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout, *catalogSourceReadyTimeout)
 	if err != nil {
 		log.Fatalf("error configuring catalog operator: %s", err.Error())
 	}
