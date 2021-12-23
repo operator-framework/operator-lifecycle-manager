@@ -799,7 +799,6 @@ func TestGroupIntersection(t *testing.T) {
 			require.EqualValues(t, tt.want, tt.in.left.GroupIntersection(tt.in.right...))
 		})
 	}
-
 }
 
 func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReconciler) {

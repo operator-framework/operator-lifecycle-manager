@@ -30,7 +30,6 @@ func addTableHandlers(h printers.PrintHandler) {
 	}
 	h.TableHandler(podColumnDefinitions, printPackage)
 	h.TableHandler(podColumnDefinitions, printPackageList)
-
 }
 
 func printPackage(manifest *operators.PackageManifest, options printers.GenerateOptions) ([]metav1beta1.TableRow, error) {

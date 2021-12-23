@@ -26,8 +26,6 @@ type search struct {
 	assumptions            map[z.Lit]struct{} // set of assumed lits - duplicates guess stack - for fast lookup
 	guesses                []guess            // stack of assumed guesses
 	headChoice, tailChoice *choice            // deque of unmade choices
-	heap                   []choice
-	position               int
 	tracer                 Tracer
 	result                 int
 	buffer                 []z.Lit
@@ -119,8 +117,8 @@ func (h *search) PopChoiceFront() choice {
 	}
 	h.headChoice = c.next
 	return *c
-
 }
+
 func (h *search) PushChoiceBack(c choice) {
 	if h.tailChoice == nil {
 		h.headChoice = &c

@@ -102,17 +102,17 @@ func ownerLabelFromCSV(name, namespace string) map[string]string {
 	}
 }
 
-func addDepSpecHashLabel(labels map[string]string, strat v1alpha1.NamedInstallStrategy) map[string]string {
-	labels[install.DeploymentSpecHashLabelKey] = install.HashDeploymentSpec(strat.StrategySpec.DeploymentSpecs[0].Spec)
+func addDepSpecHashLabel(labels map[string]string, strategy v1alpha1.NamedInstallStrategy) map[string]string {
+	labels[install.DeploymentSpecHashLabelKey] = install.HashDeploymentSpec(strategy.StrategySpec.DeploymentSpecs[0].Spec)
 	return labels
 }
 
 func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	apis := []*metav1.APIResourceList{}
 	for _, o := range objs {
-		switch o.(type) {
+		switch o := o.(type) {
 		case *apiextensionsv1.CustomResourceDefinition:
-			crd := o.(*apiextensionsv1.CustomResourceDefinition)
+			crd := o
 			apis = append(apis, &metav1.APIResourceList{
 				GroupVersion: metav1.GroupVersion{Group: crd.Spec.Group, Version: crd.Spec.Versions[0].Name}.String(),
 				APIResources: []metav1.APIResource{
@@ -127,7 +127,7 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 				},
 			})
 		case *apiregistrationv1.APIService:
-			a := o.(*apiregistrationv1.APIService)
+			a := o
 			names := strings.Split(a.Name, ".")
 			apis = append(apis, &metav1.APIResourceList{
 				GroupVersion: metav1.GroupVersion{Group: names[1], Version: a.Spec.Version}.String(),
@@ -161,39 +161,15 @@ type fakeOperatorConfig struct {
 // fakeOperatorOption applies an option to the given fake operator configuration.
 type fakeOperatorOption func(*fakeOperatorConfig)
 
-func withResyncPeriod(period time.Duration) fakeOperatorOption {
-	return func(config *fakeOperatorConfig) {
-		config.resyncPeriod = queueinformer.ResyncWithJitter(period, 0.1)
-	}
-}
-
 func withOperatorNamespace(namespace string) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.operatorNamespace = namespace
 	}
 }
 
-func withWatchedNamespaces(namespaces ...string) fakeOperatorOption {
-	return func(config *fakeOperatorConfig) {
-		config.watchedNamespaces = namespaces
-	}
-}
-
-func withLogger(logger *logrus.Logger) fakeOperatorOption {
-	return func(config *fakeOperatorConfig) {
-		config.logger = logger
-	}
-}
-
 func withClock(clock utilclock.Clock) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.clock = clock
-	}
-}
-
-func withStrategyResolver(strategyResolver install.StrategyResolverInterface) fakeOperatorOption {
-	return func(config *fakeOperatorConfig) {
-		config.strategyResolver = strategyResolver
 	}
 }
 
@@ -213,21 +189,9 @@ func withAPILabeler(apiLabeler labeler.Labeler) fakeOperatorOption {
 	}
 }
 
-func withEventRecorder(rec record.EventRecorder) fakeOperatorOption {
-	return func(config *fakeOperatorConfig) {
-		config.recorder = rec
-	}
-}
-
 func withNamespaces(namespaces ...string) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.namespaces = namespaces
-	}
-}
-
-func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
-	return func(config *fakeOperatorConfig) {
-		config.fakeClientOptions = options
 	}
 }
 
@@ -748,7 +712,6 @@ func withAPIServices(csv *v1alpha1.ClusterServiceVersion, owned, required []v1al
 func withInstallModes(csv *v1alpha1.ClusterServiceVersion, installModes []v1alpha1.InstallMode) *v1alpha1.ClusterServiceVersion {
 	csv.Spec.InstallModes = installModes
 	return csv
-
 }
 
 func apis(apis ...string) []v1alpha1.APIServiceDescription {
@@ -917,7 +880,7 @@ func TestTransitionCSV(t *testing.T) {
 
 	type csvState struct {
 		exists bool
-		phase  v1alpha1.ClusterServiceVersionPhase
+		phase  v1alpha1.ClusterServiceVersionPhase //nolint:structcheck
 		reason v1alpha1.ConditionReason
 	}
 	type operatorConfig struct {
@@ -3131,7 +3094,7 @@ func TestTransitionCSV(t *testing.T) {
 func TestWebhookCABundleRetrieval(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
-	missingCAError := fmt.Errorf("Unable to find ca")
+	missingCAError := fmt.Errorf("unable to find CA")
 	caBundle := []byte("Foo")
 
 	type initial struct {
@@ -3365,6 +3328,8 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 // TestUpdates verifies that a set of expected phase transitions occur when multiple CSVs are present
 // and that they do not depend on sync order or event order
 func TestUpdates(t *testing.T) {
+	t.Parallel()
+
 	// A - replacedby -> B - replacedby -> C
 	namespace := "ns"
 	defaultOperatorGroup := &v1.OperatorGroup{
@@ -5048,7 +5013,6 @@ func TestAPIServiceResourceErrorActionable(t *testing.T) {
 			require.Equal(t, tt.actionable, op.apiServiceResourceErrorActionable(aggregate))
 		})
 	}
-
 }
 
 func crdWithConversionWebhook(crd *apiextensionsv1.CustomResourceDefinition, caBundle []byte) *apiextensionsv1.CustomResourceDefinition {

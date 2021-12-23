@@ -88,7 +88,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		// Check if the APIService points to the correct service
 		if apiService.Spec.Service.Name != serviceName || apiService.Spec.Service.Namespace != csv.GetNamespace() {
 			logger.WithFields(log.Fields{"service": apiService.Spec.Service.Name, "serviceNamespace": apiService.Spec.Service.Namespace}).Warnf("APIService service reference mismatch")
-			errs = append(errs, fmt.Errorf("APIService service reference mismatch"))
+			errs = append(errs, fmt.Errorf("found APIService and service reference mismatch"))
 			continue
 		}
 
@@ -102,7 +102,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 		if !certs.Active(ca) {
 			logger.Warnf("CA cert not active")
-			errs = append(errs, fmt.Errorf("CA cert not active"))
+			errs = append(errs, fmt.Errorf("found the CA cert is not active"))
 			continue
 		}
 
@@ -122,7 +122,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 		if !certs.Active(cert) {
 			logger.Warnf("serving cert not active")
-			errs = append(errs, fmt.Errorf("serving cert not active"))
+			errs = append(errs, fmt.Errorf("found the serving cert not active"))
 			continue
 		}
 
@@ -155,7 +155,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 		if hash, ok := deployment.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey]; !ok || hash != caHash {
 			logger.WithField("deployment", desc.DeploymentName).Warnf("Deployment CA cert hash does not match expected")
-			errs = append(errs, fmt.Errorf("Deployment %s CA cert hash does not match expected", desc.DeploymentName))
+			errs = append(errs, fmt.Errorf("deployment %s CA cert hash does not match expected", desc.DeploymentName))
 			continue
 		}
 
@@ -214,7 +214,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 				}
 				if !satisfied {
 					logger.WithField("rule", fmt.Sprintf("%+v", rule)).Warnf("Rule not satisfied")
-					errs = append(errs, fmt.Errorf("Rule %+v not satisfied", rule))
+					errs = append(errs, fmt.Errorf("rule %+v not satisfied", rule))
 					continue
 				}
 			}
@@ -260,7 +260,7 @@ func (a *Operator) getAPIServiceCABundle(csv *v1alpha1.ClusterServiceVersion, de
 		return apiService.Spec.CABundle, nil
 	}
 
-	return nil, fmt.Errorf("Unable to find ca")
+	return nil, fmt.Errorf("unable to find CA")
 }
 
 // getWebhookCABundle returns the CA associated with a webhook
@@ -303,13 +303,13 @@ func (a *Operator) getWebhookCABundle(csv *v1alpha1.ClusterServiceVersion, desc 
 		}
 	}
 
-	return nil, fmt.Errorf("Unable to find ca")
+	return nil, fmt.Errorf("unable to find CA")
 }
 
-// updateDeploymentSpecsWithApiServiceData transforms an install strategy to include information about apiservices
+// updateDeploymentSpecsWithAPIServiceData transforms an install strategy to include information about apiservices
 // it is used in generating hashes for deployment specs to know when something in the spec has changed,
 // but duplicates a lot of installAPIServiceRequirements and should be refactored.
-func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, error) {
+func (a *Operator) updateDeploymentSpecsWithAPIServiceData(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, error) {
 	// Assume the strategy is for a deployment
 	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
@@ -335,7 +335,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 
 		depSpec, ok := depSpecs[desc.DeploymentName]
 		if !ok {
-			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIServices %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
+			return nil, fmt.Errorf("strategyDetailsDeployment is missing deployment %s for owned APIServices %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
 		}
 
 		if depSpec.Template.Spec.ServiceAccountName == "" {
@@ -345,7 +345,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		// Update deployment with secret volume mount.
 		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(install.SecretName(install.ServiceName(desc.DeploymentName)))
 		if err != nil {
-			return nil, fmt.Errorf("Unable to get secret %s", install.SecretName(install.ServiceName(desc.DeploymentName)))
+			return nil, fmt.Errorf("unable to get secret %s", install.SecretName(install.ServiceName(desc.DeploymentName)))
 		}
 
 		install.AddDefaultCertVolumeAndVolumeMounts(&depSpec, secret.GetName())
@@ -362,7 +362,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 
 		depSpec, ok := depSpecs[desc.DeploymentName]
 		if !ok {
-			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for WebhookDescription %s", desc.DeploymentName, desc.GenerateName)
+			return nil, fmt.Errorf("strategyDetailsDeployment is missing deployment %s for WebhookDescription %s", desc.DeploymentName, desc.GenerateName)
 		}
 
 		if depSpec.Template.Spec.ServiceAccountName == "" {
@@ -372,7 +372,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		// Update deployment with secret volume mount.
 		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(install.SecretName(install.ServiceName(desc.DeploymentName)))
 		if err != nil {
-			return nil, fmt.Errorf("Unable to get secret %s", install.SecretName(install.ServiceName(desc.DeploymentName)))
+			return nil, fmt.Errorf("unable to get secret %s", install.SecretName(install.ServiceName(desc.DeploymentName)))
 		}
 		install.AddDefaultCertVolumeAndVolumeMounts(&depSpec, secret.GetName())
 
@@ -406,7 +406,7 @@ func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) e
 	for _, webhook := range validatingWebhookConfigurationList.Items {
 		webhookGenerateNameLabel, ok := webhook.GetLabels()[install.WebhookDescKey]
 		if !ok {
-			return fmt.Errorf("ValidatingWebhookConfiguration %s does not have WebhookDesc key", webhook.Name)
+			return fmt.Errorf("validatingWebhookConfiguration %s does not have WebhookDesc key", webhook.Name)
 		}
 		if _, ok := csvWebhookGenerateNames[webhookGenerateNameLabel]; !ok {
 			err = a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
@@ -424,7 +424,7 @@ func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) e
 	for _, webhook := range mutatingWebhookConfigurationList.Items {
 		webhookGenerateNameLabel, ok := webhook.GetLabels()[install.WebhookDescKey]
 		if !ok {
-			return fmt.Errorf("MutatingWebhookConfiguration %s does not have WebhookDesc key", webhook.Name)
+			return fmt.Errorf("mutatingWebhookConfiguration %s does not have WebhookDesc key", webhook.Name)
 		}
 		if _, ok := csvWebhookGenerateNames[webhookGenerateNameLabel]; !ok {
 			err = a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
@@ -473,7 +473,7 @@ func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion) (bo
 				}
 
 				if crd.Spec.Conversion == nil || crd.Spec.Conversion.Strategy != "Webhook" || crd.Spec.Conversion.Webhook == nil || crd.Spec.Conversion.Webhook.ClientConfig == nil && crd.Spec.Conversion.Webhook.ClientConfig.CABundle == nil {
-					return false, fmt.Errorf("ConversionWebhook not ready")
+					return false, fmt.Errorf("conversionWebhook not ready")
 				}
 				webhookCount++
 			}

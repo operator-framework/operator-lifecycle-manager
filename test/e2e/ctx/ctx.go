@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
+	g "github.com/onsi/ginkgo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
@@ -57,7 +57,7 @@ func (ctx TestContext) Logf(f string, v ...interface{}) {
 	if !strings.HasSuffix(f, "\n") {
 		f += "\n"
 	}
-	fmt.Fprintf(GinkgoWriter, f, v...)
+	fmt.Fprintf(g.GinkgoWriter, f, v...)
 }
 
 func (ctx TestContext) Scheme() *runtime.Scheme {

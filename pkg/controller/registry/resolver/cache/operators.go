@@ -106,9 +106,7 @@ func (s APISet) Intersection(sets ...APISet) APISet {
 func (s APISet) Difference(set APISet) APISet {
 	difference := make(APISet).Union(s)
 	for api := range set {
-		if _, ok := difference[api]; ok {
-			delete(difference, api)
-		}
+		delete(difference, api)
 	}
 
 	return difference

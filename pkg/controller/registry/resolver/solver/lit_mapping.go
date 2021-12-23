@@ -31,7 +31,6 @@ type litMapping struct {
 	constraints  map[z.Lit]AppliedConstraint
 	c            *logic.C
 	errs         inconsistentLitMapping
-	buf          []z.Lit
 }
 
 // newLitMapping returns a new litMapping with its state initialized based on

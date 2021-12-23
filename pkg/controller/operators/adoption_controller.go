@@ -37,7 +37,6 @@ type AdoptionReconciler struct {
 	client.Client
 
 	log     logr.Logger
-	mu      sync.RWMutex
 	factory decorators.OperatorFactory
 }
 
@@ -268,7 +267,7 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 
 	cObj, ok := component.(client.Object)
 	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 	}
 
 	if err := r.Get(ctx, types.NamespacedName{Namespace: m.GetNamespace(), Name: m.GetName()}, cObj); err != nil {
@@ -290,7 +289,7 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 		// Only update if freshly adopted
 		pCObj, ok := candidate.(client.Object)
 		if !ok {
-			return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+			return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 		}
 		return r.Patch(ctx, pCObj, client.MergeFrom(cObj))
 	}
@@ -301,7 +300,7 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Operator, component runtime.Object) error {
 	cObj, ok := component.(client.Object)
 	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 	}
 	candidate := component.DeepCopyObject()
 	disowned, err := operator.DisownComponent(candidate)
@@ -318,7 +317,7 @@ func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Op
 	r.log.V(1).Info("component disowned", "component", candidate)
 	uCObj, ok := candidate.(client.Object)
 	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 	}
 	return r.Patch(ctx, uCObj, client.MergeFrom(cObj))
 }
@@ -326,7 +325,7 @@ func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Op
 func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component runtime.Object) error {
 	cObj, ok := component.(client.Object)
 	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 	}
 	var operators []decorators.Operator
 	for _, name := range decorators.OperatorNames(cObj.GetLabels()) {
@@ -362,7 +361,7 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 	for _, list := range componentLists {
 		cList, ok := list.(client.ObjectList)
 		if !ok {
-			return nil, fmt.Errorf("Unable to typecast runtime.Object to client.ObjectList")
+			return nil, fmt.Errorf("unable to typecast runtime.Object to client.ObjectList")
 		}
 		if err := r.List(ctx, cList, opt); err != nil {
 			return nil, err

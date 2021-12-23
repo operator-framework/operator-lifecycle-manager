@@ -235,7 +235,7 @@ func And(p ...Predicate) Predicate {
 
 func (p andPredicate) Test(o *Entry) bool {
 	for _, predicate := range p.predicates {
-		if predicate.Test(o) == false {
+		if !predicate.Test(o) {
 			return false
 		}
 	}
@@ -265,7 +265,7 @@ type orPredicate struct {
 
 func (p orPredicate) Test(o *Entry) bool {
 	for _, predicate := range p.predicates {
-		if predicate.Test(o) == true {
+		if predicate.Test(o) {
 			return true
 		}
 	}
@@ -295,7 +295,7 @@ type notPredicate struct {
 
 func (p notPredicate) Test(o *Entry) bool {
 	// !pred && !pred is equivalent to !(pred || pred).
-	return !orPredicate{p.predicates}.Test(o)
+	return !orPredicate(p).Test(o)
 }
 
 func (p notPredicate) String() string {
@@ -323,9 +323,9 @@ func (b booleanPredicate) Test(o *Entry) bool {
 
 func (b booleanPredicate) String() string {
 	if b.result {
-		return fmt.Sprintf("predicate is true")
+		return "predicate is true"
 	}
-	return fmt.Sprintf("predicate is false")
+	return "predicate is false"
 }
 
 func True() Predicate {

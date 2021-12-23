@@ -899,18 +899,6 @@ func TestResolver(t *testing.T) {
 	}
 }
 
-type stubOperatorCacheProvider struct {
-	noc *resolvercache.NamespacedOperatorCache
-}
-
-func (stub *stubOperatorCacheProvider) Namespaced(namespaces ...string) resolvercache.MultiCatalogOperatorFinder {
-	return stub.noc
-}
-
-func (stub *stubOperatorCacheProvider) Expire(key resolvercache.SourceKey) {
-	return
-}
-
 func TestNamespaceResolverRBAC(t *testing.T) {
 	namespace := "catsrc-namespace"
 	catalog := resolvercache.SourceKey{Name: "catsrc", Namespace: namespace}

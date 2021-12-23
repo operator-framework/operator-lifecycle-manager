@@ -198,8 +198,7 @@ func awaitPod(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, n
 }
 
 func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error), expected map[string]string) error {
-	var err error
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("Waiting for annotations to match %v", expected)
 		obj, err := query()
 		if err != nil && !apierrors.IsNotFound(err) {
@@ -227,8 +226,7 @@ func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error
 type checkResourceFunc func() error
 
 func waitForDelete(checkResource checkResourceFunc) error {
-	var err error
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		err := checkResource()
 		if apierrors.IsNotFound(err) {
 			return true, nil
@@ -243,8 +241,7 @@ func waitForDelete(checkResource checkResourceFunc) error {
 }
 
 func waitForEmptyList(checkList func() (int, error)) error {
-	var err error
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		count, err := checkList()
 		if err != nil {
 			return false, err
@@ -518,7 +515,6 @@ func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientI
 }
 
 func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace string) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
-
 	catalogSource := &operatorsv1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       operatorsv1alpha1.CatalogSourceKind,
@@ -541,7 +537,15 @@ func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace str
 	return catalogSource, buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)
 }
 
-func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
+func createInternalCatalogSource(
+	c operatorclient.ClientInterface,
+	crc versioned.Interface,
+	name,
+	namespace string,
+	manifests []registry.PackageManifest,
+	crds []apiextensions.CustomResourceDefinition,
+	csvs []operatorsv1alpha1.ClusterServiceVersion,
+) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 	configMap, configMapCleanup := createConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
@@ -574,10 +578,15 @@ func createInternalCatalogSource(c operatorclient.ClientInterface, crc versioned
 	return catalogSource, cleanupInternalCatalogSource
 }
 
-func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface, crc versioned.Interface, name,
-	namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition,
-	csvs []operatorsv1alpha1.ClusterServiceVersion, priority int) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
-
+func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface,
+	crc versioned.Interface,
+	name,
+	namespace string,
+	manifests []registry.PackageManifest,
+	crds []apiextensions.CustomResourceDefinition,
+	csvs []operatorsv1alpha1.ClusterServiceVersion,
+	priority int,
+) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 	configMap, configMapCleanup := createConfigMapForCatalogData(c, name, namespace, manifests, crds, csvs)
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
 	catalogSource := &operatorsv1alpha1.CatalogSource{
@@ -611,7 +620,16 @@ func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface, c
 	return catalogSource, cleanupInternalCatalogSource
 }
 
-func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
+func createV1CRDInternalCatalogSource(
+	t GinkgoTInterface,
+	c operatorclient.ClientInterface,
+	crc versioned.Interface,
+	name,
+	namespace string,
+	manifests []registry.PackageManifest,
+	crds []apiextensionsv1.CustomResourceDefinition,
+	csvs []operatorsv1alpha1.ClusterServiceVersion,
+) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 	configMap, configMapCleanup := createV1CRDConfigMapForCatalogData(t, c, name, namespace, manifests, crds, csvs)
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
@@ -645,7 +663,14 @@ func createV1CRDInternalCatalogSource(t GinkgoTInterface, c operatorclient.Clien
 	return catalogSource, cleanupInternalCatalogSource
 }
 
-func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
+func createConfigMapForCatalogData(
+	c operatorclient.ClientInterface,
+	name,
+	namespace string,
+	manifests []registry.PackageManifest,
+	crds []apiextensions.CustomResourceDefinition,
+	csvs []operatorsv1alpha1.ClusterServiceVersion,
+) (*corev1.ConfigMap, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
@@ -692,7 +717,15 @@ func createConfigMapForCatalogData(c operatorclient.ClientInterface, name, names
 	return createdConfigMap, buildConfigMapCleanupFunc(c, namespace, createdConfigMap)
 }
 
-func createV1CRDConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensionsv1.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
+func createV1CRDConfigMapForCatalogData(
+	t GinkgoTInterface,
+	c operatorclient.ClientInterface,
+	name,
+	namespace string,
+	manifests []registry.PackageManifest,
+	crds []apiextensionsv1.CustomResourceDefinition,
+	csvs []operatorsv1alpha1.ClusterServiceVersion,
+) (*corev1.ConfigMap, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{

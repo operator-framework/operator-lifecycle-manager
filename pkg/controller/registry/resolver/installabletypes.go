@@ -40,7 +40,7 @@ func (i *BundleInstallable) BundleSourceInfo() (string, string, cache.SourceKey,
 	info := strings.Split(i.identifier.String(), "/")
 	// This should be enforced by Kube naming constraints
 	if len(info) != 4 {
-		return "", "", cache.SourceKey{}, fmt.Errorf("Unable to parse identifier %s for source info", i.identifier)
+		return "", "", cache.SourceKey{}, fmt.Errorf("unable to parse identifier %s for source info", i.identifier)
 	}
 	catalog := cache.SourceKey{
 		Name:      info[0],
@@ -51,7 +51,7 @@ func (i *BundleInstallable) BundleSourceInfo() (string, string, cache.SourceKey,
 	return csvName, channel, catalog, nil
 }
 
-func bundleId(bundle, channel string, catalog cache.SourceKey) solver.Identifier {
+func bundleID(bundle, channel string, catalog cache.SourceKey) solver.Identifier {
 	return solver.IdentifierFromString(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
 }
 
@@ -59,7 +59,7 @@ func NewBundleInstallableFromOperator(o *cache.Entry) (BundleInstallable, error)
 	if o.SourceInfo == nil {
 		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Name)
 	}
-	id := bundleId(o.Name, o.Channel(), o.SourceInfo.Catalog)
+	id := bundleID(o.Name, o.Channel(), o.SourceInfo.Catalog)
 	var constraints []solver.Constraint
 	if o.SourceInfo.Catalog.Virtual() && o.SourceInfo.Subscription == nil {
 		// CSVs already associated with a Subscription

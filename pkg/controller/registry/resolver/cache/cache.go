@@ -85,8 +85,6 @@ type Cache struct {
 	m            sync.RWMutex
 }
 
-type catalogSourcePriority int
-
 var _ OperatorCacheProvider = &Cache{}
 
 type Option func(*Cache)
@@ -402,13 +400,13 @@ func (s sortableSnapshots) Swap(i, j int) {
 	s.snapshots[i], s.snapshots[j] = s.snapshots[j], s.snapshots[i]
 }
 
-func (s *snapshotHeader) Find(p ...Predicate) []*Entry {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	if s.snapshot == nil {
+func (hdr *snapshotHeader) Find(p ...Predicate) []*Entry {
+	hdr.m.RLock()
+	defer hdr.m.RUnlock()
+	if hdr.snapshot == nil {
 		return nil
 	}
-	return Filter(s.snapshot.Entries, p...)
+	return Filter(hdr.snapshot.Entries, p...)
 }
 
 type OperatorFinder interface {

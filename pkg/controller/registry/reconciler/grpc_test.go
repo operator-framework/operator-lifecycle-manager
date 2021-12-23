@@ -362,7 +362,6 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, k8serrors.IsNotFound(serviceErr))
 			}
-
 		})
 	}
 }
@@ -581,7 +580,6 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			}
 
 			require.Equal(t, tt.out.healthy, healthy)
-
 		})
 	}
 }
