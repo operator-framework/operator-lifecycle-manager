@@ -4175,58 +4175,52 @@ var _ = Describe("ClusterServiceVersion", func() {
 })
 
 var _ = Describe("Disabling copied CSVs", func() {
-	// Define namespace, operatorGroup, and csv upfront
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: genName("csv-toggle-test-"),
-		},
-	}
+	var (
+		ns corev1.Namespace
+		csv operatorsv1alpha1.ClusterServiceVersion
+	)
 
-	operatorGroup := operatorsv1.OperatorGroup{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      genName("csv-toggle-test-"),
-			Namespace: ns.GetName(),
-		},
-	}
+	BeforeEach(func() {
+		nsname := genName("csv-toggle-test-")
+		og := operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-operatorgroup", nsname),
+				Namespace: nsname,
+			},
+		}
+		ns = SetupGeneratedTestNamespaceWithOperatorGroup(nsname, og)
 
-	csv := operatorsv1alpha1.ClusterServiceVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      genName("csv-toggle-test-"),
-			Namespace: ns.GetName(),
-		},
-		Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: newNginxInstallStrategy(genName("csv-toggle-test-"), nil, nil),
-			InstallModes: []operatorsv1alpha1.InstallMode{
-				{
-					Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
-					Supported: true,
+		csv = operatorsv1alpha1.ClusterServiceVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("csv-toggle-test-"),
+				Namespace: nsname,
+			},
+			Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
+				InstallStrategy: newNginxInstallStrategy(genName("csv-toggle-test-"), nil, nil),
+				InstallModes: []operatorsv1alpha1.InstallMode{
+					{
+						Type:      operatorsv1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					},
 				},
 			},
-		},
-	}
+		}
+		err := ctx.Ctx().Client().Create(context.Background(), &csv)
+		Expect(err).ShouldNot(HaveOccurred())
+	})
+	AfterEach(func() {
+		Eventually(func() error {
+			err := ctx.Ctx().Client().Delete(context.Background(), &csv)
+			if err != nil && k8serrors.IsNotFound(err) {
+				return err
+			}
+
+			return nil
+		}).Should(Succeed())
+		TeardownNamespace(ns.GetName())
+	})
 
 	When("an operator is installed in AllNamespace mode", func() {
-		BeforeEach(func() {
-			Eventually(func() error {
-				if err := ctx.Ctx().Client().Create(context.TODO(), ns); err != nil && !k8serrors.IsAlreadyExists(err) {
-					ctx.Ctx().Logf("Unable to create ns: %v", err)
-					return err
-				}
-
-				if err := ctx.Ctx().Client().Create(context.TODO(), &operatorGroup); err != nil && !k8serrors.IsAlreadyExists(err) {
-					ctx.Ctx().Logf("Unable to create og: %v", err)
-					return err
-				}
-
-				if err := ctx.Ctx().Client().Create(context.TODO(), &csv); err != nil && !k8serrors.IsAlreadyExists(err) {
-					ctx.Ctx().Logf("Unable to create csv: %v", err)
-					return err
-				}
-
-				return nil
-			}).Should(Succeed())
-		})
-
 		It("should have Copied CSVs in all other namespaces", func() {
 			Eventually(func() error {
 				requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
