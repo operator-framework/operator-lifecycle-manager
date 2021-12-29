@@ -14,7 +14,7 @@ import (
 func TestNewNamespaceSourceQuerier(t *testing.T) {
 	emptySources := map[registry.CatalogKey]registry.ClientInterface{}
 	nonEmptySources := map[registry.CatalogKey]registry.ClientInterface{
-		registry.CatalogKey{"test", "ns"}: &registry.Client{
+		{Name: "test", Namespace: "ns"}: &registry.Client{
 			Client: &client.Client{
 				Registry: &fakes.FakeRegistryClient{},
 			},
@@ -85,7 +85,7 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 			name: "nonEmpty",
 			fields: fields{
 				sources: map[registry.CatalogKey]registry.ClientInterface{
-					registry.CatalogKey{"test", "ns"}: &registry.Client{
+					{Name: "test", Namespace: "ns"}: &registry.Client{
 						Client: &client.Client{
 							Registry: &fakes.FakeRegistryClient{},
 						},

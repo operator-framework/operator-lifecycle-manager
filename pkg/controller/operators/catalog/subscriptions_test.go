@@ -1054,6 +1054,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			}
 
 			installPlans, err := o.client.OperatorsV1alpha1().InstallPlans(testNamespace).List(context.TODO(), metav1.ListOptions{})
+			require.NoError(t, err)
 			require.Len(t, installPlans.Items, len(tt.wantInstallPlans))
 
 			haveIPs := make(map[string]v1alpha1.InstallPlan)

@@ -27,9 +27,9 @@ func (ir *InstrumentedResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step
 	start := time.Now()
 	steps, lookups, subs, err := ir.resolver.ResolveSteps(namespace)
 	if err != nil {
-		ir.failureMetricsEmitter(time.Now().Sub(start))
+		ir.failureMetricsEmitter(time.Since(start))
 	} else {
-		ir.successMetricsEmitter(time.Now().Sub(start))
+		ir.successMetricsEmitter(time.Since(start))
 	}
 	return steps, lookups, subs, err
 }

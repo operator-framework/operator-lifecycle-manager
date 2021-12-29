@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	newOperatorError       = "Cannot create new Operator: %s"
-	newComponentError      = "Cannot create new Component: %s"
-	componentLabelKeyError = "Cannot generate component label key: %s"
+	newOperatorError       = "cannot create new Operator: %s"
+	newComponentError      = "cannot create new Component: %s"
+	componentLabelKeyError = "cannot generate component label key: %s"
 
 	// ComponentLabelKeyPrefix is the key prefix used for labels marking operator component resources.
 	ComponentLabelKeyPrefix = "operators.coreos.com/"
@@ -295,7 +295,7 @@ func (o *Operator) AddComponents(components ...runtime.Object) error {
 		if matches, err := component.Matches(selector); err != nil {
 			return err
 		} else if !matches {
-			return fmt.Errorf("Cannot add component %s/%s/%s to Operator %s: component labels not selected by %s", component.GetKind(), component.GetNamespace(), component.GetName(), o.GetName(), selector.String())
+			return fmt.Errorf("cannot add component %s/%s/%s to Operator %s: component labels not selected by %s", component.GetKind(), component.GetNamespace(), component.GetName(), o.GetName(), selector.String())
 		}
 
 		ref, err := component.Reference()

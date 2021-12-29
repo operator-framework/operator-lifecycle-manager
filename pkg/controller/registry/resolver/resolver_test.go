@@ -611,7 +611,6 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	for k, e := range expected {
 		assert.EqualValues(t, e, operators[k])
 	}
-
 }
 
 func TestSolveOperators_WithPackageDependencies(t *testing.T) {
@@ -733,9 +732,7 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 	}
 
 	operatorBv1 := genOperator("packageB.v1", "1.0.0", "", "packageB", "beta", "community", "olm", nil, nil, nil, "", false)
-	for _, p := range props {
-		operatorBv1.Properties = append(operatorBv1.Properties, p)
-	}
+	operatorBv1.Properties = append(operatorBv1.Properties, props...)
 
 	satResolver := SatResolver{
 		cache: cache.New(cache.StaticSourceProvider{
@@ -2485,7 +2482,7 @@ func TestNewOperatorFromCSV(t *testing.T) {
 }
 
 func TestSolveOperators_GenericConstraint(t *testing.T) {
-	Provides1 := cache.APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides1 := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 

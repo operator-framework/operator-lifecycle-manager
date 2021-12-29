@@ -3,7 +3,7 @@ package dsl
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
+	g "github.com/onsi/ginkgo"
 )
 
 // IgnoreError acknowledges that an error value is being intentionally
@@ -26,5 +26,5 @@ func IgnoreError(vals ...interface{}) {
 	if _, ok := err.(error); ok {
 		return
 	}
-	Fail(fmt.Sprintf("the last argument to IgnoreError must be an error, but it was %T", err))
+	g.Fail(fmt.Sprintf("the last argument to IgnoreError must be an error, but it was %T", err))
 }

@@ -414,7 +414,7 @@ func TestIncompatibleOperators(t *testing.T) {
 					{
 						name:      "chestnut",
 						namespace: "default",
-						err: fmt.Errorf(`Failed to parse "bad_version" as semver: %w`, func() error {
+						err: fmt.Errorf(`failed to parse "bad_version" as semver: %w`, func() error {
 							_, err := semver.ParseTolerant("bad_version")
 							return err
 						}()),

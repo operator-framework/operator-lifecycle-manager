@@ -38,7 +38,6 @@ func (s *SyncTracker) Start(ctx context.Context) error {
 	})
 
 	return err
-
 }
 
 func (s *SyncTracker) start(ctx context.Context) error {

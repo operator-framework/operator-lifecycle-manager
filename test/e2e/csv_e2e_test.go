@@ -4405,7 +4405,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 
 				expectedCondition := metav1.Condition{
 					Reason:  "CopiedCSVsEnabled",
-					Message: "Copied CSVs are enabled and present accross the cluster",
+					Message: "Copied CSVs are enabled and present across the cluster",
 					Status:  metav1.ConditionFalse,
 				}
 
@@ -4465,7 +4465,6 @@ func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interfa
 			return err
 		})
 		Expect(err).ShouldNot(HaveOccurred())
-
 	}
 }
 
@@ -4482,7 +4481,6 @@ func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv op
 	}).Should(Succeed())
 
 	return buildCSVCleanupFunc(c, crc, csv, namespace, cleanupCRDs, cleanupAPIServices), nil
-
 }
 
 func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) cleanupFunc {
@@ -4593,7 +4591,6 @@ type mockGroupVersionKind struct {
 }
 
 func newMockExtServerDeployment(labelName string, mGVKs []mockGroupVersionKind) appsv1.DeploymentSpec {
-
 	// Create the list of containers
 	containers := []corev1.Container{}
 	for _, mGVK := range mGVKs {
@@ -4742,7 +4739,6 @@ func waitForDeploymentToDelete(c operatorclient.ClientInterface, name string) er
 }
 
 func csvExists(c versioned.Interface, name string) bool {
-
 	fetched, err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		return false

@@ -292,7 +292,6 @@ var _ = Describe("Operator Group", func() {
 		stopCh := make(chan struct{})
 		defer func() {
 			stopCh <- struct{}{}
-			return
 		}()
 
 		for _, informer := range []cache.SharedIndexInformer{roleInformer.Informer(), roleBindingInformer.Informer(), clusterRoleInformer.Informer(), clusterRoleBindingInformer.Informer()} {
@@ -2438,7 +2437,6 @@ func updateOperatorGroupSpecFunc(t GinkgoTInterface, crc versioned.Interface, na
 }
 
 func pollForNamespaceListCount(c operatorclient.ClientInterface, listOptions metav1.ListOptions, expectedLength int) (list *corev1.NamespaceList, err error) {
-
 	Eventually(func() (bool, error) {
 		list, err = c.KubernetesInterface().CoreV1().Namespaces().List(context.TODO(), listOptions)
 		if err != nil {

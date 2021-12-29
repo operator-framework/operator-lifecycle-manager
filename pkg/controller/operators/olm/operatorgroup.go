@@ -262,7 +262,7 @@ func (a *Operator) annotateCSVs(group *v1.OperatorGroup, targetNamespaces []stri
 		}
 		logger := logger.WithField("csv", csv.GetName())
 
-		originalNamespacesAnnotation, _ := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)[v1.OperatorGroupTargetsAnnotationKey]
+		originalNamespacesAnnotation := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)[v1.OperatorGroupTargetsAnnotationKey]
 		originalNamespaceSet := NewNamespaceSetFromString(originalNamespacesAnnotation)
 
 		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, group) {
@@ -365,7 +365,6 @@ func (a *Operator) pruneProvidedAPIs(group *v1.OperatorGroup, groupProvidedAPIs 
 			logger.WithError(err).Warn("could not update provided api annotations")
 		}
 	}
-	return
 }
 
 // ensureProvidedAPIClusterRole ensures that a clusterrole exists (admin, edit, or view) for a single provided API Type
@@ -389,7 +388,10 @@ func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs
 	}
 
 	existingCR, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
-	if existingCR == nil {
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return err
+	}
+	if k8serrors.IsNotFound(err) {
 		existingCR, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
 		if err == nil {
 			return nil
@@ -476,9 +478,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 		logger.Debug("opgroup is global")
 
 		// synthesize cluster permissions to verify rbac
-		for _, p := range strategyDetailsDeployment.Permissions {
-			strategyDetailsDeployment.ClusterPermissions = append(strategyDetailsDeployment.ClusterPermissions, p)
-		}
+		strategyDetailsDeployment.ClusterPermissions = append(strategyDetailsDeployment.ClusterPermissions, strategyDetailsDeployment.Permissions...)
 		strategyDetailsDeployment.Permissions = nil
 		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, corev1.NamespaceAll, csv)
 		if err != nil {
@@ -797,7 +797,6 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 
 	existing, err := a.copiedCSVLister.ClusterServiceVersions(nsTo).Get(prototype.GetName())
 	if k8serrors.IsNotFound(err) {
-
 		created, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Create(context.TODO(), prototype, metav1.CreateOptions{})
 		if err != nil {
 			return nil, err
@@ -1005,7 +1004,10 @@ func (a *Operator) ensureOpGroupClusterRole(op *v1.OperatorGroup, suffix string,
 	}
 
 	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
-	if existingRole == nil {
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return err
+	}
+	if k8serrors.IsNotFound(err) {
 		existingRole, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
 		if err == nil {
 			return nil

@@ -166,7 +166,6 @@ func TestCatalogSnapshotValid(t *testing.T) {
 			assert.Equal(t, tt.Expected, s.Valid(tt.At))
 		})
 	}
-
 }
 
 func TestCatalogSnapshotFind(t *testing.T) {
@@ -235,7 +234,6 @@ func TestCatalogSnapshotFind(t *testing.T) {
 			assert.Equal(t, tt.Expected, s.Find(tt.Predicate))
 		})
 	}
-
 }
 
 type ErrorSource struct {

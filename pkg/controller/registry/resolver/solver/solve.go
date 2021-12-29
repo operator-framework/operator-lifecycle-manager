@@ -11,7 +11,7 @@ import (
 	"github.com/go-air/gini/z"
 )
 
-var Incomplete = errors.New("cancelled before a solution could be found")
+var ErrIncomplete = errors.New("cancelled before a solution could be found")
 
 // NotSatisfiable is an error composed of a minimal set of applied
 // constraints that is sufficient to make a solution impossible.
@@ -114,7 +114,7 @@ func (s *solver) Solve(ctx context.Context) (result []Installable, err error) {
 		return nil, NotSatisfiable(s.litMap.Conflicts(s.g))
 	}
 
-	return nil, Incomplete
+	return nil, ErrIncomplete
 }
 
 func New(options ...Option) (Solver, error) {

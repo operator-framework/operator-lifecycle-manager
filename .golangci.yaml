@@ -1,0 +1,30 @@
+run:
+  timeout: 5m
+  skip-dirs:
+  - pkg/lib
+  - pkg/api
+  - pkg/fakes
+  - pkg/package-server/apis
+  - test/e2e
+
+linters:
+  enable:
+  - depguard
+  - gofmt
+  - goimports
+  - importas
+  - misspell
+  - stylecheck
+  - tparallel
+  - unconvert
+  - whitespace
+  disable:
+  - errcheck
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  format: tab
+  sort-results: true

@@ -55,8 +55,8 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (cache.OperatorSet, error) {
 	var errs []error
 
-	installables := make(map[solver.Identifier]solver.Installable, 0)
-	visited := make(map[*cache.Entry]*BundleInstallable, 0)
+	installables := make(map[solver.Identifier]solver.Installable)
+	visited := make(map[*cache.Entry]*BundleInstallable)
 
 	// TODO: better abstraction
 	startingCSVs := make(map[string]struct{})
@@ -146,7 +146,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		}
 	}
 
-	operators := make(map[string]*cache.Entry, 0)
+	operators := make(map[string]*cache.Entry)
 	for _, installableOperator := range operatorInstallables {
 		csvName, channel, catalog, err := installableOperator.BundleSourceInfo()
 		if err != nil {
@@ -199,7 +199,7 @@ func (r *SatResolver) newBundleInstallableFromEntry(entry *cache.Entry) (*Bundle
 
 func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, current *cache.Entry, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Entry]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
 	var cachePredicates, channelPredicates []cache.Predicate
-	installables := make(map[solver.Identifier]solver.Installable, 0)
+	installables := make(map[solver.Identifier]solver.Installable)
 
 	catalog := cache.SourceKey{
 		Name:      sub.Spec.CatalogSource,
@@ -316,12 +316,12 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 			// safe to remove this conflict if properties
 			// annotations are made mandatory for
 			// resolution.
-			c.AddConflict(bundleId(current.Name, current.Channel(), cache.NewVirtualSourceKey(sub.GetNamespace())))
+			c.AddConflict(bundleID(current.Name, current.Channel(), cache.NewVirtualSourceKey(sub.GetNamespace())))
 		}
 		depIds = append(depIds, c.Identifier())
 	}
 	if current != nil {
-		depIds = append(depIds, bundleId(current.Name, current.Channel(), cache.NewVirtualSourceKey(sub.GetNamespace())))
+		depIds = append(depIds, bundleID(current.Name, current.Channel(), cache.NewVirtualSourceKey(sub.GetNamespace())))
 	}
 
 	// all candidates added as options for this constraint
@@ -333,7 +333,7 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 
 func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleStack []*cache.Entry, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Entry]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
 	errs := make([]error, 0)
-	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
+	installables := make(map[solver.Identifier]*BundleInstallable) // all installables, including dependencies
 
 	// track the first layer of installable ids
 	var initial = make(map[*cache.Entry]struct{})
@@ -431,7 +431,7 @@ func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleSta
 		return nil, nil, utilerrors.NewAggregate(errs)
 	}
 
-	ids := make(map[solver.Identifier]struct{}, 0) // immediate installables found via predicates
+	ids := make(map[solver.Identifier]struct{}) // immediate installables found via predicates
 	for o := range initial {
 		ids[visited[o].Identifier()] = struct{}{}
 	}
@@ -469,17 +469,17 @@ func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs 
 	if !csv.Spec.Version.Version.Equals(semver.Version{}) {
 		version = csv.Spec.Version.String()
 	}
-	if pp, err := json.Marshal(opregistry.PackageProperty{
+	pp, err := json.Marshal(opregistry.PackageProperty{
 		PackageName: pkg,
 		Version:     version,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("failed to marshal inferred package property: %w", err)
-	} else {
-		properties = append(properties, &api.Property{
-			Type:  opregistry.PackageType,
-			Value: string(pp),
-		})
 	}
+	properties = append(properties, &api.Property{
+		Type:  opregistry.PackageType,
+		Value: string(pp),
+	})
 
 	return properties, nil
 }
@@ -815,10 +815,8 @@ func (pc *predicateConverter) predicateForConstraintProperty(value string) (cach
 // convertConstraints creates predicates from each element of constraints, recursing on compound constraints.
 // New constraint types added to the constraints package must be handled here.
 func (pc *predicateConverter) convertConstraints(constraints ...constraints.Constraint) ([]cache.Predicate, error) {
-
 	preds := make([]cache.Predicate, len(constraints))
 	for i, constraint := range constraints {
-
 		var err error
 		switch {
 		case constraint.GVK != nil:
@@ -848,7 +846,6 @@ func (pc *predicateConverter) convertConstraints(constraints ...constraints.Cons
 		if err != nil {
 			return nil, err
 		}
-
 	}
 
 	return preds, nil

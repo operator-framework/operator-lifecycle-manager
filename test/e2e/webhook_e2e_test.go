@@ -171,11 +171,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 				// Current Webhook should exist
 				_, err = getWebhookWithGenerateName(c, changedGenerateName)
-				if err != nil {
-					return false
-				}
-
-				return true
+				return err == nil
 			}, time.Minute, 5*time.Second).Should(BeTrue())
 		})
 		It("Reuses existing valid certs", func() {
@@ -212,10 +208,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				fetchedCSV.Status.Phase = operatorsv1alpha1.CSVPhasePending
 
 				_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(namespace.GetName()).UpdateStatus(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
-				if err != nil {
-					return false
-				}
-				return true
+				return err == nil
 			}).Should(BeTrue(), "Unable to set CSV phase to Pending")
 
 			// Wait for webhook-operator to succeed
@@ -259,7 +252,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"*"},
@@ -278,7 +271,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			failedCSV, err := fetchCSV(crc, csv.Name, namespace.Name, csvFailedChecker)
 			Expect(err).Should(BeNil())
-			Expect(failedCSV.Status.Message).Should(Equal("Webhook rules cannot include all groups"))
+			Expect(failedCSV.Status.Message).Should(Equal("webhook rules cannot include all groups"))
 		})
 		It("Fails if the webhook intercepts OLM resources", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
@@ -290,7 +283,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"operators.coreos.com"},
@@ -309,7 +302,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			failedCSV, err := fetchCSV(crc, csv.Name, namespace.Name, csvFailedChecker)
 			Expect(err).Should(BeNil())
-			Expect(failedCSV.Status.Message).Should(Equal("Webhook rules cannot include the OLM group"))
+			Expect(failedCSV.Status.Message).Should(Equal("webhook rules cannot include the OLM group"))
 		})
 		It("Fails if webhook intercepts Admission Webhook resources", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
@@ -321,7 +314,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{},
 						Rule: admissionregistrationv1.Rule{
 							APIGroups:   []string{"admissionregistration.k8s.io"},
@@ -340,7 +333,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			failedCSV, err := fetchCSV(crc, csv.Name, namespace.Name, csvFailedChecker)
 			Expect(err).Should(BeNil())
-			Expect(failedCSV.Status.Message).Should(Equal("Webhook rules cannot include MutatingWebhookConfiguration or ValidatingWebhookConfiguration resources"))
+			Expect(failedCSV.Status.Message).Should(Equal("webhook rules cannot include MutatingWebhookConfiguration or ValidatingWebhookConfiguration resources"))
 		})
 		It("Succeeds if the webhook intercepts non Admission Webhook resources in admissionregistration group", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
@@ -352,7 +345,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{
 							admissionregistrationv1.OperationAll,
 						},
@@ -384,7 +377,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				AdmissionReviewVersions: []string{"v1beta1", "v1"},
 				SideEffects:             &sideEffect,
 				Rules: []admissionregistrationv1.RuleWithOperations{
-					admissionregistrationv1.RuleWithOperations{
+					{
 						Operations: []admissionregistrationv1.OperationType{
 							admissionregistrationv1.OperationAll,
 						},

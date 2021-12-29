@@ -67,7 +67,6 @@ func (c *CSVRuleChecker) RuleSatisfied(sa *corev1.ServiceAccount, namespace stri
 		if decision == authorizer.DecisionDeny || decision == authorizer.DecisionNoOpinion {
 			return false, nil
 		}
-
 	}
 
 	return true, nil

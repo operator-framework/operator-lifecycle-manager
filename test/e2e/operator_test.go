@@ -454,7 +454,7 @@ func (matcher *copiedCSVRefMatcher) Match(actual interface{}) (success bool, err
 func (matcher *copiedCSVRefMatcher) FailureMessage(actual interface{}) (message string) {
 	operator, ok := actual.(*operatorsv1.Operator)
 	if !ok {
-		return fmt.Sprintf("copiedCSVRefMatcher matcher expects an *Operator")
+		return "copiedCSVRefMatcher matcher expects an *Operator"
 	}
 	return fmt.Sprintf("Expected\n\t%#v\nto contain copied CSVs in components\n\t%#v\n", operator, operator.Status.Components)
 }
@@ -462,7 +462,7 @@ func (matcher *copiedCSVRefMatcher) FailureMessage(actual interface{}) (message 
 func (matcher *copiedCSVRefMatcher) NegatedFailureMessage(actual interface{}) (message string) {
 	operator, ok := actual.(*operatorsv1.Operator)
 	if !ok {
-		return fmt.Sprintf("copiedCSVRefMatcher matcher expects an *Operator")
+		return "copiedCSVRefMatcher matcher expects an *Operator"
 	}
 	return fmt.Sprintf("Expected\n\t%#v\nto not contain copied CSVs in components\n\t%#v\n", operator, operator.Status.Components)
 }

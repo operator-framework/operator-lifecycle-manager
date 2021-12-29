@@ -13,7 +13,6 @@ import (
 const (
 	failure = time.Duration(0)
 	success = time.Duration(1)
-	reset   = time.Duration(99999)
 )
 
 type fakeResolverWithError struct{}

@@ -4,7 +4,6 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -28,8 +27,6 @@ const (
 
 // init hooks provides the downstream a way to modify the upstream behavior
 var initHooks []stepResolverInitHook
-
-var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 type StepResolver interface {
 	ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
@@ -178,11 +175,11 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 					},
 				},
 			}
-			if anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties); err != nil {
+			anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties)
+			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to serialize operator properties for %q: %w", op.Name, err)
-			} else {
-				lookup.Properties = anno
 			}
+			lookup.Properties = anno
 			bundleLookups = append(bundleLookups, lookup)
 		}
 

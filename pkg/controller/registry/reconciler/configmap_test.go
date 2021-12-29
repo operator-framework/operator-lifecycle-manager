@@ -60,12 +60,6 @@ func withK8sClientOptions(options ...clientfake.Option) fakeReconcilerOption {
 	}
 }
 
-func withConfigMapServerImage(configMapServerImage string) fakeReconcilerOption {
-	return func(config *fakeReconcilerConfig) {
-		config.configMapServerImage = configMapServerImage
-	}
-}
-
 func fakeReconcilerFactory(t *testing.T, stopc <-chan struct{}, options ...fakeReconcilerOption) (RegistryReconcilerFactory, operatorclient.ClientInterface) {
 	config := &fakeReconcilerConfig{
 		now:                  metav1.Now,

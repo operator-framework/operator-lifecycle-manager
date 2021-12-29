@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
@@ -176,7 +175,7 @@ func mustGetCatalogSourcePod(client k8scontrollerclient.Client, catalogSource *v
 			return err
 		}
 		if len(podList.Items) != 1 {
-			return errors.New(fmt.Sprintf("expecting one catalog source pod but found %d", len(podList.Items)))
+			return fmt.Errorf("expecting one catalog source pod but found %d", len(podList.Items))
 		}
 		return nil
 	}).Should(BeNil())

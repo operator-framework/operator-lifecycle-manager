@@ -384,7 +384,6 @@ const (
 )
 
 func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, timeout time.Duration) (result *BundleUnpackResult, err error) {
-
 	result = newBundleUnpackResult(lookup)
 
 	// if bundle lookup failed condition already present, then there is nothing more to do
@@ -523,8 +522,8 @@ func (c *ConfigMapUnpacker) pendingContainerStatusMessages(job *batchv1.Job) (st
 	podLabel := map[string]string{BundleUnpackPodLabel: job.GetName()}
 	pods, listErr := c.podLister.Pods(job.GetNamespace()).List(k8slabels.SelectorFromValidatedSet(podLabel))
 	if listErr != nil {
-		c.logger.Errorf("Failed to list pods for job(%s): %v", job.GetName(), listErr)
-		return "", fmt.Errorf("Failed to list pods for job(%s): %v", job.GetName(), listErr)
+		c.logger.Errorf("failed to list pods for job(%s): %v", job.GetName(), listErr)
+		return "", fmt.Errorf("failed to list pods for job(%s): %v", job.GetName(), listErr)
 	}
 
 	// Ideally there should be just 1 pod running but inspect all pods in the pending phase
@@ -570,14 +569,14 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 		if err != nil && apierrors.IsAlreadyExists(err) {
 			cm, err = c.client.CoreV1().ConfigMaps(fresh.GetNamespace()).Get(context.TODO(), fresh.GetName(), metav1.GetOptions{})
 			if err != nil {
-				return nil, fmt.Errorf("Failed to retrieve configmap %s: %v", fresh.GetName(), err)
+				return nil, fmt.Errorf("failed to retrieve configmap %s: %v", fresh.GetName(), err)
 			}
 			cm.SetLabels(map[string]string{
 				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
 			})
 			cm, err = c.client.CoreV1().ConfigMaps(cm.GetNamespace()).Update(context.TODO(), cm, metav1.UpdateOptions{})
 			if err != nil {
-				return nil, fmt.Errorf("Failed to update configmap %s: %v", cm.GetName(), err)
+				return nil, fmt.Errorf("failed to update configmap %s: %v", cm.GetName(), err)
 			}
 		}
 	}
