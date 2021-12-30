@@ -116,6 +116,7 @@ type Operator struct {
 	installPlanTimeout       time.Duration
 	bundleUnpackTimeout      time.Duration
 	clientFactory            clients.Factory
+	muInstallPlan            sync.Mutex
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -1166,6 +1167,26 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, gen
 	if err != nil {
 		return nil, err
 	}
+
+	// There are multiple(2) worker threads process the namespaceQueue.
+	// Both worker can work at the same time when 2 separate updates are made for the namespace.
+	// The following sequence causes 2 installplans are created for a subscription
+	// 1. worker 1 doesn't find the installplan
+	// 2. worker 2 doesn't find the installplan
+	// 3. both worker 1 and 2 create the installplan
+	//
+	// This lock prevents the step 2 in the sequence so that only one installplan is created for a subscription.
+	// The sequence is like the following with this lock
+	// 1. worker 1 locks
+	// 2. worker 1 doesn't find the installplan
+	// 3. worker 2 wait for unlock       <--- difference
+	// 4. worker 1 creates the installplan
+	// 5. worker 1 unlocks
+	// 6. worker 2 locks
+	// 7. worker 2 finds the installplan <--- difference
+	// 8. worker 2 unlocks
+	o.muInstallPlan.Lock()
+	defer o.muInstallPlan.Unlock()
 
 	for _, installPlan := range installPlans {
 		if installPlan.Spec.Generation == gen {
