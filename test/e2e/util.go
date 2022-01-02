@@ -77,6 +77,15 @@ func newPMClient() pmversioned.Interface {
 	return ctx.Ctx().PackageClient()
 }
 
+type cleanupFunc func()
+
+// waitFor wraps wait.Pool with default polling parameters
+func waitFor(fn func() (bool, error)) error {
+	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		return fn()
+	})
+}
+
 // awaitPods waits for a set of pods to exist in the cluster
 func awaitPods(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, selector string, checkPods podsCheckFunc) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList

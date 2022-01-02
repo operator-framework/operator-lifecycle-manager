@@ -4423,8 +4423,6 @@ var _ = Describe("Disabling copied CSVs", func() {
 
 var singleInstance = int32(1)
 
-type cleanupFunc func()
-
 var immediateDeleteGracePeriod int64 = 0
 
 func findLastEvent(events *corev1.EventList) (event corev1.Event) {
