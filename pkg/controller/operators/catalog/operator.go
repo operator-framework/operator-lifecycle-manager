@@ -887,8 +887,6 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
 
-	querier := NewNamespaceSourceQuerier(o.sources.AsClients(o.namespace, namespace))
-
 	logger.Debug("checking if subscriptions need update")
 
 	subs, err := o.listSubscriptions(namespace)
@@ -921,7 +919,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		subscriptionUpdated = subscriptionUpdated || changedIP
 
 		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
-		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub, querier)
+		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub)
 		if err != nil {
 			logger.Debugf("error recording current state of CSV in status: %v", err)
 			return err
@@ -1105,7 +1103,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	return out, true, nil
 }
 
-func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription, querier SourceQuerier) (*v1alpha1.Subscription, bool, error) {
+func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.CurrentCSV == "" {
 		return sub, false, nil
 	}
@@ -1116,10 +1114,6 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
 		out.Status.State = v1alpha1.SubscriptionStateUpgradePending
 	} else {
-		// Check if an update is available for the current csv
-		if err := querier.Queryable(); err != nil {
-			return nil, false, err
-		}
 		out.Status.State = v1alpha1.SubscriptionStateAtLatest
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
 	}
