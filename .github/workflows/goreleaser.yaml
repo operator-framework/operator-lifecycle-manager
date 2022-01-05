@@ -53,14 +53,14 @@ jobs:
           args: release --rm-dist
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          IMAGE_REPO: ${{ secrets.QUAY_USERNAME }}/olm
+          IMAGE_REPO: quay.io/operator-framework/olm
           PKG: github.com/operator-framework/operator-lifecycle-manager
 
       - name: Generate quickstart release manifests
         if: startsWith(github.ref, 'refs/tags')
-        run: make release ver=${{ env.IMAGE_TAG }} IMAGE_REPO=quay.io/${{ secrets.QUAY_USERNAME }}/olm
+        run: make release ver=${{ env.IMAGE_TAG }} IMAGE_REPO=quay.io/operator-framework/olm
 
-      - name: Update release artifacts with rendered Kubernetes manifests
+      - name: Update release artifacts with rendered Kubernetes release manifests
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags')
         with:
