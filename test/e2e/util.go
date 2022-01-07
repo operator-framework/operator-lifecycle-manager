@@ -951,7 +951,7 @@ func HaveMessage(goal string) gtypes.GomegaMatcher {
 	}, ContainSubstring(goal))
 }
 
-func SetupGeneratedTestNamespace(name string) corev1.Namespace {
+func SetupGeneratedTestNamespaceWithOperatorGroup(name string, og operatorsv1.OperatorGroup) corev1.Namespace {
 	ns := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -961,15 +961,6 @@ func SetupGeneratedTestNamespace(name string) corev1.Namespace {
 		return ctx.Ctx().Client().Create(context.Background(), &ns)
 	}).Should(Succeed())
 
-	og := operatorsv1.OperatorGroup{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-operatorgroup", ns.GetName()),
-			Namespace: ns.GetName(),
-		},
-		Spec: operatorsv1.OperatorGroupSpec{
-			TargetNamespaces: []string{ns.GetName()},
-		},
-	}
 	Eventually(func() error {
 		return ctx.Ctx().Client().Create(context.Background(), &og)
 	}).Should(Succeed())
@@ -977,6 +968,20 @@ func SetupGeneratedTestNamespace(name string) corev1.Namespace {
 	ctx.Ctx().Logf("created the %s testing namespace", ns.GetName())
 
 	return ns
+}
+
+func SetupGeneratedTestNamespace(name string) corev1.Namespace {
+	og := operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-operatorgroup", name),
+			Namespace: name,
+		},
+		Spec: operatorsv1.OperatorGroupSpec{
+			TargetNamespaces: []string{name},
+		},
+	}
+
+	return SetupGeneratedTestNamespaceWithOperatorGroup(name, og)
 }
 
 func TeardownNamespace(ns string) {
