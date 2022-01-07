@@ -502,6 +502,14 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 
 		It("remains in phase Succeeded when only one pod is available", func() {
+			Eventually(func() int32 {
+				dep, err := c.GetDeployment(testNamespace, "deployment")
+				if err != nil || dep == nil {
+					return 0
+				}
+				return dep.Status.ReadyReplicas
+			}).Should(Equal(int32(2)))
+
 			var ps corev1.PodList
 			Expect(ctx.Ctx().Client().List(context.Background(), &ps, client.MatchingLabels{"app": "foobar"})).To(Succeed())
 			Expect(ps.Items).To(Not(BeEmpty()))
