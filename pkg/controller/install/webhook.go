@@ -106,6 +106,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateMutatingWebhook(ogNamespacel
 		}
 	}
 	for _, webhook := range existingWebhooks.Items {
+		webhook = *webhook.DeepCopy()
 		// Update the list of webhooks
 		webhook.Webhooks = []admissionregistrationv1.MutatingWebhook{
 			desc.GetMutatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),
@@ -154,6 +155,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateValidatingWebhook(ogNamespac
 		return nil
 	}
 	for _, webhook := range existingWebhooks.Items {
+		webhook = *webhook.DeepCopy()
 		// Update the list of webhooks
 		webhook.Webhooks = []admissionregistrationv1.ValidatingWebhook{
 			desc.GetValidatingWebhook(i.owner.GetNamespace(), ogNamespacelabelSelector, caPEM),

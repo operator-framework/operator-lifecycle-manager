@@ -73,7 +73,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 
 	// Check if there is a stale multiple OG condition and clear it if existed.
 	if len(groups) == 1 {
-		og := groups[0]
+		og := groups[0].DeepCopy()
 		if c := meta.FindStatusCondition(og.Status.Conditions, v1.MutlipleOperatorGroupCondition); c != nil {
 			meta.RemoveStatusCondition(&og.Status.Conditions, v1.MutlipleOperatorGroupCondition)
 			if og.GetName() == op.GetName() {
@@ -93,7 +93,8 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			Reason:  v1.MultipleOperatorGroupsReason,
 			Message: "Multiple OperatorGroup found in the same namespace",
 		}
-		for _, og := range groups {
+		for i := range groups {
+			og := groups[i].DeepCopy()
 			if c := meta.FindStatusCondition(og.Status.Conditions, v1.MutlipleOperatorGroupCondition); c != nil {
 				continue
 			}
@@ -115,11 +116,12 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		return err
 	}
 	if op.Status.ServiceAccountRef != previousRef {
-		crdList, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().List(labels.Everything())
+		csvList, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().List(labels.Everything())
 		if err != nil {
 			return err
 		}
-		for _, csv := range crdList {
+		for i := range csvList {
+			csv := csvList[i].DeepCopy()
 			if group, ok := csv.GetAnnotations()[v1.OperatorGroupAnnotationKey]; !ok || group != op.GetName() {
 				continue
 			}
