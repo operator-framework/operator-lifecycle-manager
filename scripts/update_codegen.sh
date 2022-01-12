@@ -18,12 +18,34 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
+set -x
+SCRIPT_ROOT=$(dirname ${BASH_SOURCE})/..
+CODEGEN_VERSION=$(grep 'k8s.io/code-generator' go.sum | awk '{print $2}' | tail -1 | awk -F '/' '{print $1}')
+CODEGEN_PKG=$(echo `go env GOPATH`"/pkg/mod/k8s.io/code-generator@${CODEGEN_VERSION}")
 
-# create a temporary directory to generate code in and ensure we clean it up on exit
-OUTPUT_BASE=$(mktemp -d)
-trap 'rm -rf "${OUTPUT_BASE}"' ERR EXIT
+if [[ ! -d ${CODEGEN_PKG} ]]; then
+  echo "${CODEGEN_PKG} is missing. Running 'go mod download'."
+  go mod download
+fi
+
+echo ">> Using ${CODEGEN_PKG}"
+
+# code-generator does work with go.mod but makes assumptions about
+# the project living in `$GOPATH/src`. To work around this and support
+# any location; create a temporary directory, use this as an output
+# base, and copy everything back once generated.
+TEMP_DIR=$(mktemp -d)
+cleanup() {
+    echo ">> Removing ${TEMP_DIR}"
+    rm -rf ${TEMP_DIR}
+}
+trap "cleanup" EXIT SIGINT
+
+echo ">> Temporary output directory ${TEMP_DIR}"
+
+# Ensure we can execute.
+chmod +x ${CODEGEN_PKG}/generate-groups.sh
+chmod +x ${CODEGEN_PKG}/generate-internal-groups.sh
 
 ORG="github.com/operator-framework"
 API_MODULE="${ORG}/api"
@@ -33,21 +55,21 @@ MODULE="${ORG}/operator-lifecycle-manager"
 # --output-base    because this script should also be able to run inside the vendor dir of
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
-bash "${CODEGEN_PKG}/generate-groups.sh" "client,lister,informer" \
+${CODEGEN_PKG}/generate-groups.sh  "client,lister,informer" \
   "${MODULE}/pkg/api/client" \
   "${API_MODULE}/pkg" \
   "operators:v1alpha1,v1alpha2,v1,v2" \
-  --output-base "${OUTPUT_BASE}" \
+  --output-base "${TEMP_DIR}" \
   --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
 
 export OPENAPI_EXTRA_PACKAGES="${API_MODULE}/pkg/operators/v1alpha1,${API_MODULE}/pkg/lib/version"
-bash "${CODEGEN_PKG}/generate-internal-groups.sh" all \
+${CODEGEN_PKG}/generate-internal-groups.sh all \
   "${MODULE}/pkg/package-server/client" \
   "${MODULE}/pkg/package-server/apis" \
   "${MODULE}/pkg/package-server/apis" \
   "operators:v1" \
-  --output-base "${OUTPUT_BASE}" \
+  --output-base "${TEMP_DIR}" \
   --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
 
 # copy the generated resources
-cp -R "${OUTPUT_BASE}/${MODULE}/." "${SCRIPT_ROOT}"
+cp -R "${TEMP_DIR}/${MODULE}/." "${SCRIPT_ROOT}"
