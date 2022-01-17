@@ -646,6 +646,7 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 			return
 		}
 	}
+	role = role.DeepCopy()
 	role.Rules = append(role.Rules, rule)
 
 	role, err = c.client.RbacV1().Roles(role.GetNamespace()).Update(context.TODO(), role, metav1.UpdateOptions{})
