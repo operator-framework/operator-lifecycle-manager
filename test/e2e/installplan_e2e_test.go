@@ -3192,14 +3192,20 @@ var _ = Describe("Install Plan", func() {
 
 		It("should clear clear up the condition in the InstallPlan status that contains an error message when a valid OperatorGroup is created", func() {
 
-			// first check that a condition with a message exists
-			fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(fetchedInstallPlan).NotTo(BeNil())
+			// first wait for a condition with a message exists
 			cond := operatorsv1alpha1.InstallPlanCondition{Type: operatorsv1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: operatorsv1alpha1.InstallPlanReasonInstallCheckFailed,
 				Message: "no operator group found that is managing this namespace"}
-			Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseInstalling))
-			Expect(hasCondition(fetchedInstallPlan, cond)).To(BeTrue())
+
+			Eventually(func() bool {
+				fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
+				if err != nil || fetchedInstallPlan == nil{
+					return false
+				}
+				if fetchedInstallPlan.Status.Phase != operatorsv1alpha1.InstallPlanPhaseInstalling {
+					return false
+				}
+				return hasCondition(fetchedInstallPlan, cond)
+			}, 5*time.Minute, interval).Should(BeTrue())
 
 			// Create an operatorgroup for the same namespace
 			og := &operatorsv1.OperatorGroup{
