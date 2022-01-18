@@ -505,6 +505,18 @@ func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, ca
 		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
 		err := crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.Background(), catalogSource.GetName(), metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() (bool, error) {
+			fetched, err := newKubeClient().KubernetesInterface().CoreV1().Pods(catalogSource.GetNamespace()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalogSource.GetName()})
+			if err != nil {
+				return false, err
+			}
+			if len(fetched.Items) == 0 {
+				return true, nil
+			}
+			ctx.Ctx().Logf("waiting for the catalog source %s pod to be deleted...", fetched.Items[0].GetName())
+			return false, nil
+		}).Should(BeTrue())
 	}
 }
 
