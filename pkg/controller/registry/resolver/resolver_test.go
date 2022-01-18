@@ -140,7 +140,7 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 		{
 			title:                     "Runtime constraints don't allow A",
 			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
-			systemConstraintsProvider: whiteListConstraintProvider(),
+			systemConstraintsProvider: whiteListConstraintProvider(packageB, packageC, packageD),
 			expectedOperators:         nil,
 			csvs:                      nil,
 			subs:                      []*v1alpha1.Subscription{packageASub},
