@@ -903,7 +903,7 @@ func TestSolveOperators_OLMConstraint_CompoundAll(t *testing.T) {
 		catName: csName, catNamespace: namespace,
 		properties: []*api.Property{{
 			Type: constraints.OLMConstraintType,
-			Value: `{"message": "all constraint",
+			Value: `{"failureMessage": "all constraint",
 				"all": {"constraints": [
 					{"package": {"packageName": "foo", "versionRange": ">=1.0.0"}},
 					{"gvk": {"group": "g1", "version": "v1", "kind": "k1"}},
@@ -985,7 +985,7 @@ func TestSolveOperators_OLMConstraint_CompoundAny(t *testing.T) {
 		catName: csName, catNamespace: namespace,
 		properties: []*api.Property{{
 			Type: constraints.OLMConstraintType,
-			Value: `{"message": "any constraint",
+			Value: `{"failureMessage": "any constraint",
 				"any": {"constraints": [
 					{"gvk": {"group": "g1", "version": "v1", "kind": "k1"}},
 					{"gvk": {"group": "g2", "version": "v2", "kind": "k2"}}
@@ -1065,7 +1065,7 @@ func TestSolveOperators_OLMConstraint_CompoundNone(t *testing.T) {
 		properties: []*api.Property{
 			{
 				Type: constraints.OLMConstraintType,
-				Value: `{"message": "compound none constraint",
+				Value: `{"failureMessage": "compound none constraint",
 					"all": {"constraints": [
 						{"gvk": {"group": "g0", "version": "v0", "kind": "k0"}},
 						{"none": {"constraints": [
@@ -1150,7 +1150,7 @@ func TestSolveOperators_OLMConstraint_Unknown(t *testing.T) {
 		catName: csName, catNamespace: namespace,
 		properties: []*api.Property{{
 			Type:  constraints.OLMConstraintType,
-			Value: `{"message": "unknown constraint", "unknown": {"foo": "bar"}}`,
+			Value: `{"failureMessage": "unknown constraint", "unknown": {"foo": "bar"}}`,
 		}},
 	}}
 
@@ -2489,21 +2489,21 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 	deps1 := []*api.Dependency{
 		{
 			Type: "olm.constraint",
-			Value: `{"message":"gvk-constraint",
+			Value: `{"failureMessage":"gvk-constraint",
 				"cel":{"rule":"properties.exists(p, p.type == 'olm.gvk' && p.value == {'group': 'g', 'version': 'v', 'kind': 'k'})"}}`,
 		},
 	}
 	deps2 := []*api.Dependency{
 		{
 			Type: "olm.constraint",
-			Value: `{"message":"gvk2-constraint",
+			Value: `{"failureMessage":"gvk2-constraint",
 				"cel":{"rule":"properties.exists(p, p.type == 'olm.gvk' && p.value == {'group': 'g2', 'version': 'v', 'kind': 'k'})"}}`,
 		},
 	}
 	deps3 := []*api.Dependency{
 		{
 			Type: "olm.constraint",
-			Value: `{"message":"package-constraint",
+			Value: `{"failureMessage":"package-constraint",
 				"cel":{"rule":"properties.exists(p, p.type == 'olm.package' && p.value.packageName == 'packageB' && (semver_compare(p.value.version, '1.0.1') == 0))"}}`,
 		},
 	}
