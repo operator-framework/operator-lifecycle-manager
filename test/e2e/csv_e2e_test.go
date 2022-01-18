@@ -65,21 +65,25 @@ var _ = Describe("ClusterServiceVersion", func() {
 		var (
 			ns  corev1.Namespace
 			crd apiextensionsv1.CustomResourceDefinition
+			og operatorsv1.OperatorGroup
+			apiname string
+			apifullname string
 		)
 
 		BeforeEach(func() {
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-namespace-1",
+					Name: genName("test-namespace-"),
 				},
 			}
+
 			Eventually(func() error {
 				return ctx.Ctx().Client().Create(context.Background(), &ns)
 			}).Should(Succeed())
 
-			og := operatorsv1.OperatorGroup{
+			og = operatorsv1.OperatorGroup{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("%s-operatorgroup", ns.GetName()),
+					Name:      genName(fmt.Sprintf("%s-operatorgroup-", ns.GetName())),
 					Namespace: ns.GetName(),
 				},
 				Spec: operatorsv1.OperatorGroupSpec{
@@ -90,9 +94,11 @@ var _ = Describe("ClusterServiceVersion", func() {
 				return ctx.Ctx().Client().Create(context.Background(), &og)
 			}).Should(Succeed())
 
+			apiname = genName("api")
+			apifullname = apiname + "s.example.com"
 			crd = apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "tests.example.com",
+					Name: apifullname,
 					Annotations: map[string]string{
 						"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/associated-csv", ns.GetName()),
 					},
@@ -101,10 +107,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Group: "example.com",
 					Scope: apiextensionsv1.ClusterScoped,
 					Names: apiextensionsv1.CustomResourceDefinitionNames{
-						Plural:   "tests",
-						Singular: "test",
-						Kind:     "Test",
-						ListKind: "TestList",
+						Plural:   apiname + "s",
+						Singular: apiname,
+						Kind:     strings.Title(apiname),
+						ListKind: strings.Title(apiname) + "List",
 					},
 					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
 						Name:    "v1",
@@ -125,11 +131,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		AfterEach(func() {
 			Eventually(func() error {
-				return ctx.Ctx().Client().Delete(context.Background(), &ns)
+				return ctx.Ctx().Client().Delete(context.Background(), &crd)
 			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
 
 			Eventually(func() error {
-				return ctx.Ctx().Client().Delete(context.Background(), &crd)
+				return ctx.Ctx().Client().Delete(context.Background(), &og)
+			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), &ns)
 			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
 		})
 
@@ -142,7 +152,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 						Owned: []operatorsv1alpha1.CRDDescription{{
-							Name:    "tests.example.com",
+							Name:    apifullname,
 							Version: "v1",
 							Kind:    "Test",
 						}},
@@ -182,6 +192,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Status:  operatorsv1alpha1.RequirementStatusReasonPresent,
 				},
 			))
+
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), &associated)
+			}).Should(Succeed())
 		})
 
 		// Without this exception, upgrades can become blocked
@@ -196,7 +210,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 						Owned: []operatorsv1alpha1.CRDDescription{{
-							Name:    "tests.example.com",
+							Name:    apifullname,
 							Version: "v1",
 							Kind:    "Test",
 						}},
@@ -220,7 +234,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 						Owned: []operatorsv1alpha1.CRDDescription{{
-							Name:    "tests.example.com",
+							Name:    apifullname,
 							Version: "v1",
 							Kind:    "Test",
 						}},
@@ -240,6 +254,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Eventually(func() error {
 				return ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated)
 			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), &associated)
+			}).Should(Succeed())
 		})
 
 		It("can satisfy an unassociated ClusterServiceVersion's non-ownership requirement", func() {
@@ -251,7 +269,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 						Required: []operatorsv1alpha1.CRDDescription{{
-							Name:    "tests.example.com",
+							Name:    apifullname,
 							Version: "v1",
 							Kind:    "Test",
 						}},
@@ -291,6 +309,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Status:  operatorsv1alpha1.RequirementStatusReasonPresent,
 				},
 			))
+			Eventually(func() error {
+				return ctx.Ctx().Client().Delete(context.Background(), &unassociated)
+			}).Should(Succeed())
 		})
 
 		When("an unassociated ClusterServiceVersion in different namespace owns the same CRD", func() {
@@ -301,12 +322,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 			BeforeEach(func() {
 				ns = corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-namespace-2",
+						Name: genName("test-namespace-2-"),
 					},
 				}
 				Expect(ctx.Ctx().Client().Create(context.Background(), &ns)).To(Succeed())
 
-				og := operatorsv1.OperatorGroup{
+				og = operatorsv1.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("%s-operatorgroup", ns.GetName()),
 						Namespace: ns.GetName(),
@@ -333,7 +354,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 							Owned: []operatorsv1alpha1.CRDDescription{{
-								Name:    "tests.example.com",
+								Name:    apifullname,
 								Version: "v1",
 								Kind:    "Test",
 							}},
@@ -357,7 +378,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
 							Owned: []operatorsv1alpha1.CRDDescription{{
-								Name:    "tests.example.com",
+								Name:    apifullname,
 								Version: "v1",
 								Kind:    "Test",
 							}},
