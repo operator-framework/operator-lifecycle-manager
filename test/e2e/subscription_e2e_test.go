@@ -1313,14 +1313,18 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
-		require.NoError(GinkgoT(), err)
-
 		proxyEnv := proxyEnvVarFunc(GinkgoT(), config)
 		expected := podEnv
 		expected = append(expected, proxyEnv...)
 
-		checkDeploymentWithPodConfiguration(GinkgoT(), kubeClient, csv, podConfig.Env, podConfig.Volumes, podConfig.VolumeMounts, podConfig.Tolerations, podConfig.Resources)
+		Eventually(func() error {
+			csv, err := fetchCSV(crClient, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+			if err != nil {
+				return err
+			}
+
+			return checkDeploymentWithPodConfiguration(kubeClient, csv, podConfig.Env, podConfig.Volumes, podConfig.VolumeMounts, podConfig.Tolerations, podConfig.Resources)
+		}).Should(Succeed())
 	})
 
 	It("creation with nodeSelector config", func() {
@@ -2743,14 +2747,14 @@ func checkDeploymentHasPodConfigNodeSelector(t GinkgoTInterface, client operator
 	return nil
 }
 
-func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclient.ClientInterface, csv *operatorsv1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration, resources *corev1.ResourceRequirements) {
+func checkDeploymentWithPodConfiguration(client operatorclient.ClientInterface, csv *operatorsv1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration, resources *corev1.ResourceRequirements) error {
 	resolver := install.StrategyResolver{}
 
 	strategy, err := resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
-	require.NoError(t, err)
+	Expect(err).NotTo(HaveOccurred())
 
 	strategyDetailsDeployment, ok := strategy.(*operatorsv1alpha1.StrategyDetailsDeployment)
-	require.Truef(t, ok, "could not cast install strategy as type %T", strategyDetailsDeployment)
+	Expect(ok).To(BeTrue(), "could not cast install strategy as type %T", strategyDetailsDeployment)
 
 	findEnvVar := func(envVar []corev1.EnvVar, name string) (foundEnvVar *corev1.EnvVar, found bool) {
 		for i := range envVar {
@@ -2813,48 +2817,58 @@ func checkDeploymentWithPodConfiguration(t GinkgoTInterface, client operatorclie
 		return
 	}
 
-	check := func(container *corev1.Container) {
+	check := func(container *corev1.Container) error {
 		for _, e := range envVar {
 			existing, found := findEnvVar(container.Env, e.Name)
-			require.Truef(t, found, "env variable name=%s not injected", e.Name)
-			require.NotNil(t, existing)
-			require.Equalf(t, e.Value, existing.Value, "env variable value does not match %s=%s", e.Name, e.Value)
+			if !found || existing == nil {
+				return fmt.Errorf("env variable name=%s not injected", e.Name)
+			}
+			Expect(e.Value).Should(Equal(existing.Value), "env variable value does not match %s=%s", e.Name, e.Value)
 		}
 
 		for _, v := range volumeMounts {
 			existing, found := findVolumeMount(container.VolumeMounts, v.Name)
-			require.Truef(t, found, "VolumeMount name=%s not injected", v.Name)
-			require.NotNil(t, existing)
-			require.Equalf(t, v.MountPath, existing.MountPath, "VolumeMount MountPath does not match %s=%s", v.Name, v.MountPath)
+			if !found || existing == nil {
+				return fmt.Errorf("VolumeMount name=%s not injected", v.Name)
+			}
+			Expect(v.MountPath).Should(Equal(existing.MountPath), "VolumeMount MountPath does not match %s=%s", v.Name, v.MountPath)
 		}
 
 		existing, found := findResources(&container.Resources, resources)
-		require.Truef(t, found, "Resources not injected. Resource=%v", resources)
-		require.NotNil(t, existing)
-		require.Equalf(t, existing, resources, "Resource=%v does not match expected Resource=%v", existing, resources)
+		if !found || existing == nil {
+			return fmt.Errorf("Resources not injected. Resource=%v", resources)
+		}
+		Expect(existing).Should(Equal(resources), "Resource=%v does not match expected Resource=%v", existing, resources)
+		return nil
 	}
 
 	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
 		deployment, err := client.KubernetesInterface().AppsV1().Deployments(csv.GetNamespace()).Get(context.Background(), deploymentSpec.Name, metav1.GetOptions{})
-		require.NoError(t, err)
+		Expect(err).NotTo(HaveOccurred())
 		for _, v := range volumes {
 			existing, found := findVolume(deployment.Spec.Template.Spec.Volumes, v.Name)
-			require.Truef(t, found, "Volume name=%s not injected", v.Name)
-			require.NotNil(t, existing)
-			require.Equalf(t, v.ConfigMap.LocalObjectReference.Name, existing.ConfigMap.LocalObjectReference.Name, "volume ConfigMap Names does not match %s=%s", v.Name, v.ConfigMap.LocalObjectReference.Name)
+			if !found || existing == nil {
+				return fmt.Errorf("Volume name=%s not injected", v.Name)
+			}
+			Expect(v.ConfigMap.LocalObjectReference.Name).Should(Equal(existing.ConfigMap.LocalObjectReference.Name), "volume ConfigMap Names does not match %s=%s", v.Name, v.ConfigMap.LocalObjectReference.Name)
 		}
 
 		for _, toleration := range tolerations {
 			existing, found := findTolerations(deployment.Spec.Template.Spec.Tolerations, toleration)
-			require.Truef(t, found, "Toleration not injected. Toleration=%v", toleration)
-			require.NotNil(t, existing)
-			require.Equalf(t, *existing, toleration, "Toleration=%v does not match expected Toleration=%v", existing, toleration)
+			if !found || existing == nil {
+				return fmt.Errorf("Toleration not injected. Toleration=%v", toleration)
+			}
+			Expect(*existing).Should(Equal(toleration), "Toleration=%v does not match expected Toleration=%v", existing, toleration)
 		}
 
 		for i := range deployment.Spec.Template.Spec.Containers {
-			check(&deployment.Spec.Template.Spec.Containers[i])
+			err = check(&deployment.Spec.Template.Spec.Containers[i])
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, catalogSourceName, namespace string, crds []apiextensions.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion, packages []registry.PackageManifest) {
