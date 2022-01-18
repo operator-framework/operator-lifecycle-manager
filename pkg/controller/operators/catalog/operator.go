@@ -793,8 +793,13 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 		updateConnectionStateFunc(out, source)
 	}
 
+	// GRPCConnectionState update must fail before
+	if out.Status.GRPCConnectionState == nil {
+		updateConnectionStateFunc(out, source)
+	}
+
 	// connection is already good, but we need to update the sync time
-	if out.Status.GRPCConnectionState != nil && o.sourcesLastUpdate.After(out.Status.GRPCConnectionState.LastConnectTime.Time) {
+	if o.sourcesLastUpdate.After(out.Status.GRPCConnectionState.LastConnectTime.Time) {
 		// Set connection status and return.
 		out.Status.GRPCConnectionState.LastConnectTime = now
 		out.Status.GRPCConnectionState.LastObservedState = source.ConnectionState.String()
