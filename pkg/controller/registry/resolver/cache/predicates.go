@@ -358,9 +358,9 @@ func CountingPredicate(p Predicate, n *int) Predicate {
 }
 
 type celPredicate struct {
-	program constraints.CelProgram
-	rule    string
-	message string
+	program        constraints.CelProgram
+	rule           string
+	failureMessage string
 }
 
 func (cp *celPredicate) Test(entry *Entry) bool {
@@ -383,14 +383,14 @@ func (cp *celPredicate) Test(entry *Entry) bool {
 	return ok
 }
 
-func CreateCelPredicate(env *constraints.CelEnvironment, rule string, message string) (Predicate, error) {
+func CreateCelPredicate(env *constraints.CelEnvironment, rule string, failureMessage string) (Predicate, error) {
 	prog, err := env.Validate(rule)
 	if err != nil {
 		return nil, err
 	}
-	return &celPredicate{program: prog, rule: rule, message: message}, nil
+	return &celPredicate{program: prog, rule: rule, failureMessage: failureMessage}, nil
 }
 
 func (cp *celPredicate) String() string {
-	return fmt.Sprintf("with constraint: %q and message: %q", cp.rule, cp.message)
+	return fmt.Sprintf("with constraint: %q and message: %q", cp.rule, cp.failureMessage)
 }

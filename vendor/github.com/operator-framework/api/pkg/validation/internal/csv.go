@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
@@ -97,6 +98,12 @@ func validateExamplesAnnotations(csv *v1alpha1.ClusterServiceVersion) (errs []er
 	} else {
 		examplesString = olmExamples
 	}
+
+	if err := validateJSON(examplesString); err != nil {
+		errs = append(errs, errors.ErrInvalidParse("invalid example", err))
+		return errs
+	}
+
 	us := []unstructured.Unstructured{}
 	dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(examplesString), 8)
 	if err := dec.Decode(&us); err != nil && err != io.EOF {
@@ -113,6 +120,26 @@ func validateExamplesAnnotations(csv *v1alpha1.ClusterServiceVersion) (errs []er
 
 	errs = append(errs, matchGVKProvidedAPIs(parsed, providedAPISet)...)
 	return errs
+}
+
+func validateJSON(value string) error {
+	var js json.RawMessage
+	byteValue := []byte(value)
+	if err := json.Unmarshal(byteValue, &js); err != nil {
+		switch t := err.(type) {
+		case *json.SyntaxError:
+			jsn := string(byteValue[0:t.Offset])
+			jsn += "<--(see the invalid character)"
+			return fmt.Errorf("invalid character at %v\n %s", t.Offset, jsn)
+		case *json.UnmarshalTypeError:
+			jsn := string(byteValue[0:t.Offset])
+			jsn += "<--(see the invalid type)"
+			return fmt.Errorf("invalid value at %v\n %s", t.Offset, jsn)
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 func getProvidedAPIs(csv *v1alpha1.ClusterServiceVersion) (provided map[schema.GroupVersionKind]struct{}, errs []errors.Error) {

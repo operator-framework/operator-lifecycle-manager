@@ -12,9 +12,9 @@ const OLMConstraintType = "olm.constraint"
 
 // Constraint holds parsed, potentially nested dependency constraints.
 type Constraint struct {
-	// Constraint message that surfaces in resolution
+	// Constraint failure message that surfaces in resolution
 	// This field is optional
-	Message string `json:"message,omitempty" yaml:"message,omitempty"`
+	FailureMessage string `json:"failureMessage,omitempty" yaml:"failureMessage,omitempty"`
 
 	// The cel struct that contraints CEL expression
 	Cel *Cel `json:"cel,omitempty" yaml:"cel,omitempty"`

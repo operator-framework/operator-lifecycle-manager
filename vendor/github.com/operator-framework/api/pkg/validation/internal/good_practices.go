@@ -65,10 +65,10 @@ func validateResourceRequests(csv *operatorsv1alpha1.ClusterServiceVersion) (err
 	for _, dSpec := range deploymentSpec {
 		for _, c := range dSpec.Spec.Template.Spec.Containers {
 			if c.Resources.Requests == nil || !(len(c.Resources.Requests.Cpu().String()) != 0 && len(c.Resources.Requests.Memory().String()) != 0) {
-				msg := fmt.Errorf("unable to find the resource requests for the container %s. It is recommended "+
+				msg := fmt.Errorf("unable to find the resource requests for the container: (%s). It is recommended "+
 					"to ensure the resource request for CPU and Memory. Be aware that for some clusters configurations "+
 					"it is required to specify requests or limits for those values. Otherwise, the system or quota may "+
-					"reject Pod creation. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/", c.Name)
+					"reject Pod creation. More info: https://master.sdk.operatorframework.io/docs/best-practices/managing-resources/", c.Name)
 				warns = append(warns, msg)
 			}
 		}
