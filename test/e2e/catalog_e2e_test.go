@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -255,10 +256,6 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		// Update catalog configmap
 		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
 
-		// Get updated configmap
-		updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
-
 		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
 			before := fetchedInitialCatalog.Status.ConfigMapResource
 			after := catalog.Status.ConfigMapResource
@@ -271,6 +268,20 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			return false
 		})
 		Expect(err).ShouldNot(HaveOccurred())
+
+		var updatedConfigMap *corev1.ConfigMap
+		Eventually(func() (types.UID, error) {
+			var err error
+			// Get updated configmap
+			updatedConfigMap, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+			if err != nil {
+				return "", err
+			}
+			if len(updatedConfigMap.ObjectMeta.OwnerReferences) == 0 {
+				return "", nil
+			}
+			return updatedConfigMap.ObjectMeta.OwnerReferences[0].UID, nil
+		}).Should(Equal(fetchedUpdatedCatalog.ObjectMeta.UID))
 
 		Expect(configMap.ResourceVersion).ShouldNot(Equal(updatedConfigMap.ResourceVersion))
 		Expect(fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion).ShouldNot(Equal(fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion))
