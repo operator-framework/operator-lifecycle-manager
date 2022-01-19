@@ -88,14 +88,14 @@ var _ = BeforeSuite(func() {
 	useExisting := false
 	testEnv = &envtest.Environment{
 		UseExistingCluster: &useExisting,
-		CRDs: []apiextensionsv1.CustomResourceDefinition{
-			*crds.CatalogSource(),
-			*crds.ClusterServiceVersion(),
-			*crds.InstallPlan(),
-			*crds.Subscription(),
-			*crds.OperatorGroup(),
-			*crds.Operator(),
-			*crds.OperatorCondition(),
+		CRDs: []*apiextensionsv1.CustomResourceDefinition{
+			crds.CatalogSource(),
+			crds.ClusterServiceVersion(),
+			crds.InstallPlan(),
+			crds.Subscription(),
+			crds.OperatorGroup(),
+			crds.Operator(),
+			crds.OperatorCondition(),
 		},
 	}
 

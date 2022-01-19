@@ -110,7 +110,7 @@ func (c *FakeOperators) UpdateStatus(ctx context.Context, operator *operatorsv1.
 // Delete takes name of the operator and deletes it. Returns an error if one occurs.
 func (c *FakeOperators) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(operatorsResource, name), &operatorsv1.Operator{})
+		Invokes(testing.NewRootDeleteActionWithOptions(operatorsResource, name, opts), &operatorsv1.Operator{})
 	return err
 }
 

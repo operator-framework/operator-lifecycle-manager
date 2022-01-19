@@ -3,10 +3,11 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/blang/semver"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/blang/semver"
 
 	"github.com/operator-framework/api/pkg/manifests"
 	"github.com/operator-framework/api/pkg/validation/errors"

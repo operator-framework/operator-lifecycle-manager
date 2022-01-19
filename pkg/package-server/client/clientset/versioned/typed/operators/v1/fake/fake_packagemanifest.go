@@ -117,7 +117,7 @@ func (c *FakePackageManifests) UpdateStatus(ctx context.Context, packageManifest
 // Delete takes name of the packageManifest and deletes it. Returns an error if one occurs.
 func (c *FakePackageManifests) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(packagemanifestsResource, c.ns, name), &operatorsv1.PackageManifest{})
+		Invokes(testing.NewDeleteActionWithOptions(packagemanifestsResource, c.ns, name, opts), &operatorsv1.PackageManifest{})
 
 	return err
 }

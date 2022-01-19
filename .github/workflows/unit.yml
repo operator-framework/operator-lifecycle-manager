@@ -1,4 +1,6 @@
 name: unit
+env:
+  K8S_VERSION: 1.19.2
 on:
   push:
     branches:
@@ -13,11 +15,9 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '~1.17'
-      - name: Install Kubebuilder
+      - name: Envtest setup
         run: |
-          os=$(go env GOOS)
-          arch=$(go env GOARCH)
-          curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.1/kubebuilder_2.3.1_${os}_${arch}.tar.gz | tar -xz -C /tmp/
-          sudo mv /tmp/kubebuilder_2.3.1_${os}_${arch} /usr/local/kubebuilder
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          setup-envtest use ${K8S_VERSION}
       - name: Run unit tests
-        run: make unit
+        run: KUBEBUILDER_ASSETS=$(setup-envtest use -i -p path ${K8S_VERSION}) make unit

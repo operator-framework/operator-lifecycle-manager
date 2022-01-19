@@ -45,11 +45,12 @@ test: clean cover.out
 unit: kubebuilder
 	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
-# Ensure kubebuilder is installed before continuing
-KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://book.kubebuilder.io/quick-start.html
+# Ensure kubectl installed before continuing
+KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest
+KUBECTL_ASSETS_ERR := kubectl not detected.
 kubebuilder:
-ifeq (, $(wildcard $(KUBEBUILDER_ASSETS)/kubebuilder))
-	$(error kubebuilder $(KUBEBUILDER_ASSETS_ERR))
+ifeq (, $(shell which kubectl))
+	$(error $(KUBECTL_ASSETS_ERR))
 endif
 ifeq (, $(wildcard $(KUBEBUILDER_ASSETS)/etcd))
 	$(error etcd $(KUBEBUILDER_ASSETS_ERR))
