@@ -9,6 +9,8 @@ import (
 	"github.com/operator-framework/api/pkg/validation/errors"
 )
 
+const olmpropertiesAnnotation = "olm.properties"
+
 // CaseSensitiveAnnotationKeySet is a set of annotation keys that are case sensitive
 // and can be used for validation purposes. The key is always lowercase and the value
 // contains the expected case sensitive string. This may not be an exhaustive list.
@@ -24,8 +26,9 @@ var CaseSensitiveAnnotationKeySet = map[string]string{
 /*
 ValidateAnnotationNames will check annotation keys to ensure they are using
 proper case. Uses CaseSensitiveAnnotationKeySet as a source for keys
-which are known to be case sensitive. This function can be used anywhere
-annotations need to be checked for case sensitivity.
+which are known to be case sensitive. It also checks to see if the olm.properties
+annotation is defined in order to add a warning if present. This function can be
+used anywhere annotations need to be checked for case sensitivity.
 
 Arguments
 
@@ -47,6 +50,16 @@ func ValidateAnnotationNames(annotations map[string]string, value interface{}) (
 				// annotation key supplied is invalid due to bad case.
 				errs = append(errs, errors.ErrFailedValidation(fmt.Sprintf("provided annotation %s uses wrong case and should be %s instead", annotationKey, knownCaseSensitiveKey), value))
 			}
+		}
+
+		if annotationKey == olmpropertiesAnnotation {
+			errs = append(
+				errs,
+				errors.WarnPropertiesAnnotationUsed(
+					fmt.Sprintf(
+						"found %s annotation, please define these properties in metadata/properties.yaml instead",
+						annotationKey,
+					)))
 		}
 	}
 	return errs

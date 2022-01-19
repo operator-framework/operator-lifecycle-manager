@@ -110,7 +110,7 @@ func (c *FakeOLMConfigs) UpdateStatus(ctx context.Context, oLMConfig *operatorsv
 // Delete takes name of the oLMConfig and deletes it. Returns an error if one occurs.
 func (c *FakeOLMConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(olmconfigsResource, name), &operatorsv1.OLMConfig{})
+		Invokes(testing.NewRootDeleteActionWithOptions(olmconfigsResource, name, opts), &operatorsv1.OLMConfig{})
 	return err
 }
 

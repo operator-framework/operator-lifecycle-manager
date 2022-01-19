@@ -101,6 +101,7 @@ const (
 	ErrorInvalidBundle            ErrorType = "BundleNotValid"
 	ErrorInvalidPackageManifest   ErrorType = "PackageManifestNotValid"
 	ErrorObjectFailedValidation   ErrorType = "ObjectFailedValidation"
+	ErrorPropertiesAnnotationUsed ErrorType = "PropertiesAnnotationUsed"
 )
 
 func NewError(t ErrorType, detail, field string, v interface{}) Error {
@@ -242,4 +243,8 @@ func invalidObject(lvl Level, detail string, value interface{}) Error {
 
 func WarnInvalidObject(detail string, value interface{}) Error {
 	return failedValidation(LevelWarn, detail, value)
+}
+
+func WarnPropertiesAnnotationUsed(detail string) Error {
+	return Error{ErrorPropertiesAnnotationUsed, LevelWarn, "", "", detail}
 }

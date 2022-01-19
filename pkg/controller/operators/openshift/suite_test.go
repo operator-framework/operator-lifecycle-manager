@@ -53,8 +53,8 @@ var _ = BeforeSuite(func() {
 	base := filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")
 	testEnv = &envtest.Environment{
 		ErrorIfCRDPathMissing: true,
-		CRDs: []apiextensionsv1.CustomResourceDefinition{
-			*crds.ClusterServiceVersion(),
+		CRDs: []*apiextensionsv1.CustomResourceDefinition{
+			crds.ClusterServiceVersion(),
 		},
 		CRDDirectoryPaths: []string{
 			filepath.Join(base, "0000_00_cluster-version-operator_01_clusteroperator.crd.yaml"),
