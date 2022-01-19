@@ -950,14 +950,14 @@ func (a *Operator) getOperatorGroupTargets(op *operatorsv1.OperatorGroup) (map[s
 	} else if selector == nil || selector.Empty() || selector == labels.Nothing() {
 		namespaceSet[corev1.NamespaceAll] = struct{}{}
 	} else {
-		matchedNamespaces, err := a.lister.CoreV1().NamespaceLister().List(selector)
+		matchedNamespaces, err := a.opClient.KubernetesInterface().CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
 		if err != nil {
 			return nil, err
-		} else if len(matchedNamespaces) == 0 {
+		} else if len(matchedNamespaces.Items) == 0 {
 			a.logger.Debugf("No matched TargetNamespaces are found for given selector: %#v\n", selector)
 		}
 
-		for _, ns := range matchedNamespaces {
+		for _, ns := range matchedNamespaces.Items {
 			namespaceSet[ns.GetName()] = struct{}{}
 		}
 	}
