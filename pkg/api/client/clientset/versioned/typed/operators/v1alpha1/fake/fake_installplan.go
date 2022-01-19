@@ -117,7 +117,7 @@ func (c *FakeInstallPlans) UpdateStatus(ctx context.Context, installPlan *v1alph
 // Delete takes name of the installPlan and deletes it. Returns an error if one occurs.
 func (c *FakeInstallPlans) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(installplansResource, c.ns, name), &v1alpha1.InstallPlan{})
+		Invokes(testing.NewDeleteActionWithOptions(installplansResource, c.ns, name, opts), &v1alpha1.InstallPlan{})
 
 	return err
 }

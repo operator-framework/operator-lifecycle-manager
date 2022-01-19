@@ -48,6 +48,12 @@ var CommunityOperatorValidator = internal.CommunityOperatorValidator
 
 // AlphaDeprecatedAPIsValidator implements Validator to validate bundle objects
 // for API deprecation requirements.
+//
+// Note that this validator looks at the manifests. If any removed APIs for the mapped k8s versions are found,
+// it raises a warning.
+//
+// This validator only raises an error when the deprecated API found is removed in the specified k8s
+// version informed via the optional key `k8s-version`.
 var AlphaDeprecatedAPIsValidator = internal.AlphaDeprecatedAPIsValidator
 
 // GoodPracticesValidator implements Validator to validate the criteria defined as good practices

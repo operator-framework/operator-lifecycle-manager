@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	semver "github.com/blang/semver/v4"
+	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/manifests"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/api/pkg/validation/errors"
@@ -157,6 +157,10 @@ var validCategories = map[string]struct{}{
 	"Storage":                   {},
 	"Streaming & Messaging":     {},
 }
+
+const minKubeVersionWarnMessage = "csv.Spec.minKubeVersion is not informed. It is recommended you provide this information. " +
+	"Otherwise, it would mean that your operator project can be distributed and installed in any cluster version " +
+	"available, which is not necessarily the case for all projects."
 
 func validateOperatorHub(objs ...interface{}) (results []errors.ManifestResult) {
 

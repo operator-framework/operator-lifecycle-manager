@@ -132,7 +132,7 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 						},
 					},
 					ReadinessProbe: &v1.Probe{
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							Exec: &v1.ExecAction{
 								Command: []string{"grpc_health_probe", "-addr=:50051"},
 							},
@@ -141,7 +141,7 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 						TimeoutSeconds:      5,
 					},
 					LivenessProbe: &v1.Probe{
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							Exec: &v1.ExecAction{
 								Command: []string{"grpc_health_probe", "-addr=:50051"},
 							},
