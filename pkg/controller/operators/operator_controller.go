@@ -28,6 +28,7 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 var (
@@ -118,6 +119,7 @@ func (r *OperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(1).Info("reconciling operator")
+	metrics.EmitOperatorReconcile(req.Namespace, req.Name)
 
 	// Get the Operator
 	create := false
