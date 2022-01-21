@@ -55,6 +55,9 @@ type OperatorReconciler struct {
 	// last observed resourceVersion for known Operators
 	lastResourceVersion map[types.NamespacedName]string
 	mu                  sync.RWMutex
+
+	// mutex block between update and last observed resourceVersion set
+	muUpdate sync.RWMutex
 }
 
 // +kubebuilder:rbac:groups=operators.coreos.com,resources=operators,verbs=create;update;patch;delete
@@ -163,14 +166,18 @@ func (r *OperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return reconcile.Result{Requeue: true}, nil
 	}
 
+	r.muUpdate.Lock()
+	defer r.muUpdate.Unlock()
 	if create {
 		if err := r.Create(context.Background(), operator.Operator); err != nil && !apierrors.IsAlreadyExists(err) {
 			r.log.Error(err, "Could not create Operator", "operator", name)
+			r.unsetLastResourceVersion(req.NamespacedName)
 			return ctrl.Result{Requeue: true}, nil
 		}
 	} else {
 		if err := r.Status().Update(ctx, operator.Operator); err != nil {
 			log.Error(err, "Could not update Operator status")
+			r.unsetLastResourceVersion(req.NamespacedName)
 			return ctrl.Result{Requeue: true}, nil
 		}
 	}
