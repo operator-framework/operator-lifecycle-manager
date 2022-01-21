@@ -1246,7 +1246,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 
 func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) error {
 	logger.Debug("gcing csv")
-	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(context.TODO(), csv.GetName(), *metav1.NewDeleteOptions(0))
+	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
@@ -2287,7 +2287,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			syncError = fmt.Errorf("marked as replacement, but no replacement CSV found in cluster")
 		}
 	case v1alpha1.CSVPhaseDeleting:
-		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(context.TODO(), out.GetName(), *metav1.NewDeleteOptions(0))
+		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(context.TODO(), out.GetName(), metav1.DeleteOptions{})
 		if syncError != nil {
 			logger.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
 		}
