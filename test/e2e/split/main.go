@@ -12,15 +12,16 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-)
 
-// TODO: configurable log verbosity.
+	"github.com/sirupsen/logrus"
+)
 
 type options struct {
 	numChunks  int
 	printChunk int
 	printDebug bool
 	writer     io.Writer
+	logLevel   string
 }
 
 func main() {
@@ -30,6 +31,7 @@ func main() {
 	flag.IntVar(&opts.numChunks, "chunks", 1, "Number of chunks to create focus regexps for")
 	flag.IntVar(&opts.printChunk, "print-chunk", 0, "Chunk to print a regexp for")
 	flag.BoolVar(&opts.printDebug, "print-debug", false, "Print all spec prefixes in non-regexp format. Use for debugging")
+	flag.StringVar(&opts.logLevel, "log-level", logrus.ErrorLevel.String(), "Configure the logging level")
 	flag.Parse()
 
 	if opts.printChunk >= opts.numChunks {
@@ -60,7 +62,14 @@ func exitIfErr(err error) {
 }
 
 func (opts options) run(dir string) error {
-	describes, err := findDescribes(dir)
+	level, err := logrus.ParseLevel(opts.logLevel)
+	if err != nil {
+		return fmt.Errorf("failed to parse the %s log level: %v", opts.logLevel, err)
+	}
+	logger := logrus.New()
+	logger.SetLevel(level)
+
+	describes, err := findDescribes(logger, dir)
 	if err != nil {
 		return err
 	}
@@ -88,7 +97,7 @@ func (opts options) run(dir string) error {
 // like https://github.com/operator-framework/operator-lifecycle-manager/pull/1476 does.
 var topDescribeRE = regexp.MustCompile(`var _ = Describe\("(.+)", func\(.*`)
 
-func findDescribes(dir string) ([]string, error) {
+func findDescribes(logger logrus.FieldLogger, dir string) ([]string, error) {
 	// Find all Ginkgo specs in dir's test files.
 	// These can be grouped independently.
 	describeTable := make(map[string]struct{})
@@ -103,14 +112,14 @@ func findDescribes(dir string) ([]string, error) {
 		}
 		specNames := topDescribeRE.FindAllSubmatch(b, -1)
 		if len(specNames) == 0 {
-			log.Printf("%s: found no top level describes, skipping", match)
+			logger.Warnf("%s: found no top level describes, skipping", match)
 			continue
 		}
 		for _, possibleNames := range specNames {
 			if len(possibleNames) != 2 {
-				log.Printf("%s: expected to find 2 submatch, found %d:", match, len(possibleNames))
+				logger.Debugf("%s: expected to find 2 submatch, found %d:", match, len(possibleNames))
 				for _, name := range possibleNames {
-					log.Printf("\t%s\n", string(name))
+					logger.Debugf("\t%s\n", string(name))
 				}
 				continue
 			}
@@ -129,7 +138,6 @@ func findDescribes(dir string) ([]string, error) {
 }
 
 func createChunkRegexp(numChunks, printChunk int, specs []string) (string, error) {
-
 	numSpecs := len(specs)
 	if numSpecs < numChunks {
 		return "", fmt.Errorf("have more desired chunks (%d) than specs (%d)", numChunks, numSpecs)
@@ -170,7 +178,6 @@ func createChunkRegexp(numChunks, printChunk int, specs []string) (string, error
 }
 
 func findMinimalWordPrefixes(specs []string) (prefixes []string) {
-
 	// Create a word trie of all spec strings.
 	t := make(wordTrie)
 	for _, spec := range specs {
