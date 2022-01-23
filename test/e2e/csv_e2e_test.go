@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/fields"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -4247,6 +4248,10 @@ var _ = Describe("Disabling copied CSVs", func() {
 			return nil
 		}).Should(Succeed())
 		TeardownNamespace(ns.GetName())
+		Eventually(func() error {
+			var namespace corev1.Namespace
+			return ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&ns), &namespace)
+		}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
 	})
 
 	When("an operator is installed in AllNamespace mode", func() {
@@ -4403,7 +4408,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 				}
 
 				var namespaces corev1.NamespaceList
-				if err := ctx.Ctx().Client().List(context.TODO(), &namespaces, &client.ListOptions{}); err != nil {
+				if err := ctx.Ctx().Client().List(context.TODO(), &namespaces, &client.ListOptions{FieldSelector: fields.SelectorFromSet(map[string]string{"status.phase": "Active"})}); err != nil {
 					return err
 				}
 
