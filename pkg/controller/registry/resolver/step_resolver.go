@@ -36,7 +36,6 @@ type StepResolver interface {
 type OperatorStepResolver struct {
 	subLister              v1alpha1listers.SubscriptionLister
 	csvLister              v1alpha1listers.ClusterServiceVersionLister
-	ipLister               v1alpha1listers.InstallPlanLister
 	client                 versioned.Interface
 	kubeclient             kubernetes.Interface
 	globalCatalogNamespace string
@@ -51,7 +50,6 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 	stepResolver := &OperatorStepResolver{
 		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
-		ipLister:               lister.OperatorsV1alpha1().InstallPlanLister(),
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
