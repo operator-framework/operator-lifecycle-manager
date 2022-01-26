@@ -95,6 +95,8 @@ var _ = Describe("Subscription", func() {
 			}
 
 			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", generatedNamespace.GetName(), packages, crds, csvs)
+			_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "test-catalog", generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+			Expect(err).NotTo(HaveOccurred())
 
 			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), generatedNamespace.GetName(), "test-subscription", "test-catalog", "root", "channel-root", "", operatorsv1alpha1.ApprovalAutomatic)
 		})
