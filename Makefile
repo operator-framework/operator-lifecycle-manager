@@ -22,7 +22,6 @@ IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
-CONTROLLER_GEN := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
@@ -32,9 +31,9 @@ BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 GIT_COMMIT := $(shell git rev-parse HEAD)
 
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
-.PHONY: build test run clean vendor schema-check \
-	vendor-update coverage coverage-html e2e \
-	kubebuilder .FORCE
+.PHONY: build test clean vendor \
+	coverage coverage-html e2e \
+	kubebuilder
 
 .PHONY: FORCE
 FORCE:
@@ -59,9 +58,7 @@ ifeq (, $(wildcard $(KUBEBUILDER_ASSETS)/kube-apiserver))
 	$(error kube-apiserver $(KUBEBUILDER_ASSETS_ERR))
 endif
 
-schema-check:
-
-cover.out: schema-check
+cover.out:
 	go test $(MOD_FLAGS) -tags "json1" -v -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
