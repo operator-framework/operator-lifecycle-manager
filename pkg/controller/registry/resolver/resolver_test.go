@@ -1053,7 +1053,7 @@ func TestSolveOperators_OLMConstraint_CompoundAny(t *testing.T) {
 	}
 }
 
-func TestSolveOperators_OLMConstraint_CompoundNone(t *testing.T) {
+func TestSolveOperators_OLMConstraint_CompoundNot(t *testing.T) {
 	namespace := "olm"
 	csName := "community"
 	catalog := cache.SourceKey{Name: csName, Namespace: namespace}
@@ -1065,10 +1065,10 @@ func TestSolveOperators_OLMConstraint_CompoundNone(t *testing.T) {
 		properties: []*api.Property{
 			{
 				Type: constraints.OLMConstraintType,
-				Value: `{"failureMessage": "compound none constraint",
+				Value: `{"failureMessage": "compound not constraint",
 					"all": {"constraints": [
 						{"gvk": {"group": "g0", "version": "v0", "kind": "k0"}},
-						{"none": {"constraints": [
+						{"not": {"constraints": [
 							{"gvk": {"group": "g1", "version": "v1", "kind": "k1"}},
 							{"gvk": {"group": "g2", "version": "v2", "kind": "k2"}}
 						]}}
