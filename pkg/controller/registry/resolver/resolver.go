@@ -833,8 +833,8 @@ func (pc *predicateConverter) convertConstraints(constraints ...constraints.Cons
 		case constraint.Any != nil:
 			subs, perr := pc.convertConstraints(constraint.Any.Constraints...)
 			preds[i], err = cache.Or(subs...), perr
-		case constraint.None != nil:
-			subs, perr := pc.convertConstraints(constraint.None.Constraints...)
+		case constraint.Not != nil:
+			subs, perr := pc.convertConstraints(constraint.Not.Constraints...)
 			preds[i], err = cache.Not(subs...), perr
 		case constraint.Cel != nil:
 			preds[i], err = cache.CreateCelPredicate(pc.celEnv, constraint.Cel.Rule, constraint.FailureMessage)

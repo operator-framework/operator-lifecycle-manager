@@ -25,14 +25,15 @@ type Constraint struct {
 	// GVK defines a constraint for a GVK.
 	GVK *GVKConstraint `json:"gvk,omitempty" yaml:"gvk,omitempty"`
 
-	// All, Any, and None are compound constraints. See this enhancement for details:
+	// All, Any, and Not are compound constraints. See this enhancement for details:
 	// https://github.com/operator-framework/enhancements/blob/master/enhancements/compound-bundle-constraints.md
 	All *CompoundConstraint `json:"all,omitempty" yaml:"all,omitempty"`
 	Any *CompoundConstraint `json:"any,omitempty" yaml:"any,omitempty"`
-	// A note on None: this constraint is not particularly useful by itself.
+	// A note on Not: this constraint isn't particularly useful by itself.
 	// It should be used within an All constraint alongside some other constraint type
-	// since saying "none of these GVKs/packages/etc." without an alternative doesn't make sense.
-	None *CompoundConstraint `json:"none,omitempty" yaml:"none,omitempty"`
+	// since saying "do not use any of these GVKs/packages/etc." without an alternative
+	// doesn't make sense.
+	Not *CompoundConstraint `json:"not,omitempty" yaml:"not,omitempty"`
 }
 
 // CompoundConstraint holds a list of potentially nested constraints
