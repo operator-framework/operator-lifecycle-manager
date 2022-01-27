@@ -159,13 +159,35 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			errs = append(errs, err)
 			continue
 		}
+
+		// copy consumed fields to avoid directly mutating cache
+		op = &cache.Entry{
+			Name:         op.Name,
+			Replaces:     op.Replaces,
+			Skips:        op.Skips,
+			SkipRange:    op.SkipRange,
+			ProvidedAPIs: op.ProvidedAPIs,
+			RequiredAPIs: op.RequiredAPIs,
+			Version:      op.Version,
+			SourceInfo: &cache.OperatorSourceInfo{
+				Package:        op.SourceInfo.Package,
+				Channel:        op.SourceInfo.Channel,
+				StartingCSV:    op.SourceInfo.StartingCSV,
+				Catalog:        op.SourceInfo.Catalog,
+				DefaultChannel: op.SourceInfo.DefaultChannel,
+				Subscription:   op.SourceInfo.Subscription,
+			},
+			Properties: op.Properties,
+			BundlePath: op.BundlePath,
+			Bundle:     op.Bundle,
+		}
 		if len(installableOperator.Replaces) > 0 {
-			op.Replaces = installableOperator.Replaces // TODO: Don't mutate object from cache!
+			op.Replaces = installableOperator.Replaces
 		}
 
 		// lookup if this installable came from a starting CSV
 		if _, ok := startingCSVs[csvName]; ok {
-			op.SourceInfo.StartingCSV = csvName // TODO: Don't mutate object from cache!
+			op.SourceInfo.StartingCSV = csvName
 		}
 
 		operators[csvName] = op
