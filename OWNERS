@@ -24,5 +24,4 @@ reviewers:
   - joelanford
   - timflannagan
   - perdasilva
-# Bugzilla component
-component: "OLM"
+  - akihikokuroda
