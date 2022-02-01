@@ -25,6 +25,7 @@ require (
 	github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
 	github.com/operator-framework/api v0.12.0
+	github.com/operator-framework/helm-operator-plugins v0.0.8
 	github.com/operator-framework/operator-registry v1.17.5
 	github.com/otiai10/copy v1.2.0
 	github.com/pkg/errors v0.9.1
@@ -39,7 +40,7 @@ require (
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	google.golang.org/grpc v1.40.0
 	gopkg.in/yaml.v2 v2.4.0
-	helm.sh/helm/v3 v3.6.1
+	helm.sh/helm/v3 v3.6.2
 	k8s.io/api v0.22.2
 	k8s.io/apiextensions-apiserver v0.22.2
 	k8s.io/apimachinery v0.22.2
@@ -54,6 +55,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.10.0
 	sigs.k8s.io/controller-tools v0.6.2
 	sigs.k8s.io/kind v0.11.1
+	sigs.k8s.io/yaml v1.2.0
 )
 
 require (
@@ -110,7 +112,6 @@ require (
 	github.com/go-logr/zapr v0.4.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
-	github.com/go-openapi/spec v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/gobuffalo/flect v0.2.3 // indirect
@@ -167,6 +168,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2-0.20190823105129-775207bd45b6 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
+	github.com/operator-framework/operator-lib v0.3.0 // indirect
 	github.com/pbnjay/strptime v0.0.0-20140226051138-5c05b0d668c9 // indirect
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
@@ -223,16 +225,15 @@ require (
 	gopkg.in/op/go-logging.v1 v1.0.0-20160211212156-b2cb9fa56473 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/cli-runtime v0.21.0 // indirect
+	k8s.io/cli-runtime v0.22.1 // indirect
 	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027 // indirect
 	k8s.io/klog/v2 v2.9.0 // indirect
-	k8s.io/kubectl v0.21.0 // indirect
+	k8s.io/kubectl v0.22.1 // indirect
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.22 // indirect
-	sigs.k8s.io/kustomize/api v0.8.5 // indirect
-	sigs.k8s.io/kustomize/kyaml v0.10.15 // indirect
+	sigs.k8s.io/kustomize/api v0.8.11 // indirect
+	sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace (
