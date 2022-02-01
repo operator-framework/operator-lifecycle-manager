@@ -195,6 +195,7 @@ clean:
 # Copy CRD manifests
 manifests: vendor
 	./scripts/copy_crds.sh
+	go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1 crd:trivialVersions=true,preserveUnknownFields=false rbac:roleName=manager-role webhook paths="./pkg/controller/operators/provisioner/api/..." output:crd:artifacts:config=deploy/chart/crds
 
 # Generate deepcopy, conversion, clients, listers, and informers
 codegen:
