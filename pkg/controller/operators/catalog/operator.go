@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -51,6 +52,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
+	kuberpakv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/provisioner/api/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
@@ -69,6 +71,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
+	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -97,6 +100,7 @@ type Operator struct {
 	clock                    utilclock.Clock
 	opClient                 operatorclient.ClientInterface
 	client                   versioned.Interface
+	crClient                 k8scontrollerclient.Client
 	dynamicClient            dynamic.Interface
 	lister                   operatorlister.OperatorLister
 	catsrcQueueSet           *queueinformer.ResourceQueueSet
@@ -166,6 +170,13 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
+	c, err := k8scontrollerclient.New(config, k8scontrollerclient.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the c-r dynamic client: %v", err)
+	}
+
 	// Allocate the new instance of an Operator.
 	op := &Operator{
 		Operator:                 queueOperator,
@@ -173,6 +184,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		clock:                    clock,
 		opClient:                 opClient,
 		dynamicClient:            dynamicClient,
+		crClient:                 c,
 		client:                   crClient,
 		lister:                   lister,
 		namespace:                operatorNamespace,
@@ -430,6 +442,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
+	// TODO: add a net-new informer that conditionally requeues Bundles
 	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), resyncPeriod()).Core().V1().Namespaces()
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
@@ -876,6 +889,9 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 }
 
 func (o *Operator) syncResolvingNamespace(obj interface{}) error {
+	const (
+		bundleAnnotation = "olm.operatorframework.io/use-new-apis"
+	)
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
 		o.logger.Debugf("wrong type: %#v", obj)
@@ -887,12 +903,10 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		"namespace": namespace,
 		"id":        queueinformer.NewLoopID(),
 	})
-
 	o.gcInstallPlans(logger, namespace)
 
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
-
 	logger.Debug("checking if subscriptions need update")
 
 	subs, err := o.listSubscriptions(namespace)
@@ -901,9 +915,14 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
+	// TODO: GC Bundles?
+	// TODO: validate subscriptions in a namespace all contain the opt-in mechanism
+	var (
+		newAPIToggle        bool
+		maxGeneration       int
+		subscriptionUpdated bool
+	)
 	// TODO: parallel
-	maxGeneration := 0
-	subscriptionUpdated := false
 	for i, sub := range subs {
 		logger := logger.WithFields(logrus.Fields{
 			"sub":     sub.GetName(),
@@ -912,17 +931,24 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			"channel": sub.Spec.Channel,
 		})
 
-		if sub.Status.InstallPlanGeneration > maxGeneration {
-			maxGeneration = sub.Status.InstallPlanGeneration
+		if apiToggle, ok := sub.GetAnnotations()[bundleAnnotation]; ok && apiToggle == "true" {
+			newAPIToggle = true
 		}
+		logger.Infof("subscription %s/%s is using the new API toggle: %v", sub.GetName(), sub.GetNamespace(), newAPIToggle)
 
-		// ensure the installplan reference is correct
-		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub)
-		if err != nil {
-			logger.Debugf("error ensuring installplan state: %v", err)
-			return err
+		if !newAPIToggle {
+			var changedIP bool
+			if sub.Status.InstallPlanGeneration > maxGeneration {
+				maxGeneration = sub.Status.InstallPlanGeneration
+			}
+			// ensure the installplan reference is correct
+			sub, changedIP, err = o.ensureSubscriptionInstallPlanState(logger, sub)
+			if err != nil {
+				logger.Debugf("error ensuring installplan state: %v", err)
+				return err
+			}
+			subscriptionUpdated = subscriptionUpdated || changedIP
 		}
-		subscriptionUpdated = subscriptionUpdated || changedIP
 
 		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
 		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub)
@@ -950,6 +976,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	logger.Debug("resolving subscriptions in namespace")
 
+	// TODO: generate Bundle resources when opt-in has been detected
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
 	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace)
 	if err != nil {
@@ -992,34 +1019,66 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	// create installplan if anything updated
 	if len(updatedSubs) > 0 {
-		logger.Debug("resolution caused subscription changes, creating installplan")
-		// Finish calculating max generation by checking the existing installplans
-		installPlans, err := o.listInstallPlans(namespace)
-		if err != nil {
-			return err
-		}
-		for _, ip := range installPlans {
-			if gen := ip.Spec.Generation; gen > maxGeneration {
-				maxGeneration = gen
+		if !newAPIToggle {
+			logger.Debug("resolution caused subscription changes, creating installplan")
+			// Finish calculating max generation by checking the existing installplans
+			installPlans, err := o.listInstallPlans(namespace)
+			if err != nil {
+				return err
+			}
+			for _, ip := range installPlans {
+				if gen := ip.Spec.Generation; gen > maxGeneration {
+					maxGeneration = gen
+				}
+			}
+
+			// any subscription in the namespace with manual approval will force generated installplans to be manual
+			// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
+			installPlanApproval := v1alpha1.ApprovalAutomatic
+			for _, sub := range subs {
+				if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
+					installPlanApproval = v1alpha1.ApprovalManual
+					break
+				}
+			}
+
+			installPlanReference, err := o.ensureInstallPlan(logger, namespace, maxGeneration+1, subs, installPlanApproval, steps, bundleLookups)
+			if err != nil {
+				logger.WithError(err).Debug("error ensuring installplan")
+				return err
+			}
+			updatedSubs = o.setIPReference(updatedSubs, maxGeneration+1, installPlanReference)
+		} else {
+			for _, lookup := range bundleLookups {
+				logger.Infof("%v", lookup)
+
+				// TODO: aggregate errors
+				csvName := lookup.Identifier
+				bundle := &kuberpakv1alpha1.Bundle{}
+				if err := o.crClient.Get(context.TODO(), types.NamespacedName{Name: csvName}, bundle); err != nil {
+					if !k8serrors.IsNotFound(err) {
+						logger.WithError(err).Infof("failed to query for the %s (%s) bundle", bundle.GetName(), csvName)
+						return err
+					}
+					// TODO: questions around downstream requirements for changing a cluster-scoped API -> namespaced-scoped API (and vice-versa)
+					bundle = &kuberpakv1alpha1.Bundle{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: csvName,
+						},
+						// TODO: need a way to hook into the container image tag
+						Spec: kuberpakv1alpha1.BundleSpec{
+							ProvisionerClassName: "kuberpak.io/registry+v1",
+							Image:                lookup.Path,
+						},
+					}
+					// TODO: Bundle is read-only?
+					if err := o.crClient.Create(context.TODO(), bundle); err != nil {
+						logger.WithError(err).Infof("failed to create the %s bundle", bundle.GetName())
+						return err
+					}
+				}
 			}
 		}
-
-		// any subscription in the namespace with manual approval will force generated installplans to be manual
-		// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
-		installPlanApproval := v1alpha1.ApprovalAutomatic
-		for _, sub := range subs {
-			if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
-				installPlanApproval = v1alpha1.ApprovalManual
-				break
-			}
-		}
-
-		installPlanReference, err := o.ensureInstallPlan(logger, namespace, maxGeneration+1, subs, installPlanApproval, steps, bundleLookups)
-		if err != nil {
-			logger.WithError(err).Debug("error ensuring installplan")
-			return err
-		}
-		updatedSubs = o.setIPReference(updatedSubs, maxGeneration+1, installPlanReference)
 	} else {
 		logger.Debugf("no subscriptions were updated")
 	}

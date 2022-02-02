@@ -11,18 +11,19 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	log "github.com/sirupsen/logrus"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
-	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalogtemplate"
+	kuberpakv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/provisioner/api/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/server"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 const (
@@ -133,8 +134,13 @@ func main() {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
 
+	scheme := runtime.NewScheme()
+	if err := kuberpakv1alpha1.AddToScheme(scheme); err != nil {
+		log.Fatalf("failed to add the kuberpak scheme: %v", err)
+	}
+
 	// Create a new instance of the operator.
-	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, k8sscheme.Scheme, *installPlanTimeout, *bundleUnpackTimeout)
+	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *opmImage, *utilImage, *catalogNamespace, scheme, *installPlanTimeout, *bundleUnpackTimeout)
 	if err != nil {
 		log.Fatalf("error configuring catalog operator: %s", err.Error())
 	}
