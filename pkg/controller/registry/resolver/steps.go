@@ -1,5 +1,6 @@
 package resolver
 
+
 import (
 	"bytes"
 	"encoding/json"
@@ -25,6 +26,7 @@ import (
 const (
 	secretKind       = "Secret"
 	BundleSecretKind = "BundleSecret"
+	APIVersionDefault = "operators.coreos.com/v1alpha1"
 )
 
 var (
@@ -116,6 +118,12 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 	csv, err := V1alpha1CSVFromBundle(bundle)
 	if err != nil {
 		return nil, err
+	}
+
+
+	// infer APIVersion if it has not been set
+	if csv.APIVersion == "" {
+		csv.APIVersion = APIVersionDefault
 	}
 
 	csv.SetNamespace(namespace)
