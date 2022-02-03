@@ -234,6 +234,11 @@ func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(sour
 	}
 	if len(pods) > 1 {
 		logrus.WithField("selector", source.Labels()).Debug("multiple pods found for selector")
+		for i := 1; i < len(pods); i++ {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(context.TODO(), pods[i].GetName(), *metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+				logrus.Debugf("error deleting extra pod: %s", pods[i].GetName())
+			}
+		}
 	}
 	return pods
 }
