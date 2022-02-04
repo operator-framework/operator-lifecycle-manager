@@ -391,6 +391,7 @@ func TearDown(namespace string) {
 	var (
 		clientCtx   = context.Background()
 		client      = ctx.Ctx().Client()
+		dynamic     = ctx.Ctx().DynamicClient()
 		inNamespace = k8scontrollerclient.InNamespace(namespace)
 		logf        = ctx.Ctx().Logf
 	)
@@ -403,14 +404,13 @@ func TearDown(namespace string) {
 		return client.DeleteAllOf(clientCtx, &operatorsv1alpha1.Subscription{}, inNamespace)
 	}).Should(Succeed(), "failed to delete test subscriptions")
 
-	Eventually(func() (remaining []operatorsv1alpha1.Subscription, err error) {
-		list := &operatorsv1alpha1.SubscriptionList{}
-		err = client.List(clientCtx, list, inNamespace)
-		if list != nil {
-			remaining = list.Items
+	var subscriptiongvr = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "subscriptions"}
+	Eventually(func() ([]unstructured.Unstructured, error) {
+		list, err := dynamic.Resource(subscriptiongvr).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
 		}
-
-		return
+		return list.Items, nil
 	}).Should(BeEmpty(), "failed to await deletion of test subscriptions")
 
 	logf("deleting test installplans...")
