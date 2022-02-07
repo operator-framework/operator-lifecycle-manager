@@ -189,7 +189,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
-	res := resolver.NewOperatorStepResolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace, op.sources, logger)
+	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.sources, logger)
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
 	// Wire OLM CR sharedIndexInformers
