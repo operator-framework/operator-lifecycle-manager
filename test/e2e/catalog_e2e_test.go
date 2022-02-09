@@ -1013,7 +1013,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 				Image:      "quay.io/olmtest/catsrc-update-test:new",
 				UpdateStrategy: &v1alpha1.UpdateStrategy{
 					RegistryPoll: &v1alpha1.RegistryPoll{
-						Interval: &metav1.Duration{Duration: 45 * time.Second},
+						RawInterval: "45s",
 					},
 				},
 			},
