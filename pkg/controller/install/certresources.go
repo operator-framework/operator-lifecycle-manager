@@ -246,7 +246,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 
 		// Delete the Service to replace
 		deleteErr := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
-		if err != nil && !k8serrors.IsNotFound(deleteErr) {
+		if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
 			return nil, nil, fmt.Errorf("could not delete existing service %s", service.GetName())
 		}
 	}
