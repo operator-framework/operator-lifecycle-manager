@@ -38,7 +38,7 @@ const (
 // config flags defined globally so that they appear on the test binary as well
 var (
 	kubeConfigPath = flag.String(
-		"kubeconfig", "", "absolute path to the kubeconfig file")
+		"kubeconfig", os.Getenv("KUBECONFIG"), "absolute path to the kubeconfig file")
 
 	wakeupInterval = flag.Duration(
 		"interval", defaultWakeupInterval, "wakeup interval")
