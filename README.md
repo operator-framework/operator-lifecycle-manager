@@ -1,4 +1,5 @@
-<img src="/logo.svg" height="125px" alt="Operator Lifecycle Manager"></img>
+<img src="/logo.svg#gh-light-mode-only" height="125px" alt="Operator Lifecycle Manager"></img>
+<img src="/logo-dark-mode.svg#gh-dark-mode-only" height="125px" alt="Operator Lifecycle Manager"></img>
 
 [![Container Repository on Quay.io](https://quay.io/repository/operator-framework/olm/status "Container Repository on Quay.io")](https://quay.io/repository/operator-framework/olm)
 [![License](http://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
