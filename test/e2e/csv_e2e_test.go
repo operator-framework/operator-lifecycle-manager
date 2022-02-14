@@ -19,8 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/fields"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
@@ -64,10 +64,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 	When("a CustomResourceDefinition was installed alongside a ClusterServiceVersion", func() {
 		var (
-			ns  corev1.Namespace
-			crd apiextensionsv1.CustomResourceDefinition
-			og operatorsv1.OperatorGroup
-			apiname string
+			ns          corev1.Namespace
+			crd         apiextensionsv1.CustomResourceDefinition
+			og          operatorsv1.OperatorGroup
+			apiname     string
 			apifullname string
 		)
 
@@ -144,7 +144,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
 		})
 
-		It("can satisfy an associated ClusterServiceVersion's ownership requirement", func() {
+		It("[FLAKY] can satisfy an associated ClusterServiceVersion's ownership requirement", func() {
 			associated := operatorsv1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "associated-csv",
@@ -261,7 +261,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}).Should(Succeed())
 		})
 
-		It("can satisfy an unassociated ClusterServiceVersion's non-ownership requirement", func() {
+		It("[FLAKY] can satisfy an unassociated ClusterServiceVersion's non-ownership requirement", func() {
 			unassociated := operatorsv1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "unassociated-csv",
@@ -4206,7 +4206,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 var _ = Describe("Disabling copied CSVs", func() {
 	var (
-		ns corev1.Namespace
+		ns  corev1.Namespace
 		csv operatorsv1alpha1.ClusterServiceVersion
 	)
 
@@ -4391,7 +4391,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 			}).Should(Succeed())
 		})
 
-		It("should have copied CSVs in all other Namespaces", func() {
+		It("[FLAKY] should have copied CSVs in all other Namespaces", func() {
 			Eventually(func() error {
 				// find copied csvs...
 				requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})

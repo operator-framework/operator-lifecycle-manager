@@ -1022,7 +1022,7 @@ var _ = Describe("Subscription", func() {
 	// - Delete the referenced InstallPlan
 	// - Wait for sub to have status condition SubscriptionInstallPlanMissing true
 	// - Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
-	It("can reconcile InstallPlan status", func() {
+	It("[FLAKY] can reconcile InstallPlan status", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 

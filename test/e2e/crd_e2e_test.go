@@ -94,7 +94,7 @@ var _ = Describe("CRD Versions", func() {
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
 	})
 
-	It("blocks a CRD upgrade that could cause data loss", func() {
+	It("[FLAKY] blocks a CRD upgrade that could cause data loss", func() {
 		By("checking the storage versions in the existing CRD status and the spec of the new CRD")
 
 		c := newKubeClient()
