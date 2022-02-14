@@ -1,4 +1,5 @@
-//  +build !bare
+//go:build !bare
+// +build !bare
 
 package e2e
 
@@ -870,7 +871,8 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		Expect(v).Should(Equal(version.OperatorVersion{Version: busyboxVersion}), "latest version of operator not installed: catalog source update failed")
 	})
 
-	It("Dependency has correct replaces field", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2642
+	It("[FLAKE] Dependency has correct replaces field", func() {
 		// Create a CatalogSource that contains the busybox v1 and busybox-dependency v1 images
 		// Create a Subscription for busybox v1, which has a dependency on busybox-dependency v1.
 		// Wait for the busybox and busybox2 Subscriptions to succeed

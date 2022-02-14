@@ -1419,7 +1419,7 @@ var _ = Describe("Operator Group", func() {
 		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
 		// Use the It spec name as label after stripping whitespaces
-		aCSV.Labels = map[string]string{"label": strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1)}
+		aCSV.Labels = map[string]string{"label": K8sSafeCurrentTestDescription()}
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
@@ -1498,7 +1498,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1))})
+		csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", K8sSafeCurrentTestDescription())})
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Logf("Found CSV count of %v", len(csvList.Items))
 		GinkgoT().Logf("Create other namespace %s", otherNamespaceName)
@@ -1795,7 +1795,8 @@ var _ = Describe("Operator Group", func() {
 
 	// Versions of OLM at 0.14.1 and older had a bug that would place the wrong namespace annotation on copied CSVs,
 	// preventing them from being GCd. This ensures that any leftover CSVs in that state are properly cleared up.
-	It("cleanup csvs with bad owner operator groups", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2644
+	It("[FLAKE] cleanup csvs with bad owner operator groups", func() {
 
 		c := newKubeClient()
 		crc := newCRClient()
@@ -1899,7 +1900,7 @@ var _ = Describe("Operator Group", func() {
 		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
 		// Use the It spec name as label after stripping whitespaces
-		aCSV.Labels = map[string]string{"label": strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1)}
+		aCSV.Labels = map[string]string{"label": K8sSafeCurrentTestDescription()}
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
@@ -1978,7 +1979,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1))})
+		csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", K8sSafeCurrentTestDescription())})
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Logf("Found CSV count of %v", len(csvList.Items))
 		GinkgoT().Logf("Create other namespace %s", otherNamespaceName)
@@ -2288,7 +2289,8 @@ var _ = Describe("Operator Group", func() {
 					Expect(err).ToNot(HaveOccurred())
 				})
 
-				It("OLM applies labels to Namespaces that are associated with an OperatorGroup", func() {
+				// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2637
+				It("[FLAKE] OLM applies labels to Namespaces that are associated with an OperatorGroup", func() {
 					ogLabel, err := getOGLabelKey(operatorGroup)
 					Expect(err).ToNot(HaveOccurred())
 

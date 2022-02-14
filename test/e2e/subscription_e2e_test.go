@@ -508,7 +508,8 @@ var _ = Describe("Subscription", func() {
 		require.Len(GinkgoT(), ips.Items, 2)
 	})
 
-	It("updates multiple intermediates", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2635
+	It("[FLAKE] updates multiple intermediates", func() {
 
 		crd := newCRD("ins")
 
@@ -1022,7 +1023,8 @@ var _ = Describe("Subscription", func() {
 	// - Delete the referenced InstallPlan
 	// - Wait for sub to have status condition SubscriptionInstallPlanMissing true
 	// - Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
-	It("can reconcile InstallPlan status", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2645
+	It("[FLAKE] can reconcile InstallPlan status", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 

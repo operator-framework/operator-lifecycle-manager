@@ -17,6 +17,8 @@ Note: Make sure your branch is rebased to the latest upstream master.
 - [ ] Sufficient end-to-end test coverage
 - [ ] Docs updated or added to `/doc`
 - [ ] Commit messages sensible and descriptive
+- [ ] Tests marked as `[FLAKE]` are truly flaky
+- [ ] Tests that remove the `[FLAKE]` tag are no longer flaky
 
 
 <!--
