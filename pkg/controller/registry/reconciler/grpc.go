@@ -140,7 +140,7 @@ func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorato
 	serviceName := source.Service().GetName()
 	service, err := c.Lister.CoreV1().ServiceLister().Services(source.GetNamespace()).Get(serviceName)
 	if err != nil {
-		logrus.WithField("service", serviceName).Warn("couldn't find service in cache")
+		logrus.WithField("service", serviceName).Debug("couldn't find service in cache")
 		return nil
 	}
 	return service
@@ -153,7 +153,7 @@ func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) 
 		return nil
 	}
 	if len(pods) > 1 {
-		logrus.WithField("selector", source.Selector()).Warn("multiple pods found for selector")
+		logrus.WithField("selector", source.Selector()).Debug("multiple pods found for selector")
 	}
 	return pods
 }
@@ -165,7 +165,7 @@ func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecor
 		return nil
 	}
 	if len(pods) > 1 {
-		logrus.WithField("selector", source.Selector()).Warn("multiple pods found for selector")
+		logrus.WithField("selector", source.Selector()).Debug("multiple pods found for selector")
 	}
 	return pods
 }
@@ -274,7 +274,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 	currentUpdatePods := c.currentUpdatePods(source)
 
 	if source.Update() && len(currentUpdatePods) == 0 {
-		logrus.WithField("CatalogSource", source.GetName()).Infof("catalog update required at %s", time.Now().String())
+		logrus.WithField("CatalogSource", source.GetName()).Debugf("catalog update required at %s", time.Now().String())
 		pod, err := c.createUpdatePod(source, saName)
 		if err != nil {
 			return errors.Wrapf(err, "creating update catalog source pod")
@@ -315,7 +315,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 			return nil
 		}
 		// delete update pod right away, since the digest match, to prevent long-lived duplicate catalog pods
-		logrus.WithField("CatalogSource", source.GetName()).Info("catalog polling result: no update")
+		logrus.WithField("CatalogSource", source.GetName()).Debug("catalog polling result: no update")
 		err := c.removePods([]*corev1.Pod{updatePod}, source.GetNamespace())
 		if err != nil {
 			return errors.Wrapf(err, "error deleting duplicate catalog polling pod: %s", updatePod.GetName())
