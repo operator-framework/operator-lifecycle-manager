@@ -10,7 +10,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +33,8 @@ const (
 	installPlanResource           = "installplans"
 )
 
-func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface, crClient versioned.Interface) {
+func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface,
+	configClient configv1client.ConfigV1Interface, crClient versioned.Interface, log *logrus.Logger) {
 	var (
 		syncs              int
 		successfulSyncs    int
@@ -123,7 +124,7 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 				log.Errorf("Failed to create cluster operator: %v\n", createErr)
 				return
 			}
-			created.Status.RelatedObjects, err = relatedObjects(name, opClient, crClient)
+			created.Status.RelatedObjects, err = relatedObjects(name, opClient, crClient, log)
 			if err != nil {
 				log.Errorf("Failed to get related objects: %v", err)
 			}
@@ -208,7 +209,7 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 		}
 
 		// always update the related objects in case changes have occurred
-		existing.Status.RelatedObjects, err = relatedObjects(name, opClient, crClient)
+		existing.Status.RelatedObjects, err = relatedObjects(name, opClient, crClient, log)
 		if err != nil {
 			log.Errorf("Failed to get related objects: %v", err)
 		}
@@ -265,9 +266,9 @@ func findOperatorStatusCondition(conditions []configv1.ClusterOperatorStatusCond
 
 // relatedObjects returns RelatedObjects in the ClusterOperator.Status.
 // RelatedObjects are consumed by https://github.com/openshift/must-gather
-func relatedObjects(name string, opClient operatorclient.ClientInterface, crClient versioned.Interface) ([]configv1.ObjectReference, error) {
+func relatedObjects(name string, opClient operatorclient.ClientInterface, crClient versioned.Interface, log *logrus.Logger) ([]configv1.ObjectReference, error) {
 	var objectReferences []configv1.ObjectReference
-	log.Infof("Adding related objects for %v", name)
+	log.Debugf("Adding related objects for %v", name)
 	namespace := openshiftNamespace // hard-coded to constant
 
 	switch name {

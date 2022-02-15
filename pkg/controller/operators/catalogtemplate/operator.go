@@ -137,7 +137,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 		"catSrcName":      outputCatalogSource.GetName(),
 		"id":              queueinformer.NewLoopID(),
 	})
-	logger.Info("syncing catalog source for annotation templates")
+	logger.Debug("syncing catalog source for annotation templates")
 
 	catalogImageTemplate := catalogsource.GetCatalogTemplateAnnotation(outputCatalogSource)
 	if catalogImageTemplate == "" {

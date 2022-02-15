@@ -462,7 +462,7 @@ func (o *Operator) now() metav1.Time {
 func (o *Operator) syncSourceState(state grpc.SourceState) {
 	o.sourcesLastUpdate.Set(o.now().Time)
 
-	o.logger.Infof("state.Key.Namespace=%s state.Key.Name=%s state.State=%s", state.Key.Namespace, state.Key.Name, state.State.String())
+	o.logger.Debugf("state.Key.Namespace=%s state.Key.Name=%s state.State=%s", state.Key.Namespace, state.Key.Name, state.State.String())
 	metrics.RegisterCatalogSourceState(state.Key.Name, state.Key.Namespace, state.State)
 
 	switch state.State {

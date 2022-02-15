@@ -41,7 +41,7 @@ func (r *replace) IsBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInName
 			continue
 		}
 
-		r.logger.Infof("checking %s", csv.GetName())
+		r.logger.Debugf("checking %s", csv.GetName())
 
 		if csv.Spec.Replaces == in.GetName() {
 			r.logger.Infof("%s replaced by %s", in.GetName(), csv.GetName())

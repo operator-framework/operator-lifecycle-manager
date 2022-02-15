@@ -121,7 +121,7 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 	<-opCatalogTemplate.Ready()
 
 	if o.writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(o.writeStatusName, op.AtLevel(), op.Done(), opClient, configClient, crClient)
+		operatorstatus.MonitorClusterStatus(o.writeStatusName, op.AtLevel(), op.Done(), opClient, configClient, crClient, logger)
 	}
 
 	<-op.Done()
