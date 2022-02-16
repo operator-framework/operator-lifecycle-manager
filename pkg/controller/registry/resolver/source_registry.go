@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
@@ -14,26 +16,93 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// todo: move to pkg/controller/operators/catalog
+
 type RegistryClientProvider interface {
 	ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface
 }
 
-type registryClientAdapter struct {
-	rcp    RegistryClientProvider
-	logger logrus.StdLogger
+type sourceInvalidator struct {
+	m          sync.Mutex
+	validChans map[cache.SourceKey]chan struct{}
+	ttl        time.Duration // auto-invalidate after this ttl
 }
 
-func SourceProviderFromRegistryClientProvider(rcp RegistryClientProvider, logger logrus.StdLogger) cache.SourceProvider {
-	return &registryClientAdapter{
-		rcp:    rcp,
-		logger: logger,
+func (i *sourceInvalidator) Invalidate(key cache.SourceKey) {
+	i.m.Lock()
+	defer i.m.Unlock()
+	if c, ok := i.validChans[key]; ok {
+		close(c)
+		delete(i.validChans, key)
 	}
 }
 
+func (i *sourceInvalidator) GetValidChannel(key cache.SourceKey) <-chan struct{} {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if c, ok := i.validChans[key]; ok {
+		return c
+	}
+	c := make(chan struct{})
+	i.validChans[key] = c
+
+	go func() {
+		<-time.After(i.ttl)
+
+		// be careful to avoid closing c (and panicking) after
+		// it has already been invalidated via Invalidate
+		i.m.Lock()
+		defer i.m.Unlock()
+
+		if saved := i.validChans[key]; saved == c {
+			close(c)
+			delete(i.validChans, key)
+		}
+	}()
+
+	return c
+}
+
+type RegistrySourceProvider struct {
+	rcp         RegistryClientProvider
+	logger      logrus.StdLogger
+	invalidator *sourceInvalidator
+}
+
+func SourceProviderFromRegistryClientProvider(rcp RegistryClientProvider, logger logrus.StdLogger) *RegistrySourceProvider {
+	return &RegistrySourceProvider{
+		rcp:    rcp,
+		logger: logger,
+		invalidator: &sourceInvalidator{
+			validChans: make(map[cache.SourceKey]chan struct{}),
+			ttl:        5 * time.Minute,
+		},
+	}
+}
+
+func (a *RegistrySourceProvider) Sources(namespaces ...string) map[cache.SourceKey]cache.Source {
+	result := make(map[cache.SourceKey]cache.Source)
+	for key, client := range a.rcp.ClientsForNamespaces(namespaces...) {
+		result[cache.SourceKey(key)] = &registrySource{
+			key:         cache.SourceKey(key),
+			client:      client,
+			logger:      a.logger,
+			invalidator: a.invalidator,
+		}
+	}
+	return result
+}
+
+func (a *RegistrySourceProvider) Invalidate(key cache.SourceKey) {
+	a.invalidator.Invalidate(key)
+}
+
 type registrySource struct {
-	key    cache.SourceKey
-	client client.Interface
-	logger logrus.StdLogger
+	key         cache.SourceKey
+	client      client.Interface
+	logger      logrus.StdLogger
+	invalidator *sourceInvalidator
 }
 
 func (s *registrySource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
@@ -74,19 +143,10 @@ func (s *registrySource) Snapshot(ctx context.Context) (*cache.Snapshot, error) 
 		return nil, fmt.Errorf("error encountered while listing bundles: %w", err)
 	}
 
-	return &cache.Snapshot{Entries: operators}, nil
-}
-
-func (a *registryClientAdapter) Sources(namespaces ...string) map[cache.SourceKey]cache.Source {
-	result := make(map[cache.SourceKey]cache.Source)
-	for key, client := range a.rcp.ClientsForNamespaces(namespaces...) {
-		result[cache.SourceKey(key)] = &registrySource{
-			key:    cache.SourceKey(key),
-			client: client,
-			logger: a.logger,
-		}
-	}
-	return result
+	return &cache.Snapshot{
+		Entries: operators,
+		Valid:   s.invalidator.GetValidChannel(s.key),
+	}, nil
 }
 
 func EnsurePackageProperty(o *cache.Entry, name, version string) {
