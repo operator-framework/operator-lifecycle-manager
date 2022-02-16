@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
+	olmversion "github.com/operator-framework/operator-lifecycle-manager/internal/version"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
-	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

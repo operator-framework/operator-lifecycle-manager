@@ -17,6 +17,7 @@ import (
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	olmversion "github.com/operator-framework/operator-lifecycle-manager/internal/version"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/openshift"
@@ -27,7 +28,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/server"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
-	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
 )
 
 const (

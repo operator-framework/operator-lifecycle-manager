@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
+	olmversion "github.com/operator-framework/operator-lifecycle-manager/internal/version"
 )
 
 type NowFunc func() metav1.Time

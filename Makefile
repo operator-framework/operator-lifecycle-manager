@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 ##########################
 #  OLM - Build and Test  #
 ##########################
@@ -8,9 +10,8 @@ $(warning Undefining GOFLAGS set in CI)
 undefine GOFLAGS
 endif
 
-SHELL := /bin/bash
-ORG := github.com/operator-framework
-PKG   := $(ORG)/operator-lifecycle-manager
+PKG := $(shell go list -m)
+VERSION_PKG = "$(PKG)/internal/version"
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.1[1-9]") && echo -mod=vendor)
 BUILD_TAGS := "json1"
 CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
@@ -97,7 +98,7 @@ build-util: bin/cpb
 bin/cpb: FORCE
 	CGO_ENABLED=0 $(arch_flags) go build $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
 
-$(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
+$(CMDS): version_flags=-ldflags "-X $(VERSION_PKG).GitCommit=$(GIT_COMMIT) -X $(VERSION_PKG).OLMVersion=$(GIT_VERSION)"
 $(CMDS):
 	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags $(BUILD_TAGS) -o bin/$(shell basename $@) $@
 
@@ -137,7 +138,6 @@ E2E_TEST_NS ?= operators
 
 e2e:
 	$(GINKGO) $(E2E_OPTS) $(or $(run), ./test/e2e) $< -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -dummyImage=bitnami/nginx:latest $(or $(extra_args), -kubeconfig=${KUBECONFIG})
-
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local

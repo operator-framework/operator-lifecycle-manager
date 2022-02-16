@@ -21,8 +21,8 @@ builds:
     flags:
     - -mod=vendor
     ldflags:
-    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
-    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+    - -X {{ .Env.PKG }}/internal/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/internal/version.OLMVersion={{ .Tag }}
   - id: catalog
     main: ./cmd/catalog
     binary: catalog
@@ -38,8 +38,8 @@ builds:
     flags:
     - -mod=vendor
     ldflags:
-    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
-    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+    - -X {{ .Env.PKG }}/internal/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/internal/version.OLMVersion={{ .Tag }}
   - id: cpb
     main: ./util/cpb
     binary: cpb
@@ -55,8 +55,8 @@ builds:
     flags:
     - -mod=vendor
     ldflags:
-    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
-    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+    - -X {{ .Env.PKG }}/internal/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/internal/version.OLMVersion={{ .Tag }}
   - id: package-server
     main: ./cmd/package-server
     binary: package-server
@@ -72,8 +72,8 @@ builds:
     flags:
     - -mod=vendor
     ldflags:
-    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
-    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+    - -X {{ .Env.PKG }}/internal/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/internal/version.OLMVersion={{ .Tag }}
 dockers:
 - image_templates:
   - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64"
