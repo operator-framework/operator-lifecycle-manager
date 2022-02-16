@@ -70,7 +70,8 @@ var _ = Describe("Operator API", func() {
 	// 14. Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 	// 15. Delete o
 	// 16. Ensure o is not re-created
-	It("should surface components in its status", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2628
+	It("[FLAKE] should surface components in its status", func() {
 		o := &operatorsv1.Operator{}
 		o.SetName(genName("o-"))
 

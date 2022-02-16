@@ -170,6 +170,10 @@ Check out the [contributor documentation][contributor-documentation]. Also, see 
 
 See [reporting bugs][bug_guide] for details about reporting any issues.
 
+## Reporting flaky tests
+
+See [reporting flaky tests][flaky_test_guide] for details about reporting flaky tests.
+
 ## License
 
 Operator Lifecycle Manager is under Apache 2.0 license. See the [LICENSE][license_file] file for details.
@@ -179,6 +183,7 @@ Operator Lifecycle Manager is under Apache 2.0 license. See the [LICENSE][licens
 [proposals_docs]: ./doc/contributors/design-proposals
 [license_file]:./LICENSE
 [bug_guide]:./doc/dev/reporting_bugs.md
+[flaky_test_guide]:./doc/dev/reporting_flakes.md
 [git_tool]:https://git-scm.com/downloads
 [go_tool]:https://golang.org/dl/
 [docker_tool]:https://docs.docker.com/install/

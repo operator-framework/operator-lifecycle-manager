@@ -21,7 +21,8 @@ import (
 var _ = Describe("CRD Versions", func() {
 	AfterEach(func() { TearDown(testNamespace) }, float64(30))
 
-	It("creates v1 CRDs with a v1 schema successfully", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2640
+	It("[FLAKE] creates v1 CRDs with a v1 schema successfully", func() {
 		By("v1 crds with a valid openapiv3 schema should be created successfully by OLM")
 		c := newKubeClient()
 		crc := newCRClient()
@@ -94,7 +95,8 @@ var _ = Describe("CRD Versions", func() {
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
 	})
 
-	It("blocks a CRD upgrade that could cause data loss", func() {
+	// issue:https://github.com/operator-framework/operator-lifecycle-manager/issues/2638
+	It("[FLAKE] blocks a CRD upgrade that could cause data loss", func() {
 		By("checking the storage versions in the existing CRD status and the spec of the new CRD")
 
 		c := newKubeClient()

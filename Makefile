@@ -131,7 +131,7 @@ E2E_TEST_NUM_CHUNKS ?= 4
 ifneq (all,$(E2E_TEST_CHUNK))
 TEST := $(shell go run ./test/e2e/split/... -chunks $(E2E_TEST_NUM_CHUNKS) -print-chunk $(E2E_TEST_CHUNK) ./test/e2e)
 endif
-E2E_OPTS ?= $(if $(E2E_SEED),-seed '$(E2E_SEED)') $(if $(TEST),-focus '$(TEST)') -flakeAttempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) -timeout $(E2E_TIMEOUT) -v -randomizeSuites -race -trace -progress
+E2E_OPTS ?= $(if $(E2E_SEED),-seed '$(E2E_SEED)') $(if $(SKIP), -skip '$(SKIP)') $(if $(TEST),-focus '$(TEST)') -flakeAttempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) -timeout $(E2E_TIMEOUT) -v -randomizeSuites -race -trace -progress
 E2E_INSTALL_NS ?= operator-lifecycle-manager
 E2E_TEST_NS ?= operators
 

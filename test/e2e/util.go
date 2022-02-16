@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -57,7 +58,8 @@ const (
 )
 
 var (
-	genName = names.SimpleNameGenerator.GenerateName
+	genName               = names.SimpleNameGenerator.GenerateName
+	nonAlphaNumericRegexp = regexp.MustCompile(`[^a-zA-Z0-9]`)
 )
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
@@ -1029,4 +1031,8 @@ func inKind(client operatorclient.ClientInterface) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func K8sSafeCurrentTestDescription() string {
+	return nonAlphaNumericRegexp.ReplaceAllString(CurrentGinkgoTestDescription().TestText, "")
 }
