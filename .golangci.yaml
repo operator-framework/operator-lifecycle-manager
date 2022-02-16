@@ -1,5 +1,7 @@
 run:
   timeout: 5m
+  enable-parallel-runners: true
+  modules-download-mode: vendor
   skip-dirs:
   - pkg/lib
   - pkg/api

@@ -14,17 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/selection"
-
-	"github.com/operator-framework/operator-registry/pkg/api"
-	registryserver "github.com/operator-framework/operator-registry/pkg/server"
-	"github.com/operator-framework/operator-registry/pkg/sqlite"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -33,6 +30,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/fakes"
+	"github.com/operator-framework/operator-registry/pkg/api"
+	registryserver "github.com/operator-framework/operator-registry/pkg/server"
+	"github.com/operator-framework/operator-registry/pkg/sqlite"
 )
 
 const (
@@ -1391,7 +1391,8 @@ func TestRegistryProviderListLabels(t *testing.T) {
 }
 
 func newTestRegistryClient(t *testing.T, catsrc *operatorsv1alpha1.CatalogSource) *registryClient {
-	conn, err := grpc.Dial(address+catsrc.Status.RegistryServiceStatus.Port, grpc.WithInsecure())
+	creds := insecure.NewCredentials()
+	conn, err := grpc.Dial(address+catsrc.Status.RegistryServiceStatus.Port, grpc.WithTransportCredentials(creds))
 	require.NoError(t, err, "could not set up test grpc connection")
 	return newRegistryClient(catsrc, conn)
 }

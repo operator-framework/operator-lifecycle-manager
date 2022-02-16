@@ -106,6 +106,10 @@ build: clean $(CMDS)
 $(TCMDS):
 	go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
+# run golangci-lint
+lint:
+	$(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint run
+
 deploy-local:
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
