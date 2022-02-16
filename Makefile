@@ -108,7 +108,7 @@ $(TCMDS):
 
 # run golangci-lint
 lint:
-	$(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint run
+	$(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint run --verbose
 
 deploy-local:
 	mkdir -p build/resources
