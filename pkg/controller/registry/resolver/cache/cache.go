@@ -10,9 +10,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
 const existingOperatorKey = "@existing"
@@ -75,14 +72,24 @@ type OperatorCacheProvider interface {
 	Expire(catalog SourceKey)
 }
 
+type SourcePriorityProvider interface {
+	Priority(SourceKey) int
+}
+
+type constantSourcePriorityProvider int
+
+func (spp constantSourcePriorityProvider) Priority(SourceKey) int {
+	return int(spp)
+}
+
 type Cache struct {
-	logger       logrus.StdLogger
-	sp           SourceProvider
-	catsrcLister v1alpha1.CatalogSourceLister
-	snapshots    map[SourceKey]*snapshotHeader
-	ttl          time.Duration
-	sem          chan struct{}
-	m            sync.RWMutex
+	logger                 logrus.StdLogger
+	sp                     SourceProvider
+	sourcePriorityProvider SourcePriorityProvider
+	snapshots              map[SourceKey]*snapshotHeader
+	ttl                    time.Duration
+	sem                    chan struct{}
+	m                      sync.RWMutex
 }
 
 var _ OperatorCacheProvider = &Cache{}
@@ -95,9 +102,9 @@ func WithLogger(logger logrus.StdLogger) Option {
 	}
 }
 
-func WithCatalogSourceLister(catalogSourceLister v1alpha1.CatalogSourceLister) Option {
+func WithSourcePriorityProvider(spp SourcePriorityProvider) Option {
 	return func(c *Cache) {
-		c.catsrcLister = catalogSourceLister
+		c.sourcePriorityProvider = spp
 	}
 }
 
@@ -112,11 +119,11 @@ func New(sp SourceProvider, options ...Option) *Cache {
 			logger.SetOutput(io.Discard)
 			return logger
 		}(),
-		sp:           sp,
-		catsrcLister: operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister(),
-		snapshots:    make(map[SourceKey]*snapshotHeader),
-		ttl:          5 * time.Minute,
-		sem:          make(chan struct{}, MaxConcurrentSnapshotUpdates),
+		sp:                     sp,
+		sourcePriorityProvider: constantSourcePriorityProvider(0),
+		snapshots:              make(map[SourceKey]*snapshotHeader),
+		ttl:                    5 * time.Minute,
+		sem:                    make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
 
 	for _, opt := range options {
@@ -223,14 +230,10 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 		ctx, cancel := context.WithTimeout(context.Background(), CachePopulateTimeout)
 
 		hdr := snapshotHeader{
-			key:    miss,
-			expiry: now.Add(c.ttl),
-			pop:    cancel,
-		}
-
-		// Ignoring error and treat catsrc priority as 0 if not found.
-		if catsrc, _ := c.catsrcLister.CatalogSources(miss.Namespace).Get(miss.Name); catsrc != nil {
-			hdr.priority = catsrc.Spec.Priority
+			key:      miss,
+			expiry:   now.Add(c.ttl),
+			pop:      cancel,
+			priority: c.sourcePriorityProvider.Priority(miss),
 		}
 
 		hdr.m.Lock()
