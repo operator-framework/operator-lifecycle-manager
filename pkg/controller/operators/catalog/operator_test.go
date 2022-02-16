@@ -1189,8 +1189,8 @@ func TestSyncResolvingNamespace(t *testing.T) {
 				},
 				resolveErr: solver.NotSatisfiable{
 					{
-						Installable: resolver.NewSubscriptionInstallable("a", nil),
-						Constraint:  resolver.PrettyConstraint(solver.Mandatory(), "something"),
+						Variable:   resolver.NewSubscriptionVariable("a", nil),
+						Constraint: resolver.PrettyConstraint(solver.Mandatory(), "something"),
 					},
 				},
 			},

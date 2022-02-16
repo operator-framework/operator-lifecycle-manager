@@ -30,7 +30,7 @@ func (e NotSatisfiable) Error() string {
 }
 
 type Solver interface {
-	Solve(context.Context) ([]Installable, error)
+	Solve(context.Context) ([]Variable, error)
 }
 
 type solver struct {
@@ -46,11 +46,11 @@ const (
 	unknown       = 0
 )
 
-// Solve takes a slice containing all Installables and returns a slice
-// containing only those Installables that were selected for
+// Solve takes a slice containing all Variables and returns a slice
+// containing only those Variables that were selected for
 // installation. If no solution is possible, or if the provided
 // Context times out or is cancelled, an error is returned.
-func (s *solver) Solve(ctx context.Context) (result []Installable, err error) {
+func (s *solver) Solve(ctx context.Context) (result []Variable, err error) {
 	defer func() {
 		// This likely indicates a bug, so discard whatever
 		// return values were produced.
@@ -63,7 +63,7 @@ func (s *solver) Solve(ctx context.Context) (result []Installable, err error) {
 	// teach all constraints to the solver
 	s.litMap.AddConstraints(s.g)
 
-	// collect literals of all mandatory installables to assume as a baseline
+	// collect literals of all mandatory variables to assume as a baseline
 	var assumptions []z.Lit
 	for _, anchor := range s.litMap.AnchorIdentifiers() {
 		assumptions = append(assumptions, s.litMap.LitOf(anchor))
@@ -104,7 +104,7 @@ func (s *solver) Solve(ctx context.Context) (result []Installable, err error) {
 		for w := 0; w <= cs.N(); w++ {
 			s.g.Assume(cs.Leq(w))
 			if s.g.Solve() == satisfiable {
-				return s.litMap.Installables(s.g), nil
+				return s.litMap.Variables(s.g), nil
 			}
 		}
 		// Something is wrong if we can't find a model anymore
@@ -129,7 +129,7 @@ func New(options ...Option) (Solver, error) {
 
 type Option func(s *solver) error
 
-func WithInput(input []Installable) Option {
+func WithInput(input []Variable) Option {
 	return func(s *solver) error {
 		var err error
 		s.litMap, err = newLitMapping(input)

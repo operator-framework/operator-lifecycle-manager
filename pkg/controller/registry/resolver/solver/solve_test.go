@@ -11,25 +11,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type TestInstallable struct {
+type TestVariable struct {
 	identifier  Identifier
 	constraints []Constraint
 }
 
-func (i TestInstallable) Identifier() Identifier {
+func (i TestVariable) Identifier() Identifier {
 	return i.identifier
 }
 
-func (i TestInstallable) Constraints() []Constraint {
+func (i TestVariable) Constraints() []Constraint {
 	return i.constraints
 }
 
-func (i TestInstallable) GoString() string {
+func (i TestVariable) GoString() string {
 	return fmt.Sprintf("%q", i.Identifier())
 }
 
-func installable(id Identifier, constraints ...Constraint) Installable {
-	return TestInstallable{
+func variable(id Identifier, constraints ...Constraint) Variable {
+	return TestVariable{
 		identifier:  id,
 		constraints: constraints,
 	}
@@ -56,8 +56,8 @@ func TestNotSatisfiableError(t *testing.T) {
 			Name: "single failure",
 			Error: NotSatisfiable{
 				AppliedConstraint{
-					Installable: installable("a", Mandatory()),
-					Constraint:  Mandatory(),
+					Variable:   variable("a", Mandatory()),
+					Constraint: Mandatory(),
 				},
 			},
 			String: fmt.Sprintf("constraints not satisfiable: %s",
@@ -67,12 +67,12 @@ func TestNotSatisfiableError(t *testing.T) {
 			Name: "multiple failures",
 			Error: NotSatisfiable{
 				AppliedConstraint{
-					Installable: installable("a", Mandatory()),
-					Constraint:  Mandatory(),
+					Variable:   variable("a", Mandatory()),
+					Constraint: Mandatory(),
 				},
 				AppliedConstraint{
-					Installable: installable("b", Prohibited()),
-					Constraint:  Prohibited(),
+					Variable:   variable("b", Prohibited()),
+					Constraint: Prohibited(),
 				},
 			},
 			String: fmt.Sprintf("constraints not satisfiable: %s, %s",
@@ -87,210 +87,210 @@ func TestNotSatisfiableError(t *testing.T) {
 
 func TestSolve(t *testing.T) {
 	type tc struct {
-		Name         string
-		Installables []Installable
-		Installed    []Identifier
-		Error        error
+		Name      string
+		Variables []Variable
+		Installed []Identifier
+		Error     error
 	}
 
 	for _, tt := range []tc{
 		{
-			Name: "no installables",
+			Name: "no variables",
 		},
 		{
-			Name:         "unnecessary installable is not installed",
-			Installables: []Installable{installable("a")},
+			Name:      "unnecessary variable is not installed",
+			Variables: []Variable{variable("a")},
 		},
 		{
-			Name:         "single mandatory installable is installed",
-			Installables: []Installable{installable("a", Mandatory())},
-			Installed:    []Identifier{"a"},
+			Name:      "single mandatory variable is installed",
+			Variables: []Variable{variable("a", Mandatory())},
+			Installed: []Identifier{"a"},
 		},
 		{
-			Name:         "both mandatory and prohibited produce error",
-			Installables: []Installable{installable("a", Mandatory(), Prohibited())},
+			Name:      "both mandatory and prohibited produce error",
+			Variables: []Variable{variable("a", Mandatory(), Prohibited())},
 			Error: NotSatisfiable{
 				{
-					Installable: installable("a", Mandatory(), Prohibited()),
-					Constraint:  Mandatory(),
+					Variable:   variable("a", Mandatory(), Prohibited()),
+					Constraint: Mandatory(),
 				},
 				{
-					Installable: installable("a", Mandatory(), Prohibited()),
-					Constraint:  Prohibited(),
+					Variable:   variable("a", Mandatory(), Prohibited()),
+					Constraint: Prohibited(),
 				},
 			},
 		},
 		{
 			Name: "dependency is installed",
-			Installables: []Installable{
-				installable("a"),
-				installable("b", Mandatory(), Dependency("a")),
+			Variables: []Variable{
+				variable("a"),
+				variable("b", Mandatory(), Dependency("a")),
 			},
 			Installed: []Identifier{"a", "b"},
 		},
 		{
 			Name: "transitive dependency is installed",
-			Installables: []Installable{
-				installable("a"),
-				installable("b", Dependency("a")),
-				installable("c", Mandatory(), Dependency("b")),
+			Variables: []Variable{
+				variable("a"),
+				variable("b", Dependency("a")),
+				variable("c", Mandatory(), Dependency("b")),
 			},
 			Installed: []Identifier{"a", "b", "c"},
 		},
 		{
 			Name: "both dependencies are installed",
-			Installables: []Installable{
-				installable("a"),
-				installable("b"),
-				installable("c", Mandatory(), Dependency("a"), Dependency("b")),
+			Variables: []Variable{
+				variable("a"),
+				variable("b"),
+				variable("c", Mandatory(), Dependency("a"), Dependency("b")),
 			},
 			Installed: []Identifier{"a", "b", "c"},
 		},
 		{
 			Name: "solution with first dependency is selected",
-			Installables: []Installable{
-				installable("a"),
-				installable("b", Conflict("a")),
-				installable("c", Mandatory(), Dependency("a", "b")),
+			Variables: []Variable{
+				variable("a"),
+				variable("b", Conflict("a")),
+				variable("c", Mandatory(), Dependency("a", "b")),
 			},
 			Installed: []Identifier{"a", "c"},
 		},
 		{
 			Name: "solution with only first dependency is selected",
-			Installables: []Installable{
-				installable("a"),
-				installable("b"),
-				installable("c", Mandatory(), Dependency("a", "b")),
+			Variables: []Variable{
+				variable("a"),
+				variable("b"),
+				variable("c", Mandatory(), Dependency("a", "b")),
 			},
 			Installed: []Identifier{"a", "c"},
 		},
 		{
 			Name: "solution with first dependency is selected (reverse)",
-			Installables: []Installable{
-				installable("a"),
-				installable("b", Conflict("a")),
-				installable("c", Mandatory(), Dependency("b", "a")),
+			Variables: []Variable{
+				variable("a"),
+				variable("b", Conflict("a")),
+				variable("c", Mandatory(), Dependency("b", "a")),
 			},
 			Installed: []Identifier{"b", "c"},
 		},
 		{
 			Name: "two mandatory but conflicting packages",
-			Installables: []Installable{
-				installable("a", Mandatory()),
-				installable("b", Mandatory(), Conflict("a")),
+			Variables: []Variable{
+				variable("a", Mandatory()),
+				variable("b", Mandatory(), Conflict("a")),
 			},
 			Error: NotSatisfiable{
 				{
-					Installable: installable("a", Mandatory()),
-					Constraint:  Mandatory(),
+					Variable:   variable("a", Mandatory()),
+					Constraint: Mandatory(),
 				},
 				{
-					Installable: installable("b", Mandatory(), Conflict("a")),
-					Constraint:  Mandatory(),
+					Variable:   variable("b", Mandatory(), Conflict("a")),
+					Constraint: Mandatory(),
 				},
 				{
-					Installable: installable("b", Mandatory(), Conflict("a")),
-					Constraint:  Conflict("a"),
+					Variable:   variable("b", Mandatory(), Conflict("a")),
+					Constraint: Conflict("a"),
 				},
 			},
 		},
 		{
 			Name: "irrelevant dependencies don't influence search order",
-			Installables: []Installable{
-				installable("a", Dependency("x", "y")),
-				installable("b", Mandatory(), Dependency("y", "x")),
-				installable("x"),
-				installable("y"),
+			Variables: []Variable{
+				variable("a", Dependency("x", "y")),
+				variable("b", Mandatory(), Dependency("y", "x")),
+				variable("x"),
+				variable("y"),
 			},
 			Installed: []Identifier{"b", "y"},
 		},
 		{
 			Name: "cardinality constraint prevents resolution",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
-				installable("x", Mandatory()),
-				installable("y", Mandatory()),
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
+				variable("x", Mandatory()),
+				variable("y", Mandatory()),
 			},
 			Error: NotSatisfiable{
 				{
-					Installable: installable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
-					Constraint:  AtMost(1, "x", "y"),
+					Variable:   variable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
+					Constraint: AtMost(1, "x", "y"),
 				},
 				{
-					Installable: installable("x", Mandatory()),
-					Constraint:  Mandatory(),
+					Variable:   variable("x", Mandatory()),
+					Constraint: Mandatory(),
 				},
 				{
-					Installable: installable("y", Mandatory()),
-					Constraint:  Mandatory(),
+					Variable:   variable("y", Mandatory()),
+					Constraint: Mandatory(),
 				},
 			},
 		},
 		{
 			Name: "cardinality constraint forces alternative",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
-				installable("b", Mandatory(), Dependency("y")),
-				installable("x"),
-				installable("y"),
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("x", "y"), AtMost(1, "x", "y")),
+				variable("b", Mandatory(), Dependency("y")),
+				variable("x"),
+				variable("y"),
 			},
 			Installed: []Identifier{"a", "b", "y"},
 		},
 		{
-			Name: "two dependencies satisfied by one installable",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("y")),
-				installable("b", Mandatory(), Dependency("x", "y")),
-				installable("x"),
-				installable("y"),
+			Name: "two dependencies satisfied by one variable",
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("y")),
+				variable("b", Mandatory(), Dependency("x", "y")),
+				variable("x"),
+				variable("y"),
 			},
 			Installed: []Identifier{"a", "b", "y"},
 		},
 		{
-			Name: "foo two dependencies satisfied by one installable",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("y", "z", "m")),
-				installable("b", Mandatory(), Dependency("x", "y")),
-				installable("x"),
-				installable("y"),
-				installable("z"),
-				installable("m"),
+			Name: "foo two dependencies satisfied by one variable",
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("y", "z", "m")),
+				variable("b", Mandatory(), Dependency("x", "y")),
+				variable("x"),
+				variable("y"),
+				variable("z"),
+				variable("m"),
 			},
 			Installed: []Identifier{"a", "b", "y"},
 		},
 		{
 			Name: "result size larger than minimum due to preference",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("x", "y")),
-				installable("b", Mandatory(), Dependency("y")),
-				installable("x"),
-				installable("y"),
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("x", "y")),
+				variable("b", Mandatory(), Dependency("y")),
+				variable("x"),
+				variable("y"),
 			},
 			Installed: []Identifier{"a", "b", "x", "y"},
 		},
 		{
 			Name: "only the least preferable choice is acceptable",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("a1", "a2")),
-				installable("a1", Conflict("c1"), Conflict("c2")),
-				installable("a2", Conflict("c1")),
-				installable("b", Mandatory(), Dependency("b1", "b2")),
-				installable("b1", Conflict("c1"), Conflict("c2")),
-				installable("b2", Conflict("c1")),
-				installable("c", Mandatory(), Dependency("c1", "c2")),
-				installable("c1"),
-				installable("c2"),
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("a1", "a2")),
+				variable("a1", Conflict("c1"), Conflict("c2")),
+				variable("a2", Conflict("c1")),
+				variable("b", Mandatory(), Dependency("b1", "b2")),
+				variable("b1", Conflict("c1"), Conflict("c2")),
+				variable("b2", Conflict("c1")),
+				variable("c", Mandatory(), Dependency("c1", "c2")),
+				variable("c1"),
+				variable("c2"),
 			},
 			Installed: []Identifier{"a", "a2", "b", "b2", "c", "c2"},
 		},
 		{
-			Name: "preferences respected with multiple dependencies per installable",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("x1", "x2"), Dependency("y1", "y2")),
-				installable("x1"),
-				installable("x2"),
-				installable("y1"),
-				installable("y2"),
+			Name: "preferences respected with multiple dependencies per variable",
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("x1", "x2"), Dependency("y1", "y2")),
+				variable("x1"),
+				variable("x2"),
+				variable("y1"),
+				variable("y2"),
 			},
 			Installed: []Identifier{"a", "x1", "y1"},
 		},
@@ -299,7 +299,7 @@ func TestSolve(t *testing.T) {
 			assert := assert.New(t)
 
 			var traces bytes.Buffer
-			s, err := New(WithInput(tt.Installables), WithTracer(LoggingTracer{Writer: &traces}))
+			s, err := New(WithInput(tt.Variables), WithTracer(LoggingTracer{Writer: &traces}))
 			if err != nil {
 				t.Fatalf("failed to initialize solver: %s", err)
 			}
@@ -314,23 +314,23 @@ func TestSolve(t *testing.T) {
 
 			// Failed constraints are sorted in lexically
 			// increasing order of the identifier of the
-			// constraint's installable, with ties broken
+			// constraint's variable, with ties broken
 			// in favor of the constraint that appears
-			// earliest in the installable's list of
+			// earliest in the variable's list of
 			// constraints.
 			if ns, ok := err.(NotSatisfiable); ok {
 				sort.SliceStable(ns, func(i, j int) bool {
-					if ns[i].Installable.Identifier() != ns[j].Installable.Identifier() {
-						return ns[i].Installable.Identifier() < ns[j].Installable.Identifier()
+					if ns[i].Variable.Identifier() != ns[j].Variable.Identifier() {
+						return ns[i].Variable.Identifier() < ns[j].Variable.Identifier()
 					}
 					var x, y int
-					for ii, c := range ns[i].Installable.Constraints() {
+					for ii, c := range ns[i].Variable.Constraints() {
 						if reflect.DeepEqual(c, ns[i].Constraint) {
 							x = ii
 							break
 						}
 					}
-					for ij, c := range ns[j].Installable.Constraints() {
+					for ij, c := range ns[j].Variable.Constraints() {
 						if reflect.DeepEqual(c, ns[j].Constraint) {
 							y = ij
 							break
@@ -341,8 +341,8 @@ func TestSolve(t *testing.T) {
 			}
 
 			var ids []Identifier
-			for _, installable := range installed {
-				ids = append(ids, installable.Identifier())
+			for _, variable := range installed {
+				ids = append(ids, variable.Identifier())
 			}
 			assert.Equal(tt.Installed, ids)
 			assert.Equal(tt.Error, err)
@@ -355,9 +355,9 @@ func TestSolve(t *testing.T) {
 }
 
 func TestDuplicateIdentifier(t *testing.T) {
-	_, err := New(WithInput([]Installable{
-		installable("a"),
-		installable("a"),
+	_, err := New(WithInput([]Variable{
+		variable("a"),
+		variable("a"),
 	}))
 	assert.Equal(t, DuplicateIdentifier("a"), err)
 }

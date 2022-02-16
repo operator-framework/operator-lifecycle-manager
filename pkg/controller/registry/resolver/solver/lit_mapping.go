@@ -22,43 +22,43 @@ func (inconsistentLitMapping) Error() string {
 }
 
 // litMapping performs translation between the input and output types of
-// Solve (Constraints, Installables, etc.) and the variables that
+// Solve (Constraints, Variables, etc.) and the variables that
 // appear in the SAT formula.
 type litMapping struct {
-	inorder      []Installable
-	installables map[z.Lit]Installable
-	lits         map[Identifier]z.Lit
-	constraints  map[z.Lit]AppliedConstraint
-	c            *logic.C
-	errs         inconsistentLitMapping
+	inorder     []Variable
+	variables   map[z.Lit]Variable
+	lits        map[Identifier]z.Lit
+	constraints map[z.Lit]AppliedConstraint
+	c           *logic.C
+	errs        inconsistentLitMapping
 }
 
 // newLitMapping returns a new litMapping with its state initialized based on
-// the provided slice of Installables. This includes construction of
-// the translation tables between Installables/Constraints and the
+// the provided slice of Variables. This includes construction of
+// the translation tables between Variables/Constraints and the
 // inputs to the underlying solver.
-func newLitMapping(installables []Installable) (*litMapping, error) {
+func newLitMapping(variables []Variable) (*litMapping, error) {
 	d := litMapping{
-		inorder:      installables,
-		installables: make(map[z.Lit]Installable, len(installables)),
-		lits:         make(map[Identifier]z.Lit, len(installables)),
-		constraints:  make(map[z.Lit]AppliedConstraint),
-		c:            logic.NewCCap(len(installables)),
+		inorder:     variables,
+		variables:   make(map[z.Lit]Variable, len(variables)),
+		lits:        make(map[Identifier]z.Lit, len(variables)),
+		constraints: make(map[z.Lit]AppliedConstraint),
+		c:           logic.NewCCap(len(variables)),
 	}
 
 	// First pass to assign lits:
-	for _, installable := range installables {
+	for _, variable := range variables {
 		im := d.c.Lit()
-		if _, ok := d.lits[installable.Identifier()]; ok {
-			return nil, DuplicateIdentifier(installable.Identifier())
+		if _, ok := d.lits[variable.Identifier()]; ok {
+			return nil, DuplicateIdentifier(variable.Identifier())
 		}
-		d.lits[installable.Identifier()] = im
-		d.installables[im] = installable
+		d.lits[variable.Identifier()] = im
+		d.variables[im] = variable
 	}
 
-	for _, installable := range installables {
-		for _, constraint := range installable.Constraints() {
-			m := constraint.apply(d.c, &d, installable.Identifier())
+	for _, variable := range variables {
+		for _, constraint := range variable.Constraints() {
+			m := constraint.apply(d.c, &d, variable.Identifier())
 			if m == z.LitNull {
 				// This constraint doesn't have a
 				// useful representation in the SAT
@@ -67,8 +67,8 @@ func newLitMapping(installables []Installable) (*litMapping, error) {
 			}
 
 			d.constraints[m] = AppliedConstraint{
-				Installable: installable,
-				Constraint:  constraint,
+				Variable:   variable,
+				Constraint: constraint,
 			}
 		}
 	}
@@ -76,26 +76,26 @@ func newLitMapping(installables []Installable) (*litMapping, error) {
 	return &d, nil
 }
 
-// LitOf returns the positive literal corresponding to the Installable
+// LitOf returns the positive literal corresponding to the Variable
 // with the given Identifier.
 func (d *litMapping) LitOf(id Identifier) z.Lit {
 	m, ok := d.lits[id]
 	if ok {
 		return m
 	}
-	d.errs = append(d.errs, fmt.Errorf("installable %q referenced but not provided", id))
+	d.errs = append(d.errs, fmt.Errorf("variable %q referenced but not provided", id))
 	return z.LitNull
 }
 
-// InstallableOf returns the Installable corresponding to the provided
-// literal, or a zeroInstallable if no such Installable exists.
-func (d *litMapping) InstallableOf(m z.Lit) Installable {
-	i, ok := d.installables[m]
+// VariableOf returns the Variable corresponding to the provided
+// literal, or a zeroVariable if no such Variable exists.
+func (d *litMapping) VariableOf(m z.Lit) Variable {
+	i, ok := d.variables[m]
 	if ok {
 		return i
 	}
-	d.errs = append(d.errs, fmt.Errorf("no installable corresponding to %s", m))
-	return zeroInstallable{}
+	d.errs = append(d.errs, fmt.Errorf("no variable corresponding to %s", m))
+	return zeroVariable{}
 }
 
 // ConstraintOf returns the constraint application corresponding to
@@ -107,8 +107,8 @@ func (d *litMapping) ConstraintOf(m z.Lit) AppliedConstraint {
 	}
 	d.errs = append(d.errs, fmt.Errorf("no constraint corresponding to %s", m))
 	return AppliedConstraint{
-		Installable: zeroInstallable{},
-		Constraint:  zeroConstraint{},
+		Variable:   zeroVariable{},
+		Constraint: zeroConstraint{},
 	}
 }
 
@@ -158,14 +158,14 @@ func (d *litMapping) CardinalityConstrainer(g inter.Adder, ms []z.Lit) *logic.Ca
 }
 
 // AnchorIdentifiers returns a slice containing the Identifiers of
-// every Installable with at least one "anchor" constraint, in the
+// every Variable with at least one "anchor" constraint, in the
 // order they appear in the input.
 func (d *litMapping) AnchorIdentifiers() []Identifier {
 	var ids []Identifier
-	for _, installable := range d.inorder {
-		for _, constraint := range installable.Constraints() {
+	for _, variable := range d.inorder {
+		for _, constraint := range variable.Constraints() {
 			if constraint.anchor() {
-				ids = append(ids, installable.Identifier())
+				ids = append(ids, variable.Identifier())
 				break
 			}
 		}
@@ -173,8 +173,8 @@ func (d *litMapping) AnchorIdentifiers() []Identifier {
 	return ids
 }
 
-func (d *litMapping) Installables(g inter.S) []Installable {
-	var result []Installable
+func (d *litMapping) Variables(g inter.S) []Variable {
+	var result []Variable
 	for _, i := range d.inorder {
 		if g.Value(d.LitOf(i.Identifier())) {
 			result = append(result, i)

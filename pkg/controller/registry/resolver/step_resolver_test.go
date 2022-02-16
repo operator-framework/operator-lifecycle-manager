@@ -125,12 +125,12 @@ func TestResolver(t *testing.T) {
 			out: resolverTestOut{
 				solverError: solver.NotSatisfiable{
 					{
-						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
+						Variable:   NewSubscriptionVariable("a", nil),
+						Constraint: PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 					{
-						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found from catalog catsrc in namespace catsrc-namespace referenced by subscription a-alpha"),
+						Variable:   NewSubscriptionVariable("a", nil),
+						Constraint: PrettyConstraint(solver.Dependency(), "no operators found from catalog catsrc in namespace catsrc-namespace referenced by subscription a-alpha"),
 					},
 				},
 			},
@@ -148,12 +148,12 @@ func TestResolver(t *testing.T) {
 			out: resolverTestOut{
 				solverError: solver.NotSatisfiable{
 					{
-						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
+						Variable:   NewSubscriptionVariable("a", nil),
+						Constraint: PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 					{
-						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found in package a in the catalog referenced by subscription a-alpha"),
+						Variable:   NewSubscriptionVariable("a", nil),
+						Constraint: PrettyConstraint(solver.Dependency(), "no operators found in package a in the catalog referenced by subscription a-alpha"),
 					},
 				},
 			},
@@ -171,12 +171,12 @@ func TestResolver(t *testing.T) {
 			out: resolverTestOut{
 				solverError: solver.NotSatisfiable{
 					{
-						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
+						Variable:   NewSubscriptionVariable("a", nil),
+						Constraint: PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 					{
-						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found in channel alpha of package a in the catalog referenced by subscription a-alpha"),
+						Variable:   NewSubscriptionVariable("a", nil),
+						Constraint: PrettyConstraint(solver.Dependency(), "no operators found in channel alpha of package a in the catalog referenced by subscription a-alpha"),
 					},
 				},
 			},
@@ -194,12 +194,12 @@ func TestResolver(t *testing.T) {
 			out: resolverTestOut{
 				solverError: solver.NotSatisfiable{
 					{
-						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
+						Variable:   NewSubscriptionVariable("a", nil),
+						Constraint: PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 					{
-						Installable: NewSubscriptionInstallable("a", nil),
-						Constraint:  PrettyConstraint(solver.Dependency(), "no operators found with name notfound in channel alpha of package a in the catalog referenced by subscription a-alpha"),
+						Variable:   NewSubscriptionVariable("a", nil),
+						Constraint: PrettyConstraint(solver.Dependency(), "no operators found with name notfound in channel alpha of package a in the catalog referenced by subscription a-alpha"),
 					},
 				},
 			},
@@ -351,19 +351,19 @@ func TestResolver(t *testing.T) {
 				subs:    []*v1alpha1.Subscription{},
 				solverError: solver.NotSatisfiable([]solver.AppliedConstraint{
 					{
-						Installable: NewSubscriptionInstallable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),
-						Constraint:  PrettyConstraint(solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"), "subscription a-alpha requires catsrc/catsrc-namespace/alpha/a.v1"),
+						Variable:   NewSubscriptionVariable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),
+						Constraint: PrettyConstraint(solver.Dependency("catsrc/catsrc-namespace/alpha/a.v1"), "subscription a-alpha requires catsrc/catsrc-namespace/alpha/a.v1"),
 					},
 					{
-						Installable: &BundleInstallable{
+						Variable: &BundleVariable{
 							identifier:  "catsrc/catsrc-namespace/alpha/a.v1",
 							constraints: []solver.Constraint{solver.Dependency()},
 						},
 						Constraint: PrettyConstraint(solver.Dependency(), "bundle a.v1 requires an operator providing an API with group: g, version: v, kind: k"),
 					},
 					{
-						Installable: NewSubscriptionInstallable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),
-						Constraint:  PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
+						Variable:   NewSubscriptionVariable("a", []solver.Identifier{"catsrc/catsrc-namespace/alpha/a.v1"}),
+						Constraint: PrettyConstraint(solver.Mandatory(), "subscription a-alpha exists"),
 					},
 				}),
 			},
