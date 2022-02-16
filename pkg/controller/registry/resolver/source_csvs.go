@@ -122,7 +122,10 @@ func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
 		s.logger.Printf("considered csvs without properties annotation during resolution: %v", names)
 	}
 
-	return &cache.Snapshot{Entries: entries}, nil
+	return &cache.Snapshot{
+		Entries: entries,
+		Valid:   cache.ValidOnce(),
+	}, nil
 }
 
 func (s *csvSource) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) ([]*api.Property, error) {
