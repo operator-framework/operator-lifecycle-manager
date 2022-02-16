@@ -505,7 +505,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	}
 
 	satResolver := SatResolver{
-		cache: cache.New(ssp, cache.WithCatalogSourceLister(&stubCatalogSourceLister{
+		cache: cache.New(ssp, cache.WithSourcePriorityProvider(catsrcPriorityProvider{lister: &stubCatalogSourceLister{
 			catsrcs: []*v1alpha1.CatalogSource{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -517,7 +517,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 					},
 				},
 			},
-		})),
+		}})),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
@@ -545,7 +545,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	}
 
 	satResolver = SatResolver{
-		cache: cache.New(ssp, cache.WithCatalogSourceLister(&stubCatalogSourceLister{
+		cache: cache.New(ssp, cache.WithSourcePriorityProvider(catsrcPriorityProvider{lister: &stubCatalogSourceLister{
 			catsrcs: []*v1alpha1.CatalogSource{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -566,7 +566,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 					},
 				},
 			},
-		})),
+		}})),
 	}
 
 	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)

@@ -13,7 +13,6 @@ import (
 
 	"github.com/operator-framework/api/pkg/constraints"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
@@ -32,9 +31,9 @@ type SatResolver struct {
 	systemConstraintsProvider solver.ConstraintProvider
 }
 
-func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger) *SatResolver {
+func NewDefaultSatResolver(rcp cache.SourceProvider, sourcePriorityProvider cache.SourcePriorityProvider, logger logrus.FieldLogger) *SatResolver {
 	return &SatResolver{
-		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
+		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithSourcePriorityProvider(sourcePriorityProvider)),
 		log:   logger,
 		pc: &predicateConverter{
 			celEnv: constraints.NewCelEnvironment(),

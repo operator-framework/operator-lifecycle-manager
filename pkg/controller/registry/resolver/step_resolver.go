@@ -45,6 +45,18 @@ type OperatorStepResolver struct {
 
 var _ StepResolver = &OperatorStepResolver{}
 
+type catsrcPriorityProvider struct {
+	lister v1alpha1listers.CatalogSourceLister
+}
+
+func (pp catsrcPriorityProvider) Priority(key cache.SourceKey) int {
+	catsrc, err := pp.lister.CatalogSources(key.Namespace).Get(key.Name)
+	if err != nil {
+		return 0
+	}
+	return catsrc.Spec.Priority
+}
+
 func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface,
 	globalCatalogNamespace string, provider RegistryClientProvider, log logrus.FieldLogger) *OperatorStepResolver {
 	stepResolver := &OperatorStepResolver{
@@ -53,7 +65,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(SourceProviderFromRegistryClientProvider(provider, log), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
+		satResolver:            NewDefaultSatResolver(SourceProviderFromRegistryClientProvider(provider, log), catsrcPriorityProvider{lister: lister.OperatorsV1alpha1().CatalogSourceLister()}, log),
 		log:                    log,
 	}
 
