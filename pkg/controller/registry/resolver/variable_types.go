@@ -9,34 +9,34 @@ import (
 	operatorregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
-type BundleInstallable struct {
+type BundleVariable struct {
 	identifier  solver.Identifier
 	constraints []solver.Constraint
 
 	Replaces string
 }
 
-func (i BundleInstallable) Identifier() solver.Identifier {
+func (i BundleVariable) Identifier() solver.Identifier {
 	return i.identifier
 }
 
-func (i BundleInstallable) Constraints() []solver.Constraint {
+func (i BundleVariable) Constraints() []solver.Constraint {
 	return i.constraints
 }
 
-func (i *BundleInstallable) MakeProhibited() {
+func (i *BundleVariable) MakeProhibited() {
 	i.constraints = append(i.constraints, solver.Prohibited())
 }
 
-func (i *BundleInstallable) AddConflict(id solver.Identifier) {
+func (i *BundleVariable) AddConflict(id solver.Identifier) {
 	i.constraints = append(i.constraints, solver.Conflict(id))
 }
 
-func (i *BundleInstallable) AddConstraint(c solver.Constraint) {
+func (i *BundleVariable) AddConstraint(c solver.Constraint) {
 	i.constraints = append(i.constraints, c)
 }
 
-func (i *BundleInstallable) BundleSourceInfo() (string, string, cache.SourceKey, error) {
+func (i *BundleVariable) BundleSourceInfo() (string, string, cache.SourceKey, error) {
 	info := strings.Split(i.identifier.String(), "/")
 	// This should be enforced by Kube naming constraints
 	if len(info) != 4 {
@@ -55,9 +55,9 @@ func bundleID(bundle, channel string, catalog cache.SourceKey) solver.Identifier
 	return solver.IdentifierFromString(fmt.Sprintf("%s/%s/%s", catalog.String(), channel, bundle))
 }
 
-func NewBundleInstallableFromOperator(o *cache.Entry) (BundleInstallable, error) {
+func NewBundleVariableFromOperator(o *cache.Entry) (BundleVariable, error) {
 	if o.SourceInfo == nil {
-		return BundleInstallable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Name)
+		return BundleVariable{}, fmt.Errorf("unable to resolve the source of bundle %s", o.Name)
 	}
 	id := bundleID(o.Name, o.Channel(), o.SourceInfo.Catalog)
 	var constraints []solver.Constraint
@@ -79,27 +79,27 @@ func NewBundleInstallableFromOperator(o *cache.Entry) (BundleInstallable, error)
 			break
 		}
 	}
-	return BundleInstallable{
+	return BundleVariable{
 		identifier:  id,
 		constraints: constraints,
 	}, nil
 }
 
-type GenericInstallable struct {
+type GenericVariable struct {
 	identifier  solver.Identifier
 	constraints []solver.Constraint
 }
 
-func (i GenericInstallable) Identifier() solver.Identifier {
+func (i GenericVariable) Identifier() solver.Identifier {
 	return i.identifier
 }
 
-func (i GenericInstallable) Constraints() []solver.Constraint {
+func (i GenericVariable) Constraints() []solver.Constraint {
 	return i.constraints
 }
 
-func NewInvalidSubscriptionInstallable(name string, reason string) solver.Installable {
-	return GenericInstallable{
+func NewInvalidSubscriptionVariable(name string, reason string) solver.Variable {
+	return GenericVariable{
 		identifier: solver.IdentifierFromString(fmt.Sprintf("subscription:%s", name)),
 		constraints: []solver.Constraint{
 			PrettyConstraint(solver.Mandatory(), fmt.Sprintf("subscription %s exists", name)),
@@ -108,8 +108,8 @@ func NewInvalidSubscriptionInstallable(name string, reason string) solver.Instal
 	}
 }
 
-func NewSubscriptionInstallable(name string, dependencies []solver.Identifier) solver.Installable {
-	result := GenericInstallable{
+func NewSubscriptionVariable(name string, dependencies []solver.Identifier) solver.Variable {
+	result := GenericVariable{
 		identifier: solver.IdentifierFromString(fmt.Sprintf("subscription:%s", name)),
 		constraints: []solver.Constraint{
 			PrettyConstraint(solver.Mandatory(), fmt.Sprintf("subscription %s exists", name)),
@@ -136,9 +136,9 @@ func NewSubscriptionInstallable(name string, dependencies []solver.Identifier) s
 	return result
 }
 
-func NewSingleAPIProviderInstallable(group, version, kind string, providers []solver.Identifier) solver.Installable {
+func NewSingleAPIProviderVariable(group, version, kind string, providers []solver.Identifier) solver.Variable {
 	gvk := fmt.Sprintf("%s (%s/%s)", kind, group, version)
-	result := GenericInstallable{
+	result := GenericVariable{
 		identifier: solver.IdentifierFromString(gvk),
 	}
 	if len(providers) <= 1 {
@@ -157,8 +157,8 @@ func NewSingleAPIProviderInstallable(group, version, kind string, providers []so
 	return result
 }
 
-func NewSinglePackageInstanceInstallable(pkg string, providers []solver.Identifier) solver.Installable {
-	result := GenericInstallable{
+func NewSinglePackageInstanceVariable(pkg string, providers []solver.Identifier) solver.Variable {
+	result := GenericVariable{
 		identifier: solver.IdentifierFromString(pkg),
 	}
 	if len(providers) <= 1 {

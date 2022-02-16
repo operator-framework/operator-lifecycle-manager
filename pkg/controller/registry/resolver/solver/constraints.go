@@ -9,7 +9,7 @@ import (
 )
 
 // Constraint implementations limit the circumstances under which a
-// particular Installable can appear in a solution.
+// particular Variable can appear in a solution.
 type Constraint interface {
 	String(subject Identifier) string
 	apply(c *logic.C, lm *litMapping, subject Identifier) z.Lit
@@ -39,16 +39,16 @@ func (zeroConstraint) anchor() bool {
 }
 
 // AppliedConstraint values compose a single Constraint with the
-// Installable it applies to.
+// Variable it applies to.
 type AppliedConstraint struct {
-	Installable Installable
-	Constraint  Constraint
+	Variable   Variable
+	Constraint Constraint
 }
 
 // String implements fmt.Stringer and returns a human-readable message
 // representing the receiver.
 func (a AppliedConstraint) String() string {
-	return a.Constraint.String(a.Installable.Identifier())
+	return a.Constraint.String(a.Variable.Identifier())
 }
 
 type mandatory struct{}
@@ -70,7 +70,7 @@ func (constraint mandatory) anchor() bool {
 }
 
 // Mandatory returns a Constraint that will permit only solutions that
-// contain a particular Installable.
+// contain a particular Variable.
 func Mandatory() Constraint {
 	return mandatory{}
 }
@@ -94,8 +94,8 @@ func (constraint prohibited) anchor() bool {
 }
 
 // Prohibited returns a Constraint that will reject any solution that
-// contains a particular Installable. Callers may also decide to omit
-// an Installable from input to Solve rather than apply such a
+// contains a particular Variable. Callers may also decide to omit
+// an Variable from input to Solve rather than apply such a
 // Constraint.
 func Prohibited() Constraint {
 	return prohibited{}
@@ -131,8 +131,8 @@ func (constraint dependency) anchor() bool {
 }
 
 // Dependency returns a Constraint that will only permit solutions
-// containing a given Installable on the condition that at least one
-// of the Installables identified by the given Identifiers also
+// containing a given Variable on the condition that at least one
+// of the Variables identified by the given Identifiers also
 // appears in the solution. Identifiers appearing earlier in the
 // argument list have higher preference than those appearing later.
 func Dependency(ids ...Identifier) Constraint {
@@ -158,7 +158,7 @@ func (constraint conflict) anchor() bool {
 }
 
 // Conflict returns a Constraint that will permit solutions containing
-// either the constrained Installable, the Installable identified by
+// either the constrained Variable, the Variable identified by
 // the given Identifier, or neither, but not both.
 func Conflict(id Identifier) Constraint {
 	return conflict(id)
@@ -194,7 +194,7 @@ func (constraint leq) anchor() bool {
 }
 
 // AtMost returns a Constraint that forbids solutions that contain
-// more than n of the Installables identified by the given
+// more than n of the Variables identified by the given
 // Identifiers.
 func AtMost(n int, ids ...Identifier) Constraint {
 	return leq{

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-var BenchmarkInput = func() []Installable {
+var BenchmarkInput = func() []Variable {
 	const (
 		length      = 256
 		seed        = 9
@@ -22,7 +22,7 @@ var BenchmarkInput = func() []Installable {
 		return Identifier(strconv.Itoa(i))
 	}
 
-	installable := func(i int) TestInstallable {
+	variable := func(i int) TestVariable {
 		var c []Constraint
 		if rand.Float64() < pMandatory {
 			c = append(c, Mandatory())
@@ -49,16 +49,16 @@ var BenchmarkInput = func() []Installable {
 				c = append(c, Conflict(id(y)))
 			}
 		}
-		return TestInstallable{
+		return TestVariable{
 			identifier:  id(i),
 			constraints: c,
 		}
 	}
 
 	rand.Seed(seed)
-	result := make([]Installable, length)
+	result := make([]Variable, length)
 	for i := range result {
-		result[i] = installable(i)
+		result[i] = variable(i)
 	}
 	return result
 }()

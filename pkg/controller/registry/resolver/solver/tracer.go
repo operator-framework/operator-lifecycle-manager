@@ -6,7 +6,7 @@ import (
 )
 
 type SearchPosition interface {
-	Installables() []Installable
+	Variables() []Variable
 	Conflicts() []AppliedConstraint
 }
 
@@ -25,7 +25,7 @@ type LoggingTracer struct {
 
 func (t LoggingTracer) Trace(p SearchPosition) {
 	fmt.Fprintf(t.Writer, "---\nAssumptions:\n")
-	for _, i := range p.Installables() {
+	for _, i := range p.Variables() {
 		fmt.Fprintf(t.Writer, "- %s\n", i.Identifier())
 	}
 	fmt.Fprintf(t.Writer, "Conflicts:\n")

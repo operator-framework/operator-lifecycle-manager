@@ -1,6 +1,6 @@
 package solver
 
-// Identifier values uniquely identify particular Installables within
+// Identifier values uniquely identify particular Variables within
 // the input to a single call to Solve.
 type Identifier string
 
@@ -14,27 +14,27 @@ func IdentifierFromString(s string) Identifier {
 	return Identifier(s)
 }
 
-// Installable values are the basic unit of problems and solutions
+// Variable values are the basic unit of problems and solutions
 // understood by this package.
-type Installable interface {
+type Variable interface {
 	// Identifier returns the Identifier that uniquely identifies
-	// this Installable among all other Installables in a given
+	// this Variable among all other Variables in a given
 	// problem.
 	Identifier() Identifier
 	// Constraints returns the set of constraints that apply to
-	// this Installable.
+	// this Variable.
 	Constraints() []Constraint
 }
 
-// zeroInstallable is returned by InstallableOf in error cases.
-type zeroInstallable struct{}
+// zeroVariable is returned by VariableOf in error cases.
+type zeroVariable struct{}
 
-var _ Installable = zeroInstallable{}
+var _ Variable = zeroVariable{}
 
-func (zeroInstallable) Identifier() Identifier {
+func (zeroVariable) Identifier() Identifier {
 	return ""
 }
 
-func (zeroInstallable) Constraints() []Constraint {
+func (zeroVariable) Constraints() []Constraint {
 	return nil
 }
