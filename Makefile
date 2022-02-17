@@ -29,6 +29,8 @@ GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 GIT_COMMIT := $(shell git rev-parse HEAD)
+GIT_VERSION := $(shell git describe --dirty --tags --always)
+GIT_TAG := $(shell git describe --tags --abbrev=0)
 
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
@@ -98,7 +100,7 @@ build-util: bin/cpb
 bin/cpb: FORCE
 	CGO_ENABLED=0 $(arch_flags) go build $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
 
-$(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
+$(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=$(GIT_VERSION)"
 $(CMDS):
 	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags $(BUILD_TAGS) -o bin/$(shell basename $@) $@
 
@@ -222,9 +224,7 @@ verify-manifests: manifests
 
 verify: verify-codegen verify-mockgen verify-manifests
 
-# before running release, bump the version in OLM_VERSION and push to master,
-# then tag those builds in quay with the version in OLM_VERSION
-release: ver=v$(shell cat OLM_VERSION)
+release: ver=$(GIT_TAG)
 release: manifests
 	@echo "Generating the $(ver) release"
 	docker pull $(IMAGE_REPO):$(ver)
