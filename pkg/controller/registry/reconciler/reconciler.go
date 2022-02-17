@@ -112,6 +112,10 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, saName strin
 	}
 
 	readOnlyRootFilesystem := false
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations["operatorframework.io/catalog-source-image"] = source.Spec.Image
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

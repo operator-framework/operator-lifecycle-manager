@@ -332,7 +332,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
-			pod := decorated.Pod(tt.in.catsrc.GetName())
+			pod := decorated.Pod(tt.in.catsrc.GetName(), "")
 			service := decorated.Service()
 			sa := decorated.ServiceAccount()
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
@@ -422,7 +422,7 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
-			pod := decorated.Pod(tt.in.catsrc.GetName())
+			pod := decorated.Pod(tt.in.catsrc.GetName(), "")
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
 			require.NoError(t, podErr)
@@ -637,6 +637,7 @@ func TestUpdatePodByDigest(t *testing.T) {
 	}
 
 	for i, tt := range table {
-		require.Equal(t, tt.result, imageChanged(tt.updatePod, tt.servingPods), table[i].description)
+		changed, _ := imageChanged(tt.updatePod, tt.servingPods)
+		require.Equal(t, tt.result, changed, table[i].description)
 	}
 }

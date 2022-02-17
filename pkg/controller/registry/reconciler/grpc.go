@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"runtime/debug"
 	"time"
 
 	"github.com/pkg/errors"
@@ -121,8 +122,11 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 	}
 }
 
-func (s *grpcCatalogSourceDecorator) Pod(saName string) *corev1.Pod {
-	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, saName, s.Labels(), s.Annotations(), 5, 10)
+func (s *grpcCatalogSourceDecorator) Pod(saName string, imageID string) *corev1.Pod {
+	if imageID == "" {
+		imageID = s.Spec.Image
+	}
+	pod := Pod(s.CatalogSource, "registry-server", imageID, saName, s.Labels(), s.Annotations(), 5, 10)
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
 	return pod
 }
@@ -177,9 +181,16 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(source grpcC
 		return nil
 	}
 	found := []*corev1.Pod{}
-	newPod := source.Pod(saName)
 	for _, p := range pods {
-		if p.Spec.Containers[0].Image == source.Spec.Image && podHashMatch(p, newPod) {
+		// we know the new pod's image (tag-based) won't match the existing pod's image (sha-based),
+		// so create a dummy "new" pod that uses the same image as the existing pod, so we can compare
+		// based on all the other characteristics.
+		newPod := source.Pod(saName, p.Spec.Containers[0].Image)
+		//if p.Spec.Containers[0].Image == source.Spec.Image && podHashMatch(p, newPod) {
+		// force the image field to match during the hash check, because it won't actually match
+		// (it is going to be tag based, whereas the catalog pod will be SHA based).
+		// rely on the pod's annotations to confirm the pods are functionally equivalent, instead.
+		if p.Annotations != nil && p.Annotations["operatorframework.io/catalog-source-image"] == source.Spec.Image && podHashMatch(p, newPod) {
 			found = append(found, p)
 		}
 	}
@@ -201,14 +212,14 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	if err != nil && !k8serror.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "error ensuring service account: %s", source.GetName())
 	}
-	if err := c.ensurePod(source, sa.GetName(), overwritePod); err != nil {
-		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(sa.Name).GetName())
+	if err := c.ensurePod(source, sa.GetName(), overwritePod, false, ""); err != nil {
+		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(sa.Name, "").GetName())
 	}
 	if err := c.ensureUpdatePod(source, sa.Name); err != nil {
 		if _, ok := err.(UpdateNotReadyErr); ok {
 			return err
 		}
-		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod(sa.Name).GetName())
+		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod(sa.Name, "").GetName())
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
@@ -243,7 +254,7 @@ func isRegistryServiceStatusValid(source *grpcCatalogSourceDecorator) bool {
 	return true
 }
 
-func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, saName string, overwrite bool) error {
+func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, saName string, overwrite, pullAlways bool, imageID string) error {
 	// currentLivePods refers to the currently live instances of the catalog source
 	currentLivePods := c.currentPods(source)
 	if len(currentLivePods) > 0 {
@@ -256,9 +267,13 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, sa
 			}
 		}
 	}
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), source.Pod(saName), metav1.CreateOptions{})
+	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), source.Pod(saName, imageID), metav1.CreateOptions{})
+
+	logrus.Infof("Creating new pod, overwrite=%v %v\n", overwrite, source.Pod(saName, imageID).GetGenerateName())
+	debug.PrintStack()
+
 	if err != nil {
-		return errors.Wrapf(err, "error creating new pod: %s", source.Pod(saName).GetGenerateName())
+		return errors.Wrapf(err, "error creating new pod: %s", source.Pod(saName, imageID).GetGenerateName())
 	}
 
 	return nil
@@ -275,7 +290,9 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 
 	if source.Update() && len(currentUpdatePods) == 0 {
 		logrus.WithField("CatalogSource", source.GetName()).Debugf("catalog update required at %s", time.Now().String())
-		pod, err := c.createUpdatePod(source, saName)
+
+		// create a probe pod with pullAlways so we can see if we get a new image SHA on the new pod
+		pod, err := c.createUpdatePod(source, saName, "")
 		if err != nil {
 			return errors.Wrapf(err, "creating update catalog source pod")
 		}
@@ -300,7 +317,27 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 
 	for _, updatePod := range currentUpdatePods {
 		// if container imageID IDs are different, switch the serving pods
-		if imageChanged(updatePod, currentLivePods) {
+		if changed, newImageID := imageChanged(updatePod, currentLivePods); changed {
+			logrus.Infof("Detected image change, new imageid: %s", newImageID)
+			// is the existing updatePod a probe-pod? (uses pullAlways and a tag).  If so,
+			// delete it and create a new updatePod that uses pullIfNotPresent, and the latest SHA
+			if updatePod.Spec.Containers[0].ImagePullPolicy == corev1.PullAlways {
+				logrus.Infof("Existing pod is pullaways, replacing with ifnotpresent: %s", newImageID)
+				err := c.removePods(currentUpdatePods, source.GetNamespace())
+				if err != nil {
+					return errors.Wrapf(err, "detected imageID change: error deleting old catalog source pod")
+				}
+
+				pod, err := c.createUpdatePod(source, saName, newImageID)
+				if err != nil {
+					return errors.Wrapf(err, "creating update catalog source pod")
+				}
+				source.SetLastUpdateTime()
+				return UpdateNotReadyErr{catalogName: source.GetName(), podName: pod.GetName()}
+			}
+
+			// the existing updatePod is a pullIfNotPresent, so promote it and use it.
+			logrus.Infof("promoting catalog pod %s", updatePod.Name)
 			err := c.promoteCatalog(updatePod, source.GetName())
 			if err != nil {
 				return fmt.Errorf("detected imageID change: error during update: %s", err)
@@ -383,14 +420,14 @@ func HashServiceSpec(spec corev1.ServiceSpec) string {
 }
 
 // createUpdatePod is an internal method that creates a pod using the latest catalog source.
-func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator, saName string) (*corev1.Pod, error) {
+func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator, saName string, imageID string) (*corev1.Pod, error) {
 	// remove label from pod to ensure service does not accidentally route traffic to the pod
-	p := source.Pod(saName)
+	p := source.Pod(saName, imageID)
 	p = swapLabels(p, "", source.Name)
 
 	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), p, metav1.CreateOptions{})
 	if err != nil {
-		logrus.WithField("pod", source.Pod(saName).GetName()).Warn("couldn't create new catalogsource pod")
+		logrus.WithField("pod", source.Pod(saName, imageID).GetName()).Warn("couldn't create new catalogsource pod")
 		return nil, err
 	}
 
@@ -398,21 +435,21 @@ func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorat
 }
 
 // checkUpdatePodDigest checks update pod to get Image ID and see if it matches the serving (live) pod ImageID
-func imageChanged(updatePod *corev1.Pod, servingPods []*corev1.Pod) bool {
+func imageChanged(updatePod *corev1.Pod, servingPods []*corev1.Pod) (bool, string) {
 	updatedCatalogSourcePodImageID := imageID(updatePod)
 	if updatedCatalogSourcePodImageID == "" {
 		logrus.WithField("CatalogSource", updatePod.GetName()).Warn("pod status unknown, cannot get the pod's imageID")
-		return false
+		return false, ""
 	}
 	for _, servingPod := range servingPods {
 		servingCatalogSourcePodImageID := imageID(servingPod)
 		if updatedCatalogSourcePodImageID != servingCatalogSourcePodImageID {
 			logrus.WithField("CatalogSource", servingPod.GetName()).Infof("catalog image changed: serving pod %s update pod %s", servingCatalogSourcePodImageID, updatedCatalogSourcePodImageID)
-			return true
+			return true, updatedCatalogSourcePodImageID
 		}
 	}
 
-	return false
+	return false, ""
 }
 
 // imageID returns the ImageID of the primary catalog source container or an empty string if the image ID isn't available yet.
