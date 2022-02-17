@@ -20,4 +20,3 @@ jobs:
         with:
           version: "v1.43"
           skip-go-installation: true
-          skip-pkg-cache: true
