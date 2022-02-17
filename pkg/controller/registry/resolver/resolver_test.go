@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/operator-framework/api/pkg/constraints"
-	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
@@ -32,6 +31,25 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+// tests can directly specify fixtures as cache entries instead of depending on this translation
+func csvSnapshotOrPanic(ns string, subs []*v1alpha1.Subscription, csvs ...*v1alpha1.ClusterServiceVersion) *cache.Snapshot {
+	var entries []*cache.Entry
+	for _, csv := range csvs {
+		entry, err := newEntryFromV1Alpha1CSV(csv)
+		if err != nil {
+			panic(err)
+		}
+		entry.SourceInfo.Catalog = cache.NewVirtualSourceKey(ns)
+		for _, sub := range subs {
+			if sub.Status.InstalledCSV == entry.Name {
+				entry.SourceInfo.Subscription = sub
+			}
+		}
+		entries = append(entries, entry)
+	}
+	return &cache.Snapshot{Entries: entries}
+}
+
 func TestSolveOperators(t *testing.T) {
 	APISet := cache.APISet{testGVKKey: struct{}{}}
 	Provides := APISet
@@ -40,7 +58,6 @@ func TestSolveOperators(t *testing.T) {
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
@@ -53,11 +70,12 @@ func TestSolveOperators(t *testing.T) {
 					genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	assert.NoError(t, err)
 
 	expected := cache.OperatorSet{
@@ -154,11 +172,12 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 				catalog: &cache.Snapshot{
 					Entries: testCase.snapshotEntries,
 				},
+				cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, testCase.subs, testCase.csvs...),
 			}),
 			log:                       logrus.New(),
 			systemConstraintsProvider: testCase.systemConstraintsProvider,
 		}
-		operators, err := satResolver.SolveOperators([]string{namespace}, testCase.csvs, testCase.subs)
+		operators, err := satResolver.SolveOperators([]string{namespace}, testCase.subs)
 
 		if testCase.err != "" {
 			require.Containsf(t, err.Error(), testCase.err, "Test %s failed", testCase.title)
@@ -190,41 +209,8 @@ func TestDisjointChannelGraph(t *testing.T) {
 		log: logrus.New(),
 	}
 
-	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	_, err := satResolver.SolveOperators([]string{namespace}, subs)
 	require.Error(t, err, "a unique replacement chain within a channel is required to determine the relative order between channel entries, but 2 replacement chains were found in channel \"alpha\" of package \"packageA\": packageA.side1.v2...packageA.side1.v1, packageA.side2.v2...packageA.side2.v1")
-}
-
-func TestPropertiesAnnotationHonored(t *testing.T) {
-	const (
-		namespace = "olm"
-	)
-	community := cache.SourceKey{Name: "community", Namespace: namespace}
-
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", nil, nil, nil, nil)
-	csv.Annotations = map[string]string{"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"packageA","version":"1.0.0"}}]}`}
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
-
-	sub := newSub(namespace, "packageB", "alpha", community)
-	subs := []*v1alpha1.Subscription{sub}
-
-	b := genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, []*api.Dependency{{Type: "olm.package", Value: `{"packageName":"packageA","version":"1.0.0"}`}}, "", false)
-
-	satResolver := SatResolver{
-		cache: cache.New(cache.StaticSourceProvider{
-			community: &cache.Snapshot{
-				Entries: []*cache.Entry{b},
-			},
-		}),
-		log: logrus.New(),
-	}
-
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
-	assert.NoError(t, err)
-
-	expected := cache.OperatorSet{
-		"packageB.v1": b,
-	}
-	require.EqualValues(t, expected, operators)
 }
 
 func TestSolveOperators_MultipleChannels(t *testing.T) {
@@ -235,7 +221,6 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
@@ -249,11 +234,12 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 					genOperator("packageB.v1", "1.0.0", "", "packageB", "beta", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
@@ -272,7 +258,6 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
@@ -290,11 +275,12 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 	for _, op := range operators {
@@ -319,7 +305,6 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
@@ -350,11 +335,12 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 					genOperator("packageD.v1.0.2", "1.0.2", "packageD.v1.0.1", "packageD", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 
@@ -378,7 +364,6 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
@@ -415,11 +400,12 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 					genOperator("packageE.v1.0.0", "1.0.0", "", "packageE", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(operators))
 
@@ -520,7 +506,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		}})),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
@@ -569,7 +555,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		}})),
 	}
 
-	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	operators, err = satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected = cache.OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
@@ -599,7 +585,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		cache: cache.New(ssp),
 	}
 
-	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	operators, err = satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected = cache.OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
@@ -621,7 +607,6 @@ func TestSolveOperators_WithPackageDependencies(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
@@ -642,11 +627,12 @@ func TestSolveOperators_WithPackageDependencies(t *testing.T) {
 					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(operators))
 
@@ -668,9 +654,6 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 	namespace := "olm"
 	community := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csvs := []*v1alpha1.ClusterServiceVersion{
-		existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", nil, nil, nil, nil),
-	}
 	subs := []*v1alpha1.Subscription{
 		existingSub(namespace, "packageA.v1", "packageA", "alpha", community),
 		newSub(namespace, "packageB", "alpha", community),
@@ -692,11 +675,16 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, Provides, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(
+				namespace,
+				subs,
+				existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", nil, nil, nil, nil),
+			),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 
 	expected := cache.OperatorSet{
@@ -745,7 +733,7 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 		}),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 
@@ -784,7 +772,7 @@ func TestSolveOperators_WithUnsatisfiableLabelDependencies(t *testing.T) {
 		}),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.Error(t, err)
 	assert.Equal(t, 0, len(operators))
 }
@@ -797,7 +785,6 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
@@ -841,11 +828,12 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 					genOperator("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "certified", "olm", nil, Provides2, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 	expected := cache.OperatorSet{
@@ -958,7 +946,7 @@ func TestSolveOperators_OLMConstraint_CompoundAll(t *testing.T) {
 	newSub := newSub(namespace, "bar", "stable", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 
@@ -1037,7 +1025,7 @@ func TestSolveOperators_OLMConstraint_CompoundAny(t *testing.T) {
 	newSub := newSub(namespace, "bar", "stable", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 
@@ -1123,7 +1111,7 @@ func TestSolveOperators_OLMConstraint_CompoundNot(t *testing.T) {
 	newSub := newSub(namespace, "bar", "stable", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 
@@ -1166,7 +1154,7 @@ func TestSolveOperators_OLMConstraint_Unknown(t *testing.T) {
 	newSub := newSub(namespace, "bar", "stable", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	_, err := satResolver.SolveOperators([]string{namespace}, subs)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `json: unknown field "unknown"`)
 }
@@ -1176,9 +1164,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 
 	Provides := cache.APISet{testGVKKey: struct{}{}}
 	community := cache.SourceKey{Name: "community", Namespace: namespace}
-	csvs := []*v1alpha1.ClusterServiceVersion{
-		existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil),
-	}
+
 	subs := []*v1alpha1.Subscription{
 		existingSub(namespace, "packageA.v1", "packageA", "alpha", community),
 		newSub(namespace, "packageB", "alpha", community),
@@ -1213,11 +1199,16 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 					genOperator("packageC.v1", "0.1.0", "", "packageC", "alpha", "certified", "olm", nil, nil, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(
+				namespace,
+				subs,
+				existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil),
+			),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
@@ -1242,7 +1233,6 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 	altnsCatalog := cache.SourceKey{Name: "alt-community", Namespace: altNamespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub}
 
@@ -1258,11 +1248,12 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", altnsCatalog.Name, altnsCatalog.Namespace, nil, Provides, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	assert.NoError(t, err)
 
 	expected := cache.OperatorSet{
@@ -1282,7 +1273,6 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 	otherCatalog := cache.SourceKey{Name: "secret", Namespace: "secret"}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	newSub := newSub(namespace, "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
@@ -1293,11 +1283,12 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 					genOperator("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", otherCatalog.Name, otherCatalog.Namespace, nil, Provides, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "expected exactly one operator, got 0", "did not expect to receive a resolution")
 	assert.Len(t, operators, 0)
@@ -1310,8 +1301,6 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
-
-	csvs := []*v1alpha1.ClusterServiceVersion{}
 
 	const defaultChannel = "stable"
 	// do not specify a channel explicitly on the subscription
@@ -1331,7 +1320,7 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	assert.NoError(t, err)
 
 	// operator should be from the default stable channel
@@ -1348,8 +1337,6 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
-
-	csvs := []*v1alpha1.ClusterServiceVersion{}
 
 	newSub := newSub(namespace, "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
@@ -1369,7 +1356,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	assert.NoError(t, err)
 
 	// operator should be from the default stable channel
@@ -1388,7 +1375,6 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
@@ -1407,11 +1393,12 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(Provides, nil), "", false),
@@ -1431,7 +1418,6 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	csvs := []*v1alpha1.ClusterServiceVersion{csv}
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
@@ -1443,11 +1429,12 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 					genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, Provides, nil, "", false),
 				},
 			},
+			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
 		}),
 		log: logrus.New(),
 	}
 
-	_, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	_, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.Error(t, err)
 }
 
@@ -1489,7 +1476,7 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"opA.v1.0.0": genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, "", false),
@@ -1567,16 +1554,25 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 		},
 	}
 
+	var csvs fakeCSVLister
 	var operators cache.OperatorSet
 	for i, p := range phases {
 		t.Run(fmt.Sprintf("phase %d", i+1), func(t *testing.T) {
+			logger, _ := test.NewNullLogger()
 			satResolver := SatResolver{
 				cache: cache.New(cache.StaticSourceProvider{
 					catalog: p.catalog,
+					// todo: test depends on csvSource
+					cache.NewVirtualSourceKey(namespace): &csvSource{
+						key:       cache.NewVirtualSourceKey(namespace),
+						csvLister: &csvs,
+						subLister: fakeSubscriptionLister(p.subs),
+						logger:    logger,
+					},
 				}),
-				log: logrus.New(),
+				log: logger,
 			}
-			csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
+			csvs = csvs[:0]
 			for _, o := range operators {
 				var pkg, channel string
 				if si := o.SourceInfo; si != nil {
@@ -1587,7 +1583,7 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 			}
 
 			var err error
-			operators, err = satResolver.SolveOperators([]string{"olm"}, csvs, p.subs)
+			operators, err = satResolver.SolveOperators([]string{"olm"}, p.subs)
 			assert.NoError(t, err)
 			for k := range p.expected {
 				require.NotNil(t, operators[k])
@@ -1653,7 +1649,7 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{catalog.Namespace}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{catalog.Namespace}, subs)
 	assert.Empty(t, operators)
 	assert.IsType(t, solver.NotSatisfiable{}, err)
 }
@@ -1678,7 +1674,7 @@ func TestSolveOperatorsWithDeprecatedInnerChannelEntry(t *testing.T) {
 		log: logger,
 	}
 
-	operators, err := resolver.SolveOperators([]string{catalog.Namespace}, nil, subs)
+	operators, err := resolver.SolveOperators([]string{catalog.Namespace}, subs)
 	assert.NoError(t, err)
 	assert.Len(t, operators, 1)
 	assert.Contains(t, operators, "a-3")
@@ -1724,7 +1720,7 @@ func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	opB.SourceInfo.StartingCSV = "packageB.v1"
 	expected := cache.OperatorSet{
@@ -1756,7 +1752,7 @@ func TestSolveOperators_WithSkips(t *testing.T) {
 		log: logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, subs)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageB.v2": opB2,
@@ -1789,25 +1785,15 @@ func TestSolveOperatorsWithSkipsPreventingSelection(t *testing.T) {
 		log: logger,
 	}
 
-	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	_, err := satResolver.SolveOperators([]string{namespace}, subs)
 	assert.IsType(t, solver.NotSatisfiable{}, err)
 }
 
 func TestSolveOperatorsWithClusterServiceVersionHavingDependency(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
+	virtual := cache.NewVirtualSourceKey(namespace)
 
-	a1 := existingOperator(namespace, "a-1", "a", "default", "", nil, nil, nil, nil)
-	a1.Annotations = map[string]string{
-		"operatorframework.io/properties": `{"properties":[{"type":"olm.package.required","value":{"packageName":"b","versionRange":"1.0.0"}}]}`,
-	}
-
-	b1 := existingOperator(namespace, "b-1", "b", "default", "", nil, nil, nil, nil)
-	b1.Annotations = map[string]string{
-		"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"b","version":"1.0.0"}}]}`,
-	}
-
-	csvs := []*v1alpha1.ClusterServiceVersion{a1, b1}
 	subs := []*v1alpha1.Subscription{
 		existingSub(namespace, "b-1", "b", "default", catalog),
 	}
@@ -1817,252 +1803,49 @@ func TestSolveOperatorsWithClusterServiceVersionHavingDependency(t *testing.T) {
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genOperator("b-2", "2.0.0", "b-1", "b", "default", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					{
+						Name:     "b-2",
+						Replaces: "b-1",
+						Version:  &semver.Version{},
+						SourceInfo: &cache.OperatorSourceInfo{
+							Package: "b",
+							Channel: "default",
+							Catalog: catalog,
+						},
+					},
+				},
+			},
+			virtual: &cache.Snapshot{
+				Entries: []*cache.Entry{
+					{
+						Name: "a-1",
+						Properties: []*api.Property{
+							{Type: "olm.package.required", Value: `{"packageName":"b","versionRange":"1.0.0"}`},
+						},
+						Version: &semver.Version{},
+						SourceInfo: &cache.OperatorSourceInfo{
+							Catalog: virtual,
+						},
+					},
+					{
+						Name: "b-1",
+						Properties: []*api.Property{
+							{Type: "olm.package", Value: `{"packageName":"b","version":"1.0.0"}`},
+						},
+						Version: &semver.Version{},
+						SourceInfo: &cache.OperatorSourceInfo{
+							Catalog: virtual,
+						},
+					},
 				},
 			},
 		}),
 		log: log,
 	}
 
-	operators, err := r.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := r.SolveOperators([]string{namespace}, subs)
 	assert.NoError(t, err)
 	require.Empty(t, operators)
-}
-
-func TestInferProperties(t *testing.T) {
-	catalog := cache.SourceKey{Namespace: "namespace", Name: "name"}
-
-	for _, tc := range []struct {
-		Name          string
-		Cache         cache.StaticSourceProvider
-		CSV           *v1alpha1.ClusterServiceVersion
-		Subscriptions []*v1alpha1.Subscription
-		Expected      []*api.Property
-	}{
-		{
-			Name: "no subscriptions infers no properties",
-			CSV: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "a",
-				},
-			},
-		},
-		{
-			Name: "one unrelated subscription infers no properties",
-			CSV: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "a",
-				},
-			},
-			Subscriptions: []*v1alpha1.Subscription{
-				{
-					Spec: &v1alpha1.SubscriptionSpec{
-						Package: "x",
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						InstalledCSV: "b",
-					},
-				},
-			},
-		},
-		{
-			Name: "one subscription with empty package field infers no properties",
-			CSV: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "a",
-				},
-			},
-			Subscriptions: []*v1alpha1.Subscription{
-				{
-					Spec: &v1alpha1.SubscriptionSpec{
-						Package: "",
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						InstalledCSV: "a",
-					},
-				},
-			},
-		},
-		{
-			Name: "two related subscriptions infers no properties",
-			CSV: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "a",
-				},
-			},
-			Subscriptions: []*v1alpha1.Subscription{
-				{
-					Spec: &v1alpha1.SubscriptionSpec{
-						Package: "x",
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						InstalledCSV: "a",
-					},
-				},
-				{
-					Spec: &v1alpha1.SubscriptionSpec{
-						Package: "x",
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						InstalledCSV: "a",
-					},
-				},
-			},
-		},
-		{
-			Name: "one matching subscription infers package property",
-			Cache: cache.StaticSourceProvider{
-				catalog: &cache.Snapshot{
-					Entries: []*cache.Entry{
-						{
-							Name: "a",
-							SourceInfo: &cache.OperatorSourceInfo{
-								Package: "x",
-							},
-						},
-					},
-				},
-			},
-			CSV: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "a",
-				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					Version: opver.OperatorVersion{Version: semver.MustParse("1.2.3")},
-				},
-			},
-			Subscriptions: []*v1alpha1.Subscription{
-				{
-					Spec: &v1alpha1.SubscriptionSpec{
-						Package:                "x",
-						CatalogSource:          catalog.Name,
-						CatalogSourceNamespace: catalog.Namespace,
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						InstalledCSV: "a",
-					},
-				},
-			},
-			Expected: []*api.Property{
-				{
-					Type:  "olm.package",
-					Value: `{"packageName":"x","version":"1.2.3"}`,
-				},
-			},
-		},
-		{
-			Name: "one matching subscription to other-namespace catalogsource infers package property",
-			Cache: cache.StaticSourceProvider{
-				{Namespace: "other-namespace", Name: "other-name"}: &cache.Snapshot{
-					Entries: []*cache.Entry{
-						{
-							Name: "a",
-							SourceInfo: &cache.OperatorSourceInfo{
-								Package: "x",
-							},
-						},
-					},
-				},
-			},
-			CSV: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "a",
-				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					Version: opver.OperatorVersion{Version: semver.MustParse("1.2.3")},
-				},
-			},
-			Subscriptions: []*v1alpha1.Subscription{
-				{
-					Spec: &v1alpha1.SubscriptionSpec{
-						Package:                "x",
-						CatalogSource:          "other-name",
-						CatalogSourceNamespace: "other-namespace",
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						InstalledCSV: "a",
-					},
-				},
-			},
-			Expected: []*api.Property{
-				{
-					Type:  "olm.package",
-					Value: `{"packageName":"x","version":"1.2.3"}`,
-				},
-			},
-		},
-		{
-			Name: "one matching subscription without catalog entry infers no properties",
-			CSV: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "a",
-				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					Version: opver.OperatorVersion{Version: semver.MustParse("1.2.3")},
-				},
-			},
-			Subscriptions: []*v1alpha1.Subscription{
-				{
-					Spec: &v1alpha1.SubscriptionSpec{
-						Package: "x",
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						InstalledCSV: "a",
-					},
-				},
-			},
-		},
-		{
-			Name: "one matching subscription infers package property without csv version",
-			Cache: cache.StaticSourceProvider{
-				catalog: &cache.Snapshot{
-					Entries: []*cache.Entry{
-						{
-							Name: "a",
-							SourceInfo: &cache.OperatorSourceInfo{
-								Package: "x",
-							},
-						},
-					},
-				},
-			},
-			CSV: &v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "a",
-				},
-			},
-			Subscriptions: []*v1alpha1.Subscription{
-				{
-					Spec: &v1alpha1.SubscriptionSpec{
-						Package:                "x",
-						CatalogSource:          catalog.Name,
-						CatalogSourceNamespace: catalog.Namespace,
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						InstalledCSV: "a",
-					},
-				},
-			},
-			Expected: []*api.Property{
-				{
-					Type:  "olm.package",
-					Value: `{"packageName":"x","version":""}`,
-				},
-			},
-		},
-	} {
-		t.Run(tc.Name, func(t *testing.T) {
-			require := require.New(t)
-			logger, _ := test.NewNullLogger()
-			r := SatResolver{
-				log:   logger,
-				cache: cache.New(tc.Cache),
-			}
-			actual, err := r.inferProperties(tc.CSV, tc.Subscriptions)
-			require.NoError(err)
-			require.Equal(tc.Expected, actual)
-		})
-	}
 }
 
 func TestSortChannel(t *testing.T) {
@@ -2256,231 +2039,6 @@ func TestSortChannel(t *testing.T) {
 	}
 }
 
-func TestNewOperatorFromCSV(t *testing.T) {
-	version := opver.OperatorVersion{Version: semver.MustParse("0.1.0-abc")}
-	type args struct {
-		csv *v1alpha1.ClusterServiceVersion
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *cache.Entry
-		wantErr error
-	}{
-		{
-			name: "NoProvided/NoRequired",
-			args: args{
-				csv: &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "operator.v1",
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Version: version,
-					},
-				},
-			},
-			want: &cache.Entry{
-				Name:         "operator.v1",
-				ProvidedAPIs: cache.EmptyAPISet(),
-				RequiredAPIs: cache.EmptyAPISet(),
-				SourceInfo:   &cache.ExistingOperator,
-				Version:      &version.Version,
-			},
-		},
-		{
-			name: "Provided/NoRequired",
-			args: args{
-				csv: &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "operator.v1",
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Version: version,
-						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-							Owned: []v1alpha1.CRDDescription{
-								{
-									Name:    "crdkinds.g",
-									Version: "v1",
-									Kind:    "CRDKind",
-								},
-							},
-						},
-						APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
-							Owned: []v1alpha1.APIServiceDescription{
-								{
-									Name:    "apikinds",
-									Group:   "g",
-									Version: "v1",
-									Kind:    "APIKind",
-								},
-							},
-						},
-					},
-				},
-			},
-			want: &cache.Entry{
-				Name: "operator.v1",
-				ProvidedAPIs: map[opregistry.APIKey]struct{}{
-					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
-					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
-				},
-				Properties: []*api.Property{
-					{
-						Type:  "olm.gvk",
-						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
-					},
-					{
-						Type:  "olm.gvk",
-						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
-					},
-				},
-				RequiredAPIs: cache.EmptyAPISet(),
-				SourceInfo:   &cache.ExistingOperator,
-				Version:      &version.Version,
-			},
-		},
-		{
-			name: "NoProvided/Required",
-			args: args{
-				csv: &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "operator.v1",
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Version: version,
-						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-							Required: []v1alpha1.CRDDescription{
-								{
-									Name:    "crdkinds.g",
-									Version: "v1",
-									Kind:    "CRDKind",
-								},
-							},
-						},
-						APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
-							Required: []v1alpha1.APIServiceDescription{
-								{
-									Name:    "apikinds",
-									Group:   "g",
-									Version: "v1",
-									Kind:    "APIKind",
-								},
-							},
-						},
-					},
-				},
-			},
-			want: &cache.Entry{
-				Name:         "operator.v1",
-				ProvidedAPIs: cache.EmptyAPISet(),
-				RequiredAPIs: map[opregistry.APIKey]struct{}{
-					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: {},
-					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
-				},
-				Properties: []*api.Property{
-					{
-						Type:  "olm.gvk.required",
-						Value: "{\"group\":\"g\",\"kind\":\"APIKind\",\"version\":\"v1\"}",
-					},
-					{
-						Type:  "olm.gvk.required",
-						Value: "{\"group\":\"g\",\"kind\":\"CRDKind\",\"version\":\"v1\"}",
-					},
-				},
-				SourceInfo: &cache.ExistingOperator,
-				Version:    &version.Version,
-			},
-		},
-		{
-			name: "Provided/Required",
-			args: args{
-				csv: &v1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "operator.v1",
-					},
-					Spec: v1alpha1.ClusterServiceVersionSpec{
-						Version: version,
-						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-							Owned: []v1alpha1.CRDDescription{
-								{
-									Name:    "crdownedkinds.g",
-									Version: "v1",
-									Kind:    "CRDOwnedKind",
-								},
-							},
-							Required: []v1alpha1.CRDDescription{
-								{
-									Name:    "crdreqkinds.g2",
-									Version: "v1",
-									Kind:    "CRDReqKind",
-								},
-							},
-						},
-						APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
-							Owned: []v1alpha1.APIServiceDescription{
-								{
-									Name:    "apiownedkinds",
-									Group:   "g",
-									Version: "v1",
-									Kind:    "APIOwnedKind",
-								},
-							},
-							Required: []v1alpha1.APIServiceDescription{
-								{
-									Name:    "apireqkinds",
-									Group:   "g2",
-									Version: "v1",
-									Kind:    "APIReqKind",
-								},
-							},
-						},
-					},
-				},
-			},
-			want: &cache.Entry{
-				Name: "operator.v1",
-				ProvidedAPIs: map[opregistry.APIKey]struct{}{
-					{Group: "g", Version: "v1", Kind: "APIOwnedKind", Plural: "apiownedkinds"}: {},
-					{Group: "g", Version: "v1", Kind: "CRDOwnedKind", Plural: "crdownedkinds"}: {},
-				},
-				RequiredAPIs: map[opregistry.APIKey]struct{}{
-					{Group: "g2", Version: "v1", Kind: "APIReqKind", Plural: "apireqkinds"}: {},
-					{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
-				},
-				Properties: []*api.Property{
-					{
-						Type:  "olm.gvk",
-						Value: "{\"group\":\"g\",\"kind\":\"APIOwnedKind\",\"version\":\"v1\"}",
-					},
-					{
-						Type:  "olm.gvk",
-						Value: "{\"group\":\"g\",\"kind\":\"CRDOwnedKind\",\"version\":\"v1\"}",
-					},
-					{
-						Type:  "olm.gvk.required",
-						Value: "{\"group\":\"g2\",\"kind\":\"APIReqKind\",\"version\":\"v1\"}",
-					},
-					{
-						Type:  "olm.gvk.required",
-						Value: "{\"group\":\"g2\",\"kind\":\"CRDReqKind\",\"version\":\"v1\"}",
-					},
-				},
-				SourceInfo: &cache.ExistingOperator,
-				Version:    &version.Version,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := newOperatorFromV1Alpha1CSV(tt.args.csv)
-			require.Equal(t, tt.wantErr, err)
-			requirePropertiesEqual(t, tt.want.Properties, got.Properties)
-			tt.want.Properties, got.Properties = nil, nil
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestSolveOperators_GenericConstraint(t *testing.T) {
 	Provides1 := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
 	namespace := "olm"
@@ -2588,7 +2146,7 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 				},
 			}
 
-			operators, err = satResolver.SolveOperators([]string{namespace}, nil, tt.subs)
+			operators, err = satResolver.SolveOperators([]string{namespace}, tt.subs)
 			if tt.isErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.message)

@@ -14,14 +14,13 @@ import (
 	"github.com/operator-framework/api/pkg/constraints"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 type OperatorResolver interface {
-	SolveOperators(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[cache.OperatorSourceInfo]struct{}) (cache.OperatorSet, error)
+	SolveOperators(csvs []*v1alpha1.ClusterServiceVersion, add map[cache.OperatorSourceInfo]struct{}) (cache.OperatorSet, error)
 }
 
 type SatResolver struct {
@@ -51,7 +50,7 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (cache.OperatorSet, error) {
+func (r *SatResolver) SolveOperators(namespaces []string, subs []*v1alpha1.Subscription) (cache.OperatorSet, error) {
 	var errs []error
 
 	variables := make(map[solver.Identifier]solver.Variable)
@@ -60,14 +59,15 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	// TODO: better abstraction
 	startingCSVs := make(map[string]struct{})
 
-	// build a virtual catalog of all currently installed CSVs
-	existingSnapshot, err := r.newSnapshotForNamespace(namespaces[0], subs, csvs)
-	if err != nil {
-		return nil, err
-	}
-	namespacedCache := r.cache.Namespaced(namespaces...).WithExistingOperators(existingSnapshot, namespaces[0])
+	namespacedCache := r.cache.Namespaced(namespaces...)
 
-	_, existingVariables, err := r.getBundleVariables(namespaces[0], cache.Filter(existingSnapshot.Entries, cache.True()), namespacedCache, visited)
+	if len(namespaces) < 1 {
+		// the first namespace is treated as the preferred namespace today
+		return nil, fmt.Errorf("at least one namespace must be provided to resolution")
+	}
+
+	preferredNamespace := namespaces[0]
+	_, existingVariables, err := r.getBundleVariables(preferredNamespace, namespacedCache.Catalog(cache.NewVirtualSourceKey(preferredNamespace)).Find(cache.True()), namespacedCache, visited)
 	if err != nil {
 		return nil, err
 	}
@@ -79,15 +79,16 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	for _, sub := range subs {
 		// find the currently installed operator (if it exists)
 		var current *cache.Entry
-		for _, csv := range csvs {
-			if csv.Name == sub.Status.InstalledCSV {
-				op, err := newOperatorFromV1Alpha1CSV(csv)
-				if err != nil {
-					return nil, err
-				}
-				current = op
-				break
+
+		matches := namespacedCache.Catalog(cache.NewVirtualSourceKey(sub.Namespace)).Find(cache.CSVNamePredicate(sub.Status.InstalledCSV))
+		if len(matches) > 1 {
+			var names []string
+			for _, each := range matches {
+				names = append(names, each.Name)
 			}
+			return nil, fmt.Errorf("multiple name matches for status.installedCSV of subscription %s/%s: %s", sub.Namespace, sub.Name, strings.Join(names, ", "))
+		} else if len(matches) == 1 {
+			current = matches[0]
 		}
 
 		if current == nil && sub.Spec.StartingCSV != "" {
@@ -460,116 +461,6 @@ func (r *SatResolver) getBundleVariables(preferredNamespace string, bundleStack 
 	return ids, variables, nil
 }
 
-func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) ([]*api.Property, error) {
-	var properties []*api.Property
-
-	packages := make(map[string]struct{})
-	for _, sub := range subs {
-		if sub.Status.InstalledCSV != csv.Name {
-			continue
-		}
-		// Without sanity checking the Subscription spec's
-		// package against catalog contents, updates to the
-		// Subscription spec could result in a bad package
-		// inference.
-		for _, entry := range r.cache.Namespaced(sub.Spec.CatalogSourceNamespace).Catalog(cache.SourceKey{Namespace: sub.Spec.CatalogSourceNamespace, Name: sub.Spec.CatalogSource}).Find(cache.And(cache.CSVNamePredicate(csv.Name), cache.PkgPredicate(sub.Spec.Package))) {
-			if pkg := entry.Package(); pkg != "" {
-				packages[pkg] = struct{}{}
-			}
-		}
-	}
-	if l := len(packages); l != 1 {
-		r.log.Warnf("could not unambiguously infer package name for %q (found %d distinct package names)", csv.Name, l)
-		return properties, nil
-	}
-	var pkg string
-	for pkg = range packages {
-		// Assign the single key to pkg.
-	}
-	var version string // Emit empty string rather than "0.0.0" if .spec.version is zero-valued.
-	if !csv.Spec.Version.Version.Equals(semver.Version{}) {
-		version = csv.Spec.Version.String()
-	}
-	pp, err := json.Marshal(opregistry.PackageProperty{
-		PackageName: pkg,
-		Version:     version,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal inferred package property: %w", err)
-	}
-	properties = append(properties, &api.Property{
-		Type:  opregistry.PackageType,
-		Value: string(pp),
-	})
-
-	return properties, nil
-}
-
-func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*cache.Snapshot, error) {
-	existingOperatorCatalog := cache.NewVirtualSourceKey(namespace)
-	// build a catalog snapshot of CSVs without subscriptions
-	csvSubscriptions := make(map[*v1alpha1.ClusterServiceVersion]*v1alpha1.Subscription)
-	for _, sub := range subs {
-		for _, csv := range csvs {
-			if csv.Name == sub.Status.InstalledCSV {
-				csvSubscriptions[csv] = sub
-				break
-			}
-		}
-	}
-	var csvsMissingProperties []*v1alpha1.ClusterServiceVersion
-	standaloneOperators := make([]*cache.Entry, 0)
-	for _, csv := range csvs {
-		op, err := newOperatorFromV1Alpha1CSV(csv)
-		if err != nil {
-			return nil, err
-		}
-
-		if anno, ok := csv.GetAnnotations()[projection.PropertiesAnnotationKey]; !ok {
-			csvsMissingProperties = append(csvsMissingProperties, csv)
-			if inferred, err := r.inferProperties(csv, subs); err != nil {
-				r.log.Warnf("unable to infer properties for csv %q: %w", csv.Name, err)
-			} else {
-				op.Properties = append(op.Properties, inferred...)
-			}
-		} else if props, err := projection.PropertyListFromPropertiesAnnotation(anno); err != nil {
-			return nil, fmt.Errorf("failed to retrieve properties of csv %q: %w", csv.GetName(), err)
-		} else {
-			op.Properties = props
-		}
-
-		op.SourceInfo = &cache.OperatorSourceInfo{
-			Catalog:      existingOperatorCatalog,
-			Subscription: csvSubscriptions[csv],
-		}
-		// Try to determine source package name from properties and add to SourceInfo.
-		for _, p := range op.Properties {
-			if p.Type != opregistry.PackageType {
-				continue
-			}
-			var pp opregistry.PackageProperty
-			err := json.Unmarshal([]byte(p.Value), &pp)
-			if err != nil {
-				r.log.Warnf("failed to unmarshal package property of csv %q: %w", csv.Name, err)
-				continue
-			}
-			op.SourceInfo.Package = pp.PackageName
-		}
-
-		standaloneOperators = append(standaloneOperators, op)
-	}
-
-	if len(csvsMissingProperties) > 0 {
-		names := make([]string, len(csvsMissingProperties))
-		for i, csv := range csvsMissingProperties {
-			names[i] = csv.GetName()
-		}
-		r.log.Infof("considered csvs without properties annotation during resolution: %v", names)
-	}
-
-	return &cache.Snapshot{Entries: standaloneOperators}, nil
-}
-
 func (r *SatResolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFinder, variables map[solver.Identifier]solver.Variable) {
 	// no two operators may provide the same GVK or Package in a namespace
 	gvkConflictToVariable := make(map[opregistry.GVKProperty][]solver.Identifier)
@@ -921,51 +812,6 @@ func predicateForRequiredLabelProperty(value string) (cache.Predicate, error) {
 		return nil, err
 	}
 	return cache.LabelPredicate(label.Label), nil
-}
-
-func newOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*cache.Entry, error) {
-	providedAPIs := cache.EmptyAPISet()
-	for _, crdDef := range csv.Spec.CustomResourceDefinitions.Owned {
-		parts := strings.SplitN(crdDef.Name, ".", 2)
-		if len(parts) < 2 {
-			return nil, fmt.Errorf("error parsing crd name: %s", crdDef.Name)
-		}
-		providedAPIs[opregistry.APIKey{Plural: parts[0], Group: parts[1], Version: crdDef.Version, Kind: crdDef.Kind}] = struct{}{}
-	}
-	for _, api := range csv.Spec.APIServiceDefinitions.Owned {
-		providedAPIs[opregistry.APIKey{Group: api.Group, Version: api.Version, Kind: api.Kind, Plural: api.Name}] = struct{}{}
-	}
-
-	requiredAPIs := cache.EmptyAPISet()
-	for _, crdDef := range csv.Spec.CustomResourceDefinitions.Required {
-		parts := strings.SplitN(crdDef.Name, ".", 2)
-		if len(parts) < 2 {
-			return nil, fmt.Errorf("error parsing crd name: %s", crdDef.Name)
-		}
-		requiredAPIs[opregistry.APIKey{Plural: parts[0], Group: parts[1], Version: crdDef.Version, Kind: crdDef.Kind}] = struct{}{}
-	}
-	for _, api := range csv.Spec.APIServiceDefinitions.Required {
-		requiredAPIs[opregistry.APIKey{Group: api.Group, Version: api.Version, Kind: api.Kind, Plural: api.Name}] = struct{}{}
-	}
-
-	properties, err := providedAPIsToProperties(providedAPIs)
-	if err != nil {
-		return nil, err
-	}
-	dependencies, err := requiredAPIsToProperties(requiredAPIs)
-	if err != nil {
-		return nil, err
-	}
-	properties = append(properties, dependencies...)
-
-	return &cache.Entry{
-		Name:         csv.GetName(),
-		Version:      &csv.Spec.Version.Version,
-		ProvidedAPIs: providedAPIs,
-		RequiredAPIs: requiredAPIs,
-		SourceInfo:   &cache.ExistingOperator,
-		Properties:   properties,
-	}, nil
 }
 
 func providedAPIsToProperties(apis cache.APISet) (out []*api.Property, err error) {

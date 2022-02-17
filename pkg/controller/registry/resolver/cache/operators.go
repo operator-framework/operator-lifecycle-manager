@@ -199,9 +199,6 @@ func (i *OperatorSourceInfo) String() string {
 	return fmt.Sprintf("%s/%s in %s/%s", i.Package, i.Channel, i.Catalog.Name, i.Catalog.Namespace)
 }
 
-var NoCatalog = SourceKey{Name: "", Namespace: ""}
-var ExistingOperator = OperatorSourceInfo{Package: "", Channel: "", StartingCSV: "", Catalog: NoCatalog, DefaultChannel: false}
-
 type Entry struct {
 	Name         string
 	Replaces     string

@@ -134,7 +134,6 @@ func New(sp SourceProvider, options ...Option) *Cache {
 }
 
 type NamespacedOperatorCache struct {
-	existing  *SourceKey
 	snapshots map[SourceKey]*snapshotHeader
 }
 
@@ -236,6 +235,12 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 			priority: c.sourcePriorityProvider.Priority(miss),
 		}
 
+		if miss.Virtual() {
+			// hack! always refresh virtual catalogs.
+			// todo: Sources should be responsible for determining when the Snapshots they produce become invalid
+			hdr.expiry = time.Time{}
+		}
+
 		hdr.m.Lock()
 		c.snapshots[miss] = &hdr
 		result.snapshots[miss] = &hdr
@@ -267,29 +272,12 @@ func (c *NamespacedOperatorCache) FindPreferred(preferred *SourceKey, preferredN
 	if preferred != nil && preferred.Empty() {
 		preferred = nil
 	}
-	sorted := newSortableSnapshots(c.existing, preferred, preferredNamespace, c.snapshots)
+	sorted := newSortableSnapshots(preferred, preferredNamespace, c.snapshots)
 	sort.Sort(sorted)
 	for _, snapshot := range sorted.snapshots {
 		result = append(result, snapshot.Find(p...)...)
 	}
 	return result
-}
-
-func (c *NamespacedOperatorCache) WithExistingOperators(snapshot *Snapshot, namespace string) MultiCatalogOperatorFinder {
-	key := NewVirtualSourceKey(namespace)
-	o := &NamespacedOperatorCache{
-		existing: &key,
-		snapshots: map[SourceKey]*snapshotHeader{
-			key: {
-				key:      key,
-				snapshot: snapshot,
-			},
-		},
-	}
-	for k, v := range c.snapshots {
-		o.snapshots[k] = v
-	}
-	return o
 }
 
 func (c *NamespacedOperatorCache) Find(p ...Predicate) []*Entry {
@@ -334,7 +322,14 @@ type sortableSnapshots struct {
 	existing           *SourceKey
 }
 
-func newSortableSnapshots(existing, preferred *SourceKey, preferredNamespace string, snapshots map[SourceKey]*snapshotHeader) sortableSnapshots {
+func newSortableSnapshots(preferred *SourceKey, preferredNamespace string, snapshots map[SourceKey]*snapshotHeader) sortableSnapshots {
+	var existing *SourceKey
+	for key := range snapshots {
+		if key.Virtual() && key.Namespace == preferredNamespace {
+			existing = &key
+			break
+		}
+	}
 	sorted := sortableSnapshots{
 		existing:           existing,
 		preferred:          preferred,
@@ -419,7 +414,6 @@ type OperatorFinder interface {
 type MultiCatalogOperatorFinder interface {
 	Catalog(SourceKey) OperatorFinder
 	FindPreferred(preferred *SourceKey, preferredNamespace string, predicates ...Predicate) []*Entry
-	WithExistingOperators(snapshot *Snapshot, namespace string) MultiCatalogOperatorFinder
 	Error() error
 	OperatorFinder
 }

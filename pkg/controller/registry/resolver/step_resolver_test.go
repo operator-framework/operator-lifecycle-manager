@@ -13,7 +13,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -50,11 +49,10 @@ var (
 func TestInitHooks(t *testing.T) {
 	clientFake := fake.NewSimpleClientset()
 	lister := operatorlister.NewLister()
-	kClientFake := k8sfake.NewSimpleClientset()
 	log := logrus.New()
 
 	// no init hooks
-	resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
+	resolver := NewOperatorStepResolver(lister, clientFake, "", nil, log)
 	require.NotNil(t, resolver.satResolver)
 
 	// with init hook
@@ -70,7 +68,7 @@ func TestInitHooks(t *testing.T) {
 		initHooks = nil
 	}()
 
-	resolver = NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
+	resolver = NewOperatorStepResolver(lister, clientFake, "", nil, log)
 	require.Nil(t, resolver.satResolver)
 }
 
@@ -850,7 +848,6 @@ func TestResolver(t *testing.T) {
 			lister := operatorlister.NewLister()
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
-			kClientFake := k8sfake.NewSimpleClientset()
 
 			ssp := make(resolvercache.StaticSourceProvider)
 			for catalog, bundles := range tt.bundlesByCatalog {
@@ -865,11 +862,17 @@ func TestResolver(t *testing.T) {
 				ssp[catalog] = snapshot
 			}
 			log := logrus.New()
+			ssp[resolvercache.NewVirtualSourceKey(namespace)] = &csvSource{
+				key:       resolvercache.NewVirtualSourceKey(namespace),
+				csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace),
+				subLister: lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace),
+				logger:    log,
+			}
 			satresolver := &SatResolver{
 				cache: resolvercache.New(ssp),
 				log:   log,
 			}
-			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
+			resolver := NewOperatorStepResolver(lister, clientFake, "", nil, log)
 			resolver.satResolver = satresolver
 
 			steps, lookups, subs, err := resolver.ResolveSteps(namespace)
@@ -892,7 +895,7 @@ func TestResolver(t *testing.T) {
 				}
 				require.ElementsMatch(t, expectedStrings, actualStrings)
 			}
-			RequireStepsEqual(t, expectedSteps, steps)
+			requireStepsEqual(t, expectedSteps, steps)
 			require.ElementsMatch(t, tt.out.lookups, lookups)
 			require.ElementsMatch(t, tt.out.subs, subs)
 		})
@@ -981,7 +984,6 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			for _, steps := range tt.out.steps {
 				expectedSteps = append(expectedSteps, steps...)
 			}
-			kClientFake := k8sfake.NewSimpleClientset()
 			clientFake, informerFactory, _ := StartResolverInformers(namespace, stopc, tt.clusterState...)
 			lister := operatorlister.NewLister()
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
@@ -1000,11 +1002,11 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 					catalog: stubSnapshot,
 				}),
 			}
-			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, logrus.New())
+			resolver := NewOperatorStepResolver(lister, clientFake, "", nil, logrus.New())
 			resolver.satResolver = satresolver
 			steps, _, subs, err := resolver.ResolveSteps(namespace)
 			require.Equal(t, tt.out.err, err)
-			RequireStepsEqual(t, expectedSteps, steps)
+			requireStepsEqual(t, expectedSteps, steps)
 			require.ElementsMatch(t, tt.out.subs, subs)
 		})
 	}
@@ -1170,4 +1172,14 @@ func subSteps(namespace, operatorName, pkgName, channelName string, catalog reso
 		Resource:  stepresource,
 		Status:    v1alpha1.StepStatusUnknown,
 	}}
+}
+
+// requireStepsEqual is similar to require.ElementsMatch, but produces better error messages
+func requireStepsEqual(t *testing.T, expectedSteps, steps []*v1alpha1.Step) {
+	for _, s := range expectedSteps {
+		require.Contains(t, steps, s, "step in expected not found in steps")
+	}
+	for _, s := range steps {
+		require.Contains(t, expectedSteps, s, "step in steps not found in expected")
+	}
 }

@@ -18,16 +18,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
-// RequireStepsEqual is similar to require.ElementsMatch, but produces better error messages
-func RequireStepsEqual(t *testing.T, expectedSteps, steps []*v1alpha1.Step) {
-	for _, s := range expectedSteps {
-		require.Contains(t, steps, s, "step in expected not found in steps")
-	}
-	for _, s := range steps {
-		require.Contains(t, expectedSteps, s, "step in steps not found in expected")
-	}
-}
-
 func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requiredAPIServices cache.APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *v1alpha1.ClusterServiceVersion {
 	var singleInstance = int32(1)
 	strategy := v1alpha1.StrategyDetailsDeployment{
