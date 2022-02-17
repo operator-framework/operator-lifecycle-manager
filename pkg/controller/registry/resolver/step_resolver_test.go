@@ -53,11 +53,11 @@ func TestInitHooks(t *testing.T) {
 
 	// no init hooks
 	resolver := NewOperatorStepResolver(lister, clientFake, "", nil, log)
-	require.NotNil(t, resolver.satResolver)
+	require.NotNil(t, resolver.resolver)
 
 	// with init hook
 	var testHook stepResolverInitHook = func(resolver *OperatorStepResolver) error {
-		resolver.satResolver = nil
+		resolver.resolver = nil
 		return nil
 	}
 
@@ -69,7 +69,7 @@ func TestInitHooks(t *testing.T) {
 	}()
 
 	resolver = NewOperatorStepResolver(lister, clientFake, "", nil, log)
-	require.Nil(t, resolver.satResolver)
+	require.Nil(t, resolver.resolver)
 }
 
 func TestResolver(t *testing.T) {
@@ -868,12 +868,12 @@ func TestResolver(t *testing.T) {
 				subLister: lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace),
 				logger:    log,
 			}
-			satresolver := &SatResolver{
+			satresolver := &Resolver{
 				cache: resolvercache.New(ssp),
 				log:   log,
 			}
 			resolver := NewOperatorStepResolver(lister, clientFake, "", nil, log)
-			resolver.satResolver = satresolver
+			resolver.resolver = satresolver
 
 			steps, lookups, subs, err := resolver.ResolveSteps(namespace)
 			if tt.out.solverError == nil {
@@ -997,13 +997,13 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 				}
 				stubSnapshot.Entries = append(stubSnapshot.Entries, op)
 			}
-			satresolver := &SatResolver{
+			satresolver := &Resolver{
 				cache: resolvercache.New(resolvercache.StaticSourceProvider{
 					catalog: stubSnapshot,
 				}),
 			}
 			resolver := NewOperatorStepResolver(lister, clientFake, "", nil, logrus.New())
-			resolver.satResolver = satresolver
+			resolver.resolver = satresolver
 			steps, _, subs, err := resolver.ResolveSteps(namespace)
 			require.Equal(t, tt.out.err, err)
 			requireStepsEqual(t, expectedSteps, steps)

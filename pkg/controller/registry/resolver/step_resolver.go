@@ -35,7 +35,7 @@ type OperatorStepResolver struct {
 	csvLister              v1alpha1listers.ClusterServiceVersionLister
 	client                 versioned.Interface
 	globalCatalogNamespace string
-	satResolver            *SatResolver
+	resolver               *Resolver
 	log                    logrus.FieldLogger
 }
 
@@ -70,7 +70,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
 		client:                 client,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(cacheSourceProvider, catsrcPriorityProvider{lister: lister.OperatorsV1alpha1().CatalogSourceLister()}, log),
+		resolver:               NewDefaultResolver(cacheSourceProvider, catsrcPriorityProvider{lister: lister.OperatorsV1alpha1().CatalogSourceLister()}, log),
 		log:                    log,
 	}
 
@@ -90,9 +90,8 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 		return nil, nil, nil, err
 	}
 
-	var operators cache.OperatorSet
 	namespaces := []string{namespace, r.globalCatalogNamespace}
-	operators, err = r.satResolver.SolveOperators(namespaces, subs)
+	operators, err := r.resolver.Resolve(namespaces, subs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -102,7 +101,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 	steps := []*v1alpha1.Step{}
 	updatedSubs := []*v1alpha1.Subscription{}
 	bundleLookups := []v1alpha1.BundleLookup{}
-	for name, op := range operators {
+	for _, op := range operators {
 		// Find any existing subscriptions that resolve to this operator.
 		existingSubscriptions := make(map[*v1alpha1.Subscription]bool)
 		sourceInfo := *op.SourceInfo
@@ -187,7 +186,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 				return nil, nil, nil, err
 			}
 			steps = append(steps, &v1alpha1.Step{
-				Resolving: name,
+				Resolving: op.Name,
 				Resource:  subStep,
 				Status:    v1alpha1.StepStatusUnknown,
 			})

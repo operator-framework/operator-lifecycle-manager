@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -311,8 +312,8 @@ func requirePropertiesEqual(t *testing.T, a, b []*api.Property) {
 	require.ElementsMatch(t, l, r)
 }
 
-func apiSetToProperties(crds, apis cache.APISet, deprecated bool) (out []*api.Property) {
-	out = make([]*api.Property, 0)
+func apiSetToProperties(crds, apis cache.APISet, deprecated bool) []*api.Property {
+	var out []*api.Property
 	for a := range crds {
 		val, err := json.Marshal(opregistry.GVKProperty{
 			Group:   a.Group,
@@ -351,10 +352,10 @@ func apiSetToProperties(crds, apis cache.APISet, deprecated bool) (out []*api.Pr
 			Value: string(val),
 		})
 	}
-	if len(out) == 0 {
-		return nil
-	}
-	return
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Type < out[j].Type || out[i].Value < out[j].Value
+	})
+	return out
 }
 
 func apiSetToDependencies(crds, apis cache.APISet) (out []*api.Dependency) {
