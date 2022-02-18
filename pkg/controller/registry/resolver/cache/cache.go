@@ -86,7 +86,6 @@ type Cache struct {
 	sp                     SourceProvider
 	sourcePriorityProvider SourcePriorityProvider
 	snapshots              map[SourceKey]*snapshotHeader
-	ttl                    time.Duration
 	sem                    chan struct{}
 	m                      sync.RWMutex
 }
@@ -121,7 +120,6 @@ func New(sp SourceProvider, options ...Option) *Cache {
 		sp:                     sp,
 		sourcePriorityProvider: constantSourcePriorityProvider(0),
 		snapshots:              make(map[SourceKey]*snapshotHeader),
-		ttl:                    5 * time.Minute,
 		sem:                    make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
 
