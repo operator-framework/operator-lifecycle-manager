@@ -147,7 +147,9 @@ var _ = Describe("Operator API", func() {
 
 		// Ensure o's status.components.refs field eventually contains a reference to ns-a
 		By("eventually listing a single component reference")
-		componentRefEventuallyExists(w, true, getReference(scheme, nsA))
+		deadline, cancel = context.WithTimeout(clientCtx, 1*time.Minute)
+		componentRefEventuallyExists(deadline, w, true, getReference(scheme, nsA))
+		cancel()
 
 		// Create ServiceAccounts sa-a and sa-b in namespaces ns-a and ns-b respectively
 		saA := &corev1.ServiceAccount{}
@@ -178,8 +180,9 @@ var _ = Describe("Operator API", func() {
 
 		// Ensure o's status.components.refs field eventually contains references to sa-a and sa-b
 		By("eventually listing multiple component references")
-		componentRefEventuallyExists(w, true, getReference(scheme, saA))
-		componentRefEventuallyExists(w, true, getReference(scheme, saB))
+		deadline, cancel = context.WithTimeout(clientCtx, 1*time.Minute)
+		componentRefEventuallyExists(deadline, w, true, getReference(scheme, saA), getReference(scheme, saB))
+		cancel()
 
 		// Remove the component label from sa-b
 		Eventually(Apply(saB, func(m metav1.Object) error {
@@ -189,7 +192,9 @@ var _ = Describe("Operator API", func() {
 
 		// Ensure the reference to sa-b is eventually removed from o's status.components.refs field
 		By("removing a component's reference when it no longer bears the component label")
-		componentRefEventuallyExists(w, false, getReference(scheme, saB))
+		deadline, cancel = context.WithTimeout(clientCtx, 1*time.Minute)
+		componentRefEventuallyExists(deadline, w, false, getReference(scheme, saB))
+		cancel()
 
 		// Delete o
 		Eventually(func() error {
@@ -217,7 +222,9 @@ var _ = Describe("Operator API", func() {
 
 		// Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 		By("removing a component's reference when it no longer exists")
-		componentRefEventuallyExists(w, false, getReference(scheme, nsA))
+		deadline, cancel = context.WithTimeout(clientCtx, 1*time.Minute)
+		componentRefEventuallyExists(deadline, w, false, getReference(scheme, nsA))
+		cancel()
 
 		// Delete o
 		Eventually(func() error {
@@ -408,22 +415,29 @@ func getReference(scheme *runtime.Scheme, obj runtime.Object) *corev1.ObjectRefe
 	return ref
 }
 
-func componentRefEventuallyExists(w watch.Interface, exists bool, ref *corev1.ObjectReference) {
-	deadline, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer cancel()
-
+func componentRefEventuallyExists(deadline context.Context, w watch.Interface, exists bool, refs ...*corev1.ObjectReference) {
 	awaitPredicates(deadline, w, operatorPredicate(func(op *operatorsv1.Operator) bool {
 		if op.Status.Components == nil {
 			return false
 		}
 
-		for _, r := range op.Status.Components.Refs {
-			if r.APIVersion == ref.APIVersion && r.Kind == ref.Kind && r.Namespace == ref.Namespace && r.Name == ref.Name {
-				return exists
+		var found int
+		// Note: This is roughly O(n*m) but is good enough for testing purposes.
+		for _, expected := range refs {
+			for _, actual := range op.Status.Components.Refs {
+				if actual.APIVersion == expected.APIVersion && actual.Kind == expected.Kind && actual.Namespace == expected.Namespace && actual.Name == expected.Name {
+					found++
+					break // Found it, look for next expected
+				}
 			}
 		}
 
-		return !exists
+		if exists {
+			return found == len(refs)
+		}
+
+		// Expect nothing has been found
+		return found == 0
 	}))
 }
 
