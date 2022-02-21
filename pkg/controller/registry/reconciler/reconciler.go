@@ -27,6 +27,8 @@ const (
 	CatalogPriorityClassKey string = "operatorframework.io/priorityclass"
 	// PodHashLabelKey is the key of a label for podspec hash information
 	PodHashLabelKey = "olm.pod-spec-hash"
+	//ClusterAutoscalingAnnotation is the annotation that enables the cluster autoscaler to evict catalog pods
+	ClusterAutoscalingAnnotationKey string = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 )
 
 // RegistryEnsurer describes methods for ensuring a registry exists.
@@ -207,6 +209,15 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 	}
 	labels[PodHashLabelKey] = hashPodSpec(pod.Spec)
 	pod.SetLabels(labels)
+
+	// add eviction annotation to enable the cluster autoscaler to evict the pod in order to drain the node
+	// since catalog pods are not backed by a controller, they cannot be evicted by default
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[ClusterAutoscalingAnnotationKey] = "true"
+	pod.SetAnnotations(annotations)
+
 	return pod
 }
 
