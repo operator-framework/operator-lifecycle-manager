@@ -19,6 +19,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	// InstallPlan timeout is 60 seconds. This timeout is longer than that to get the "InstallPlanPhaseFailed" status
+	installPlanTestTimeout = time.Second * 75
+)
+
 var _ = Describe("CRD Versions", func() {
 
 	var (
@@ -274,7 +279,7 @@ var _ = Describe("CRD Versions", func() {
 		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version
 		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 			return crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Get(context.TODO(), s.Status.InstallPlanRef.Name, metav1.GetOptions{})
-		}).Should(And(
+		}, installPlanTestTimeout).Should(And(   // InstallPlan timeout is 60 seconds.  This must be longer than that to get the "InstallPlanPhaseFailed" status
 			WithTransform(
 				func(v *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
 					return v.Status.Phase
