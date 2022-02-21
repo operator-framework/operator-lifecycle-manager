@@ -13,12 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-
 	"github.com/operator-framework/api/pkg/constraints"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -409,38 +405,10 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	assert.ElementsMatch(t, expected, operators)
 }
 
-type stubCatalogSourceLister struct {
-	catsrcs   []*v1alpha1.CatalogSource
-	namespace string
-}
+type stubSourcePriorityProvider map[cache.SourceKey]int
 
-func (l *stubCatalogSourceLister) List(labels.Selector) ([]*v1alpha1.CatalogSource, error) {
-	if l.namespace == "" {
-		return l.catsrcs, nil
-	}
-	var result []*v1alpha1.CatalogSource
-	for _, cs := range l.catsrcs {
-		if cs.Namespace == l.namespace {
-			result = append(result, cs)
-		}
-	}
-	return result, nil
-}
-
-func (l *stubCatalogSourceLister) Get(name string) (*v1alpha1.CatalogSource, error) {
-	for _, cs := range l.catsrcs {
-		if cs.Name == name {
-			return cs, nil
-		}
-	}
-	return nil, errors.New("stub not found")
-}
-
-func (l *stubCatalogSourceLister) CatalogSources(namespace string) listersv1alpha1.CatalogSourceNamespaceLister {
-	return &stubCatalogSourceLister{
-		catsrcs:   l.catsrcs,
-		namespace: namespace,
-	}
+func (spp stubSourcePriorityProvider) Priority(k cache.SourceKey) int {
+	return spp[k]
 }
 
 func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
@@ -478,19 +446,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	}
 
 	resolver := Resolver{
-		cache: cache.New(ssp, cache.WithSourcePriorityProvider(catsrcPriorityProvider{lister: &stubCatalogSourceLister{
-			catsrcs: []*v1alpha1.CatalogSource{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "olm",
-						Name:      "high-priority-operator",
-					},
-					Spec: v1alpha1.CatalogSourceSpec{
-						Priority: 100,
-					},
-				},
-			},
-		}})),
+		cache: cache.New(ssp, cache.WithSourcePriorityProvider(stubSourcePriorityProvider{cache.SourceKey{Namespace: "olm", Name: "high-priority-operator"}: 100})),
 	}
 
 	operators, err := resolver.Resolve([]string{"olm"}, subs)
@@ -515,28 +471,10 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	}
 
 	resolver = Resolver{
-		cache: cache.New(ssp, cache.WithSourcePriorityProvider(catsrcPriorityProvider{lister: &stubCatalogSourceLister{
-			catsrcs: []*v1alpha1.CatalogSource{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "olm",
-						Name:      "high-priority-operator",
-					},
-					Spec: v1alpha1.CatalogSourceSpec{
-						Priority: 100,
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "olm",
-						Name:      "community-operator",
-					},
-					Spec: v1alpha1.CatalogSourceSpec{
-						Priority: 100,
-					},
-				},
-			},
-		}})),
+		cache: cache.New(ssp, cache.WithSourcePriorityProvider(stubSourcePriorityProvider{
+			cache.SourceKey{Namespace: "olm", Name: "high-priority-operator"}: 100,
+			cache.SourceKey{Namespace: "olm", Name: "community-operator"}:     100,
+		})),
 	}
 
 	operators, err = resolver.Resolve([]string{"olm"}, subs)
