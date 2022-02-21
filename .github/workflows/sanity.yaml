@@ -6,18 +6,20 @@ on:
   pull_request:
   workflow_dispatch:
 jobs:
-  sanity:
+  vendor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '~1.17'
-      - name: Run sanity checks
-        run: make vendor && make diff
-      - name: Run linting checks
-        uses: "golangci/golangci-lint-action@v2"
-        with:
-          version: "v1.43"
-          skip-go-installation: true
-          skip-pkg-cache: true
+    - uses: actions/checkout@v1
+    - uses: actions/setup-go@v2
+      with:
+        go-version: '~1.17'
+    - name: Run sanity checks
+      run: make vendor && make diff
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run linting checks
+      uses: "golangci/golangci-lint-action@v2"
+      with:
+        version: "v1.43"
