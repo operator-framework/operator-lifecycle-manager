@@ -25,3 +25,5 @@ reviewers:
   - timflannagan
   - perdasilva
   - akihikokuroda
+# Bugzilla metadata
+component: "OLM"
