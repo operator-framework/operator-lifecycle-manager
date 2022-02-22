@@ -1023,8 +1023,7 @@ var _ = Describe("Subscription", func() {
 	// - Delete the referenced InstallPlan
 	// - Wait for sub to have status condition SubscriptionInstallPlanMissing true
 	// - Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
-	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2645
-	It("[FLAKE] can reconcile InstallPlan status", func() {
+	It("can reconcile InstallPlan status", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -1117,7 +1116,25 @@ var _ = Describe("Subscription", func() {
 		// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
 		sub, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, func(s *operatorsv1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(operatorsv1alpha1.SubscriptionInstallPlanPending)
-			return cond.Status == corev1.ConditionTrue && cond.Reason == string(operatorsv1alpha1.InstallPlanPhaseInstalling)
+			isConditionPresent := cond.Status == corev1.ConditionTrue && cond.Reason == string(operatorsv1alpha1.InstallPlanPhaseInstalling)
+
+			if isConditionPresent {
+				return true
+			}
+
+			// Sometimes the transition from installing to complete can be so quick that the test does not capture
+			// the condition in the subscription before it is removed. To mitigate this, we check if the installplan
+			// has transitioned to complete and exit out the fetch subscription loop if so.
+			// This is a mitigation. We should probably fix this test appropriately.
+			// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2667
+			ip, err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.TODO(), plan.Name, metav1.GetOptions{})
+			if err != nil {
+				// retry on failure
+				return false
+			}
+			isInstallPlanComplete := ip.Status.Phase == operatorsv1alpha1.InstallPlanPhaseComplete
+
+			return isInstallPlanComplete
 		})
 		Expect(err).ToNot(HaveOccurred())
 
