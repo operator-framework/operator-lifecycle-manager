@@ -7,11 +7,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	k8serror "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,6 +42,7 @@ import (
 const (
 	openshiftregistryFQDN = "image-registry.openshift-image-registry.svc:5000"
 	catsrcImage           = "docker://quay.io/olmtest/catsrc-update-test:"
+	badCSVDir             = "bad-csv"
 )
 
 var _ = Describe("Starting CatalogSource e2e tests", func() {
@@ -1340,6 +1343,68 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			}
 		}
 	})
+
+	When("A CatalogSource is created with an operator that has a CSV with missing metadata.ApiVersion", func() {
+
+		var (
+			magicCatalog      MagicCatalog
+			catalogSourceName string
+			subscription      *operatorsv1alpha1.Subscription
+			c                 client.Client
+		)
+
+		BeforeEach(func() {
+			c = ctx.Ctx().Client()
+
+			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, badCSVDir, "bad-csv.yaml"))
+			Expect(err).To(BeNil())
+
+			catalogSourceName = genName("cat-bad-csv")
+			magicCatalog = NewMagicCatalog(c, ns.GetName(), catalogSourceName, provider)
+			Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
+
+		})
+
+		AfterEach(func() {
+			TeardownNamespace(ns.GetName())
+		})
+
+		When("A Subscription is created catalogSource built with the malformed CSV", func() {
+			BeforeEach(func ()  {
+				subscription = &operatorsv1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fmt.Sprintf("%s-sub", catalogSourceName),
+						Namespace: ns.GetName(),
+					},
+					Spec: &operatorsv1alpha1.SubscriptionSpec{
+						CatalogSource:          catalogSourceName,
+						CatalogSourceNamespace: ns.GetName(),
+						Channel:                "stable",
+						Package:                "packageA",
+					},
+				}
+				Expect(c.Create(context.Background(), subscription)).To(BeNil())
+			})
+
+			It("fails with a ResolutionFailed error condition, and a message that highlights the missing field in the CSV", func() {
+
+				subscription, err := fetchSubscription(crc, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
+				Expect(err).Should(BeNil())
+				installPlanName := subscription.Status.Install.Name
+
+				// ensure we wait for the installPlan to fail before moving forward then fetch the subscription again
+				_, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, subscription.GetNamespace(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
+				Expect(err).To(BeNil())
+				subscription, err = fetchSubscription(crc, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
+				Expect(err).To(BeNil())
+
+				// expect the message that API missing
+				failingCondition := subscription.Status.GetCondition(operatorsv1alpha1.SubscriptionInstallPlanFailed)
+				Expect(failingCondition.Message).To(ContainSubstring("missing APIVersion"))
+			})
+		})
+	})
+
 })
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
