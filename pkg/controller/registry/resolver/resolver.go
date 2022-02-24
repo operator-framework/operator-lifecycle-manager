@@ -19,11 +19,20 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
+// constraintProvider knows how to provide solver constraints for a given cache entry.
+// For instance, it could be used to surface additional constraints against an entry given some
+// properties it may expose. E.g. olm.maxOpenShiftVersion could be checked against the cluster version
+// and prohibit any entry that doesn't meet the requirement
+type constraintProvider interface {
+	// Constraints returns a set of solver constraints for a cache entry.
+	Constraints(e *cache.Entry) ([]solver.Constraint, error)
+}
+
 type Resolver struct {
 	cache                     cache.OperatorCacheProvider
 	log                       logrus.FieldLogger
 	pc                        *predicateConverter
-	systemConstraintsProvider solver.ConstraintProvider
+	systemConstraintsProvider constraintProvider
 }
 
 func NewDefaultResolver(rcp cache.SourceProvider, sourcePriorityProvider cache.SourcePriorityProvider, logger logrus.FieldLogger) *Resolver {
