@@ -53,6 +53,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 		crc versioned.Interface
 	)
 
+	const (
+		longtimeout = 90 * time.Second
+	)
+
 	BeforeEach(func() {
 		c = newKubeClient()
 		crc = newCRClient()
@@ -141,7 +145,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			Eventually(func() error {
 				return ctx.Ctx().Client().Delete(context.Background(), &ns)
-			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+			}, longtimeout).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
 		})
 
 		// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2646
@@ -4210,11 +4214,16 @@ var _ = Describe("Disabling copied CSVs", func() {
 	var (
 		ns  corev1.Namespace
 		csv operatorsv1alpha1.ClusterServiceVersion
+		og  operatorsv1.OperatorGroup
+	)
+
+	const (
+		longtimeout = 90 * time.Second
 	)
 
 	BeforeEach(func() {
 		nsname := genName("csv-toggle-test-")
-		og := operatorsv1.OperatorGroup{
+		og = operatorsv1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s-operatorgroup", nsname),
 				Namespace: nsname,
@@ -4249,11 +4258,19 @@ var _ = Describe("Disabling copied CSVs", func() {
 
 			return nil
 		}).Should(Succeed())
+		Eventually(func() error {
+			err := ctx.Ctx().Client().Delete(context.Background(), &og)
+			if err != nil && k8serrors.IsNotFound(err) {
+				return err
+			}
+
+			return nil
+		}).Should(Succeed())
 		TeardownNamespace(ns.GetName())
 		Eventually(func() error {
 			var namespace corev1.Namespace
 			return ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&ns), &namespace)
-		}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+		}, longtimeout).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
 	})
 
 	When("an operator is installed in AllNamespace mode", func() {

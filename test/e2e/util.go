@@ -420,14 +420,13 @@ func TearDown(namespace string) {
 		return client.DeleteAllOf(clientCtx, &operatorsv1alpha1.InstallPlan{}, inNamespace)
 	}).Should(Succeed(), "failed to delete test installplans")
 
-	Eventually(func() (remaining []operatorsv1alpha1.InstallPlan, err error) {
-		list := &operatorsv1alpha1.InstallPlanList{}
-		err = client.List(clientCtx, list, inNamespace)
-		if list != nil {
-			remaining = list.Items
+	var installPlangvr = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "installplans"}
+	Eventually(func() ([]unstructured.Unstructured, error) {
+		list, err := dynamic.Resource(installPlangvr).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
 		}
-
-		return
+		return list.Items, nil
 	}).Should(BeEmpty(), "failed to await deletion of test installplans")
 
 	logf("deleting test catalogsources...")
@@ -435,14 +434,13 @@ func TearDown(namespace string) {
 		return client.DeleteAllOf(clientCtx, &operatorsv1alpha1.CatalogSource{}, inNamespace, ephemeralCatalogFieldSelector)
 	}).Should(Succeed(), "failed to delete test catalogsources")
 
-	Eventually(func() (remaining []operatorsv1alpha1.CatalogSource, err error) {
-		list := &operatorsv1alpha1.CatalogSourceList{}
-		err = client.List(clientCtx, list, inNamespace, ephemeralCatalogFieldSelector)
-		if list != nil {
-			remaining = list.Items
+	var catalogSourcegvr = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "catalogsources"}
+	Eventually(func() ([]unstructured.Unstructured, error) {
+		list, err := dynamic.Resource(catalogSourcegvr).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
 		}
-
-		return
+		return list.Items, nil
 	}).Should(BeEmpty(), "failed to await deletion of test catalogsources")
 
 	logf("deleting test crds...")
@@ -497,7 +495,14 @@ func TearDown(namespace string) {
 		return client.DeleteAllOf(clientCtx, &operatorsv1alpha1.ClusterServiceVersion{}, inNamespace, ephemeralCSVFieldSelector)
 	}).Should(Succeed(), "failed to delete test csvs")
 
-	Eventually(remainingCSVs).Should(BeEmpty(), "failed to await deletion of test csvs")
+	var csvgvr = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "clusterserviceversions"}
+	Eventually(func() ([]unstructured.Unstructured, error) {
+		list, err := dynamic.Resource(csvgvr).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return list.Items, nil
+	}).Should(BeEmpty(), "failed to await deletion of test csvs")
 
 	logf("test resources deleted")
 }
