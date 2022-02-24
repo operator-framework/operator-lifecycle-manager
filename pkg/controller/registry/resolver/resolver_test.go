@@ -80,6 +80,13 @@ func TestSolveOperators(t *testing.T) {
 	require.ElementsMatch(t, expected, operators)
 }
 
+// ConstraintProviderFunc is a simple implementation of ConstraintProvider
+type ConstraintProviderFunc func(e *cache.Entry) ([]solver.Constraint, error)
+
+func (c ConstraintProviderFunc) Constraints(e *cache.Entry) ([]solver.Constraint, error) {
+	return c(e)
+}
+
 func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
@@ -99,7 +106,7 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 	existingPackageD := existingOperator(namespace, "packageD.v1", "packageD", "alpha", "", nil, nil, nil, nil)
 	existingPackageD.Annotations = map[string]string{"operatorframework.io/properties": `{"properties":[{"type":"olm.package","value":{"packageName":"packageD","version":"1.0.0"}}]}`}
 
-	whiteListConstraintProvider := func(whiteList ...*cache.Entry) solver.ConstraintProviderFunc {
+	whiteListConstraintProvider := func(whiteList ...*cache.Entry) ConstraintProviderFunc {
 		return func(entry *cache.Entry) ([]solver.Constraint, error) {
 			for _, whiteListedEntry := range whiteList {
 				if whiteListedEntry.Package() == entry.Package() &&
@@ -117,7 +124,7 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 
 	testCases := []struct {
 		title                     string
-		systemConstraintsProvider solver.ConstraintProvider
+		systemConstraintsProvider constraintProvider
 		expectedOperators         []*cache.Entry
 		csvs                      []*v1alpha1.ClusterServiceVersion
 		subs                      []*v1alpha1.Subscription
