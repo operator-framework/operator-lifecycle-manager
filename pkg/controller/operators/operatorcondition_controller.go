@@ -93,39 +93,34 @@ var _ reconcile.Reconciler = &OperatorConditionReconciler{}
 
 func (r *OperatorConditionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
-	log := r.log.WithValues("request", req)
-	log.V(2).Info("reconciling operatorcondition")
+	log := r.log.WithValues("request", req).V(1)
+	log.Info("reconciling")
 	metrics.EmitOperatorConditionReconcile(req.Namespace, req.Name)
 
 	operatorCondition := &operatorsv2.OperatorCondition{}
-	err := r.Client.Get(context.TODO(), req.NamespacedName, operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Unable to find operatorcondition")
+	if err := r.Client.Get(ctx, req.NamespacedName, operatorCondition); err != nil {
+		log.Info("Unable to find OperatorCondition")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if err := r.ensureOperatorConditionRole(operatorCondition); err != nil {
+		log.Info("Error ensuring OperatorCondition Role")
 		return ctrl.Result{}, err
 	}
 
-	err = r.ensureOperatorConditionRole(operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error ensuring OperatorCondition Role")
-		return ctrl.Result{Requeue: true}, err
+	if err := r.ensureOperatorConditionRoleBinding(operatorCondition); err != nil {
+		log.Info("Error ensuring OperatorCondition RoleBinding")
+		return ctrl.Result{}, err
 	}
 
-	err = r.ensureOperatorConditionRoleBinding(operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error ensuring OperatorCondition RoleBinding")
-		return ctrl.Result{Requeue: true}, err
+	if err := r.ensureDeploymentEnvVars(operatorCondition); err != nil {
+		log.Info("Error ensuring OperatorCondition Deployment EnvVars")
+		return ctrl.Result{}, err
 	}
 
-	err = r.ensureDeploymentEnvVars(operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error ensuring OperatorCondition Deployment EnvVars")
-		return ctrl.Result{Requeue: true}, err
-	}
-
-	err = r.syncOperatorConditionStatus(operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error syncing OperatorCondition Status")
-		return ctrl.Result{Requeue: true}, err
+	if err := r.syncOperatorConditionStatus(operatorCondition); err != nil {
+		log.Info("Error syncing OperatorCondition Status")
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
