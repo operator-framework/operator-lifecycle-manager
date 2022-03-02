@@ -90,8 +90,6 @@ type Cache struct {
 	m                      sync.RWMutex
 }
 
-var _ OperatorCacheProvider = &Cache{}
-
 type Option func(*Cache)
 
 func WithLogger(logger logrus.StdLogger) Option {
