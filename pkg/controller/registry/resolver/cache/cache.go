@@ -423,13 +423,6 @@ func (f EmptyOperatorFinder) Find(...Predicate) []*Entry {
 	return nil
 }
 
-func AtLeast(n int, operators []*Entry) ([]*Entry, error) {
-	if len(operators) < n {
-		return nil, fmt.Errorf("expected at least %d operator(s), got %d", n, len(operators))
-	}
-	return operators, nil
-}
-
 func ExactlyOne(operators []*Entry) (*Entry, error) {
 	if len(operators) != 1 {
 		return nil, fmt.Errorf("expected exactly one operator, got %d", len(operators))
