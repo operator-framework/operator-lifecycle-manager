@@ -29,7 +29,7 @@ type constraintProvider interface {
 }
 
 type Resolver struct {
-	cache                     cache.OperatorCacheProvider
+	cache                     *cache.Cache
 	log                       logrus.FieldLogger
 	pc                        *predicateConverter
 	systemConstraintsProvider constraintProvider
