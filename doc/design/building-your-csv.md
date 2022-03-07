@@ -169,7 +169,7 @@ The Lifecycle Manager will check against the available CRDs and Operators in the
       description: Represents a cluster of etcd nodes.
 ```
 ## CRD Templates
-Users of your Operator will need to be aware of which options are required vs optional. You can provide templates for each of your CRDs with a minimum set of configuration as an annotation named `alm-examples`. Metadata for each template, for exmaple an expanded description, can be included in an annotation named `alm-examples-metadata`, which should be a hash indexed with the `metadata.name` of the example in the `alm-examples` list. Compatible UIs will pre-enter the `alm-examples` template for users to further customize, and use the `alm-examples-metadata` to help users decide which template to select.
+Users of your Operator will need to be aware of which options are required vs optional. You can provide templates for each of your CRDs with a minimum set of configuration as an annotation named `alm-examples`. Metadata for each template, for example an expanded description, can be included in an annotation named `alm-examples-metadata`, which should be a hash indexed with the `metadata.name` of the example in the `alm-examples` list. Compatible UIs will pre-enter the `alm-examples` template for users to further customize, and use the `alm-examples-metadata` to help users decide which template to select.
 
 The annotation consists of a list of the `kind`, eg. the CRD name, and the corresponding `metadata` and `spec` of the Kubernetes object. Here’s a full example that provides templates for `EtcdCluster`, `EtcdBackup` and `EtcdRestore`:
 
