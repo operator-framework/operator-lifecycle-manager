@@ -739,7 +739,9 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 				Image:      image,
 				UpdateStrategy: &v1alpha1.UpdateStrategy{
 					RegistryPoll: &v1alpha1.RegistryPoll{
-						Interval: &metav1.Duration{Duration: 1 * time.Minute},
+						// Using RawInterval rather than Interval due to this issue:
+						// https://github.com/operator-framework/operator-lifecycle-manager/issues/2621
+						RawInterval: "1m0s",
 					},
 				},
 			},
