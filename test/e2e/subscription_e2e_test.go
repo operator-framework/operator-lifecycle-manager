@@ -586,11 +586,11 @@ var _ = Describe("Subscription", func() {
 
 		// Should eventually GC the CSVs
 		Eventually(func() bool {
-			return csvExists(crc, csvA.Name)
+			return csvExists(generatedNamespace.GetName(), crc, csvA.Name)
 		}).Should(BeFalse())
 
 		Eventually(func() bool {
-			return csvExists(crc, csvB.Name)
+			return csvExists(generatedNamespace.GetName(), crc, csvB.Name)
 		}).Should(BeFalse())
 
 		// TODO: check installplans, subscription status, etc

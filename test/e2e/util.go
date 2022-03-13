@@ -509,7 +509,11 @@ func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, ca
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() (bool, error) {
-			fetched, err := newKubeClient().KubernetesInterface().CoreV1().Pods(catalogSource.GetNamespace()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalogSource.GetName()})
+			listOpts := metav1.ListOptions{
+				LabelSelector: "olm.catalogSource=" + catalogSource.GetName(),
+				FieldSelector: "status.phase=Running",
+			}
+			fetched, err := newKubeClient().KubernetesInterface().CoreV1().Pods(catalogSource.GetNamespace()).List(context.Background(), listOpts)
 			if err != nil {
 				return false, err
 			}
@@ -956,6 +960,12 @@ func Apply(obj controllerclient.Object, changeFunc interface{}) func() error {
 func HavePhase(goal operatorsv1alpha1.InstallPlanPhase) gtypes.GomegaMatcher {
 	return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
 		return plan.Status.Phase
+	}, Equal(goal))
+}
+
+func CSVHasPhase(goal operatorsv1alpha1.ClusterServiceVersionPhase) gtypes.GomegaMatcher {
+	return WithTransform(func(csv *operatorsv1alpha1.ClusterServiceVersion) operatorsv1alpha1.ClusterServiceVersionPhase {
+		return csv.Status.Phase
 	}, Equal(goal))
 }
 
