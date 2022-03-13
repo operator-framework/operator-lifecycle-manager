@@ -6,6 +6,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"net"
 	"strconv"
 	"strings"
