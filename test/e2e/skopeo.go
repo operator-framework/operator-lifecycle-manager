@@ -24,7 +24,19 @@ const (
 )
 
 func openshiftRegistryAuth(client operatorclient.ClientInterface, namespace string) (string, error) {
-	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), BuilderServiceAccount, metav1.GetOptions{})
+
+	var sa *corev1.ServiceAccount
+	var err error
+
+	// wait for the builder service account to exist and contain image pull secrets
+	err = waitFor(func() (bool, error) {
+		sa, err = client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), BuilderServiceAccount, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return len(sa.ImagePullSecrets) > 0, nil
+	})
+
 	if err != nil {
 		return "", err
 	}
