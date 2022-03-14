@@ -6,11 +6,12 @@ package e2e
 import (
 	"context"
 	"fmt"
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 
 	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
@@ -76,11 +77,11 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		csv := newCSV(packageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		catalogSourceName := genName("mock-ocs-")
-		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
 
 		// ensure the mock catalog exists and has been synced by the catalog operator
-		catalogSource, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
+		catalogSource, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// get catalog operator deployment
@@ -96,7 +97,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 
 		// check for last synced update to catalogsource
 		By("Checking for catalogsource lastSync updates")
-		_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, operatorNamespace, func(cs *v1alpha1.CatalogSource) bool {
+		_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, ns.GetName(), func(cs *v1alpha1.CatalogSource) bool {
 			before := catalogSource.Status.GRPCConnectionState
 			after := cs.Status.GRPCConnectionState
 			if after != nil && after.LastConnectTime.After(before.LastConnectTime.Time) {
@@ -110,7 +111,6 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 	})
 
 	It("global update triggers subscription sync", func() {
-
 		globalNS := operatorNamespace
 
 		// Determine which namespace is global. Should be `openshift-marketplace` for OCP 4.2+.
@@ -147,15 +147,16 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		// Create the initial catalog source
-		createInternalCatalogSource(c, crc, mainCatalogName, globalNS, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+		cs, cleanup := createInternalCatalogSource(c, crc, mainCatalogName, globalNS, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+		defer cleanup()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionSpec := &v1alpha1.SubscriptionSpec{
-			CatalogSource:          mainCatalogName,
-			CatalogSourceNamespace: globalNS,
+			CatalogSource:          cs.GetName(),
+			CatalogSourceNamespace: cs.GetNamespace(),
 			Package:                mainPackageName,
 			Channel:                stableChannel,
 			StartingCSV:            mainCSV.GetName(),
@@ -194,10 +195,10 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 
 		// Update catalog configmap
-		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, globalNS, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, replacementCSV}, mainManifests)
+		updateInternalCatalog(GinkgoT(), c, crc, cs.GetName(), cs.GetNamespace(), []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, replacementCSV}, mainManifests)
 
 		// Get updated catalogsource
-		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
+		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionStateUpgradePendingChecker)
