@@ -7,8 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	g "github.com/onsi/ginkgo"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/util"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+
+	g "github.com/onsi/ginkgo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
@@ -35,6 +39,7 @@ type TestContext struct {
 	operatorClient versioned.Interface
 	dynamicClient  dynamic.Interface
 	packageClient  pversioned.Interface
+	e2eClient      *util.E2EKubeClient
 	ssaClient      *controllerclient.ServerSideApplier
 
 	kubeconfigPath string
@@ -91,6 +96,17 @@ func (ctx TestContext) Client() k8scontrollerclient.Client {
 
 func (ctx TestContext) SSAClient() *controllerclient.ServerSideApplier {
 	return ctx.ssaClient
+}
+
+func (ctx TestContext) E2EClient() *util.E2EKubeClient {
+	return ctx.e2eClient
+}
+
+func (ctx TestContext) NewE2EClientSession() {
+	if ctx.e2eClient != nil {
+		_ = ctx.e2eClient.Reset()
+	}
+	ctx.e2eClient = util.NewK8sResourceManager(ctx.Client())
 }
 
 func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
@@ -163,12 +179,14 @@ func setDerivedFields(ctx *TestContext) error {
 
 	ctx.scheme = runtime.NewScheme()
 	localSchemeBuilder := runtime.NewSchemeBuilder(
+		apiextensions.AddToScheme,
 		kscheme.AddToScheme,
 		operatorsv1alpha1.AddToScheme,
 		operatorsv1.AddToScheme,
 		operatorsv2.AddToScheme,
 		apiextensionsv1.AddToScheme,
-		apiextensions.AddToScheme,
+		appsv1.AddToScheme,
+		apiregistrationv1.AddToScheme,
 	)
 	if err := localSchemeBuilder.AddToScheme(ctx.scheme); err != nil {
 		return err
@@ -181,6 +199,7 @@ func setDerivedFields(ctx *TestContext) error {
 		return err
 	}
 	ctx.client = client
+	ctx.e2eClient = util.NewK8sResourceManager(client)
 
 	ctx.ssaClient, err = controllerclient.NewForConfig(ctx.restConfig, ctx.scheme, "test.olm.registry")
 	if err != nil {
