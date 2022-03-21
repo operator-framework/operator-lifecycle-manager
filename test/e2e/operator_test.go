@@ -71,7 +71,7 @@ var _ = Describe("Operator API", func() {
 	// 15. Delete o
 	// 16. Ensure o is not re-created
 	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2628
-	It("[FLAKE] should surface components in its status", func() {
+	It("should surface components in its status", func() {
 		o := &operatorsv1.Operator{}
 		o.SetName(genName("o-"))
 
