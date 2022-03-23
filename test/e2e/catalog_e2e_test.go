@@ -35,6 +35,11 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
+const (
+	openshiftregistryFQDN = "image-registry.openshift-image-registry.svc:5000"
+	catsrcImage           = "docker://quay.io/olmtest/catsrc-update-test:"
+)
+
 var _ = Describe("Catalog represents a store of bundles which OLM can use to install Operators", func() {
 	var (
 		c   operatorclient.ClientInterface
@@ -694,7 +699,7 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			err = registryPortForward(ns.GetName())
 			Expect(err).NotTo(HaveOccurred(), "port-forwarding local registry: %s", err)
 		} else {
-			registryURL = openshiftregistryFQDN
+			registryURL = fmt.Sprintf("%s/%s", openshiftregistryFQDN, ns.GetName())
 			registryAuth, err = openshiftRegistryAuth(c, ns.GetName())
 			Expect(err).NotTo(HaveOccurred(), "error getting openshift registry authentication: %s", err)
 		}
@@ -1154,11 +1159,6 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		}
 	})
 })
-
-const (
-	openshiftregistryFQDN = "image-registry.openshift-image-registry.svc:5000/openshift-operators"
-	catsrcImage           = "docker://quay.io/olmtest/catsrc-update-test:"
-)
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
 	deployments, err := c.ListDeploymentsWithLabels(namespace, operatorLabels)
