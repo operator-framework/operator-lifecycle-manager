@@ -1,3 +1,4 @@
+//go:build !bare
 // +build !bare
 
 package e2e
@@ -344,7 +345,14 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						DefaultChannelName: stableChannel,
 					},
 				}
-				_, cleanupAll := createInternalCatalogSource(c, crc, name, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+				cs, cleanupAll := createInternalCatalogSource(c, crc, name, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+				// Note(tflannag): Dependending on how ginkgo orders these test specs, and how bloated the cluster we're running
+				// this test case against, we risk creating and then immediately deleting the catalogsource before the catalog
+				// operator can generate all the requisite resources (e.g. the ServiceAccount), which can leave the underlying
+				// registry Pod in a terminating state until kubelet times out waiting for the generated ServiceAccount
+				// resource to be present so it can mount it in the registry container.
+				_, err := fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced)
+				Expect(err).ShouldNot(HaveOccurred())
 
 				var once sync.Once
 				cleanup = func() {
