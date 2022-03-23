@@ -4417,10 +4417,17 @@ var _ = Describe("Disabling copied CSVs", func() {
 					return err
 				}
 
-				if len(namespaces.Items)-1 != len(copiedCSVs.Items) {
-					return fmt.Errorf("%d copied CSVs found, expected %d", len(copiedCSVs.Items), len(namespaces.Items)-1)
+				targetNamespaces := len(namespaces.Items) - 1
+				for _, ns := range namespaces.Items {
+					// filter out any namespaces that are currently reporting a Terminating phase
+					// as the API server will reject any resource events in terminating namespaces.
+					if ns.Status.Phase == "Terminating" {
+						targetNamespaces--
+					}
 				}
-
+				if targetNamespaces != len(copiedCSVs.Items) {
+					return fmt.Errorf("%d copied CSVs found, expected %d", len(copiedCSVs.Items), targetNamespaces)
+				}
 				return nil
 			}).Should(Succeed())
 		})
