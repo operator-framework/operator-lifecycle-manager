@@ -372,7 +372,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			installPlanRef = sub.Status.InstallPlanRef.Name
 
 			// Wait for the installplan to complete (5 minute timeout)
-			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, testNamespace, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 			ctx.Ctx().Logf("install plan %s completed", installPlanRef)
@@ -486,7 +486,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			installPlanRef = sub.Status.InstallPlanRef.Name
 
 			// Wait for the installplan to complete (5 minute timeout)
-			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, testNamespace, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 			Eventually(func() error {
@@ -522,7 +522,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				installPlanRef = sub.Status.InstallPlanRef.Name
 
 				// Wait for the installplan to complete (5 minute timeout)
-				_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+				_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, testNamespace, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 				Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 				// Ensure the new csv is installed
@@ -599,7 +599,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			installPlanRef = sub.Status.InstallPlanRef.Name
 
 			// Wait for the installplan to complete (5 minute timeout)
-			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, testNamespace, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 			Eventually(func() error {
@@ -636,7 +636,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				installPlanRef = sub.Status.InstallPlanRef.Name
 
 				// Wait for the installplan to complete (5 minute timeout)
-				_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+				_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, testNamespace, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 				Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 				// Ensure the new csv is installed
