@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	g "github.com/onsi/ginkgo"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
@@ -162,12 +163,12 @@ func setDerivedFields(ctx *TestContext) error {
 
 	ctx.scheme = runtime.NewScheme()
 	localSchemeBuilder := runtime.NewSchemeBuilder(
-		apiextensionsv1.AddToScheme,
 		kscheme.AddToScheme,
 		operatorsv1alpha1.AddToScheme,
 		operatorsv1.AddToScheme,
 		operatorsv2.AddToScheme,
 		apiextensionsv1.AddToScheme,
+		apiextensions.AddToScheme,
 	)
 	if err := localSchemeBuilder.AddToScheme(ctx.scheme); err != nil {
 		return err
