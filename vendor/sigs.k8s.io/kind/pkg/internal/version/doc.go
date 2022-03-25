@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package defaults contains cross-api-version configuration defaults
-package defaults
-
-// Image is the default for the Config.Image field, aka the default node image.
-const Image = "kindest/node:v1.23.4@sha256:0e34f0d0fd448aa2f2819cfd74e99fe5793a6e4938b328f657c8e3f81ee0dfb9"
+// Package version provides utilities for version number comparisons
+//
+// This is forked from k8s.io/apimachinery/pkg/util/version to make
+// kind easier to import (k8s.io/apimachinery/pkg/util/version is a stable,
+// mature package with no externaldependencies within a large, heavy module)
+package version
