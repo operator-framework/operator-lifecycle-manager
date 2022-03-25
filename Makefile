@@ -143,7 +143,7 @@ e2e:
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
 e2e-local: BUILD_TAGS="json1 experimental_metrics"
-e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar
+e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar -test-data-dir=../test/e2e/testdata
 e2e-local: run=bin/e2e-local.test
 e2e-local: bin/e2e-local.test test/e2e-local.image.tar
 e2e-local: e2e

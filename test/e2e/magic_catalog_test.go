@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,7 +28,7 @@ var _ = Describe("MagicCatalog", func() {
 		const catalogName = "test"
 		namespace := generatedNamespace.GetName()
 		kubeClient := ctx.Ctx().Client()
-		provider, err := NewFileBasedFiledBasedCatalogProvider("../test/e2e/testdata/fbc_catalog.json")
+		provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fbc_catalog.json"))
 		Expect(err).To(BeNil())
 
 		// create and deploy and undeploy the magic catalog
