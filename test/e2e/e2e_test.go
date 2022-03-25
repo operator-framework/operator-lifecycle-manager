@@ -33,13 +33,22 @@ var (
 	communityOperators = flag.String(
 		"communityOperators",
 		"quay.io/operator-framework/upstream-community-operators@sha256:098457dc5e0b6ca9599bd0e7a67809f8eca397907ca4d93597380511db478fec",
-		"reference to upstream-community-operators image")
+		"reference to upstream-community-operators image",
+	)
 
 	dummyImage = flag.String(
 		"dummyImage",
 		"bitnami/nginx:latest",
-		"dummy image to treat as an operator in tests")
+		"dummy image to treat as an operator in tests",
+	)
 
+	testdataPath = flag.String(
+		"test-data-dir",
+		"./testdata",
+		"configures where to find the testdata directory",
+	)
+
+	testdataDir             = ""
 	testNamespace           = ""
 	operatorNamespace       = ""
 	communityOperatorsImage = ""
@@ -74,6 +83,7 @@ var _ = BeforeSuite(func() {
 	testNamespace = *namespace
 	operatorNamespace = *olmNamespace
 	communityOperatorsImage = *communityOperators
+	testdataDir = *testdataPath
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 

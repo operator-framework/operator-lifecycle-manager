@@ -1,7 +1,9 @@
 package e2e
 
 import (
-	"io/ioutil"
+	"errors"
+	"fmt"
+	"os"
 )
 
 type FileBasedCatalogProvider interface {
@@ -13,7 +15,10 @@ type fileBasedFileBasedCatalogProvider struct {
 }
 
 func NewFileBasedFiledBasedCatalogProvider(path string) (FileBasedCatalogProvider, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("path %s does not exist: %w", path, err)
+	}
 	if err != nil {
 		return nil, err
 	}
