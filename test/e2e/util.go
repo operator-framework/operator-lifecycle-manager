@@ -984,14 +984,14 @@ func SetupGeneratedTestNamespaceWithOperatorGroup(name string, og operatorsv1.Op
 	return ns
 }
 
-func SetupGeneratedTestNamespace(name string) corev1.Namespace {
+func SetupGeneratedTestNamespace(name string, targetNamespaces ...string) corev1.Namespace {
 	og := operatorsv1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-operatorgroup", name),
 			Namespace: name,
 		},
 		Spec: operatorsv1.OperatorGroupSpec{
-			TargetNamespaces: []string{name},
+			TargetNamespaces: targetNamespaces,
 		},
 	}
 

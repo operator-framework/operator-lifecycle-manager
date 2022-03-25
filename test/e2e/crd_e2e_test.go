@@ -11,6 +11,7 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -19,7 +20,18 @@ import (
 )
 
 var _ = Describe("CRD Versions", func() {
-	AfterEach(func() { TearDown(testNamespace) }, float64(30))
+
+	var (
+		ns corev1.Namespace
+	)
+
+	BeforeEach(func() {
+		ns = SetupGeneratedTestNamespace(genName("crd-e2e-"))
+	})
+
+	AfterEach(func() {
+		TeardownNamespace(ns.GetName())
+	})
 
 	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2640
 	It("[FLAKE] creates v1 CRDs with a v1 schema successfully", func() {
@@ -56,7 +68,7 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
+		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, nil, nil)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -69,18 +81,22 @@ var _ = Describe("CRD Versions", func() {
 		}
 
 		// Create the catalog sources
-		_, cleanupMainCatalogSource := createV1CRDInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensionsv1.CustomResourceDefinition{v1crd}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
+		_, cleanupMainCatalogSource := createV1CRDInternalCatalogSource(GinkgoT(), c, crc, mainCatalogName, ns.GetName(), mainManifests, []apiextensionsv1.CustomResourceDefinition{v1crd}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanupMainCatalogSource()
+		defer func() {
+			_ = crc.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Delete(context.TODO(), mainCSV.GetName(), metav1.DeleteOptions{})
+			_ = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), v1crd.GetName(), metav1.DeleteOptions{})
+		}()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
-		subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(Equal(nil))
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -89,7 +105,7 @@ var _ = Describe("CRD Versions", func() {
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 		Expect(err).ToNot(HaveOccurred())
 		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
@@ -190,8 +206,8 @@ var _ = Describe("CRD Versions", func() {
 			},
 		}
 
-		oldCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{oldCRD}, nil, nil)
-		newCSV := newCSV(mainPackageAlpha, testNamespace, mainPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{newCRD}, nil, nil)
+		oldCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{oldCRD}, nil, nil)
+		newCSV := newCSV(mainPackageAlpha, ns.GetName(), mainPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{newCRD}, nil, nil)
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
 			{
@@ -205,18 +221,24 @@ var _ = Describe("CRD Versions", func() {
 		}
 
 		// Create the catalog sources
-		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{oldCRD, newCRD}, []operatorsv1alpha1.ClusterServiceVersion{oldCSV, newCSV})
+		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), mainManifests, []apiextensions.CustomResourceDefinition{oldCRD, newCRD}, []operatorsv1alpha1.ClusterServiceVersion{oldCSV, newCSV})
 		defer cleanupMainCatalogSource()
+		defer func() {
+			_ = crc.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Delete(context.TODO(), oldCSV.GetName(), metav1.DeleteOptions{})
+			_ = crc.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Delete(context.TODO(), newCSV.GetName(), metav1.DeleteOptions{})
+			_ = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), oldCRD.GetName(), metav1.DeleteOptions{})
+			_ = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), newCRD.GetName(), metav1.DeleteOptions{})
+		}()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
-		subscriptionCleanup := createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -225,7 +247,7 @@ var _ = Describe("CRD Versions", func() {
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 		Expect(err).ToNot(HaveOccurred())
 		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 		Expect(fetchedInstallPlan.Status.Phase).To(Equal(operatorsv1alpha1.InstallPlanPhaseComplete))
@@ -244,14 +266,14 @@ var _ = Describe("CRD Versions", func() {
 		}
 
 		// fetch new subscription
-		s, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionAtLatestWithDifferentInstallPlan)
+		s, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionAtLatestWithDifferentInstallPlan)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(s).ToNot(BeNil())
 		Expect(s.Status.InstallPlanRef).ToNot(Equal(nil))
 
 		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version
 		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
-			return crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), s.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			return crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Get(context.TODO(), s.Status.InstallPlanRef.Name, metav1.GetOptions{})
 		}).Should(And(
 			WithTransform(
 				func(v *operatorsv1alpha1.InstallPlan) operatorsv1alpha1.InstallPlanPhase {
@@ -380,7 +402,11 @@ var _ = Describe("CRD Versions", func() {
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		stableChannel := "stable"
-		catalogCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{catalogCRD}, nil, nil)
+		catalogCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{catalogCRD}, nil, nil)
+		defer func() {
+			_ = crc.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Delete(context.TODO(), catalogCSV.GetName(), metav1.DeleteOptions{})
+			_ = c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), catalogCRD.GetName(), metav1.DeleteOptions{})
+		}()
 
 		mainCatalogName := genName("mock-ocs-main-update2-")
 		mainManifests := []registry.PackageManifest{
@@ -394,17 +420,17 @@ var _ = Describe("CRD Versions", func() {
 		}
 
 		// Create the catalog sources
-		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{catalogCRD}, []operatorsv1alpha1.ClusterServiceVersion{catalogCSV})
+		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), mainManifests, []apiextensions.CustomResourceDefinition{catalogCRD}, []operatorsv1alpha1.ClusterServiceVersion{catalogCSV})
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
-		_ = createSubscriptionForCatalog(crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		_ = createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
-		subscription, err := fetchSubscription(crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -413,7 +439,7 @@ var _ = Describe("CRD Versions", func() {
 		// Check the error on the installplan - should be related to data loss and the CRD upgrade missing a stored version (v1alpha1)
 		Eventually(
 			func() (*operatorsv1alpha1.InstallPlan, error) {
-				return crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
+				return crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Get(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.GetOptions{})
 			},
 			90*time.Second, // exhaust retries
 		).Should(WithTransform(
@@ -431,20 +457,20 @@ var _ = Describe("CRD Versions", func() {
 
 		// install should now succeed
 		oldInstallPlanRef := subscription.Status.InstallPlanRef.Name
-		err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Delete(context.TODO(), subscription.Status.InstallPlanRef.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred(), "error deleting failed install plan")
 		// remove old subscription
-		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(context.TODO(), subscription.GetName(), metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).Delete(context.TODO(), subscription.GetName(), metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred(), "error deleting old subscription")
 		// remove old csv
-		crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(context.TODO(), mainPackageStable, metav1.DeleteOptions{})
+		crc.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Delete(context.TODO(), mainPackageStable, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred(), "error deleting old subscription")
 
 		// recreate subscription
 		subscriptionNameNew := genName("sub-nginx-update2-new-")
-		_ = createSubscriptionForCatalog(crc, testNamespace, subscriptionNameNew, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		_ = createSubscriptionForCatalog(crc, ns.GetName(), subscriptionNameNew, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
-		subscription, err = fetchSubscription(crc, testNamespace, subscriptionNameNew, subscriptionHasInstallPlanChecker)
+		subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionNameNew, subscriptionHasInstallPlanChecker)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -452,15 +478,15 @@ var _ = Describe("CRD Versions", func() {
 
 		// eventually the subscription should create a new install plan
 		Eventually(func() bool {
-			sub, _ := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+			sub, _ := crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
 			GinkgoT().Logf("waiting for subscription %s to generate a new install plan...", subscription.GetName())
 			return sub.Status.InstallPlanRef.Name != oldInstallPlanRef
 		}, 5*time.Minute, 10*time.Second).Should(BeTrue())
 
 		// eventually the new installplan should succeed
 		Eventually(func() bool {
-			sub, _ := crc.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
-			ip, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Get(context.TODO(), sub.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			sub, _ := crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+			ip, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Get(context.TODO(), sub.Status.InstallPlanRef.Name, metav1.GetOptions{})
 			if k8serrors.IsNotFound(err) {
 				return false
 			}

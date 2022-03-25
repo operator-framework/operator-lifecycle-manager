@@ -703,14 +703,14 @@ var _ = Describe("Install Plan", func() {
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 		require.NoError(GinkgoT(), err)
 		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 		// Fetch installplan again to check for unnecessary control loops
-		fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
+		fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), testNamespace, func(fip *operatorsv1alpha1.InstallPlan) bool {
 			// Don't compare object meta as labels can be applied by the operator controller.
 			Expect(equality.Semantic.DeepEqual(fetchedInstallPlan.Spec, fip.Spec)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
 			Expect(equality.Semantic.DeepEqual(fetchedInstallPlan.Status, fip.Status)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
@@ -773,7 +773,7 @@ var _ = Describe("Install Plan", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Verify installplan created and installed
-		fetchedUpdatedDepInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedDepSubscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+		fetchedUpdatedDepInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedDepSubscription.Status.InstallPlanRef.Name, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 		require.NoError(GinkgoT(), err)
 		log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedUpdatedDepInstallPlan.GetName(), fetchedUpdatedDepInstallPlan.Status.Phase))
 		require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), fetchedUpdatedDepInstallPlan.GetName())
@@ -867,14 +867,14 @@ var _ = Describe("Install Plan", func() {
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Fetch installplan again to check for unnecessary control loops
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
+			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), testNamespace, func(fip *operatorsv1alpha1.InstallPlan) bool {
 				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
 				return true
 			})
@@ -1263,7 +1263,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Wait for InstallPlan to be status: Complete or failed before checking resource presence
 			completeOrFailedFunc := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed)
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, completeOrFailedFunc)
+			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, completeOrFailedFunc)
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
@@ -1322,7 +1322,7 @@ var _ = Describe("Install Plan", func() {
 			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(tt.expectedPhase))
+			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(tt.expectedPhase))
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
@@ -1493,7 +1493,7 @@ var _ = Describe("Install Plan", func() {
 
 			// Wait for InstallPlan to be status: Complete or failed before checking resource presence
 			completeOrFailedFunc := buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed)
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, completeOrFailedFunc)
+			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, completeOrFailedFunc)
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
@@ -1527,7 +1527,7 @@ var _ = Describe("Install Plan", func() {
 			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
@@ -1567,7 +1567,7 @@ var _ = Describe("Install Plan", func() {
 			installPlanName = subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
 			require.NoError(GinkgoT(), err)
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
@@ -1703,7 +1703,7 @@ var _ = Describe("Install Plan", func() {
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
@@ -1770,7 +1770,7 @@ var _ = Describe("Install Plan", func() {
 			updatedInstallPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
 
@@ -1896,7 +1896,7 @@ var _ = Describe("Install Plan", func() {
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
@@ -1957,7 +1957,7 @@ var _ = Describe("Install Plan", func() {
 			updatedInstallPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
 
@@ -2106,7 +2106,7 @@ var _ = Describe("Install Plan", func() {
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
@@ -2196,7 +2196,7 @@ var _ = Describe("Install Plan", func() {
 			updatedInstallPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedInstallPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
 
@@ -2336,13 +2336,13 @@ var _ = Describe("Install Plan", func() {
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Fetch installplan again to check for unnecessary control loops
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
+			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), testNamespace, func(fip *operatorsv1alpha1.InstallPlan) bool {
 				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
 				return true
 			})
@@ -2368,7 +2368,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Verify installplan created and installed
-			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedSubscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedUpdatedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, updatedSubscription.Status.InstallPlanRef.Name, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 			require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), fetchedUpdatedInstallPlan.GetName())
 
@@ -2537,13 +2537,13 @@ var _ = Describe("Install Plan", func() {
 			installPlanName := subscription.Status.InstallPlanRef.Name
 
 			// Wait for InstallPlan to be status: Complete before checking resource presence
-			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			require.NoError(GinkgoT(), err)
 
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Fetch installplan again to check for unnecessary control loops
-			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), func(fip *operatorsv1alpha1.InstallPlan) bool {
+			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, fetchedInstallPlan.GetName(), testNamespace, func(fip *operatorsv1alpha1.InstallPlan) bool {
 				Expect(equality.Semantic.DeepEqual(fetchedInstallPlan, fip)).Should(BeTrue(), diff.ObjectDiff(fetchedInstallPlan, fip))
 				return true
 			})
@@ -2675,7 +2675,7 @@ var _ = Describe("Install Plan", func() {
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Attempt to get InstallPlan
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
+		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
 		require.NoError(GinkgoT(), err)
 		require.NotEqual(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase, "InstallPlan failed")
 
@@ -2918,7 +2918,7 @@ var _ = Describe("Install Plan", func() {
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
 		// Wait for InstallPlan to be status: Complete before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
+		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete, operatorsv1alpha1.InstallPlanPhaseFailed))
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
@@ -4088,8 +4088,8 @@ func buildInstallPlanCleanupFunc(crc versioned.Interface, namespace string, inst
 	}
 }
 
-func fetchInstallPlan(t GinkgoTInterface, c versioned.Interface, name string, checkPhase checkInstallPlanFunc) (*operatorsv1alpha1.InstallPlan, error) {
-	return fetchInstallPlanWithNamespace(t, c, name, testNamespace, checkPhase)
+func fetchInstallPlan(t GinkgoTInterface, c versioned.Interface, name string, namespace string, checkPhase checkInstallPlanFunc) (*operatorsv1alpha1.InstallPlan, error) {
+	return fetchInstallPlanWithNamespace(t, c, name, namespace, checkPhase)
 }
 
 func fetchInstallPlanWithNamespace(t GinkgoTInterface, c versioned.Interface, name string, namespace string, checkPhase checkInstallPlanFunc) (*operatorsv1alpha1.InstallPlan, error) {
