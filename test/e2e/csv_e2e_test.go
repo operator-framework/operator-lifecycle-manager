@@ -17,7 +17,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -133,15 +133,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 		AfterEach(func() {
 			Eventually(func() error {
 				return ctx.Ctx().Client().Delete(context.Background(), &crd)
-			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+			}).Should(WithTransform(apierrors.IsNotFound, BeTrue()))
 
 			Eventually(func() error {
 				return ctx.Ctx().Client().Delete(context.Background(), &og)
-			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+			}).Should(WithTransform(apierrors.IsNotFound, BeTrue()))
 
 			Eventually(func() error {
 				return ctx.Ctx().Client().Delete(context.Background(), &ns)
-			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+			}).Should(WithTransform(apierrors.IsNotFound, BeTrue()))
 		})
 
 		// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2646
@@ -255,7 +255,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			Eventually(func() error {
 				return ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated)
-			}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+			}).Should(WithTransform(apierrors.IsNotFound, BeTrue()))
 
 			Eventually(func() error {
 				return ctx.Ctx().Client().Delete(context.Background(), &associated)
@@ -345,7 +345,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			AfterEach(func() {
 				Eventually(func() error {
 					return ctx.Ctx().Client().Delete(context.Background(), &ns)
-				}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+				}).Should(WithTransform(apierrors.IsNotFound, BeTrue()))
 			})
 
 			It("can satisfy the unassociated ClusterServiceVersion's ownership requirement", func() {
@@ -777,7 +777,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Shouldn't create deployment
 		Consistently(func() bool {
 			_, err := c.GetDeployment(testNamespace, depName)
-			return k8serrors.IsNotFound(err)
+			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
 	})
 	// TODO: same test but missing serviceaccount instead
@@ -837,7 +837,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Shouldn't create deployment
 		Consistently(func() bool {
 			_, err := c.GetDeployment(testNamespace, depName)
-			return k8serrors.IsNotFound(err)
+			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
 	})
 
@@ -957,7 +957,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Shouldn't create deployment
 		Consistently(func() bool {
 			_, err := c.GetDeployment(testNamespace, depName)
-			return k8serrors.IsNotFound(err)
+			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
 	})
 	It("create with unmet requirements API service", func() {
@@ -1016,7 +1016,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Shouldn't create deployment
 		Consistently(func() bool {
 			_, err := c.GetDeployment(testNamespace, depName)
-			return k8serrors.IsNotFound(err)
+			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
 	})
 	It("create with unmet permissions API service", func() {
@@ -1103,7 +1103,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Shouldn't create deployment
 		Consistently(func() bool {
 			_, err := c.GetDeployment(testNamespace, depName)
-			return k8serrors.IsNotFound(err)
+			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
 	})
 	It("create with unmet requirements native API", func() {
@@ -1152,7 +1152,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Shouldn't create deployment
 		Consistently(func() bool {
 			_, err := c.GetDeployment(testNamespace, depName)
-			return k8serrors.IsNotFound(err)
+			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
 	})
 	// TODO: same test but create serviceaccount instead
@@ -1395,7 +1395,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// Poll for deployment to be ready
 		Eventually(func() (bool, error) {
 			dep, err := c.GetDeployment(testNamespace, depName)
-			if k8serrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				ctx.Ctx().Logf("deployment %s not found\n", depName)
 				return false, nil
 			} else if err != nil {
@@ -4243,7 +4243,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 	AfterEach(func() {
 		Eventually(func() error {
 			err := ctx.Ctx().Client().Delete(context.Background(), &csv)
-			if err != nil && k8serrors.IsNotFound(err) {
+			if err != nil && apierrors.IsNotFound(err) {
 				return err
 			}
 
@@ -4253,7 +4253,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 		Eventually(func() error {
 			var namespace corev1.Namespace
 			return ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&ns), &namespace)
-		}).Should(WithTransform(k8serrors.IsNotFound, BeTrue()))
+		}).Should(WithTransform(apierrors.IsNotFound, BeTrue()))
 	})
 
 	When("an operator is installed in AllNamespace mode", func() {
@@ -4730,7 +4730,7 @@ func awaitCSV(c versioned.Interface, namespace, name string, checker csvConditio
 	Eventually(func() (bool, error) {
 		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			if k8serrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
 			return false, err
@@ -4749,7 +4749,7 @@ func waitForDeployment(c operatorclient.ClientInterface, name string) error {
 	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		_, err := c.GetDeployment(testNamespace, name)
 		if err != nil {
-			if k8serrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
 			return false, err
@@ -4764,7 +4764,7 @@ func waitForDeploymentToDelete(c operatorclient.ClientInterface, name string) er
 	Eventually(func() (bool, error) {
 		ctx.Ctx().Logf("waiting for deployment %s to delete", name)
 		_, err := c.GetDeployment(testNamespace, name)
-		if k8serrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			ctx.Ctx().Logf("deleted %s", name)
 			return true, nil
 		}
@@ -4779,7 +4779,7 @@ func waitForDeploymentToDelete(c operatorclient.ClientInterface, name string) er
 
 func csvExists(c versioned.Interface, name string) bool {
 	fetched, err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if k8serrors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		return false
 	}
 	ctx.Ctx().Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
@@ -4841,7 +4841,7 @@ func createLegacyAPIResources(csv *operatorsv1alpha1.ClusterServiceVersion, desc
 	}
 
 	_, err = c.CreateSecret(&secret)
-	if err != nil && !k8serrors.IsAlreadyExists(err) {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		Expect(err).ShouldNot(HaveOccurred())
 	}
 
@@ -4906,25 +4906,25 @@ func checkLegacyAPIResources(desc operatorsv1alpha1.APIServiceDescription, expec
 
 	// Attempt to create the legacy service
 	_, err := c.GetService(testNamespace, strings.Replace(apiServiceName, ".", "-", -1))
-	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(apierrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret
 	_, err = c.GetSecret(testNamespace, apiServiceName+"-cert")
-	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(apierrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret role
 	_, err = c.GetRole(testNamespace, apiServiceName+"-cert")
-	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(apierrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy secret role binding
 	_, err = c.GetRoleBinding(testNamespace, apiServiceName+"-cert")
-	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(apierrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy authDelegatorClusterRoleBinding
 	_, err = c.GetClusterRoleBinding(apiServiceName + "-system:auth-delegator")
-	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(apierrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 
 	// Attempt to create the legacy authReadingRoleBinding
 	_, err = c.GetRoleBinding("kube-system", apiServiceName+"-auth-reader")
-	Expect(k8serrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
+	Expect(apierrors.IsNotFound(err)).Should(Equal(expectedIsNotFound))
 }

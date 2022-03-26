@@ -14,7 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -218,7 +218,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				log(fmt.Sprintf("Error (in %v): %v", testNamespace, fetchErr.Error()))
@@ -235,7 +235,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				log(fmt.Sprintf("Error (in %v): %v", otherNamespaceName, fetchErr.Error()))
@@ -252,7 +252,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
@@ -269,7 +269,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			createdDeployment, err := c.GetDeployment(opGroupNamespace, deploymentName)
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -387,7 +387,7 @@ var _ = Describe("Operator Group", func() {
 			}
 			return true, err
 		})
-		require.True(GinkgoT(), k8serrors.IsNotFound(err))
+		require.True(GinkgoT(), apierrors.IsNotFound(err))
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), operatorGroup.Name+"-edit", metav1.GetOptions{})
@@ -396,7 +396,7 @@ var _ = Describe("Operator Group", func() {
 			}
 			return true, err
 		})
-		require.True(GinkgoT(), k8serrors.IsNotFound(err))
+		require.True(GinkgoT(), apierrors.IsNotFound(err))
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), operatorGroup.Name+"-view", metav1.GetOptions{})
@@ -405,7 +405,7 @@ var _ = Describe("Operator Group", func() {
 			}
 			return true, err
 		})
-		require.True(GinkgoT(), k8serrors.IsNotFound(err))
+		require.True(GinkgoT(), apierrors.IsNotFound(err))
 	})
 	It("role aggregation", func() {
 
@@ -1440,7 +1440,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedRole, err = c.GetClusterRole(role.GetName())
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -1456,7 +1456,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedRoleBinding, err = c.GetClusterRoleBinding(roleBinding.GetName())
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -1485,7 +1485,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", testNamespace, fetchErr.Error())
@@ -1518,7 +1518,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
@@ -1549,7 +1549,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
 			_, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return true, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", opGroupNamespace, fetchErr.Error())
@@ -1921,7 +1921,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedRole, err = c.GetClusterRole(role.GetName())
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -1937,7 +1937,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedRoleBinding, err = c.GetClusterRoleBinding(roleBinding.GetName())
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -1966,7 +1966,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", testNamespace, fetchErr.Error())
@@ -1999,7 +1999,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
@@ -2026,7 +2026,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
 			csv, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return true, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", opGroupNamespace, fetchErr.Error())

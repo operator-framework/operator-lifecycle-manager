@@ -8,7 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -147,7 +147,7 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondit
 	existingRole := &rbacv1.Role{}
 	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: role.GetName(), Namespace: role.GetNamespace()}, existingRole)
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		return r.Client.Create(context.TODO(), role)
@@ -193,7 +193,7 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRoleBinding(operato
 	existingRoleBinding := &rbacv1.RoleBinding{}
 	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: roleBinding.GetName(), Namespace: roleBinding.GetNamespace()}, existingRoleBinding)
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		return r.Client.Create(context.TODO(), roleBinding)

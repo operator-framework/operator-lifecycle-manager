@@ -7,7 +7,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -36,7 +36,7 @@ func (w *Writer) EnsureExists(name string) (existing *configv1.ClusterOperator, 
 		return
 	}
 
-	if !k8serrors.IsNotFound(err) {
+	if !apierrors.IsNotFound(err) {
 		return
 	}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -360,7 +360,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				require.NoError(t, podErr)
 				require.Len(t, outPods.Items, 0)
 				require.NoError(t, err)
-				require.True(t, k8serrors.IsNotFound(serviceErr))
+				require.True(t, apierrors.IsNotFound(serviceErr))
 			}
 		})
 	}

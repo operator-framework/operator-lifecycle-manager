@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -148,7 +148,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 
 		// Ensure the existing Deployment has a matching CA hash annotation
 		deployment, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).Get(desc.DeploymentName)
-		if k8serrors.IsNotFound(err) || err != nil {
+		if apierrors.IsNotFound(err) || err != nil {
 			logger.WithField("deployment", desc.DeploymentName).Warnf("expected Deployment could not be retrieved")
 			errs = append(errs, err)
 			continue
@@ -227,7 +227,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) (bool, error) {
 	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
 		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(desc.GetName())
-		if k8serrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return false, nil
 		}
 
@@ -410,7 +410,7 @@ func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) e
 		}
 		if _, ok := csvWebhookGenerateNames[webhookGenerateNameLabel]; !ok {
 			err = a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
-			if err != nil && k8serrors.IsNotFound(err) {
+			if err != nil && apierrors.IsNotFound(err) {
 				return err
 			}
 		}
@@ -428,7 +428,7 @@ func (a *Operator) cleanUpRemovedWebhooks(csv *v1alpha1.ClusterServiceVersion) e
 		}
 		if _, ok := csvWebhookGenerateNames[webhookGenerateNameLabel]; !ok {
 			err = a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
-			if err != nil && k8serrors.IsNotFound(err) {
+			if err != nil && apierrors.IsNotFound(err) {
 				return err
 			}
 		}

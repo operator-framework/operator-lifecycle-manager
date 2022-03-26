@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	k8serror "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -198,7 +198,7 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	// recreate the pod if no existing pod is serving the latest image or correct spec
 	overwritePod := overwrite || len(c.currentPodsWithCorrectImageAndSpec(source, sa.GetName())) == 0
 
-	if err != nil && !k8serror.IsAlreadyExists(err) {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "error ensuring service account: %s", source.GetName())
 	}
 	if err := c.ensurePod(source, sa.GetName(), overwritePod); err != nil {
@@ -251,7 +251,7 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, sa
 			return nil
 		}
 		for _, p := range currentLivePods {
-			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !k8serror.IsNotFound(err) {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !apierrors.IsNotFound(err) {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
 			}
 		}
@@ -333,7 +333,7 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 			return nil
 		}
 		// TODO(tflannag): Do we care about force deleting services?
-		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serror.IsNotFound(err) {
+		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}
@@ -428,7 +428,7 @@ func imageID(pod *corev1.Pod) string {
 
 func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string) error {
 	for _, p := range pods {
-		if err := c.OpClient.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !k8serror.IsNotFound(err) {
+		if err := c.OpClient.KubernetesInterface().CoreV1().Pods(namespace).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !apierrors.IsNotFound(err) {
 			return errors.Wrapf(err, "error deleting pod: %s", p.GetName())
 		}
 	}

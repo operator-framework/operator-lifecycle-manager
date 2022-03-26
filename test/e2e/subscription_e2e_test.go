@@ -19,7 +19,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -1210,7 +1210,7 @@ var _ = Describe("Subscription", func() {
 			}
 
 			proxy, getErr := client.Proxies().Get(context.Background(), "cluster", metav1.GetOptions{})
-			if k8serrors.IsNotFound(getErr) {
+			if apierrors.IsNotFound(getErr) {
 				return nil
 			}
 			require.NoError(GinkgoT(), getErr)
@@ -2561,7 +2561,7 @@ func init() {
 func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientInterface, crc versioned.Interface) error {
 	dummyCatalogConfigMap.SetNamespace(namespace)
 	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.Background(), dummyCatalogConfigMap, metav1.CreateOptions{}); err != nil {
-		if k8serrors.IsAlreadyExists(err) {
+		if apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
 		return err
@@ -2569,7 +2569,7 @@ func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientIn
 
 	dummyCatalogSource.SetNamespace(namespace)
 	if _, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.Background(), &dummyCatalogSource, metav1.CreateOptions{}); err != nil {
-		if k8serrors.IsAlreadyExists(err) {
+		if apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
 		return err

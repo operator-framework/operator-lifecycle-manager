@@ -8,7 +8,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/printers"
 	printerstorage "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/printers/storage"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -76,7 +76,7 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 
 	res, err := m.prov.List(namespace, labelSelector)
 	if err != nil {
-		return nil, k8serrors.NewInternalError(err)
+		return nil, apierrors.NewInternalError(err)
 	}
 
 	filtered := []operators.PackageManifest{}
@@ -101,7 +101,7 @@ func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *met
 	namespace := genericreq.NamespaceValue(ctx)
 	manifest, err := m.prov.Get(namespace, name)
 	if err != nil || manifest == nil {
-		return nil, k8serrors.NewNotFound(m.groupResource, name)
+		return nil, apierrors.NewNotFound(m.groupResource, name)
 	}
 	// Strip logo icons
 	for i := range manifest.Status.Channels {

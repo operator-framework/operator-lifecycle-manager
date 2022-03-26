@@ -7,7 +7,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -54,7 +54,7 @@ func getAPISecret(logger logrus.FieldLogger, kubeclient operatorclient.ClientInt
 		// corev1.ObjectReference only has Name populated.
 		secret, getErr := kubeclient.KubernetesInterface().CoreV1().Secrets(sa.GetNamespace()).Get(context.TODO(), ref.Name, metav1.GetOptions{})
 		if getErr != nil {
-			if k8serrors.IsNotFound(getErr) {
+			if apierrors.IsNotFound(getErr) {
 				logger.Warnf("skipping secret %s - %v", ref.Name, getErr)
 				continue
 			}

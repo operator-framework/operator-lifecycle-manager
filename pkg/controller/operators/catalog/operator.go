@@ -21,7 +21,7 @@ import (
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -629,7 +629,7 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 	// Get the catalog source's config map
 	configMap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(in.GetNamespace()).Get(in.Spec.ConfigMap)
 	// Attempt to look up the CM via api call if there is a cache miss
-	if k8serrors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		configMap, err = o.opClient.KubernetesInterface().CoreV1().ConfigMaps(in.GetNamespace()).Get(context.TODO(), in.Spec.ConfigMap, metav1.GetOptions{})
 		// Found cm in the cluster, add managed label to configmap
 		if err == nil {
@@ -2322,7 +2322,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			}
 			return nil
 		}(i, step); err != nil {
-			if k8serrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				// Check for APIVersions present in the installplan steps that are not available on the server.
 				// The check is made via discovery per step in the plan. Transient communication failures to the api-server are handled by the plan retry logic.
 				notFoundErr := discoveryQuerier.WithStepResource(step.Resource).QueryForGVK()
