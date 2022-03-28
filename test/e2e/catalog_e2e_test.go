@@ -12,6 +12,8 @@ import (
 	"time"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	k8serror "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
@@ -78,8 +80,17 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 			},
 		}
 
-		crd := newCRD(genName("ins"))
+		crd := newCRD(genName("ins-"))
 		csv := newCSV(packageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+
+		defer func() {
+			Eventually(func() error {
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.GetName(), metav1.DeleteOptions{})
+			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &csv))
+			}).Should(Succeed())
+		}()
 
 		catalogSourceName := genName("mock-ocs-")
 		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
@@ -137,6 +148,18 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		mainCRD := newCRD(genName("ins-"))
 		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
 		replacementCSV := newCSV(mainPackageReplacement, ns.GetName(), mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+
+		defer func() {
+			Eventually(func() error {
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), mainCRD.GetName(), metav1.DeleteOptions{})
+			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &mainCSV))
+			}).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &replacementCSV))
+			}).Should(Succeed())
+		}()
 
 		mainCatalogName := genName("mock-ocs-main-")
 
@@ -229,6 +252,18 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		dependentCRD := newCRD(genName("ins-"))
 		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+
+		defer func() {
+			Eventually(func() error {
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), metav1.DeleteOptions{})
+			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &mainCSV))
+			}).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &dependentCSV))
+			}).Should(Succeed())
+		}()
 
 		mainCatalogName := genName("mock-ocs-main-")
 
@@ -351,6 +386,18 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
+		defer func() {
+			Eventually(func() error {
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), metav1.DeleteOptions{})
+			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &mainCSV))
+			}).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &dependentCSV))
+			}).Should(Succeed())
+		}()
+
 		mainCatalogName := genName("mock-ocs-main-")
 
 		// Create separate manifests for each CatalogSource
@@ -432,6 +479,21 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		replacementCSV := newCSV(mainPackageReplacement, ns.GetName(), mainPackageStable, semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+
+		defer func() {
+			Eventually(func() error {
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), metav1.DeleteOptions{})
+			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &mainCSV))
+			}).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &dependentCSV))
+			}).Should(Succeed())
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &replacementCSV))
+			}).Should(Succeed())
+		}()
 
 		mainSourceName := genName("mock-ocs-main-")
 		replacementSourceName := genName("mock-ocs-main-with-replacement-")
@@ -564,6 +626,15 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 				DefaultChannelName: stableChannel,
 			},
 		}
+
+		defer func() {
+			Eventually(func() error {
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.GetName(), metav1.DeleteOptions{})
+			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &csv))
+			}).Should(Succeed())
+		}()
 
 		_, cleanupSource := createInternalCatalogSource(c, crc, sourceName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
