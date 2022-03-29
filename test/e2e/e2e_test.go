@@ -42,6 +42,12 @@ var (
 		"dummy image to treat as an operator in tests",
 	)
 
+	collectArtifactsScriptPath = flag.String(
+		"gather-artifacts-script-path",
+		"./collect-ci-artifacts.sh",
+		"configures the relative/absolute path to the script resposible for collecting CI artifacts",
+	)
+
 	testdataPath = flag.String(
 		"test-data-dir",
 		"./testdata",
@@ -79,6 +85,9 @@ var _ = BeforeSuite(func() {
 		// This flag can be deprecated in favor of the kubeconfig provisioner:
 		os.Setenv("KUBECONFIG", *kubeConfigPath)
 	}
+	if collectArtifactsScriptPath != nil && *collectArtifactsScriptPath != "" {
+		os.Setenv("E2E_ARTIFACT_SCRIPT", *collectArtifactsScriptPath)
+	}
 
 	testNamespace = *namespace
 	operatorNamespace = *olmNamespace
@@ -114,6 +123,7 @@ var _ = BeforeSuite(func() {
 		HaveLen(1),
 		ContainElement(Not(BeZero())),
 	))
+
 	_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced)
 	Expect(err).NotTo(HaveOccurred())
 

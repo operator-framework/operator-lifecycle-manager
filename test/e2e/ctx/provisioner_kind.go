@@ -1,3 +1,4 @@
+//go:build kind
 // +build kind
 
 package ctx
@@ -135,10 +136,6 @@ func Provision(ctx *TestContext) (func(), error) {
 		return nil, fmt.Errorf("error loading kubeconfig: %s", err.Error())
 	}
 	ctx.restConfig = restConfig
-
-	if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
-		ctx.artifactsDir = artifactsDir
-	}
 	ctx.kubeconfigPath = kubeconfigPath
 
 	var once sync.Once
