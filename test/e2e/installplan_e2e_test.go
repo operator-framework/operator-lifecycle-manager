@@ -72,6 +72,8 @@ var _ = Describe("Install Plan", func() {
 
 	When("an InstallPlan step contains a deprecated resource version", func() {
 		var (
+			csv      operatorsv1alpha1.ClusterServiceVersion
+			plan     operatorsv1alpha1.InstallPlan
 			pdb      policyv1beta1.PodDisruptionBudget
 			manifest string
 			counter  float64
@@ -102,12 +104,12 @@ var _ = Describe("Install Plan", func() {
 				}
 			}
 
-			csv := newCSV("test-csv", ns.GetName(), "", semver.Version{}, nil, nil, nil)
+			csv = newCSV(genName("test-csv-"), ns.GetName(), "", semver.Version{}, nil, nil, nil)
 			Expect(ctx.Ctx().Client().Create(context.Background(), &csv)).To(Succeed())
 
 			pdb = policyv1beta1.PodDisruptionBudget{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-pdb",
+					Name: genName("test-pdb-"),
 				},
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "PodDisruptionBudget",
@@ -124,10 +126,10 @@ var _ = Describe("Install Plan", func() {
 				manifest = b.String()
 			}
 
-			plan := operatorsv1alpha1.InstallPlan{
+			plan = operatorsv1alpha1.InstallPlan{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: ns.GetName(),
-					Name:      "test-plan",
+					Name:      genName("test-plan-"),
 				},
 				Spec: operatorsv1alpha1.InstallPlanSpec{
 					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
@@ -141,7 +143,7 @@ var _ = Describe("Install Plan", func() {
 				CatalogSources: []string{},
 				Plan: []*operatorsv1alpha1.Step{
 					{
-						Resolving: "test-csv",
+						Resolving: csv.GetName(),
 						Status:    operatorsv1alpha1.StepStatusUnknown,
 						Resource: operatorsv1alpha1.StepResource{
 							Name:     pdb.GetName(),
@@ -156,6 +158,12 @@ var _ = Describe("Install Plan", func() {
 			Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 				return &plan, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&plan), &plan)
 			}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseComplete))
+		})
+
+		AfterEach(func() {
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &csv))
+			}).Should(Succeed())
 		})
 
 		It("creates an Event surfacing the deprecation warning", func() {
@@ -184,11 +192,11 @@ var _ = Describe("Install Plan", func() {
 					APIVersion: operatorsv1alpha1.InstallPlanAPIVersion,
 					Kind:       operatorsv1alpha1.InstallPlanKind,
 					Namespace:  ns.GetName(),
-					Name:       "test-plan",
+					Name:       plan.GetName(),
 					FieldPath:  "status.plan[0]",
 				},
 				Reason:  "AppliedWithWarnings",
-				Message: "1 warning(s) generated during installation of operator \"test-csv\" (PodDisruptionBudget \"test-pdb\"): policy/v1beta1 PodDisruptionBudget is deprecated in v1.21+, unavailable in v1.25+; use policy/v1 PodDisruptionBudget",
+				Message: fmt.Sprintf("1 warning(s) generated during installation of operator \"%s\" (PodDisruptionBudget \"%s\"): policy/v1beta1 PodDisruptionBudget is deprecated in v1.21+, unavailable in v1.25+; use policy/v1 PodDisruptionBudget", csv.GetName(), pdb.GetName()),
 			}))
 
 		})
