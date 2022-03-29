@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -156,7 +156,7 @@ func (r *OperatorConditionGeneratorReconciler) ensureOperatorCondition(operatorC
 	existingOperatorCondition := &operatorsv2.OperatorCondition{}
 	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: operatorCondition.GetName(), Namespace: operatorCondition.GetNamespace()}, existingOperatorCondition)
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		return r.Client.Create(context.TODO(), &operatorCondition)

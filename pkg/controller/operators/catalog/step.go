@@ -10,7 +10,7 @@ import (
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsv1client "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apiextensionsv1beta1client "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/retry"
@@ -100,7 +100,7 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 		case v1alpha1.StepStatusWaitingForAPI:
 			crd, err := client.CustomResourceDefinitions().Get(context.TODO(), step.Resource.Name, metav1.GetOptions{})
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return v1alpha1.StepStatusNotPresent, nil
 				}
 				return v1alpha1.StepStatusNotPresent, errors.Wrapf(err, "error finding the %s CRD", crd.Name)
@@ -130,7 +130,7 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 			setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd)
 
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
-			if k8serrors.IsAlreadyExists(createError) {
+			if apierrors.IsAlreadyExists(createError) {
 				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 					currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
 					crd.SetResourceVersion(currentCRD.GetResourceVersion())
@@ -183,7 +183,7 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 		case v1alpha1.StepStatusWaitingForAPI:
 			crd, err := client.CustomResourceDefinitions().Get(context.TODO(), step.Resource.Name, metav1.GetOptions{})
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return v1alpha1.StepStatusNotPresent, nil
 				}
 				return v1alpha1.StepStatusNotPresent, fmt.Errorf("error finding the %q CRD: %w", crd.Name, err)
@@ -213,7 +213,7 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 			setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd)
 
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
-			if k8serrors.IsAlreadyExists(createError) {
+			if apierrors.IsAlreadyExists(createError) {
 				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 					currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
 					crd.SetResourceVersion(currentCRD.GetResourceVersion())
@@ -270,7 +270,7 @@ func setInstalledAlongsideAnnotation(a alongside.Annotator, dst metav1.Object, n
 				continue
 			}
 
-			if csv, err := lister.ClusterServiceVersions(nn.Namespace).Get(nn.Name); k8serrors.IsNotFound(err) {
+			if csv, err := lister.ClusterServiceVersions(nn.Namespace).Get(nn.Name); apierrors.IsNotFound(err) {
 				continue
 			} else if err == nil && csv.IsCopied() {
 				continue

@@ -8,7 +8,7 @@ import (
 	"github.com/ghodss/yaml"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	. "github.com/onsi/ginkgo"
@@ -73,7 +73,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 			Eventually(func() error {
 				err := ctx.Ctx().Client().Create(context.Background(), &vpaCRD)
 				if err != nil {
-					if !k8serrors.IsAlreadyExists(err) {
+					if !apierrors.IsAlreadyExists(err) {
 						return err
 					}
 				}
@@ -167,7 +167,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 			By("Deleting the VPA CRD")
 			Eventually(func() error {
 				err := ctx.Ctx().Client().Delete(context.Background(), &vpaCRD)
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return nil
 				}
 				return err

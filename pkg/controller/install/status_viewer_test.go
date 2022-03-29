@@ -5,24 +5,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	apps "k8s.io/api/apps/v1"
-	core "k8s.io/api/core/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestDeploymentStatusViewerStatus(t *testing.T) {
 	tests := []struct {
 		generation int64
-		status     apps.DeploymentStatus
+		status     appsv1.DeploymentStatus
 		err        error
 		msg        string
 		done       bool
 	}{
 		{
-			status: apps.DeploymentStatus{
-				Conditions: []apps.DeploymentCondition{
+			status: appsv1.DeploymentStatus{
+				Conditions: []appsv1.DeploymentCondition{
 					{
-						Type:   apps.DeploymentProgressing,
+						Type:   appsv1.DeploymentProgressing,
 						Reason: TimedOutReason,
 					},
 				},
@@ -31,15 +31,15 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 			done: false,
 		},
 		{
-			status: apps.DeploymentStatus{
-				Conditions: []apps.DeploymentCondition{
+			status: appsv1.DeploymentStatus{
+				Conditions: []appsv1.DeploymentCondition{
 					{
-						Type:   apps.DeploymentProgressing,
+						Type:   appsv1.DeploymentProgressing,
 						Reason: "NotTimedOut",
 					},
 					{
-						Type:   apps.DeploymentAvailable,
-						Status: core.ConditionTrue,
+						Type:   appsv1.DeploymentAvailable,
+						Status: corev1.ConditionTrue,
 					},
 				},
 			},
@@ -48,14 +48,14 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 		},
 		{
 			generation: 1,
-			status: apps.DeploymentStatus{
+			status: appsv1.DeploymentStatus{
 				ObservedGeneration: 0,
 			},
 			msg:  "waiting for spec update of deployment \"foo\" to be observed...",
 			done: false,
 		},
 		{
-			status: apps.DeploymentStatus{
+			status: appsv1.DeploymentStatus{
 				Replicas:        5,
 				UpdatedReplicas: 3,
 			},
@@ -63,16 +63,16 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 			done: false,
 		},
 		{
-			status: apps.DeploymentStatus{},
-			msg:    fmt.Sprintf("deployment \"foo\" not available: missing condition %q", apps.DeploymentAvailable),
+			status: appsv1.DeploymentStatus{},
+			msg:    fmt.Sprintf("deployment \"foo\" not available: missing condition %q", appsv1.DeploymentAvailable),
 			done:   false,
 		},
 		{
-			status: apps.DeploymentStatus{
-				Conditions: []apps.DeploymentCondition{
+			status: appsv1.DeploymentStatus{
+				Conditions: []appsv1.DeploymentCondition{
 					{
-						Type:    apps.DeploymentAvailable,
-						Status:  core.ConditionFalse,
+						Type:    appsv1.DeploymentAvailable,
+						Status:  corev1.ConditionFalse,
 						Message: "test message",
 					},
 				},
@@ -81,11 +81,11 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 			done: false,
 		},
 		{
-			status: apps.DeploymentStatus{
-				Conditions: []apps.DeploymentCondition{
+			status: appsv1.DeploymentStatus{
+				Conditions: []appsv1.DeploymentCondition{
 					{
-						Type:    apps.DeploymentAvailable,
-						Status:  core.ConditionUnknown,
+						Type:    appsv1.DeploymentAvailable,
+						Status:  corev1.ConditionUnknown,
 						Message: "test message",
 					},
 				},
@@ -94,11 +94,11 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 			done: false,
 		},
 		{
-			status: apps.DeploymentStatus{
-				Conditions: []apps.DeploymentCondition{
+			status: appsv1.DeploymentStatus{
+				Conditions: []appsv1.DeploymentCondition{
 					{
-						Type:   apps.DeploymentAvailable,
-						Status: core.ConditionTrue,
+						Type:   appsv1.DeploymentAvailable,
+						Status: corev1.ConditionTrue,
 					},
 				},
 			},
@@ -109,7 +109,7 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i+1), func(t *testing.T) {
-			d := &apps.Deployment{
+			d := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  "bar",
 					Name:       "foo",

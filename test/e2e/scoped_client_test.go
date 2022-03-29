@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -55,7 +55,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 			// We expect the get api call to return 'Forbidden' error due to
 			// lack of permission.
 			assertFunc: func(errGot error) {
-				Expect(k8serrors.IsForbidden(errGot)).To(BeTrue())
+				Expect(apierrors.IsForbidden(errGot)).To(BeTrue())
 			},
 		}),
 		table.Entry("successfully allows API calls to be made when ServiceAccount has permission", testParameter{
@@ -66,7 +66,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 				return
 			},
 			assertFunc: func(errGot error) {
-				Expect(k8serrors.IsNotFound(errGot)).To(BeTrue())
+				Expect(apierrors.IsNotFound(errGot)).To(BeTrue())
 			},
 		}),
 	}

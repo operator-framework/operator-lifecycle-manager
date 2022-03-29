@@ -18,12 +18,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
-	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 func TestRuleSatisfied(t *testing.T) {
-	csv := &v1alpha1.ClusterServiceVersion{}
+	csv := &operatorsv1alpha1.ClusterServiceVersion{}
 	csv.SetName("barista-operator")
 	csv.SetUID(types.UID("barista-operator"))
 
@@ -572,7 +572,7 @@ func TestRuleSatisfied(t *testing.T) {
 	}
 }
 
-func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *v1alpha1.ClusterServiceVersion, namespace string, stopCh <-chan struct{}) (*CSVRuleChecker, error) {
+func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *operatorsv1alpha1.ClusterServiceVersion, namespace string, stopCh <-chan struct{}) (*CSVRuleChecker, error) {
 	// create client fakes
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset())
 

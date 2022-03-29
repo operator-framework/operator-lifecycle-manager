@@ -13,7 +13,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -103,8 +103,8 @@ func main() {
 	// the empty string, the resulting array will be `[]string{""}`.
 	namespaces := strings.Split(*watchedNamespaces, ",")
 	for _, ns := range namespaces {
-		if ns == v1.NamespaceAll {
-			namespaces = []string{v1.NamespaceAll}
+		if ns == corev1.NamespaceAll {
+			namespaces = []string{corev1.NamespaceAll}
 			break
 		}
 	}

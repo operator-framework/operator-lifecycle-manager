@@ -12,7 +12,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -88,7 +88,7 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 
 		// create the cluster operator in an initial state if it does not exist
 		existing, err := configClient.ClusterOperators().Get(context.TODO(), name, metav1.GetOptions{})
-		if k8serrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			log.Info("Existing operator status not found, creating")
 			created, createErr := configClient.ClusterOperators().Create(context.TODO(), &configv1.ClusterOperator{
 				ObjectMeta: metav1.ObjectMeta{

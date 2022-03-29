@@ -7,9 +7,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -64,7 +64,7 @@ func (s *configMapCatalogSourceDecorator) Annotations() map[string]string {
 	return s.GetAnnotations()
 }
 
-func (s *configMapCatalogSourceDecorator) ConfigMapChanges(configMap *v1.ConfigMap) bool {
+func (s *configMapCatalogSourceDecorator) ConfigMapChanges(configMap *corev1.ConfigMap) bool {
 	if s.Status.ConfigMapResource == nil {
 		return true
 	}
@@ -74,14 +74,14 @@ func (s *configMapCatalogSourceDecorator) ConfigMapChanges(configMap *v1.ConfigM
 	return true
 }
 
-func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
-	svc := &v1.Service{
+func (s *configMapCatalogSourceDecorator) Service() *corev1.Service {
+	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.GetName(),
 			Namespace: s.GetNamespace(),
 		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
 				{
 					Name:       "grpc",
 					Port:       50051,
@@ -100,7 +100,7 @@ func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
 	return svc
 }
 
-func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
+func (s *configMapCatalogSourceDecorator) Pod(image string) *corev1.Pod {
 	pod := Pod(s.CatalogSource, "configmap-registry-server", image, "", s.Labels(), s.Annotations(), 5, 5)
 	pod.Spec.ServiceAccountName = s.GetName() + ConfigMapServerPostfix
 	pod.Spec.Containers[0].Command = []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()}
@@ -108,8 +108,8 @@ func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
 	return pod
 }
 
-func (s *configMapCatalogSourceDecorator) ServiceAccount() *v1.ServiceAccount {
-	sa := &v1.ServiceAccount{
+func (s *configMapCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
+	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.serviceAccountName(),
 			Namespace: s.GetNamespace(),
@@ -172,7 +172,7 @@ var _ RegistryEnsurer = &ConfigMapRegistryReconciler{}
 var _ RegistryChecker = &ConfigMapRegistryReconciler{}
 var _ RegistryReconciler = &ConfigMapRegistryReconciler{}
 
-func (c *ConfigMapRegistryReconciler) currentService(source configMapCatalogSourceDecorator) *v1.Service {
+func (c *ConfigMapRegistryReconciler) currentService(source configMapCatalogSourceDecorator) *corev1.Service {
 	serviceName := source.Service().GetName()
 	service, err := c.Lister.CoreV1().ServiceLister().Services(source.GetNamespace()).Get(serviceName)
 	if err != nil {
@@ -182,7 +182,7 @@ func (c *ConfigMapRegistryReconciler) currentService(source configMapCatalogSour
 	return service
 }
 
-func (c *ConfigMapRegistryReconciler) currentServiceAccount(source configMapCatalogSourceDecorator) *v1.ServiceAccount {
+func (c *ConfigMapRegistryReconciler) currentServiceAccount(source configMapCatalogSourceDecorator) *corev1.ServiceAccount {
 	serviceAccountName := source.ServiceAccount().GetName()
 	serviceAccount, err := c.Lister.CoreV1().ServiceAccountLister().ServiceAccounts(source.GetNamespace()).Get(serviceAccountName)
 	if err != nil {
@@ -212,7 +212,7 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source configMapCatalog
 	return roleBinding
 }
 
-func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) []*v1.Pod {
+func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) []*corev1.Pod {
 	podName := source.Pod(image).GetName()
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromSet(source.Selector()))
 	if err != nil {
@@ -225,7 +225,7 @@ func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceD
 	return pods
 }
 
-func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string) []*v1.Pod {
+func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string) []*corev1.Pod {
 	podName := source.Pod(image).GetName()
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
@@ -316,7 +316,7 @@ func (c *ConfigMapRegistryReconciler) ensureServiceAccount(source configMapCatal
 		if !overwrite {
 			return nil
 		}
-		if err := c.OpClient.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0)); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}
@@ -330,7 +330,7 @@ func (c *ConfigMapRegistryReconciler) ensureRole(source configMapCatalogSourceDe
 		if !overwrite {
 			return nil
 		}
-		if err := c.OpClient.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0)); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}
@@ -344,7 +344,7 @@ func (c *ConfigMapRegistryReconciler) ensureRoleBinding(source configMapCatalogS
 		if !overwrite {
 			return nil
 		}
-		if err := c.OpClient.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0)); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}
@@ -360,7 +360,7 @@ func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDec
 			return nil
 		}
 		for _, p := range currentPods {
-			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !k8serrors.IsNotFound(err) {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !apierrors.IsNotFound(err) {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
 			}
 		}
@@ -379,7 +379,7 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 		if !overwrite && ServiceHashMatch(svc, service) {
 			return nil
 		}
-		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil && !k8serrors.IsNotFound(err) {
+		if err := c.OpClient.DeleteService(service.GetNamespace(), service.GetName(), metav1.NewDeleteOptions(0)); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}

@@ -15,7 +15,7 @@ import (
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -487,7 +487,7 @@ var _ = Describe("CRD Versions", func() {
 		Eventually(func() bool {
 			sub, _ := crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
 			ip, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Get(context.TODO(), sub.Status.InstallPlanRef.Name, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				return false
 			}
 			GinkgoT().Logf("waiting for installplan to succeed...currently %s", ip.Status.Phase)

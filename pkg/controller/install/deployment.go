@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/pointer"
@@ -192,7 +192,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	}
 
 	if err := i.installDeployments(updatedStrategy.DeploymentSpecs); err != nil {
-		if k8serrors.IsForbidden(err) {
+		if apierrors.IsForbidden(err) {
 			return StrategyError{Reason: StrategyErrInsufficientPermissions, Message: fmt.Sprintf("install strategy failed: %s", err)}
 		}
 		return err
