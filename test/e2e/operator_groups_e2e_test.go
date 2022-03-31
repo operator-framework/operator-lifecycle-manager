@@ -1084,7 +1084,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""}))
 
 		// Ensure csvA's deployment is deleted
-		require.NoError(GinkgoT(), waitForDeploymentToDelete(c, pkgAStable))
+		require.NoError(GinkgoT(), waitForDeploymentToDelete(testNamespace, c, pkgAStable))
 
 		// Await csvB's success
 		_, err = awaitCSV(crc, nsB, csvB.GetName(), csvSucceededChecker)

@@ -415,7 +415,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			// Make sure old resources are cleaned up.
 			Eventually(func() bool {
-				return csvExists(crc, csv.Spec.Replaces)
+				return csvExists(generatedNamespace.GetName(), crc, csv.Spec.Replaces)
 			}).Should(BeFalse())
 
 			// Wait until previous webhook is cleaned up
