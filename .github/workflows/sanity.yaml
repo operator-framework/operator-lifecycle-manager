@@ -22,4 +22,4 @@ jobs:
     - name: Run linting checks
       uses: "golangci/golangci-lint-action@v2"
       with:
-        version: "v1.43"
+        version: "v1.45.2"
