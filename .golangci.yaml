@@ -1,5 +1,5 @@
 run:
-  timeout: 5m
+  timeout: 8m
   skip-dirs:
   - pkg/lib
   - pkg/api
