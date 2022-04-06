@@ -1074,7 +1074,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(csv.Spec.Replaces).To(Equal("busybox-dependency.v1.0.0"))
 	})
-	When("A catalogSource is created with correct interval", func() {
+	When("A catalogSource is created with correct polling interval", func() {
 
 		var source *v1alpha1.CatalogSource
 		singlePod := podCount(1)
@@ -1146,12 +1146,18 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 	})
 
-	When("A catalogSource is created with incorrect interval", func() {
+	When("A catalogSource is created with incorrect polling interval", func() {
 
-		var source *v1alpha1.CatalogSource
-
+		var (
+			source     *v1alpha1.CatalogSource
+			sourceName string
+		)
+		const (
+			incorrectInterval = "45mError.code"
+			correctInterval   = "45m"
+		)
 		BeforeEach(func() {
-			sourceName := genName("catalog-")
+			sourceName = genName("catalog-")
 			source = &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       v1alpha1.CatalogSourceKind,
@@ -1167,7 +1173,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 					Image:      "quay.io/olmtest/catsrc-update-test:new",
 					UpdateStrategy: &v1alpha1.UpdateStrategy{
 						RegistryPoll: &v1alpha1.RegistryPoll{
-							RawInterval: "45mError.code",
+							RawInterval: incorrectInterval,
 						},
 					},
 				},
@@ -1177,7 +1183,10 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 		})
-
+		AfterEach(func() {
+			err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		})
 		It("the catalogsource status communicates that a default interval time is being used instead", func() {
 			Eventually(func() bool {
 				catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
@@ -1189,6 +1198,31 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				}
 				return false
 			}).Should(BeTrue())
+		})
+		When("the catalogsource is updated with a valid polling interval", func() {
+			BeforeEach(func() {
+				catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				catsrc.Spec.UpdateStrategy.RegistryPoll.RawInterval = correctInterval
+				_, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Update(context.TODO(), catsrc, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+			})
+			It("the catalogsource spec shows the updated polling interval, and the error message in the status is cleared", func() {
+				Eventually(func() error {
+					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+					expectedTime, err := time.ParseDuration(correctInterval)
+					if err != nil {
+						return err
+					}
+					if catsrc.Status.Reason != "" || (catsrc.Spec.UpdateStrategy.Interval != &metav1.Duration{expectedTime}) {
+						return err
+					}
+					return nil
+				}).Should(Succeed())
+			})
 		})
 	})
 
