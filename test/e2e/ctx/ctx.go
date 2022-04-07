@@ -42,8 +42,9 @@ type TestContext struct {
 	e2eClient      *util.E2EKubeClient
 	ssaClient      *controllerclient.ServerSideApplier
 
-	kubeconfigPath string
-	artifactsDir   string
+	kubeconfigPath      string
+	artifactsDir        string
+	artifactsScriptPath string
 
 	scheme *runtime.Scheme
 
@@ -132,8 +133,7 @@ func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
 		"KUBECONFIG=" + kubeconfigPath,
 	}
 
-	// compiled test binary running e2e tests is run from the root ./bin directory
-	cmd := exec.Command("../test/e2e/collect-ci-artifacts.sh")
+	cmd := exec.Command(ctx.artifactsScriptPath)
 	cmd.Env = append(cmd.Env, envvars...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -151,6 +151,17 @@ func setDerivedFields(ctx *TestContext) error {
 
 	if ctx.restConfig == nil {
 		return fmt.Errorf("nil RESTClient")
+	}
+
+	if ctx.artifactsDir == "" {
+		if artifactsDir := os.Getenv("ARTIFACT_DIR"); artifactsDir != "" {
+			ctx.artifactsDir = artifactsDir
+		}
+	}
+	if ctx.artifactsScriptPath == "" {
+		if scriptPath := os.Getenv("E2E_ARTIFACT_SCRIPT"); scriptPath != "" {
+			ctx.artifactsScriptPath = scriptPath
+		}
 	}
 
 	kubeClient, err := operatorclient.NewClientFromRestConfig(ctx.restConfig)
