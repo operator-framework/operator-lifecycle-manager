@@ -111,7 +111,7 @@ func (ctx TestContext) NewE2EClientSession() {
 
 func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
 	if ctx.artifactsDir == "" {
-		ctx.Logf("$ARTIFACTS_DIR is unset -- not collecting failed test case logs")
+		ctx.Logf("$ARTIFACT_DIR is unset -- not collecting failed test case logs")
 		return nil
 	}
 	ctx.Logf("collecting logs in the %s artifacts directory", ctx.artifactsDir)
