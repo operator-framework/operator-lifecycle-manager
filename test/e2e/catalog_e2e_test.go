@@ -42,7 +42,7 @@ const (
 	catsrcImage           = "docker://quay.io/olmtest/catsrc-update-test:"
 )
 
-var _ = Describe("Catalog represents a store of bundles which OLM can use to install Operators", func() {
+var _ = Describe("Starting CatalogSource e2e tests", func() {
 	var (
 		c   operatorclient.ClientInterface
 		crc versioned.Interface
@@ -1074,76 +1074,156 @@ var _ = Describe("Catalog represents a store of bundles which OLM can use to ins
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(csv.Spec.Replaces).To(Equal("busybox-dependency.v1.0.0"))
 	})
-	It("registry polls on the correct interval", func() {
-		// Create a catalog source with polling enabled
-		// Confirm the following
-		//   a) the new update pod is spun up roughly in line with the registry polling interval
-		//   b) the update pod is removed quickly when the image is found to not have changed
-		// This is more of a behavioral test that ensures the feature is working as designed.
+	When("A catalogSource is created with correct polling interval", func() {
 
-		c := newKubeClient()
-		crc := newCRClient()
-
+		var source *v1alpha1.CatalogSource
+		singlePod := podCount(1)
 		sourceName := genName("catalog-")
-		source := &v1alpha1.CatalogSource{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.CatalogSourceKind,
-				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      sourceName,
-				Namespace: ns.GetName(),
-				Labels:    map[string]string{"olm.catalogSource": sourceName},
-			},
-			Spec: v1alpha1.CatalogSourceSpec{
-				SourceType: v1alpha1.SourceTypeGrpc,
-				Image:      "quay.io/olmtest/catsrc-update-test:new",
-				UpdateStrategy: &v1alpha1.UpdateStrategy{
-					RegistryPoll: &v1alpha1.RegistryPoll{
-						RawInterval: "45s",
+
+		BeforeEach(func() {
+			source = &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceName,
+					Namespace: testNamespace,
+					Labels:    map[string]string{"olm.catalogSource": sourceName},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "quay.io/olmtest/catsrc-update-test:new",
+					UpdateStrategy: &v1alpha1.UpdateStrategy{
+						RegistryPoll: &v1alpha1.RegistryPoll{
+							RawInterval: "45s",
+						},
 					},
 				},
-			},
-		}
-
-		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		// wait for new catalog source pod to be created and report ready
-		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
-		singlePod := podCount(1)
-		catalogPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(catalogPods).ToNot(BeNil())
-
-		Eventually(func() (bool, error) {
-			podList, err := c.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).List(context.Background(), metav1.ListOptions{LabelSelector: selector.String()})
-			if err != nil {
-				return false, err
 			}
 
-			for _, p := range podList.Items {
-				if podReady(&p) {
-					return true, nil
+			source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			// wait for new catalog source pod to be created and report ready
+			selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
+
+			catalogPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(catalogPods).ToNot(BeNil())
+
+			Eventually(func() (bool, error) {
+				podList, err := c.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+				if err != nil {
+					return false, err
 				}
+
+				for _, p := range podList.Items {
+					if podReady(&p) {
+						return true, nil
+					}
+					return false, nil
+				}
+
 				return false, nil
+			}).Should(BeTrue())
+		})
+
+		It("registry polls on the correct interval", func() {
+			// Wait roughly the polling interval for update pod to show up
+			updateSelector := labels.SelectorFromSet(map[string]string{"catalogsource.operators.coreos.com/update": source.GetName()})
+			updatePods, err := awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 5*time.Second, 2*time.Minute, singlePod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(updatePods).ToNot(BeNil())
+			Expect(updatePods.Items).To(HaveLen(1))
+
+			// No update to image: update pod should be deleted quickly
+			noPod := podCount(0)
+			updatePods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 1*time.Second, 30*time.Second, noPod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(updatePods.Items).To(HaveLen(0))
+		})
+
+	})
+
+	When("A catalogSource is created with incorrect polling interval", func() {
+
+		var (
+			source     *v1alpha1.CatalogSource
+			sourceName string
+		)
+		const (
+			incorrectInterval = "45mError.code"
+			correctInterval   = "45m"
+		)
+		BeforeEach(func() {
+			sourceName = genName("catalog-")
+			source = &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      sourceName,
+					Namespace: testNamespace,
+					Labels:    map[string]string{"olm.catalogSource": sourceName},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "quay.io/olmtest/catsrc-update-test:new",
+					UpdateStrategy: &v1alpha1.UpdateStrategy{
+						RegistryPoll: &v1alpha1.RegistryPoll{
+							RawInterval: incorrectInterval,
+						},
+					},
+				},
 			}
 
-			return false, nil
-		}).Should(BeTrue())
+			_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
-		// Wait roughly the polling interval for update pod to show up
-		updateSelector := labels.SelectorFromSet(map[string]string{"catalogsource.operators.coreos.com/update": source.GetName()})
-		updatePods, err := awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 5*time.Second, 2*time.Minute, singlePod)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(updatePods).ToNot(BeNil())
-		Expect(updatePods.Items).To(HaveLen(1))
-
-		// No update to image: update pod should be deleted quickly
-		noPod := podCount(0)
-		updatePods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), updateSelector.String(), 1*time.Second, 30*time.Second, noPod)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(updatePods.Items).To(HaveLen(0))
+		})
+		AfterEach(func() {
+			err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("the catalogsource status communicates that a default interval time is being used instead", func() {
+			Eventually(func() bool {
+				catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				if catsrc.Status.Reason == v1alpha1.CatalogSourceIntervalInvalidError {
+					if catsrc.Status.Message == "error parsing spec.updateStrategy.registryPoll.interval. Using the default value of 15m0s instead. Error: time: unknown unit \"mError\" in duration \"45mError.code\"" {
+						return true
+					}
+				}
+				return false
+			}).Should(BeTrue())
+		})
+		When("the catalogsource is updated with a valid polling interval", func() {
+			BeforeEach(func() {
+				catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				catsrc.Spec.UpdateStrategy.RegistryPoll.RawInterval = correctInterval
+				_, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Update(context.TODO(), catsrc, metav1.UpdateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+			})
+			It("the catalogsource spec shows the updated polling interval, and the error message in the status is cleared", func() {
+				Eventually(func() error {
+					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+					expectedTime, err := time.ParseDuration(correctInterval)
+					if err != nil {
+						return err
+					}
+					if catsrc.Status.Reason != "" || (catsrc.Spec.UpdateStrategy.Interval != &metav1.Duration{expectedTime}) {
+						return err
+					}
+					return nil
+				}).Should(Succeed())
+			})
+		})
 	})
 
 	It("adding catalog template adjusts image used", func() {
