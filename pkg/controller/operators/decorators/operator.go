@@ -128,14 +128,32 @@ func (o *Operator) ComponentLabelKey() (string, error) {
 		return o.componentLabelKey, nil
 	}
 
-	if o.GetName() == "" {
+	name := o.GetName()
+	if name == "" {
 		return "", fmt.Errorf(componentLabelKeyError, "empty name field")
 	}
 
-	name := o.GetName()
 	if len(name) > 63 {
 		// Truncate
 		name = name[0:63]
+
+		// Remove trailing illegal characters
+		idx := len(name) - 1
+		for ; idx >= 0; idx-- {
+			lastChar := name[idx]
+			if lastChar != '.' && lastChar != '_' && lastChar != '-' {
+				break
+			}
+		}
+
+		// Just being defensive. This is unlikely to happen since the operator name should
+		// be compatible kubernetes naming constraints
+		if idx < 0 {
+			return "", fmt.Errorf(componentLabelKeyError, "unsupported name field")
+		}
+
+		// Update Label
+		name = name[0 : idx+1]
 	}
 	o.componentLabelKey = ComponentLabelKeyPrefix + name
 
