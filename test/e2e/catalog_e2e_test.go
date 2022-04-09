@@ -1217,7 +1217,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 					if err != nil {
 						return err
 					}
-					if catsrc.Status.Reason != "" || (catsrc.Spec.UpdateStrategy.Interval != &metav1.Duration{expectedTime}) {
+					if catsrc.Status.Reason != "" || (catsrc.Spec.UpdateStrategy.Interval != &metav1.Duration{Duration: expectedTime}) {
 						return err
 					}
 					return nil
