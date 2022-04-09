@@ -9,6 +9,7 @@ import (
 	k8serror "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -22,6 +23,7 @@ const (
 
 type MagicCatalog interface {
 	DeployCatalog(ctx context.Context) error
+	UpdateCatalog(ctx context.Context, provider FileBasedCatalogProvider) error
 	UndeployCatalog(ctx context.Context) []error
 }
 
@@ -50,7 +52,6 @@ func NewMagicCatalog(kubeClient k8scontrollerclient.Client, namespace string, ca
 }
 
 func (c *magicCatalog) DeployCatalog(ctx context.Context) error {
-
 	catalogSource := c.makeCatalogSource()
 	resourcesInOrderOfDeployment := []k8scontrollerclient.Object{
 		c.makeConfigMap(),
@@ -58,35 +59,80 @@ func (c *magicCatalog) DeployCatalog(ctx context.Context) error {
 		c.makeCatalogService(),
 		catalogSource,
 	}
+	if err := c.deployCatalog(ctx, resourcesInOrderOfDeployment); err != nil {
+		return err
+	}
+	if err := catalogSourceIsReady(ctx, c.kubeClient, catalogSource); err != nil {
+		return c.cleanUpAfter(ctx, err)
+	}
 
-	for _, res := range resourcesInOrderOfDeployment {
+	return nil
+}
+
+func catalogSourceIsReady(ctx context.Context, c k8scontrollerclient.Client, cs *operatorsv1alpha1.CatalogSource) error {
+	// wait for catalog source to become ready
+	return waitFor(func() (bool, error) {
+		err := c.Get(ctx, k8scontrollerclient.ObjectKey{
+			Name:      cs.GetName(),
+			Namespace: cs.GetNamespace(),
+		}, cs)
+		if err != nil || cs.Status.GRPCConnectionState == nil {
+			return false, err
+		}
+		state := cs.Status.GRPCConnectionState.LastObservedState
+		if state != catalogReadyState {
+			return false, nil
+		}
+		return true, nil
+	})
+}
+
+func (c *magicCatalog) deployCatalog(ctx context.Context, resources []k8scontrollerclient.Object) error {
+	for _, res := range resources {
 		err := c.kubeClient.Create(ctx, res)
 		if err != nil {
 			return c.cleanUpAfter(ctx, err)
 		}
 	}
+	return nil
+}
 
-	// wait for catalog source to become ready
+func (c *magicCatalog) UpdateCatalog(ctx context.Context, provider FileBasedCatalogProvider) error {
+	resourcesInOrderOfDeletion := []k8scontrollerclient.Object{
+		c.makeCatalogSourcePod(),
+		c.makeConfigMap(),
+	}
+	errors := c.undeployCatalog(ctx, resourcesInOrderOfDeletion)
+	if len(errors) != 0 {
+		return utilerrors.NewAggregate(errors)
+	}
+
+	// TODO(tflannag): Create a pod watcher struct and setup an underlying watch
+	// and block until ctx.Done()?
 	err := waitFor(func() (bool, error) {
+		pod := &corev1.Pod{}
 		err := c.kubeClient.Get(ctx, k8scontrollerclient.ObjectKey{
-			Name:      catalogSource.GetName(),
-			Namespace: catalogSource.GetNamespace(),
-		}, catalogSource)
-
-		if err != nil || catalogSource.Status.GRPCConnectionState == nil {
-			return false, err
-		}
-
-		state := catalogSource.Status.GRPCConnectionState.LastObservedState
-
-		if state != catalogReadyState {
-			return false, nil
-		} else {
+			Name:      c.podName,
+			Namespace: c.namespace,
+		}, pod)
+		if k8serror.IsNotFound(err) {
 			return true, nil
 		}
+		return false, err
 	})
-
 	if err != nil {
+		return fmt.Errorf("failed to successfully update the catalog deployment: %v", err)
+	}
+
+	c.fileBasedCatalog = provider
+	resourcesInOrderOfCreation := []k8scontrollerclient.Object{
+		c.makeConfigMap(),
+		c.makeCatalogSourcePod(),
+	}
+	if err := c.deployCatalog(ctx, resourcesInOrderOfCreation); err != nil {
+		return err
+	}
+	if err := catalogSourceIsReady(ctx, c.kubeClient, c.makeCatalogSource()); err != nil {
 		return c.cleanUpAfter(ctx, err)
 	}
 
@@ -94,30 +140,31 @@ func (c *magicCatalog) DeployCatalog(ctx context.Context) error {
 }
 
 func (c *magicCatalog) UndeployCatalog(ctx context.Context) []error {
-	var errs []error = nil
-
 	resourcesInOrderOfDeletion := []k8scontrollerclient.Object{
 		c.makeCatalogSource(),
 		c.makeCatalogService(),
 		c.makeCatalogSourcePod(),
 		c.makeConfigMap(),
 	}
+	return c.undeployCatalog(ctx, resourcesInOrderOfDeletion)
+}
 
+func (c *magicCatalog) undeployCatalog(ctx context.Context, resources []k8scontrollerclient.Object) []error {
+	var errors []error
 	// try to delete all resourcesInOrderOfDeletion even if errors are
 	// encountered through deletion.
-	for _, res := range resourcesInOrderOfDeletion {
+	for _, res := range resources {
 		err := c.kubeClient.Delete(ctx, res)
 
 		// ignore not found errors
 		if err != nil && !k8serror.IsNotFound(err) {
-			if errs == nil {
-				errs = make([]error, 0)
+			if errors == nil {
+				errors = make([]error, 0)
 			}
-			errs = append(errs, err)
+			errors = append(errors, err)
 		}
 	}
-
-	return errs
+	return errors
 }
 
 func (c *magicCatalog) cleanUpAfter(ctx context.Context, err error) error {
