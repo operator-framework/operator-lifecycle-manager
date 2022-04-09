@@ -26,7 +26,7 @@ YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
-GINKGO := $(GO) run github.com/onsi/ginkgo/ginkgo
+GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 GIT_COMMIT := $(shell git rev-parse HEAD)
 
@@ -132,7 +132,7 @@ E2E_TEST_NUM_CHUNKS ?= 4
 ifneq (all,$(E2E_TEST_CHUNK))
 TEST := $(shell go run ./test/e2e/split/... -chunks $(E2E_TEST_NUM_CHUNKS) -print-chunk $(E2E_TEST_CHUNK) ./test/e2e)
 endif
-E2E_OPTS ?= $(if $(E2E_SEED),-seed '$(E2E_SEED)') $(if $(SKIP), -skip '$(SKIP)') $(if $(TEST),-focus '$(TEST)') -flakeAttempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) -timeout $(E2E_TIMEOUT) -v -randomizeSuites -race -trace -progress
+E2E_OPTS ?= $(if $(E2E_SEED),-seed '$(E2E_SEED)') $(if $(SKIP), -skip '$(SKIP)') $(if $(TEST),-focus '$(TEST)') $(if $(ARTIFACT_DIR), -junit-report '$(ARTIFACT_DIR)junit_e2e.xml') -flake-attempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) -timeout $(E2E_TIMEOUT) -v -randomize-suites -race -trace -progress
 E2E_INSTALL_NS ?= operator-lifecycle-manager
 E2E_TEST_NS ?= operators
 

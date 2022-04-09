@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '~1.17'
+      - run: mkdir -p artifacts
       - run: make e2e-local E2E_TEST_CHUNK=${{ matrix.parallel-id }} E2E_TEST_NUM_CHUNKS=${{ strategy.job-total }} E2E_NODES=2 ARTIFACT_DIR=./artifacts/ SKIP='\[FLAKE\]'
       - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
         if: ${{ always() }}

@@ -43,7 +43,7 @@ Examples:
 make file and use `-dryRun` with `-focus` and see if the regex would trigger your specific test(s).
   
   ```bash
-  GO111MODULE=on GOFLAGS="-mod=vendor" go run github.com/onsi/ginkgo/ginkgo -dryRun -focus 'API service resource not migrated if not adoptable' bin/e2e-local.test
+  GO111MODULE=on go run github.com/onsi/ginkgo/v2/ginkgo -dryRun -focus 'API service resource not migrated if not adoptable' bin/e2e-local.test
   ```
 
 - It is also possible to specify the number of parallel test nodes (i.e. one or more instances of `go test`) to run using the `NODES` argument. Defaults to 1 if not specified
@@ -63,5 +63,5 @@ then run `make run-local` to deploy OLM onto the cluster. Tests can be run by in
 arguments to the test suite. For example to run a specific test:
 
 ```bash
-GO111MODULE=on GOFLAGS="-mod=vendor" go run github.com/onsi/ginkgo/ginkgo -focus "static provider" -v --progress ./test/e2e -- -namespace=operators -olmNamespace=olm -dummyImage=bitnami/nginx:latest
+GO111MODULE=on go run github.com/onsi/ginkgo/v2/ginkgo -focus "static provider" -v --progress ./test/e2e -- -namespace=operators -olmNamespace=olm -dummyImage=bitnami/nginx:latest
 ```

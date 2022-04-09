@@ -3,15 +3,11 @@ package e2e
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
-	"path"
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/config"
-	"github.com/onsi/ginkgo/reporters"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -68,13 +64,7 @@ func TestEndToEnd(t *testing.T) {
 	SetDefaultConsistentlyDuration(30 * time.Second)
 	SetDefaultConsistentlyPollingInterval(1 * time.Second)
 
-	// always configure a junit report when ARTIFACT_DIR has been set
-	if artifactsDir := os.Getenv("ARTIFACT_DIR"); artifactsDir != "" {
-		junitReporter := reporters.NewJUnitReporter(path.Join(artifactsDir, junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
-		RunSpecsWithDefaultAndCustomReporters(t, "End-to-end", []Reporter{junitReporter})
-	} else {
-		RunSpecs(t, "End-to-end")
-	}
+	RunSpecs(t, "End-to-end")
 }
 
 var deprovision func() = func() {}
