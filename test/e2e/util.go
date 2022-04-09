@@ -38,6 +38,7 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
@@ -77,6 +78,33 @@ func newDynamicClient(t GinkgoTInterface, config *rest.Config) dynamic.Interface
 
 func newPMClient() pmversioned.Interface {
 	return ctx.Ctx().PackageClient()
+}
+
+// objectRefToNamespacedName is a helper function that's responsible for translating
+// a *corev1.ObjectReference into a types.NamespacedName.
+func objectRefToNamespacedName(ip *corev1.ObjectReference) types.NamespacedName {
+	return types.NamespacedName{
+		Name:      ip.Name,
+		Namespace: ip.Namespace,
+	}
+}
+
+// addBundleUnpackTimeoutIPAnnotation is a helper function that's responsible for
+// adding the "operatorframework.io/bundle-unpack-timeout" annotation to an InstallPlan
+// resource. This allows you to have more control over the bundle unpack timeout when interacting
+// with test InstallPlan resources.
+func addBundleUnpackTimeoutIPAnnotation(ctx context.Context, c k8scontrollerclient.Client, ipNN types.NamespacedName, timeout string) {
+	Eventually(func() error {
+		ip := &operatorsv1alpha1.InstallPlan{}
+		if err := c.Get(ctx, ipNN, ip); err != nil {
+			return err
+		}
+		annotations := make(map[string]string)
+		annotations[bundle.BundleUnpackTimeoutAnnotationKey] = timeout
+		ip.SetAnnotations(annotations)
+
+		return c.Update(ctx, ip)
+	}).Should(Succeed())
 }
 
 type cleanupFunc func()
