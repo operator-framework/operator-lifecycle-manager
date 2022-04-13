@@ -3091,6 +3091,289 @@ func TestTransitionCSV(t *testing.T) {
 	}
 }
 
+// TODO: Merge the following set of tests with those defined in TestTransitionCSV
+// once those tests are updated to include validation against CSV phases.
+func TestTransitionCSVFailForward(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+	namespace := "ns"
+
+	defaultOperatorGroup := &operatorsv1.OperatorGroup{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "OperatorGroup",
+			APIVersion: operatorsv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: namespace,
+			Annotations: map[string]string{
+				"olm.providedAPIs": "c1.v1.g1",
+			},
+		},
+		Spec: operatorsv1.OperatorGroupSpec{},
+		Status: operatorsv1.OperatorGroupStatus{
+			Namespaces: []string{namespace},
+		},
+	}
+
+	defaultTemplateAnnotations := map[string]string{
+		operatorsv1.OperatorGroupTargetsAnnotationKey:   namespace,
+		operatorsv1.OperatorGroupNamespaceAnnotationKey: namespace,
+		operatorsv1.OperatorGroupAnnotationKey:          defaultOperatorGroup.GetName(),
+	}
+
+	type csvState struct {
+		exists bool
+		phase  v1alpha1.ClusterServiceVersionPhase
+		reason v1alpha1.ConditionReason
+	}
+	type operatorConfig struct {
+		apiReconciler APIIntersectionReconciler
+		apiLabeler    labeler.Labeler
+	}
+	type initial struct {
+		csvs       []runtime.Object
+		clientObjs []runtime.Object
+		crds       []runtime.Object
+		objs       []runtime.Object
+		apis       []runtime.Object
+	}
+	type expected struct {
+		csvStates map[string]csvState
+		objs      []runtime.Object
+		err       map[string]error
+	}
+	tests := []struct {
+		name     string
+		config   operatorConfig
+		initial  initial
+		expected expected
+	}{
+		{
+			name: "FailForwardEnabled/CSV1/FailedToReplacing",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"1.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), addAnnotations(defaultTemplateAnnotations, map[string]string{})),
+					csv("csv2",
+						namespace,
+						"2.0.0",
+						"csv1",
+						installStrategy("csv2-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					),
+				},
+				clientObjs: []runtime.Object{
+					func() *operatorsv1.OperatorGroup {
+						og := defaultOperatorGroup.DeepCopy()
+						og.Spec.UpgradeStrategy = operatorsv1.UpgradeStrategyUnsafeFailForward
+						return og
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseNone},
+				},
+			},
+		},
+		{
+			name: "FailForwardDisabled/CSV1/FailedToPending",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"1.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), addAnnotations(defaultTemplateAnnotations, map[string]string{})),
+					csv("csv2",
+						namespace,
+						"2.0.0",
+						"csv1",
+						installStrategy("csv2-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					),
+				},
+				clientObjs: []runtime.Object{
+					func() *operatorsv1.OperatorGroup {
+						og := defaultOperatorGroup.DeepCopy()
+						og.Spec.UpgradeStrategy = operatorsv1.UpgradeStrategyDefault
+						return og
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseNone},
+				},
+			},
+		},
+		{
+			name: "FailForwardEnabled/ReplacementChain/CSV2/FailedToReplacing",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"1.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					), addAnnotations(defaultTemplateAnnotations, map[string]string{})),
+					csvWithAnnotations(csv("csv2",
+						namespace,
+						"2.0.0",
+						"csv1",
+						installStrategy("csv2-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), addAnnotations(defaultTemplateAnnotations, map[string]string{})),
+					csv("csv3",
+						namespace,
+						"3.0.0",
+						"csv2",
+						installStrategy("csv3-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					),
+				},
+				clientObjs: []runtime.Object{
+					func() *operatorsv1.OperatorGroup {
+						og := defaultOperatorGroup.DeepCopy()
+						og.Spec.UpgradeStrategy = operatorsv1.UpgradeStrategyUnsafeFailForward
+						return og
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv3": {exists: true, phase: v1alpha1.CSVPhaseNone},
+				},
+			},
+		},
+		{
+			name: "FailForwardDisabled/ReplacementChain/CSV2/FailedToPending",
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"1.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					), addAnnotations(defaultTemplateAnnotations, map[string]string{})),
+					csvWithAnnotations(csv("csv2",
+						namespace,
+						"2.0.0",
+						"csv1",
+						installStrategy("csv2-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), addAnnotations(defaultTemplateAnnotations, map[string]string{})),
+					csv("csv3",
+						namespace,
+						"3.0.0",
+						"csv2",
+						installStrategy("csv3-dep1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					),
+				},
+				clientObjs: []runtime.Object{
+					func() *operatorsv1.OperatorGroup {
+						og := defaultOperatorGroup.DeepCopy()
+						og.Spec.UpgradeStrategy = operatorsv1.UpgradeStrategyDefault
+						return og
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhasePending},
+					"csv3": {exists: true, phase: v1alpha1.CSVPhaseNone},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(
+				ctx,
+				withNamespaces(namespace, "kube-system"),
+				withClientObjs(append(tt.initial.csvs, tt.initial.clientObjs...)...),
+				withK8sObjs(tt.initial.objs...),
+				withExtObjs(tt.initial.crds...),
+				withRegObjs(tt.initial.apis...),
+				withOperatorNamespace(namespace),
+				withAPIReconciler(tt.config.apiReconciler),
+				withAPILabeler(tt.config.apiLabeler),
+			)
+			require.NoError(t, err)
+
+			// run csv sync for each CSV
+			for _, csv := range tt.initial.csvs {
+				err := op.syncClusterServiceVersion(csv)
+				expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
+				require.Equal(t, expectedErr, err)
+			}
+
+			// get csvs in the cluster
+			outCSVMap := map[string]*v1alpha1.ClusterServiceVersion{}
+			outCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{})
+			require.NoError(t, err)
+			for _, csv := range outCSVs.Items {
+				outCSVMap[csv.GetName()] = csv.DeepCopy()
+			}
+
+			// verify expectations of csvs in cluster
+			for csvName, csvState := range tt.expected.csvStates {
+				csv, ok := outCSVMap[csvName]
+				require.Equal(t, ok, csvState.exists, "%s existence should be %t", csvName, csvState.exists)
+				if csvState.exists {
+					if csvState.reason != "" {
+						require.EqualValues(t, string(csvState.reason), string(csv.Status.Reason), "%s had incorrect condition reason - %v", csvName, csv)
+					}
+					require.Equal(t, csvState.phase, csv.Status.Phase)
+				}
+			}
+
+			// Verify other objects
+			if tt.expected.objs != nil {
+				RequireObjectsInNamespace(t, op.opClient, op.client, namespace, tt.expected.objs)
+			}
+		})
+	}
+}
+
 func TestWebhookCABundleRetrieval(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"

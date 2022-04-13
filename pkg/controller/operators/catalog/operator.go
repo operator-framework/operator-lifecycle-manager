@@ -42,6 +42,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/api/pkg/operators/reference"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
@@ -882,6 +883,19 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	return
 }
 
+func (o *Operator) isFailForwardEnabled(namespace string) (bool, error) {
+	ogs, err := o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace).List(labels.Everything())
+	if err != nil {
+		// Couldn't list operatorGroups, assuming default upgradeStrategy
+		// so existing behavior is observed for failed CSVs.
+		return false, nil
+	}
+	if len(ogs) != 1 {
+		return false, fmt.Errorf("found %d operatorGroups in namespace %s, expected 1", len(ogs), namespace)
+	}
+	return ogs[0].UpgradeStrategy() == operatorsv1.UpgradeStrategyUnsafeFailForward, nil
+}
+
 func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
@@ -908,6 +922,11 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
+	failForwardEnabled, err := o.isFailForwardEnabled(namespace)
+	if err != nil {
+		return err
+	}
+
 	// TODO: parallel
 	maxGeneration := 0
 	subscriptionUpdated := false
@@ -924,7 +943,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		}
 
 		// ensure the installplan reference is correct
-		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub)
+		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub, failForwardEnabled)
 		if err != nil {
 			logger.Debugf("error ensuring installplan state: %v", err)
 			return err
@@ -932,7 +951,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		subscriptionUpdated = subscriptionUpdated || changedIP
 
 		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
-		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub)
+		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub, failForwardEnabled)
 		if err != nil {
 			logger.Debugf("error recording current state of CSV in status: %v", err)
 			return err
@@ -958,7 +977,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	logger.Debug("resolving subscriptions in namespace")
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace)
+	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, failForwardEnabled)
 	if err != nil {
 		go o.recorder.Event(ns, corev1.EventTypeWarning, "ResolutionFailed", err.Error())
 		// If the error is constraints not satisfiable, then simply project the
@@ -1080,7 +1099,7 @@ func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscript
 	return false
 }
 
-func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
+func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription, failForwardEnabled bool) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.InstallPlanRef != nil || sub.Status.Install != nil {
 		return sub, false, nil
 	}
@@ -1110,13 +1129,16 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	out.Status.InstallPlanRef = ref
 	out.Status.Install = v1alpha1.NewInstallPlanReference(ref)
 	out.Status.State = v1alpha1.SubscriptionStateUpgradePending
+	if failForwardEnabled && ip.Status.Phase == v1alpha1.InstallPlanPhaseFailed {
+		out.Status.State = v1alpha1.SubscriptionStateFailed
+	}
 	out.Status.CurrentCSV = out.Spec.StartingCSV
 	out.Status.LastUpdated = o.now()
 
 	return out, true, nil
 }
 
-func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
+func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription, failForwardEnabled bool) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.CurrentCSV == "" {
 		return sub, false, nil
 	}
@@ -1126,6 +1148,14 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	if err != nil {
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
 		out.Status.State = v1alpha1.SubscriptionStateUpgradePending
+		if failForwardEnabled && sub.Status.InstallPlanRef != nil {
+			ip, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).Get(context.TODO(), sub.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			if err != nil {
+				logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching installplan listed in subscription status")
+			} else if ip.Status.Phase == v1alpha1.InstallPlanPhaseFailed {
+				out.Status.State = v1alpha1.SubscriptionStateFailed
+			}
+		}
 	} else {
 		out.Status.State = v1alpha1.SubscriptionStateAtLatest
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
