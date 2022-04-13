@@ -24,7 +24,7 @@ require (
 	github.com/onsi/gomega v1.17.0
 	github.com/openshift/api v0.0.0-20200331152225-585af27e34fd
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
-	github.com/operator-framework/api v0.11.2-0.20220128160316-8e593f1c42b9
+	github.com/operator-framework/api v0.14.1-0.20220413143725-33310d6154f3
 	github.com/operator-framework/operator-registry v1.17.5
 	github.com/otiai10/copy v1.2.0
 	github.com/pkg/errors v0.9.1
@@ -240,4 +240,6 @@ replace (
 	// controller runtime
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20211014063134-be2a7fb8aa44
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0 // release-4.5
+	// TODO(fail-forward): Remove when api changes are released
+	github.com/operator-framework/api => github.com/operator-framework/api v0.14.1-0.20220413143725-33310d6154f3
 )
