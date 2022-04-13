@@ -17,11 +17,11 @@ const (
 type fakeResolverWithError struct{}
 type fakeResolverWithoutError struct{}
 
-func (r *fakeResolverWithError) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+func (r *fakeResolverWithError) ResolveSteps(namespace string, failForwardEnabled bool) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	return nil, nil, nil, errors.New("Fake error")
 }
 
-func (r *fakeResolverWithoutError) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+func (r *fakeResolverWithoutError) ResolveSteps(namespace string, failForwardEnabled bool) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	return nil, nil, nil, nil
 }
 
@@ -45,7 +45,7 @@ func TestInstrumentedResolverFailure(t *testing.T) {
 	}
 
 	instrumentedResolver := NewInstrumentedResolver(newFakeResolverWithError(), changeToSuccess, changeToFailure)
-	instrumentedResolver.ResolveSteps("")
+	instrumentedResolver.ResolveSteps("", false)
 	require.Equal(t, len(result), 1)     // check that only one call was made to a change function
 	require.Equal(t, result[0], failure) // check that the call was made to changeToFailure function
 }
@@ -62,7 +62,7 @@ func TestInstrumentedResolverSuccess(t *testing.T) {
 	}
 
 	instrumentedResolver := NewInstrumentedResolver(newFakeResolverWithoutError(), changeToSuccess, changeToFailure)
-	instrumentedResolver.ResolveSteps("")
+	instrumentedResolver.ResolveSteps("", false)
 	require.Equal(t, len(result), 1)     // check that only one call was made to a change function
 	require.Equal(t, result[0], success) // check that the call was made to changeToSuccess function
 }

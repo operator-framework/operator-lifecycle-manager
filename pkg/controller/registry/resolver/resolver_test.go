@@ -191,6 +191,85 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 	}
 }
 
+func WithInstalledCSV(sub *v1alpha1.Subscription, csvName string) *v1alpha1.Subscription {
+	sub.Status.InstalledCSV = csvName
+	return sub
+}
+
+func TestSolveOperators_WithFailForward(t *testing.T) {
+	const namespace = "test-namespace"
+	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
+
+	packageASubV2 := newSub(namespace, "packageA", "alpha", catalog)
+	APISet := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
+
+	// packageA provides an API
+	packageAV1 := genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
+	packageAV2 := genEntry("packageA.v2", "0.0.2", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
+	packageAV3 := genEntry("packageA.v3", "0.0.3", "packageA.v2", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
+
+	existingPackageAV1 := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", APISet, nil, nil, nil)
+	existingPackageAV2 := existingOperator(namespace, "packageA.v2", "packageA", "alpha", "packageA.v1", APISet, nil, nil, nil)
+
+	testCases := []struct {
+		title                 string
+		expectedOperators     []*cache.Entry
+		csvs                  []*v1alpha1.ClusterServiceVersion
+		subs                  []*v1alpha1.Subscription
+		snapshotEntries       []*cache.Entry
+		failForwardPredicates []cache.Predicate
+		err                   string
+	}{
+		{
+			title:             "Resolver fails if v1 and v2 provide the same APIs and v1 is not omitted from the resolver",
+			snapshotEntries:   []*cache.Entry{packageAV1, packageAV2},
+			expectedOperators: nil,
+			csvs:              []*v1alpha1.ClusterServiceVersion{existingPackageAV1, existingPackageAV2},
+			subs:              []*v1alpha1.Subscription{WithInstalledCSV(packageASubV2, existingPackageAV2.Name)},
+			err:               "provide k (g/v)",
+		},
+		{
+			title:                 "Resolver succeeds if v1 and v2 provide the same APIs and v1 is omitted from the resolver",
+			snapshotEntries:       []*cache.Entry{packageAV1, packageAV2},
+			expectedOperators:     nil,
+			csvs:                  []*v1alpha1.ClusterServiceVersion{existingPackageAV1, existingPackageAV2},
+			subs:                  []*v1alpha1.Subscription{WithInstalledCSV(packageASubV2, existingPackageAV2.Name)},
+			failForwardPredicates: []cache.Predicate{cache.Not(cache.CSVNamePredicate("packageA.v1"))},
+			err:                   "",
+		},
+		{
+			title:                 "Resolver succeeds if v1 and v2 provide the same APIs, v1 is omitted from the resolver, and an upgrade for v2 exists",
+			snapshotEntries:       []*cache.Entry{packageAV1, packageAV2, packageAV3},
+			expectedOperators:     []*cache.Entry{packageAV3},
+			csvs:                  []*v1alpha1.ClusterServiceVersion{existingPackageAV1, existingPackageAV2},
+			subs:                  []*v1alpha1.Subscription{WithInstalledCSV(packageASubV2, existingPackageAV2.Name)},
+			failForwardPredicates: []cache.Predicate{cache.Not(cache.CSVNamePredicate("packageA.v1"))},
+			err:                   "",
+		},
+	}
+
+	for _, testCase := range testCases {
+		resolver := Resolver{
+			cache: cache.New(cache.StaticSourceProvider{
+				catalog: &cache.Snapshot{
+					Entries: testCase.snapshotEntries,
+				},
+				cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, testCase.subs, testCase.csvs...),
+			}),
+			log: logrus.New(),
+		}
+		operators, err := resolver.Resolve([]string{namespace}, testCase.subs, testCase.failForwardPredicates...)
+
+		if testCase.err != "" {
+			require.Error(t, err)
+			require.Containsf(t, err.Error(), testCase.err, "Test %s failed", testCase.title)
+		} else {
+			require.NoErrorf(t, err, "Test %s failed", testCase.title)
+		}
+		require.ElementsMatch(t, testCase.expectedOperators, operators, "Test %s failed", testCase.title)
+	}
+}
+
 func TestDisjointChannelGraph(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
