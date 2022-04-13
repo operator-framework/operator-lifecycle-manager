@@ -55,7 +55,7 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (r *Resolver) Resolve(namespaces []string, subs []*v1alpha1.Subscription) ([]*cache.Entry, error) {
+func (r *Resolver) Resolve(namespaces []string, subs []*v1alpha1.Subscription, existingEntryPredicates ...cache.Predicate) ([]*cache.Entry, error) {
 	var errs []error
 
 	variables := make(map[solver.Identifier]solver.Variable)
@@ -72,7 +72,8 @@ func (r *Resolver) Resolve(namespaces []string, subs []*v1alpha1.Subscription) (
 	}
 
 	preferredNamespace := namespaces[0]
-	_, existingVariables, err := r.getBundleVariables(preferredNamespace, namespacedCache.Catalog(cache.NewVirtualSourceKey(preferredNamespace)).Find(cache.True()), namespacedCache, visited)
+	existingEntryPredicates = append(existingEntryPredicates, cache.True())
+	_, existingVariables, err := r.getBundleVariables(preferredNamespace, namespacedCache.Catalog(cache.NewVirtualSourceKey(preferredNamespace)).Find(existingEntryPredicates...), namespacedCache, visited)
 	if err != nil {
 		return nil, err
 	}

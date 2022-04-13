@@ -22,9 +22,9 @@ func NewInstrumentedResolver(resolver StepResolver, successMetricsEmitter, failu
 	}
 }
 
-func (ir *InstrumentedResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+func (ir *InstrumentedResolver) ResolveSteps(namespace string, failForwardEnabled bool) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	start := time.Now()
-	steps, lookups, subs, err := ir.resolver.ResolveSteps(namespace)
+	steps, lookups, subs, err := ir.resolver.ResolveSteps(namespace, failForwardEnabled)
 	if err != nil {
 		ir.failureMetricsEmitter(time.Since(start))
 	} else {
