@@ -1446,7 +1446,7 @@ func newSub(namespace, pkg, channel string, catalog resolvercache.SourceKey, opt
 
 type ogOption func(*operatorsv1.OperatorGroup)
 
-func withUpgradeStrategy(upgradeStrategy string) ogOption {
+func withUpgradeStrategy(upgradeStrategy operatorsv1.UpgradeStrategy) ogOption {
 	return func(og *operatorsv1.OperatorGroup) {
 		og.Spec.UpgradeStrategy = upgradeStrategy
 	}
