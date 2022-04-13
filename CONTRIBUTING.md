@@ -31,8 +31,8 @@ This is a rough outline of what a contributor's workflow looks like:
 - Identify or create an issue.
 - Create a topic branch from where to base the contribution. This is usually the master branch.
 - Make commits of logical units.
-- Make sure commit messages are in the proper format (see below).
-- Ensure all relevant commit messages contain a valid sign-off message (see below).
+- Make sure commit messages are in the proper format ([see below][commit-messages]).
+- Ensure all relevant commit messages contain a valid sign-off message ([see below][commit-messages]).
 - Push changes in a topic branch to a personal fork of the repository.
 - Submit a pull request to the operator-framework/operator-lifecycle-manager repository.
 - Wait and respond to feedback from the maintainers listed in the OWNERS file.
@@ -47,7 +47,7 @@ It can be helpful after submitting a PR to self-review your changes. This allows
 
 When opening PRs that are in a rough draft or WIP state, prefix the PR description with `WIP: ...` or create a draft PR. This can help save reviewer's time by communicating the state of a PR ahead of time. Draft/WIP PRs can be a good way to get early feedback from reviewers on the implementation, focusing less on smaller details, and more on the general approach of changes.
 
-When contributing changes that require a new dependency, check whether it's feasable to directly vendor that code [without introducing a new dependency](https://go-proverbs.github.io/).
+When contributing changes that require a new dependency, check whether it's feasible to directly vendor that code [without introducing a new dependency](https://go-proverbs.github.io/).
 
 Each PR must be labeled with at least one "lgtm" label and at least one "approved" label before it can be merged. Maintainers that have approval permissions are listed in the "approvers" column in the root [OWNERS][owners] file.
 
@@ -62,11 +62,11 @@ In addition to the linked style documentation, OLM formats Golang packages using
 
 Please follow this style to make the OLM project easier to review, maintain and develop.
 
-### Sign-off ([DCO][DCO])
+### Commit Messages and Sign-off ([DCO][DCO])
 
 A [sign-off][sign-off] is a line towards the end of a commit message that certifies the commit author(s).
 
-For more information on the structuring of commit messages, read the information in the [DCO](https://github.com/apps/dco) application that the OLM projects uses.
+For more information on the structuring of commit messages, read the information in the [DCO][dco] application that the OLM projects uses.
 
 ## Documentation
 
@@ -74,7 +74,7 @@ If the contribution changes the existing APIs or user interface it must include 
 
 The OLM documentation mainly lives in the [operator-framework/olm-docs][olm-docs] repository.
 
-[operator_framework]: https://groups.google.com/forum/#!forum/operator-framework
+[operator_framework]: <https://groups.google.com/forum/#!forum/operator-framework>
 [dco]: <https://developercertificate.org/>
 [owners]: <https://github.com/operator-framework/operator-lifecycle-manager/blob/master/OWNERS>
 [issues]: <https://github.com/operator-framework/operator-lifecycle-manager/issues>
@@ -84,3 +84,4 @@ The OLM documentation mainly lives in the [operator-framework/olm-docs][olm-docs
 [sign-off]: <https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---signoff>
 [goimports]: <https://pkg.go.dev/golang.org/x/tools/cmd/goimports>
 [gofmt]: <https://pkg.go.dev/cmd/gofmt>
+[commit-messages]: <https://github.com/operator-framework/operator-lifecycle-manager/blob/master/CONTRIBUTING.md#commit-messages-and-sign-off-dco>
