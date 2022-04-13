@@ -85,10 +85,10 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		defer func() {
 			Eventually(func() error {
-				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.GetName(), metav1.DeleteOptions{})
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{})
 			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &csv))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &csv))
 			}).Should(Succeed())
 		}()
 
@@ -151,13 +151,13 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		defer func() {
 			Eventually(func() error {
-				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), mainCRD.GetName(), metav1.DeleteOptions{})
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), mainCRD.GetName(), metav1.DeleteOptions{})
 			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &mainCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &mainCSV))
 			}).Should(Succeed())
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &replacementCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &replacementCSV))
 			}).Should(Succeed())
 		}()
 
@@ -201,12 +201,17 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		installPlanName := subscription.Status.Install.Name
 		requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval)
-		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), requiresApprovalChecker)
-		Expect(err).ShouldNot(HaveOccurred())
 
-		fetchedInstallPlan.Spec.Approved = true
-		_, err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
+		Eventually(func() error {
+			fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), requiresApprovalChecker)
+			if err != nil {
+				return err
+			}
+
+			fetchedInstallPlan.Spec.Approved = true
+			_, err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
+			return err
+		}).Should(Succeed())
 
 		_, err = awaitCSV(crc, ns.GetName(), mainCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -255,13 +260,13 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		defer func() {
 			Eventually(func() error {
-				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), metav1.DeleteOptions{})
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), dependentCRD.GetName(), metav1.DeleteOptions{})
 			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &mainCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &mainCSV))
 			}).Should(Succeed())
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &dependentCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &dependentCSV))
 			}).Should(Succeed())
 		}()
 
@@ -388,13 +393,13 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		defer func() {
 			Eventually(func() error {
-				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), metav1.DeleteOptions{})
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), dependentCRD.GetName(), metav1.DeleteOptions{})
 			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &mainCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &mainCSV))
 			}).Should(Succeed())
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &dependentCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &dependentCSV))
 			}).Should(Succeed())
 		}()
 
@@ -482,16 +487,16 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		defer func() {
 			Eventually(func() error {
-				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), dependentCRD.GetName(), metav1.DeleteOptions{})
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), dependentCRD.GetName(), metav1.DeleteOptions{})
 			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &mainCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &mainCSV))
 			}).Should(Succeed())
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &dependentCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &dependentCSV))
 			}).Should(Succeed())
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &replacementCSV))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &replacementCSV))
 			}).Should(Succeed())
 		}()
 
@@ -592,11 +597,16 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update the catalog's address to point at the other registry pod's cluster ip
-		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Get(context.Background(), addressSourceName, metav1.GetOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
-		addressSource.Spec.Address = net.JoinHostPort(replacementCopy.Status.PodIP, "50051")
-		_, err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Update(context.Background(), addressSource, metav1.UpdateOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
+		Eventually(func() error {
+			addressSource, err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Get(context.Background(), addressSourceName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			addressSource.Spec.Address = net.JoinHostPort(replacementCopy.Status.PodIP, "50051")
+			_, err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Update(context.Background(), addressSource, metav1.UpdateOptions{})
+			return err
+		}).Should(Succeed())
 
 		// Wait for the replacement CSV to be installed
 		_, err = awaitCSV(crc, ns.GetName(), replacementCSV.GetName(), csvSucceededChecker)
@@ -629,10 +639,10 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		defer func() {
 			Eventually(func() error {
-				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.GetName(), metav1.DeleteOptions{})
+				return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{})
 			}).Should(Or(Succeed(), WithTransform(k8serror.IsNotFound, BeTrue())))
 			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.TODO(), &csv))
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &csv))
 			}).Should(Succeed())
 		}()
 
@@ -892,12 +902,17 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}
 
 		// update catalog source with annotation (to kick resync)
-		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
-		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
-		source.Annotations = make(map[string]string)
-		source.Annotations["testKey"] = "testValue"
-		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.Background(), source, metav1.UpdateOptions{})
-		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
+		Eventually(func() error {
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return nil
+			}
+
+			source.Annotations = make(map[string]string)
+			source.Annotations["testKey"] = "testValue"
+			_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.Background(), source, metav1.UpdateOptions{})
+			return err
+		}).Should(Succeed())
 
 		time.Sleep(11 * time.Second)
 
@@ -916,11 +931,21 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				}
 			}
 			// update catalog source with annotation (to kick resync)
-			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred(), "error getting catalog source pod")
-			source.Annotations["testKey"] = genName("newValue")
-			_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.Background(), source, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred(), "error updating catalog source pod with test annotation")
+			Eventually(func() error {
+				source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+
+				if source.Annotations == nil {
+					source.Annotations = make(map[string]string)
+				}
+
+				source.Annotations["testKey"] = genName("newValue")
+				_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.Background(), source, metav1.UpdateOptions{})
+				return err
+			}).Should(Succeed())
+
 			return false
 		}
 		// await new catalog source and ensure old one was deleted
@@ -930,11 +955,16 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
 
 		// update catalog source with annotation (to kick resync)
-		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
-		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
-		source.Annotations["testKey"] = "newValue"
-		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.Background(), source, metav1.UpdateOptions{})
-		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
+		Eventually(func() error {
+			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			source.Annotations["testKey"] = "newValue"
+			_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.Background(), source, metav1.UpdateOptions{})
+			return err
+		}).Should(Succeed())
 
 		subChecker := func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox.v2.0.0"
@@ -1030,19 +1060,16 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(subscription.Status.InstalledCSV).To(Equal("busybox-dependency.v1.0.0"))
 
 		// Update the catalog image
-		Eventually(func() (bool, error) {
+		Eventually(func() error {
 			existingSource, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), sourceName, metav1.GetOptions{})
 			if err != nil {
-				return false, err
+				return err
 			}
 			existingSource.Spec.Image = catSrcImage + ":2.0.0-with-ListBundles-method"
 
 			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.Background(), existingSource, metav1.UpdateOptions{})
-			if err == nil {
-				return true, nil
-			}
-			return false, nil
-		}).Should(BeTrue())
+			return err
+		}).Should(Succeed())
 
 		// Wait for the CatalogSource to be ready
 		_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
@@ -1102,7 +1129,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				},
 			}
 
-			source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			// wait for new catalog source pod to be created and report ready
@@ -1113,7 +1140,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Expect(catalogPods).ToNot(BeNil())
 
 			Eventually(func() (bool, error) {
-				podList, err := c.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+				podList, err := c.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).List(context.Background(), metav1.ListOptions{LabelSelector: selector.String()})
 				if err != nil {
 					return false, err
 				}
@@ -1179,17 +1206,17 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				},
 			}
 
-			_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
+			_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 		})
 		AfterEach(func() {
-			err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.TODO(), source.GetName(), metav1.DeleteOptions{})
+			err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(context.Background(), source.GetName(), metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("the catalogsource status communicates that a default interval time is being used instead", func() {
 			Eventually(func() bool {
-				catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+				catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				if catsrc.Status.Reason == v1alpha1.CatalogSourceIntervalInvalidError {
 					if catsrc.Status.Message == "error parsing spec.updateStrategy.registryPoll.interval. Using the default value of 15m0s instead. Error: time: unknown unit \"mError\" in duration \"45mError.code\"" {
@@ -1201,15 +1228,19 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		})
 		When("the catalogsource is updated with a valid polling interval", func() {
 			BeforeEach(func() {
-				catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				catsrc.Spec.UpdateStrategy.RegistryPoll.RawInterval = correctInterval
-				_, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Update(context.TODO(), catsrc, metav1.UpdateOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() error {
+					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+					catsrc.Spec.UpdateStrategy.RegistryPoll.RawInterval = correctInterval
+					_, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Update(context.Background(), catsrc, metav1.UpdateOptions{})
+					return err
+				}).Should(Succeed())
 			})
 			It("the catalogsource spec shows the updated polling interval, and the error message in the status is cleared", func() {
 				Eventually(func() error {
-					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.TODO(), source.GetName(), metav1.GetOptions{})
+					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
 					if err != nil {
 						return err
 					}
