@@ -30,6 +30,19 @@ GINKGO := $(GO) run github.com/onsi/ginkgo/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 GIT_COMMIT := $(shell git rev-parse HEAD)
 
+###############
+# Help Target #
+###############
+.PHONY: help
+help: ## Show this help screen
+	@echo 'Usage: make <OPTIONS> ... <TARGETS>'
+	@echo ''
+	@echo 'Available targets are:'
+	@echo ''
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+##@ OLM targets:
+
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
 	coverage coverage-html e2e \
@@ -38,11 +51,11 @@ GIT_COMMIT := $(shell git rev-parse HEAD)
 .PHONY: FORCE
 FORCE:
 
-all: test build
+all: test build  ## Build and test
 
-test: clean cover.out
+test: clean cover.out  ## Test
 
-unit: kubebuilder
+unit: kubebuilder  ## Run unit tests
 	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
 # Ensure kubectl installed before continuing
@@ -63,34 +76,34 @@ cover.out:
 	go test $(MOD_FLAGS) -tags "json1" -v -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
-coverage: cover.out
+coverage: cover.out  ## Generate coverage report
 	go tool cover -func=cover.out
 
-coverage-html: cover.out
+coverage-html: cover.out  ## Generate HTML coverage report
 	go tool cover -html=cover.out
 
-build: build_cmd=build
+build: build_cmd=build  ## Build OLM binaries
 build: clean $(CMDS)
 
-test-bare: BUILD_TAGS=-tags=bare
+test-bare: BUILD_TAGS=-tags=bare  ## Test bare
 test-bare: clean $(TCMDS)
 
 test-bin: clean $(TCMDS)
 
 # build versions of the binaries with coverage enabled
-build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
+build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...  ## Build versions of the binaries with coverage enabled
 build-coverage: clean $(CMDS)
 
-build-linux: build_cmd=build
+build-linux: build_cmd=build   ## Build binaries for linux
 build-linux: arch_flags=GOOS=linux GOARCH=386
 build-linux: clean $(CMDS)
 
-build-wait: clean bin/wait
+build-wait: clean bin/wait   ## Build 'wait' binary
 
 bin/wait: FORCE
 	GOOS=linux GOARCH=386 go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
-build-util-linux: arch_flags=GOOS=linux GOARCH=386
+build-util-linux: arch_flags=GOOS=linux GOARCH=386   ## Build 'cpb' binary
 build-util-linux: build-util
 
 build-util: bin/cpb
@@ -107,7 +120,7 @@ build: clean $(CMDS)
 $(TCMDS):
 	go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
-deploy-local:
+deploy-local:  ## Deploy OLM locally
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
@@ -136,12 +149,12 @@ E2E_OPTS ?= $(if $(E2E_SEED),-seed '$(E2E_SEED)') $(if $(SKIP), -skip '$(SKIP)')
 E2E_INSTALL_NS ?= operator-lifecycle-manager
 E2E_TEST_NS ?= operators
 
-e2e:
+e2e:  ## Run E2E tests
 	$(GINKGO) $(E2E_OPTS) $(or $(run), ./test/e2e) $< -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -dummyImage=bitnami/nginx:latest $(or $(extra_args), -kubeconfig=${KUBECONFIG})
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
-e2e-local: BUILD_TAGS="json1 experimental_metrics"
+e2e-local: BUILD_TAGS="json1 experimental_metrics"  ## Run E2E tests locally
 e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar -test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
 e2e-local: run=bin/e2e-local.test
 e2e-local: bin/e2e-local.test test/e2e-local.image.tar
@@ -165,26 +178,26 @@ test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
 	docker save -o $@ quay.io/operator-framework/olm:local
 
-e2e-bare: setup-bare
+e2e-bare: setup-bare  ## Run base E2E tests
 	. ./scripts/run_e2e_bare.sh $(TEST)
 
-e2e-local-docker:
+e2e-local-docker:  ## Run local docker
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh $(TEST)
 
-vendor:
+vendor:  ## Vendor dependencies
 	go mod tidy
 	go mod vendor
 
-container:
+container:  ## Build OLM container
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
 
-clean-e2e:
+clean-e2e:  ## Clean E2E tests
 	kubectl delete crds --all
 	kubectl delete apiservices.apiregistration.k8s.io v1.packages.operators.coreos.com || true
 	kubectl delete -f test/e2e/resources/0000_50_olm_00-namespace.yaml
 
-clean:
+clean:  ## Clean project workspace
 	@rm -rf cover.out
 	@rm -rf bin
 	@rm -rf test/e2e/resources
@@ -193,44 +206,44 @@ clean:
 	@rm -rf e2e.namespace
 
 # Copy CRD manifests
-manifests: vendor
+manifests: vendor  ## Copy CRD Manifests
 	./scripts/copy_crds.sh
 
 # Generate deepcopy, conversion, clients, listers, and informers
-codegen:
+codegen:  ## Generate deepcopy, conversion, clients, listers, and informers
 	# Clients, listers, and informers
 	$(CODEGEN)
 
 # Generate mock types.
-mockgen:
+mockgen:  ## Generate mock types
 	$(MOCKGEN)
 
 # Generates everything.
-gen-all: codegen mockgen manifests
+gen-all: codegen mockgen manifests  ## Generate all the things
 
 diff:
 	git diff --exit-code
 
-verify-codegen: codegen
+verify-codegen: codegen ## Verify code generation
 	$(MAKE) diff
 
-verify-mockgen: mockgen
+verify-mockgen: mockgen  ## Verify mock generation
 	$(MAKE) diff
 
-verify-manifests: manifests
+verify-manifests: manifests  ## Verify manifests
 	$(MAKE) diff
 
-verify: verify-codegen verify-mockgen verify-manifests
+verify: verify-codegen verify-mockgen verify-manifests ## Verify all the things
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
-release: ver=v$(shell cat OLM_VERSION)
+release: ver=v$(shell cat OLM_VERSION)  ## Release OLM
 release: manifests
 	@echo "Generating the $(ver) release"
 	docker pull $(IMAGE_REPO):$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 
-verify-release: release
+verify-release: release  ## Verify OLM Release
 	$(MAKE) diff
 
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(IMAGE_REPO):$(ver))
@@ -255,12 +268,12 @@ endif
 ################################
 
 .PHONY: run-console-local
-run-console-local:
+run-console-local:  ## Run OLM console locally
 	@echo Running script to run the OLM console locally:
 	. ./scripts/run_console_local.sh
 
 .PHONY: uninstall
-uninstall:
+uninstall:  ## Uninstall OLM
 	@echo Uninstalling OLM:
 	- kubectl delete -f deploy/upstream/quickstart/crds.yaml
 	- kubectl delete -f deploy/upstream/quickstart/olm.yaml
@@ -280,12 +293,12 @@ uninstall:
 	- kubectl delete clusterrolebindings.rbac.authorization.k8s.io "olm-operator-binding-openshift-operator-lifecycle-manager"
 
 .PHONY: build-local
-build-local: build-linux build-wait build-util-linux
+build-local: build-linux build-wait build-util-linux  ## Build locally
 	rm -rf build
 	. ./scripts/build_local.sh
 
 .PHONY: run-local
-run-local: build-local
+run-local: build-local  ## Run locally
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
