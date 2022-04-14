@@ -4,10 +4,12 @@ import (
 	"context"
 	"flag"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,7 +56,6 @@ var (
 	testNamespace           = ""
 	operatorNamespace       = ""
 	communityOperatorsImage = ""
-	junitDir                = "junit"
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -121,4 +122,16 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	deprovision()
+})
+
+var _ = ReportAfterSuite("Report to Elasticsearch", func(report Report) {
+	artifactDir := os.Getenv("ARTIFACT_DIR")
+	if artifactDir == "" {
+		return
+	}
+	err := os.MkdirAll(artifactDir, os.ModePerm)
+	Expect(err).To(BeNil(), "failed to create the output artifacts directory")
+
+	err = reporters.GenerateJUnitReport(report, filepath.Join(artifactDir, "junit_e2e.xml"))
+	Expect(err).To(BeNil(), "failed to generate junit report")
 })
