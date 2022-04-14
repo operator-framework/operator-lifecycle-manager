@@ -103,6 +103,7 @@ type Operator struct {
 	catsrcQueueSet           *queueinformer.ResourceQueueSet
 	subQueueSet              *queueinformer.ResourceQueueSet
 	ipQueueSet               *queueinformer.ResourceQueueSet
+	ogQueueSet               *queueinformer.ResourceQueueSet
 	nsResolveQueue           workqueue.RateLimitingInterface
 	namespace                string
 	recorder                 record.EventRecorder
@@ -182,6 +183,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
+		ogQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient),
@@ -253,6 +255,24 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 	if err := op.RegisterQueueInformer(ipQueueInformer); err != nil {
+		return nil, err
+	}
+
+	operatorGroupInformer := crInformerFactory.Operators().V1().OperatorGroups()
+	op.lister.OperatorsV1().RegisterOperatorGroupLister(metav1.NamespaceAll, operatorGroupInformer.Lister())
+	ogQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ogs")
+	op.ogQueueSet.Set(metav1.NamespaceAll, ogQueue)
+	operatorGroupQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(ogQueue),
+		queueinformer.WithInformer(operatorGroupInformer.Informer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncResolvingNamespace).ToSyncer()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(operatorGroupQueueInformer); err != nil {
 		return nil, err
 	}
 
@@ -886,6 +906,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 func (o *Operator) isFailForwardEnabled(namespace string) (bool, error) {
 	ogs, err := o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace).List(labels.Everything())
 	if err != nil {
+		o.logger.Debugf("failed to list operatorgroups in the %s namespace: %v", namespace, err)
 		// Couldn't list operatorGroups, assuming default upgradeStrategy
 		// so existing behavior is observed for failed CSVs.
 		return false, nil
