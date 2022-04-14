@@ -1,3 +1,4 @@
+//go:build tools
 // +build tools
 
 package tools
@@ -8,7 +9,7 @@ import (
 	_ "github.com/googleapis/gnostic"
 	_ "github.com/maxbrunsfeld/counterfeiter/v6"
 	_ "github.com/mikefarah/yq/v3"
-	_ "github.com/onsi/ginkgo/ginkgo"
+	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "github.com/operator-framework/api/crds" // operators.coreos.com CRD manifests
 	_ "helm.sh/helm/v3/cmd/helm"
 	_ "k8s.io/code-generator"

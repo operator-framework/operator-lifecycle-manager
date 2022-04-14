@@ -3,8 +3,7 @@ package e2e
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -45,12 +44,12 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 		assertFunc func(errGot error)
 	}
 
-	tableEntries := []table.TableEntry{
+	tableEntries := []TableEntry{
 		// The parent test invokes 'Get' API on non existent objects. If the
 		// scoped client has enough permission, we expect a NotFound error code.
 		// Otherwise, we expect a 'Forbidden' error code due to lack of permission.
 
-		table.Entry("returns error on API calls as ServiceAccount does not have any permission", testParameter{
+		Entry("returns error on API calls as ServiceAccount does not have any permission", testParameter{
 			// The service account does not have any permission granted to it.
 			// We expect the get api call to return 'Forbidden' error due to
 			// lack of permission.
@@ -58,7 +57,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 				Expect(apierrors.IsForbidden(errGot)).To(BeTrue())
 			},
 		}),
-		table.Entry("successfully allows API calls to be made when ServiceAccount has permission", testParameter{
+		Entry("successfully allows API calls to be made when ServiceAccount has permission", testParameter{
 			// The service account does have permission granted to it.
 			// We expect the get api call to return 'NotFound' error.
 			grant: func(namespace, name string) (cleanup cleanupFunc) {
@@ -71,7 +70,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 		}),
 	}
 
-	table.DescribeTable("API call using scoped client", func(tc testParameter) {
+	DescribeTable("API call using scoped client", func(tc testParameter) {
 		// Steps:
 		// 1. Create a new namespace
 		// 2. Create a service account.
@@ -136,5 +135,5 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 		_, err = dynamicClientGot.Resource(gvr).Namespace(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
 		Expect(err).To(HaveOccurred())
 		tc.assertFunc(err)
-	}, tableEntries...)
+	}, tableEntries)
 })

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -1039,9 +1039,9 @@ func SetupGeneratedTestNamespace(name string, targetNamespaces ...string) corev1
 func TeardownNamespace(ns string) {
 	log := ctx.Ctx().Logf
 
-	currentTest := CurrentGinkgoTestDescription()
-	if currentTest.Failed {
-		log("collecting the %s namespace artifacts as the '%s' test case failed", ns, currentTest.TestText)
+	currentTest := CurrentSpecReport()
+	if currentTest.Failed() {
+		log("collecting the %s namespace artifacts as the '%s' test case failed", ns, currentTest.LeafNodeText)
 		if err := ctx.Ctx().DumpNamespaceArtifacts(ns); err != nil {
 			log("failed to collect namespace artifacts: %v", err)
 		}
@@ -1072,5 +1072,5 @@ func inKind(client operatorclient.ClientInterface) (bool, error) {
 }
 
 func K8sSafeCurrentTestDescription() string {
-	return nonAlphaNumericRegexp.ReplaceAllString(CurrentGinkgoTestDescription().TestText, "")
+	return nonAlphaNumericRegexp.ReplaceAllString(CurrentSpecReport().LeafNodeText, "")
 }
