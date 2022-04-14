@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	opver "github.com/operator-framework/api/pkg/lib/version"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -450,6 +451,21 @@ func (f fakeSubscriptionLister) Get(name string) (*v1alpha1.Subscription, error)
 	return nil, errors.NewNotFound(v1alpha1.SchemeGroupVersion.WithResource("subscriptions").GroupResource(), name)
 }
 
+type fakeOperatorGroupLister []*operatorsv1.OperatorGroup
+
+func (f fakeOperatorGroupLister) List(selector labels.Selector) ([]*operatorsv1.OperatorGroup, error) {
+	return f, nil
+}
+
+func (f fakeOperatorGroupLister) Get(name string) (*operatorsv1.OperatorGroup, error) {
+	for _, og := range f {
+		if og.Name == name {
+			return og, nil
+		}
+	}
+	return nil, errors.NewNotFound(operatorsv1.SchemeGroupVersion.WithResource("operatorgroups").GroupResource(), name)
+}
+
 func TestPropertiesAnnotationHonored(t *testing.T) {
 	src := &csvSource{
 		csvLister: fakeCSVLister{
@@ -462,6 +478,7 @@ func TestPropertiesAnnotationHonored(t *testing.T) {
 			},
 		},
 		subLister: fakeSubscriptionLister{},
+		ogLister:  fakeOperatorGroupLister{},
 	}
 	ss, err := src.Snapshot(context.Background())
 	require.NoError(t, err)

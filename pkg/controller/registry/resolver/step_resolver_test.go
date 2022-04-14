@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
@@ -266,7 +267,7 @@ func TestIsReplacementChainThatEndsInFailure(t *testing.T) {
 			},
 			expected: out{
 				b:   false,
-				err: fmt.Errorf("infinite replacement chain detected"),
+				err: fmt.Errorf("csv bar/foo-v1 has already been seen"),
 			},
 		},
 	}
@@ -318,12 +319,12 @@ func TestResolver(t *testing.T) {
 		solverError solver.NotSatisfiable
 	}
 	type resolverTest struct {
-		name               string
-		clusterState       []runtime.Object
-		bundlesByCatalog   map[resolvercache.SourceKey][]*api.Bundle
-		out                resolverTestOut
-		failForwardEnabled bool
+		name             string
+		clusterState     []runtime.Object
+		bundlesByCatalog map[resolvercache.SourceKey][]*api.Bundle
+		out              resolverTestOut
 	}
+
 	nothing := resolverTestOut{
 		steps:   [][]*v1alpha1.Step{},
 		lookups: []v1alpha1.BundleLookup{},
@@ -1097,8 +1098,8 @@ func TestResolver(t *testing.T) {
 				existingSub(namespace, "a.v2", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseReplacing)),
 				existingOperator(namespace, "a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseFailed)),
+				newOperatorGroup("foo", namespace, withUpgradeStrategy(operatorsv1.UpgradeStrategyUnsafeFailForward)),
 			},
-			failForwardEnabled: true,
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withVersion("1.0.0")),
 				bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withVersion("2.0.0")),
@@ -1145,8 +1146,8 @@ func TestResolver(t *testing.T) {
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseReplacing)),
 				existingOperator(namespace, "a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseReplacing)),
 				existingOperator(namespace, "a.v3", "a", "alpha", "a.v2", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseFailed)),
+				newOperatorGroup("foo", namespace, withUpgradeStrategy(operatorsv1.UpgradeStrategyUnsafeFailForward)),
 			},
-			failForwardEnabled: true,
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withVersion("1.0.0")),
 				bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withVersion("2.0.0")),
@@ -1169,8 +1170,8 @@ func TestResolver(t *testing.T) {
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseFailed)),
 				existingOperator(namespace, "a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseFailed)),
 				existingOperator(namespace, "a.v3", "a", "alpha", "a.v2", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseFailed)),
+				newOperatorGroup("foo", namespace, withUpgradeStrategy(operatorsv1.UpgradeStrategyUnsafeFailForward)),
 			},
-			failForwardEnabled: true,
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withVersion("1.0.0")),
 				bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withVersion("2.0.0")),
@@ -1181,10 +1182,7 @@ func TestResolver(t *testing.T) {
 				steps: [][]*v1alpha1.Step{},
 				subs:  []*v1alpha1.Subscription{},
 				errAssert: func(t *testing.T, err error) {
-					assert.IsType(t, solver.NotSatisfiable{}, err)
-					assert.Contains(t, err.Error(), "constraints not satisfiable")
-					assert.Contains(t, err.Error(), "provide k (g/v)")
-					assert.Contains(t, err.Error(), "exists and is not referenced by a subscription")
+					assert.Contains(t, err.Error(), "error using catalog @existing (in namespace catsrc-namespace): csv catsrc-namespace/a.v1 in phase Failed instead of Replacing")
 				},
 			},
 		},
@@ -1194,8 +1192,8 @@ func TestResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "b.v1", "b", "alpha", "", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseReplacing)),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseFailed)),
+				newOperatorGroup("foo", namespace, withUpgradeStrategy(operatorsv1.UpgradeStrategyUnsafeFailForward)),
 			},
-			failForwardEnabled: true,
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withVersion("1.0.0")),
 				bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withVersion("2.0.0")),
@@ -1227,6 +1225,7 @@ func TestResolver(t *testing.T) {
 			lister := operatorlister.NewLister()
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
+			lister.OperatorsV1().RegisterOperatorGroupLister(namespace, informerFactory.Operators().V1().OperatorGroups().Lister())
 
 			ssp := make(resolvercache.StaticSourceProvider)
 			for catalog, bundles := range tt.bundlesByCatalog {
@@ -1245,6 +1244,7 @@ func TestResolver(t *testing.T) {
 				key:       resolvercache.NewVirtualSourceKey(namespace),
 				csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace),
 				subLister: lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace),
+				ogLister:  lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace),
 				logger:    log,
 			}
 			satresolver := &Resolver{
@@ -1254,7 +1254,7 @@ func TestResolver(t *testing.T) {
 			resolver := NewOperatorStepResolver(lister, clientFake, "", nil, log)
 			resolver.resolver = satresolver
 
-			steps, lookups, subs, err := resolver.ResolveSteps(namespace, tt.failForwardEnabled)
+			steps, lookups, subs, err := resolver.ResolveSteps(namespace)
 			if tt.out.solverError == nil {
 				if tt.out.errAssert == nil {
 					assert.NoError(t, err)
@@ -1384,7 +1384,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			}
 			resolver := NewOperatorStepResolver(lister, clientFake, "", nil, logrus.New())
 			resolver.resolver = satresolver
-			steps, _, subs, err := resolver.ResolveSteps(namespace, tt.failForwardEnabled)
+			steps, _, subs, err := resolver.ResolveSteps(namespace)
 			require.Equal(t, tt.out.err, err)
 			requireStepsEqual(t, expectedSteps, steps)
 			require.ElementsMatch(t, tt.out.subs, subs)
@@ -1403,6 +1403,7 @@ func StartResolverInformers(namespace string, stopCh <-chan struct{}, objs ...ru
 	informers := []cache.SharedIndexInformer{
 		nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer(),
 		nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer(),
+		nsInformerFactory.Operators().V1().OperatorGroups().Informer(),
 	}
 
 	for _, informer := range informers {
@@ -1441,6 +1442,27 @@ func newSub(namespace, pkg, channel string, catalog resolvercache.SourceKey, opt
 		o(s)
 	}
 	return s
+}
+
+type ogOption func(*operatorsv1.OperatorGroup)
+
+func withUpgradeStrategy(upgradeStrategy operatorsv1.UpgradeStrategy) ogOption {
+	return func(og *operatorsv1.OperatorGroup) {
+		og.Spec.UpgradeStrategy = upgradeStrategy
+	}
+}
+
+func newOperatorGroup(name, namespace string, option ...ogOption) *operatorsv1.OperatorGroup {
+	og := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	for _, o := range option {
+		o(og)
+	}
+	return og
 }
 
 func updatedSub(namespace, currentOperatorName, installedOperatorName, pkg, channel string, catalog resolvercache.SourceKey, option ...subOption) *v1alpha1.Subscription {
