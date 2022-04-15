@@ -1,5 +1,5 @@
-<img src="/logo.svg#gh-light-mode-only" height="125px" alt="Operator Lifecycle Manager"></img>
-<img src="/logo-dark-mode.svg#gh-dark-mode-only" height="125px" alt="Operator Lifecycle Manager"></img>
+<img src="logo/logo.svg#gh-light-mode-only" height="125px" alt="Operator Lifecycle Manager"></img>
+<img src="logo/logo-dark-mode.svg#gh-dark-mode-only" height="125px" alt="Operator Lifecycle Manager"></img>
 
 [![Container Repository on Quay.io](https://quay.io/repository/operator-framework/olm/status "Container Repository on Quay.io")](https://quay.io/repository/operator-framework/olm)
 [![License](http://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
@@ -9,7 +9,6 @@
 ## Documentation
 
 User documentation can be found on the [OLM website][olm-docs].
-
 
 ## Overview
 
@@ -100,10 +99,10 @@ To minimize the effort required to run an application on kubernetes, OLM handles
 
 This is achieved through additional metadata on the application definition. Each operator must define:
 
- - The CRDs that it is responsible for managing.
-   - e.g., the etcd operator manages `EtcdCluster`.
- - The CRDs that it depends on.
-   - e.g., the vault operator depends on `EtcdCluster`, because Vault is backed by etcd.
+- The CRDs that it is responsible for managing.
+  - e.g., the etcd operator manages `EtcdCluster`.
+- The CRDs that it depends on.
+  - e.g., the vault operator depends on `EtcdCluster`, because Vault is backed by etcd.
 
 Basic dependency resolution is then possible by finding, for each “required” CRD, the corresponding operator that manages it and installing it as well. Dependency resolution can be further constrained by the way a user interacts with catalogs.
 
