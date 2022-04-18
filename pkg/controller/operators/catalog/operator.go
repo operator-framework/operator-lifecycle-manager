@@ -42,7 +42,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/api/pkg/operators/reference"
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
@@ -903,20 +902,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	return
 }
 
-func (o *Operator) isFailForwardEnabled(namespace string) (bool, error) {
-	ogs, err := o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace).List(labels.Everything())
-	if err != nil {
-		o.logger.Debugf("failed to list operatorgroups in the %s namespace: %v", namespace, err)
-		// Couldn't list operatorGroups, assuming default upgradeStrategy
-		// so existing behavior is observed for failed CSVs.
-		return false, nil
-	}
-	if len(ogs) != 1 {
-		return false, fmt.Errorf("found %d operatorGroups in namespace %s, expected 1", len(ogs), namespace)
-	}
-	return ogs[0].UpgradeStrategy() == operatorsv1.UpgradeStrategyUnsafeFailForward, nil
-}
-
 func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
@@ -943,7 +928,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
-	failForwardEnabled, err := o.isFailForwardEnabled(namespace)
+	failForwardEnabled, err := resolver.IsFailForwardEnabled(o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace))
 	if err != nil {
 		return err
 	}
@@ -998,7 +983,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	logger.Debug("resolving subscriptions in namespace")
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, failForwardEnabled)
+	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace)
 	if err != nil {
 		go o.recorder.Event(ns, corev1.EventTypeWarning, "ResolutionFailed", err.Error())
 		// If the error is constraints not satisfiable, then simply project the

@@ -9,8 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -29,7 +27,7 @@ const (
 var initHooks []stepResolverInitHook
 
 type StepResolver interface {
-	ResolveSteps(namespace string, failForwardEnabled bool) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
+	ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 }
 
 type OperatorStepResolver struct {
@@ -63,6 +61,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 			&csvSourceProvider{
 				csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
 				subLister: lister.OperatorsV1alpha1().SubscriptionLister(),
+				ogLister:  lister.OperatorsV1().OperatorGroupLister(),
 				logger:    log,
 			},
 		},
@@ -86,125 +85,14 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 	return stepResolver
 }
 
-type walkOption func(csv *v1alpha1.ClusterServiceVersion) error
-
-func WithCSVPhase(phase v1alpha1.ClusterServiceVersionPhase) walkOption {
-	return func(csv *v1alpha1.ClusterServiceVersion) error {
-		if csv == nil || csv.Status.Phase != phase {
-			return fmt.Errorf("csv %s/%s in phase %s instead of %s", csv.GetNamespace(), csv.GetName(), csv.Status.Phase, phase)
-		}
-		return nil
-	}
-}
-
-func WithUniqueCSVs() walkOption {
-	visited := map[string]struct{}{}
-	return func(csv *v1alpha1.ClusterServiceVersion) error {
-		// Check if we have visited the CSV before
-		if _, ok := visited[csv.GetName()]; ok {
-			return fmt.Errorf("infinite replacement chain detected")
-		}
-
-		visited[csv.GetName()] = struct{}{}
-		return nil
-	}
-}
-
-// walkReplacementChain walks along the chain of clusterServiceVersions being replaced and returns
-// the last clusterServiceVersions in the replacement chain. An error is returned if any of the
-// clusterServiceVersions before the last is not in the replaces phase or if an infinite replacement
-// chain is detected.
-func WalkReplacementChain(csv *v1alpha1.ClusterServiceVersion, csvToReplacement map[string]*v1alpha1.ClusterServiceVersion, options ...walkOption) (*v1alpha1.ClusterServiceVersion, error) {
-	if csv == nil {
-		return nil, fmt.Errorf("csv cannot be nil")
-	}
-
-	for {
-		// Check if there is a CSV that replaces this CSVs
-		next, ok := csvToReplacement[csv.GetName()]
-		if !ok {
-			break
-		}
-
-		// Check walk options
-		for _, o := range options {
-			if err := o(csv); err != nil {
-				return nil, err
-			}
-		}
-
-		// Move along replacement chain.
-		csv = next
-	}
-	return csv, nil
-}
-
-// isReplacementChainThatEndsInFailure returns true if the last CSV in the chain is in the failed phase and all other
-// CSVs are in the replacing phase.
-func isReplacementChainThatEndsInFailure(csv *v1alpha1.ClusterServiceVersion, csvToReplacement map[string]*v1alpha1.ClusterServiceVersion) (bool, error) {
-	lastCSV, err := WalkReplacementChain(csv, csvToReplacement, WithCSVPhase(v1alpha1.CSVPhaseReplacing), WithUniqueCSVs())
-	if err != nil {
-		return false, err
-	}
-	return (lastCSV != nil && lastCSV.Status.Phase == v1alpha1.CSVPhaseFailed), nil
-}
-
-// ReplacementMapping takes a list of CSVs and returns a map that maps a CSV's name to the CSV that replaces it.
-func ReplacementMapping(csvs []*v1alpha1.ClusterServiceVersion) map[string]*v1alpha1.ClusterServiceVersion {
-	replacementMapping := map[string]*v1alpha1.ClusterServiceVersion{}
-	for _, csv := range csvs {
-		if csv.Spec.Replaces != "" {
-			replacementMapping[csv.Spec.Replaces] = csv
-		}
-	}
-	return replacementMapping
-}
-
-func (r *OperatorStepResolver) cachePredicates(namespace string) ([]cache.Predicate, error) {
-	nonCopiedCSVRequirement, err := labels.NewRequirement(v1alpha1.CopiedLabelKey, selection.DoesNotExist, []string{})
-	if err != nil {
-		return nil, err
-	}
-
-	csvs, err := r.csvLister.ClusterServiceVersions(namespace).List(labels.NewSelector().Add(*nonCopiedCSVRequirement))
-	if err != nil {
-		return nil, err
-	}
-
-	predicates := []cache.Predicate{}
-	for i := range csvs {
-		replacementChainEndsInFailure, err := isReplacementChainThatEndsInFailure(csvs[i], ReplacementMapping(csvs))
-		if err != nil {
-			return nil, err
-		}
-		if csvs[i].Status.Phase == v1alpha1.CSVPhaseReplacing && replacementChainEndsInFailure {
-			predicates = append(predicates, cache.Not(cache.CSVNamePredicate(csvs[i].GetName())))
-		}
-	}
-
-	return predicates, nil
-}
-
-func (r *OperatorStepResolver) ResolveSteps(namespace string, failForwardEnabled bool) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	subs, err := r.listSubscriptions(namespace)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	// The resolver considers the initial set of CSVs in the namespace by their appearance
-	// in the catalog cache. In order to support "fail forward" upgrades, we need to omit
-	// CSVs that are actively being replaced from this initial set of operators. The
-	// predicates defined here will omit these replacing CSVs from the set.
-	cachePredicates := []cache.Predicate{}
-	if failForwardEnabled {
-		cachePredicates, err = r.cachePredicates(namespace)
-		if err != nil {
-			r.log.Debugf("Unable to determine CSVs to exclude: %v", err)
-		}
-	}
-
 	namespaces := []string{namespace, r.globalCatalogNamespace}
-	operators, err := r.resolver.Resolve(namespaces, subs, cachePredicates...)
+	operators, err := r.resolver.Resolve(namespaces, subs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
