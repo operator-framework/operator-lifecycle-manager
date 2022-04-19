@@ -1340,6 +1340,97 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			}
 		}
 	})
+
+	When("a broken catalog is created in the global catalog namespace", func() {
+		// This test creates a bad catalog in the global catalog namespace and a working catalog in a single namespace
+		// Then a subscription is created referencing the working catalog
+		// The subscription should succeed, even though there is an error when resolving across the global set of catalogs
+		var (
+			brokenSource      *v1alpha1.CatalogSource
+			brokenSourceName  string
+			workingSource     *v1alpha1.CatalogSource
+			workingSourceName string
+			workingNamespace  string
+			subscriptionName  string
+		)
+
+		BeforeEach(func() {
+			brokenSourceName = genName("broken-catalog-")
+			brokenSource = &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      brokenSourceName,
+					Namespace: testNamespace,
+					Labels:    map[string]string{"olm.catalogSource": brokenSourceName},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "bad-image:tag",
+				},
+			}
+
+			_, err := crc.OperatorsV1alpha1().CatalogSources(brokenSource.GetNamespace()).Create(context.Background(), brokenSource, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			// create namespace for working catalog
+			workingNamespace = genName("working-ns-")
+			_ = SetupGeneratedTestNamespace(workingNamespace, "")
+
+			workingSourceName = genName("working-catalog-")
+			workingSource = &v1alpha1.CatalogSource{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       v1alpha1.CatalogSourceKind,
+					APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      workingSourceName,
+					Namespace: workingNamespace,
+					Labels:    map[string]string{"olm.catalogSource": workingSourceName},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "quay.io/olmtest/catsrc-update-test:old",
+				},
+			}
+
+			_, err = crc.OperatorsV1alpha1().CatalogSources(workingSource.GetNamespace()).Create(context.Background(), workingSource, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+		})
+		AfterEach(func() {
+			err := crc.OperatorsV1alpha1().CatalogSources(brokenSource.GetNamespace()).Delete(context.Background(), brokenSource.GetName(), metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			err = crc.OperatorsV1alpha1().CatalogSources(workingSource.GetNamespace()).Delete(context.Background(), workingSource.GetName(), metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			err = crc.OperatorsV1alpha1().Subscriptions(workingNamespace).Delete(context.Background(), subscriptionName, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), workingNamespace, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("does not prevent resolution in a single namespace", func() {
+			// Create a Subscription for package
+			packageName := "busybox"
+			channelName := "alpha"
+			subscriptionName = genName("sub-")
+			_ = createSubscriptionForCatalog(crc, workingSource.GetNamespace(), subscriptionName, workingSource.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+
+			// Wait for the Subscription to succeed
+			subscription, err := fetchSubscription(crc, workingSource.GetNamespace(), subscriptionName, subscriptionStateAtLatestChecker)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(subscription).ShouldNot(BeNil())
+
+			// Wait for csv to succeed
+			_, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+	})
 })
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {

@@ -91,7 +91,22 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 		return nil, nil, nil, err
 	}
 
-	namespaces := []string{namespace, r.globalCatalogNamespace}
+	// if spec.sourceNamespace is provided on all the subscriptions in the namespace, only consider that namespace for resolution
+	// this prevents errors when unnecessarily searching in the global catalog namespace when those catalogs are unavailable
+	var namespaces = []string{namespace}
+	var searchGlobal bool
+	for _, sub := range subs {
+		if sub.Spec.CatalogSourceNamespace == namespace {
+			continue
+		} else {
+			searchGlobal = true
+			break
+		}
+	}
+	if searchGlobal {
+		namespaces = append(namespaces, r.globalCatalogNamespace)
+	}
+
 	operators, err := r.resolver.Resolve(namespaces, subs)
 	if err != nil {
 		return nil, nil, nil, err
