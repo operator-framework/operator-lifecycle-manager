@@ -254,11 +254,6 @@ endif
 #  OLM - Install/Uninstall/Run #
 ################################
 
-.PHONY: run-console-local
-run-console-local:
-	@echo Running script to run the OLM console locally:
-	. ./scripts/run_console_local.sh
-
 .PHONY: uninstall
 uninstall:
 	@echo Uninstalling OLM:

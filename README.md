@@ -56,18 +56,6 @@ Install OLM on a Kubernetes cluster by following the [installation guide][instal
 
 For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework website](https://operatorframework.io/about/) and the [Getting Started guide on OperatorHub.io](https://operatorhub.io/getting-started).
 
-## User Interface (Running the console Locally)
-
-Use the admin console to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
-
-Ensure `kubectl` is pointing at a cluster and run:
-
-```shell
-make run-console-local
-```
-
-Then visit `http://localhost:9000` to view the console.
-
 ## Contributing your Operator
 
 Have an awesome Operator you want to share? Checkout the [publishing docs](https://operatorhub.io/contribute) to learn about contributing to [OperatorHub.io](https://operatorhub.io/).
@@ -97,7 +85,7 @@ Learn more about the components used by OLM by reading about the [architecture] 
 
 OLM standardizes interactions with operators by requiring that the interface to an operator be via the Kubernetes API. Because we expect users to define the interfaces to their applications, OLM currently uses CRDs to define the Kubernetes API interactions.
 
-Examples: [EtcdCluster CRD](https://github.com/redhat-openshift-ecosystem/community-operators-prod/blob/main/operators/etcd/0.9.4/etcdclusters.etcd.database.coreos.com.crd.yaml), 
+Examples: [EtcdCluster CRD](https://github.com/redhat-openshift-ecosystem/community-operators-prod/blob/main/operators/etcd/0.9.4/etcdclusters.etcd.database.coreos.com.crd.yaml),
 [EtcdBackup CRD](https://github.com/redhat-openshift-ecosystem/community-operators-prod/blob/main/operators/etcd/0.9.4/etcdbackups.etcd.database.coreos.com.crd.yaml)
 
 ## Descriptors
