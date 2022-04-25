@@ -131,6 +131,7 @@ func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
 		"TEST_NAMESPACE=" + namespace,
 		"TEST_ARTIFACTS_DIR=" + logDir,
 		"KUBECONFIG=" + kubeconfigPath,
+		"KUBECTL=" + os.Getenv("KUBECTL"),
 	}
 
 	cmd := exec.Command(ctx.artifactsScriptPath)
