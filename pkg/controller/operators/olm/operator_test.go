@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"math"
 	"math/big"
@@ -367,7 +368,7 @@ func serviceAccount(name, namespace string) *corev1.ServiceAccount {
 	return serviceAccount
 }
 
-func service(name, namespace, deploymentName string, targetPort int) *corev1.Service {
+func service(name, namespace, deploymentName string, targetPort int, ownerReferences ...metav1.OwnerReference) *corev1.Service {
 	service := &corev1.Service{
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{
@@ -383,6 +384,7 @@ func service(name, namespace, deploymentName string, targetPort int) *corev1.Ser
 	}
 	service.SetName(name)
 	service.SetNamespace(namespace)
+	service.SetOwnerReferences(ownerReferences)
 
 	return service
 }
@@ -463,10 +465,21 @@ func tlsSecret(name, namespace string, certPEM, privPEM []byte) *corev1.Secret {
 	return secret
 }
 
+func withCA(secret *corev1.Secret, caPEM []byte) *corev1.Secret {
+	secret.Data[install.OLMCAPEMKey] = caPEM
+	return secret
+}
+
 func keyPairToTLSSecret(name, namespace string, kp *certs.KeyPair) *corev1.Secret {
-	certPEM, privPEM, err := kp.ToPEM()
-	if err != nil {
-		panic(err)
+	var privPEM []byte
+	var certPEM []byte
+
+	if kp != nil {
+		var err error
+		certPEM, privPEM, err = kp.ToPEM()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	return tlsSecret(name, namespace, certPEM, privPEM)
@@ -731,7 +744,8 @@ func apis(apis ...string) []v1alpha1.APIServiceDescription {
 func apiService(group, version, serviceName, serviceNamespace, deploymentName string, caBundle []byte, availableStatus apiregistrationv1.ConditionStatus, ownerLabel map[string]string) *apiregistrationv1.APIService {
 	apiService := &apiregistrationv1.APIService{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: ownerLabel,
+			Labels:          ownerLabel,
+			OwnerReferences: []metav1.OwnerReference{},
 		},
 		Spec: apiregistrationv1.APIServiceSpec{
 			Group:                group,
@@ -5084,12 +5098,318 @@ func RequireObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInter
 			fetched.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
 		case *operatorsv1.OperatorGroup:
 			fetched, err = client.OperatorsV1().OperatorGroups(namespace).Get(context.TODO(), o.GetName(), metav1.GetOptions{})
+		case *corev1.Secret:
+			fetched, err = opClient.GetSecret(namespace, o.GetName())
 		default:
 			require.Failf(t, "couldn't find expected object", "%#v", object)
 		}
 		require.NoError(t, err, "couldn't fetch %s %v", namespace, object)
 		require.True(t, reflect.DeepEqual(object, fetched), cmp.Diff(object, fetched))
 	}
+}
+
+func TestCARotation(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+	namespace := "ns"
+
+	//apiHash, err := resolvercache.APIKeyToGVKHash(opregistry.APIKey{Group: "g1", Version: "v1", Kind: "c1"})
+	//require.NoError(t, err)
+
+	defaultOperatorGroup := &operatorsv1.OperatorGroup{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "OperatorGroup",
+			APIVersion: operatorsv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: namespace,
+		},
+		Spec: operatorsv1.OperatorGroupSpec{},
+		Status: operatorsv1.OperatorGroupStatus{
+			Namespaces: []string{namespace},
+		},
+	}
+
+	defaultTemplateAnnotations := map[string]string{
+		operatorsv1.OperatorGroupTargetsAnnotationKey:   namespace,
+		operatorsv1.OperatorGroupNamespaceAnnotationKey: namespace,
+		operatorsv1.OperatorGroupAnnotationKey:          defaultOperatorGroup.GetName(),
+	}
+
+	// Generate valid and expired CA fixtures
+	expirationTime, rotationTime := install.CalculateCertExpirationAndRotateAt()
+	expiresAt := metav1.Time{Time: expirationTime}
+	rotateAt := metav1.Time{Time: rotationTime}
+
+	lastUpdate := metav1.Time{Time: time.Now().UTC()}
+
+	validCA, err := generateCA(expiresAt.Time, install.Organization)
+	require.NoError(t, err)
+	validCAPEM, _, err := validCA.ToPEM()
+	require.NoError(t, err)
+	validCAHash := certs.PEMSHA256(validCAPEM)
+
+	ownerReference := metav1.OwnerReference{
+		Kind: v1alpha1.ClusterServiceVersionKind,
+		UID:  "csv-uid",
+	}
+
+	type operatorConfig struct {
+		apiReconciler APIIntersectionReconciler
+		apiLabeler    labeler.Labeler
+	}
+	type initial struct {
+		csvs       []runtime.Object
+		clientObjs []runtime.Object
+		crds       []runtime.Object
+		objs       []runtime.Object
+		apis       []runtime.Object
+	}
+	tests := []struct {
+		name    string
+		config  operatorConfig
+		initial initial
+	}{
+		{
+			// Happy path: cert is created and csv status contains the right cert dates
+			name: "NoCertificate/CertificateCreated",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("a1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstallReady,
+					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil),
+				},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, operatorsv1.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1,a1Kind.v1.a1")},
+				crds: []runtime.Object{
+					crd("c1", "v1", "g1"),
+				},
+			},
+		}, {
+			// If a CSV finds itself in the InstallReady phase with a valid certificate
+			// it's likely that a deployment pod or other resource is gone and the installer will re-apply the
+			// resources. If the certs exist and are valid, no need to rotate or update the csv status.
+			name: "HasValidCertificate/ManagedPodDeleted/NoRotation",
+			initial: initial{
+				csvs: []runtime.Object{
+					withUID(withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("a1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstallReady,
+					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), rotateAt, lastUpdate), types.UID("csv-uid")),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+				crds: []runtime.Object{
+					crd("c1", "v1", "g1"),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "a1-service", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
+						install.OLMCAHashAnnotationKey: validCAHash,
+					})),
+					withLabels(withAnnotations(withCA(keyPairToTLSSecret("a1-service-cert", namespace, signedServingPair(expiresAt.Time, validCA, []string{"a1-service.ns", "a1-service.ns.svc"})), validCAPEM), map[string]string{
+						install.OLMCAHashAnnotationKey: validCAHash,
+					}), map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+					service("a1-service", namespace, "a1", 80, ownerReference),
+					serviceAccount("sa", namespace),
+					role("a1-service-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"a1-service-cert"},
+						},
+					}),
+					roleBinding("a1-service-cert", namespace, "a1-service-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("a1-service-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+				},
+			},
+		}, {
+			// If the cert secret is deleted, a new one is created
+			name: "ValidCert/SecretMissing/NewCertCreated",
+			initial: initial{
+				csvs: []runtime.Object{
+					withUID(withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("a1", nil, nil),
+						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*apiextensionsv1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstallReady,
+					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), rotateAt, lastUpdate), types.UID("csv-uid")),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+				crds: []runtime.Object{
+					crd("c1", "v1", "g1"),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "a1-service", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
+						install.OLMCAHashAnnotationKey: validCAHash,
+					})),
+					service("a1-service", namespace, "a1", 80, ownerReference),
+					serviceAccount("sa", namespace),
+					role("a1-service-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"a1-service-cert"},
+						},
+					}),
+					roleBinding("a1-service-cert", namespace, "a1-service-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("a1-service-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(
+				ctx,
+				withNamespaces(namespace, "kube-system"),
+				withClientObjs(append(tt.initial.csvs, tt.initial.clientObjs...)...),
+				withK8sObjs(tt.initial.objs...),
+				withExtObjs(tt.initial.crds...),
+				withRegObjs(tt.initial.apis...),
+				withOperatorNamespace(namespace),
+				withAPIReconciler(tt.config.apiReconciler),
+				withAPILabeler(tt.config.apiLabeler),
+			)
+			require.NoError(t, err)
+
+			// run csv sync for each CSV
+			for _, runtimeObject := range tt.initial.csvs {
+				// Convert the rt object to a proper csv for ease
+				csv, ok := runtimeObject.(*v1alpha1.ClusterServiceVersion)
+				require.True(t, ok)
+
+				// sync works
+				err := op.syncClusterServiceVersion(csv)
+				require.NoError(t, err)
+
+				outCSV, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.Background(), csv.GetName(), metav1.GetOptions{})
+				require.NoError(t, err)
+
+				require.Equal(t, outCSV.Status.Phase, v1alpha1.CSVPhaseInstalling)
+
+				for _, apiServiceDescriptor := range outCSV.GetAllAPIServiceDescriptions() {
+					// Get secret with the certificate
+					secretName := fmt.Sprintf("%s-service-cert", apiServiceDescriptor.DeploymentName)
+					serviceSecret, err := op.opClient.GetSecret(csv.GetNamespace(), secretName)
+					require.NoError(t, err)
+					require.NotNil(t, serviceSecret)
+
+					// Extract certificate
+					start, end, err := GetServiceCertificaValidityPeriod(serviceSecret)
+					require.NoError(t, err)
+					require.NotNil(t, start)
+					require.NotNil(t, end)
+
+					// Compare csv status timestamps with certificate timestamps
+					// NOTE: These values (csv.Status.Certs* and the certificate expiry and rotation are calculated
+					// with the same method but independently, therefore a second granularity will need to suffice.
+					// See https://github.com/operator-framework/operator-lifecycle-manager/issues/2764 for more info.
+					rotationTime := end.Add(-1 * install.DefaultCertMinFresh)
+					require.Equal(t, start.Unix(), outCSV.Status.CertsLastUpdated.Unix())
+					require.Equal(t, rotationTime.Unix(), outCSV.Status.CertsRotateAt.Unix())
+				}
+			}
+
+			// get csvs in the cluster
+			outCSVMap := map[string]*v1alpha1.ClusterServiceVersion{}
+			outCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{})
+			require.NoError(t, err)
+			for _, csv := range outCSVs.Items {
+				outCSVMap[csv.GetName()] = csv.DeepCopy()
+			}
+		})
+	}
+}
+
+func GetServiceCertificaValidityPeriod(serviceSecret *corev1.Secret) (start *time.Time, end *time.Time, err error) {
+	// Extract certificate
+	root := x509.NewCertPool()
+	rootPEM, ok := serviceSecret.Data[install.OLMCAPEMKey]
+	if !ok {
+		return nil, nil, fmt.Errorf("could not find the service root certificate")
+	}
+
+	ok = root.AppendCertsFromPEM(rootPEM)
+	if !ok {
+		return nil, nil, fmt.Errorf("could not append the service root certificate")
+	}
+
+	certPEM, ok := serviceSecret.Data["tls.crt"]
+	if !ok {
+		return nil, nil, fmt.Errorf("could not find the service certificate")
+	}
+	block, _ := pem.Decode(certPEM)
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &cert.NotBefore, &cert.NotAfter, nil
 }
 
 func TestIsReplacing(t *testing.T) {
