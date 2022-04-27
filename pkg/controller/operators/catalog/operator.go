@@ -259,19 +259,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	operatorGroupInformer := crInformerFactory.Operators().V1().OperatorGroups()
 	op.lister.OperatorsV1().RegisterOperatorGroupLister(metav1.NamespaceAll, operatorGroupInformer.Lister())
-	ogQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ogs")
-	op.ogQueueSet.Set(metav1.NamespaceAll, ogQueue)
-	operatorGroupQueueInformer, err := queueinformer.NewQueueInformer(
-		ctx,
-		queueinformer.WithLogger(op.logger),
-		queueinformer.WithQueue(ogQueue),
-		queueinformer.WithInformer(operatorGroupInformer.Informer()),
-		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncResolvingNamespace).ToSyncer()),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if err := op.RegisterQueueInformer(operatorGroupQueueInformer); err != nil {
+	if err := op.RegisterInformer(operatorGroupInformer.Informer()); err != nil {
 		return nil, err
 	}
 
