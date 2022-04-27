@@ -266,7 +266,6 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		queueinformer.WithLogger(op.logger),
 		queueinformer.WithQueue(ogQueue),
 		queueinformer.WithInformer(operatorGroupInformer.Informer()),
-		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncResolvingNamespace).ToSyncer()),
 	)
 	if err != nil {
 		return nil, err
