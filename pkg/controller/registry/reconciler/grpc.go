@@ -146,6 +146,16 @@ func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorato
 	return service
 }
 
+func (c *GrpcRegistryReconciler) currentServiceAccount(source grpcCatalogSourceDecorator) *corev1.ServiceAccount {
+	serviceAccountName := source.ServiceAccount().GetName()
+	serviceAccount, err := c.Lister.CoreV1().ServiceAccountLister().ServiceAccounts(source.GetNamespace()).Get(serviceAccountName)
+	if err != nil {
+		logrus.WithField("service", serviceAccount).Debug("couldn't find service in cache")
+		return nil
+	}
+	return serviceAccount
+}
+
 func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) []*corev1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.Selector())
 	if err != nil {
@@ -441,7 +451,7 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.Cat
 	// Check on registry resources
 	// TODO: add gRPC health check
 	if len(c.currentPodsWithCorrectImageAndSpec(source, source.ServiceAccount().GetName())) < 1 ||
-		c.currentService(source) == nil {
+		c.currentService(source) == nil || c.currentServiceAccount(source) == nil {
 		healthy = false
 		return
 	}
