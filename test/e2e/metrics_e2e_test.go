@@ -368,7 +368,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			AfterEach(func() {
 				cleanup()
 			})
-			It("emits metrics for the catalogSource", func() {
+			It("emits catalogsource_ready metric for the catalogSource with Value equal to 1", func() {
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(And(
@@ -412,7 +412,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			AfterEach(func() {
 				cleanup()
 			})
-			It("emits metrics for the CatlogSource with a Value greater than 0", func() {
+			It("emits metrics for the CatlogSource with a Value equal to 0", func() {
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(And(
@@ -425,7 +425,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				))
 				Consistently(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
-				}, "3m").Should(And(
+				}, "1m", "30s").Should(And(
 					ContainElement(LikeMetric(
 						WithFamily("catalogsource_ready"),
 						WithName(name),
