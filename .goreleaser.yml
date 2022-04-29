@@ -132,3 +132,13 @@ changelog:
       - '^test:'
 release:
   draft: true
+  header: |
+    ## Install
+
+    ### Scripted
+
+    ```
+    curl -L https://github.com/operator-framework/operator-lifecycle-manager/releases/download/{{ .Tag }}/install.sh -o install.sh
+    chmod +x install.sh
+    ./install.sh {{ .Tag }}
+    ```
