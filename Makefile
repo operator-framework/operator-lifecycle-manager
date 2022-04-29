@@ -230,9 +230,6 @@ release: manifests
 	docker pull $(IMAGE_REPO):$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 
-verify-release: release
-	$(MAKE) diff
-
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(IMAGE_REPO):$(ver))
 package:
 ifndef target
