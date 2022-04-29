@@ -1037,6 +1037,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			k8sObjs: []runtime.Object{
 				pod(*grpcCatalog),
 				service(grpcCatalog.GetName(), grpcCatalog.GetNamespace()),
+				serviceAccount(grpcCatalog.GetName(), grpcCatalog.GetNamespace(), "", objectReference("init secret")),
 			},
 			existingSources: []sourceAddress{
 				{

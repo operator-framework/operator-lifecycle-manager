@@ -485,6 +485,18 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			},
 		},
 		{
+			testName: "Grpc/ExistingRegistry/Image/BadServiceAccount",
+			in: in{
+				cluster: cluster{
+					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.ServiceAccount{}, "badName"),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
 			testName: "Grpc/ExistingRegistry/Image/BadPod",
 			in: in{
 				cluster: cluster{
