@@ -150,7 +150,7 @@ func (c *GrpcRegistryReconciler) currentServiceAccount(source grpcCatalogSourceD
 	serviceAccountName := source.ServiceAccount().GetName()
 	serviceAccount, err := c.Lister.CoreV1().ServiceAccountLister().ServiceAccounts(source.GetNamespace()).Get(serviceAccountName)
 	if err != nil {
-		logrus.WithField("service", serviceAccount).Debug("couldn't find service in cache")
+		logrus.WithField("serviceAccount", serviceAccount).Debug("couldn't find serviceAccount in cache")
 		return nil
 	}
 	return serviceAccount
