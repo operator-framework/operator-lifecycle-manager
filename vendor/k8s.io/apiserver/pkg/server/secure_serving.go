@@ -33,7 +33,6 @@ import (
 	"k8s.io/klog/v2"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 )
 
@@ -350,7 +349,7 @@ const tlsHandshakeErrorPrefix = "http: TLS handshake error"
 func (w *tlsHandshakeErrorWriter) Write(p []byte) (int, error) {
 	if strings.Contains(string(p), tlsHandshakeErrorPrefix) {
 		klog.V(5).Info(string(p))
-		metrics.TLSHandshakeErrors.Inc()
+		// metrics.TLSHandshakeErrors.Inc()
 		return len(p), nil
 	}
 

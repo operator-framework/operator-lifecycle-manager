@@ -23,14 +23,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
-	"k8s.io/component-base/metrics"
-	"k8s.io/component-base/metrics/legacyregistry"
 )
 
 /*
@@ -41,34 +38,34 @@ import (
  * involves explicitly acknowledging support for the metric across multiple releases, in accordance with
  * the metric stability policy.
  */
-var clientCertificateExpirationHistogram = metrics.NewHistogram(
-	&metrics.HistogramOpts{
-		Namespace: "apiserver",
-		Subsystem: "client",
-		Name:      "certificate_expiration_seconds",
-		Help:      "Distribution of the remaining lifetime on the certificate used to authenticate a request.",
-		Buckets: []float64{
-			0,
-			(30 * time.Minute).Seconds(),
-			(1 * time.Hour).Seconds(),
-			(2 * time.Hour).Seconds(),
-			(6 * time.Hour).Seconds(),
-			(12 * time.Hour).Seconds(),
-			(24 * time.Hour).Seconds(),
-			(2 * 24 * time.Hour).Seconds(),
-			(4 * 24 * time.Hour).Seconds(),
-			(7 * 24 * time.Hour).Seconds(),
-			(30 * 24 * time.Hour).Seconds(),
-			(3 * 30 * 24 * time.Hour).Seconds(),
-			(6 * 30 * 24 * time.Hour).Seconds(),
-			(12 * 30 * 24 * time.Hour).Seconds(),
-		},
-		StabilityLevel: metrics.ALPHA,
-	},
-)
+// var clientCertificateExpirationHistogram = metrics.NewHistogram(
+// 	&metrics.HistogramOpts{
+// 		Namespace: "apiserver",
+// 		Subsystem: "client",
+// 		Name:      "certificate_expiration_seconds",
+// 		Help:      "Distribution of the remaining lifetime on the certificate used to authenticate a request.",
+// 		Buckets: []float64{
+// 			0,
+// 			(30 * time.Minute).Seconds(),
+// 			(1 * time.Hour).Seconds(),
+// 			(2 * time.Hour).Seconds(),
+// 			(6 * time.Hour).Seconds(),
+// 			(12 * time.Hour).Seconds(),
+// 			(24 * time.Hour).Seconds(),
+// 			(2 * 24 * time.Hour).Seconds(),
+// 			(4 * 24 * time.Hour).Seconds(),
+// 			(7 * 24 * time.Hour).Seconds(),
+// 			(30 * 24 * time.Hour).Seconds(),
+// 			(3 * 30 * 24 * time.Hour).Seconds(),
+// 			(6 * 30 * 24 * time.Hour).Seconds(),
+// 			(12 * 30 * 24 * time.Hour).Seconds(),
+// 		},
+// 		StabilityLevel: metrics.ALPHA,
+// 	},
+// )
 
 func init() {
-	legacyregistry.MustRegister(clientCertificateExpirationHistogram)
+	// legacyregistry.MustRegister(clientCertificateExpirationHistogram)
 }
 
 // UserConversion defines an interface for extracting user info from a client certificate chain
@@ -148,8 +145,8 @@ func (a *Authenticator) AuthenticateRequest(req *http.Request) (*authenticator.R
 		}
 	}
 
-	remaining := req.TLS.PeerCertificates[0].NotAfter.Sub(time.Now())
-	clientCertificateExpirationHistogram.WithContext(req.Context()).Observe(remaining.Seconds())
+	// remaining := req.TLS.PeerCertificates[0].NotAfter.Sub(time.Now())
+	// clientCertificateExpirationHistogram.WithContext(req.Context()).Observe(remaining.Seconds())
 	chains, err := req.TLS.PeerCertificates[0].Verify(optsCopy)
 	if err != nil {
 		return nil, false, fmt.Errorf(

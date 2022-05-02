@@ -22,7 +22,6 @@ import (
 	cachermetrics "k8s.io/apiserver/pkg/storage/cacher/metrics"
 	etcd3metrics "k8s.io/apiserver/pkg/storage/etcd3/metrics"
 	flowcontrolmetrics "k8s.io/apiserver/pkg/util/flowcontrol/metrics"
-	"k8s.io/component-base/metrics/legacyregistry"
 )
 
 // DefaultMetrics installs the default prometheus metrics handler
@@ -31,7 +30,7 @@ type DefaultMetrics struct{}
 // Install adds the DefaultMetrics handler
 func (m DefaultMetrics) Install(c *mux.PathRecorderMux) {
 	register()
-	c.Handle("/metrics", legacyregistry.Handler())
+	// c.Handle("/metrics", legacyregistry.Handler())
 }
 
 // MetricsWithReset install the prometheus metrics handler extended with support for the DELETE method
@@ -41,7 +40,7 @@ type MetricsWithReset struct{}
 // Install adds the MetricsWithReset handler
 func (m MetricsWithReset) Install(c *mux.PathRecorderMux) {
 	register()
-	c.Handle("/metrics", legacyregistry.HandlerWithReset())
+	// c.Handle("/metrics", legacyregistry.HandlerWithReset())
 }
 
 // register apiserver and etcd metrics

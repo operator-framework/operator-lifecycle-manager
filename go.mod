@@ -40,17 +40,17 @@ require (
 	google.golang.org/grpc v1.40.0
 	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.6.1
-	k8s.io/api v0.23.1
+	k8s.io/api v0.23.3
 	k8s.io/apiextensions-apiserver v0.23.0
-	k8s.io/apimachinery v0.23.1
+	k8s.io/apimachinery v0.23.3
 	k8s.io/apiserver v0.23.0
-	k8s.io/client-go v0.23.1
+	k8s.io/client-go v0.23.3
 	k8s.io/code-generator v0.23.1
-	k8s.io/component-base v0.23.1
+	k8s.io/component-base v0.23.3
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.22.0
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
-	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b
+	k8s.io/utils v0.0.0-20211116205334-6203023598ed
 	sigs.k8s.io/controller-runtime v0.11.1
 	sigs.k8s.io/controller-tools v0.8.0
 	sigs.k8s.io/kind v0.12.0
@@ -227,11 +227,11 @@ require (
 	k8s.io/klog/v2 v2.30.0 // indirect
 	k8s.io/kubectl v0.23.1 // indirect
 	rsc.io/letsencrypt v0.0.3 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.25 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.27 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/kustomize/api v0.10.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.2.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
@@ -242,3 +242,5 @@ replace (
 	// TODO(fail-forward): Remove when api changes are released
 	github.com/operator-framework/api => github.com/operator-framework/api v0.14.1-0.20220413143725-33310d6154f3
 )
+
+replace k8s.io/apiserver => ../../kubernetes/staging/src/k8s.io/apiserver

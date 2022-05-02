@@ -16,13 +16,6 @@ limitations under the License.
 
 package metrics
 
-import (
-	"sync"
-
-	compbasemetrics "k8s.io/component-base/metrics"
-	"k8s.io/component-base/metrics/legacyregistry"
-)
-
 /*
  * By default, all the following metrics are defined as falling under
  * ALPHA stability level https://github.com/kubernetes/enhancements/blob/master/keps/sig-instrumentation/1209-metrics-stability/kubernetes-control-plane-metrics-stability.md#stability-classes)
@@ -32,47 +25,47 @@ import (
  * the metric stability policy.
  */
 var (
-	listCacheCount = compbasemetrics.NewCounterVec(
-		&compbasemetrics.CounterOpts{
-			Name:           "apiserver_cache_list_total",
-			Help:           "Number of LIST requests served from watch cache",
-			StabilityLevel: compbasemetrics.ALPHA,
-		},
-		[]string{"resource_prefix", "index"},
-	)
-	listCacheNumFetched = compbasemetrics.NewCounterVec(
-		&compbasemetrics.CounterOpts{
-			Name:           "apiserver_cache_list_fetched_objects_total",
-			Help:           "Number of objects read from watch cache in the course of serving a LIST request",
-			StabilityLevel: compbasemetrics.ALPHA,
-		},
-		[]string{"resource_prefix", "index"},
-	)
-	listCacheNumReturned = compbasemetrics.NewCounterVec(
-		&compbasemetrics.CounterOpts{
-			Name:           "apiserver_cache_list_returned_objects_total",
-			Help:           "Number of objects returned for a LIST request from watch cache",
-			StabilityLevel: compbasemetrics.ALPHA,
-		},
-		[]string{"resource_prefix"},
-	)
+// listCacheCount = compbasemetrics.NewCounterVec(
+// 	&compbasemetrics.CounterOpts{
+// 		Name:           "apiserver_cache_list_total",
+// 		Help:           "Number of LIST requests served from watch cache",
+// 		StabilityLevel: compbasemetrics.ALPHA,
+// 	},
+// 	[]string{"resource_prefix", "index"},
+// )
+// listCacheNumFetched = compbasemetrics.NewCounterVec(
+// 	&compbasemetrics.CounterOpts{
+// 		Name:           "apiserver_cache_list_fetched_objects_total",
+// 		Help:           "Number of objects read from watch cache in the course of serving a LIST request",
+// 		StabilityLevel: compbasemetrics.ALPHA,
+// 	},
+// 	[]string{"resource_prefix", "index"},
+// )
+// listCacheNumReturned = compbasemetrics.NewCounterVec(
+// 	&compbasemetrics.CounterOpts{
+// 		Name:           "apiserver_cache_list_returned_objects_total",
+// 		Help:           "Number of objects returned for a LIST request from watch cache",
+// 		StabilityLevel: compbasemetrics.ALPHA,
+// 	},
+// 	[]string{"resource_prefix"},
+// )
 )
 
-var registerMetrics sync.Once
+// var registerMetrics sync.Once
 
 // Register all metrics.
 func Register() {
 	// Register the metrics.
-	registerMetrics.Do(func() {
-		legacyregistry.MustRegister(listCacheCount)
-		legacyregistry.MustRegister(listCacheNumFetched)
-		legacyregistry.MustRegister(listCacheNumReturned)
-	})
+	// registerMetrics.Do(func() {
+	// 	legacyregistry.MustRegister(listCacheCount)
+	// 	legacyregistry.MustRegister(listCacheNumFetched)
+	// 	legacyregistry.MustRegister(listCacheNumReturned)
+	// })
 }
 
 // RecordListCacheMetrics notes various metrics of the cost to serve a LIST request
 func RecordListCacheMetrics(resourcePrefix, indexName string, numFetched, numReturned int) {
-	listCacheCount.WithLabelValues(resourcePrefix, indexName).Inc()
-	listCacheNumFetched.WithLabelValues(resourcePrefix, indexName).Add(float64(numFetched))
-	listCacheNumReturned.WithLabelValues(resourcePrefix).Add(float64(numReturned))
+	// listCacheCount.WithLabelValues(resourcePrefix, indexName).Inc()
+	// listCacheNumFetched.WithLabelValues(resourcePrefix, indexName).Add(float64(numFetched))
+	// listCacheNumReturned.WithLabelValues(resourcePrefix).Add(float64(numReturned))
 }

@@ -17,11 +17,7 @@ limitations under the License.
 package envelope
 
 import (
-	"sync"
 	"time"
-
-	"k8s.io/component-base/metrics"
-	"k8s.io/component-base/metrics/legacyregistry"
 )
 
 const (
@@ -40,63 +36,63 @@ const (
  * the metric stability policy.
  */
 var (
-	lockLastFromStorage sync.Mutex
-	lockLastToStorage   sync.Mutex
+// lockLastFromStorage sync.Mutex
+// lockLastToStorage   sync.Mutex
 
-	lastFromStorage time.Time
-	lastToStorage   time.Time
+// lastFromStorage time.Time
+// lastToStorage   time.Time
 
-	dekCacheFillPercent = metrics.NewGauge(
-		&metrics.GaugeOpts{
-			Namespace:      namespace,
-			Subsystem:      subsystem,
-			Name:           "dek_cache_fill_percent",
-			Help:           "Percent of the cache slots currently occupied by cached DEKs.",
-			StabilityLevel: metrics.ALPHA,
-		},
-	)
+// dekCacheFillPercent = metrics.NewGauge(
+// 	&metrics.GaugeOpts{
+// 		Namespace:      namespace,
+// 		Subsystem:      subsystem,
+// 		Name:           "dek_cache_fill_percent",
+// 		Help:           "Percent of the cache slots currently occupied by cached DEKs.",
+// 		StabilityLevel: metrics.ALPHA,
+// 	},
+// )
 
-	dekCacheInterArrivals = metrics.NewHistogramVec(
-		&metrics.HistogramOpts{
-			Namespace:      namespace,
-			Subsystem:      subsystem,
-			Name:           "dek_cache_inter_arrival_time_seconds",
-			Help:           "Time (in seconds) of inter arrival of transformation requests.",
-			StabilityLevel: metrics.ALPHA,
-			Buckets:        metrics.ExponentialBuckets(60, 2, 10),
-		},
-		[]string{"transformation_type"},
-	)
+// dekCacheInterArrivals = metrics.NewHistogramVec(
+// 	&metrics.HistogramOpts{
+// 		Namespace:      namespace,
+// 		Subsystem:      subsystem,
+// 		Name:           "dek_cache_inter_arrival_time_seconds",
+// 		Help:           "Time (in seconds) of inter arrival of transformation requests.",
+// 		StabilityLevel: metrics.ALPHA,
+// 		Buckets:        metrics.ExponentialBuckets(60, 2, 10),
+// 	},
+// 	[]string{"transformation_type"},
+// )
 )
 
-var registerMetricsFunc sync.Once
+// var registerMetricsFunc sync.Once
 
 func registerMetrics() {
-	registerMetricsFunc.Do(func() {
-		legacyregistry.MustRegister(dekCacheFillPercent)
-		legacyregistry.MustRegister(dekCacheInterArrivals)
-	})
+	// registerMetricsFunc.Do(func() {
+	// 	legacyregistry.MustRegister(dekCacheFillPercent)
+	// 	legacyregistry.MustRegister(dekCacheInterArrivals)
+	// })
 }
 
 func recordArrival(transformationType string, start time.Time) {
-	switch transformationType {
-	case fromStorageLabel:
-		lockLastFromStorage.Lock()
-		defer lockLastFromStorage.Unlock()
+	// switch transformationType {
+	// case fromStorageLabel:
+	// 	lockLastFromStorage.Lock()
+	// 	defer lockLastFromStorage.Unlock()
 
-		if lastFromStorage.IsZero() {
-			lastFromStorage = start
-		}
-		dekCacheInterArrivals.WithLabelValues(transformationType).Observe(start.Sub(lastFromStorage).Seconds())
-		lastFromStorage = start
-	case toStorageLabel:
-		lockLastToStorage.Lock()
-		defer lockLastToStorage.Unlock()
+	// 	if lastFromStorage.IsZero() {
+	// 		lastFromStorage = start
+	// 	}
+	// 	// dekCacheInterArrivals.WithLabelValues(transformationType).Observe(start.Sub(lastFromStorage).Seconds())
+	// 	lastFromStorage = start
+	// case toStorageLabel:
+	// 	lockLastToStorage.Lock()
+	// 	defer lockLastToStorage.Unlock()
 
-		if lastToStorage.IsZero() {
-			lastToStorage = start
-		}
-		dekCacheInterArrivals.WithLabelValues(transformationType).Observe(start.Sub(lastToStorage).Seconds())
-		lastToStorage = start
-	}
+	// 	if lastToStorage.IsZero() {
+	// 		lastToStorage = start
+	// 	}
+	// 	// dekCacheInterArrivals.WithLabelValues(transformationType).Observe(start.Sub(lastToStorage).Seconds())
+	// 	lastToStorage = start
+	// }
 }

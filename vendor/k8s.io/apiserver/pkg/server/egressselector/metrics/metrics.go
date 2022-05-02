@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"k8s.io/component-base/metrics"
-	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/clock"
 )
 
@@ -59,32 +58,32 @@ type DialMetrics struct {
 
 // newDialMetrics create a new DialMetrics, configured with default metric names.
 func newDialMetrics() *DialMetrics {
-	latencies := metrics.NewHistogramVec(
-		&metrics.HistogramOpts{
-			Namespace:      namespace,
-			Subsystem:      subsystem,
-			Name:           "dial_duration_seconds",
-			Help:           "Dial latency histogram in seconds, labeled by the protocol (http-connect or grpc), transport (tcp or uds)",
-			Buckets:        latencyBuckets,
-			StabilityLevel: metrics.ALPHA,
-		},
-		[]string{"protocol", "transport"},
-	)
+	// latencies := metrics.NewHistogramVec(
+	// 	&metrics.HistogramOpts{
+	// 		Namespace:      namespace,
+	// 		Subsystem:      subsystem,
+	// 		Name:           "dial_duration_seconds",
+	// 		Help:           "Dial latency histogram in seconds, labeled by the protocol (http-connect or grpc), transport (tcp or uds)",
+	// 		Buckets:        latencyBuckets,
+	// 		StabilityLevel: metrics.ALPHA,
+	// 	},
+	// 	[]string{"protocol", "transport"},
+	// )
 
-	failures := metrics.NewCounterVec(
-		&metrics.CounterOpts{
-			Namespace:      namespace,
-			Subsystem:      subsystem,
-			Name:           "dial_failure_count",
-			Help:           "Dial failure count, labeled by the protocol (http-connect or grpc), transport (tcp or uds), and stage (connect or proxy). The stage indicates at which stage the dial failed",
-			StabilityLevel: metrics.ALPHA,
-		},
-		[]string{"protocol", "transport", "stage"},
-	)
+	// failures := metrics.NewCounterVec(
+	// 	&metrics.CounterOpts{
+	// 		Namespace:      namespace,
+	// 		Subsystem:      subsystem,
+	// 		Name:           "dial_failure_count",
+	// 		Help:           "Dial failure count, labeled by the protocol (http-connect or grpc), transport (tcp or uds), and stage (connect or proxy). The stage indicates at which stage the dial failed",
+	// 		StabilityLevel: metrics.ALPHA,
+	// 	},
+	// 	[]string{"protocol", "transport", "stage"},
+	// )
 
-	legacyregistry.MustRegister(latencies)
-	legacyregistry.MustRegister(failures)
-	return &DialMetrics{latencies: latencies, failures: failures, clock: clock.RealClock{}}
+	// legacyregistry.MustRegister(latencies)
+	// legacyregistry.MustRegister(failures)
+	return &DialMetrics{clock: clock.RealClock{}}
 }
 
 // Clock returns the clock.
@@ -99,16 +98,16 @@ func (m *DialMetrics) SetClock(c clock.Clock) {
 
 // Reset resets the metrics.
 func (m *DialMetrics) Reset() {
-	m.latencies.Reset()
-	m.failures.Reset()
+	// m.latencies.Reset()
+	// m.failures.Reset()
 }
 
 // ObserveDialLatency records the latency of a dial, labeled by protocol, transport.
 func (m *DialMetrics) ObserveDialLatency(elapsed time.Duration, protocol, transport string) {
-	m.latencies.WithLabelValues(protocol, transport).Observe(elapsed.Seconds())
+	// m.latencies.WithLabelValues(protocol, transport).Observe(elapsed.Seconds())
 }
 
 // ObserveDialFailure records a failed dial, labeled by protocol, transport, and the stage the dial failed at.
 func (m *DialMetrics) ObserveDialFailure(protocol, transport, stage string) {
-	m.failures.WithLabelValues(protocol, transport, stage).Inc()
+	// m.failures.WithLabelValues(protocol, transport, stage).Inc()
 }

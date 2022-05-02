@@ -22,8 +22,6 @@ import (
 	"time"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
-	"k8s.io/component-base/metrics"
-	"k8s.io/component-base/metrics/legacyregistry"
 )
 
 /*
@@ -41,56 +39,56 @@ const (
 )
 
 var (
-	authenticatedUserCounter = metrics.NewCounterVec(
-		&metrics.CounterOpts{
-			Name:           "authenticated_user_requests",
-			Help:           "Counter of authenticated requests broken out by username.",
-			StabilityLevel: metrics.ALPHA,
-		},
-		[]string{"username"},
-	)
+// authenticatedUserCounter = metrics.NewCounterVec(
+// 	&metrics.CounterOpts{
+// 		Name:           "authenticated_user_requests",
+// 		Help:           "Counter of authenticated requests broken out by username.",
+// 		StabilityLevel: metrics.ALPHA,
+// 	},
+// 	[]string{"username"},
+// )
 
-	authenticatedAttemptsCounter = metrics.NewCounterVec(
-		&metrics.CounterOpts{
-			Name:           "authentication_attempts",
-			Help:           "Counter of authenticated attempts.",
-			StabilityLevel: metrics.ALPHA,
-		},
-		[]string{"result"},
-	)
+// authenticatedAttemptsCounter = metrics.NewCounterVec(
+// 	&metrics.CounterOpts{
+// 		Name:           "authentication_attempts",
+// 		Help:           "Counter of authenticated attempts.",
+// 		StabilityLevel: metrics.ALPHA,
+// 	},
+// 	[]string{"result"},
+// )
 
-	authenticationLatency = metrics.NewHistogramVec(
-		&metrics.HistogramOpts{
-			Name:           "authentication_duration_seconds",
-			Help:           "Authentication duration in seconds broken out by result.",
-			Buckets:        metrics.ExponentialBuckets(0.001, 2, 15),
-			StabilityLevel: metrics.ALPHA,
-		},
-		[]string{"result"},
-	)
+// authenticationLatency = metrics.NewHistogramVec(
+// 	&metrics.HistogramOpts{
+// 		Name:           "authentication_duration_seconds",
+// 		Help:           "Authentication duration in seconds broken out by result.",
+// 		Buckets:        metrics.ExponentialBuckets(0.001, 2, 15),
+// 		StabilityLevel: metrics.ALPHA,
+// 	},
+// 	[]string{"result"},
+// )
 )
 
 func init() {
-	legacyregistry.MustRegister(authenticatedUserCounter)
-	legacyregistry.MustRegister(authenticatedAttemptsCounter)
-	legacyregistry.MustRegister(authenticationLatency)
+	// legacyregistry.MustRegister(authenticatedUserCounter)
+	// legacyregistry.MustRegister(authenticatedAttemptsCounter)
+	// legacyregistry.MustRegister(authenticationLatency)
 }
 
 func recordAuthMetrics(ctx context.Context, resp *authenticator.Response, ok bool, err error, apiAudiences authenticator.Audiences, authStart time.Time, authFinish time.Time) {
-	var resultLabel string
+	// var resultLabel string
 
-	switch {
-	case err != nil || (resp != nil && !audiencesAreAcceptable(apiAudiences, resp.Audiences)):
-		resultLabel = errorLabel
-	case !ok:
-		resultLabel = failureLabel
-	default:
-		resultLabel = successLabel
-		authenticatedUserCounter.WithContext(ctx).WithLabelValues(compressUsername(resp.User.GetName())).Inc()
-	}
+	// switch {
+	// case err != nil || (resp != nil && !audiencesAreAcceptable(apiAudiences, resp.Audiences)):
+	// 	resultLabel = errorLabel
+	// case !ok:
+	// 	resultLabel = failureLabel
+	// default:
+	// 	resultLabel = successLabel
+	// 	authenticatedUserCounter.WithContext(ctx).WithLabelValues(compressUsername(resp.User.GetName())).Inc()
+	// }
 
-	authenticatedAttemptsCounter.WithContext(ctx).WithLabelValues(resultLabel).Inc()
-	authenticationLatency.WithContext(ctx).WithLabelValues(resultLabel).Observe(authFinish.Sub(authStart).Seconds())
+	// authenticatedAttemptsCounter.WithContext(ctx).WithLabelValues(resultLabel).Inc()
+	// authenticationLatency.WithContext(ctx).WithLabelValues(resultLabel).Observe(authFinish.Sub(authStart).Seconds())
 }
 
 // compressUsername maps all possible usernames onto a small set of categories

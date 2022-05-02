@@ -164,7 +164,7 @@ func (t *envelopeTransformer) addTransformer(encKey []byte, key []byte) (value.T
 	// cannot hash []uint8.
 	if t.cacheEnabled {
 		t.transformers.Add(base64.StdEncoding.EncodeToString(encKey), transformer)
-		dekCacheFillPercent.Set(float64(t.transformers.Len()) / float64(t.cacheSize))
+		// dekCacheFillPercent.Set(float64(t.transformers.Len()) / float64(t.cacheSize))
 	}
 	return transformer, nil
 }

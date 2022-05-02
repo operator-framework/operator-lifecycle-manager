@@ -18,9 +18,7 @@ package x509metrics
 
 import (
 	"crypto/x509"
-	"errors"
 	"net/http"
-	"strings"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/component-base/metrics"
@@ -64,20 +62,20 @@ func (w *x509MissingSANErrorMetricsRTWrapper) WrappedRoundTripper() http.RoundTr
 // checkForHostnameError increases the metricCounter when we're running w/o GODEBUG=x509ignoreCN=0
 // and the client reports a HostnameError about the legacy CN fields
 func checkForHostnameError(err error, metricCounter *metrics.Counter) {
-	if err != nil && errors.As(err, &x509.HostnameError{}) && strings.Contains(err.Error(), "x509: certificate relies on legacy Common Name field") {
-		// increase the count of registered failures due to Go 1.15 x509 cert Common Name deprecation
-		metricCounter.Inc()
-	}
+	// if err != nil && errors.As(err, &x509.HostnameError{}) && strings.Contains(err.Error(), "x509: certificate relies on legacy Common Name field") {
+	// 	// increase the count of registered failures due to Go 1.15 x509 cert Common Name deprecation
+	// 	metricCounter.Inc()
+	// }
 }
 
 // checkRespForNoSAN increases the metricCounter when the server response contains
 // a leaf certificate w/o the SAN extension
 func checkRespForNoSAN(resp *http.Response, metricCounter *metrics.Counter) {
-	if resp != nil && resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
-		if serverCert := resp.TLS.PeerCertificates[0]; !hasSAN(serverCert) {
-			metricCounter.Inc()
-		}
-	}
+	// if resp != nil && resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
+	// 	if serverCert := resp.TLS.PeerCertificates[0]; !hasSAN(serverCert) {
+	// 		metricCounter.Inc()
+	// 	}
+	// }
 }
 
 func hasSAN(c *x509.Certificate) bool {
