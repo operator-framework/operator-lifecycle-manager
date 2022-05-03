@@ -1888,10 +1888,19 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		if out.HasCAResources() {
+		// Only update certificate status if:
+		//  - the CSV has CAResources; and
+		//  - the certificate lastUpdated and rotateAt timestamps have not already been set, or the certificate should be rotated
+		// Note: the code here is a bit wonky and it wasn't clear how to clean it up without some major refactoring:
+		// the installer is in charge of generating and rotating the certificates. It detects whether a certificate should be rotated by
+		// looking at the csv.status.RotateAt value. But, it does not update this value or surface
+		// the certificate expiry information. So, the rotatedAt value is to be re-calculated here. This is bad because you have
+		// two different components doing the same thing (installer and operator are both calculating RotateAt). If we're not careful
+		// there could be skew
+		// See pkg/controller/install/certresources.go
+		if shouldUpdateCertificateDates(out) {
 			now := metav1.Now()
-			expiration := now.Add(install.DefaultCertValidFor)
-			rotateAt := expiration.Add(-1 * install.DefaultCertMinFresh)
+			_, rotateAt := install.CalculateCertExpirationAndRotateAt()
 			rotateTime := metav1.NewTime(rotateAt)
 			out.Status.CertsLastUpdated = &now
 			out.Status.CertsRotateAt = &rotateTime
@@ -2521,4 +2530,12 @@ func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ..
 	out.SetLabels(merged)
 	out, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Update(context.TODO(), out, metav1.UpdateOptions{})
 	return out, err
+}
+
+// shouldUpdateCertificateDates checks the csv status to decide whether
+// status.CertsLastUpdated and status.CertsRotateAt should be updated
+// returns true if the CSV has CAResources and status.RotatedAt is not set OR its time to rotate the certificates
+func shouldUpdateCertificateDates(csv *v1alpha1.ClusterServiceVersion) bool {
+	isNotSet := csv.Status.CertsRotateAt == nil || csv.Status.CertsRotateAt.IsZero()
+	return csv.HasCAResources() && (isNotSet || install.ShouldRotateCerts(csv))
 }

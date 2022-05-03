@@ -185,13 +185,12 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 	}
 
 	// Create the CA
-	expiration := time.Now().Add(DefaultCertValidFor)
+	expiration, _ := CalculateCertExpirationAndRotateAt()
 	ca, err := certs.GenerateCA(expiration, Organization)
 	if err != nil {
 		logger.Debug("failed to generate CA")
 		return nil, err
 	}
-	rotateAt := expiration.Add(-1 * DefaultCertMinFresh)
 
 	for n, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
 		certResources := i.certResourcesForDeployment(sddSpec.Name)
@@ -202,7 +201,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 		}
 
 		// Update the deployment for each certResource
-		newDepSpec, caPEM, err := i.installCertRequirementsForDeployment(sddSpec.Name, ca, rotateAt, sddSpec.Spec, getServicePorts(certResources))
+		newDepSpec, caPEM, err := i.installCertRequirementsForDeployment(sddSpec.Name, ca, expiration, sddSpec.Spec, getServicePorts(certResources))
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +222,13 @@ func ShouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	return false
 }
 
-func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deploymentName string, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, ports []corev1.ServicePort) (*appsv1.DeploymentSpec, []byte, error) {
+func CalculateCertExpirationAndRotateAt() (expiration time.Time, rotateAt time.Time) {
+	expiration = time.Now().Add(DefaultCertValidFor)
+	rotateAt = expiration.Add(-1 * DefaultCertMinFresh)
+	return
+}
+
+func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deploymentName string, ca *certs.KeyPair, expiration time.Time, depSpec appsv1.DeploymentSpec, ports []corev1.ServicePort) (*appsv1.DeploymentSpec, []byte, error) {
 	logger := log.WithFields(log.Fields{})
 
 	// Create a service for the deployment
@@ -263,7 +268,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		fmt.Sprintf("%s.%s", service.GetName(), i.owner.GetNamespace()),
 		fmt.Sprintf("%s.%s.svc", service.GetName(), i.owner.GetNamespace()),
 	}
-	servingPair, err := certGenerator.Generate(rotateAt, Organization, ca, hosts)
+	servingPair, err := certGenerator.Generate(expiration, Organization, ca, hosts)
 	if err != nil {
 		logger.Warnf("could not generate signed certs for hosts %v", hosts)
 		return nil, nil, err
