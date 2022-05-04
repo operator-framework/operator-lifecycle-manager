@@ -1376,7 +1376,13 @@ type UnpackedBundleReference struct {
 	Properties             string `json:"properties"`
 }
 
-// unpackBundles makes one walk through the bundlelookups and attempts to progress them
+/* unpackBundles makes one walk through the bundlelookups and attempts to progress them
+Returns:
+    unpacked: bool - If the bundle was successfully unpacked
+    out:      *v1alpha1.InstallPlan - the resulting installPlan
+	error:    error
+*/
+
 func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.InstallPlan, error) {
 	out := plan.DeepCopy()
 	unpacked := true
@@ -1427,6 +1433,10 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 		// Ensure that bundle can be applied by the current version of OLM by converting to steps
 		steps, err := resolver.NewStepsFromBundle(res.Bundle(), out.GetNamespace(), res.Replaces, res.CatalogSourceRef.Name, res.CatalogSourceRef.Namespace)
 		if err != nil {
+			if fatal := olmerrors.IsFatal(err); fatal {
+				return false, nil, err
+			}
+
 			errs = append(errs, fmt.Errorf("failed to turn bundle into steps: %v", err))
 			unpacked = false
 			continue
@@ -1615,6 +1625,14 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	if len(plan.Status.BundleLookups) > 0 {
 		unpacked, out, err := o.unpackBundles(plan)
 		if err != nil {
+			// If the error was fatal capture and fail
+			if fatal := olmerrors.IsFatal(err); fatal {
+				if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, err.Error()); err != nil {
+					// retry for failure to update status
+					syncError = err
+					return
+				}
+			}
 			// Retry sync if non-fatal error
 			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
 			return
