@@ -934,9 +934,16 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
+	// The IsFailForward method only returns an error if the number
+	// of operatorGroups is greater than 1. If we exit early here, the
+	// subscription status is not updated to reflect that resolution
+	// fails due to an unexpected number of operatorGroups.
+	// It is best to log the error if in debug mode and simply assume that
+	// it is not safe to fail forward, the error will be made apparent in
+	// the subscription status when the resolver fails.
 	failForwardEnabled, err := resolver.IsFailForwardEnabled(o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace))
 	if err != nil {
-		return err
+		logger.WithError(err).Debug("assuming fail-forward is disabled")
 	}
 
 	// TODO: parallel
