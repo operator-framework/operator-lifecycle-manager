@@ -29,9 +29,9 @@ if kubectl get deployment olm-operator -n ${namespace} > /dev/null 2>&1; then
     exit 1
 fi
 
-kubectl apply -f "${url}/crds.yaml"
+kubectl create -f "${url}/crds.yaml"
 kubectl wait --for=condition=Established -f "${url}/crds.yaml"
-kubectl apply -f "${url}/olm.yaml"
+kubectl create -f "${url}/olm.yaml"
 
 # wait for deployments to be ready
 kubectl rollout status -w deployment/olm-operator --namespace="${namespace}"
