@@ -95,6 +95,14 @@ func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
 	return true, nil
 }
 
+func (i *TestInstaller) CertsRotateAt() time.Time {
+	return time.Time{}
+}
+
+func (i *TestInstaller) CertsRotated() bool {
+	return false
+}
+
 func ownerLabelFromCSV(name, namespace string) map[string]string {
 	return map[string]string{
 		ownerutil.OwnerKey:          name,
@@ -5112,9 +5120,6 @@ func TestCARotation(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
 
-	//apiHash, err := resolvercache.APIKeyToGVKHash(opregistry.APIKey{Group: "g1", Version: "v1", Kind: "c1"})
-	//require.NoError(t, err)
-
 	defaultOperatorGroup := &operatorsv1.OperatorGroup{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "OperatorGroup",
@@ -5137,9 +5142,8 @@ func TestCARotation(t *testing.T) {
 	}
 
 	// Generate valid and expired CA fixtures
-	expirationTime, rotationTime := install.CalculateCertExpirationAndRotateAt()
-	expiresAt := metav1.Time{Time: expirationTime}
-	rotateAt := metav1.Time{Time: rotationTime}
+	expiresAt := metav1.NewTime(install.CalculateCertExpiration(time.Now()))
+	rotateAt := metav1.NewTime(install.CalculateCertRotatesAt(expiresAt.Time))
 
 	lastUpdate := metav1.Time{Time: time.Now().UTC()}
 
@@ -5358,18 +5362,17 @@ func TestCARotation(t *testing.T) {
 					require.NoError(t, err)
 					require.NotNil(t, serviceSecret)
 
-					// Extract certificate
+					// Extract certificate validity period
 					start, end, err := GetServiceCertificaValidityPeriod(serviceSecret)
 					require.NoError(t, err)
 					require.NotNil(t, start)
 					require.NotNil(t, end)
 
-					// Compare csv status timestamps with certificate timestamps
-					// NOTE: These values (csv.Status.Certs* and the certificate expiry and rotation are calculated
-					// with the same method but independently, therefore a second granularity will need to suffice.
-					// See https://github.com/operator-framework/operator-lifecycle-manager/issues/2764 for more info.
 					rotationTime := end.Add(-1 * install.DefaultCertMinFresh)
-					require.Equal(t, start.Unix(), outCSV.Status.CertsLastUpdated.Unix())
+					// The csv status is updated after the certificate is created/rotated
+					require.LessOrEqual(t, start.Unix(), outCSV.Status.CertsLastUpdated.Unix())
+
+					// Rotation time should always be the same between the certificate and the status
 					require.Equal(t, rotationTime.Unix(), outCSV.Status.CertsRotateAt.Unix())
 				}
 			}
