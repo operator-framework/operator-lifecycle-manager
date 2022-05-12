@@ -1,3 +1,4 @@
+//go:build !bare
 // +build !bare
 
 package e2e
@@ -5,13 +6,17 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
@@ -71,8 +76,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			})
 
 			It("generates csv_abnormal metric for OLM pod", func() {
-
-				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).To(And(
+				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).To(And(
 					ContainElement(LikeMetric(
 						WithFamily("csv_abnormal"),
 						WithName(failingCSV.Name),
@@ -100,10 +104,52 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 				It("deletes its associated CSV metrics", func() {
 					// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
-					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"), "8081")).ToNot(And(
+					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).ToNot(And(
 						ContainElement(LikeMetric(WithFamily("csv_abnormal"), WithName(failingCSV.Name))),
 						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(failingCSV.Name))),
 					))
+				})
+			})
+		})
+
+		When("a CSV is created", func() {
+			var (
+				cleanupCSV cleanupFunc
+				csv        v1alpha1.ClusterServiceVersion
+			)
+			BeforeEach(func() {
+				packageName := genName("csv-test-")
+				packageStable := fmt.Sprintf("%s-stable", packageName)
+				csv = newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
+
+				var err error
+				_, err = createCSV(c, crc, csv, testNamespace, false, false)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
+				Expect(err).ToNot(HaveOccurred())
+			})
+			AfterEach(func() {
+				if cleanupCSV != nil {
+					cleanupCSV()
+				}
+			})
+			It("emits a CSV metrics", func() {
+				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).To(
+					ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(csv.Name), WithValue(1))),
+				)
+			})
+			When("the OLM pod restarts", func() {
+				BeforeEach(func() {
+					restartDeploymentWithLabel(c, "app=olm-operator")
+				})
+				It("CSV metric is preserved", func() {
+					Eventually(func() []Metric {
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))
+					}).Should(ContainElement(LikeMetric(
+						WithFamily("csv_succeeded"),
+						WithName(csv.Name),
+						WithValue(1),
+					)))
 				})
 			})
 		})
@@ -130,7 +176,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 				// Verify metrics have been emitted for subscription
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(ContainElement(LikeMetric(
 					WithFamily("subscription_sync_total"),
 					WithName("metric-subscription-for-create"),
@@ -145,7 +191,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				// Verify metrics have been emitted for dependency resolution
 				Eventually(func() bool {
 					return Eventually(func() []Metric {
-						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 					}).Should(ContainElement(LikeMetric(
 						WithFamily("olm_resolution_duration_seconds"),
 						WithLabel("outcome", "failed"),
@@ -160,7 +206,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			BeforeEach(func() {
 				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-update", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-update"))))
 				Eventually(func() error {
 					s, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
@@ -181,7 +227,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 			It("deletes the old Subscription metric and emits the new metric", func() {
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(And(
 					Not(ContainElement(LikeMetric(
 						WithFamily("subscription_sync_total"),
@@ -215,7 +261,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 				It("deletes the old subscription metric and emits the new metric(there is only one metric for the subscription)", func() {
 					Eventually(func() []Metric {
-						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 					}).Should(And(
 						Not(ContainElement(LikeMetric(
 							WithFamily("subscription_sync_total"),
@@ -245,7 +291,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 			BeforeEach(func() {
 				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-delete", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-delete"))))
 				if subscriptionCleanup != nil {
 					subscriptionCleanup()
@@ -261,7 +307,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 			It("deletes the Subscription metric", func() {
 				Eventually(func() []Metric {
-					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"), "8081")
+					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).ShouldNot(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithName("metric-subscription-for-delete"))))
 			})
 		})
@@ -283,7 +329,63 @@ func getPodWithLabel(client operatorclient.ClientInterface, label string) *corev
 	return &podList.Items[0]
 }
 
-func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod, port string) []Metric {
+func getDeploymentWithLabel(client operatorclient.ClientInterface, label string) *appsv1.Deployment {
+	listOptions := metav1.ListOptions{LabelSelector: label}
+	var deploymentList *appsv1.DeploymentList
+	EventuallyWithOffset(1, func() (numDeps int, err error) {
+		deploymentList, err = client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).List(context.TODO(), listOptions)
+		if deploymentList != nil {
+			numDeps = len(deploymentList.Items)
+		}
+
+		return
+	}).Should(Equal(1), "expected exactly one Deployment")
+
+	return &deploymentList.Items[0]
+}
+
+func restartDeploymentWithLabel(client operatorclient.ClientInterface, l string) {
+	d := getDeploymentWithLabel(client, l)
+	z := int32(0)
+	oldZ := *d.Spec.Replicas
+	d.Spec.Replicas = &z
+	_, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Update(context.TODO(), d, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	EventuallyWithOffset(1, func() (replicas int32, err error) {
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Get(context.TODO(), d.Name, metav1.GetOptions{})
+		if deployment != nil {
+			replicas = deployment.Status.Replicas
+		}
+		return
+	}).Should(Equal(int32(0)), "expected exactly 0 Deployments")
+
+	updated := getDeploymentWithLabel(client, l)
+	updated.Spec.Replicas = &oldZ
+	_, err = client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Update(context.TODO(), updated, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	EventuallyWithOffset(1, func() (replicas int32, err error) {
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Get(context.TODO(), d.Name, metav1.GetOptions{})
+		if deployment != nil {
+			replicas = deployment.Status.Replicas
+		}
+		return
+	}).Should(Equal(oldZ), "expected exactly 1 Deployment")
+}
+
+func extractMetricPortFromPod(pod *corev1.Pod) string {
+	for _, container := range pod.Spec.Containers {
+		for _, port := range container.Ports {
+			if port.Name == "metrics" {
+				return strconv.Itoa(int(port.ContainerPort))
+			}
+		}
+	}
+	return "-1"
+}
+
+func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod) []Metric {
 	ctx.Ctx().Logf("querying pod %s/%s\n", pod.GetNamespace(), pod.GetName())
 
 	// assuming -tls-cert and -tls-key aren't used anywhere else as a parameter value
@@ -305,14 +407,13 @@ func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod, p
 		scheme = "http"
 	}
 	ctx.Ctx().Logf("Retrieving metrics using scheme %v\n", scheme)
-
 	mfs := make(map[string]*io_prometheus_client.MetricFamily)
 	EventuallyWithOffset(1, func() error {
 		raw, err := client.KubernetesInterface().CoreV1().RESTClient().Get().
 			Namespace(pod.GetNamespace()).
 			Resource("pods").
 			SubResource("proxy").
-			Name(net.JoinSchemeNamePort(scheme, pod.GetName(), port)).
+			Name(net.JoinSchemeNamePort(scheme, pod.GetName(), extractMetricPortFromPod(pod))).
 			Suffix("metrics").
 			Do(context.Background()).Raw()
 		if err != nil {
