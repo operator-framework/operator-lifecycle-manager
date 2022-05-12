@@ -160,7 +160,7 @@ func (i *StrategyDeploymentInstaller) getCertResources() []certResource {
 }
 
 func (i *StrategyDeploymentInstaller) certResourcesForDeployment(deploymentName string) []certResource {
-	result := []certResource{}
+	var result []certResource
 	for _, desc := range i.getCertResources() {
 		if desc.getDeploymentName() == deploymentName {
 			result = append(result, desc)
@@ -185,8 +185,8 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 	}
 
 	// Create the CA
-	expiration, _ := CalculateCertExpirationAndRotateAt()
-	ca, err := certs.GenerateCA(expiration, Organization)
+	i.certificateExpirationTime = CalculateCertExpiration(time.Now())
+	ca, err := certs.GenerateCA(i.certificateExpirationTime, Organization)
 	if err != nil {
 		logger.Debug("failed to generate CA")
 		return nil, err
@@ -201,7 +201,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 		}
 
 		// Update the deployment for each certResource
-		newDepSpec, caPEM, err := i.installCertRequirementsForDeployment(sddSpec.Name, ca, expiration, sddSpec.Spec, getServicePorts(certResources))
+		newDepSpec, caPEM, err := i.installCertRequirementsForDeployment(sddSpec.Name, ca, i.certificateExpirationTime, sddSpec.Spec, getServicePorts(certResources))
 		if err != nil {
 			return nil, err
 		}
@@ -213,6 +213,14 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 	return strategyDetailsDeployment, nil
 }
 
+func (i *StrategyDeploymentInstaller) CertsRotateAt() time.Time {
+	return CalculateCertRotatesAt(i.certificateExpirationTime)
+}
+
+func (i *StrategyDeploymentInstaller) CertsRotated() bool {
+	return i.certificatesRotated
+}
+
 func ShouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	now := metav1.Now()
 	if !csv.Status.CertsRotateAt.IsZero() && csv.Status.CertsRotateAt.Before(&now) {
@@ -222,10 +230,12 @@ func ShouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	return false
 }
 
-func CalculateCertExpirationAndRotateAt() (expiration time.Time, rotateAt time.Time) {
-	expiration = time.Now().Add(DefaultCertValidFor)
-	rotateAt = expiration.Add(-1 * DefaultCertMinFresh)
-	return
+func CalculateCertExpiration(startingFrom time.Time) time.Time {
+	return startingFrom.Add(DefaultCertValidFor)
+}
+
+func CalculateCertRotatesAt(certExpirationTime time.Time) time.Time {
+	return certExpirationTime.Add(-1 * DefaultCertMinFresh)
 }
 
 func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deploymentName string, ca *certs.KeyPair, expiration time.Time, depSpec appsv1.DeploymentSpec, ports []corev1.ServicePort) (*appsv1.DeploymentSpec, []byte, error) {
@@ -316,9 +326,12 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			secret = existingSecret
 			caPEM = existingCAPEM
 			caHash = certs.PEMSHA256(caPEM)
-		} else if _, err := i.strategyClient.GetOpClient().UpdateSecret(secret); err != nil {
-			logger.Warnf("could not update secret %s", secret.GetName())
-			return nil, nil, err
+		} else {
+			if _, err := i.strategyClient.GetOpClient().UpdateSecret(secret); err != nil {
+				logger.Warnf("could not update secret %s", secret.GetName())
+				return nil, nil, err
+			}
+			i.certificatesRotated = true
 		}
 	} else if apierrors.IsNotFound(err) {
 		// Create the secret
@@ -335,6 +348,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 				return nil, nil, err
 			}
 		}
+		i.certificatesRotated = true
 	} else {
 		return nil, nil, err
 	}

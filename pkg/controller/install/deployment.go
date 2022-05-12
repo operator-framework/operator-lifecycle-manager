@@ -3,6 +3,7 @@ package install
 import (
 	"fmt"
 	"hash/fnv"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,13 +23,15 @@ import (
 const DeploymentSpecHashLabelKey = "olm.deployment-spec-hash"
 
 type StrategyDeploymentInstaller struct {
-	strategyClient         wrappers.InstallStrategyDeploymentInterface
-	owner                  ownerutil.Owner
-	previousStrategy       Strategy
-	templateAnnotations    map[string]string
-	initializers           DeploymentInitializerFuncChain
-	apiServiceDescriptions []certResource
-	webhookDescriptions    []certResource
+	strategyClient            wrappers.InstallStrategyDeploymentInterface
+	owner                     ownerutil.Owner
+	previousStrategy          Strategy
+	templateAnnotations       map[string]string
+	initializers              DeploymentInitializerFuncChain
+	apiServiceDescriptions    []certResource
+	webhookDescriptions       []certResource
+	certificateExpirationTime time.Time
+	certificatesRotated       bool
 }
 
 var _ Strategy = &v1alpha1.StrategyDetailsDeployment{}
@@ -77,13 +80,15 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 	}
 
 	return &StrategyDeploymentInstaller{
-		strategyClient:         strategyClient,
-		owner:                  owner,
-		previousStrategy:       previousStrategy,
-		templateAnnotations:    templateAnnotations,
-		initializers:           initializers,
-		apiServiceDescriptions: apiDescs,
-		webhookDescriptions:    webhookDescs,
+		strategyClient:            strategyClient,
+		owner:                     owner,
+		previousStrategy:          previousStrategy,
+		templateAnnotations:       templateAnnotations,
+		initializers:              initializers,
+		apiServiceDescriptions:    apiDescs,
+		webhookDescriptions:       webhookDescs,
+		certificatesRotated:       false,
+		certificateExpirationTime: time.Time{},
 	}
 }
 
