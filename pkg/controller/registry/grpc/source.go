@@ -256,40 +256,16 @@ func (s *SourceStore) Remove(key registry.CatalogKey) error {
 	return source.Conn.Close()
 }
 
-func (s *SourceStore) AsClients(namespaces ...string) map[registry.CatalogKey]registry.ClientInterface {
-	refs := map[registry.CatalogKey]registry.ClientInterface{}
-	s.sourcesLock.RLock()
-	defer s.sourcesLock.RUnlock()
-	for key, source := range s.sources {
-		if source.LastConnect.IsZero() {
-			continue
-		}
-		for _, namespace := range namespaces {
-			if key.Namespace == namespace {
-				refs[key] = registry.NewClientFromConn(source.Conn)
-			}
-		}
-	}
-
-	// TODO : remove unhealthy
-	return refs
-}
-
 func (s *SourceStore) ClientsForNamespaces(namespaces ...string) map[registry.CatalogKey]client.Interface {
 	refs := map[registry.CatalogKey]client.Interface{}
 	s.sourcesLock.RLock()
 	defer s.sourcesLock.RUnlock()
 	for key, source := range s.sources {
-		if source.LastConnect.IsZero() {
-			continue
-		}
 		for _, namespace := range namespaces {
 			if key.Namespace == namespace {
 				refs[key] = client.NewClientFromConn(source.Conn)
 			}
 		}
 	}
-
-	// TODO : remove unhealthy
 	return refs
 }

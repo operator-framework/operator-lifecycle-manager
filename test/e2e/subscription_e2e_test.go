@@ -20,6 +20,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,6 +76,81 @@ var _ = Describe("Subscription", func() {
 
 	AfterEach(func() {
 		TeardownNamespace(generatedNamespace.GetName())
+	})
+
+	When("a registry server for a grpc-type CatalogSource is not running", func() {
+		var (
+			catsrc *v1alpha1.CatalogSource
+		)
+
+		BeforeEach(func() {
+			catsrc = &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:    generatedNamespace.GetName(),
+					GenerateName: "without-registry-server-",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "@", // bad image ref, pod creation will fail
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), catsrc)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Eventually(func() error {
+				if catsrc == nil {
+					return nil
+				}
+				return ctx.Ctx().Client().Delete(context.Background(), catsrc)
+			}).Should(Or(
+				Succeed(),
+				WithTransform(errors.IsNotFound, BeTrue()),
+			))
+		})
+
+		It("should indicate ErrorPreventedResolution on a dependent Subscription status", func() {
+			sub := v1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:    generatedNamespace.GetName(),
+					GenerateName: "test-subscription",
+				},
+				Spec: &v1alpha1.SubscriptionSpec{
+					Package: "whatever",
+				},
+			}
+			Expect(ctx.Ctx().Client().Create(context.Background(), &sub)).To(Succeed())
+
+			getCondition := func() (v1alpha1.SubscriptionCondition, error) {
+				if err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&sub), &sub); err != nil {
+					return v1alpha1.SubscriptionCondition{}, err
+				}
+				cond := sub.Status.GetCondition(v1alpha1.SubscriptionResolutionFailed)
+				return v1alpha1.SubscriptionCondition{
+					Type:   cond.Type,
+					Reason: cond.Reason,
+					Status: cond.Status,
+				}, nil
+			}
+
+			// this doesn't seem very robust. basically, this subscription condition should arrive directly at True/ErrorPreventedResolution without passing through any other non-Unknown states
+
+			Consistently(getCondition).Should(And(
+				Not(Equal(v1alpha1.SubscriptionCondition{
+					Type:   v1alpha1.SubscriptionResolutionFailed,
+					Reason: "ConstraintsNotSatisfiable",
+					Status: corev1.ConditionTrue,
+				})),
+			))
+
+			Eventually(getCondition).Should(
+				Equal(v1alpha1.SubscriptionCondition{
+					Type:   v1alpha1.SubscriptionResolutionFailed,
+					Reason: "ErrorPreventedResolution",
+					Status: corev1.ConditionTrue,
+				}),
+			)
+		})
 	})
 
 	When("an entry in the middle of a channel does not provide a required GVK", func() {
