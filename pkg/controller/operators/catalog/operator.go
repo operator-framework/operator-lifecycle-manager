@@ -193,7 +193,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.resolverSourceProvider = resolver.SourceProviderFromRegistryClientProvider(op.sources, logger)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
-	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.resolverSourceProvider, logger)
+	globalCatalogSourceToggle := resolver.NewNamespaceAnnotationGlobalCatalogToggle(crClient)
+	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.resolverSourceProvider, logger).WithGlobalCatalogSourceToggle(globalCatalogSourceToggle)
+
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
 	// Wire OLM CR sharedIndexInformers

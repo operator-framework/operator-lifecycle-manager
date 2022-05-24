@@ -25,7 +25,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/docker/docker/pkg/term"
+	"github.com/docker/docker/pkg/term" //nolint
 	"github.com/spf13/cobra"
 
 	"helm.sh/helm/v3/cmd/helm/require"
@@ -41,11 +41,10 @@ func newRegistryLoginCmd(cfg *action.Configuration, out io.Writer) *cobra.Comman
 	var passwordFromStdinOpt, insecureOpt bool
 
 	cmd := &cobra.Command{
-		Use:    "login [host]",
-		Short:  "login to a registry",
-		Long:   registryLoginDesc,
-		Args:   require.MinimumNArgs(1),
-		Hidden: !FeatureGateOCI.IsEnabled(),
+		Use:   "login [host]",
+		Short: "login to a registry",
+		Long:  registryLoginDesc,
+		Args:  require.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			hostname := args[0]
 
@@ -67,7 +66,7 @@ func newRegistryLoginCmd(cfg *action.Configuration, out io.Writer) *cobra.Comman
 	return cmd
 }
 
-// Adapted from https://github.com/deislabs/oras
+// Adapted from https://github.com/oras-project/oras
 func getUsernamePassword(usernameOpt string, passwordOpt string, passwordFromStdinOpt bool) (string, string, error) {
 	var err error
 	username := usernameOpt
@@ -110,7 +109,7 @@ func getUsernamePassword(usernameOpt string, passwordOpt string, passwordFromStd
 	return username, password, nil
 }
 
-// Copied/adapted from https://github.com/deislabs/oras
+// Copied/adapted from https://github.com/oras-project/oras
 func readLine(prompt string, silent bool) (string, error) {
 	fmt.Print(prompt)
 	if silent {

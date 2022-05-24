@@ -198,6 +198,9 @@ spec:
               description: OperatorGroupSpec is the spec for an OperatorGroup resource.
               type: object
               properties:
+                ignoreGlobalCatalogSources:
+                  description: Ignore global catalog sources during resolution
+                  type: boolean
                 selector:
                   description: Selector selects the OperatorGroup's target namespaces.
                   type: object

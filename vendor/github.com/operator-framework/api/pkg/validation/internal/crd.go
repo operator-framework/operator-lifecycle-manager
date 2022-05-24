@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"strings"
 
 	"github.com/operator-framework/api/pkg/validation/errors"
@@ -61,7 +62,7 @@ func validateV1CRD(crd *v1.CustomResourceDefinition) (result errors.ManifestResu
 }
 
 func validateInternalCRD(crd *apiextensions.CustomResourceDefinition) (result errors.ManifestResult) {
-	errList := validation.ValidateCustomResourceDefinition(crd)
+	errList := validation.ValidateCustomResourceDefinition(context.TODO(), crd)
 	for _, err := range errList {
 		if !strings.Contains(err.Field, "openAPIV3Schema") && !strings.Contains(err.Field, "status") {
 			result.Add(errors.NewError(errors.ErrorType(err.Type), err.Error(), err.Field, err.BadValue))

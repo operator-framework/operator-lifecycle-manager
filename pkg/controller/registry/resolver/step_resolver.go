@@ -31,15 +31,43 @@ type StepResolver interface {
 }
 
 type OperatorStepResolver struct {
-	subLister              v1alpha1listers.SubscriptionLister
-	csvLister              v1alpha1listers.ClusterServiceVersionLister
-	client                 versioned.Interface
-	globalCatalogNamespace string
-	resolver               *Resolver
-	log                    logrus.FieldLogger
+	subLister                 v1alpha1listers.SubscriptionLister
+	csvLister                 v1alpha1listers.ClusterServiceVersionLister
+	client                    versioned.Interface
+	globalCatalogNamespace    string
+	resolver                  *Resolver
+	log                       logrus.FieldLogger
+	globalCatalogSourceToggle GlobalNamespaceToggle
 }
 
 var _ StepResolver = &OperatorStepResolver{}
+
+type GlobalNamespaceToggle interface {
+	ShouldIgnoreGlobalNamespaceResolution(ctx context.Context, namespace string) (bool, error)
+}
+
+func NewNamespaceAnnotationGlobalCatalogToggle(crClient versioned.Interface) *NamespaceAnnotationGlobalCatalogToggle {
+	return &NamespaceAnnotationGlobalCatalogToggle{
+		crClient: crClient,
+	}
+}
+
+type NamespaceAnnotationGlobalCatalogToggle struct {
+	crClient versioned.Interface
+}
+
+func (n *NamespaceAnnotationGlobalCatalogToggle) ShouldIgnoreGlobalNamespaceResolution(ctx context.Context, namespace string) (bool, error) {
+	fmt.Println("[PING] Getting global catalog source toggle")
+	operatorGroupList, err := n.crClient.OperatorsV1alpha2().OperatorGroups(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+	if len(operatorGroupList.Items) != 1 {
+		return false, fmt.Errorf("number of operator groups in namespace (%d) should be 1", len(operatorGroupList.Items))
+	}
+	operatorGroup := operatorGroupList.Items[0]
+	return operatorGroup.Spec.IgnoreGlobalCatalogSources, nil
+}
 
 type catsrcPriorityProvider struct {
 	lister v1alpha1listers.CatalogSourceLister
@@ -85,13 +113,40 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 	return stepResolver
 }
 
+func (r *OperatorStepResolver) WithGlobalCatalogSourceToggle(globalNamespaceToggle GlobalNamespaceToggle) *OperatorStepResolver {
+	r.globalCatalogSourceToggle = globalNamespaceToggle
+	return r
+}
+
 func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	subs, err := r.listSubscriptions(namespace)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	namespaces := []string{namespace, r.globalCatalogNamespace}
+	includeGlobalCatalogs, err := func() (bool, error) {
+		if r.globalCatalogSourceToggle != nil {
+			toggle, err := r.globalCatalogSourceToggle.ShouldIgnoreGlobalNamespaceResolution(context.Background(), namespace)
+			if err != nil {
+				return false, err
+			}
+			return toggle, nil
+		}
+		return true, nil
+	}()
+
+	fmt.Printf("Disabling Global Catalog Sources: %t\n", includeGlobalCatalogs)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	namespaces := []string{namespace}
+
+	if includeGlobalCatalogs {
+		namespaces = append(namespaces, r.globalCatalogNamespace)
+	}
+
 	operators, err := r.resolver.Resolve(namespaces, subs)
 	if err != nil {
 		return nil, nil, nil, err

@@ -35,6 +35,10 @@ type OperatorGroupSpec struct {
 	// Static tells OLM not to update the OperatorGroup's providedAPIs annotation
 	// +optional
 	StaticProvidedAPIs bool `json:"staticProvidedAPIs,omitempty"`
+
+	// Ignore global catalog sources during resolution
+	// +optional
+	IgnoreGlobalCatalogSources bool `json:"ignoreGlobalCatalogSources,omitempty"`
 }
 
 // OperatorGroupStatus is the status for an OperatorGroupResource.
