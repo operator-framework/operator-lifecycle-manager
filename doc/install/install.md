@@ -33,6 +33,10 @@ You can verify that the OLM components have been successfully deployed by runnin
 
 **IMPORTANT:** OLM is installed by default in OpenShift 4.0 and above.
 
+## Install with `operator-sdk olm install`
+
+OLM can be installed with the operator-sdk command `operator-sdk olm install` more information is available in the [operator-sdk documentation.](https://sdk.operatorframework.io/docs/cli/operator-sdk_olm_install/)
+
 ## Customizing OLM installation 
 
 Deployments of OLM can be stamped out with different configurations by writing a `values.yaml` file and running commands to generate resources.
@@ -130,6 +134,4 @@ spec:
 
 # Uninstall
 
-Run the command `make uninstall`.
-
-**NOTE** Valid just for local/manual installs. 
+OLM can be uninstalled with the `operator-sdk olm uninstall` command. More information is available in the [operator-sdk documentation](https://sdk.operatorframework.io/docs/cli/operator-sdk_olm_uninstall/)
