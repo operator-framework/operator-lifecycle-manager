@@ -16,10 +16,10 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Operator Condition", func() {
-
 	var (
 		generatedNamespace corev1.Namespace
 	)
@@ -39,8 +39,8 @@ var _ = Describe("Operator Condition", func() {
 			" expected. The overrides spec in OperatorCondition can be used to override" +
 			" the conditions spec. The overrides spec will remain in place until" +
 			" they are unset.")
-		c := newKubeClient()
-		crc := newCRClient()
+		c := ctx.Ctx().KubeClient()
+		crc := ctx.Ctx().OperatorClient()
 
 		// Create a catalog for csvA, csvB, and csvD
 		pkgA := genName("a-")

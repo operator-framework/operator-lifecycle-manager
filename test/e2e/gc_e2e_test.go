@@ -128,7 +128,6 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 	})
 
 	Context("Given a ClusterRole owned by a APIService", func() {
-
 		var (
 			apiService *apiregistrationv1.APIService
 			cr         *rbacv1.ClusterRole
@@ -216,6 +215,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			propagation metav1.DeletionPropagation
 			options     metav1.DeleteOptions
 		)
+
 		BeforeEach(func() {
 
 			ownerA = newCSV("ownera", ns.GetName(), "", semver.MustParse("0.0.0"), nil, nil, nil)
@@ -320,6 +320,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 	})
 
 	When("a bundle with configmap and secret objects is installed", func() {
+
 		const (
 			packageName   = "busybox"
 			channelName   = "alpha"
@@ -394,6 +395,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		})
 
 		When("the CSV is deleted", func() {
+
 			const csvName = "busybox.v2.0.0"
 
 			BeforeEach(func() {
@@ -439,6 +441,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 	})
 
 	When("a bundle with a configmap is installed", func() {
+
 		const (
 			subName       = "test-subscription"
 			configmapName = "special-config"
@@ -500,6 +503,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		})
 
 		When("the subscription is updated to a later CSV with a configmap with the same name but new data", func() {
+
 			const (
 				upgradeChannelName = "beta"
 				newCSVname         = "busybox.v3.0.0"
@@ -552,6 +556,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 	})
 
 	When("a bundle with a new configmap is installed", func() {
+
 		const (
 			subName       = "test-subscription"
 			configmapName = "special-config"
@@ -613,6 +618,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		})
 
 		When("the subscription is updated to a later CSV with a configmap with a new name", func() {
+
 			const (
 				upgradeChannelName    = "beta"
 				upgradedConfigMapName = "not-special-config"

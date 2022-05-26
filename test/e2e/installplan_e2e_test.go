@@ -51,8 +51,11 @@ import (
 )
 
 var _ = Describe("Install Plan", func() {
-
-	var ns corev1.Namespace
+	var (
+		c   operatorclient.ClientInterface
+		crc versioned.Interface
+		ns  corev1.Namespace
+	)
 
 	BeforeEach(func() {
 		namespaceName := genName("install-plan-e2e-")
@@ -63,6 +66,8 @@ var _ = Describe("Install Plan", func() {
 			},
 		}
 		ns = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
 	})
 
 	AfterEach(func() {
@@ -315,6 +320,7 @@ var _ = Describe("Install Plan", func() {
 				csv  operatorsv1alpha1.ClusterServiceVersion
 				plan operatorsv1alpha1.InstallPlan
 			)
+
 			BeforeEach(func() {
 				csv = newCSV("test-csv-two", ns.GetName(), "", semver.Version{}, nil, nil, nil)
 				Expect(ctx.Ctx().Client().Create(context.Background(), &csv)).To(Succeed())
@@ -688,8 +694,6 @@ var _ = Describe("Install Plan", func() {
 		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
 		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
-		c := newKubeClient()
-		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -894,8 +898,6 @@ var _ = Describe("Install Plan", func() {
 				}).Should(Succeed())
 			}()
 
-			c := newKubeClient()
-			crc := newCRClient()
 			defer func() {
 				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
@@ -1310,9 +1312,6 @@ var _ = Describe("Install Plan", func() {
 				}
 			}()
 
-			c := newKubeClient()
-			crc := newCRClient()
-
 			// Existing custom resource
 			existingCR := &unstructured.Unstructured{
 				Object: map[string]interface{}{
@@ -1569,9 +1568,6 @@ var _ = Describe("Install Plan", func() {
 				}
 			}()
 
-			c := newKubeClient()
-			crc := newCRClient()
-
 			// Defer crd clean up
 			defer func() {
 				Expect(client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), tt.newCRD))).To(Succeed())
@@ -1708,8 +1704,6 @@ var _ = Describe("Install Plan", func() {
 		}
 		It("AmplifyPermissions", func() {
 
-			c := newKubeClient()
-			crc := newCRClient()
 			defer func() {
 				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
@@ -1897,8 +1891,6 @@ var _ = Describe("Install Plan", func() {
 		})
 		It("AttenuatePermissions", func() {
 
-			c := newKubeClient()
-			crc := newCRClient()
 			defer func() {
 				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
@@ -2124,8 +2116,6 @@ var _ = Describe("Install Plan", func() {
 
 		It("StopOnCSVModifications", func() {
 
-			c := newKubeClient()
-			crc := newCRClient()
 			defer func() {
 				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
@@ -2438,8 +2428,6 @@ var _ = Describe("Install Plan", func() {
 				}).Should(Succeed())
 			}()
 
-			c := newKubeClient()
-			crc := newCRClient()
 			defer func() {
 				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
@@ -2545,8 +2533,6 @@ var _ = Describe("Install Plan", func() {
 
 		It("UpdatePreexistingCRDFailed", func() {
 
-			c := newKubeClient()
-			crc := newCRClient()
 			defer func() {
 				require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 			}()
@@ -2795,8 +2781,6 @@ var _ = Describe("Install Plan", func() {
 		// Create new CSVs
 		stableCSV := newCSV(stableCSVName, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
 
-		c := newKubeClient()
-		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -3050,9 +3034,6 @@ var _ = Describe("Install Plan", func() {
 		}
 
 		// Create the CatalogSource
-		c := newKubeClient()
-		crc := newCRClient()
-
 		catalogSourceName := genName("mock-nginx-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csv})
 		defer cleanupCatalogSource()
@@ -3080,10 +3061,6 @@ var _ = Describe("Install Plan", func() {
 	})
 
 	It("unpacks bundle image", func() {
-
-		c := newKubeClient()
-		crc := newCRClient()
-
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("ns-"),
@@ -3182,9 +3159,6 @@ var _ = Describe("Install Plan", func() {
 
 		ns := &corev1.Namespace{}
 		ns.SetName(genName("ns-"))
-
-		c := newKubeClient()
-		crc := newCRClient()
 
 		// Create a namespace an OperatorGroup
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
@@ -3325,17 +3299,12 @@ var _ = Describe("Install Plan", func() {
 	})
 
 	When("an InstallPlan is created with no valid OperatorGroup present", func() {
-
 		var (
-			c               operatorclient.ClientInterface
-			crc             versioned.Interface
 			installPlanName string
 			ns              *corev1.Namespace
 		)
-		BeforeEach(func() {
-			c = newKubeClient()
-			crc = newCRClient()
 
+		BeforeEach(func() {
 			ns = &corev1.Namespace{}
 			ns.SetName(genName("ns-"))
 
@@ -3431,6 +3400,7 @@ var _ = Describe("Install Plan", func() {
 			catsrcName string
 			ip         *operatorsv1alpha1.InstallPlan
 		)
+
 		BeforeEach(func() {
 			ns = &corev1.Namespace{}
 			ns.SetName(genName("ns-"))
@@ -3637,9 +3607,6 @@ var _ = Describe("Install Plan", func() {
 		// Test ensures that all steps for index-based catalogs are references to configmaps. This avoids the problem
 		// of installplans growing beyond the etcd size limit when manifests are written to the ip status.
 
-		c := newKubeClient()
-		crc := newCRClient()
-
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("ns-"),
@@ -3723,8 +3690,6 @@ var _ = Describe("Install Plan", func() {
 	})
 
 	It("limits installed resources if the scoped serviceaccount has no permissions", func() {
-		c := newKubeClient()
-		crc := newCRClient()
 
 		By("creating a scoped serviceaccount specified in the operatorgroup")
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
@@ -3966,8 +3931,6 @@ var _ = Describe("Install Plan", func() {
 	})
 
 	It("uses the correct client when installing resources from an installplan", func() {
-		c := newKubeClient()
-		crc := newCRClient()
 
 		By("creating a scoped serviceaccount specifified in the operatorgroup")
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{

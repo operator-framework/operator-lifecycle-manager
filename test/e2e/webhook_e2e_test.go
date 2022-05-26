@@ -31,7 +31,6 @@ const (
 )
 
 var _ = Describe("CSVs with a Webhook", func() {
-
 	var (
 		generatedNamespace corev1.Namespace
 		c                  operatorclient.ClientInterface
@@ -40,8 +39,11 @@ var _ = Describe("CSVs with a Webhook", func() {
 	)
 
 	BeforeEach(func() {
-		c = newKubeClient()
-		crc = newCRClient()
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
+		nsLabels = map[string]string{
+			"foo": "bar",
+		}
 		generatedNamespace = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("webhook-e2e-"),
@@ -62,6 +64,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 	When("Installed in an OperatorGroup that defines a selector", func() {
 		var cleanupCSV cleanupFunc
 		var ogSelector *metav1.LabelSelector
+
 		BeforeEach(func() {
 			ogSelector = &metav1.LabelSelector{
 				MatchLabels: nsLabels,
@@ -71,11 +74,13 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err := crc.OperatorsV1().OperatorGroups(generatedNamespace.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 			Expect(err).Should(BeNil())
 		})
+
 		AfterEach(func() {
 			if cleanupCSV != nil {
 				cleanupCSV()
 			}
 		})
+
 		It("The webhook is scoped to the selector", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
 			webhook := operatorsv1alpha1.WebhookDescription{
@@ -104,17 +109,20 @@ var _ = Describe("CSVs with a Webhook", func() {
 	When("Installed in a SingleNamespace OperatorGroup", func() {
 		var cleanupCSV cleanupFunc
 		var og *v1.OperatorGroup
+
 		BeforeEach(func() {
 			og = newOperatorGroup(generatedNamespace.GetName(), genName("single-namespace-og-"), nil, nil, []string{generatedNamespace.GetName()}, false)
 			var err error
 			og, err = crc.OperatorsV1().OperatorGroups(generatedNamespace.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 			Expect(err).Should(BeNil())
 		})
+
 		AfterEach(func() {
 			if cleanupCSV != nil {
 				cleanupCSV()
 			}
 		})
+
 		It("Creates Webhooks scoped to a single namespace", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
 			webhook := operatorsv1alpha1.WebhookDescription{
@@ -504,16 +512,19 @@ var _ = Describe("CSVs with a Webhook", func() {
 	})
 	When("Installed in a Global OperatorGroup", func() {
 		var cleanupCSV cleanupFunc
+
 		BeforeEach(func() {
 			og := newOperatorGroup(generatedNamespace.GetName(), genName("global-og-"), nil, nil, []string{}, false)
 			og, err := crc.OperatorsV1().OperatorGroups(generatedNamespace.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 			Expect(err).Should(BeNil())
 		})
+
 		AfterEach(func() {
 			if cleanupCSV != nil {
 				cleanupCSV()
 			}
 		})
+
 		It("The webhook is scoped to all namespaces", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
 			webhook := operatorsv1alpha1.WebhookDescription{
@@ -631,6 +642,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 		var cleanupCSV cleanupFunc
 		var cleanupCatSrc cleanupFunc
 		var cleanupSubscription cleanupFunc
+
 		BeforeEach(func() {
 			og := newOperatorGroup(generatedNamespace.GetName(), genName("og-"), nil, nil, []string{}, false)
 			_, err := crc.OperatorsV1().OperatorGroups(generatedNamespace.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
@@ -659,7 +671,6 @@ var _ = Describe("CSVs with a Webhook", func() {
 				},
 			}
 
-			crc := newCRClient()
 			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.TODO(), source, metav1.CreateOptions{})
 			require.NoError(GinkgoT(), err)
 			cleanupCatSrc = func() {
@@ -681,6 +692,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, source.GetNamespace(), true, true)
 		})
+
 		AfterEach(func() {
 			if cleanupCSV != nil {
 				cleanupCSV()
@@ -692,6 +704,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 				cleanupSubscription()
 			}
 		})
+
 		It("Validating, Mutating and Conversion webhooks work as intended", func() {
 			// An invalid custom resource is rejected by the validating webhook
 			invalidCR := &unstructured.Unstructured{
@@ -766,17 +779,20 @@ var _ = Describe("CSVs with a Webhook", func() {
 	})
 	When("WebhookDescription has conversionCRDs field", func() {
 		var cleanupCSV cleanupFunc
+
 		BeforeEach(func() {
 			// global operator group
 			og := newOperatorGroup(generatedNamespace.GetName(), genName("global-og-"), nil, nil, []string{}, false)
 			og, err := crc.OperatorsV1().OperatorGroups(generatedNamespace.GetName()).Create(context.TODO(), og, metav1.CreateOptions{})
 			Expect(err).Should(BeNil())
 		})
+
 		AfterEach(func() {
 			if cleanupCSV != nil {
 				cleanupCSV()
 			}
 		})
+
 		It("The conversion CRD is not updated via webhook when CSV does not own this CRD", func() {
 			// create CRD (crdA)
 			crdAPlural := genName("mockcrda")

@@ -361,6 +361,7 @@ var _ = Describe("Operator API", func() {
 		})
 
 		Context("when a namespace is added", func() {
+
 			var newNs *corev1.Namespace
 
 			BeforeEach(func() {
@@ -371,6 +372,7 @@ var _ = Describe("Operator API", func() {
 					return client.Create(clientCtx, newNs)
 				}).Should(Succeed())
 			})
+
 			AfterEach(func() {
 				Eventually(func() error {
 					err := client.Delete(clientCtx, newNs)
@@ -380,6 +382,7 @@ var _ = Describe("Operator API", func() {
 					return err
 				}).Should(Succeed())
 			})
+
 			It("should not adopt copied csvs", func() {
 				Consistently(func() (*operatorsv1.Operator, error) {
 					o := &operatorsv1.Operator{}

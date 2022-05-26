@@ -9,7 +9,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 	corev1 "k8s.io/api/core/v1"
 
@@ -20,12 +22,15 @@ import (
 )
 
 var _ = Describe("CRD Versions", func() {
-
 	var (
-		ns corev1.Namespace
+		ns  corev1.Namespace
+		c   operatorclient.ClientInterface
+		crc versioned.Interface
 	)
 
 	BeforeEach(func() {
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
 		ns = SetupGeneratedTestNamespace(genName("crd-e2e-"))
 	})
 
@@ -36,8 +41,6 @@ var _ = Describe("CRD Versions", func() {
 	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2640
 	It("[FLAKE] creates v1 CRDs with a v1 schema successfully", func() {
 		By("v1 crds with a valid openapiv3 schema should be created successfully by OLM")
-		c := newKubeClient()
-		crc := newCRClient()
 
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
@@ -114,9 +117,6 @@ var _ = Describe("CRD Versions", func() {
 	// issue:https://github.com/operator-framework/operator-lifecycle-manager/issues/2638
 	It("[FLAKE] blocks a CRD upgrade that could cause data loss", func() {
 		By("checking the storage versions in the existing CRD status and the spec of the new CRD")
-
-		c := newKubeClient()
-		crc := newCRClient()
 
 		mainPackageName := genName("nginx-update2-")
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
@@ -300,9 +300,6 @@ var _ = Describe("CRD Versions", func() {
 
 	It("allows a CRD upgrade that doesn't cause data loss", func() {
 		By("manually editing the storage versions in the existing CRD status")
-
-		c := newKubeClient()
-		crc := newCRClient()
 
 		crdPlural := genName("ins-v1-")
 		crdName := crdPlural + ".cluster.com"

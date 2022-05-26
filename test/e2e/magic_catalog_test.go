@@ -18,10 +18,12 @@ var _ = Describe("MagicCatalog", func() {
 		generatedNamespace corev1.Namespace
 		c                  client.Client
 	)
+
 	BeforeEach(func() {
 		c = ctx.Ctx().Client()
 		generatedNamespace = SetupGeneratedTestNamespace(genName("magic-catalog-e2e-"))
 	})
+
 	AfterEach(func() {
 		TeardownNamespace(generatedNamespace.GetName())
 	})
@@ -40,11 +42,13 @@ var _ = Describe("MagicCatalog", func() {
 		Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
 		Expect(magicCatalog.UndeployCatalog(context.Background())).To(BeNil())
 	})
+
 	When("an existing magic catalog exists", func() {
 		var (
 			mc          MagicCatalog
 			catalogName string
 		)
+
 		BeforeEach(func() {
 			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "magiccatalog/fbc_initial.yaml"))
 			Expect(err).To(BeNil())
@@ -54,6 +58,7 @@ var _ = Describe("MagicCatalog", func() {
 			mc = NewMagicCatalog(c, generatedNamespace.GetName(), catalogName, provider)
 			Expect(mc.DeployCatalog(context.Background())).To(BeNil())
 		})
+
 		AfterEach(func() {
 			Expect(mc.UndeployCatalog(context.Background())).To(BeNil())
 		})
