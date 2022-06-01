@@ -6,17 +6,11 @@ import (
 )
 
 func init() {
-	skips := Skips("")
-	skipRange := SkipRange("")
-
 	scheme = map[reflect.Type]string{
 		reflect.TypeOf(&Package{}):         TypePackage,
 		reflect.TypeOf(&PackageRequired{}): TypePackageRequired,
-		reflect.TypeOf(&Channel{}):         TypeChannel,
 		reflect.TypeOf(&GVK{}):             TypeGVK,
 		reflect.TypeOf(&GVKRequired{}):     TypeGVKRequired,
-		reflect.TypeOf(&skips):             TypeSkips,
-		reflect.TypeOf(&skipRange):         TypeSkipRange,
 		reflect.TypeOf(&BundleObject{}):    TypeBundleObject,
 	}
 }

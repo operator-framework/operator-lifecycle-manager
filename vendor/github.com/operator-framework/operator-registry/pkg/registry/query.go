@@ -2,23 +2,97 @@ package registry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 
-	"github.com/operator-framework/operator-registry/internal/model"
+	"github.com/operator-framework/operator-registry/alpha/model"
 	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 type Querier struct {
 	pkgs model.Model
+
+	tmpDir     string
+	apiBundles map[apiBundleKey]string
+}
+
+func (q Querier) Close() error {
+	return os.RemoveAll(q.tmpDir)
+}
+
+type apiBundleKey struct {
+	pkgName string
+	chName  string
+	name    string
+}
+
+type SliceBundleSender []*api.Bundle
+
+func (s *SliceBundleSender) Send(b *api.Bundle) error {
+
+	*s = append(*s, b)
+	return nil
 }
 
 var _ GRPCQuery = &Querier{}
 
-func NewQuerier(packages model.Model) *Querier {
-	return &Querier{
-		pkgs: packages,
+func NewQuerier(packages model.Model) (*Querier, error) {
+	q := &Querier{}
+
+	tmpDir, err := os.MkdirTemp("", "opm-registry-querier-")
+	if err != nil {
+		return nil, err
 	}
+	q.tmpDir = tmpDir
+
+	q.apiBundles = map[apiBundleKey]string{}
+	for _, pkg := range packages {
+		for _, ch := range pkg.Channels {
+			for _, b := range ch.Bundles {
+				apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
+				if err != nil {
+					return q, err
+				}
+				jsonBundle, err := json.Marshal(apiBundle)
+				if err != nil {
+					return q, err
+				}
+				filename := filepath.Join(tmpDir, fmt.Sprintf("%s_%s_%s.json", pkg.Name, ch.Name, b.Name))
+				if err := os.WriteFile(filename, jsonBundle, 0666); err != nil {
+					return q, err
+				}
+				q.apiBundles[apiBundleKey{pkg.Name, ch.Name, b.Name}] = filename
+				packages[pkg.Name].Channels[ch.Name].Bundles[b.Name] = &model.Bundle{
+					Package:  pkg,
+					Channel:  ch,
+					Name:     b.Name,
+					Replaces: b.Replaces,
+					Skips:    b.Skips,
+				}
+			}
+		}
+	}
+	q.pkgs = packages
+	return q, nil
+}
+
+func (q Querier) loadAPIBundle(k apiBundleKey) (*api.Bundle, error) {
+	filename, ok := q.apiBundles[k]
+	if !ok {
+		return nil, fmt.Errorf("package %q, channel %q, bundle %q not found", k.pkgName, k.chName, k.name)
+	}
+	d, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	var b api.Bundle
+	if err := json.Unmarshal(d, &b); err != nil {
+		return nil, err
+	}
+	return &b, nil
 }
 
 func (q Querier) ListPackages(_ context.Context) ([]string, error) {
@@ -29,21 +103,40 @@ func (q Querier) ListPackages(_ context.Context) ([]string, error) {
 	return packages, nil
 }
 
-func (q Querier) ListBundles(_ context.Context) ([]*api.Bundle, error) {
-	var bundles []*api.Bundle
+func (q Querier) ListBundles(ctx context.Context) ([]*api.Bundle, error) {
+	var bundleSender SliceBundleSender
 
+	err := q.SendBundles(ctx, &bundleSender)
+	if err != nil {
+		return nil, err
+	}
+
+	return bundleSender, nil
+}
+
+func (q Querier) SendBundles(_ context.Context, s BundleSender) error {
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
+				apiBundle, err := q.loadAPIBundle(apiBundleKey{pkg.Name, ch.Name, b.Name})
 				if err != nil {
-					return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
+					return fmt.Errorf("convert bundle %q: %v", b.Name, err)
 				}
-				bundles = append(bundles, apiBundle)
+				if apiBundle.BundlePath != "" {
+					// The SQLite-based server
+					// configures its querier to
+					// omit these fields when
+					// bundle path is set.
+					apiBundle.CsvJson = ""
+					apiBundle.Object = nil
+				}
+				if err := s.Send(apiBundle); err != nil {
+					return err
+				}
 			}
 		}
 	}
-	return bundles, nil
+	return nil
 }
 
 func (q Querier) GetPackage(_ context.Context, name string) (*PackageManifest, error) {
@@ -83,7 +176,7 @@ func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName stri
 	if !ok {
 		return nil, fmt.Errorf("package %q, channel %q, bundle %q not found", pkgName, channelName, csvName)
 	}
-	apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
+	apiBundle, err := q.loadAPIBundle(apiBundleKey{pkg.Name, ch.Name, b.Name})
 	if err != nil {
 		return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 	}
@@ -107,7 +200,7 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	if err != nil {
 		return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkgName, channelName, err)
 	}
-	apiBundle, err := api.ConvertModelBundleToAPIBundle(*head)
+	apiBundle, err := q.loadAPIBundle(apiBundleKey{pkg.Name, ch.Name, head.Name})
 	if err != nil {
 		return nil, fmt.Errorf("convert bundle %q: %v", head.Name, err)
 	}
@@ -150,7 +243,7 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 	//       implementation to be non-deterministic as well.
 	for _, b := range ch.Bundles {
 		if bundleReplaces(*b, name) {
-			apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
+			apiBundle, err := q.loadAPIBundle(apiBundleKey{pkg.Name, ch.Name, b.Name})
 			if err != nil {
 				return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 			}
@@ -170,7 +263,7 @@ func (q Querier) GetChannelEntriesThatProvide(_ context.Context, group, version,
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				provides, err := doesModelBundleProvide(*b, group, version, kind)
+				provides, err := q.doesModelBundleProvide(*b, group, version, kind)
 				if err != nil {
 					return nil, err
 				}
@@ -209,7 +302,7 @@ func (q Querier) GetLatestChannelEntriesThatProvide(_ context.Context, group, ve
 				return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkg.Name, ch.Name, err)
 			}
 
-			provides, err := doesModelBundleProvide(*b, group, version, kind)
+			provides, err := q.doesModelBundleProvide(*b, group, version, kind)
 			if err != nil {
 				return nil, err
 			}
@@ -251,8 +344,8 @@ func (q Querier) GetBundleThatProvides(ctx context.Context, group, version, kind
 	return nil, fmt.Errorf("no entry found that provides group:%q version:%q kind:%q", group, version, kind)
 }
 
-func doesModelBundleProvide(b model.Bundle, group, version, kind string) (bool, error) {
-	apiBundle, err := api.ConvertModelBundleToAPIBundle(b)
+func (q Querier) doesModelBundleProvide(b model.Bundle, group, version, kind string) (bool, error) {
+	apiBundle, err := q.loadAPIBundle(apiBundleKey{b.Package.Name, b.Channel.Name, b.Name})
 	if err != nil {
 		return false, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 	}

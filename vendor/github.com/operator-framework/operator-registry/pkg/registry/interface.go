@@ -17,9 +17,16 @@ type Load interface {
 	ClearNonHeadBundles() error
 }
 
+type BundleSender interface {
+	Send(*api.Bundle) error
+}
+
 type GRPCQuery interface {
 	// List all available package names in the index
 	ListPackages(ctx context.Context) ([]string, error)
+
+	// Sends all available bundles in the index
+	SendBundles(ctx context.Context, stream BundleSender) error
 
 	// List all available bundles in the index
 	ListBundles(ctx context.Context) (bundles []*api.Bundle, err error)
@@ -30,7 +37,10 @@ type GRPCQuery interface {
 	// Get a bundle by its package name, channel name and csv name from the index
 	GetBundle(ctx context.Context, pkgName, channelName, csvName string) (*api.Bundle, error)
 
-	// Get the bundle in the specified package at the head of the specified channel
+	// Get the bundle in the specified package at the head of the
+	// specified channel. DEPRECATED. Returned bundles may have
+	// only the "name" and "csvJson" fields populated in order to
+	// support legacy usage.
 	GetBundleForChannel(ctx context.Context, pkgName string, channelName string) (*api.Bundle, error)
 
 	// Get all channel entries that say they replace this one
@@ -93,4 +103,8 @@ type GraphLoader interface {
 // RegistryPopulator populates a registry.
 type RegistryPopulator interface {
 	Populate() error
+}
+
+type HeadOverwriter interface {
+	RemoveOverwrittenChannelHead(pkg, bundle string) error
 }

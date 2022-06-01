@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	_ "github.com/mattn/go-sqlite3"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -28,7 +28,13 @@ type MigratableLoader interface {
 
 var _ MigratableLoader = &sqlLoader{}
 
-func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (MigratableLoader, error) {
+// startDepth is the depth that channel heads should be assigned
+// in the channel_entry table. This const exists so that all
+// add modes (replaces, semver, and semver-skippatch) are
+// consistent.
+const startDepth = 0
+
+func newSQLLoader(db *sql.DB, opts ...DbOption) (*sqlLoader, error) {
 	options := defaultDBOptions()
 	for _, o := range opts {
 		o(options)
@@ -44,6 +50,10 @@ func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (MigratableLoader, error) {
 	}
 
 	return &sqlLoader{db: db, migrator: migrator, enableAlpha: options.EnableAlpha}, nil
+}
+
+func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (MigratableLoader, error) {
+	return newSQLLoader(db, opts...)
 }
 
 func (s *sqlLoader) Migrate(ctx context.Context) error {
@@ -420,7 +430,7 @@ func (s *sqlLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
 	// update each channel's graph
 	for channelName, channel := range graph.Channels {
 		currentNode := channel.Head
-		depth := 1
+		depth := startDepth
 
 		var previousNodeID int64
 
@@ -491,7 +501,12 @@ func (s *sqlLoader) AddPackageChannelsFromGraph(graph *registry.Package) error {
 
 			// we got to the end of the channel graph
 			if nextNode.IsEmpty() {
-				if len(channel.Nodes) != depth {
+				// expectedDepth is:
+				//   <number-of-nodes> + <start-depth> - 1
+				// For example, if the number of nodes is 3 and the startDepth is 0, the expected depth is 2 (0, 1, 2)
+				// If the number of nodes is 5 and the startDepth is 3, the expected depth is 7 (3, 4, 5, 6, 7)
+				expectedDepth := len(channel.Nodes) + startDepth - 1
+				if expectedDepth != depth {
 					err := fmt.Errorf("Invalid graph: some (non-bottom) nodes defined in the graph were not mentioned as replacements of any node")
 					errs = append(errs, err)
 				}
@@ -604,7 +619,7 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 	}
 
 	for _, c := range channels {
-		res, err := addChannelEntry.Exec(c.Name, manifest.PackageName, c.CurrentCSVName, 0)
+		res, err := addChannelEntry.Exec(c.Name, manifest.PackageName, c.CurrentCSVName, startDepth)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to add channel %q in package %q: %s", c.Name, manifest.PackageName, err.Error()))
 			continue
@@ -616,7 +631,10 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 		}
 
 		channelEntryCSVName := c.CurrentCSVName
-		depth := 1
+
+		// depth is set to `startDepth + 1` here because we already added the channel head
+		// with depth `startDepth` above.
+		depth := startDepth + 1
 
 		// Since this loop depends on following 'replaces', keep track of where it's been
 		replaceCycle := map[string]bool{channelEntryCSVName: true}
@@ -637,6 +655,16 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 
 			if err := s.addPackageProperty(tx, channelEntryCSVName, manifest.PackageName, version, bundlePath); err != nil {
 				errs = append(errs, err)
+				break
+			}
+
+			deprecated, err := s.deprecated(tx, channelEntryCSVName)
+			if err != nil {
+				errs = append(errs, err)
+				break
+			}
+			if deprecated {
+				// The package is truncated below this point, we're done!
 				break
 			}
 
@@ -701,15 +729,6 @@ func (s *sqlLoader) addPackageChannels(tx *sql.Tx, manifest registry.PackageMani
 			}
 			if _, err = addReplaces.Exec(replacedID, currentID); err != nil {
 				errs = append(errs, err)
-				break
-			}
-			deprecated, err := s.deprecated(tx, channelEntryCSVName)
-			if err != nil {
-				errs = append(errs, err)
-				break
-			}
-			if deprecated {
-				// The package is truncated below this point, we're done!
 				break
 			}
 			if _, _, _, err := s.getBundleSkipsReplacesVersion(tx, replaces); err != nil {
@@ -938,6 +957,9 @@ func (s *sqlLoader) RemovePackage(packageName string) error {
 		if err != nil {
 			return err
 		}
+		if len(csvNames) == 0 {
+			return fmt.Errorf("no package found for packagename %s", packageName)
+		}
 		for _, csvName := range csvNames {
 			if err := s.rmBundle(tx, csvName); err != nil {
 				return err
@@ -963,6 +985,7 @@ func (s *sqlLoader) RemovePackage(packageName string) error {
 		if _, err := deleteChannel.Exec(packageName); err != nil {
 			return err
 		}
+
 		return tx.Commit()
 	}(); err != nil {
 		return err
@@ -1275,38 +1298,35 @@ func (s *sqlLoader) addBundleProperties(tx *sql.Tx, bundle *registry.Bundle) err
 	return nil
 }
 
-func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
-	rows, err := tx.Query(`SELECT entry_id FROM channel_entry WHERE operatorbundle_name=?`, csvName)
+func (s *sqlLoader) rmSharedChannelEntry(tx *sql.Tx, csvName, unsharedCsv string) error {
+	if len(unsharedCsv) == 0 {
+		return nil
+	}
+
+	// remove any edges that replace bundle to be removed on the channels of the unsharedCsv
+	_, err := tx.Exec(`
+		UPDATE channel_entry 
+			SET replaces=NULL 
+		WHERE replaces IN (
+		    SELECT entry_id FROM channel_entry 
+			WHERE operatorbundle_name = ? 
+			  AND channel_name IN (
+			      SELECT channel_name FROM channel_entry 
+			      WHERE operatorbundle_name = ? 
+			))`, csvName, unsharedCsv)
 	if err != nil {
 		return err
 	}
 
-	var entryIDs []int64
-	for rows.Next() {
-		var entryID sql.NullInt64
-		rows.Scan(&entryID)
-		entryIDs = append(entryIDs, entryID.Int64)
-	}
-	if err := rows.Close(); err != nil {
-		return err
-	}
-
-	updateChannelEntry, err := tx.Prepare(`UPDATE channel_entry SET replaces=NULL WHERE replaces=?`)
-	if err != nil {
-		return err
-	}
-	for _, id := range entryIDs {
-		if _, err := updateChannelEntry.Exec(id); err != nil {
-			updateChannelEntry.Close()
-			return err
-		}
-	}
-	err = updateChannelEntry.Close()
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.Exec(`DELETE FROM channel WHERE head_operatorbundle_name=?`, csvName)
+	// delete the channel entries on the shared channel list
+	_, err = tx.Exec(`
+		DELETE FROM channel_entry 
+		WHERE operatorbundle_name = ? 
+		  AND channel_name IN (
+		      SELECT channel_name 
+		      FROM channel_entry 
+		      WHERE operatorbundle_name = ? 
+		      )`, csvName, unsharedCsv)
 	if err != nil {
 		return err
 	}
@@ -1314,82 +1334,124 @@ func (s *sqlLoader) rmChannelEntry(tx *sql.Tx, csvName string) error {
 	return nil
 }
 
-func getTailFromBundle(tx *sql.Tx, head string) (bundles []string, err error) {
-	getReplacesSkips := `SELECT replaces, skips FROM operatorbundle WHERE name=?`
-	isDefaultChannelHead := `SELECT head_operatorbundle_name FROM channel
-							INNER JOIN package ON channel.name = package.default_channel
-							WHERE channel.head_operatorbundle_name = ?`
+type tailBundle struct {
+	name       string
+	version    string
+	bundlepath string
+	channels   []string
+	replaces   []string // in addition to the replaces chain, there may also be real skipped entries
+	replacedBy []string // to handle any chain where a skipped entry may be a part of another channel that should not be truncated
+}
 
-	visited := map[string]struct{}{}
-	next := []string{head}
+func getTailFromBundle(tx *sql.Tx, head string) (bundles map[string]tailBundle, err error) {
+	// traverse replaces chain and collect channel list for each bundle.
+	// This assumes that replaces chain for a bundle is the same across channels.
+	// only real bundles with entries in the operator_bundle table are returned.
+	getReplacesChain := `
+	WITH RECURSIVE
+		replaces_entry (operatorbundle_name, replaces, replaced_by, channel_name, package_name) AS (
+		SELECT channel_entry.operatorbundle_name, replaces.operatorbundle_name, replaced_by.operatorbundle_name, channel_entry.channel_name, channel_entry.package_name
+			FROM channel_entry
+			LEFT OUTER JOIN channel_entry AS replaces
+				ON replaces.entry_id = channel_entry.replaces
+			LEFT OUTER JOIN channel_entry AS replaced_by
+				ON channel_entry.entry_id = replaced_by.replaces
+			WHERE channel_entry.operatorbundle_name = ?
+		UNION
+		SELECT channel_entry.operatorbundle_name, replaces.operatorbundle_name, replaced_by.operatorbundle_name, channel_entry.channel_name, channel_entry.package_name
+			FROM channel_entry
+			JOIN replaces_entry
+				ON replaces_entry.replaces = channel_entry.operatorbundle_name
+			LEFT OUTER JOIN channel_entry AS replaces
+				ON channel_entry.replaces = replaces.entry_id
+			LEFT OUTER JOIN channel_entry AS replaced_by
+				ON channel_entry.entry_id = replaced_by.replaces
+		)
+	SELECT
+		replaces_entry.operatorbundle_name,
+		operatorbundle.version,
+		operatorbundle.bundlepath,
+		GROUP_CONCAT(DISTINCT replaces_entry.channel_name),
+		GROUP_CONCAT(DISTINCT replaces_entry.replaces),
+		GROUP_CONCAT(DISTINCT replaces_entry.replaced_by)
+	FROM replaces_entry
+	LEFT OUTER JOIN operatorbundle
+		ON operatorbundle.name = replaces_entry.operatorbundle_name
+	GROUP BY replaces_entry.operatorbundle_name, replaces_entry.package_name
+	ORDER BY replaces_entry.channel_name, replaces_entry.replaces, replaces_entry.replaced_by`
 
-	for len(next) > 0 {
-		// Pop the next bundle off of the queue
-		bundle := next[0]
-		next = next[1:] // Potentially inefficient queue implementation, but this function is only used when deprecate is called
+	getDefaultChannelHead := `
+		SELECT head_operatorbundle_name FROM channel
+		INNER JOIN package ON channel.name = package.default_channel AND channel.package_name = package.name
+		INNER JOIN channel_entry on channel.package_name = channel_entry.package_name
+		WHERE channel_entry.operatorbundle_name = ?
+		LIMIT 1`
 
-		// Check if next is the head of the defaultChannel
-		// If it is, the defaultChannel would be removed -- this is not allowed because we cannot know which channel to promote as the new default
-		var err error
-		if row := tx.QueryRow(isDefaultChannelHead, bundle); row != nil {
-			err = row.Scan(&sql.NullString{})
+	row := tx.QueryRow(getDefaultChannelHead, head)
+	if row == nil {
+		return nil, fmt.Errorf("could not find default channel head for %s", head)
+	}
+	var defaultChannelHead sql.NullString
+	err = row.Scan(&defaultChannelHead)
+	if err != nil {
+		return nil, fmt.Errorf("error getting default channel head for %s: %v", head, err)
+	}
+	if !defaultChannelHead.Valid || len(defaultChannelHead.String) == 0 {
+		return nil, fmt.Errorf("invalid default channel head '%s' for %s", defaultChannelHead.String, head)
+	}
+
+	rows, err := tx.QueryContext(context.TODO(), getReplacesChain, head)
+	if err != nil {
+		return nil, err
+	}
+	replacesChain := map[string]tailBundle{}
+	for rows.Next() {
+		var (
+			bundle     sql.NullString
+			version    sql.NullString
+			bundlepath sql.NullString
+			channels   sql.NullString
+			replaces   sql.NullString
+			replacedBy sql.NullString
+		)
+		if err := rows.Scan(&bundle, &version, &bundlepath, &channels, &replaces, &replacedBy); err != nil {
+			if nerr := rows.Close(); nerr != nil {
+				return nil, nerr
+			}
+			return nil, err
 		}
-		if err == nil {
+		if !bundle.Valid || len(bundle.String) == 0 {
+			return nil, fmt.Errorf("invalid tail bundle %v for %s", bundle, head)
+		}
+
+		if bundle.String == defaultChannelHead.String {
 			// A nil error indicates that next is the default channel head
 			return nil, registry.ErrRemovingDefaultChannelDuringDeprecation
-		} else if err != sql.ErrNoRows {
-			return nil, err
+		}
+		var channelList, replacesList, replacedList []string
+		if channels.Valid && len(channels.String) > 0 {
+			channelList = strings.Split(channels.String, ",")
+		}
+		if replaces.Valid && len(replaces.String) > 0 {
+			replacesList = strings.Split(replaces.String, ",")
+		}
+		if replacedBy.Valid && len(replacedBy.String) > 0 {
+			replacedList = strings.Split(replacedBy.String, ",")
 		}
 
-		rows, err := tx.QueryContext(context.TODO(), getReplacesSkips, bundle)
-		if err != nil {
-			return nil, err
-		}
-
-		var (
-			replaces sql.NullString
-			skips    sql.NullString
-		)
-		if rows.Next() {
-			if err := rows.Scan(&replaces, &skips); err != nil {
-				if nerr := rows.Close(); nerr != nil {
-					return nil, nerr
-				}
-				return nil, err
-			}
-		}
-		if err := rows.Close(); err != nil {
-			return nil, err
-		}
-		if skips.Valid && skips.String != "" {
-			for _, skip := range strings.Split(skips.String, ",") {
-				if _, ok := visited[skip]; ok {
-					// We've already visited this bundle's subgraph
-					continue
-				}
-				visited[skip] = struct{}{}
-				next = append(next, skip)
-			}
-		}
-		if replaces.Valid && replaces.String != "" {
-			r := replaces.String
-			if _, ok := visited[r]; ok {
-				// We've already visited this bundle's subgraph
-				continue
-			}
-			visited[r] = struct{}{}
-			next = append(next, r)
+		replacesChain[bundle.String] = tailBundle{
+			name:       bundle.String,
+			version:    version.String,
+			bundlepath: bundlepath.String,
+			channels:   channelList,
+			replaces:   replacesList,
+			replacedBy: replacedList,
 		}
 	}
-
-	// The tail is exactly the set of bundles we visited while traversing the graph from head
-	var tail []string
-	for v := range visited {
-		tail = append(tail, v)
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
-	return tail, nil
-
+	return replacesChain, nil
 }
 
 func getBundleNameAndVersionForImage(tx *sql.Tx, path string) (string, string, error) {
@@ -1431,17 +1493,73 @@ func (s *sqlLoader) DeprecateBundle(path string) error {
 		return err
 	}
 
-	for _, bundle := range tailBundles {
-		if err := s.rmChannelEntry(tx, bundle); err != nil {
-			return err
-		}
-		if err := s.rmBundle(tx, bundle); err != nil {
-			return err
+	// track bundles that have already been added to removeOrDeprecate
+	removeOrDeprecate := []string{name}
+	seen := map[string]bool{name: true}
+
+	headChannelsMap := map[string]struct{}{}
+	if _, ok := tailBundles[name]; ok {
+		for _, c := range tailBundles[name].channels {
+			headChannelsMap[c] = struct{}{}
 		}
 	}
 
-	// Remove any channels that start with the deprecated bundle
-	_, err = tx.Exec(fmt.Sprintf(`DELETE FROM channel WHERE head_operatorbundle_name="%s"`, name))
+	// Traverse replaces chain, removing bundles from all channels the initial deprecated bundle belongs to.
+	// If a bundle is removed from all its channels, it is truncated.
+deprecate:
+	for ; len(removeOrDeprecate) > 0; removeOrDeprecate = removeOrDeprecate[1:] {
+		bundle := removeOrDeprecate[0]
+		if _, ok := tailBundles[bundle]; !ok {
+			continue
+		}
+		for _, b := range tailBundles[bundle].replaces {
+			if !seen[b] {
+				removeOrDeprecate = append(removeOrDeprecate, b)
+				seen[b] = true
+			}
+		}
+		if bundle == name {
+			// head bundle gets deprecated separately
+			continue
+		}
+
+		// remove all channel_entries for bundle with same channel as the deprecated one
+		if err := s.rmSharedChannelEntry(tx, bundle, name); err != nil {
+			return err
+		}
+
+		//rm channel entries for channels
+		if len(tailBundles[bundle].channels) > len(headChannelsMap) {
+			// bundle belongs to some channel that the initial deprecated bundle does not - we can't truncate this
+			continue
+		}
+		for _, c := range tailBundles[bundle].channels {
+			if _, ok := headChannelsMap[c]; !ok {
+				// bundle belongs to some channel that the initial deprecated bundle does not - we can't truncate this
+				continue deprecate
+			}
+		}
+		for _, b := range tailBundles[bundle].replacedBy {
+			if _, ok := tailBundles[b]; !ok {
+				// bundle is a replaces edge for some csv that isn't in the deprecated tail, can't be replaced safely.
+				continue deprecate
+			}
+		}
+
+		// Remove bundle
+		if err := s.rmBundle(tx, bundle); err != nil {
+			return err
+		}
+
+	}
+	// remove links to deprecated/truncated bundles to avoid regenerating these on add/overwrite
+	_, err = tx.Exec(`UPDATE channel_entry SET replaces=NULL WHERE operatorbundle_name=?`, name)
+	if err != nil {
+		return err
+	}
+
+	// a channel with a deprecated head is still visible on the console unless the channel_entry table has no entries for it
+	_, err = tx.Exec(`DELETE FROM channel WHERE head_operatorbundle_name=?`, name)
 	if err != nil {
 		return err
 	}
@@ -1462,6 +1580,9 @@ func (s *sqlLoader) DeprecateBundle(path string) error {
 		return err
 	}
 
+	if err := s.rmStrandedDeprecated(tx); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -1478,11 +1599,73 @@ func (s *sqlLoader) RemoveStrandedBundles() error {
 		return err
 	}
 
+	if err := s.rmStrandedDeprecated(tx); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
 func (s *sqlLoader) rmStrandedBundles(tx *sql.Tx) error {
-	_, err := tx.Exec("DELETE FROM operatorbundle WHERE name NOT IN(select operatorbundle_name from channel_entry)")
+	// Remove everything without a channel_entry except deprecated channel heads
+	_, err := tx.Exec("DELETE FROM operatorbundle WHERE name NOT IN(select operatorbundle_name from channel_entry) AND name NOT IN (SELECT operatorbundle_name FROM deprecated)")
+	return err
+}
+
+func (s *sqlLoader) rmStrandedDeprecated(tx *sql.Tx) error {
+	// Remove any deprecated channel heads which have no entries in the channel/channel_entry table to avoid being displayed on the console
+	rows, err := tx.Query("SELECT DISTINCT name FROM package")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	knownPackages := map[string]struct{}{}
+	for rows.Next() {
+		var pkg sql.NullString
+		if err := rows.Scan(&pkg); err != nil {
+			return err
+		}
+		if !pkg.Valid || len(pkg.String) == 0 {
+			return fmt.Errorf("invalid package %v", pkg)
+		}
+		knownPackages[pkg.String] = struct{}{}
+	}
+
+	packagePropertiesQuery := `select distinct operatorbundle_name, value from properties where type = ?`
+	pRows, err := tx.Query(packagePropertiesQuery, registry.PackageType)
+	if err != nil {
+		return err
+	}
+	defer pRows.Close()
+
+	for pRows.Next() {
+		var bundle, value sql.NullString
+		if err := pRows.Scan(&bundle, &value); err != nil {
+			return err
+		}
+
+		if !bundle.Valid || len(bundle.String) == 0 {
+			return fmt.Errorf("invalid bundle %v", bundle)
+		}
+
+		if !value.Valid || len(value.String) == 0 {
+			return fmt.Errorf("invalid package property on %v: %v", bundle, value)
+		}
+
+		var prop registry.PackageProperty
+		if err := json.Unmarshal([]byte(value.String), &prop); err != nil {
+			return err
+		}
+
+		if _, ok := knownPackages[prop.PackageName]; !ok {
+			if err := s.rmBundle(tx, bundle.String); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Clean up the deprecated table by dropping all truncated bundles
+	// (see pkg/sqlite/migrations/013_rm_truncated_deprecations.go for more details)
+	_, err = tx.Exec(`DELETE FROM deprecated WHERE deprecated.operatorbundle_name NOT IN (SELECT DISTINCT name FROM operatorbundle)`)
 	return err
 }
 
@@ -1535,4 +1718,141 @@ func (s *sqlLoader) deprecated(tx *sql.Tx, name string) (bool, error) {
 
 	// Ignore any deprecated bundles
 	return err == nil, err
+}
+
+// DeprecationAwareLoader understands how bundle deprecations are handled in SQLite and decorates
+// the sqlLoader with proxy methods that handle deprecation related table housekeeping.
+type DeprecationAwareLoader struct {
+	*sqlLoader
+}
+
+// NewDeprecationAwareLoader returns a new DeprecationAwareLoader.
+func NewDeprecationAwareLoader(db *sql.DB, opts ...DbOption) (*DeprecationAwareLoader, error) {
+	loader, err := newSQLLoader(db, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeprecationAwareLoader{sqlLoader: loader}, nil
+}
+
+func (d *DeprecationAwareLoader) clearLastDeprecatedInPackage(pkg string) error {
+	tx, err := d.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		tx.Rollback()
+	}()
+
+	// The last deprecated bundles for a package will still have "tombstone" records in channel_entry (among other tables).
+	// Use that info to relate the package to a set of rows in the deprecated table.
+	_, err = tx.Exec(`DELETE FROM deprecated WHERE deprecated.operatorbundle_name IN (SELECT DISTINCT deprecated.operatorbundle_name FROM (deprecated INNER JOIN channel_entry ON deprecated.operatorbundle_name = channel_entry.operatorbundle_name) WHERE channel_entry.package_name = ?)`, pkg)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (d *DeprecationAwareLoader) RemovePackage(pkg string) error {
+	if err := d.clearLastDeprecatedInPackage(pkg); err != nil {
+		return err
+	}
+
+	return d.sqlLoader.RemovePackage(pkg)
+}
+
+// RemoveOverwrittenChannelHead removes a bundle if it is the channel head and has nothing replacing it
+func (s sqlLoader) RemoveOverwrittenChannelHead(pkg, bundle string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		tx.Rollback()
+	}()
+	// check if bundle has anything that replaces it
+	getBundlesThatReplaceHeadQuery := `SELECT DISTINCT operatorbundle.name AS replaces, channel_entry.channel_name
+		FROM channel_entry
+		LEFT OUTER JOIN channel_entry replaces 
+			ON replaces.replaces = channel_entry.entry_id
+		INNER JOIN operatorbundle 
+			ON replaces.operatorbundle_name = operatorbundle.name
+		WHERE channel_entry.package_name = ?
+		AND channel_entry.operatorbundle_name = ?
+		LIMIT 1`
+
+	rows, err := tx.QueryContext(context.TODO(), getBundlesThatReplaceHeadQuery, pkg, bundle)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if rows != nil {
+		for rows.Next() {
+			var replaces, channel sql.NullString
+			if err := rows.Scan(&replaces, &channel); err != nil {
+				return err
+			}
+			// This is not a head bundle for all channels it is a member of. Cannot remove
+			return fmt.Errorf("cannot overwrite bundle %s from package %s: replaced by %s on channel %s", bundle, pkg, replaces.String, channel.String)
+		}
+	}
+
+	getReplacingBundlesQuery := `
+	SELECT replaces.name as replaces, channel_entry.channel_name, min(depth) 
+		from channel_entry 
+		LEFT JOIN (
+			SELECT entry_id, name FROM channel_entry 
+				INNER JOIN operatorbundle 
+				ON channel_entry.operatorbundle_name = operatorbundle.name
+		) AS replaces 
+		ON channel_entry.replaces = replaces.entry_id 
+		WHERE channel_entry.package_name = ?
+			AND channel_entry.operatorbundle_name = ?
+		GROUP BY channel_name
+	`
+
+	pRows, err := tx.QueryContext(context.TODO(), getReplacingBundlesQuery, pkg, bundle)
+	if err != nil {
+		return err
+	}
+	defer pRows.Close()
+
+	channelHeadUpdateQuery := `UPDATE channel SET head_operatorbundle_name = ? WHERE package_name = ? AND name = ? AND head_operatorbundle_name = ?`
+	for pRows.Next() {
+		var replaces, channel sql.NullString
+		var depth sql.NullInt64
+		if err := pRows.Scan(&replaces, &channel, &depth); err != nil {
+			return err
+		}
+
+		if !channel.Valid {
+			return fmt.Errorf("channel name column corrupt for bundle %s", bundle)
+		}
+		if replaces.Valid && len(replaces.String) != 0 {
+			// replace any valid entries as channel heads to avoid rmBundle from truncating the entire channel
+			if _, err = tx.Exec(channelHeadUpdateQuery, replaces, pkg, channel, bundle); err != nil {
+				return err
+			}
+		} else {
+			// NULL default channel before dropping to let packagemanifest detect default channel
+			if _, err := tx.Exec(`UPDATE channel SET head_operatorbundle_name = NULL WHERE name = ? AND package_name = ? AND name IN (SELECT default_channel FROM package WHERE name = ?)`, channel, pkg, pkg); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := s.rmBundle(tx, bundle); err != nil {
+		return err
+	}
+	// remove from deprecated
+	if _, err = tx.Exec(`DELETE FROM deprecated WHERE deprecated.operatorbundle_name = ?`, bundle); err != nil {
+		return err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
 }
