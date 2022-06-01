@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/operator-framework/operator-registry/pkg/client"
-
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"

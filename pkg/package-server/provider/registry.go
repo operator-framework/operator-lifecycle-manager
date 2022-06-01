@@ -226,6 +226,15 @@ func (p *RegistryProvider) syncSourceState(state registrygrpc.SourceState) {
 
 	var err error
 	switch state.State {
+	case connectivity.Idle:
+		// If the connection is IDLE attempt to connect to attempt to bring it to a READY state
+		// A connection will transition to IDLE if:
+		// "No RPC activity on channel for IDLE_TIMEOUT (default: 5 mins) or upon receiving a GOAWAY while there are no pending RPCs."
+		// https://gitlab.uni-hannover.de/tci-gateway-module/grpc/-/blob/972e31165218b49d93e5e1f1a1e8bbcd3fa830d1/doc/connectivity-semantics-and-api.md
+		sourceConn := p.sources.Get(state.Key)
+		if sourceConn != nil && sourceConn.Conn != nil {
+			sourceConn.Conn.Connect()
+		}
 	case connectivity.Ready:
 		var client *registryClient
 		client, err = p.registryClient(key)

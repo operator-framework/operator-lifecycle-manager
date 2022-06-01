@@ -134,6 +134,7 @@ func TestConnectionEvents(t *testing.T) {
 				{Name: "test", Namespace: "test"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
+					connectivity.Idle,
 				},
 			},
 		},
@@ -143,10 +144,12 @@ func TestConnectionEvents(t *testing.T) {
 				{Name: "test", Namespace: "test"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
+					connectivity.Idle,
 				},
 				{Name: "test2", Namespace: "test2"}: {
 					connectivity.Connecting,
 					connectivity.Ready,
+					connectivity.Idle,
 				},
 			},
 		},

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"google.golang.org/grpc/connectivity"
 	corev1 "k8s.io/api/core/v1"
 	k8serror "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -18,7 +19,6 @@ const (
 	olmCatalogLabel    string = "olm.catalogSource"
 	catalogMountPath   string = "/opt/olm"
 	catalogServicePort int32  = 50051
-	catalogReadyState  string = "READY"
 )
 
 type MagicCatalog interface {
@@ -80,7 +80,7 @@ func catalogSourceIsReady(ctx context.Context, c k8scontrollerclient.Client, cs 
 			return false, err
 		}
 		state := cs.Status.GRPCConnectionState.LastObservedState
-		if state != catalogReadyState {
+		if state != connectivity.Ready.String() && state != connectivity.Idle.String() {
 			return false, nil
 		}
 		return true, nil

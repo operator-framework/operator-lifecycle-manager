@@ -441,9 +441,14 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Check pod created
-		initialPods, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(initialPods.Items).To(HaveLen(1))
+		Eventually(func() int {
+			initialPods, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+			if err != nil {
+				GinkgoWriter.Printf("warning: error listing pods: %s", err)
+				return -1
+			}
+			return len(initialPods.Items)
+		}).Should(Equal(1))
 
 		// delete the first catalog
 		cleanupSource()
@@ -1458,9 +1463,17 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 }
 
 func replicateCatalogPod(c operatorclient.ClientInterface, catalog *v1alpha1.CatalogSource) *corev1.Pod {
-	initialPods, err := c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalog.GetName()})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(initialPods.Items).To(HaveLen(1))
+	var initialPods *corev1.PodList
+	var err error
+	Eventually(func() *corev1.PodList {
+		initialPods, err = c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalog.GetName()})
+		return initialPods
+	}).Should(WithTransform(func(podList *corev1.PodList) []corev1.Pod {
+		if podList != nil {
+			return podList.Items
+		}
+		return []corev1.Pod{}
+	}, HaveLen(1)))
 
 	pod := initialPods.Items[0]
 	copied := &corev1.Pod{

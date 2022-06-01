@@ -474,6 +474,15 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 	metrics.RegisterCatalogSourceState(state.Key.Name, state.Key.Namespace, state.State)
 
 	switch state.State {
+	case connectivity.Idle:
+		// If the connection is IDLE attempt to connect to attempt to bring it to a READY state
+		// A connection will transition to IDLE if:
+		// "No RPC activity on channel for IDLE_TIMEOUT (default: 5 mins) or upon receiving a GOAWAY while there are no pending RPCs."
+		// https://gitlab.uni-hannover.de/tci-gateway-module/grpc/-/blob/972e31165218b49d93e5e1f1a1e8bbcd3fa830d1/doc/connectivity-semantics-and-api.md
+		sourceConn := o.sources.Get(state.Key)
+		if sourceConn != nil && sourceConn.Conn != nil {
+			sourceConn.Conn.Connect()
+		}
 	case connectivity.Ready:
 		o.resolverSourceProvider.Invalidate(resolvercache.SourceKey(state.Key))
 		if o.namespace == state.Key.Namespace {

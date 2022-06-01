@@ -16,6 +16,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/connectivity"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -2920,8 +2921,9 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, namespace, func(catalog *operatorsv1alpha1.CatalogSource) bool {
 		before := fetchedInitialCatalog.Status.ConfigMapResource
 		after := catalog.Status.ConfigMapResource
+		lastObservedState := catalog.Status.GRPCConnectionState.LastObservedState
 		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion &&
-			catalog.Status.GRPCConnectionState.LastConnectTime.After(after.LastUpdateTime.Time) && catalog.Status.GRPCConnectionState.LastObservedState == "READY" {
+			catalog.Status.GRPCConnectionState.LastConnectTime.After(after.LastUpdateTime.Time) && (lastObservedState == connectivity.Ready.String() || lastObservedState == connectivity.Idle.String()) {
 			fmt.Println("catalog updated")
 			return true
 		}
