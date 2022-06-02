@@ -151,6 +151,15 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 						InitialDelaySeconds: livenessDelay,
 						TimeoutSeconds:      5,
 					},
+					StartupProbe: &corev1.Probe{
+						ProbeHandler: corev1.ProbeHandler{
+							Exec: &corev1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=:50051"},
+							},
+						},
+						FailureThreshold: 15,
+						PeriodSeconds:    10,
+					},
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("10m"),
