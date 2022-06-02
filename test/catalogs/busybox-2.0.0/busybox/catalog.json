@@ -1,0 +1,55 @@
+{
+    "schema": "olm.package",
+    "name": "busybox",
+    "defaultChannel": "alpha"
+}
+{
+    "schema": "olm.channel",
+    "name": "alpha",
+    "package": "busybox",
+    "entries": [
+        {
+            "name": "busybox.v2.0.0",
+            "skipRange": ">=0.0.0 <2.0.0"
+        }
+    ]
+}
+{
+    "schema": "olm.bundle",
+    "name": "busybox.v2.0.0",
+    "package": "busybox",
+    "image": "quay.io/olmtest/busybox-bundle:2.0.0",
+    "properties": [
+        {
+            "type": "olm.gvk.required",
+            "value": {
+                "group": "olm.test.io",
+                "kind": "Foo",
+                "version": "v1"
+            }
+        },
+        {
+            "type": "olm.package",
+            "value": {
+                "packageName": "busybox",
+                "version": "2.0.0"
+            }
+        },
+        {
+            "type": "olm.bundle.object",
+            "value": {
+                "data": "eyJhcGlWZXJzaW9uIjoib3BlcmF0b3JzLmNvcmVvcy5jb20vdjFhbHBoYTEiLCJraW5kIjoiQ2x1c3RlclNlcnZpY2VWZXJzaW9uIiwibWV0YWRhdGEiOnsiYW5ub3RhdGlvbnMiOnsib2xtLnNraXBSYW5nZSI6Ilx1MDAzZT0wLjAuMCBcdTAwM2MyLjAuMCJ9LCJuYW1lIjoiYnVzeWJveC52Mi4wLjAiLCJuYW1lc3BhY2UiOiJwbGFjZWhvbGRlciJ9LCJzcGVjIjp7ImN1c3RvbXJlc291cmNlZGVmaW5pdGlvbnMiOnsicmVxdWlyZWQiOlt7ImRlc2NyaXB0aW9uIjoiRm9vIHJlc291cmNlcyBmb3IgdGVzdGluZyBkZXBlbmRlbmNpZXMiLCJkaXNwbGF5TmFtZSI6IkZvbyIsImtpbmQiOiJGb28iLCJuYW1lIjoiZm9vcy5vbG0udGVzdC5pbyIsInZlcnNpb24iOiJ2MSJ9XX0sImRlc2NyaXB0aW9uIjoiQSBidXN5Ym94IENTVi5cbiIsImRpc3BsYXlOYW1lIjoiYnVzeWJveCIsImluc3RhbGwiOnsic3BlYyI6eyJkZXBsb3ltZW50cyI6W3sibmFtZSI6ImJ1c3lib3giLCJzcGVjIjp7InJlcGxpY2FzIjoxLCJzZWxlY3RvciI6eyJtYXRjaExhYmVscyI6eyJhcHAiOiJidXN5Ym94In19LCJ0ZW1wbGF0ZSI6eyJtZXRhZGF0YSI6eyJsYWJlbHMiOnsiYXBwIjoiYnVzeWJveCJ9fSwic3BlYyI6eyJjb250YWluZXJzIjpbeyJjb21tYW5kIjpbInNsZWVwIiwiOTAwMCJdLCJpbWFnZSI6ImJ1c3lib3giLCJuYW1lIjoiYnVzeWJveCJ9XX19fX1dfSwic3RyYXRlZ3kiOiJkZXBsb3ltZW50In0sImluc3RhbGxNb2RlcyI6W3sic3VwcG9ydGVkIjp0cnVlLCJ0eXBlIjoiT3duTmFtZXNwYWNlIn0seyJzdXBwb3J0ZWQiOnRydWUsInR5cGUiOiJTaW5nbGVOYW1lc3BhY2UifSx7InN1cHBvcnRlZCI6dHJ1ZSwidHlwZSI6Ik11bHRpTmFtZXNwYWNlIn0seyJzdXBwb3J0ZWQiOnRydWUsInR5cGUiOiJBbGxOYW1lc3BhY2VzIn1dLCJtYXR1cml0eSI6ImFscGhhIiwicHJvdmlkZXIiOnsibmFtZSI6IlJlZCBIYXQifSwidmVyc2lvbiI6IjIuMC4wIn19"
+            }
+        }
+    ],
+    "relatedImages": [
+        {
+            "name": "",
+            "image": "busybox"
+        },
+        {
+            "name": "",
+            "image": "quay.io/olmtest/busybox-bundle:2.0.0"
+        }
+    ]
+}
