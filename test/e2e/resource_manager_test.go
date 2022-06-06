@@ -15,7 +15,6 @@ import (
 )
 
 var _ = Describe("ResourceManager", func() {
-
 	var generatedNamespace corev1.Namespace
 
 	BeforeEach(func() {

@@ -32,7 +32,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 	BeforeEach(func() {
 		config = ctx.Ctx().RESTConfig()
 
-		kubeclient = newKubeClient()
+		kubeclient = ctx.Ctx().KubeClient()
 
 		logger = logrus.New()
 		logger.SetOutput(GinkgoWriter)

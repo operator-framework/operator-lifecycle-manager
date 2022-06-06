@@ -31,7 +31,6 @@ import (
 )
 
 var _ = Describe("Metrics are generated for OLM managed resources", func() {
-
 	var (
 		c                  operatorclient.ClientInterface
 		crc                versioned.Interface
@@ -39,10 +38,10 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 	)
 
 	BeforeEach(func() {
-		c = newKubeClient()
-		crc = newCRClient()
 		namespaceName := genName("metrics-e2e-")
 		generatedNamespace = SetupGeneratedTestNamespace(namespaceName, namespaceName)
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
 	})
 
 	AfterEach(func() {
@@ -55,14 +54,12 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		})
 
 		When("a CSV spec does not include Install Mode", func() {
-
 			var (
 				cleanupCSV cleanupFunc
 				failingCSV v1alpha1.ClusterServiceVersion
 			)
 
 			BeforeEach(func() {
-
 				failingCSV = v1alpha1.ClusterServiceVersion{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -130,6 +127,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				cleanupCSV cleanupFunc
 				csv        v1alpha1.ClusterServiceVersion
 			)
+
 			BeforeEach(func() {
 				packageName := genName("csv-test-")
 				packageStable := fmt.Sprintf("%s-stable", packageName)
@@ -141,20 +139,25 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
 			AfterEach(func() {
 				if cleanupCSV != nil {
 					cleanupCSV()
 				}
 			})
+
 			It("emits a CSV metrics", func() {
 				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).To(
 					ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(csv.Name), WithValue(1))),
 				)
 			})
+
 			When("the OLM pod restarts", func() {
+
 				BeforeEach(func() {
 					restartDeploymentWithLabel(c, "app=olm-operator")
 				})
+
 				It("CSV metric is preserved", func() {
 					Eventually(func() []Metric {
 						return getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))
@@ -175,6 +178,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		)
 
 		When("A subscription object is created", func() {
+
 			BeforeEach(func() {
 				subscriptionCleanup, _ = createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), "metric-subscription-for-create", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 			})
@@ -332,6 +336,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				name    = "metrics-catsrc-valid"
 				cleanup func()
 			)
+
 			BeforeEach(func() {
 				mainPackageName := genName("nginx-")
 
@@ -365,9 +370,11 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					once.Do(cleanupAll)
 				}
 			})
+
 			AfterEach(func() {
 				cleanup()
 			})
+
 			It("emits catalogsource_ready metric for the catalogSource with Value equal to 1", func() {
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
@@ -385,9 +392,11 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				))
 			})
 			When("The CatalogSource object is deleted", func() {
+
 				BeforeEach(func() {
 					cleanup()
 				})
+
 				It("deletes the metrics for the CatalogSource", func() {
 					Eventually(func() []Metric {
 						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
@@ -406,12 +415,15 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				name    = "metrics-catsrc-invalid"
 				cleanup func()
 			)
+
 			BeforeEach(func() {
-				_, cleanup = createInvalidGRPCCatalogSource(crc, name, generatedNamespace.GetName())
+				_, cleanup = createInvalidGRPCCatalogSource(c, crc, name, generatedNamespace.GetName())
 			})
+
 			AfterEach(func() {
 				cleanup()
 			})
+
 			It("emits metrics for the CatlogSource with a Value equal to 0", func() {
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))

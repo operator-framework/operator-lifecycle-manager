@@ -95,6 +95,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 	})
 
 	When("Copied CSVs are disabled", func() {
+
 		BeforeEach(func() {
 			Eventually(func() error {
 				var olmConfig operatorsv1.OLMConfig
@@ -175,6 +176,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 	})
 
 	When("Copied CSVs are toggled back on", func() {
+
 		BeforeEach(func() {
 			Eventually(func() error {
 				var olmConfig operatorsv1.OLMConfig

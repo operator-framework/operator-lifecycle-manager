@@ -19,6 +19,7 @@ const catalogSourceLabel = "olm.catalogSource"
 var _ = By
 
 var _ = Describe("CatalogSource Grpc Pod Config", func() {
+
 	var (
 		generatedNamespace corev1.Namespace
 	)

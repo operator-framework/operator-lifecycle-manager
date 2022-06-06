@@ -530,7 +530,7 @@ func TearDown(namespace string) {
 	logf("test resources deleted")
 }
 
-func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, catalogSource *operatorsv1alpha1.CatalogSource) cleanupFunc {
+func buildCatalogSourceCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interface, namespace string, catalogSource *operatorsv1alpha1.CatalogSource) cleanupFunc {
 	return func() {
 		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
 		err := crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.Background(), catalogSource.GetName(), metav1.DeleteOptions{})
@@ -541,7 +541,7 @@ func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, ca
 				LabelSelector: "olm.catalogSource=" + catalogSource.GetName(),
 				FieldSelector: "status.phase=Running",
 			}
-			fetched, err := newKubeClient().KubernetesInterface().CoreV1().Pods(catalogSource.GetNamespace()).List(context.Background(), listOpts)
+			fetched, err := c.KubernetesInterface().CoreV1().Pods(catalogSource.GetNamespace()).List(context.Background(), listOpts)
 			if err != nil {
 				return false, err
 			}
@@ -569,7 +569,7 @@ func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientI
 	}
 }
 
-func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace string) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
+func createInvalidGRPCCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 	catalogSource := &operatorsv1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       operatorsv1alpha1.CatalogSourceKind,
@@ -589,7 +589,7 @@ func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace str
 	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.Background(), catalogSource, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	ctx.Ctx().Logf("Catalog source %s created", name)
-	return catalogSource, buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)
+	return catalogSource, buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)
 }
 
 func createInternalCatalogSource(
@@ -628,7 +628,7 @@ func createInternalCatalogSource(
 
 	cleanupInternalCatalogSource := func() {
 		configMapCleanup()
-		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
+		buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)()
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }
@@ -670,7 +670,7 @@ func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface,
 
 	cleanupInternalCatalogSource := func() {
 		configMapCleanup()
-		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
+		buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)()
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }
@@ -713,7 +713,7 @@ func createV1CRDInternalCatalogSource(
 
 	cleanupInternalCatalogSource := func() {
 		configMapCleanup()
-		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
+		buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)()
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }

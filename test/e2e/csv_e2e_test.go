@@ -36,7 +36,6 @@ import (
 )
 
 var _ = Describe("ClusterServiceVersion", func() {
-
 	var (
 		ns  corev1.Namespace
 		c   operatorclient.ClientInterface
@@ -44,8 +43,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 	)
 
 	BeforeEach(func() {
-		c = newKubeClient()
-		crc = newCRClient()
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
 	})
 
 	AfterEach(func() {
@@ -53,6 +52,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 	})
 
 	Context("OwnNamespace OperatorGroup", func() {
+
 		BeforeEach(func() {
 			nsName := genName("csv-e2e-")
 			ns = SetupGeneratedTestNamespace(nsName, nsName)
@@ -280,7 +280,6 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 
 		When("an unassociated ClusterServiceVersion in different namespace owns the same CRD", func() {
-
 			var (
 				crd         apiextensionsv1.CustomResourceDefinition
 				apiname     string
@@ -401,6 +400,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 	})
 
 	Context("AllNamespaces OperatorGroup", func() {
+
 		BeforeEach(func() {
 			ns = SetupGeneratedTestNamespace(genName("csv-e2e-"))
 		})
@@ -3966,7 +3966,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			csv.SetName("csv-hat-1")
 			csv.SetNamespace(ns.GetName())
 
-			createLegacyAPIResources(ns.GetName(), &csv, owned[0])
+			createLegacyAPIResources(ns.GetName(), &csv, owned[0], c)
 
 			// Create the APIService CSV
 			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
@@ -3976,7 +3976,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			checkLegacyAPIResources(ns.GetName(), owned[0], true)
+			checkLegacyAPIResources(ns.GetName(), owned[0], true, c)
 		})
 
 		It("API service resource not migrated if not adoptable", func() {
@@ -4046,7 +4046,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			csv.SetName("csv-hat-1")
 			csv.SetNamespace(ns.GetName())
 
-			createLegacyAPIResources(ns.GetName(), nil, owned[0])
+			createLegacyAPIResources(ns.GetName(), nil, owned[0], c)
 
 			// Create the APIService CSV
 			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
@@ -4056,10 +4056,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			checkLegacyAPIResources(ns.GetName(), owned[0], false)
+			checkLegacyAPIResources(ns.GetName(), owned[0], false, c)
 
 			// Cleanup the resources created for this test that were not cleaned up.
-			deleteLegacyAPIResources(ns.GetName(), owned[0])
+			deleteLegacyAPIResources(ns.GetName(), owned[0], c)
 		})
 
 		It("multiple API services on a single pod", func() {
@@ -4510,9 +4510,7 @@ func csvExists(namespace string, c versioned.Interface, name string) bool {
 	return true
 }
 
-func deleteLegacyAPIResources(namespace string, desc operatorsv1alpha1.APIServiceDescription) {
-	c := newKubeClient()
-
+func deleteLegacyAPIResources(namespace string, desc operatorsv1alpha1.APIServiceDescription, c operatorclient.ClientInterface) {
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 
 	err := c.DeleteService(namespace, strings.Replace(apiServiceName, ".", "-", -1), &metav1.DeleteOptions{})
@@ -4534,8 +4532,7 @@ func deleteLegacyAPIResources(namespace string, desc operatorsv1alpha1.APIServic
 	Expect(err).ShouldNot(HaveOccurred())
 }
 
-func createLegacyAPIResources(namespace string, csv *operatorsv1alpha1.ClusterServiceVersion, desc operatorsv1alpha1.APIServiceDescription) {
-	c := newKubeClient()
+func createLegacyAPIResources(namespace string, csv *operatorsv1alpha1.ClusterServiceVersion, desc operatorsv1alpha1.APIServiceDescription, c operatorclient.ClientInterface) {
 
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 
@@ -4621,8 +4618,7 @@ func createLegacyAPIResources(namespace string, csv *operatorsv1alpha1.ClusterSe
 	Expect(err).ShouldNot(HaveOccurred())
 }
 
-func checkLegacyAPIResources(namespace string, desc operatorsv1alpha1.APIServiceDescription, expectedIsNotFound bool) {
-	c := newKubeClient()
+func checkLegacyAPIResources(namespace string, desc operatorsv1alpha1.APIServiceDescription, expectedIsNotFound bool, c operatorclient.ClientInterface) {
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 
 	// Attempt to create the legacy service

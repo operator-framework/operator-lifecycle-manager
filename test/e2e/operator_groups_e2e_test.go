@@ -29,9 +29,20 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Operator Group", func() {
+	var (
+		c   operatorclient.ClientInterface
+		crc versioned.Interface
+	)
+
+	BeforeEach(func() {
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
+	})
+
 	AfterEach(func() {
 		TearDown(testNamespace)
 	})
@@ -56,8 +67,6 @@ var _ = Describe("Operator Group", func() {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := genName(testNamespace + "-")
@@ -434,7 +443,6 @@ var _ = Describe("Operator Group", func() {
 		}
 
 		// Generate operatorGroupA - OwnNamespace
-		crc := newCRClient()
 		groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -626,7 +634,6 @@ var _ = Describe("Operator Group", func() {
 		}
 
 		// Generate operatorGroupA
-		crc := newCRClient()
 		groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -869,8 +876,6 @@ var _ = Describe("Operator Group", func() {
 
 		// Create namespaces
 		nsA, nsB, nsC, nsD, nsE := genName("a-"), genName("b-"), genName("c-"), genName("d-"), genName("e-")
-		c := newKubeClient()
-		crc := newCRClient()
 		for _, ns := range []string{nsA, nsB, nsC, nsD, nsE} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1143,8 +1148,7 @@ var _ = Describe("Operator Group", func() {
 
 		// Create namespaces
 		nsA, nsB, nsC, nsD := genName("a-"), genName("b-"), genName("c-"), genName("d-")
-		c := newKubeClient()
-		crc := newCRClient()
+
 		for _, ns := range []string{nsA, nsB, nsC, nsD} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1317,8 +1321,6 @@ var _ = Describe("Operator Group", func() {
 	// TODO: Test Subscription upgrade paths with + and - providedAPIs
 	It("CSV copy watching all namespaces", func() {
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := testNamespace
@@ -1565,8 +1567,6 @@ var _ = Describe("Operator Group", func() {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-")
 
 		newNamespaceName := genName(testNamespace + "-")
@@ -1700,8 +1700,6 @@ var _ = Describe("Operator Group", func() {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-")
 
 		newNamespaceName := genName(testNamespace + "-")
@@ -1798,8 +1796,6 @@ var _ = Describe("Operator Group", func() {
 	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2644
 	It("[FLAKE] cleanup csvs with bad owner operator groups", func() {
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := testNamespace
@@ -2039,8 +2035,6 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 	})
 	It("OperatorGroupLabels", func() {
-		c := newKubeClient()
-		crc := newCRClient()
 
 		// Create the namespaces that will have an OperatorGroup Label applied.
 		testNamespaceA := genName("namespace-a-")
@@ -2140,8 +2134,6 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 	})
 	It("CleanupDeletedOperatorGroupLabels", func() {
-		c := newKubeClient()
-		crc := newCRClient()
 
 		// Create the namespaces that will have an OperatorGroup Label applied.
 		testNamespaceA := genName("namespace-a-")
@@ -2205,7 +2197,6 @@ var _ = Describe("Operator Group", func() {
 	})
 
 	Context("Given a set of Namespaces", func() {
-
 		var (
 			c              operatorclient.ClientInterface
 			crc            versioned.Interface
@@ -2245,13 +2236,11 @@ var _ = Describe("Operator Group", func() {
 		})
 
 		Context("Associating these Namespaces with a label", func() {
-
 			var (
 				matchingLabel map[string]string
 			)
 
 			BeforeEach(func() {
-
 				matchingLabel = map[string]string{"foo": "bar"}
 
 				// Updating Namespace with labels
@@ -2271,7 +2260,6 @@ var _ = Describe("Operator Group", func() {
 				var operatorGroup *v1.OperatorGroup
 
 				BeforeEach(func() {
-
 					// Creating operator group
 					operatorGroup = &v1.OperatorGroup{
 						ObjectMeta: metav1.ObjectMeta{

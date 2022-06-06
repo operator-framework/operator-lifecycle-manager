@@ -47,13 +47,12 @@ const (
 
 var _ = Describe("Starting CatalogSource e2e tests", func() {
 	var (
+		ns  corev1.Namespace
 		c   operatorclient.ClientInterface
 		crc versioned.Interface
-		ns  corev1.Namespace
 	)
+
 	BeforeEach(func() {
-		c = newKubeClient()
-		crc = newCRClient()
 		namespaceName := genName("catsrc-e2e-")
 		og := operatorsv1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
@@ -62,6 +61,8 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 		}
 		ns = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
 	})
 
 	AfterEach(func() {
@@ -1105,7 +1106,6 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(csv.Spec.Replaces).To(Equal("busybox-dependency.v1.0.0"))
 	})
 	When("A catalogSource is created with correct polling interval", func() {
-
 		var source *v1alpha1.CatalogSource
 		singlePod := podCount(1)
 		sourceName := genName("catalog-")
@@ -1177,15 +1177,16 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 	})
 
 	When("A catalogSource is created with incorrect polling interval", func() {
-
 		var (
 			source     *v1alpha1.CatalogSource
 			sourceName string
 		)
+
 		const (
 			incorrectInterval = "45mError.code"
 			correctInterval   = "45m"
 		)
+
 		BeforeEach(func() {
 			sourceName = genName("catalog-")
 			source = &v1alpha1.CatalogSource{
@@ -1230,6 +1231,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			}).Should(BeTrue())
 		})
 		When("the catalogsource is updated with a valid polling interval", func() {
+
 			BeforeEach(func() {
 				Eventually(func() error {
 					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
@@ -1241,6 +1243,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 					return err
 				}).Should(Succeed())
 			})
+
 			It("the catalogsource spec shows the updated polling interval, and the error message in the status is cleared", func() {
 				Eventually(func() error {
 					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), source.GetName(), metav1.GetOptions{})
@@ -1345,7 +1348,6 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 	})
 
 	When("A CatalogSource is created with an operator that has a CSV with missing metadata.ApiVersion", func() {
-
 		var (
 			magicCatalog      MagicCatalog
 			catalogSourceName string
@@ -1370,7 +1372,8 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		})
 
 		When("A Subscription is created catalogSource built with the malformed CSV", func() {
-			BeforeEach(func ()  {
+
+			BeforeEach(func() {
 				subscription = &operatorsv1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("%s-sub", catalogSourceName),
