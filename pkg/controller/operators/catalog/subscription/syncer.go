@@ -7,8 +7,8 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
+	utilclock "k8s.io/utils/clock"
 
 	"github.com/operator-framework/api/pkg/operators/install"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"

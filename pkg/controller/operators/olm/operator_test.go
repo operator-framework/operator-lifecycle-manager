@@ -34,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -46,6 +45,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
+	utilclock "k8s.io/utils/clock"
+	utilclocktesting "k8s.io/utils/clock/testing"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -3937,7 +3938,7 @@ func TestUpdates(t *testing.T) {
 
 func TestSyncOperatorGroups(t *testing.T) {
 	logrus.SetLevel(logrus.WarnLevel)
-	clockFake := utilclock.NewFakeClock(time.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600)))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600)))
 	now := metav1.NewTime(clockFake.Now().UTC())
 	const (
 		timeout = 5 * time.Second
@@ -4858,7 +4859,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 func TestOperatorGroupConditions(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
-	clockFake := utilclock.NewFakeClock(time.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600)))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600)))
 
 	operatorNamespace := "operator-ns"
 	serviceAccount := serviceAccount("sa", operatorNamespace)
