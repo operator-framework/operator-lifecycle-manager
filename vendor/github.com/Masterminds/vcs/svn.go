@@ -37,7 +37,7 @@ func NewSvnRepo(remote, local string) (*SvnRepo, error) {
 	if err == nil && r.CheckLocal() {
 		// An SVN repo was found so test that the URL there matches
 		// the repo passed in here.
-		out, err := exec.Command("svn", "info", local).CombinedOutput()
+		out, err := exec.Command("svn", "info", "--", local).CombinedOutput()
 		if err != nil {
 			return nil, NewLocalError("Unable to retrieve local repo information", err, string(out))
 		}
@@ -80,7 +80,7 @@ func (s *SvnRepo) Get() error {
 	} else if runtime.GOOS == "windows" && filepath.VolumeName(remote) != "" {
 		remote = "file:///" + remote
 	}
-	out, err := s.run("svn", "checkout", remote, s.LocalPath())
+	out, err := s.run("svn", "checkout", "--", remote, s.LocalPath())
 	if err != nil {
 		return NewRemoteError("Unable to get repository", err, string(out))
 	}
@@ -341,14 +341,14 @@ func (s *SvnRepo) TagsFromCommit(id string) ([]string, error) {
 
 // Ping returns if remote location is accessible.
 func (s *SvnRepo) Ping() bool {
-	_, err := s.run("svn", "--non-interactive", "info", s.Remote())
+	_, err := s.run("svn", "--non-interactive", "info", "--", s.Remote())
 	return err == nil
 }
 
 // ExportDir exports the current revision to the passed in directory.
 func (s *SvnRepo) ExportDir(dir string) error {
 
-	out, err := s.RunFromDir("svn", "export", ".", dir)
+	out, err := s.RunFromDir("svn", "export", "--", ".", dir)
 	s.log(out)
 	if err != nil {
 		return NewLocalError("Unable to export source", err, string(out))

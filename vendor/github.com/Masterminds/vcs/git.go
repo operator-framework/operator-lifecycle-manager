@@ -71,7 +71,7 @@ func (s GitRepo) Vcs() Type {
 
 // Get is used to perform an initial clone of a repository.
 func (s *GitRepo) Get() error {
-	out, err := s.run("git", "clone", "--recursive", s.Remote(), s.LocalPath())
+	out, err := s.run("git", "clone", "--recursive", "--", s.Remote(), s.LocalPath())
 
 	// There are some windows cases where Git cannot create the parent directory,
 	// if it does not already exist, to the location it's trying to create the
@@ -85,7 +85,7 @@ func (s *GitRepo) Get() error {
 				return NewLocalError("Unable to create directory", err, "")
 			}
 
-			out, err = s.run("git", "clone", s.Remote(), s.LocalPath())
+			out, err = s.run("git", "clone", "--recursive", "--", s.Remote(), s.LocalPath())
 			if err != nil {
 				return NewRemoteError("Unable to get repository", err, string(out))
 			}
@@ -101,7 +101,7 @@ func (s *GitRepo) Get() error {
 
 // Init initializes a git repository at local location.
 func (s *GitRepo) Init() error {
-	out, err := s.run("git", "init", s.LocalPath())
+	out, err := s.run("git", "init", "--", s.LocalPath())
 
 	// There are some windows cases where Git cannot create the parent directory,
 	// if it does not already exist, to the location it's trying to create the
@@ -115,7 +115,7 @@ func (s *GitRepo) Init() error {
 				return NewLocalError("Unable to initialize repository", err, "")
 			}
 
-			out, err = s.run("git", "init", s.LocalPath())
+			out, err = s.run("git", "init", "--", s.LocalPath())
 			if err != nil {
 				return NewLocalError("Unable to initialize repository", err, string(out))
 			}
@@ -132,7 +132,7 @@ func (s *GitRepo) Init() error {
 // Update performs an Git fetch and pull to an existing checkout.
 func (s *GitRepo) Update() error {
 	// Perform a fetch to make sure everything is up to date.
-	out, err := s.RunFromDir("git", "fetch", "--tags", s.RemoteLocation)
+	out, err := s.RunFromDir("git", "fetch", "--tags", "--", s.RemoteLocation)
 	if err != nil {
 		return NewRemoteError("Unable to update repository", err, string(out))
 	}
@@ -412,8 +412,8 @@ func (s *GitRepo) ExportDir(dir string) error {
 	}
 
 	// and now, the horror of submodules
-	path = EscapePathSeparator(dir + "$path" + string(os.PathSeparator))
-	out, err = s.RunFromDir("git", "submodule", "foreach", "--recursive", "git checkout-index -f -a --prefix="+path)
+	handleSubmodules(s, dir)
+
 	s.log(out)
 	if err != nil {
 		return NewLocalError("Error while exporting submodule sources", err, string(out))
