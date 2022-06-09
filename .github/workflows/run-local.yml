@@ -1,4 +1,4 @@
-name: run-olm-kind
+name: run-local
 on:
   pull_request:
   schedule:
@@ -21,5 +21,22 @@ jobs:
       run: |
         kind create cluster
         kind export kubeconfig
+    - name: Run OLM
+      run: make run-local
+  e2e-minikube:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions/setup-go@v2
+      with:
+        go-version: '~1.17'
+    - name: Install minikube
+      run: |
+        sudo apt-get install conntrack
+        curl -sLo minikube "$(curl -sL https://api.github.com/repos/kubernetes/minikube/releases/latest | jq -r '[.assets[] | select(.name == "minikube-linux-amd64")] | first | .browser_download_url')"
+        chmod +x minikube
+        sudo mv minikube /bin/
+    - name: Setup minikube
+      run: minikube config set vm-driver docker
     - name: Run OLM
       run: make run-local

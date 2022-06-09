@@ -1,0 +1,115 @@
+name: ci
+on:
+  schedule:
+    - cron: '30 5,17 * * *' # run this every day at 5:30 and 17:30 UTC (00:30 and 12:30 ET)
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out the repo
+      uses: actions/checkout@v1
+    - name: Build the container image
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: Dockerfile
+        push: false
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions/setup-go@v2
+      with:
+        go-version: '~1.17'
+    - name: Run sanity checks
+      run: make vendor && make diff
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run linting checks
+      uses: "golangci/golangci-lint-action@v2"
+      with:
+        version: "v1.45.2"
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17'
+
+        # Note(tflannag): We need to explicitly setup the GOPATH as the generate-internal-groups.sh
+        # codegen script still relies on $GOPATH being set and will return an error otherwise.
+        # The setup-go action does not set this value for us: https://github.com/actions/setup-go/issues/14.
+      - name: Run the verify target
+        run: |
+          export GOPATH=$(go env GOPATH)
+          make verify
+  unit:
+    runs-on: ubuntu-latest
+    env:
+      K8S_VERSION: 1.19.2
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17'
+      - name: Envtest setup
+        run: |
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          setup-envtest use ${K8S_VERSION}
+      - name: Run unit tests
+        run: KUBEBUILDER_ASSETS=$(setup-envtest use -i -p path ${K8S_VERSION}) make unit
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        parallel-id: [0, 1, 2, 3]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17'
+      - run: mkdir -p artifacts
+      - run: make e2e-local E2E_TEST_CHUNK=${{ matrix.parallel-id }} E2E_TEST_NUM_CHUNKS=${{ strategy.job-total }} E2E_NODES=2 ARTIFACT_DIR=./artifacts/ SKIP='\[FLAKE\]'
+      - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: e2e-test-output-${{ (github.event.pull_request.head.sha || github.sha) }}-${{ github.run_id }}-${{ matrix.parallel-id }}
+          path: ${{ github.workspace }}/bin/artifacts/*
+        # TODO: create job to combine test artifacts using code in https://github.com/operator-framework/operator-lifecycle-manager/pull/1476
+  e2e-tests:
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    needs: e2e
+    steps:
+    - run: |
+        echo "Matrix result: ${{ needs.e2e.result }}"
+    - name: check individual matrix results
+      if: ${{ needs.e2e.result == 'failure' }}
+      run: |
+        echo 'Failure: at least one e2e matrix job has failed'
+        exit 1
+  flaky-e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '~1.17'
+      - run: mkdir -p artifacts
+      - run: make e2e-local E2E_NODES=1 TEST='\[FLAKE\]' ARTIFACT_DIR=./artifacts/
+      - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: e2e-test-output-${{(github.event.pull_request.head.sha||github.sha)}}-${{ github.run_id }}
+          path: ${{ github.workspace }}/bin/artifacts/*
