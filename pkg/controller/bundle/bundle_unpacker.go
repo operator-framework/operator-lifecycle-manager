@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/security"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/configmap"
 	"github.com/sirupsen/logrus"
@@ -190,6 +191,10 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 			},
 		},
 	}
+
+	// Apply Pod security
+	security.ApplyPodSpecSecurity(&job.Spec.Template.Spec)
+
 	job.SetNamespace(cmRef.Namespace)
 	job.SetName(cmRef.Name)
 	job.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
