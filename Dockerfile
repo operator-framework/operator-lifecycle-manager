@@ -2,7 +2,7 @@ FROM quay.io/fedora/fedora:34-x86_64 as builder
 LABEL stage=builder
 WORKDIR /build
 
-# install dependencies and go 1.16
+# install dependencies and go 1.17
 
 # copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
 RUN dnf update -y && dnf install -y bash make git mercurial jq wget && dnf upgrade -y

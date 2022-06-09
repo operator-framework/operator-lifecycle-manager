@@ -1,0 +1,61 @@
+{
+    "schema": "olm.package",
+    "name": "busybox-dependency",
+    "defaultChannel": "alpha"
+}
+{
+    "schema": "olm.channel",
+    "name": "alpha",
+    "package": "busybox-dependency",
+    "entries": [
+        {
+            "name": "busybox-dependency.v2.0.0",
+            "skipRange": ">=0.0.0 <2.0.0"
+        }
+    ]
+}
+{
+    "schema": "olm.bundle",
+    "name": "busybox-dependency.v2.0.0",
+    "package": "busybox-dependency",
+    "image": "quay.io/olmtest/busybox-dependency-bundle:2.0.0",
+    "properties": [
+        {
+            "type": "olm.gvk",
+            "value": {
+                "group": "olm.test.io",
+                "kind": "Foo",
+                "version": "v1"
+            }
+        },
+        {
+            "type": "olm.package",
+            "value": {
+                "packageName": "busybox-dependency",
+                "version": "2.0.0"
+            }
+        },
+        {
+            "type": "olm.bundle.object",
+            "value": {
+                "data": "eyJhcGlWZXJzaW9uIjoib3BlcmF0b3JzLmNvcmVvcy5jb20vdjFhbHBoYTEiLCJraW5kIjoiQ2x1c3RlclNlcnZpY2VWZXJzaW9uIiwibWV0YWRhdGEiOnsiYW5ub3RhdGlvbnMiOnsib2xtLnNraXBSYW5nZSI6Ilx1MDAzZT0wLjAuMCBcdTAwM2MyLjAuMCJ9LCJuYW1lIjoiYnVzeWJveC1kZXBlbmRlbmN5LnYyLjAuMCIsIm5hbWVzcGFjZSI6InBsYWNlaG9sZGVyIn0sInNwZWMiOnsiY3VzdG9tcmVzb3VyY2VkZWZpbml0aW9ucyI6eyJvd25lZCI6W3siZGVzY3JpcHRpb24iOiJGb28gcmVzb3VyY2VzIGZvciB0ZXN0aW5nIGRlcGVuZGVuY2llcyIsImRpc3BsYXlOYW1lIjoiRm9vIiwiZ3JvdXAiOiJvbG0udGVzdC5pbyIsImtpbmQiOiJGb28iLCJuYW1lIjoiZm9vcy5vbG0udGVzdC5pbyIsInZlcnNpb24iOiJ2MSJ9XX0sImRlc2NyaXB0aW9uIjoiQSBidXN5Ym94LWRlcGVuZGVuY3kgQ1NWLlxuIiwiZGlzcGxheU5hbWUiOiJidXN5Ym94LWRlcGVuZGVuY3kiLCJpbnN0YWxsIjp7InNwZWMiOnsiZGVwbG95bWVudHMiOlt7Im5hbWUiOiJidXN5Ym94LWRlcGVuZGVuY3kiLCJzcGVjIjp7InJlcGxpY2FzIjoxLCJzZWxlY3RvciI6eyJtYXRjaExhYmVscyI6eyJhcHAiOiJidXN5Ym94LWRlcGVuZGVuY3kifX0sInRlbXBsYXRlIjp7Im1ldGFkYXRhIjp7ImxhYmVscyI6eyJhcHAiOiJidXN5Ym94LWRlcGVuZGVuY3kifX0sInNwZWMiOnsiY29udGFpbmVycyI6W3siY29tbWFuZCI6WyJzbGVlcCIsIjkwMDAiXSwiaW1hZ2UiOiJidXN5Ym94IiwibmFtZSI6ImJ1c3lib3gtZGVwZW5kZW5jeSJ9XX19fX1dfSwic3RyYXRlZ3kiOiJkZXBsb3ltZW50In0sImluc3RhbGxNb2RlcyI6W3sic3VwcG9ydGVkIjp0cnVlLCJ0eXBlIjoiT3duTmFtZXNwYWNlIn0seyJzdXBwb3J0ZWQiOnRydWUsInR5cGUiOiJTaW5nbGVOYW1lc3BhY2UifSx7InN1cHBvcnRlZCI6dHJ1ZSwidHlwZSI6Ik11bHRpTmFtZXNwYWNlIn0seyJzdXBwb3J0ZWQiOnRydWUsInR5cGUiOiJBbGxOYW1lc3BhY2VzIn1dLCJtYXR1cml0eSI6ImFscGhhIiwicHJvdmlkZXIiOnsibmFtZSI6IlJlZCBIYXQifSwidmVyc2lvbiI6IjIuMC4wIn19"
+            }
+        },
+        {
+            "type": "olm.bundle.object",
+            "value": {
+                "data": "eyJhcGlWZXJzaW9uIjoiYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjEiLCJraW5kIjoiQ3VzdG9tUmVzb3VyY2VEZWZpbml0aW9uIiwibWV0YWRhdGEiOnsibmFtZSI6ImZvb3Mub2xtLnRlc3QuaW8ifSwic3BlYyI6eyJncm91cCI6Im9sbS50ZXN0LmlvIiwibmFtZXMiOnsia2luZCI6IkZvbyIsImxpc3RLaW5kIjoiRm9vTGlzdCIsInBsdXJhbCI6ImZvb3MiLCJzaW5ndWxhciI6ImZvbyJ9LCJzY29wZSI6Ik5hbWVzcGFjZWQiLCJ2ZXJzaW9ucyI6W3sibmFtZSI6InYxIiwic2NoZW1hIjp7Im9wZW5BUElWM1NjaGVtYSI6eyJ0eXBlIjoib2JqZWN0In19LCJzZXJ2ZWQiOnRydWUsInN0b3JhZ2UiOnRydWUsInN1YnJlc291cmNlcyI6eyJzdGF0dXMiOnt9fX1dfX0="
+            }
+        }
+    ],
+    "relatedImages": [
+        {
+            "name": "",
+            "image": "busybox"
+        },
+        {
+            "name": "",
+            "image": "quay.io/olmtest/busybox-dependency-bundle:2.0.0"
+        }
+    ]
+}
