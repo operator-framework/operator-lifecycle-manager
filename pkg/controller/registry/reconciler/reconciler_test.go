@@ -79,8 +79,23 @@ func TestPullPolicy(t *testing.T) {
 
 func TestPodContainerSecurityContext(t *testing.T) {
 	expectedReadOnlyRootFilesystem := false
+	expectedAllowPrivilegeEscalation := false
+	expectedRunAsNonRoot := true
+	expectedRunAsUser := int64(1001)
+
 	expectedContainerSecCtx := &corev1.SecurityContext{
-		ReadOnlyRootFilesystem: &expectedReadOnlyRootFilesystem,
+		ReadOnlyRootFilesystem:   &expectedReadOnlyRootFilesystem,
+		AllowPrivilegeEscalation: &expectedAllowPrivilegeEscalation,
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+	}
+	expectedPodSecCtx := &corev1.PodSecurityContext{
+		RunAsNonRoot: &expectedRunAsNonRoot,
+		RunAsUser:    &expectedRunAsUser,
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
 	}
 
 	catsrc := &v1alpha1.CatalogSource{
@@ -92,7 +107,9 @@ func TestPodContainerSecurityContext(t *testing.T) {
 
 	gotPod := Pod(catsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0))
 	gotContainerSecCtx := gotPod.Spec.Containers[0].SecurityContext
+	gotPodSecCtx := gotPod.Spec.SecurityContext
 	require.Equal(t, expectedContainerSecCtx, gotContainerSecCtx)
+	require.Equal(t, expectedPodSecCtx, gotPodSecCtx)
 }
 
 func TestPodSchedulingOverrides(t *testing.T) {

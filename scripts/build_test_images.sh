@@ -1,19 +1,43 @@
 #!/usr/bin/env bash
 
+set -e
+
+CATALOG_DIR=./test/catalogs
+CATALOG_DOCKER=${CATALOG_DIR}/catalog.Dockerfile
+
+# Given an image and a catalog name
+# This functions builds the image and pushes it to the repository
+function build_and_push() {
+  IMG_NAME=$1
+  CATALOG_NAME=$2
+  docker build -t "${IMG_NAME}" -f "${CATALOG_DOCKER}" "${CATALOG_DIR}/${CATALOG_NAME}"
+  docker push "${IMG_NAME}"
+}
+
+# olmtest images
+
 # Busybox Operator Index Image
-docker build -t quay.io/olmtest/busybox-bundle:1.0.0 ./test/images/busybox-index/busybox/1.0.0
-docker build -t quay.io/olmtest/busybox-bundle:2.0.0 ./test/images/busybox-index/busybox/2.0.0
+catalogs=( 1.0.0 2.0.0 )
+for c in "${catalogs[@]}"; do
+  build_and_push "quay.io/olmtest/busybox-dependencies-index:${c}-with-ListBundles-method" "busybox-${c}"
+done
 
-docker build -t quay.io/olmtest/busybox-dependency-bundle:1.0.0 ./test/images/busybox-index/busybox-dependency/1.0.0
-docker build -t quay.io/olmtest/busybox-dependency-bundle:2.0.0 ./test/images/busybox-index/busybox-dependency/2.0.0
+# single bundle index
+catalogs=( pdb-v1 objects objects-upgrade-samename objects-upgrade-diffname )
+for c in "${catalogs[@]}"; do
+  build_and_push "quay.io/olmtest/single-bundle-index:${c}" "single-bundle-index-${c}"
+done
 
-docker push quay.io/olmtest/busybox-bundle:1.0.0
-docker push quay.io/olmtest/busybox-bundle:2.0.0
-docker push quay.io/olmtest/busybox-dependency-bundle:1.0.0
-docker push quay.io/olmtest/busybox-dependency-bundle:2.0.0
+# catsrc-update-test catalogs
+catalogs=( old new related )
+for c in "${catalogs[@]}"; do
+  build_and_push "quay.io/olmtest/catsrc-update-test:${c}" "catsrc-update-test-${c}"
+done
 
-opm index add --bundles quay.io/olmtest/busybox-dependency-bundle:1.0.0,quay.io/olmtest/busybox-bundle:1.0.0 --tag quay.io/olmtest/busybox-dependencies-index:1.0.0-with-ListBundles-method -c docker
-docker push quay.io/olmtest/busybox-dependencies-index:1.0.0-with-ListBundles-method
+# operator-framework images
 
-opm index add --bundles quay.io/olmtest/busybox-dependency-bundle:2.0.0,quay.io/olmtest/busybox-bundle:2.0.0 --tag quay.io/olmtest/busybox-dependencies-index:2.0.0-with-ListBundles-method --from-index quay.io/olmtest/busybox-dependencies-index:1.0.0-with-ListBundles-method -c docker
-docker push quay.io/olmtest/busybox-dependencies-index:2.0.0-with-ListBundles-method
+# ci-index
+build_and_push quay.io/operator-framework/ci-index:latest "ci-index"
+
+# webhook-operator-index
+build_and_push quay.io/operator-framework/webhook-operator-index:0.0.3 "webhook-operator-index-0.0.3"
