@@ -113,7 +113,13 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 		pullPolicy = corev1.PullAlways
 	}
 
+	// Security context
 	readOnlyRootFilesystem := false
+	allowPrivilegeEscalation := false
+	runAsNonRoot := true
+
+	// See: https://github.com/operator-framework/operator-registry/blob/master/Dockerfile#L27
+	runAsUser := int64(1001)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -167,10 +173,21 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: &readOnlyRootFilesystem,
+						ReadOnlyRootFilesystem:   &readOnlyRootFilesystem,
+						AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
 					},
 					ImagePullPolicy:          pullPolicy,
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				},
+			},
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: &runAsNonRoot,
+				RunAsUser:    &runAsUser,
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
 				},
 			},
 			NodeSelector: map[string]string{
