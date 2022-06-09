@@ -72,8 +72,10 @@ func TestConfigMapUnpacker(t *testing.T) {
 	var expectedAllowPrivilegeEscalation = false
 	var expectedRunAsNonRoot = true
 	var expectedRunAsUser int64 = 1001
+	var expectedPrivileged = false
 
 	var expectedContainerSecurityContext = &corev1.SecurityContext{
+		Privileged:               &expectedPrivileged,
 		ReadOnlyRootFilesystem:   &expectedReadOnlyRootFilesystem,
 		AllowPrivilegeEscalation: &expectedAllowPrivilegeEscalation,
 		Capabilities: &corev1.Capabilities{

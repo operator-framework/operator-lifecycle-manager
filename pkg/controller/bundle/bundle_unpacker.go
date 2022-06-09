@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/security"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/configmap"
 	"github.com/sirupsen/logrus"
@@ -29,6 +28,7 @@ import (
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/security"
 )
 
 const (

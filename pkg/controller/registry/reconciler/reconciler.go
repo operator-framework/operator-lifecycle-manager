@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/security"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -113,14 +114,6 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 		pullPolicy = corev1.PullAlways
 	}
 
-	// Security context
-	readOnlyRootFilesystem := false
-	allowPrivilegeEscalation := false
-	runAsNonRoot := true
-
-	// See: https://github.com/operator-framework/operator-registry/blob/master/Dockerfile#L27
-	runAsUser := int64(1001)
-
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: source.GetName() + "-",
@@ -172,22 +165,8 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 							corev1.ResourceMemory: resource.MustParse("50Mi"),
 						},
 					},
-					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem:   &readOnlyRootFilesystem,
-						AllowPrivilegeEscalation: &allowPrivilegeEscalation,
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
-					},
 					ImagePullPolicy:          pullPolicy,
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
-				},
-			},
-			SecurityContext: &corev1.PodSecurityContext{
-				RunAsNonRoot: &runAsNonRoot,
-				RunAsUser:    &runAsUser,
-				SeccompProfile: &corev1.SeccompProfile{
-					Type: corev1.SeccompProfileTypeRuntimeDefault,
 				},
 			},
 			NodeSelector: map[string]string{
@@ -196,6 +175,9 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 			ServiceAccountName: saName,
 		},
 	}
+
+	// Update pod security
+	security.ApplyPodSpecSecurity(&pod.Spec)
 
 	// Override scheduling options if specified
 	if source.Spec.GrpcPodConfig != nil {
