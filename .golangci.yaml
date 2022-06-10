@@ -38,6 +38,8 @@ linters-settings:
       alias: operatorsv1
     - pkg: github.com/operator-framework/api/pkg/operators/v2
       alias: operatorsv2
+  goimports:
+    local-prefixes: github.com/operator-framework/operator-lifecycle-manager
 
 issues:
   max-issues-per-linter: 0
