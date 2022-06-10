@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -128,10 +129,11 @@ func (s *grpcCatalogSourceDecorator) Pod(saName string) *corev1.Pod {
 }
 
 type GrpcRegistryReconciler struct {
-	now       nowFunc
-	Lister    operatorlister.OperatorLister
-	OpClient  operatorclient.ClientInterface
-	SSAClient *controllerclient.ServerSideApplier
+	now        nowFunc
+	Lister     operatorlister.OperatorLister
+	OpClient   operatorclient.ClientInterface
+	SSAClient  *controllerclient.ServerSideApplier
+	GrpcSource *grpc.SourceConn
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
@@ -448,15 +450,18 @@ func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
 	source := grpcCatalogSourceDecorator{catalogSource}
+	healthy = false
+	err = nil
+
+	currentService := c.currentService(source)
+
 	// Check on registry resources
-	// TODO: add gRPC health check
 	if len(c.currentPodsWithCorrectImageAndSpec(source, source.ServiceAccount().GetName())) < 1 ||
-		c.currentService(source) == nil || c.currentServiceAccount(source) == nil {
-		healthy = false
+		currentService == nil || c.currentServiceAccount(source) == nil {
 		return
 	}
 
-	healthy = true
+	healthy, err = grpcServiceHealthCheck(currentService)
 	return
 }
 

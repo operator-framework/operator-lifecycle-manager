@@ -418,16 +418,16 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha
 
 	// Check on registry resources
 	// TODO: more complex checks for resources
-	// TODO: add gRPC health check
+	currentService := c.currentService(source)
 	if c.currentServiceAccount(source) == nil ||
 		c.currentRole(source) == nil ||
 		c.currentRoleBinding(source) == nil ||
-		c.currentService(source) == nil ||
+		currentService == nil ||
 		len(c.currentPods(source, c.Image)) < 1 {
 		healthy = false
 		return
 	}
 
-	healthy = true
-	return
+	// Check grpc service healthcheck
+	return grpcServiceHealthCheck(currentService)
 }

@@ -6,6 +6,8 @@ import (
 	"hash/fnv"
 	"strings"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,6 +63,7 @@ type registryReconcilerFactory struct {
 	OpClient             operatorclient.ClientInterface
 	ConfigMapServerImage string
 	SSAClient            *controllerclient.ServerSideApplier
+	GrpcSources          *grpc.SourceStore
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -77,10 +80,11 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 	case operatorsv1alpha1.SourceTypeGrpc:
 		if source.Spec.Image != "" {
 			return &GrpcRegistryReconciler{
-				now:       r.now,
-				Lister:    r.Lister,
-				OpClient:  r.OpClient,
-				SSAClient: r.SSAClient,
+				now:        r.now,
+				Lister:     r.Lister,
+				OpClient:   r.OpClient,
+				SSAClient:  r.SSAClient,
+				GrpcSource: r.GrpcSources.Get(registry.CatalogKey{Name: source.GetName(), Namespace: source.GetNamespace()}),
 			}
 		} else if source.Spec.Address != "" {
 			return &GrpcAddressRegistryReconciler{
@@ -92,13 +96,14 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier, grpcSources *grpc.SourceStore) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		now:                  now,
 		Lister:               lister,
 		OpClient:             opClient,
 		ConfigMapServerImage: configMapServerImage,
 		SSAClient:            ssaClient,
+		GrpcSources:          grpcSources,
 	}
 }
 

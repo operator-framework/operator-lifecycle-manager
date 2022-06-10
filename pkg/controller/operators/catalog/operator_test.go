@@ -1605,7 +1605,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		}
 		applier := controllerclient.NewFakeApplier(s, "testowner")
 
-		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier)
+		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, nil)
 	}
 
 	op.RunInformers(ctx)

@@ -25,7 +25,5 @@ func (g *GrpcAddressRegistryReconciler) EnsureRegistryServer(catalogSource *v1al
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (g *GrpcAddressRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
-	// TODO: add gRPC health check
-	healthy = true
-	return
+	return grpcHealthCheck(catalogSource.Spec.Address)
 }

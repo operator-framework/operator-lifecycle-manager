@@ -192,7 +192,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.resolverSourceProvider = resolver.SourceProviderFromRegistryClientProvider(op.sources, logger)
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient, op.sources)
 	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.resolverSourceProvider, logger)
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
@@ -474,16 +474,16 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 	metrics.RegisterCatalogSourceState(state.Key.Name, state.Key.Namespace, state.State)
 
 	switch state.State {
-	case connectivity.Idle:
+	case connectivity.Ready:
 		// If the connection is IDLE attempt to connect to attempt to bring it to a READY state
 		// A connection will transition to IDLE if:
 		// "No RPC activity on channel for IDLE_TIMEOUT (default: 5 mins) or upon receiving a GOAWAY while there are no pending RPCs."
 		// https://gitlab.uni-hannover.de/tci-gateway-module/grpc/-/blob/972e31165218b49d93e5e1f1a1e8bbcd3fa830d1/doc/connectivity-semantics-and-api.md
-		sourceConn := o.sources.Get(state.Key)
-		if sourceConn != nil && sourceConn.Conn != nil {
-			sourceConn.Conn.Connect()
-		}
-	case connectivity.Ready:
+		//sourceConn := o.sources.Get(state.Key)
+		//if sourceConn != nil && sourceConn.Conn != nil {
+		//	sourceConn.Conn.Connect()
+		//}
+		// case connectivity.Ready:
 		o.resolverSourceProvider.Invalidate(resolvercache.SourceKey(state.Key))
 		if o.namespace == state.Key.Namespace {
 			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
