@@ -45,7 +45,7 @@ var _ = Describe("MagicCatalog", func() {
 
 	When("an existing magic catalog exists", func() {
 		var (
-			mc          MagicCatalog
+			mc          *MagicCatalog
 			catalogName string
 		)
 

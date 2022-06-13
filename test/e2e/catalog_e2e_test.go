@@ -1349,7 +1349,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 	When("A CatalogSource is created with an operator that has a CSV with missing metadata.ApiVersion", func() {
 		var (
-			magicCatalog      MagicCatalog
+			magicCatalog      *MagicCatalog
 			catalogSourceName string
 			subscription      *operatorsv1alpha1.Subscription
 			c                 client.Client
