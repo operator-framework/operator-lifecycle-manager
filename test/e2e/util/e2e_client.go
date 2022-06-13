@@ -39,7 +39,6 @@ func (m *E2EKubeClient) Update(context context.Context, obj k8scontrollerclient.
 	if err := m.Client.Update(context, obj, options...); err != nil {
 		return err
 	}
-	m.createdResources.EnqueueIgnoreExisting(obj)
 	return nil
 }
 
@@ -93,6 +92,7 @@ func (m *E2EKubeClient) GarbageCollectCRDs() error {
 				if err := m.Client.Delete(context.Background(), &crd); err != nil {
 					return err
 				}
+				break
 			}
 		}
 	}
