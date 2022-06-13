@@ -5,14 +5,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/util"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
-	g "github.com/onsi/ginkgo/v2"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
@@ -61,10 +59,7 @@ func Ctx() *TestContext {
 }
 
 func (ctx TestContext) Logf(f string, v ...interface{}) {
-	if !strings.HasSuffix(f, "\n") {
-		f += "\n"
-	}
-	fmt.Fprintf(g.GinkgoWriter, f, v...)
+	util.Logf(f, v...)
 }
 
 func (ctx TestContext) Scheme() *runtime.Scheme {
@@ -210,8 +205,8 @@ func setDerivedFields(ctx *TestContext) error {
 	if err != nil {
 		return err
 	}
-	ctx.client = client
 	ctx.e2eClient = util.NewK8sResourceManager(client)
+	ctx.client = ctx.e2eClient
 
 	ctx.ssaClient, err = controllerclient.NewForConfig(ctx.restConfig, ctx.scheme, "test.olm.registry")
 	if err != nil {

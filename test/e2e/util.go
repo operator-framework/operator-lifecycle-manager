@@ -1010,11 +1010,11 @@ func SetupGeneratedTestNamespaceWithOperatorGroup(name string, og operatorsv1.Op
 		},
 	}
 	Eventually(func() error {
-		return ctx.Ctx().Client().Create(context.Background(), &ns)
+		return ctx.Ctx().E2EClient().Create(context.Background(), &ns)
 	}).Should(Succeed())
 
 	Eventually(func() error {
-		return ctx.Ctx().Client().Create(context.Background(), &og)
+		return ctx.Ctx().E2EClient().Create(context.Background(), &og)
 	}).Should(Succeed())
 
 	ctx.Ctx().Logf("created the %s testing namespace", ns.GetName())
@@ -1049,7 +1049,7 @@ func TeardownNamespace(ns string) {
 
 	log("tearing down the %s namespace", ns)
 	Eventually(func() error {
-		return ctx.Ctx().KubeClient().KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), ns, metav1.DeleteOptions{})
+		return ctx.Ctx().E2EClient().Reset()
 	}).Should(Succeed())
 }
 
