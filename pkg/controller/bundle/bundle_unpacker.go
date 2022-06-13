@@ -28,6 +28,7 @@ import (
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/security"
 )
 
 const (
@@ -190,6 +191,10 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 			},
 		},
 	}
+
+	// Apply Pod security
+	security.ApplyPodSpecSecurity(&job.Spec.Template.Spec)
+
 	job.SetNamespace(cmRef.Namespace)
 	job.SetName(cmRef.Name)
 	job.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
