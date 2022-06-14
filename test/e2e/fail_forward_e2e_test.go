@@ -55,7 +55,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 	When("an InstallPlan is reporting a failed state", func() {
 
 		var (
-			magicCatalog      MagicCatalog
+			magicCatalog      *MagicCatalog
 			catalogSourceName string
 			subscription      *operatorsv1alpha1.Subscription
 		)
@@ -194,7 +194,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 	When("a CSV resource is in a failed state", func() {
 
 		var (
-			magicCatalog      MagicCatalog
+			magicCatalog      *MagicCatalog
 			catalogSourceName string
 			subscription      *operatorsv1alpha1.Subscription
 		)
