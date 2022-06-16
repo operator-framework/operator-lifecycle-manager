@@ -139,7 +139,7 @@ func (c *NamespacedOperatorCache) Error() error {
 		err := snapshot.err
 		snapshot.m.RUnlock()
 		if err != nil {
-			errs = append(errs, fmt.Errorf("error using catalog %s (in namespace %s): %w", key.Name, key.Namespace, err))
+			errs = append(errs, fmt.Errorf("failed to populate resolver cache from source %v: %w", key.String(), err))
 		}
 	}
 	return errors.NewAggregate(errs)

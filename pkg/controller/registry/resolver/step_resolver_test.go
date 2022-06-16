@@ -1182,7 +1182,7 @@ func TestResolver(t *testing.T) {
 				steps: [][]*v1alpha1.Step{},
 				subs:  []*v1alpha1.Subscription{},
 				errAssert: func(t *testing.T, err error) {
-					assert.Contains(t, err.Error(), "error using catalog @existing (in namespace catsrc-namespace): csv")
+					assert.Contains(t, err.Error(), "failed to populate resolver cache from source @existing/catsrc-namespace: csv catsrc-namespace/a.v1")
 					assert.Contains(t, err.Error(), "in phase Failed instead of Replacing")
 				},
 			},

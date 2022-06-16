@@ -42,6 +42,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/api/pkg/operators/reference"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
@@ -118,7 +119,7 @@ type Operator struct {
 	bundleUnpackTimeout      time.Duration
 	clientFactory            clients.Factory
 	muInstallPlan            sync.Mutex
-	resolverSourceProvider   *resolver.RegistrySourceProvider
+	sourceInvalidator        *resolver.RegistrySourceProvider
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -191,9 +192,10 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		clientFactory:            clients.NewFactory(config),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
-	op.resolverSourceProvider = resolver.SourceProviderFromRegistryClientProvider(op.sources, logger)
+	op.sourceInvalidator = resolver.SourceProviderFromRegistryClientProvider(op.sources, logger)
+	resolverSourceProvider := NewOperatorGroupToggleSourceProvider(op.sourceInvalidator, logger, op.lister.OperatorsV1().OperatorGroupLister())
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
-	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.resolverSourceProvider, logger)
+	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, resolverSourceProvider, logger)
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
 	// Wire OLM CR sharedIndexInformers
@@ -259,7 +261,19 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	operatorGroupInformer := crInformerFactory.Operators().V1().OperatorGroups()
 	op.lister.OperatorsV1().RegisterOperatorGroupLister(metav1.NamespaceAll, operatorGroupInformer.Lister())
-	if err := op.RegisterInformer(operatorGroupInformer.Informer()); err != nil {
+	ogQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ogs")
+	op.ogQueueSet.Set(metav1.NamespaceAll, ogQueue)
+	operatorGroupQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(ogQueue),
+		queueinformer.WithInformer(operatorGroupInformer.Informer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncOperatorGroups).ToSyncer()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(operatorGroupQueueInformer); err != nil {
 		return nil, err
 	}
 
@@ -475,7 +489,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	switch state.State {
 	case connectivity.Ready:
-		o.resolverSourceProvider.Invalidate(resolvercache.SourceKey(state.Key))
+		o.sourceInvalidator.Invalidate(resolvercache.SourceKey(state.Key))
 		if o.namespace == state.Key.Namespace {
 			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
 				state.Key.Name, state.Key.Namespace)
@@ -1081,6 +1095,20 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 	}
 
 	o.nsResolveQueue.Add(sub.GetNamespace())
+
+	return nil
+}
+
+// syncOperatorGroups requeues the namespace resolution queue on changes to an operatorgroup
+// This is because the operatorgroup is now an input to resolution via the global catalog exclusion annotation
+func (o *Operator) syncOperatorGroups(obj interface{}) error {
+	og, ok := obj.(*operatorsv1.OperatorGroup)
+	if !ok {
+		o.logger.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting OperatorGroup failed")
+	}
+
+	o.nsResolveQueue.Add(og.GetNamespace())
 
 	return nil
 }
