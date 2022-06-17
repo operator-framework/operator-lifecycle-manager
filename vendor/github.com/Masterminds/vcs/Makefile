@@ -1,41 +1,19 @@
-.PHONY: setup
-setup:
-	go get -u gopkg.in/alecthomas/gometalinter.v1
-	gometalinter.v1 --install
+GOLANGCI_LINT_VERSION?=1.45.0
+GOLANGCI_LINT_SHA256?=ca06a2b170f41a9e1e34d40ca88b15b8fed2d7e37310f0c08b7fc244c34292a9
+GOLANGCI_LINT=/usr/local/bin/golangci-lint
+
+$(GOLANGCI_LINT):
+	curl -sSLO https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz
+	shasum -a 256 golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz | grep "^${GOLANGCI_LINT_SHA256}  " > /dev/null
+	tar -xf golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz
+	sudo mv golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint /usr/local/bin/golangci-lint
+	rm -rf golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64*
 
 .PHONY: test
-test: validate lint
+test:
 	@echo "==> Running tests"
 	go test -v
 
-.PHONY: validate
-validate:
-# misspell finds the work adresář (used in bzr.go) as a mispelling of
-# address. It finds adres. An issue has been filed at
-# https://github.com/client9/misspell/issues/99. In the meantime adding
-# adres to the ignore list.
-	@echo "==> Running static validations"
-	@gometalinter.v1 \
-	  --disable-all \
-	  --linter "misspell:misspell -i adres -j 1 {path}/*.go:PATH:LINE:COL:MESSAGE" \
-	  --enable deadcode \
-	  --severity deadcode:error \
-	  --enable gofmt \
-	  --enable gosimple \
-	  --enable ineffassign \
-	  --enable misspell \
-	  --enable vet \
-	  --tests \
-	  --vendor \
-	  --deadline 60s \
-	  ./... || exit_code=1
-
 .PHONY: lint
-lint:
-	@echo "==> Running linters"
-	@gometalinter.v1 \
-	  --disable-all \
-	  --enable golint \
-	  --vendor \
-	  --deadline 60s \
-	  ./... || :
+lint: $(GOLANGCI_LINT)
+	@$(GOLANGCI_LINT) run

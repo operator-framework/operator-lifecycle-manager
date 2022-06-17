@@ -80,7 +80,7 @@ func (s *BzrRepo) Get() error {
 		}
 	}
 
-	out, err := s.run("bzr", "branch", s.Remote(), s.LocalPath())
+	out, err := s.run("bzr", "branch", "--", s.Remote(), s.LocalPath())
 	if err != nil {
 		return NewRemoteError("Unable to get repository", err, string(out))
 	}
@@ -90,7 +90,7 @@ func (s *BzrRepo) Get() error {
 
 // Init initializes a bazaar repository at local location.
 func (s *BzrRepo) Init() error {
-	out, err := s.run("bzr", "init", s.LocalPath())
+	out, err := s.run("bzr", "init", "--", s.LocalPath())
 
 	// There are some windows cases where bazaar cannot create the parent
 	// directory if it does not already exist, to the location it's trying
@@ -104,7 +104,7 @@ func (s *BzrRepo) Init() error {
 				return NewLocalError("Unable to initialize repository", err, "")
 			}
 
-			out, err = s.run("bzr", "init", s.LocalPath())
+			out, err = s.run("bzr", "init", "--", s.LocalPath())
 			if err != nil {
 				return NewLocalError("Unable to initialize repository", err, string(out))
 			}
@@ -310,13 +310,13 @@ func (s *BzrRepo) Ping() bool {
 
 	// This is the same command that Go itself uses but it's not fast (or fast
 	// enough by my standards). A faster method would be useful.
-	_, err = s.run("bzr", "info", s.Remote())
+	_, err = s.run("bzr", "info", "--", s.Remote())
 	return err == nil
 }
 
 // ExportDir exports the current revision to the passed in directory.
 func (s *BzrRepo) ExportDir(dir string) error {
-	out, err := s.RunFromDir("bzr", "export", dir)
+	out, err := s.RunFromDir("bzr", "export", "--", dir)
 	s.log(out)
 	if err != nil {
 		return NewLocalError("Unable to export source", err, string(out))

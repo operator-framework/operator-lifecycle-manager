@@ -11,7 +11,7 @@ jobs:
     - uses: actions/checkout@v1
     - uses: actions/setup-go@v2
       with:
-        go-version: '~1.17'
+        go-version: '~1.18'
     - name: Install minikube
       run: |
         sudo apt-get install conntrack

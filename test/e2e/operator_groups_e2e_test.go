@@ -1627,6 +1627,9 @@ var _ = Describe("Operator Group", func() {
 
 		_, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, newNamespaceName, serviceAccount.GetName())
+		defer cleanupSE()
 
 		log("wait for CSV to fail")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -1760,6 +1763,9 @@ var _ = Describe("Operator Group", func() {
 
 		_, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, newNamespaceName, serviceAccount.GetName())
+		defer cleanupSE()
 
 		log("wait for CSV to fail")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {

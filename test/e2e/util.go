@@ -1074,3 +1074,26 @@ func inKind(client operatorclient.ClientInterface) (bool, error) {
 func K8sSafeCurrentTestDescription() string {
 	return nonAlphaNumericRegexp.ReplaceAllString(CurrentSpecReport().LeafNodeText, "")
 }
+
+func newTokenSecret(client operatorclient.ClientInterface, namespace, saName string) (se *corev1.Secret, cleanup cleanupFunc) {
+	seName := saName + "-token"
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        seName,
+			Namespace:   namespace,
+			Annotations: map[string]string{corev1.ServiceAccountNameKey: saName},
+		},
+		Type: corev1.SecretTypeServiceAccountToken,
+	}
+
+	se, err := client.KubernetesInterface().CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	Expect(se).ToNot(BeNil())
+
+	cleanup = func() {
+		err := client.KubernetesInterface().CoreV1().Secrets(namespace).Delete(context.TODO(), se.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+	}
+
+	return se, cleanup
+}

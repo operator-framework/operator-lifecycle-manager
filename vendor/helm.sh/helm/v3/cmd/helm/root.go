@@ -29,8 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"helm.sh/helm/v3/internal/experimental/registry"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 )
 
@@ -51,7 +51,7 @@ Environment variables:
 | $HELM_CONFIG_HOME                  | set an alternative location for storing Helm configuration.                       |
 | $HELM_DATA_HOME                    | set an alternative location for storing Helm data.                                |
 | $HELM_DEBUG                        | indicate whether or not Helm is running in Debug mode                             |
-| $HELM_DRIVER                       | set the backend storage driver. Values are: configmap, secret, memory, postgres   |
+| $HELM_DRIVER                       | set the backend storage driver. Values are: configmap, secret, memory, sql.       |
 | $HELM_DRIVER_SQL_CONNECTION_STRING | set the connection string the SQL storage driver should use.                      |
 | $HELM_MAX_HISTORY                  | set the maximum number of helm release history.                                   |
 | $HELM_NAMESPACE                    | set the namespace used for the helm operations.                                   |
@@ -106,9 +106,7 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 			nsNames := []string{}
 			if namespaces, err := client.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{TimeoutSeconds: &to}); err == nil {
 				for _, ns := range namespaces.Items {
-					if strings.HasPrefix(ns.Name, toComplete) {
-						nsNames = append(nsNames, ns.Name)
-					}
+					nsNames = append(nsNames, ns.Name)
 				}
 				return nsNames, cobra.ShellCompDirectiveNoFileComp
 			}
@@ -133,9 +131,7 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 			&clientcmd.ConfigOverrides{}).RawConfig(); err == nil {
 			comps := []string{}
 			for name, context := range config.Contexts {
-				if strings.HasPrefix(name, toComplete) {
-					comps = append(comps, fmt.Sprintf("%s\t%s", name, context.Cluster))
-				}
+				comps = append(comps, fmt.Sprintf("%s\t%s", name, context.Cluster))
 			}
 			return comps, cobra.ShellCompDirectiveNoFileComp
 		}
@@ -169,9 +165,9 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 		newCreateCmd(out),
 		newDependencyCmd(actionConfig, out),
 		newPullCmd(actionConfig, out),
-		newShowCmd(out),
+		newShowCmd(actionConfig, out),
 		newLintCmd(out),
-		newPackageCmd(out),
+		newPackageCmd(actionConfig, out),
 		newRepoCmd(out),
 		newSearchCmd(out),
 		newVerifyCmd(out),
@@ -197,10 +193,9 @@ func newRootCmd(actionConfig *action.Configuration, out io.Writer, args []string
 		newDocsCmd(out),
 	)
 
-	// Add *experimental* subcommands
 	cmd.AddCommand(
 		newRegistryCmd(actionConfig, out),
-		newChartCmd(actionConfig, out),
+		newPushCmd(actionConfig, out),
 	)
 
 	// Find and add plugins

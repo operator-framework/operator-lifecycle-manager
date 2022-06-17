@@ -8,8 +8,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/rest"
+	utilclock "k8s.io/utils/clock"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"

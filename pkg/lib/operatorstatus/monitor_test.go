@@ -8,11 +8,11 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	utilclock "k8s.io/utils/clock/testing"
 )
 
 func TestMonitorWaiting(t *testing.T) {
-	fakeClock := clock.NewFakeClock(time.Now())
+	fakeClock := utilclock.NewFakeClock(time.Now())
 	name := "foo"
 
 	statusWant := &configv1.ClusterOperatorStatus{
