@@ -54,6 +54,9 @@ var _ = Describe("User defined service account", func() {
 		saName := genName("scoped-sa-")
 		_, cleanupSA := newServiceAccount(c, generatedNamespace.GetName(), saName)
 		defer cleanupSA()
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, generatedNamespace.GetName(), saName)
+		defer cleanupSE()
 
 		// Add an OperatorGroup and specify the service account.
 		ogName := genName("scoped-og-")
@@ -104,6 +107,9 @@ var _ = Describe("User defined service account", func() {
 		saName := genName("scoped-sa")
 		_, cleanupSA := newServiceAccount(c, generatedNamespace.GetName(), saName)
 		defer cleanupSA()
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, generatedNamespace.GetName(), saName)
+		defer cleanupSE()
 		cleanupPerm := grantPermission(GinkgoT(), c, generatedNamespace.GetName(), saName)
 		defer cleanupPerm()
 
@@ -153,6 +159,9 @@ var _ = Describe("User defined service account", func() {
 		saName := genName("scoped-sa-")
 		_, cleanupSA := newServiceAccount(c, generatedNamespace.GetName(), saName)
 		defer cleanupSA()
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, generatedNamespace.GetName(), saName)
+		defer cleanupSE()
 
 		// Add an OperatorGroup and specify the service account.
 		ogName := genName("scoped-og-")

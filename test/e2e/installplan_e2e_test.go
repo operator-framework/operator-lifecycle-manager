@@ -3709,6 +3709,9 @@ var _ = Describe("Install Plan", func() {
 		}
 		_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(ns.GetName()).Create(context.Background(), sa, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, ns.GetName(), sa.GetName())
+		defer cleanupSE()
 
 		// role has no explicit permissions
 		role := &rbacv1.ClusterRole{
@@ -3950,6 +3953,9 @@ var _ = Describe("Install Plan", func() {
 		}
 		_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(ns.GetName()).Create(context.Background(), sa, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, ns.GetName(), sa.GetName())
+		defer cleanupSE()
 
 		// see https://github.com/operator-framework/operator-lifecycle-manager/blob/master/doc/design/scoped-operator-install.md
 		role := &rbacv1.ClusterRole{

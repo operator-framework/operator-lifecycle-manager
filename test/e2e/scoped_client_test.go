@@ -85,13 +85,16 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 		saName := genName("user-defined-")
 		sa, cleanupSA := newServiceAccount(kubeclient, namespace, saName)
 		defer cleanupSA()
+		// Create token secret for the serviceaccount
+		secret, cleanupSE := newTokenSecret(kubeclient, namespace, saName)
+		defer cleanupSE()
 
-		By("Wait for ServiceAccount secret to be available")
-		Eventually(func() (*corev1.ServiceAccount, error) {
-			sa, err := kubeclient.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Get(context.TODO(), sa.GetName(), metav1.GetOptions{})
-			return sa, err
-		}).ShouldNot(WithTransform(func(v *corev1.ServiceAccount) []corev1.ObjectReference {
-			return v.Secrets
+		By("Wait for token secret data to be available")
+		Eventually(func() (*corev1.Secret, error) {
+			se, err := kubeclient.KubernetesInterface().CoreV1().Secrets(secret.GetNamespace()).Get(context.TODO(), secret.GetName(), metav1.GetOptions{})
+			return se, err
+		}).ShouldNot(WithTransform(func(v *corev1.Secret) string {
+			return string(v.Data[corev1.ServiceAccountTokenKey])
 		}, BeEmpty()))
 
 		strategy := scoped.NewClientAttenuator(logger, config, kubeclient)
