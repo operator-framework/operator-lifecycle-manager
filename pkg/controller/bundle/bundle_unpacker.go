@@ -620,7 +620,7 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 			"",
 		},
 		Verbs: []string{
-			"create", "get", "update",
+			"get", "update",
 		},
 		Resources: []string{
 			"configmaps",
