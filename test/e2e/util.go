@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -337,11 +338,11 @@ func registryPodHealthy(address string) bool {
 }
 
 func catalogSourceRegistryPodSynced(catalog *operatorsv1alpha1.CatalogSource) bool {
-	registry := catalog.Status.RegistryServiceStatus
+	registryStatus := catalog.Status.RegistryServiceStatus
 	connState := catalog.Status.GRPCConnectionState
-	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
-		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
-		return registryPodHealthy(registry.Address())
+	if registryStatus != nil && connState != nil && !connState.LastConnectTime.IsZero() && (connState.LastObservedState == connectivity.Ready.String() || connState.LastObservedState == connectivity.Idle.String()) {
+		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registryStatus.Address())
+		return registryPodHealthy(registryStatus.Address())
 	}
 	state := "NO_CONNECTION"
 	if connState != nil {
