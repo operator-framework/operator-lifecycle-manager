@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	listersbatchv1 "k8s.io/client-go/listers/batch/v1"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
@@ -615,44 +618,44 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 		return nil, fmt.Errorf("configmap reference is nil")
 	}
 
-	rule := rbacv1.PolicyRule{
-		APIGroups: []string{
-			"",
-		},
-		Verbs: []string{
-			"get", "update",
-		},
-		Resources: []string{
-			"configmaps",
-		},
-		ResourceNames: []string{
-			cmRef.Name,
-		},
+	data, err := os.ReadFile(path.Join("resources", "bundle_unpacker_role.yaml"))
+	if err != nil {
+		return nil, err
 	}
-	fresh := &rbacv1.Role{
-		Rules: []rbacv1.PolicyRule{rule},
+	var fresh rbacv1.Role
+	if err := yaml.Unmarshal(data, &fresh); err != nil {
+		return nil, err
 	}
+
+	// Update role for configmap name
 	fresh.SetNamespace(cmRef.Namespace)
 	fresh.SetName(cmRef.Name)
 	fresh.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
 
+	for idx := 0; idx < len(fresh.Rules); idx++ {
+		fresh.Rules[idx].ResourceNames = []string{cmRef.Name}
+	}
+
+	// Check for existence
 	role, err = c.roleLister.Roles(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			role, err = c.client.RbacV1().Roles(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+			role, err = c.client.RbacV1().Roles(fresh.GetNamespace()).Create(context.TODO(), &fresh, metav1.CreateOptions{})
 		}
 
 		return
 	}
 
 	// Add the policy rule if necessary
-	for _, existing := range role.Rules {
-		if equality.Semantic.DeepDerivative(rule, existing) {
-			return
+	var ruleDiff []rbacv1.PolicyRule
+	for _, proposed := range fresh.Rules {
+		if !containsRule(role.Rules, proposed) {
+			ruleDiff = append(ruleDiff, proposed)
 		}
 	}
+
 	role = role.DeepCopy()
-	role.Rules = append(role.Rules, rule)
+	role.Rules = append(role.Rules, ruleDiff...)
 
 	role, err = c.client.RbacV1().Roles(role.GetNamespace()).Update(context.TODO(), role, metav1.UpdateOptions{})
 
@@ -737,4 +740,13 @@ func getCondition(job *batchv1.Job, conditionType batchv1.JobConditionType) (con
 		}
 	}
 	return
+}
+
+func containsRule(rules []rbacv1.PolicyRule, rule rbacv1.PolicyRule) bool {
+	for _, r := range rules {
+		if equality.Semantic.DeepDerivative(r, rule) {
+			return true
+		}
+	}
+	return false
 }

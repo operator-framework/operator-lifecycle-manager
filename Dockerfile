@@ -2,11 +2,11 @@ FROM quay.io/fedora/fedora:34-x86_64 as builder
 LABEL stage=builder
 WORKDIR /build
 
-# install dependencies and go 1.17
+# install dependencies and go 1.18
 
 # copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
 RUN dnf update -y && dnf install -y bash make git mercurial jq wget && dnf upgrade -y
-RUN curl -sSL https://go.dev/dl/go1.17.6.linux-amd64.tar.gz | tar -xzf - -C /usr/local
+RUN curl -sSL https://go.dev/dl/go1.18.3.linux-amd64.tar.gz | tar -xzf - -C /usr/local
 ENV PATH=/usr/local/go/bin:$PATH
 COPY .git/HEAD .git/HEAD
 COPY .git/refs/heads/. .git/refs/heads
@@ -20,6 +20,7 @@ COPY go.sum go.sum
 COPY cmd cmd
 COPY util util
 COPY test test
+COPY resources resources
 RUN CGO_ENABLED=0 make build
 RUN make build-util
 
@@ -33,6 +34,8 @@ COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server
 COPY --from=builder /build/bin/cpb /bin/cpb
+COPY --from=builder /build/resources /bin/resources
+
 EXPOSE 8080
 EXPOSE 5443
 CMD ["/bin/olm"]

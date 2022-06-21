@@ -334,6 +334,10 @@ func TestConfigMapUnpacker(t *testing.T) {
 				},
 				roles: []*rbacv1.Role{
 					{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "Role",
+							APIVersion: "rbac.authorization.k8s.io/v1",
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
@@ -750,6 +754,10 @@ func TestConfigMapUnpacker(t *testing.T) {
 				},
 				roles: []*rbacv1.Role{
 					{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "Role",
+							APIVersion: "rbac.authorization.k8s.io/v1",
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",

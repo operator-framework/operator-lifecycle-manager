@@ -1,0 +1,10 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+rules:
+  - apiGroups:
+    - ""  # corev1
+    resources:
+    - configmaps
+    verbs:
+    - get
+    - update
