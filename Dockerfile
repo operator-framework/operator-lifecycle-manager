@@ -21,8 +21,8 @@ COPY cmd cmd
 COPY util util
 COPY test test
 COPY resources resources
-RUN CGO_ENABLED=0 make build
-RUN make build-util
+RUN CGO_ENABLED=0 BUILD_FLAGS="-buildvcs=false" make build
+RUN BUILD_FLAGS="-buildvcs=false" make build-util
 
 # use debug tag to keep a shell around for backwards compatibility with the previous alpine image
 FROM gcr.io/distroless/static:debug
