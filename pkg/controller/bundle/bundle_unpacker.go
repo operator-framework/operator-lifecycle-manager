@@ -657,7 +657,7 @@ func (c *ConfigMapUnpacker) getRolePolicyRules(cmRef *corev1.ObjectReference) []
 				"",
 			},
 			Verbs: []string{
-				"get", "update",
+				"create", "get", "update",
 			},
 			Resources: []string{
 				"configmaps",
