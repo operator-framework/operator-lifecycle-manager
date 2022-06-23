@@ -353,7 +353,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									"",
 								},
 								Verbs: []string{
-									"get", "update",
+									"create", "get", "update",
 								},
 								Resources: []string{
 									"configmaps",
@@ -769,7 +769,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									"",
 								},
 								Verbs: []string{
-									"get", "update",
+									"create", "get", "update",
 								},
 								Resources: []string{
 									"configmaps",
