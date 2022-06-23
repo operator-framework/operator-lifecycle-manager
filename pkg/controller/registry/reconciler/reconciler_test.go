@@ -82,10 +82,8 @@ func TestPodContainerSecurityContext(t *testing.T) {
 	expectedAllowPrivilegeEscalation := false
 	expectedRunAsNonRoot := true
 	expectedRunAsUser := int64(1001)
-	expectedPrivileged := false
 
 	expectedContainerSecCtx := &corev1.SecurityContext{
-		Privileged:               &expectedPrivileged,
 		ReadOnlyRootFilesystem:   &expectedReadOnlyRootFilesystem,
 		AllowPrivilegeEscalation: &expectedAllowPrivilegeEscalation,
 		Capabilities: &corev1.Capabilities{
