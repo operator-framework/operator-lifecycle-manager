@@ -68,29 +68,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 		roleBindings []*rbacv1.RoleBinding
 	}
 
-	var expectedReadOnlyRootFilesystem = false
-	var expectedAllowPrivilegeEscalation = false
-	var expectedRunAsNonRoot = true
-	var expectedRunAsUser int64 = 1001
-	var expectedPrivileged = false
-
-	var expectedContainerSecurityContext = &corev1.SecurityContext{
-		Privileged:               &expectedPrivileged,
-		ReadOnlyRootFilesystem:   &expectedReadOnlyRootFilesystem,
-		AllowPrivilegeEscalation: &expectedAllowPrivilegeEscalation,
-		Capabilities: &corev1.Capabilities{
-			Drop: []corev1.Capability{"ALL"},
-		},
-	}
-
-	var expectedPodSecurityContext = &corev1.PodSecurityContext{
-		RunAsNonRoot: &expectedRunAsNonRoot,
-		RunAsUser:    &expectedRunAsUser,
-		SeccompProfile: &corev1.SeccompProfile{
-			Type: corev1.SeccompProfileTypeRuntimeDefault,
-		},
-	}
-
 	tests := []struct {
 		description string
 		fields      fields
@@ -243,7 +220,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Spec: corev1.PodSpec{
 									RestartPolicy:    corev1.RestartPolicyNever,
 									ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-secret"}},
-									SecurityContext:  expectedPodSecurityContext,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -267,7 +243,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -287,7 +262,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 										{
 											Name:            "pull",
@@ -310,7 +284,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -353,7 +326,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									"",
 								},
 								Verbs: []string{
-									"get", "update",
+									"create", "get", "update",
 								},
 								Resources: []string{
 									"configmaps",
@@ -423,8 +396,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy:   corev1.RestartPolicyNever,
-									SecurityContext: expectedPodSecurityContext,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -448,7 +420,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -468,7 +439,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 										{
 											Name:            "pull",
@@ -491,7 +461,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -645,8 +614,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy:   corev1.RestartPolicyNever,
-									SecurityContext: expectedPodSecurityContext,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -670,7 +638,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -690,7 +657,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 										{
 											Name:            "pull",
@@ -713,7 +679,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -769,7 +734,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									"",
 								},
 								Verbs: []string{
-									"get", "update",
+									"create", "get", "update",
 								},
 								Resources: []string{
 									"configmaps",
@@ -861,8 +826,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy:   corev1.RestartPolicyNever,
-									SecurityContext: expectedPodSecurityContext,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -886,7 +850,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -906,7 +869,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 										{
 											Name:            "pull",
@@ -929,7 +891,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -1047,8 +1008,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy:   corev1.RestartPolicyNever,
-									SecurityContext: expectedPodSecurityContext,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -1072,7 +1032,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1092,7 +1051,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 										{
 											Name:            "pull",
@@ -1115,7 +1073,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -1244,8 +1201,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									Name: pathHash,
 								},
 								Spec: corev1.PodSpec{
-									RestartPolicy:   corev1.RestartPolicyNever,
-									SecurityContext: expectedPodSecurityContext,
+									RestartPolicy: corev1.RestartPolicyNever,
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -1269,7 +1225,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1289,7 +1244,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 										{
 											Name:            "pull",
@@ -1312,7 +1266,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
-											SecurityContext: expectedContainerSecurityContext,
 										},
 									},
 									Volumes: []corev1.Volume{

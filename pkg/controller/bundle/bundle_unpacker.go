@@ -28,7 +28,6 @@ import (
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/security"
 )
 
 const (
@@ -191,10 +190,6 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 			},
 		},
 	}
-
-	// Apply Pod security
-	security.ApplyPodSpecSecurity(&job.Spec.Template.Spec)
-
 	job.SetNamespace(cmRef.Namespace)
 	job.SetName(cmRef.Name)
 	job.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
@@ -435,7 +430,7 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 		return
 	}
 
-	_, err = c.ensureRole(cmRef, c.getRolePolicyRules(cmRef))
+	_, err = c.ensureRole(cmRef)
 	if err != nil {
 		return
 	}
@@ -610,13 +605,27 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 	return
 }
 
-func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference, policyRules []rbacv1.PolicyRule) (role *rbacv1.Role, err error) {
+func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rbacv1.Role, err error) {
 	if cmRef == nil {
 		return nil, fmt.Errorf("configmap reference is nil")
 	}
 
+	rule := rbacv1.PolicyRule{
+		APIGroups: []string{
+			"",
+		},
+		Verbs: []string{
+			"create", "get", "update",
+		},
+		Resources: []string{
+			"configmaps",
+		},
+		ResourceNames: []string{
+			cmRef.Name,
+		},
+	}
 	fresh := &rbacv1.Role{
-		Rules: policyRules,
+		Rules: []rbacv1.PolicyRule{rule},
 	}
 	fresh.SetNamespace(cmRef.Namespace)
 	fresh.SetName(cmRef.Name)
@@ -632,41 +641,17 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference, policyRule
 	}
 
 	// Add the policy rule if necessary
-	var ruleDiff []rbacv1.PolicyRule
-	for _, proposed := range policyRules {
-		if !containsRule(role.Rules, proposed) {
-			ruleDiff = append(ruleDiff, proposed)
+	for _, existing := range role.Rules {
+		if equality.Semantic.DeepDerivative(rule, existing) {
+			return
 		}
 	}
-
 	role = role.DeepCopy()
-	role.Rules = append(role.Rules, ruleDiff...)
+	role.Rules = append(role.Rules, rule)
 
 	role, err = c.client.RbacV1().Roles(role.GetNamespace()).Update(context.TODO(), role, metav1.UpdateOptions{})
 
 	return
-}
-
-// getRolePolicyRules returns the set of policy rules used by the role attached to the
-// bundle unpacker service account. This method lends itself to easier downstream patching when additional
-// policy rules are required, e.g. for Openshift SCC
-func (c *ConfigMapUnpacker) getRolePolicyRules(cmRef *corev1.ObjectReference) []rbacv1.PolicyRule {
-	return []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"",
-			},
-			Verbs: []string{
-				"get", "update",
-			},
-			Resources: []string{
-				"configmaps",
-			},
-			ResourceNames: []string{
-				cmRef.Name,
-			},
-		},
-	}
 }
 
 func (c *ConfigMapUnpacker) ensureRoleBinding(cmRef *corev1.ObjectReference) (roleBinding *rbacv1.RoleBinding, err error) {
@@ -747,13 +732,4 @@ func getCondition(job *batchv1.Job, conditionType batchv1.JobConditionType) (con
 		}
 	}
 	return
-}
-
-func containsRule(rules []rbacv1.PolicyRule, rule rbacv1.PolicyRule) bool {
-	for _, r := range rules {
-		if equality.Semantic.DeepDerivative(r, rule) {
-			return true
-		}
-	}
-	return false
 }

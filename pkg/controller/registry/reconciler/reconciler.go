@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/security"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -114,6 +113,8 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 		pullPolicy = corev1.PullAlways
 	}
 
+	readOnlyRootFilesystem := false
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: source.GetName() + "-",
@@ -165,6 +166,9 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 							corev1.ResourceMemory: resource.MustParse("50Mi"),
 						},
 					},
+					SecurityContext: &corev1.SecurityContext{
+						ReadOnlyRootFilesystem: &readOnlyRootFilesystem,
+					},
 					ImagePullPolicy:          pullPolicy,
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 				},
@@ -175,9 +179,6 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 			ServiceAccountName: saName,
 		},
 	}
-
-	// Update pod security
-	security.ApplyPodSpecSecurity(&pod.Spec)
 
 	// Override scheduling options if specified
 	if source.Spec.GrpcPodConfig != nil {
