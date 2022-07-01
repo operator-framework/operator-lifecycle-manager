@@ -902,36 +902,58 @@ func (a *Operator) syncNamespace(obj interface{}) error {
 		"name": namespace.GetName(),
 	})
 
-	// Remove existing OperatorGroup labels
-	for label := range namespace.GetLabels() {
-		if operatorsv1.IsOperatorGroupLabel(label) {
-			delete(namespace.Labels, label)
-		}
-	}
-
 	operatorGroupList, err := a.lister.OperatorsV1().OperatorGroupLister().List(labels.Everything())
 	if err != nil {
 		logger.WithError(err).Warn("lister failed")
 		return err
 	}
 
+	desiredGroupLabels := make(map[string]string)
 	for _, group := range operatorGroupList {
 		namespaceSet := NewNamespaceSet(group.Status.Namespaces)
 
 		// Apply the label if not an All Namespaces OperatorGroup.
 		if namespaceSet.Contains(namespace.GetName()) && !namespaceSet.IsAllNamespaces() {
-			if namespace.Labels == nil {
-				namespace.Labels = make(map[string]string, 1)
-			}
-			ogLabelKey, ogLabelValue, err := group.OGLabelKeyAndValue()
+			k, v, err := group.OGLabelKeyAndValue()
 			if err != nil {
 				return err
 			}
-			namespace.Labels[ogLabelKey] = ogLabelValue
+			desiredGroupLabels[k] = v
 		}
 	}
 
-	// Update the Namespace
+	if changed := func() bool {
+		for ke, ve := range namespace.Labels {
+			if !operatorsv1.IsOperatorGroupLabel(ke) {
+				continue
+			}
+			if vd, ok := desiredGroupLabels[ke]; !ok || vd != ve {
+				return true
+			}
+		}
+		for kd, vd := range desiredGroupLabels {
+			if ve, ok := namespace.Labels[kd]; !ok || ve != vd {
+				return true
+			}
+		}
+		return false
+	}(); !changed {
+		return nil
+	}
+
+	namespace = namespace.DeepCopy()
+	for k := range namespace.Labels {
+		if operatorsv1.IsOperatorGroupLabel(k) {
+			delete(namespace.Labels, k)
+		}
+	}
+	if namespace.Labels == nil && len(desiredGroupLabels) > 0 {
+		namespace.Labels = make(map[string]string)
+	}
+	for k, v := range desiredGroupLabels {
+		namespace.Labels[k] = v
+	}
+
 	_, err = a.opClient.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), namespace, metav1.UpdateOptions{})
 
 	return err
