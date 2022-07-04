@@ -2,9 +2,14 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ .Values.namespace }}
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+
 
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ .Values.operator_namespace }}
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

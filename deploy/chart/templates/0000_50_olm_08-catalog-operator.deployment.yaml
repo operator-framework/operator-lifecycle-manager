@@ -18,6 +18,11 @@ spec:
         app: catalog-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
       volumes:
       {{- end }}
@@ -33,6 +38,12 @@ spec:
       {{- end }}
       containers:
         - name: catalog-operator
+          securityContext:
+            privileged: false
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
           volumeMounts:
           {{- end }}
