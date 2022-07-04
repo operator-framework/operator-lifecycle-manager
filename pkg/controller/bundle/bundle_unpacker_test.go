@@ -71,7 +71,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 	var expectedReadOnlyRootFilesystem = false
 	var expectedAllowPrivilegeEscalation = false
 	var expectedRunAsNonRoot = true
-	var expectedRunAsUser int64 = 1001
 	var expectedPrivileged = false
 
 	var expectedContainerSecurityContext = &corev1.SecurityContext{
@@ -85,7 +84,6 @@ func TestConfigMapUnpacker(t *testing.T) {
 
 	var expectedPodSecurityContext = &corev1.PodSecurityContext{
 		RunAsNonRoot: &expectedRunAsNonRoot,
-		RunAsUser:    &expectedRunAsUser,
 		SeccompProfile: &corev1.SeccompProfile{
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},

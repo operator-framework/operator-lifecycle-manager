@@ -9,17 +9,13 @@ const readOnlyRootFilesystem = false
 const allowPrivilegeEscalation = false
 const privileged = false
 const runAsNonRoot = true
+const runAsUser = 1001
 
 type PodSecurityOption = func(spec *corev1.PodSpec)
 
-func WithRunAsUser(user int64) PodSecurityOption {
+func WithRunAsUser() PodSecurityOption {
 	return func(spec *corev1.PodSpec) {
-		for _, container := range spec.Containers {
-			container.SecurityContext.RunAsUser = pointer.Int64(user)
-		}
-		for _, container := range spec.InitContainers {
-			container.SecurityContext.RunAsUser = pointer.Int64(user)
-		}
+		spec.SecurityContext.RunAsUser = pointer.Int64(runAsUser)
 	}
 }
 
