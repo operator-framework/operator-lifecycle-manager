@@ -10,11 +10,21 @@ const allowPrivilegeEscalation = false
 const privileged = false
 const runAsNonRoot = true
 
-// See: https://github.com/operator-framework/operator-registry/blob/master/Dockerfile#L27
-const runAsUser int64 = 1001
+type PodSecurityOption = func(spec *corev1.PodSpec)
+
+func WithRunAsUser(user int64) PodSecurityOption {
+	return func(spec *corev1.PodSpec) {
+		for _, container := range spec.Containers {
+			container.SecurityContext.RunAsUser = pointer.Int64(user)
+		}
+		for _, container := range spec.InitContainers {
+			container.SecurityContext.RunAsUser = pointer.Int64(user)
+		}
+	}
+}
 
 // ApplyPodSpecSecurity applies the standard security profile to a pod spec
-func ApplyPodSpecSecurity(spec *corev1.PodSpec) {
+func ApplyPodSpecSecurity(spec *corev1.PodSpec, options ...PodSecurityOption) {
 	var containerSecurityContext = &corev1.SecurityContext{
 		Privileged:               pointer.Bool(privileged),
 		ReadOnlyRootFilesystem:   pointer.Bool(readOnlyRootFilesystem),
@@ -26,7 +36,6 @@ func ApplyPodSpecSecurity(spec *corev1.PodSpec) {
 
 	var podSecurityContext = &corev1.PodSecurityContext{
 		RunAsNonRoot: pointer.Bool(runAsNonRoot),
-		RunAsUser:    pointer.Int64(runAsUser),
 		SeccompProfile: &corev1.SeccompProfile{
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},
@@ -38,5 +47,9 @@ func ApplyPodSpecSecurity(spec *corev1.PodSpec) {
 	}
 	for idx := 0; idx < len(spec.InitContainers); idx++ {
 		spec.InitContainers[idx].SecurityContext = containerSecurityContext
+	}
+
+	for _, option := range options {
+		option(spec)
 	}
 }

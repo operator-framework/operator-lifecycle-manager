@@ -20,7 +20,6 @@ spec:
       serviceAccountName: olm-operator-serviceaccount
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1001
         seccompProfile:
           type: RuntimeDefault
       {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
