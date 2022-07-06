@@ -193,7 +193,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 	}
 
 	// Apply Pod security
-	security.ApplyPodSpecSecurity(&job.Spec.Template.Spec)
+	security.ApplyPodSpecSecurity(&job.Spec.Template.Spec, security.WithRunAsUser())
 
 	job.SetNamespace(cmRef.Namespace)
 	job.SetName(cmRef.Name)
