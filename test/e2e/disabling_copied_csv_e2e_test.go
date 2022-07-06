@@ -3,12 +3,14 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,11 +21,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	olmDeploymentName                       = "olm-operator"
+	protectedCopiedCSVNamespacesRuntimeFlag = "--protectedCopiedCSVNamespaces"
+)
+
 var _ = Describe("Disabling copied CSVs", func() {
 	var (
 		ns                              corev1.Namespace
 		csv                             operatorsv1alpha1.ClusterServiceVersion
 		nonTerminatingNamespaceSelector = fields.ParseSelectorOrDie("status.phase!=Terminating")
+		protectedCopiedCSVNamespaces    = map[string]struct{}{}
 	)
 
 	BeforeEach(func() {
@@ -95,7 +103,6 @@ var _ = Describe("Disabling copied CSVs", func() {
 	})
 
 	When("Copied CSVs are disabled", func() {
-
 		BeforeEach(func() {
 			Eventually(func() error {
 				var olmConfig operatorsv1.OLMConfig
@@ -122,6 +129,10 @@ var _ = Describe("Disabling copied CSVs", func() {
 
 				return nil
 			}).Should(Succeed())
+
+			Eventually(func() error {
+				return setProtectedCopiedCSVNamespaces(protectedCopiedCSVNamespaces)
+			}).Should(Succeed())
 		})
 
 		It("should not have any copied CSVs", func() {
@@ -139,8 +150,14 @@ var _ = Describe("Disabling copied CSVs", func() {
 					return err
 				}
 
-				if numCSVs := len(copiedCSVs.Items); numCSVs != 0 {
-					return fmt.Errorf("Found %d copied CSVs, should be 0", numCSVs)
+				if numCSVs := len(copiedCSVs.Items); numCSVs != len(protectedCopiedCSVNamespaces) {
+					return fmt.Errorf("Found %d copied CSVs, should be %d", numCSVs, len(protectedCopiedCSVNamespaces))
+				}
+
+				for _, csv := range copiedCSVs.Items {
+					if _, ok := protectedCopiedCSVNamespaces[csv.GetNamespace()]; !ok {
+						return fmt.Errorf("copied CSV %s/%s should not exist in the given namespace", csv.GetNamespace(), csv.GetName())
+					}
 				}
 				return nil
 			}).Should(Succeed())
@@ -159,8 +176,8 @@ var _ = Describe("Disabling copied CSVs", func() {
 				}
 
 				expectedCondition := metav1.Condition{
-					Reason:  "NoCopiedCSVsFound",
-					Message: "Copied CSVs are disabled and none were found for operators installed in AllNamespace mode",
+					Reason:  "CopiedCSVsDisabled",
+					Message: "Copied CSVs are disabled and no unexpected copied CSVs were found for operators installed in AllNamespace mode",
 					Status:  metav1.ConditionTrue,
 				}
 
@@ -260,3 +277,31 @@ var _ = Describe("Disabling copied CSVs", func() {
 		})
 	})
 })
+
+func setProtectedCopiedCSVNamespaces(protectedCopiedCSVNamespaces map[string]struct{}) error {
+	var olmDeployment appsv1.Deployment
+	if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: olmDeploymentName, Namespace: operatorNamespace}, &olmDeployment); err != nil {
+		return err
+	}
+
+	if protectedNamespaceArgument := getRuntimeFlagValue(&olmDeployment, olmDeploymentName, protectedCopiedCSVNamespacesRuntimeFlag); protectedNamespaceArgument != "" {
+		for _, namespace := range strings.Split(protectedNamespaceArgument, ",") {
+			protectedCopiedCSVNamespaces[namespace] = struct{}{}
+		}
+	}
+
+	return nil
+}
+
+func getRuntimeFlagValue(deployment *appsv1.Deployment, containerName string, runtimeFlag string) string {
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == containerName {
+			for i := range container.Args {
+				if container.Args[i] == runtimeFlag && len(container.Args) > i+1 {
+					return container.Args[i+1]
+				}
+			}
+		}
+	}
+	return ""
+}

@@ -60,6 +60,9 @@ var (
 	tlsKeyPath = pflag.String(
 		"tls-key", "", "Path to use for private key (requires tls-cert)")
 
+	protectedCopiedCSVNamespaces = pflag.String("protectedCopiedCSVNamespaces",
+		"", "A comma-delimited set of namespaces where global Copied CSVs will always appear, even if Copied CSVs are disabled")
+
 	tlsCertPath = pflag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
 
@@ -162,6 +165,7 @@ func main() {
 		olm.WithOperatorClient(opClient),
 		olm.WithRestConfig(config),
 		olm.WithConfigClient(versionedConfigClient),
+		olm.WithProtectedCopiedCSVNamespaces(*protectedCopiedCSVNamespaces),
 	)
 	if err != nil {
 		logger.WithError(err).Fatal("error configuring operator")
