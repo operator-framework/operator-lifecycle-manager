@@ -65,6 +65,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	clienttesting "k8s.io/client-go/testing"
 )
 
 type TestStrategy struct{}
@@ -166,6 +167,7 @@ type fakeOperatorConfig struct {
 	k8sObjs           []runtime.Object
 	extObjs           []runtime.Object
 	regObjs           []runtime.Object
+	actionLog         *[]clienttesting.Action
 }
 
 // fakeOperatorOption applies an option to the given fake operator configuration.
@@ -229,6 +231,18 @@ func withRegObjs(regObjs ...runtime.Object) fakeOperatorOption {
 	}
 }
 
+func withActionLog(log *[]clienttesting.Action) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.actionLog = log
+	}
+}
+
+func withLogger(logger *logrus.Logger) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.logger = logger
+	}
+}
+
 // NewFakeOperator creates and starts a new operator using fake clients.
 func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Operator, error) {
 	// Apply options to default config
@@ -247,6 +261,7 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 		recorder: &record.FakeRecorder{},
 		// default expected namespaces
 		namespaces: []string{"default", "kube-system", "kube-public"},
+		actionLog:  &[]clienttesting.Action{},
 	}
 	for _, option := range options {
 		option(config)
@@ -258,6 +273,10 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	// For now, directly use a SimpleClientset instead.
 	k8sClientFake := k8sfake.NewSimpleClientset(config.k8sObjs...)
 	k8sClientFake.Resources = apiResourcesForObjects(append(config.extObjs, config.regObjs...))
+	k8sClientFake.PrependReactor("*", "*", clienttesting.ReactionFunc(func(action clienttesting.Action) (bool, runtime.Object, error) {
+		*config.actionLog = append(*config.actionLog, action)
+		return false, nil, nil
+	}))
 	config.operatorClient = operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
 	config.configClient = configfake.NewSimpleClientset()
 
@@ -3930,6 +3949,171 @@ func TestUpdates(t *testing.T) {
 						continue
 					}
 					require.Equal(t, phase, csvsToSync[name].Status.Phase)
+				}
+			}
+		})
+	}
+}
+
+type tDotLogWriter struct {
+	*testing.T
+}
+
+func (w tDotLogWriter) Write(p []byte) (int, error) {
+	w.T.Logf("%s", string(p))
+	return len(p), nil
+}
+
+func testLogrusLogger(t *testing.T) *logrus.Logger {
+	l := logrus.New()
+	l.SetOutput(tDotLogWriter{t})
+	return l
+}
+
+func TestSyncNamespace(t *testing.T) {
+	namespace := func(name string, labels map[string]string) corev1.Namespace {
+		return corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   name,
+				Labels: labels,
+			},
+		}
+	}
+
+	operatorgroup := func(name string, targets []string) operatorsv1.OperatorGroup {
+		return operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+				UID:  types.UID(fmt.Sprintf("%s-uid", name)),
+			},
+			Status: operatorsv1.OperatorGroupStatus{
+				Namespaces: targets,
+			},
+		}
+	}
+
+	for _, tc := range []struct {
+		name           string
+		before         corev1.Namespace
+		operatorgroups []operatorsv1.OperatorGroup
+		noop           bool
+		expected       []string
+	}{
+		{
+			name:   "adds missing labels",
+			before: namespace("test-namespace", map[string]string{"unrelated": ""}),
+			operatorgroups: []operatorsv1.OperatorGroup{
+				operatorgroup("test-group-1", []string{"test-namespace"}),
+				operatorgroup("test-group-2", []string{"test-namespace"}),
+			},
+			expected: []string{
+				"olm.operatorgroup.uid/test-group-1-uid",
+				"olm.operatorgroup.uid/test-group-2-uid",
+				"unrelated",
+			},
+		},
+		{
+			name: "removes stale labels",
+			before: namespace("test-namespace", map[string]string{
+				"olm.operatorgroup.uid/test-group-1-uid": "",
+				"olm.operatorgroup.uid/test-group-2-uid": "",
+			}),
+			operatorgroups: []operatorsv1.OperatorGroup{
+				operatorgroup("test-group-2", []string{"test-namespace"}),
+			},
+			expected: []string{
+				"olm.operatorgroup.uid/test-group-2-uid",
+			},
+		},
+		{
+			name:   "does not add label if namespace is not a target namespace",
+			before: namespace("test-namespace", nil),
+			operatorgroups: []operatorsv1.OperatorGroup{
+				operatorgroup("test-group-1", []string{"test-namespace"}),
+				operatorgroup("test-group-2", []string{"not-test-namespace"}),
+			},
+			expected: []string{
+				"olm.operatorgroup.uid/test-group-1-uid",
+			},
+		},
+		{
+			name: "no update if labels are in sync",
+			before: namespace("test-namespace", map[string]string{
+				"olm.operatorgroup.uid/test-group-1-uid": "",
+				"olm.operatorgroup.uid/test-group-2-uid": "",
+			}),
+			operatorgroups: []operatorsv1.OperatorGroup{
+				operatorgroup("test-group-1", []string{"test-namespace"}),
+				operatorgroup("test-group-2", []string{"test-namespace"}),
+			},
+			noop: true,
+			expected: []string{
+				"olm.operatorgroup.uid/test-group-1-uid",
+				"olm.operatorgroup.uid/test-group-2-uid",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var ogs []runtime.Object
+			for i := range tc.operatorgroups {
+				ogs = append(ogs, &tc.operatorgroups[i])
+			}
+
+			var actions []clienttesting.Action
+
+			o, err := NewFakeOperator(
+				ctx,
+				withClientObjs(ogs...),
+				withK8sObjs(&tc.before),
+				withActionLog(&actions),
+				withLogger(testLogrusLogger(t)),
+			)
+			if err != nil {
+				t.Fatalf("setup failed: %v", err)
+			}
+
+			actions = actions[:0]
+
+			err = o.syncNamespace(&tc.before)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tc.noop {
+				for _, action := range actions {
+					if action.GetResource().Resource != "namespaces" {
+						continue
+					}
+					if namer, ok := action.(interface{ GetName() string }); ok {
+						if namer.GetName() != tc.before.Name {
+							continue
+						}
+					} else if objer, ok := action.(interface{ GetObject() runtime.Object }); ok {
+						if namer, ok := objer.GetObject().(interface{ GetName() string }); ok {
+							if namer.GetName() != tc.before.Name {
+								continue
+							}
+						}
+					}
+					t.Errorf("unexpected client operation: %v", action)
+				}
+			}
+
+			after, err := o.opClient.KubernetesInterface().CoreV1().Namespaces().Get(ctx, tc.before.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(after.Labels) != len(tc.expected) {
+				t.Errorf("expected %d labels, got %d", len(tc.expected), len(after.Labels))
+			}
+
+			for _, l := range tc.expected {
+				if _, ok := after.Labels[l]; !ok {
+					t.Errorf("missing expected label %q", l)
 				}
 			}
 		})
