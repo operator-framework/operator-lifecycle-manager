@@ -304,6 +304,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 
 	currentLivePods := c.currentPods(source)
 	currentUpdatePods := c.currentUpdatePods(source)
+	currentDeployments := c.currentDeployments(source)
 
 	if source.Update() && len(currentUpdatePods) == 0 {
 		logrus.WithField("CatalogSource", source.GetName()).Debugf("catalog update required at %s", time.Now().String())
@@ -333,12 +334,12 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 	for _, updatePod := range currentUpdatePods {
 		// if container imageID IDs are different, switch the serving pods
 		if imageChanged(updatePod, currentLivePods) {
-			err := c.promoteCatalog(updatePod, source.GetName())
+			err := c.promoteCatalog(currentDeployments[0])
 			if err != nil {
 				return fmt.Errorf("detected imageID change: error during update: %s", err)
 			}
-			// remove old catalog source pod
-			err = c.removePods(currentLivePods, source.GetNamespace())
+			// remove old catalog source deployment
+			err = c.removeDeployments(currentDeployments, source.GetNamespace())
 			if err != nil {
 				return errors.Wrapf(err, "detected imageID change: error deleting old catalog source pod")
 			}
@@ -467,6 +468,15 @@ func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string
 	return nil
 }
 
+func (c *GrpcRegistryReconciler) removeDeployments(deployments []*appsv1.Deployment, namespace string) error {
+	for _, dep := range deployments {
+		if err := c.OpClient.KubernetesInterface().AppsV1().Deployments(namespace).Delete(context.TODO(), dep.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !apierrors.IsNotFound(err) {
+			return errors.Wrapf(err, "error deleting pod: %s", dep.GetName())
+		}
+	}
+	return nil
+}
+
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
 	source := grpcCatalogSourceDecorator{catalogSource}
@@ -482,15 +492,11 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.Cat
 	return
 }
 
-// promoteCatalog swaps the labels on the update pod so that the update pod is now reachable by the catalog service.
-// By updating the catalog on cluster it promotes the update pod to act as the new version of the catalog on-cluster.
-func (c *GrpcRegistryReconciler) promoteCatalog(updatePod *corev1.Pod, key string) error {
-	// Update the update pod to promote it to serving pod via the SSA client
-	err := c.SSAClient.Apply(context.TODO(), updatePod, func(p *corev1.Pod) error {
-		p.Labels[CatalogSourceLabelKey] = key
-		p.Labels[CatalogSourceUpdateKey] = ""
-		return nil
-	})()
+// Delete the pod out from under the deployment, which will cause it to be recreated with a later version of the image.
+// May result in an unspecified amount of downtime.
+func (c *GrpcRegistryReconciler) promoteCatalog(deployment *appsv1.Deployment) error {
+	pod := deployment.Spec.Template.ObjectMeta
+	err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), pod.GetName(), metav1.DeleteOptions{})
 
 	return err
 }
