@@ -6,6 +6,8 @@ import (
 	"hash/fnv"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -235,4 +237,29 @@ func hashPodSpec(spec corev1.PodSpec) string {
 	hasher := fnv.New32a()
 	hashutil.DeepHashObject(hasher, &spec)
 	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
+}
+
+func Deployment(source *operatorsv1alpha1.CatalogSource, pod *corev1.Pod) *appsv1.Deployment {
+	var one int32 = 1
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: fmt.Sprint(source.GetName(), "-", "deployment"),
+			Namespace:    source.GetNamespace(),
+		},
+		Spec: appsv1.DeploymentSpec{
+			// Explicitly hardcode replica count to 1
+			Replicas: &one,
+			Selector: metav1.SetAsLabelSelector(pod.Labels),
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: pod.ObjectMeta,
+				Spec:       pod.Spec,
+			},
+			// The strategy should be to recreate pods, since the rolling update strategy does not apply (count=1)
+			Strategy:                appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType},
+			MinReadySeconds:         0,
+			RevisionHistoryLimit:    nil,
+			Paused:                  false,
+			ProgressDeadlineSeconds: nil,
+		},
+	}
 }

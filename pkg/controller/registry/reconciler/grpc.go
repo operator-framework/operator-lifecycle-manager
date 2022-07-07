@@ -6,6 +6,8 @@ import (
 	"hash/fnv"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -127,6 +129,12 @@ func (s *grpcCatalogSourceDecorator) Pod(saName string) *corev1.Pod {
 	return pod
 }
 
+func (s *grpcCatalogSourceDecorator) Deployment(saName string, deploymentPod *corev1.Pod) *appsv1.Deployment {
+	deployment := Deployment(s.CatalogSource, deploymentPod)
+	ownerutil.AddOwner(deployment, s.CatalogSource, false, false)
+	return deployment
+}
+
 type GrpcRegistryReconciler struct {
 	now       nowFunc
 	Lister    operatorlister.OperatorLister
@@ -166,6 +174,18 @@ func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) 
 		logrus.WithField("selector", source.Selector()).Debug("multiple pods found for selector")
 	}
 	return pods
+}
+
+func (c *GrpcRegistryReconciler) currentDeployments(source grpcCatalogSourceDecorator) []*appsv1.Deployment {
+	deployments, err := c.Lister.AppsV1().DeploymentLister().Deployments(source.GetNamespace()).List(source.Selector())
+	if err != nil {
+		logrus.WithError(err).Warn("couldn't find deployment in cache")
+		return nil
+	}
+	if len(deployments) > 1 {
+		logrus.WithField("selector", source.Selector()).Debug("multiple deployments found for selector")
+	}
+	return deployments
 }
 
 func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecorator) []*corev1.Pod {
@@ -211,7 +231,8 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "error ensuring service account: %s", source.GetName())
 	}
-	if err := c.ensurePod(source, sa.GetName(), overwritePod); err != nil {
+	// TODO: delete existing catalog pods so they can be recreated backed by a deployment
+	if err := c.ensureDeployment(source, sa.GetName(), overwritePod, source.Pod(sa.Name)); err != nil {
 		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(sa.Name).GetName())
 	}
 	if err := c.ensureUpdatePod(source, sa.Name); err != nil {
@@ -253,22 +274,23 @@ func isRegistryServiceStatusValid(source *grpcCatalogSourceDecorator) bool {
 	return true
 }
 
-func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, saName string, overwrite bool) error {
+func (c *GrpcRegistryReconciler) ensureDeployment(source grpcCatalogSourceDecorator, saName string, overwrite bool, deploymentPod *corev1.Pod) error {
 	// currentLivePods refers to the currently live instances of the catalog source
-	currentLivePods := c.currentPods(source)
-	if len(currentLivePods) > 0 {
+	currentLiveDeployments := c.currentDeployments(source)
+	if len(currentLiveDeployments) > 0 {
 		if !overwrite {
 			return nil
 		}
-		for _, p := range currentLivePods {
-			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(context.TODO(), p.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !apierrors.IsNotFound(err) {
-				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
+		for _, dep := range currentLiveDeployments {
+			if err := c.OpClient.KubernetesInterface().AppsV1().Deployments(source.GetNamespace()).Delete(context.TODO(), dep.GetName(), *metav1.NewDeleteOptions(1)); err != nil && !apierrors.IsNotFound(err) {
+				return errors.Wrapf(err, "error deleting old pod: %s", dep.GetName())
 			}
 		}
 	}
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), source.Pod(saName), metav1.CreateOptions{})
+
+	dep, err := c.OpClient.KubernetesInterface().AppsV1().Deployments(source.GetNamespace()).Create(context.TODO(), source.Deployment(saName, deploymentPod), metav1.CreateOptions{})
 	if err != nil {
-		return errors.Wrapf(err, "error creating new pod: %s", source.Pod(saName).GetGenerateName())
+		return errors.Wrapf(err, "error creating new deployment %s for catalog %s", dep.GetName(), source.GetName())
 	}
 
 	return nil
