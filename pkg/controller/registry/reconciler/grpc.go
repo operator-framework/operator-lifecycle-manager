@@ -231,9 +231,15 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "error ensuring service account: %s", source.GetName())
 	}
-	// TODO: delete existing catalog pods so they can be recreated backed by a deployment
-	if err := c.ensureDeployment(source, sa.GetName(), overwritePod, source.Pod(sa.Name)); err != nil {
-		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(sa.Name).GetName())
+
+	pod := source.Pod(sa.Name)
+	// Delete existing catalog pods so they can be recreated backed by a deployment
+	if err := c.cleanupStandalonePods(pod); err != nil {
+		return errors.Wrapf(err, "error removing standalone pods")
+	}
+
+	if err := c.ensureDeployment(source, sa.GetName(), overwritePod, pod); err != nil {
+		return errors.Wrapf(err, "error ensuring pod: %s", pod.GetName())
 	}
 	if err := c.ensureUpdatePod(source, sa.Name); err != nil {
 		if _, ok := err.(UpdateNotReadyErr); ok {
@@ -498,6 +504,27 @@ func (c *GrpcRegistryReconciler) promoteCatalog(deployment *appsv1.Deployment) e
 	pod := deployment.Spec.Template.ObjectMeta
 	err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(context.TODO(), pod.GetName(), metav1.DeleteOptions{})
 
+	return err
+}
+
+func (c *GrpcRegistryReconciler) cleanupStandalonePods(pod *corev1.Pod) error {
+	// Check to see whether the pod exists and is part of a running deployment
+	// If not, delete the pod, which should then get recreated as part of a deployment on a subsequent sync
+	liveCatalogPod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Get(context.TODO(), pod.GetName(), metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	var true bool
+	for _, ref := range liveCatalogPod.OwnerReferences {
+		// We assume the pod has an ownerref placed by the deployment controller
+		if ref.Controller == &true {
+			return nil
+		}
+	}
+
+	// Delete the pod
+	err = c.removePods([]*corev1.Pod{liveCatalogPod}, liveCatalogPod.GetNamespace())
 	return err
 }
 
