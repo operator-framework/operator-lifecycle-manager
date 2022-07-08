@@ -112,7 +112,7 @@ func TestPodAvoidsConcurrentWrite(t *testing.T) {
 	}
 
 	annotations := map[string]string{
-		"annotation": "somethignelse",
+		"annotation": "somethingelse",
 	}
 
 	gotPod := Pod(catsrc, "hello", "busybox", "", labels, annotations, int32(0), int32(0))
