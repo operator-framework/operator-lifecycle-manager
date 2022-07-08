@@ -95,6 +95,37 @@ func TestPodContainerSecurityContext(t *testing.T) {
 	require.Equal(t, expectedContainerSecCtx, gotContainerSecCtx)
 }
 
+// TestPodAvoidsConcurrentWrite is a regression test for
+// https://bugzilla.redhat.com/show_bug.cgi?id=2101357
+// we were mutating the input annotations and labels parameters causing
+// concurrent write issues
+func TestPodAvoidsConcurrentWrite(t *testing.T) {
+	catsrc := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "testns",
+		},
+	}
+
+	labels := map[string]string{
+		"label": "something",
+	}
+
+	annotations := map[string]string{
+		"annotation": "somethignelse",
+	}
+
+	gotPod := Pod(catsrc, "hello", "busybox", "", labels, annotations, int32(0), int32(0))
+
+	// check labels and annotations point to different addresses between parameters and what's in the pod
+	require.NotEqual(t, &labels, &gotPod.Labels)
+	require.NotEqual(t, &annotations, &gotPod.Annotations)
+
+	// check that labels and annotations from the parameters were copied down to the pod's
+	require.Equal(t, labels["label"], gotPod.Labels["label"])
+	require.Equal(t, annotations["annotation"], gotPod.Annotations["annotation"])
+}
+
 func TestPodSchedulingOverrides(t *testing.T) {
 	// This test ensures that any overriding pod scheduling configuration elements
 	// defined in spec.grpcPodConfig are applied to the catalog source pod created
