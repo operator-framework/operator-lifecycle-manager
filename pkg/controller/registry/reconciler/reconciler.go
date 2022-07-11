@@ -113,14 +113,26 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 		pullPolicy = corev1.PullAlways
 	}
 
+	// make a copy of the labels and annotations to avoid mutating the input parameters
+	podLabels := make(map[string]string)
+	podAnnotations := make(map[string]string)
+
+	for key, value := range labels {
+		podLabels[key] = value
+	}
+
+	for key, value := range annotations {
+		podAnnotations[key] = value
+	}
+
 	readOnlyRootFilesystem := false
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: source.GetName() + "-",
 			Namespace:    source.GetNamespace(),
-			Labels:       labels,
-			Annotations:  annotations,
+			Labels:       podLabels,
+			Annotations:  podAnnotations,
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
@@ -207,25 +219,17 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 	}
 
 	// Set priorityclass if its annotation exists
-	if prio, ok := annotations[CatalogPriorityClassKey]; ok && prio != "" {
+	if prio, ok := podAnnotations[CatalogPriorityClassKey]; ok && prio != "" {
 		pod.Spec.PriorityClassName = prio
 	}
 
 	// Add PodSpec hash
 	// This hash info will be used to detect PodSpec changes
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-	labels[PodHashLabelKey] = hashPodSpec(pod.Spec)
-	pod.SetLabels(labels)
+	podLabels[PodHashLabelKey] = hashPodSpec(pod.Spec)
 
 	// add eviction annotation to enable the cluster autoscaler to evict the pod in order to drain the node
 	// since catalog pods are not backed by a controller, they cannot be evicted by default
-	if annotations == nil {
-		annotations = make(map[string]string)
-	}
-	annotations[ClusterAutoscalingAnnotationKey] = "true"
-	pod.SetAnnotations(annotations)
+	podAnnotations[ClusterAutoscalingAnnotationKey] = "true"
 
 	return pod
 }
