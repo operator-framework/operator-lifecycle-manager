@@ -40,9 +40,6 @@ var (
 
 	// TopologyManager enables ToplogyManager support. Upgrades are enabled with this feature.
 	LatencySensitive FeatureSet = "LatencySensitive"
-
-	// IPv6DualStackNoUpgrade enables dual-stack. Turning this feature set on IS NOT SUPPORTED, CANNOT BE UNDONE, and PREVENTS UPGRADES.
-	IPv6DualStackNoUpgrade FeatureSet = "IPv6DualStackNoUpgrade"
 )
 
 type FeatureGateSpec struct {
@@ -111,27 +108,20 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 		Disabled: []string{},
 	},
 	TechPreviewNoUpgrade: newDefaultFeatures().
-		with("CSIDriverAzureDisk").         // sig-storage, jsafrane, OCP specific
-		with("CSIDriverVSphere").           // sig-storage, jsafrane, OCP specific
-		with("CSIMigrationAWS").            // sig-storage, jsafrane, Kubernetes feature gate
-		with("CSIMigrationOpenStack").      // sig-storage, jsafrane, Kubernetes feature gate
-		with("CSIMigrationGCE").            // sig-storage, fbertina, Kubernetes feature gate
-		with("CSIMigrationAzureDisk").      // sig-storage, fbertina, Kubernetes feature gate
-		with("CSIMigrationAzureFile").      // sig-storage, fbertina, Kubernetes feature gate
-		with("CSIMigrationVSphere").        // sig-storage, fbertina, Kubernetes feature gate
-		with("ExternalCloudProvider").      // sig-cloud-provider, jspeed, OCP specific
-		with("InsightsOperatorPullingSCA"). // insights-operator/ccx, tremes, OCP specific
-		with("CSIDriverSharedResource").    // sig-build, adkaplan, OCP specific
-		with("BuildCSIVolumes").            // sig-build, adkaplan, OCP specific
+		with("CSIMigrationAWS").             // sig-storage, jsafrane, Kubernetes feature gate
+		with("CSIMigrationGCE").             // sig-storage, fbertina, Kubernetes feature gate
+		with("CSIMigrationAzureFile").       // sig-storage, fbertina, Kubernetes feature gate
+		with("CSIMigrationvSphere").         // sig-storage, fbertina, Kubernetes feature gate
+		with("ExternalCloudProvider").       // sig-cloud-provider, jspeed, OCP specific
+		with("CSIDriverSharedResource").     // sig-build, adkaplan, OCP specific
+		with("BuildCSIVolumes").             // sig-build, adkaplan, OCP specific
+		with("NodeSwap").                    // sig-node, ehashman, Kubernetes feature gate
+		with("MachineAPIProviderOpenStack"). // openstack, egarcia (#forum-openstack), OCP specific
+		with("PlatformOperators").           // OLM, dsover & cchantse, OCP specific
 		toFeatures(),
 	LatencySensitive: newDefaultFeatures().
 		with(
 			"TopologyManager", // sig-pod, sjenning
-		).
-		toFeatures(),
-	IPv6DualStackNoUpgrade: newDefaultFeatures().
-		with(
-			"IPv6DualStack", // sig-network, danwinship
 		).
 		toFeatures(),
 }
@@ -140,14 +130,14 @@ var defaultFeatures = &FeatureGateEnabledDisabled{
 	Enabled: []string{
 		"APIPriorityAndFairness",         // sig-apimachinery, deads2k
 		"RotateKubeletServerCertificate", // sig-pod, sjenning
-		"SupportPodPidsLimit",            // sig-pod, sjenning
-		"NodeDisruptionExclusion",        // sig-scheduling, ccoleman
-		"ServiceNodeExclusion",           // sig-scheduling, ccoleman
 		"DownwardAPIHugePages",           // sig-node, rphillips
 		"PodSecurity",                    // sig-auth, s-urbaniak
 	},
 	Disabled: []string{
-		"LegacyNodeRoleBehavior", // sig-scheduling, ccoleman
+		"CSIMigrationAWS",       // sig-storage, jsafrane
+		"CSIMigrationGCE",       // sig-storage, jsafrane
+		"CSIMigrationAzureFile", // sig-storage, jsafrane
+		"CSIMigrationvSphere",   // sig-storage, jsafrane
 	},
 }
 

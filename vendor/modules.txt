@@ -611,7 +611,7 @@ github.com/opencontainers/go-digest
 ## explicit
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
-# github.com/openshift/api v0.0.0-20200331152225-585af27e34fd => github.com/openshift/api v0.0.0-20211014063134-be2a7fb8aa44
+# github.com/openshift/api v0.0.0-20200331152225-585af27e34fd => github.com/exdx/openshift-api v0.0.0-20220718193357-293f366a6be1
 ## explicit; go 1.16
 github.com/openshift/api/config/v1
 # github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0 => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
@@ -2112,6 +2112,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # google.golang.org/grpc => google.golang.org/grpc v1.40.0
+# github.com/openshift/api => github.com/exdx/openshift-api v0.0.0-20220718193357-293f366a6be1
 # go.opentelemetry.io/contrib => go.opentelemetry.io/contrib v0.20.0
 # go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp => go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.20.0
 # go.opentelemetry.io/otel/exporters/otlp => go.opentelemetry.io/otel/exporters/otlp v0.20.0
@@ -2121,7 +2122,6 @@ sigs.k8s.io/yaml
 # go.opentelemetry.io/otel/sdk/metric => go.opentelemetry.io/otel/sdk/metric v0.20.0
 # go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v0.20.0
 # go.opentelemetry.io/proto/otlp => go.opentelemetry.io/proto/otlp v0.7.0
-# github.com/openshift/api => github.com/openshift/api v0.0.0-20211014063134-be2a7fb8aa44
 # github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
 # go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0
 # go.opentelemetry.io/otel => go.opentelemetry.io/otel v0.20.0
