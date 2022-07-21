@@ -63,32 +63,33 @@ var (
 type Operator struct {
 	queueinformer.Operator
 
-	clock                 utilclock.Clock
-	logger                *logrus.Logger
-	opClient              operatorclient.ClientInterface
-	client                versioned.Interface
-	lister                operatorlister.OperatorLister
-	copiedCSVLister       operatorsv1alpha1listers.ClusterServiceVersionLister
-	ogQueueSet            *queueinformer.ResourceQueueSet
-	csvQueueSet           *queueinformer.ResourceQueueSet
-	olmConfigQueue        workqueue.RateLimitingInterface
-	csvCopyQueueSet       *queueinformer.ResourceQueueSet
-	copiedCSVGCQueueSet   *queueinformer.ResourceQueueSet
-	objGCQueueSet         *queueinformer.ResourceQueueSet
-	nsQueueSet            workqueue.RateLimitingInterface
-	apiServiceQueue       workqueue.RateLimitingInterface
-	csvIndexers           map[string]cache.Indexer
-	recorder              record.EventRecorder
-	resolver              install.StrategyResolverInterface
-	apiReconciler         APIIntersectionReconciler
-	apiLabeler            labeler.Labeler
-	csvSetGenerator       csvutility.SetGenerator
-	csvReplaceFinder      csvutility.ReplaceFinder
-	csvNotification       csvutility.WatchNotification
-	serviceAccountSyncer  *scoped.UserDefinedServiceAccountSyncer
-	clientAttenuator      *scoped.ClientAttenuator
-	serviceAccountQuerier *scoped.UserDefinedServiceAccountQuerier
-	clientFactory         clients.Factory
+	clock                        utilclock.Clock
+	logger                       *logrus.Logger
+	opClient                     operatorclient.ClientInterface
+	client                       versioned.Interface
+	lister                       operatorlister.OperatorLister
+	protectedCopiedCSVNamespaces map[string]struct{}
+	copiedCSVLister              operatorsv1alpha1listers.ClusterServiceVersionLister
+	ogQueueSet                   *queueinformer.ResourceQueueSet
+	csvQueueSet                  *queueinformer.ResourceQueueSet
+	olmConfigQueue               workqueue.RateLimitingInterface
+	csvCopyQueueSet              *queueinformer.ResourceQueueSet
+	copiedCSVGCQueueSet          *queueinformer.ResourceQueueSet
+	objGCQueueSet                *queueinformer.ResourceQueueSet
+	nsQueueSet                   workqueue.RateLimitingInterface
+	apiServiceQueue              workqueue.RateLimitingInterface
+	csvIndexers                  map[string]cache.Indexer
+	recorder                     record.EventRecorder
+	resolver                     install.StrategyResolverInterface
+	apiReconciler                APIIntersectionReconciler
+	apiLabeler                   labeler.Labeler
+	csvSetGenerator              csvutility.SetGenerator
+	csvReplaceFinder             csvutility.ReplaceFinder
+	csvNotification              csvutility.WatchNotification
+	serviceAccountSyncer         *scoped.UserDefinedServiceAccountSyncer
+	clientAttenuator             *scoped.ClientAttenuator
+	serviceAccountQuerier        *scoped.UserDefinedServiceAccountQuerier
+	clientFactory                clients.Factory
 }
 
 func NewOperator(ctx context.Context, options ...OperatorOption) (*Operator, error) {
@@ -121,30 +122,31 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	}
 
 	op := &Operator{
-		Operator:              queueOperator,
-		clock:                 config.clock,
-		logger:                config.logger,
-		opClient:              config.operatorClient,
-		client:                config.externalClient,
-		ogQueueSet:            queueinformer.NewEmptyResourceQueueSet(),
-		csvQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
-		olmConfigQueue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "olmConfig"),
-		csvCopyQueueSet:       queueinformer.NewEmptyResourceQueueSet(),
-		copiedCSVGCQueueSet:   queueinformer.NewEmptyResourceQueueSet(),
-		objGCQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
-		apiServiceQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
-		resolver:              config.strategyResolver,
-		apiReconciler:         config.apiReconciler,
-		lister:                lister,
-		recorder:              eventRecorder,
-		apiLabeler:            config.apiLabeler,
-		csvIndexers:           map[string]cache.Indexer{},
-		csvSetGenerator:       csvutility.NewSetGenerator(config.logger, lister),
-		csvReplaceFinder:      csvutility.NewReplaceFinder(config.logger, config.externalClient),
-		serviceAccountSyncer:  scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
-		clientAttenuator:      scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient),
-		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
-		clientFactory:         clients.NewFactory(config.restConfig),
+		Operator:                     queueOperator,
+		clock:                        config.clock,
+		logger:                       config.logger,
+		opClient:                     config.operatorClient,
+		client:                       config.externalClient,
+		ogQueueSet:                   queueinformer.NewEmptyResourceQueueSet(),
+		csvQueueSet:                  queueinformer.NewEmptyResourceQueueSet(),
+		olmConfigQueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "olmConfig"),
+		csvCopyQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
+		copiedCSVGCQueueSet:          queueinformer.NewEmptyResourceQueueSet(),
+		objGCQueueSet:                queueinformer.NewEmptyResourceQueueSet(),
+		apiServiceQueue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
+		resolver:                     config.strategyResolver,
+		apiReconciler:                config.apiReconciler,
+		lister:                       lister,
+		recorder:                     eventRecorder,
+		apiLabeler:                   config.apiLabeler,
+		csvIndexers:                  map[string]cache.Indexer{},
+		csvSetGenerator:              csvutility.NewSetGenerator(config.logger, lister),
+		csvReplaceFinder:             csvutility.NewReplaceFinder(config.logger, config.externalClient),
+		serviceAccountSyncer:         scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
+		clientAttenuator:             scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient),
+		serviceAccountQuerier:        scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
+		clientFactory:                clients.NewFactory(config.restConfig),
+		protectedCopiedCSVNamespaces: config.protectedCopiedCSVNamespaces,
 	}
 
 	// Set up syncing for namespace-scoped resources
@@ -1299,10 +1301,14 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 			return err
 		}
 
-		// Filter to unique copies
-		uniqueCopiedCSVs := map[string]struct{}{}
+		// Create a map that points from CSV name to a map of namespaces it is copied to
+		// for quick lookups.
+		copiedCSVNamespaces := map[string]map[string]struct{}{}
 		for _, copiedCSV := range copiedCSVs {
-			uniqueCopiedCSVs[copiedCSV.GetName()] = struct{}{}
+			if _, ok := copiedCSVNamespaces[copiedCSV.GetName()]; !ok {
+				copiedCSVNamespaces[copiedCSV.GetName()] = map[string]struct{}{}
+			}
+			copiedCSVNamespaces[copiedCSV.GetName()][copiedCSV.GetNamespace()] = struct{}{}
 		}
 
 		csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(og.GetNamespace()).List(labels.NewSelector().Add(*nonCopiedCSVRequirement))
@@ -1310,9 +1316,16 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 			return err
 		}
 
+		namespaces, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+
+		copiedCSVEvaluatorFunc := getCopiedCSVEvaluatorFunc(olmConfig.CopiedCSVsAreEnabled(), namespaces, a.protectedCopiedCSVNamespaces)
+
 		for _, csv := range csvs {
-			// If the correct number of copied CSVs were found, continue
-			if _, ok := uniqueCopiedCSVs[csv.GetName()]; ok == olmConfig.CopiedCSVsAreEnabled() {
+			// Ignore NS where actual CSV is installed
+			if copiedCSVEvaluatorFunc(copiedCSVNamespaces[csv.GetName()]) {
 				continue
 			}
 
@@ -1324,7 +1337,7 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 	}
 
 	// Update the olmConfig status if it has changed.
-	condition := getCopiedCSVsCondition(!olmConfig.CopiedCSVsAreEnabled(), csvIsRequeued)
+	condition := getCopiedCSVsCondition(olmConfig.CopiedCSVsAreEnabled(), csvIsRequeued)
 	if !isStatusConditionPresentAndAreTypeReasonMessageStatusEqual(olmConfig.Status.Conditions, condition) {
 		meta.SetStatusCondition(&olmConfig.Status.Conditions, condition)
 		if _, err := a.client.OperatorsV1().OLMConfigs().UpdateStatus(context.TODO(), olmConfig, metav1.UpdateOptions{}); err != nil {
@@ -1333,6 +1346,37 @@ func (a *Operator) syncOLMConfig(obj interface{}) (syncError error) {
 	}
 
 	return nil
+}
+
+// getCopiedCSVEvaluatorFunc returns a function that evaluates if the a set of Copied CSVs exist in the expected namespaces.
+func getCopiedCSVEvaluatorFunc(copiedCSVsEnabled bool, namespaces []*corev1.Namespace, protectedCopiedCSVNamespaces map[string]struct{}) func(map[string]struct{}) bool {
+	if copiedCSVsEnabled {
+		// Exclude the namespace hosting the original CSV
+		expectedCopiedCSVCount := -1
+		for _, ns := range namespaces {
+			if ns.Status.Phase == corev1.NamespaceActive {
+				expectedCopiedCSVCount++
+			}
+		}
+		return func(m map[string]struct{}) bool {
+			return expectedCopiedCSVCount == len(m)
+		}
+	}
+
+	// Check that Copied CSVs exist in protected namespaces.
+	return func(m map[string]struct{}) bool {
+		if len(protectedCopiedCSVNamespaces) != len(m) {
+			return false
+		}
+
+		for protectedNS := range protectedCopiedCSVNamespaces {
+			if _, ok := m[protectedNS]; !ok {
+				return false
+			}
+		}
+
+		return true
+	}
 }
 
 func isStatusConditionPresentAndAreTypeReasonMessageStatusEqual(conditions []metav1.Condition, condition metav1.Condition) bool {
@@ -1346,13 +1390,13 @@ func isStatusConditionPresentAndAreTypeReasonMessageStatusEqual(conditions []met
 		foundCondition.Status == condition.Status
 }
 
-func getCopiedCSVsCondition(isDisabled, csvIsRequeued bool) metav1.Condition {
+func getCopiedCSVsCondition(enabled, csvIsRequeued bool) metav1.Condition {
 	condition := metav1.Condition{
 		Type:               operatorsv1.DisabledCopiedCSVsConditionType,
 		LastTransitionTime: metav1.Now(),
 		Status:             metav1.ConditionFalse,
 	}
-	if !isDisabled {
+	if enabled {
 		condition.Reason = "CopiedCSVsEnabled"
 		condition.Message = "Copied CSVs are enabled and present across the cluster"
 		if csvIsRequeued {
@@ -1361,15 +1405,14 @@ func getCopiedCSVsCondition(isDisabled, csvIsRequeued bool) metav1.Condition {
 		return condition
 	}
 
+	condition.Reason = "CopiedCSVsDisabled"
 	if csvIsRequeued {
-		condition.Reason = "CopiedCSVsFound"
-		condition.Message = "Copied CSVs are disabled and at least one copied CSV was found for an operator installed in AllNamespace mode"
+		condition.Message = "Copied CSVs are disabled and at least one unexpected copied CSV was found for an operator installed in AllNamespace mode"
 		return condition
 	}
 
 	condition.Status = metav1.ConditionTrue
-	condition.Reason = "NoCopiedCSVsFound"
-	condition.Message = "Copied CSVs are disabled and none were found for operators installed in AllNamespace mode"
+	condition.Message = "Copied CSVs are disabled and no unexpected copied CSVs were found for operators installed in AllNamespace mode"
 
 	return condition
 }
@@ -1444,7 +1487,24 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		return err
 	}
 
+	// Ensure that the Copied CSVs exist in the protected namespaces.
+	protectedNamespaces := []string{}
+	for ns := range a.protectedCopiedCSVNamespaces {
+		if ns == clusterServiceVersion.GetNamespace() {
+			continue
+		}
+		protectedNamespaces = append(protectedNamespaces, ns)
+	}
+
+	if err := a.ensureCSVsInNamespaces(clusterServiceVersion, operatorGroup, NewNamespaceSet(protectedNamespaces)); err != nil {
+		return err
+	}
+
+	// Delete Copied CSVs in namespaces that are not protected.
 	for _, copiedCSV := range copiedCSVs {
+		if _, ok := a.protectedCopiedCSVNamespaces[copiedCSV.Namespace]; ok {
+			continue
+		}
 		err := a.client.OperatorsV1alpha1().ClusterServiceVersions(copiedCSV.Namespace).Delete(context.TODO(), copiedCSV.Name, metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
 			return err
