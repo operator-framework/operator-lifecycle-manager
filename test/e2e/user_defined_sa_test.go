@@ -31,14 +31,7 @@ var _ = Describe("User defined service account", func() {
 	)
 
 	BeforeEach(func() {
-		generatedNamespace = corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("user-defined-sa-e2e-"),
-			},
-		}
-		Eventually(func() error {
-			return ctx.Ctx().Client().Create(context.Background(), &generatedNamespace)
-		}).Should(Succeed())
+		generatedNamespace = CreateTestNamespace(genName("user-defined-sa-e2e-"))
 
 		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
@@ -206,7 +199,8 @@ var _ = Describe("User defined service account", func() {
 func newNamespace(client operatorclient.ClientInterface, name string) (ns *corev1.Namespace, cleanup cleanupFunc) {
 	request := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:   name,
+			Labels: PodSecurityAdmissionLabels(),
 		},
 	}
 

@@ -47,9 +47,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 		generatedNamespace = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("webhook-e2e-"),
-				Labels: map[string]string{
+				Labels: WithPodSecurityAdmissionLabels(map[string]string{
 					"foo": "bar",
-				},
+				}),
 			},
 		}
 		Eventually(func() error {

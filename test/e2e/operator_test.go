@@ -119,8 +119,11 @@ var _ = Describe("Operator API", func() {
 		// Create namespaces ns-a and ns-b
 		nsA := &corev1.Namespace{}
 		nsA.SetName(genName("ns-a-"))
+		nsA.SetLabels(PodSecurityAdmissionLabels())
+
 		nsB := &corev1.Namespace{}
 		nsB.SetName(genName("ns-b-"))
+		nsB.SetLabels(PodSecurityAdmissionLabels())
 
 		for _, ns := range []*corev1.Namespace{nsA, nsB} {
 			Eventually(func() error {
@@ -251,6 +254,7 @@ var _ = Describe("Operator API", func() {
 			// Subscribe to a package and await a successful install
 			ns = &corev1.Namespace{}
 			ns.SetName(genName("ns-"))
+			ns.SetLabels(PodSecurityAdmissionLabels())
 			Eventually(func() error {
 				return client.Create(clientCtx, ns)
 			}).Should(Succeed())
@@ -368,6 +372,7 @@ var _ = Describe("Operator API", func() {
 				// Subscribe to a package and await a successful install
 				newNs = &corev1.Namespace{}
 				newNs.SetName(genName("ns-"))
+				newNs.SetLabels(PodSecurityAdmissionLabels())
 				Eventually(func() error {
 					return client.Create(clientCtx, newNs)
 				}).Should(Succeed())

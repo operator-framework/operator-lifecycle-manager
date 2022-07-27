@@ -1003,15 +1003,22 @@ func HaveMessage(goal string) gtypes.GomegaMatcher {
 	}, ContainSubstring(goal))
 }
 
-func SetupGeneratedTestNamespaceWithOperatorGroup(name string, og operatorsv1.OperatorGroup) corev1.Namespace {
+func CreateTestNamespace(name string) corev1.Namespace {
 	ns := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:   name,
+			Labels: PodSecurityAdmissionLabels(),
 		},
 	}
 	Eventually(func() error {
 		return ctx.Ctx().E2EClient().Create(context.Background(), &ns)
 	}).Should(Succeed())
+
+	return ns
+}
+
+func SetupGeneratedTestNamespaceWithOperatorGroup(name string, og operatorsv1.OperatorGroup) corev1.Namespace {
+	ns := CreateTestNamespace(name)
 
 	Eventually(func() error {
 		return ctx.Ctx().E2EClient().Create(context.Background(), &og)
@@ -1034,6 +1041,30 @@ func SetupGeneratedTestNamespace(name string, targetNamespaces ...string) corev1
 	}
 
 	return SetupGeneratedTestNamespaceWithOperatorGroup(name, og)
+}
+
+// WithPodSecurityAdmissionLabels adds PSA labels to a sec of labels
+// input labels override conflicting PSA labels
+func WithPodSecurityAdmissionLabels(labels map[string]string) map[string]string {
+	newLabels := map[string]string{}
+	for key, value := range PodSecurityAdmissionLabels() {
+		newLabels[key] = value
+	}
+	for key, value := range labels {
+		newLabels[key] = value
+	}
+	return newLabels
+}
+
+func PodSecurityAdmissionLabels() map[string]string {
+	return map[string]string{
+		"pod-security.kubernetes.io/enforce":         "baseline",
+		"pod-security.kubernetes.io/enforce-version": "latest",
+		"pod-security.kubernetes.io/audit":           "restricted",
+		"pod-security.kubernetes.io/audit-version":   "latest",
+		"pod-security.kubernetes.io/warn":            "restricted",
+		"pod-security.kubernetes.io/warn-version":    "latest",
+	}
 }
 
 func TeardownNamespace(ns string) {

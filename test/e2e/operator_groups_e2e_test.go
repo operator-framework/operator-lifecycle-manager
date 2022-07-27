@@ -77,7 +77,7 @@ var _ = Describe("Operator Group", func() {
 		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   opGroupNamespace,
-				Labels: matchingLabel,
+				Labels: WithPodSecurityAdmissionLabels(matchingLabel),
 			},
 		}, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -89,7 +89,7 @@ var _ = Describe("Operator Group", func() {
 		otherNamespace := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   otherNamespaceName,
-				Labels: matchingLabel,
+				Labels: WithPodSecurityAdmissionLabels(matchingLabel),
 			},
 		}
 		createdOtherNamespace, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &otherNamespace, metav1.CreateOptions{})
@@ -432,7 +432,8 @@ var _ = Describe("Operator Group", func() {
 		for _, ns := range []string{nsA} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: ns,
+					Name:   ns,
+					Labels: PodSecurityAdmissionLabels(),
 				},
 			}
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
@@ -623,7 +624,8 @@ var _ = Describe("Operator Group", func() {
 		for _, ns := range []string{nsA, nsB} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: ns,
+					Name:   ns,
+					Labels: PodSecurityAdmissionLabels(),
 				},
 			}
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
@@ -879,7 +881,8 @@ var _ = Describe("Operator Group", func() {
 		for _, ns := range []string{nsA, nsB, nsC, nsD, nsE} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: ns,
+					Name:   ns,
+					Labels: PodSecurityAdmissionLabels(),
 				},
 			}
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
@@ -1152,7 +1155,8 @@ var _ = Describe("Operator Group", func() {
 		for _, ns := range []string{nsA, nsB, nsC, nsD} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: ns,
+					Name:   ns,
+					Labels: PodSecurityAdmissionLabels(),
 				},
 			}
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
@@ -1507,7 +1511,7 @@ var _ = Describe("Operator Group", func() {
 		otherNamespace := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   otherNamespaceName,
-				Labels: matchingLabel,
+				Labels: WithPodSecurityAdmissionLabels(matchingLabel),
 			},
 		}
 		_, err = c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &otherNamespace, metav1.CreateOptions{})
@@ -1573,7 +1577,8 @@ var _ = Describe("Operator Group", func() {
 
 		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: newNamespaceName,
+				Name:   newNamespaceName,
+				Labels: PodSecurityAdmissionLabels(),
 			},
 		}, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -1709,7 +1714,8 @@ var _ = Describe("Operator Group", func() {
 
 		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: newNamespaceName,
+				Name:   newNamespaceName,
+				Labels: PodSecurityAdmissionLabels(),
 			},
 		}, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -1988,7 +1994,7 @@ var _ = Describe("Operator Group", func() {
 		otherNamespace := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   otherNamespaceName,
-				Labels: matchingLabel,
+				Labels: WithPodSecurityAdmissionLabels(matchingLabel),
 			},
 		}
 		_, err = c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &otherNamespace, metav1.CreateOptions{})
@@ -2054,7 +2060,8 @@ var _ = Describe("Operator Group", func() {
 		for _, namespace := range testNamespaces {
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
+					Name:   namespace,
+					Labels: PodSecurityAdmissionLabels(),
 				},
 			}, metav1.CreateOptions{})
 			require.NoError(GinkgoT(), err)
@@ -2153,7 +2160,8 @@ var _ = Describe("Operator Group", func() {
 		for _, namespace := range testNamespaces {
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
+					Name:   namespace,
+					Labels: PodSecurityAdmissionLabels(),
 				},
 			}, metav1.CreateOptions{})
 			require.NoError(GinkgoT(), err)
@@ -2226,7 +2234,8 @@ var _ = Describe("Operator Group", func() {
 			for _, namespace := range testNamespaces {
 				_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: namespace,
+						Name:   namespace,
+						Labels: PodSecurityAdmissionLabels(),
 					},
 				}, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -2254,7 +2263,7 @@ var _ = Describe("Operator Group", func() {
 					_, err := c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:   namespace,
-							Labels: matchingLabel,
+							Labels: WithPodSecurityAdmissionLabels(matchingLabel),
 						},
 					}, metav1.UpdateOptions{})
 					Expect(err).ToNot(HaveOccurred())

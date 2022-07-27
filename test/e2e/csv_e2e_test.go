@@ -533,12 +533,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			)
 
 			BeforeEach(func() {
-				target = corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						GenerateName: "watched-",
-					},
-				}
-				Expect(ctx.Ctx().Client().Create(context.Background(), &target)).To(Succeed())
+				target = CreateTestNamespace(genName("watched-"))
 
 				original = operatorsv1alpha1.ClusterServiceVersion{
 					TypeMeta: metav1.TypeMeta{
@@ -1975,7 +1970,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   secondNamespaceName,
-					Labels: matchingLabel,
+					Labels: WithPodSecurityAdmissionLabels(matchingLabel),
 				},
 			}, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())

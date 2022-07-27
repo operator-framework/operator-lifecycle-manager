@@ -31,7 +31,8 @@ var _ = Describe("ResourceManager", func() {
 		// Create a namespace
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("test-"),
+				Name:   genName("test-"),
+				Labels: PodSecurityAdmissionLabels(),
 			},
 		}
 		Expect(ctx.Ctx().E2EClient().Create(context.TODO(), ns)).To(Succeed())
@@ -46,7 +47,8 @@ var _ = Describe("ResourceManager", func() {
 		// Create a namespace
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("test-"),
+				Name:   genName("test-"),
+				Labels: PodSecurityAdmissionLabels(),
 			},
 		}
 		Expect(ctx.Ctx().E2EClient().Create(context.TODO(), ns)).To(Succeed())

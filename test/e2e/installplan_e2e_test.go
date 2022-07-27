@@ -3063,7 +3063,8 @@ var _ = Describe("Install Plan", func() {
 	It("unpacks bundle image", func() {
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("ns-"),
+				Name:   genName("ns-"),
+				Labels: PodSecurityAdmissionLabels(),
 			},
 		}, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -3157,12 +3158,9 @@ var _ = Describe("Install Plan", func() {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		ns := &corev1.Namespace{}
-		ns.SetName(genName("ns-"))
+		ns := CreateTestNamespace(genName("ns-"))
 
 		// Create a namespace an OperatorGroup
-		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
 		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
 			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), ns.GetName(), *deleteOpts))
@@ -3170,7 +3168,7 @@ var _ = Describe("Install Plan", func() {
 
 		og := &operatorsv1.OperatorGroup{}
 		og.SetName("og")
-		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.Background(), og, metav1.CreateOptions{})
+		_, err := crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.Background(), og, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		mainPackageName := genName("nginx-")
@@ -3307,6 +3305,7 @@ var _ = Describe("Install Plan", func() {
 		BeforeEach(func() {
 			ns = &corev1.Namespace{}
 			ns.SetName(genName("ns-"))
+			ns.SetLabels(PodSecurityAdmissionLabels())
 
 			// Create a namespace
 			Eventually(func() error {
@@ -3404,6 +3403,7 @@ var _ = Describe("Install Plan", func() {
 		BeforeEach(func() {
 			ns = &corev1.Namespace{}
 			ns.SetName(genName("ns-"))
+			ns.SetLabels(PodSecurityAdmissionLabels())
 			Eventually(func() error {
 				return ctx.Ctx().Client().Create(context.Background(), ns)
 			}, timeout, interval).Should(Succeed(), "could not create Namespace")
@@ -3609,7 +3609,8 @@ var _ = Describe("Install Plan", func() {
 
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("ns-"),
+				Name:   genName("ns-"),
+				Labels: PodSecurityAdmissionLabels(),
 			},
 		}, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -3694,7 +3695,8 @@ var _ = Describe("Install Plan", func() {
 		By("creating a scoped serviceaccount specified in the operatorgroup")
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("ns-"),
+				Name:   genName("ns-"),
+				Labels: PodSecurityAdmissionLabels(),
 			},
 		}, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -3938,7 +3940,8 @@ var _ = Describe("Install Plan", func() {
 		By("creating a scoped serviceaccount specifified in the operatorgroup")
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("ns-"),
+				Name:   genName("ns-"),
+				Labels: PodSecurityAdmissionLabels(),
 			},
 		}, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())

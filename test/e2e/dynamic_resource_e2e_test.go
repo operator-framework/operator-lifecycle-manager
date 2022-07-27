@@ -54,7 +54,8 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 					var err error
 					ns, err = c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
-							Name: genName("ns-"),
+							Name:   genName("ns-"),
+							Labels: PodSecurityAdmissionLabels(),
 						},
 					}, metav1.CreateOptions{})
 					Expect(err).NotTo(HaveOccurred())
