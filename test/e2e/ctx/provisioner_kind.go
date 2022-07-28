@@ -4,11 +4,13 @@
 package ctx
 
 import (
+	_ "embed"
 	"encoding/csv"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -16,6 +18,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
 	"sigs.k8s.io/kind/pkg/cluster"
 	"sigs.k8s.io/kind/pkg/cluster/nodeutils"
 	"sigs.k8s.io/kind/pkg/log"
@@ -27,6 +30,12 @@ var (
 
 	verbosity int
 )
+
+//go:embed kind-cluster-level-pss.yaml
+var kindClusterLevelPss string
+
+//go:embed kind-cluster-config-patch.yaml
+var kindClusterConfigPatch string
 
 func init() {
 	// https://github.com/kubernetes-sigs/kind/blob/v0.10.0/pkg/log/types.go#L38-L45
@@ -89,10 +98,39 @@ func Provision(ctx *TestContext) (func(), error) {
 		cluster.ProviderWithLogger(kindLogAdapter{ctx}),
 	)
 	name := fmt.Sprintf("kind-%s", rand.String(16))
+	clusterConfigDir, err := ioutil.TempDir("", "kind-config.")
+	pssConfigPath := path.Join(clusterConfigDir, "cluster-level-pss.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to crate temporary directory: %s", err)
+	}
+	err = ioutil.WriteFile(pssConfigPath, []byte(kindClusterLevelPss), 0777)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write cluster config file: %s", err)
+	}
 	if err := provider.Create(
 		name,
 		cluster.CreateWithWaitForReady(5*time.Minute),
 		cluster.CreateWithKubeconfigPath(kubeconfigPath),
+		cluster.CreateWithV1Alpha4Config(&v1alpha4.Cluster{
+			// taken from https://kubernetes.io/docs/tutorials/security/cluster-level-pss/
+			Nodes: []v1alpha4.Node{
+				{
+					Role: v1alpha4.ControlPlaneRole,
+					KubeadmConfigPatches: []string{
+						kindClusterConfigPatch,
+					},
+					ExtraMounts: []v1alpha4.Mount{
+						{
+							HostPath:       clusterConfigDir,
+							ContainerPath:  "/etc/config",
+							Readonly:       false,
+							SelinuxRelabel: false,
+							Propagation:    v1alpha4.MountPropagationNone,
+						},
+					},
+				},
+			},
+		}),
 	); err != nil {
 		return nil, fmt.Errorf("failed to create kind cluster: %s", err.Error())
 	}
