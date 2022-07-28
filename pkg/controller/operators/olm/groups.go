@@ -3,7 +3,7 @@ package olm
 import (
 	"strings"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
@@ -106,14 +106,14 @@ type OperatorGroup struct {
 	providedAPIs cache.APISet
 }
 
-func NewOperatorGroup(group *v1.OperatorGroup) *OperatorGroup {
+func NewOperatorGroup(group *operatorsv1.OperatorGroup) *OperatorGroup {
 	// Add operatorgroup namespace if not NamespaceAll
 	namespaces := group.Status.Namespaces
 	if len(namespaces) >= 1 && namespaces[0] != "" {
 		namespaces = append(namespaces, group.GetNamespace())
 	}
 	// TODO: Sanitize OperatorGroup if len(namespaces) > 1 and contains ""
-	gvksStr := group.GetAnnotations()[v1.OperatorGroupProvidedAPIsAnnotationKey]
+	gvksStr := group.GetAnnotations()[operatorsv1.OperatorGroupProvidedAPIsAnnotationKey]
 
 	return &OperatorGroup{
 		namespace:    group.GetNamespace(),
@@ -123,7 +123,7 @@ func NewOperatorGroup(group *v1.OperatorGroup) *OperatorGroup {
 	}
 }
 
-func NewOperatorGroupSurfaces(groups ...v1.OperatorGroup) []OperatorGroupSurface {
+func NewOperatorGroupSurfaces(groups ...operatorsv1.OperatorGroup) []OperatorGroupSurface {
 	operatorGroups := make([]OperatorGroupSurface, len(groups))
 	for i, group := range groups {
 		operatorGroups[i] = NewOperatorGroup(&group)

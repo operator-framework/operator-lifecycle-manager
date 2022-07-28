@@ -3,7 +3,7 @@ package dsl
 import (
 	"fmt"
 
-	g "github.com/onsi/ginkgo"
+	g "github.com/onsi/ginkgo/v2"
 )
 
 // IgnoreError acknowledges that an error value is being intentionally

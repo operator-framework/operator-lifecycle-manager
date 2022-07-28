@@ -1,5 +1,5 @@
 run:
-  timeout: 5m
+  timeout: 8m
   skip-dirs:
   - pkg/lib
   - pkg/api
@@ -20,6 +20,24 @@ linters:
   - whitespace
   disable:
   - errcheck
+
+linters-settings:
+  importas:
+    alias:
+    - pkg: k8s.io/api/core/v1
+      alias: corev1
+    - pkg: k8s.io/api/apps/v1
+      alias: appsv1
+    - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+      alias: metav1
+    - pkg: k8s.io/apimachinery/pkg/api/errors
+      alias: apierrors
+    - pkg: github.com/operator-framework/api/pkg/operators/v1alpha1
+      alias: operatorsv1alpha1
+    - pkg: github.com/operator-framework/api/pkg/operators/v1
+      alias: operatorsv1
+    - pkg: github.com/operator-framework/api/pkg/operators/v2
+      alias: operatorsv2
 
 issues:
   max-issues-per-linter: 0

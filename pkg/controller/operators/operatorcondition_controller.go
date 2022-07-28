@@ -8,7 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -93,39 +93,34 @@ var _ reconcile.Reconciler = &OperatorConditionReconciler{}
 
 func (r *OperatorConditionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
-	log := r.log.WithValues("request", req)
-	log.V(2).Info("reconciling operatorcondition")
+	log := r.log.WithValues("request", req).V(1)
+	log.Info("reconciling")
 	metrics.EmitOperatorConditionReconcile(req.Namespace, req.Name)
 
 	operatorCondition := &operatorsv2.OperatorCondition{}
-	err := r.Client.Get(context.TODO(), req.NamespacedName, operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Unable to find operatorcondition")
+	if err := r.Client.Get(ctx, req.NamespacedName, operatorCondition); err != nil {
+		log.Info("Unable to find OperatorCondition")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if err := r.ensureOperatorConditionRole(operatorCondition); err != nil {
+		log.Info("Error ensuring OperatorCondition Role")
 		return ctrl.Result{}, err
 	}
 
-	err = r.ensureOperatorConditionRole(operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error ensuring OperatorCondition Role")
-		return ctrl.Result{Requeue: true}, err
+	if err := r.ensureOperatorConditionRoleBinding(operatorCondition); err != nil {
+		log.Info("Error ensuring OperatorCondition RoleBinding")
+		return ctrl.Result{}, err
 	}
 
-	err = r.ensureOperatorConditionRoleBinding(operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error ensuring OperatorCondition RoleBinding")
-		return ctrl.Result{Requeue: true}, err
+	if err := r.ensureDeploymentEnvVars(operatorCondition); err != nil {
+		log.Info("Error ensuring OperatorCondition Deployment EnvVars")
+		return ctrl.Result{}, err
 	}
 
-	err = r.ensureDeploymentEnvVars(operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error ensuring OperatorCondition Deployment EnvVars")
-		return ctrl.Result{Requeue: true}, err
-	}
-
-	err = r.syncOperatorConditionStatus(operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error syncing OperatorCondition Status")
-		return ctrl.Result{Requeue: true}, err
+	if err := r.syncOperatorConditionStatus(operatorCondition); err != nil {
+		log.Info("Error syncing OperatorCondition Status")
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
@@ -152,7 +147,7 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondit
 	existingRole := &rbacv1.Role{}
 	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: role.GetName(), Namespace: role.GetNamespace()}, existingRole)
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		return r.Client.Create(context.TODO(), role)
@@ -198,7 +193,7 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRoleBinding(operato
 	existingRoleBinding := &rbacv1.RoleBinding{}
 	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: roleBinding.GetName(), Namespace: roleBinding.GetNamespace()}, existingRoleBinding)
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		return r.Client.Create(context.TODO(), roleBinding)

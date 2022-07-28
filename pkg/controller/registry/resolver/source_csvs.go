@@ -8,6 +8,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	v1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
@@ -20,6 +21,7 @@ import (
 type csvSourceProvider struct {
 	csvLister v1alpha1listers.ClusterServiceVersionLister
 	subLister v1alpha1listers.SubscriptionLister
+	ogLister  v1listers.OperatorGroupLister
 	logger    logrus.StdLogger
 }
 
@@ -30,6 +32,7 @@ func (csp *csvSourceProvider) Sources(namespaces ...string) map[cache.SourceKey]
 			key:       cache.NewVirtualSourceKey(namespace),
 			csvLister: csp.csvLister.ClusterServiceVersions(namespace),
 			subLister: csp.subLister.Subscriptions(namespace),
+			ogLister:  csp.ogLister.OperatorGroups(namespace),
 			logger:    csp.logger,
 		}
 		break // first ns is assumed to be the target ns, todo: make explicit
@@ -41,6 +44,7 @@ type csvSource struct {
 	key       cache.SourceKey
 	csvLister v1alpha1listers.ClusterServiceVersionNamespaceLister
 	subLister v1alpha1listers.SubscriptionNamespaceLister
+	ogLister  v1listers.OperatorGroupNamespaceLister
 	logger    logrus.StdLogger
 }
 
@@ -51,6 +55,11 @@ func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
 	}
 
 	subs, err := s.subLister.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	failForwardEnabled, err := IsFailForwardEnabled(s.ogLister)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +84,17 @@ func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
 		if csv.IsCopied() {
 			continue
 		}
+
+		if failForwardEnabled {
+			replacementChainEndsInFailure, err := isReplacementChainThatEndsInFailure(csv, ReplacementMapping(csvs))
+			if err != nil {
+				return nil, err
+			}
+			if csv.Status.Phase == v1alpha1.CSVPhaseReplacing && replacementChainEndsInFailure {
+				continue
+			}
+		}
+
 		entry, err := newEntryFromV1Alpha1CSV(csv)
 		if err != nil {
 			return nil, err
@@ -122,7 +142,10 @@ func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
 		s.logger.Printf("considered csvs without properties annotation during resolution: %v", names)
 	}
 
-	return &cache.Snapshot{Entries: entries}, nil
+	return &cache.Snapshot{
+		Entries: entries,
+		Valid:   cache.ValidOnce(),
+	}, nil
 }
 
 func (s *csvSource) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) ([]*api.Property, error) {

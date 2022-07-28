@@ -9,7 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -160,7 +160,7 @@ func (i *StrategyDeploymentInstaller) getCertResources() []certResource {
 }
 
 func (i *StrategyDeploymentInstaller) certResourcesForDeployment(deploymentName string) []certResource {
-	result := []certResource{}
+	var result []certResource
 	for _, desc := range i.getCertResources() {
 		if desc.getDeploymentName() == deploymentName {
 			result = append(result, desc)
@@ -185,13 +185,12 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 	}
 
 	// Create the CA
-	expiration := time.Now().Add(DefaultCertValidFor)
-	ca, err := certs.GenerateCA(expiration, Organization)
+	i.certificateExpirationTime = CalculateCertExpiration(time.Now())
+	ca, err := certs.GenerateCA(i.certificateExpirationTime, Organization)
 	if err != nil {
 		logger.Debug("failed to generate CA")
 		return nil, err
 	}
-	rotateAt := expiration.Add(-1 * DefaultCertMinFresh)
 
 	for n, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
 		certResources := i.certResourcesForDeployment(sddSpec.Name)
@@ -202,7 +201,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 		}
 
 		// Update the deployment for each certResource
-		newDepSpec, caPEM, err := i.installCertRequirementsForDeployment(sddSpec.Name, ca, rotateAt, sddSpec.Spec, getServicePorts(certResources))
+		newDepSpec, caPEM, err := i.installCertRequirementsForDeployment(sddSpec.Name, ca, i.certificateExpirationTime, sddSpec.Spec, getServicePorts(certResources))
 		if err != nil {
 			return nil, err
 		}
@@ -214,6 +213,14 @@ func (i *StrategyDeploymentInstaller) installCertRequirements(strategy Strategy)
 	return strategyDetailsDeployment, nil
 }
 
+func (i *StrategyDeploymentInstaller) CertsRotateAt() time.Time {
+	return CalculateCertRotatesAt(i.certificateExpirationTime)
+}
+
+func (i *StrategyDeploymentInstaller) CertsRotated() bool {
+	return i.certificatesRotated
+}
+
 func ShouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	now := metav1.Now()
 	if !csv.Status.CertsRotateAt.IsZero() && csv.Status.CertsRotateAt.Before(&now) {
@@ -223,7 +230,15 @@ func ShouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	return false
 }
 
-func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deploymentName string, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, ports []corev1.ServicePort) (*appsv1.DeploymentSpec, []byte, error) {
+func CalculateCertExpiration(startingFrom time.Time) time.Time {
+	return startingFrom.Add(DefaultCertValidFor)
+}
+
+func CalculateCertRotatesAt(certExpirationTime time.Time) time.Time {
+	return certExpirationTime.Add(-1 * DefaultCertMinFresh)
+}
+
+func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deploymentName string, ca *certs.KeyPair, expiration time.Time, depSpec appsv1.DeploymentSpec, ports []corev1.ServicePort) (*appsv1.DeploymentSpec, []byte, error) {
 	logger := log.WithFields(log.Fields{})
 
 	// Create a service for the deployment
@@ -246,7 +261,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 
 		// Delete the Service to replace
 		deleteErr := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
-		if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
 			return nil, nil, fmt.Errorf("could not delete existing service %s", service.GetName())
 		}
 	}
@@ -263,7 +278,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		fmt.Sprintf("%s.%s", service.GetName(), i.owner.GetNamespace()),
 		fmt.Sprintf("%s.%s.svc", service.GetName(), i.owner.GetNamespace()),
 	}
-	servingPair, err := certGenerator.Generate(rotateAt, Organization, ca, hosts)
+	servingPair, err := certGenerator.Generate(expiration, Organization, ca, hosts)
 	if err != nil {
 		logger.Warnf("could not generate signed certs for hosts %v", hosts)
 		return nil, nil, err
@@ -311,15 +326,18 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			secret = existingSecret
 			caPEM = existingCAPEM
 			caHash = certs.PEMSHA256(caPEM)
-		} else if _, err := i.strategyClient.GetOpClient().UpdateSecret(secret); err != nil {
-			logger.Warnf("could not update secret %s", secret.GetName())
-			return nil, nil, err
+		} else {
+			if _, err := i.strategyClient.GetOpClient().UpdateSecret(secret); err != nil {
+				logger.Warnf("could not update secret %s", secret.GetName())
+				return nil, nil, err
+			}
+			i.certificatesRotated = true
 		}
-	} else if k8serrors.IsNotFound(err) {
+	} else if apierrors.IsNotFound(err) {
 		// Create the secret
 		ownerutil.AddNonBlockingOwner(secret, i.owner)
 		if _, err := i.strategyClient.GetOpClient().CreateSecret(secret); err != nil {
-			if !k8serrors.IsAlreadyExists(err) {
+			if !apierrors.IsAlreadyExists(err) {
 				log.Warnf("could not create secret %s: %v", secret.GetName(), err)
 				return nil, nil, err
 			}
@@ -330,6 +348,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 				return nil, nil, err
 			}
 		}
+		i.certificatesRotated = true
 	} else {
 		return nil, nil, err
 	}
@@ -360,7 +379,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			logger.Warnf("could not update secret role %s", secretRole.GetName())
 			return nil, nil, err
 		}
-	} else if k8serrors.IsNotFound(err) {
+	} else if apierrors.IsNotFound(err) {
 		// Create the role
 		ownerutil.AddNonBlockingOwner(secretRole, i.owner)
 		_, err = i.strategyClient.GetOpClient().CreateRole(secretRole)
@@ -406,7 +425,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			logger.Warnf("could not update secret rolebinding %s", secretRoleBinding.GetName())
 			return nil, nil, err
 		}
-	} else if k8serrors.IsNotFound(err) {
+	} else if apierrors.IsNotFound(err) {
 		// Create the role
 		ownerutil.AddNonBlockingOwner(secretRoleBinding, i.owner)
 		_, err = i.strategyClient.GetOpClient().CreateRoleBinding(secretRoleBinding)
@@ -451,7 +470,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			logger.Warnf("could not update auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
 			return nil, nil, err
 		}
-	} else if k8serrors.IsNotFound(err) {
+	} else if apierrors.IsNotFound(err) {
 		// Create the role.
 		if err := ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, i.owner); err != nil {
 			return nil, nil, err
@@ -498,7 +517,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			logger.Warnf("could not update auth reader role binding %s", authReaderRoleBinding.GetName())
 			return nil, nil, err
 		}
-	} else if k8serrors.IsNotFound(err) {
+	} else if apierrors.IsNotFound(err) {
 		// Create the role.
 		if err := ownerutil.AddOwnerLabels(authReaderRoleBinding, i.owner); err != nil {
 			return nil, nil, err

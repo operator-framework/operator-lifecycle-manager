@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apiserver/pkg/storage/names"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
@@ -43,6 +42,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
+	utilclock "k8s.io/utils/clock"
+	utilclocktesting "k8s.io/utils/clock/testing"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -77,7 +78,7 @@ func (m *mockTransitioner) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 func TestTransitionInstallPlan(t *testing.T) {
 	errMsg := "transition test error"
 	err := errors.New(errMsg)
-	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
 
 	installed := &v1alpha1.InstallPlanCondition{
@@ -764,7 +765,7 @@ func withStatus(catalogSource v1alpha1.CatalogSource, status v1alpha1.CatalogSou
 }
 
 func TestSyncCatalogSources(t *testing.T) {
-	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
 
 	configmapCatalog := &v1alpha1.CatalogSource{
@@ -1037,6 +1038,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			k8sObjs: []runtime.Object{
 				pod(*grpcCatalog),
 				service(grpcCatalog.GetName(), grpcCatalog.GetNamespace()),
+				serviceAccount(grpcCatalog.GetName(), grpcCatalog.GetNamespace(), "", objectReference("init secret")),
 			},
 			existingSources: []sourceAddress{
 				{
@@ -1122,7 +1124,7 @@ func TestSyncCatalogSources(t *testing.T) {
 }
 
 func TestSyncResolvingNamespace(t *testing.T) {
-	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	testNamespace := "testNamespace"
 
 	type fields struct {

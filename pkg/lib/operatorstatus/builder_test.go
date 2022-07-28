@@ -6,13 +6,13 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	utilclock "k8s.io/utils/clock/testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBuilder(t *testing.T) {
-	fakeClock := clock.NewFakeClock(time.Now())
+	fakeClock := utilclock.NewFakeClock(time.Now())
 	minuteAgo := metav1.NewTime(time.Now().Add(-1 * time.Minute))
 
 	tests := []struct {

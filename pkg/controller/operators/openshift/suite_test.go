@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/crds"
@@ -15,7 +15,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
@@ -23,11 +22,7 @@ import (
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecsWithDefaultAndCustomReporters(
-		t,
-		"OpenShift Suite",
-		[]Reporter{printer.NewlineReporter{}},
-	)
+	RunSpecs(t, "OpenShift Suite")
 }
 
 var (
@@ -53,8 +48,8 @@ var _ = BeforeSuite(func() {
 	base := filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")
 	testEnv = &envtest.Environment{
 		ErrorIfCRDPathMissing: true,
-		CRDs: []apiextensionsv1.CustomResourceDefinition{
-			*crds.ClusterServiceVersion(),
+		CRDs: []*apiextensionsv1.CustomResourceDefinition{
+			crds.ClusterServiceVersion(),
 		},
 		CRDDirectoryPaths: []string{
 			filepath.Join(base, "0000_00_cluster-version-operator_01_clusteroperator.crd.yaml"),

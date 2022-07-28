@@ -69,7 +69,6 @@ func (p StaticSourceProvider) Sources(namespaces ...string) map[SourceKey]Source
 
 type OperatorCacheProvider interface {
 	Namespaced(namespaces ...string) MultiCatalogOperatorFinder
-	Expire(catalog SourceKey)
 }
 
 type SourcePriorityProvider interface {
@@ -87,12 +86,9 @@ type Cache struct {
 	sp                     SourceProvider
 	sourcePriorityProvider SourcePriorityProvider
 	snapshots              map[SourceKey]*snapshotHeader
-	ttl                    time.Duration
 	sem                    chan struct{}
 	m                      sync.RWMutex
 }
-
-var _ OperatorCacheProvider = &Cache{}
 
 type Option func(*Cache)
 
@@ -122,7 +118,6 @@ func New(sp SourceProvider, options ...Option) *Cache {
 		sp:                     sp,
 		sourcePriorityProvider: constantSourcePriorityProvider(0),
 		snapshots:              make(map[SourceKey]*snapshotHeader),
-		ttl:                    5 * time.Minute,
 		sem:                    make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
 
@@ -144,20 +139,10 @@ func (c *NamespacedOperatorCache) Error() error {
 		err := snapshot.err
 		snapshot.m.RUnlock()
 		if err != nil {
-			errs = append(errs, fmt.Errorf("error using catalog %s (in namespace %s): %w", key.Name, key.Namespace, err))
+			errs = append(errs, fmt.Errorf("failed to populate resolver cache from source %v: %w", key.String(), err))
 		}
 	}
 	return errors.NewAggregate(errs)
-}
-
-func (c *Cache) Expire(catalog SourceKey) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	s, ok := c.snapshots[catalog]
-	if !ok {
-		return
-	}
-	s.expiry = time.Unix(0, 0)
 }
 
 func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
@@ -165,7 +150,6 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 		CachePopulateTimeout = time.Minute
 	)
 
-	now := time.Now()
 	sources := c.sp.Sources(namespaces...)
 
 	result := NamespacedOperatorCache{
@@ -182,7 +166,7 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 				func() {
 					snapshot.m.RLock()
 					defer snapshot.m.RUnlock()
-					if snapshot.Valid(now) {
+					if snapshot.Valid() {
 						result.snapshots[key] = snapshot
 					} else {
 						misses = append(misses, key)
@@ -205,7 +189,7 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 	// Take the opportunity to clear expired snapshots while holding the lock.
 	var expired []SourceKey
 	for key, snapshot := range c.snapshots {
-		if !snapshot.Valid(now) {
+		if !snapshot.Valid() {
 			snapshot.Cancel()
 			expired = append(expired, key)
 		}
@@ -217,7 +201,7 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 	// Check for any snapshots that were populated while waiting to acquire the lock.
 	var found int
 	for i := range misses {
-		if hdr, ok := c.snapshots[misses[i]]; ok && hdr.Valid(now) {
+		if hdr, ok := c.snapshots[misses[i]]; ok && hdr.Valid() {
 			result.snapshots[misses[i]] = hdr
 			misses[found], misses[i] = misses[i], misses[found]
 			found++
@@ -230,15 +214,8 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 
 		hdr := snapshotHeader{
 			key:      miss,
-			expiry:   now.Add(c.ttl),
 			pop:      cancel,
 			priority: c.sourcePriorityProvider.Priority(miss),
-		}
-
-		if miss.Virtual() {
-			// hack! always refresh virtual catalogs.
-			// todo: Sources should be responsible for determining when the Snapshots they produce become invalid
-			hdr.expiry = time.Time{}
 		}
 
 		hdr.m.Lock()
@@ -249,7 +226,13 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 			defer hdr.m.Unlock()
 			c.sem <- struct{}{}
 			defer func() { <-c.sem }()
-			hdr.snapshot, hdr.err = source.Snapshot(ctx)
+			if snapshot, err := source.Snapshot(ctx); err != nil {
+				hdr.err = err
+			} else if snapshot != nil {
+				hdr.snapshot = snapshot
+			} else {
+				hdr.err = fmt.Errorf("source %q produced no snapshot and no error", hdr.key)
+			}
 		}(ctx, &hdr, sources[miss])
 	}
 
@@ -286,6 +269,15 @@ func (c *NamespacedOperatorCache) Find(p ...Predicate) []*Entry {
 
 type Snapshot struct {
 	Entries []*Entry
+
+	// Unless closed, the Snapshot is valid.
+	Valid <-chan struct{}
+}
+
+func ValidOnce() <-chan struct{} {
+	c := make(chan struct{})
+	close(c)
+	return c
 }
 
 var _ Source = &Snapshot{}
@@ -298,7 +290,6 @@ type snapshotHeader struct {
 	snapshot *Snapshot
 
 	key      SourceKey
-	expiry   time.Time
 	m        sync.RWMutex
 	pop      context.CancelFunc
 	err      error
@@ -309,10 +300,18 @@ func (hdr *snapshotHeader) Cancel() {
 	hdr.pop()
 }
 
-func (hdr *snapshotHeader) Valid(at time.Time) bool {
+func (hdr *snapshotHeader) Valid() bool {
 	hdr.m.RLock()
 	defer hdr.m.RUnlock()
-	return hdr.snapshot != nil && hdr.err == nil && at.Before(hdr.expiry)
+	if hdr.snapshot == nil || hdr.err != nil {
+		return false
+	}
+	select {
+	case <-hdr.snapshot.Valid:
+		return false
+	default:
+	}
+	return true
 }
 
 type sortableSnapshots struct {
@@ -422,13 +421,6 @@ type EmptyOperatorFinder struct{}
 
 func (f EmptyOperatorFinder) Find(...Predicate) []*Entry {
 	return nil
-}
-
-func AtLeast(n int, operators []*Entry) ([]*Entry, error) {
-	if len(operators) < n {
-		return nil, fmt.Errorf("expected at least %d operator(s), got %d", n, len(operators))
-	}
-	return operators, nil
 }
 
 func ExactlyOne(operators []*Entry) (*Entry, error) {

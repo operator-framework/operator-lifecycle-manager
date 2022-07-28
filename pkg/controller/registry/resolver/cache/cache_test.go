@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,12 +67,12 @@ func TestOperatorCacheExpiration(t *testing.T) {
 	key := SourceKey{Namespace: "dummynamespace", Name: "dummyname"}
 	ssp := make(StaticSourceProvider)
 	c := New(ssp)
-	c.ttl = 0 // instantly stale
 
 	ssp[key] = &Snapshot{
 		Entries: []*Entry{
 			{Name: "v1"},
 		},
+		Valid: ValidOnce(),
 	}
 	require.Len(t, c.Namespaced("dummynamespace").Catalog(key).Find(CSVNamePredicate("v1")), 1)
 
@@ -108,62 +107,51 @@ func TestOperatorCacheReuse(t *testing.T) {
 func TestCatalogSnapshotValid(t *testing.T) {
 	type tc struct {
 		Name     string
-		Expiry   time.Time
 		Snapshot *Snapshot
 		Error    error
-		At       time.Time
 		Expected bool
 	}
 
 	for _, tt := range []tc{
 		{
-			Name:     "after expiry",
-			Expiry:   time.Unix(0, 1),
-			Snapshot: &Snapshot{},
+			Name: "invalidated",
+			Snapshot: &Snapshot{
+				Valid: ValidOnce(),
+			},
 			Error:    nil,
-			At:       time.Unix(0, 2),
 			Expected: false,
 		},
 		{
-			Name:     "before expiry",
-			Expiry:   time.Unix(0, 2),
-			Snapshot: &Snapshot{},
+			Name:     "valid",
+			Snapshot: &Snapshot{}, // valid forever
 			Error:    nil,
-			At:       time.Unix(0, 1),
 			Expected: true,
 		},
 		{
-			Name:     "nil snapshot",
-			Expiry:   time.Unix(0, 2),
+			Name:     "nil snapshot and non-nil error",
 			Snapshot: nil,
 			Error:    errors.New(""),
-			At:       time.Unix(0, 1),
 			Expected: false,
 		},
 		{
-			Name:     "non-nil error",
-			Expiry:   time.Unix(0, 2),
+			Name:     "non-nil snapshot and non-nil error",
 			Snapshot: &Snapshot{},
 			Error:    errors.New(""),
-			At:       time.Unix(0, 1),
 			Expected: false,
 		},
 		{
-			Name:     "at expiry",
-			Expiry:   time.Unix(0, 1),
-			Snapshot: &Snapshot{},
+			Name:     "nil snapshot and nil error",
+			Snapshot: nil,
 			Error:    nil,
-			At:       time.Unix(0, 1),
 			Expected: false,
 		},
 	} {
 		t.Run(tt.Name, func(t *testing.T) {
 			s := snapshotHeader{
-				expiry:   tt.Expiry,
 				snapshot: tt.Snapshot,
 				err:      tt.Error,
 			}
-			assert.Equal(t, tt.Expected, s.Valid(tt.At))
+			assert.Equal(t, tt.Expected, s.Valid())
 		})
 	}
 }
@@ -250,5 +238,5 @@ func TestNamespaceOperatorCacheError(t *testing.T) {
 		key: ErrorSource{Error: errors.New("testing")},
 	})
 
-	require.EqualError(t, c.Namespaced("dummynamespace").Error(), "error using catalog dummyname (in namespace dummynamespace): testing")
+	require.EqualError(t, c.Namespaced("dummynamespace").Error(), "failed to populate resolver cache from source dummyname/dummynamespace: testing")
 }

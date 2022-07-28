@@ -3,7 +3,7 @@ package olm
 import (
 	"fmt"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -19,7 +19,7 @@ func (a *Operator) isOperatorUpgradeable(csv *v1alpha1.ClusterServiceVersion) (b
 
 	cond, err := a.lister.OperatorsV2().OperatorConditionLister().OperatorConditions(csv.GetNamespace()).Get(csv.GetName())
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return true, nil
 		}
 		return false, err

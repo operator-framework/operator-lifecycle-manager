@@ -3,30 +3,48 @@ package internal
 import (
 	"fmt"
 	"github.com/blang/semver"
-
 	"github.com/operator-framework/api/pkg/manifests"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"github.com/operator-framework/api/pkg/validation/errors"
 	interfaces "github.com/operator-framework/api/pkg/validation/interfaces"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sort"
 )
 
 // k8sVersionKey defines the key which can be used by its consumers
 // to inform what is the K8S version that should be used to do the tests against.
 const k8sVersionKey = "k8s-version"
 
-const minKubeVersionWarnMessage = "csv.Spec.minKubeVersion is not informed. It is recommended you provide this information. " +
-	"Otherwise, it would mean that your operator project can be distributed and installed in any cluster version " +
-	"available, which is not necessarily the case for all projects."
+// DeprecateMessage defines the content of the message that will be raised as an error or warning
+// when the removed apis are found
+const DeprecateMessage = "this bundle is using APIs which were deprecated and removed in v%v.%v. " +
+	"More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v%v-%v. " +
+	"Migrate the API(s) for %s"
 
-// K8s version where the apis v1betav1 is no longer supported
-const k8sVerV1betav1Unsupported = "1.22.0"
+// K8sVersionsSupportedByValidator defines the k8s versions which this validator is implemented to
+// perform the checks
+var K8sVersionsSupportedByValidator = []string{"1.22.0", "1.25.0", "1.26.0"}
 
-// K8s version where the apis v1betav1 was deprecated
-const k8sVerV1betav1Deprecated = "1.16.0"
-
-// AlphaDeprecatedAPIsValidator validates if the bundles is using versions API version which are deprecate or
-// removed in specific Kubernetes versions informed via optional key value `k8s-version`.
+// AlphaDeprecatedAPIsValidator implements Validator to validate bundle objects
+// for API deprecation requirements.
+//
+// Note that this validator looks at the manifests. If any removed APIs for the mapped k8s versions are found,
+// it raises a warning.
+//
+// This validator only raises an error when the deprecated API found is removed in the specified k8s
+// version informed via the optional key `k8s-version`.
+//
+// The K8s versions supported and checks are:
+//
+// - 1.22 : https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22
+//
+// - 1.25 : https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-25
+//
+// - 1.26 : https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-26
+//
+// IMPORTANT: Note that in the case scenarios of 1.25 and 1.26 it is very unlikely the OperatorAuthors
+// add manifests on the bundle using these APIs. On top of that some Kinds such as the CronJob
+// are not currently a valid/supported by OLM and never would to be added to bundle.
+// See: https://github.com/operator-framework/operator-registry/blob/v1.19.5/pkg/lib/bundle/supported_resources.go#L3-L23
 var AlphaDeprecatedAPIsValidator interfaces.Validator = interfaces.ValidatorFunc(validateDeprecatedAPIsValidator)
 
 func validateDeprecatedAPIsValidator(objs ...interface{}) (results []errors.ManifestResult) {
@@ -54,12 +72,13 @@ func validateDeprecatedAPIsValidator(objs ...interface{}) (results []errors.Mani
 }
 
 func validateDeprecatedAPIs(bundle *manifests.Bundle, k8sVersion string) errors.ManifestResult {
-	result := errors.ManifestResult{Name: bundle.Name}
-
+	result := errors.ManifestResult{}
 	if bundle == nil {
 		result.Add(errors.ErrInvalidBundle("Bundle is nil", nil))
 		return result
 	}
+
+	result.Name = bundle.Name
 
 	if bundle.CSV == nil {
 		result.Add(errors.ErrInvalidBundle("Bundle csv is nil", bundle.Name))
@@ -78,34 +97,22 @@ func validateDeprecatedAPIs(bundle *manifests.Bundle, k8sVersion string) errors.
 }
 
 // validateDeprecatedAPIS will check if the operator bundle is using a deprecated or no longer supported k8s api
-// Note if the k8s was informed via "k8s=1.22" it will be used. Otherwise, we will use the minKubeVersion in
-// the CSV to do the checks. So, the criteria is >=minKubeVersion. By last, if the minKubeVersion is not provided
+// Note if the k8s version was informed via "k8s-version" optional key it will be used. Otherwise, we will use the minKubeVersion in
+// the CSV to do the checks. So, the criteria is >=minKubeVersion. Lastly, if the minKubeVersion is not provided
 // then, we should consider the operator bundle is intend to work well in any Kubernetes version.
 // Then, it means that:
-//--optional-values="k8s-version=value" flag with a value => 1.16 <= 1.22 the validator will return result as warning.
-//--optional-values="k8s-version=value" flag with a value => 1.22 the validator will return result as error.
-//minKubeVersion >= 1.22 return the error result.
-//minKubeVersion empty returns a warning since it would mean the same of allow install in any supported version
+// - --optional-values="k8s-version=value" flag with a value <= unsupportedAPIVersion the validator will return result as warning.
+// - --optional-values="k8s-version=value" flag with a value => unsupportedAPIVersion the validator will return result as error.
+// - minKubeVersion >= unsupportedAPIVersion return the error result.
+// - minKubeVersion empty returns a warning since it would mean the same of allow in any supported version
 func validateDeprecatedAPIS(bundle *manifests.Bundle, versionProvided string) (errs, warns []error) {
-
-	// semver of the K8s version where the apis v1betav1 is no longer supported to allow us compare
-	semVerK8sVerV1betav1Unsupported := semver.MustParse(k8sVerV1betav1Unsupported)
-	// semver of the K8s version where the apis v1betav1 is deprecated to allow us compare
-	semVerk8sVerV1betav1Deprecated := semver.MustParse(k8sVerV1betav1Deprecated)
 	// isVersionProvided defines if the k8s version to test against was or not informed
 	isVersionProvided := len(versionProvided) > 0
+	// semVerVersionProvided -- converts the k8s version informed in semver
+	semVerVersionProvided, _ := semver.ParseTolerant(versionProvided)
 
-	// Transform the key/option versionProvided in semver Version to compare
-	var semVerVersionProvided semver.Version
-	if isVersionProvided {
-		var err error
-		semVerVersionProvided, err = semver.ParseTolerant(versionProvided)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid value informed via the k8s key option : %s", versionProvided))
-		} else {
-			// we might want to return it as info instead of warning in the future.
-			warns = append(warns, fmt.Errorf("checking APIs against Kubernetes version : %s", versionProvided))
-		}
+	if err := verifyK8sVersionInformed(versionProvided); err != nil && isVersionProvided {
+		errs = append(errs, err)
 	}
 
 	// Transform the spec minKubeVersion in semver Version to compare
@@ -118,31 +125,66 @@ func validateDeprecatedAPIS(bundle *manifests.Bundle, versionProvided string) (e
 		}
 	}
 
-	// if the k8s value was informed and it is >=1.16 we should check
-	// if the k8s value was not informed we also should check since the
-	// check should occurs with any minKubeVersion value:
-	// - if minKubeVersion empty then means that the project can be installed in any version
-	// - if minKubeVersion any version defined it means that we are considering install
-	// in any upper version from that where the check is always applied
-	if !isVersionProvided || semVerVersionProvided.GE(semVerk8sVerV1betav1Deprecated) {
-		deprecatedAPIs := getRemovedAPIsOn1_22From(bundle)
-		if len(deprecatedAPIs) > 0 {
-			deprecatedAPIsMessage := generateMessageWithDeprecatedAPIs(deprecatedAPIs)
-			// isUnsupported is true only if the key/value OR minKubeVersion were informed and are >= 1.22
-			isUnsupported := semVerVersionProvided.GE(semVerK8sVerV1betav1Unsupported) ||
-				semverMinKube.GE(semVerK8sVerV1betav1Unsupported)
-			// We only raise an error when the version >= 1.22 was informed via
-			// the k8s key/value option or is specifically defined in the CSV
-			msg := fmt.Errorf("this bundle is using APIs which were deprecated and removed in v1.22. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22. Migrate the API(s) for %s", deprecatedAPIsMessage)
-			if isUnsupported {
-				errs = append(errs, msg)
-			} else {
-				warns = append(warns, msg)
-			}
-		}
+	// Check the bundle with all k8s versions implemented
+	for _, v := range K8sVersionsSupportedByValidator {
+		k8sVersionToCheck := semver.MustParse(v)
+		errs, warns = checkRemovedAPIsForVersion(bundle,
+			k8sVersionToCheck,
+			semVerVersionProvided,
+			semverMinKube,
+			errs,
+			warns)
 	}
 
 	return errs, warns
+}
+
+// checkRemovedAPIsForVersion will check if the bundle is using the removed APIs
+// for the version informed (k8sVersionToCheck)
+func checkRemovedAPIsForVersion(
+	bundle *manifests.Bundle,
+	k8sVersionToCheck, semVerVersionProvided, semverMinKube semver.Version,
+	errs []error, warns []error) ([]error, []error) {
+
+	found := map[string][]string{}
+	switch k8sVersionToCheck.String() {
+	case "1.22.0":
+		found = getRemovedAPIsOn1_22From(bundle)
+	case "1.25.0":
+		found = getRemovedAPIsOn1_25From(bundle)
+	case "1.26.0":
+		found = getRemovedAPIsOn1_26From(bundle)
+	default:
+		panic(fmt.Errorf("invalid internal call to check the removed apis with the version (%s) which is not supported", k8sVersionToCheck.String()))
+	}
+
+	if len(found) > 0 {
+		deprecatedAPIsMessage := generateMessageWithDeprecatedAPIs(found)
+		msg := fmt.Errorf(DeprecateMessage,
+			k8sVersionToCheck.Major, k8sVersionToCheck.Minor,
+			k8sVersionToCheck.Major, k8sVersionToCheck.Minor,
+			deprecatedAPIsMessage)
+		if isK8sVersionInformedEQ(semVerVersionProvided, k8sVersionToCheck, semverMinKube) {
+			// We only raise an error when the version >= 1.26 was informed via
+			// the k8s key/value option or is specifically defined in the CSV
+			errs = append(errs, msg)
+		} else {
+			warns = append(warns, msg)
+		}
+	}
+	return errs, warns
+}
+
+// isK8sVersionInformedEQ returns true only if the key/value OR minKubeVersion were informed and are >= semVerAPIUnsupported
+func isK8sVersionInformedEQ(semVerVersionProvided semver.Version, semVerAPIUnsupported semver.Version, semverMinKube semver.Version) bool {
+	return semVerVersionProvided.GE(semVerAPIUnsupported) || semverMinKube.GE(semVerAPIUnsupported)
+}
+
+func verifyK8sVersionInformed(versionProvided string) error {
+	if _, err := semver.ParseTolerant(versionProvided); err != nil {
+		return fmt.Errorf("invalid value informed via the k8s key option : %s", versionProvided)
+	}
+	return nil
 }
 
 // generateMessageWithDeprecatedAPIs will return a list with the kind and the name
@@ -150,7 +192,19 @@ func validateDeprecatedAPIS(bundle *manifests.Bundle, versionProvided string) (e
 func generateMessageWithDeprecatedAPIs(deprecatedAPIs map[string][]string) string {
 	msg := ""
 	count := 0
-	for k, v := range deprecatedAPIs {
+
+	keys := make([]string, 0, len(deprecatedAPIs))
+	for k := range deprecatedAPIs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	deprecatedAPIsSorted := make(map[string][]string)
+	for _, key := range keys {
+		deprecatedAPIsSorted[key] = deprecatedAPIs[key]
+	}
+
+	for k, v := range deprecatedAPIsSorted {
 		if count == len(deprecatedAPIs)-1 {
 			msg = msg + fmt.Sprintf("%s: (%+q)", k, v)
 		} else {
@@ -159,9 +213,6 @@ func generateMessageWithDeprecatedAPIs(deprecatedAPIs map[string][]string) strin
 	}
 	return msg
 }
-
-// todo: we need to improve this code since we ought to map the kinds, apis and ocp/k8s versions
-// where them are no longer supported ( removed ) instead of have this fixed in this way.
 
 // getRemovedAPIsOn1_22From return the list of resources which were deprecated
 // and are no longer be supported in 1.22. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-22
@@ -221,6 +272,72 @@ func getRemovedAPIsOn1_22From(bundle *manifests.Bundle) map[string][]string {
 				}
 			case "certificates.k8s.io/v1beta1":
 				if u.GetKind() == "CertificateSigningRequest" {
+					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
+				}
+			}
+		}
+	}
+	return deprecatedAPIs
+}
+
+// getRemovedAPIsOn1_25From return the list of resources which were deprecated
+// and are no longer be supported in 1.25. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-25
+//
+// IMPORTANT: Note that in the case scenarios of 1.25 and 1.26 it is very unlikely the OperatorAuthors
+// add manifests on the bundle using these APIs. On top of that some Kinds such as the CronJob
+// are not currently a valid/supported by OLM and never would to be added to bundle.
+// See: https://github.com/operator-framework/operator-registry/blob/v1.19.5/pkg/lib/bundle/supported_resources.go#L3-L23
+func getRemovedAPIsOn1_25From(bundle *manifests.Bundle) map[string][]string {
+	deprecatedAPIs := make(map[string][]string)
+	for _, obj := range bundle.Objects {
+		switch u := obj.GetObjectKind().(type) {
+		case *unstructured.Unstructured:
+			switch u.GetAPIVersion() {
+			case "batch/v1beta1":
+				if u.GetKind() == "CronJob" {
+					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
+				}
+			case "discovery.k8s.io/v1beta1":
+				if u.GetKind() == "EndpointSlice" {
+					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
+				}
+			case "events.k8s.io/v1beta1":
+				if u.GetKind() == "Event" {
+					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
+				}
+			case "autoscaling/v2beta1":
+				if u.GetKind() == "HorizontalPodAutoscaler" {
+					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
+				}
+			case "policy/v1beta1":
+				if u.GetKind() == "PodDisruptionBudget" || u.GetKind() == "PodSecurityPolicy" {
+					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
+				}
+			case "node.k8s.io/v1beta1":
+				if u.GetKind() == "RuntimeClass" {
+					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
+				}
+			}
+		}
+	}
+	return deprecatedAPIs
+}
+
+// getRemovedAPIsOn1_26From return the list of resources which were deprecated
+// and are no longer be supported in 1.26. More info: https://kubernetes.io/docs/reference/using-api/deprecation-guide/#v1-26
+//
+// IMPORTANT: Note that in the case scenarios of 1.25 and 1.26 it is very unlikely the OperatorAuthors
+// add manifests on the bundle using these APIs. On top of that some Kinds such as the CronJob
+// are not currently a valid/supported by OLM and never would to be added to bundle.
+// See: https://github.com/operator-framework/operator-registry/blob/v1.19.5/pkg/lib/bundle/supported_resources.go#L3-L23
+func getRemovedAPIsOn1_26From(bundle *manifests.Bundle) map[string][]string {
+	deprecatedAPIs := make(map[string][]string)
+	for _, obj := range bundle.Objects {
+		switch u := obj.GetObjectKind().(type) {
+		case *unstructured.Unstructured:
+			switch u.GetAPIVersion() {
+			case "autoscaling/v2beta2":
+				if u.GetKind() == "HorizontalPodAutoscaler" {
 					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
 				}
 			}

@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	olmv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 )
 
@@ -246,19 +246,19 @@ func DeleteCatalogSourceStateMetric(name, namespace string) {
 	catalogSourceReady.DeleteLabelValues(namespace, name)
 }
 
-func DeleteCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion) {
+func DeleteCSVMetric(oldCSV *operatorsv1alpha1.ClusterServiceVersion) {
 	// Delete the old CSV metrics
 	csvAbnormal.DeleteLabelValues(oldCSV.Namespace, oldCSV.Name, oldCSV.Spec.Version.String(), string(oldCSV.Status.Phase), string(oldCSV.Status.Reason))
 	csvSucceeded.DeleteLabelValues(oldCSV.Namespace, oldCSV.Name, oldCSV.Spec.Version.String())
 }
 
-func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha1.ClusterServiceVersion) {
+func EmitCSVMetric(oldCSV *operatorsv1alpha1.ClusterServiceVersion, newCSV *operatorsv1alpha1.ClusterServiceVersion) {
 	if oldCSV == nil || newCSV == nil {
 		return
 	}
 
 	// Don't update the metric for copies
-	if newCSV.Status.Reason == olmv1alpha1.CSVReasonCopied {
+	if newCSV.Status.Reason == operatorsv1alpha1.CSVReasonCopied {
 		return
 	}
 
@@ -268,7 +268,7 @@ func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha
 	// Get the phase of the new CSV
 	newCSVPhase := string(newCSV.Status.Phase)
 	csvSucceededGauge := csvSucceeded.WithLabelValues(newCSV.Namespace, newCSV.Name, newCSV.Spec.Version.String())
-	if newCSVPhase == string(olmv1alpha1.CSVPhaseSucceeded) {
+	if newCSVPhase == string(operatorsv1alpha1.CSVPhaseSucceeded) {
 		csvSucceededGauge.Set(1)
 	} else {
 		csvSucceededGauge.Set(0)
@@ -276,7 +276,7 @@ func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha
 	}
 }
 
-func EmitSubMetric(sub *olmv1alpha1.Subscription) {
+func EmitSubMetric(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
@@ -291,14 +291,14 @@ func EmitSubMetric(sub *olmv1alpha1.Subscription) {
 	}
 }
 
-func DeleteSubsMetric(sub *olmv1alpha1.Subscription) {
+func DeleteSubsMetric(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
 	SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package, string(sub.Spec.InstallPlanApproval))
 }
 
-func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
+func UpdateSubsSyncCounterStorage(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}

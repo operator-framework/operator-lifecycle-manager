@@ -72,7 +72,7 @@ func (s HgRepo) Vcs() Type {
 
 // Get is used to perform an initial clone of a repository.
 func (s *HgRepo) Get() error {
-	out, err := s.run("hg", "clone", s.Remote(), s.LocalPath())
+	out, err := s.run("hg", "clone", "--", s.Remote(), s.LocalPath())
 	if err != nil {
 		return NewRemoteError("Unable to get repository", err, string(out))
 	}
@@ -81,7 +81,7 @@ func (s *HgRepo) Get() error {
 
 // Init will initialize a mercurial repository at local location.
 func (s *HgRepo) Init() error {
-	out, err := s.run("hg", "init", s.LocalPath())
+	out, err := s.run("hg", "init", "--", s.LocalPath())
 	if err != nil {
 		return NewLocalError("Unable to initialize repository", err, string(out))
 	}
@@ -100,7 +100,7 @@ func (s *HgRepo) UpdateVersion(version string) error {
 		return NewLocalError("Unable to update checked out version", err, string(out))
 	}
 	if len(strings.TrimSpace(version)) > 0 {
-		out, err = s.RunFromDir("hg", "update", version)
+		out, err = s.RunFromDir("hg", "update", "--", version)
 	} else {
 		out, err = s.RunFromDir("hg", "update")
 	}
@@ -310,14 +310,14 @@ func (s *HgRepo) TagsFromCommit(id string) ([]string, error) {
 
 // Ping returns if remote location is accessible.
 func (s *HgRepo) Ping() bool {
-	_, err := s.run("hg", "identify", s.Remote())
+	_, err := s.run("hg", "identify", "--", s.Remote())
 	return err == nil
 }
 
 // ExportDir exports the current revision to the passed in directory.
 func (s *HgRepo) ExportDir(dir string) error {
 
-	out, err := s.RunFromDir("hg", "archive", dir)
+	out, err := s.RunFromDir("hg", "archive", "--", dir)
 	s.log(out)
 	if err != nil {
 		return NewLocalError("Unable to export source", err, string(out))

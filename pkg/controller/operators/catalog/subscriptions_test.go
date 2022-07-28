@@ -10,7 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	utilclocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
@@ -20,7 +20,7 @@ import (
 )
 
 func TestSyncSubscriptions(t *testing.T) {
-	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
 	testNamespace := "testNamespace"
 

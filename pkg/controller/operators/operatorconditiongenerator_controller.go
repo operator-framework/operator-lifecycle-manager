@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -90,14 +90,13 @@ var _ reconcile.Reconciler = &OperatorConditionGeneratorReconciler{}
 
 func (r *OperatorConditionGeneratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Set up a convenient log object so we don't have to type request over and over again
-	log := r.log.WithValues("request", req)
+	log := r.log.WithValues("request", req).V(1)
 	metrics.EmitOperatorConditionGeneratorReconcile(req.Namespace, req.Name)
 
 	in := &operatorsv1alpha1.ClusterServiceVersion{}
-	err := r.Client.Get(context.TODO(), req.NamespacedName, in)
-	if err != nil {
-		log.V(1).Error(err, "Unable to find ClusterServiceVersion")
-		return ctrl.Result{}, err
+	if err := r.Client.Get(ctx, req.NamespacedName, in); err != nil {
+		log.Info("Unable to find ClusterServiceVersion")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	operatorCondition := &operatorsv2.OperatorCondition{
@@ -113,10 +112,9 @@ func (r *OperatorConditionGeneratorReconciler) Reconcile(ctx context.Context, re
 	}
 	ownerutil.AddOwner(operatorCondition, in, false, true)
 
-	err = r.ensureOperatorCondition(*operatorCondition)
-	if err != nil {
-		log.V(1).Error(err, "Error ensuring  ClusterServiceVersion")
-		return ctrl.Result{Requeue: true}, err
+	if err := r.ensureOperatorCondition(*operatorCondition); err != nil {
+		log.Info("Error ensuring  OperatorCondition")
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
@@ -158,7 +156,7 @@ func (r *OperatorConditionGeneratorReconciler) ensureOperatorCondition(operatorC
 	existingOperatorCondition := &operatorsv2.OperatorCondition{}
 	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: operatorCondition.GetName(), Namespace: operatorCondition.GetNamespace()}, existingOperatorCondition)
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		return r.Client.Create(context.TODO(), &operatorCondition)

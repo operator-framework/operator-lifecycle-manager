@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	gomegatypes "github.com/onsi/gomega/types"
@@ -71,7 +71,7 @@ var _ = Describe("Operator API", func() {
 	// 15. Delete o
 	// 16. Ensure o is not re-created
 	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2628
-	It("[FLAKE] should surface components in its status", func() {
+	It("should surface components in its status", func() {
 		o := &operatorsv1.Operator{}
 		o.SetName(genName("o-"))
 
@@ -361,6 +361,7 @@ var _ = Describe("Operator API", func() {
 		})
 
 		Context("when a namespace is added", func() {
+
 			var newNs *corev1.Namespace
 
 			BeforeEach(func() {
@@ -371,6 +372,7 @@ var _ = Describe("Operator API", func() {
 					return client.Create(clientCtx, newNs)
 				}).Should(Succeed())
 			})
+
 			AfterEach(func() {
 				Eventually(func() error {
 					err := client.Delete(clientCtx, newNs)
@@ -380,6 +382,7 @@ var _ = Describe("Operator API", func() {
 					return err
 				}).Should(Succeed())
 			})
+
 			It("should not adopt copied csvs", func() {
 				Consistently(func() (*operatorsv1.Operator, error) {
 					o := &operatorsv1.Operator{}

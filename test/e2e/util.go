@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -38,6 +38,7 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
@@ -77,6 +78,33 @@ func newDynamicClient(t GinkgoTInterface, config *rest.Config) dynamic.Interface
 
 func newPMClient() pmversioned.Interface {
 	return ctx.Ctx().PackageClient()
+}
+
+// objectRefToNamespacedName is a helper function that's responsible for translating
+// a *corev1.ObjectReference into a types.NamespacedName.
+func objectRefToNamespacedName(ip *corev1.ObjectReference) types.NamespacedName {
+	return types.NamespacedName{
+		Name:      ip.Name,
+		Namespace: ip.Namespace,
+	}
+}
+
+// addBundleUnpackTimeoutIPAnnotation is a helper function that's responsible for
+// adding the "operatorframework.io/bundle-unpack-timeout" annotation to an InstallPlan
+// resource. This allows you to have more control over the bundle unpack timeout when interacting
+// with test InstallPlan resources.
+func addBundleUnpackTimeoutIPAnnotation(ctx context.Context, c k8scontrollerclient.Client, ipNN types.NamespacedName, timeout string) {
+	Eventually(func() error {
+		ip := &operatorsv1alpha1.InstallPlan{}
+		if err := c.Get(ctx, ipNN, ip); err != nil {
+			return err
+		}
+		annotations := make(map[string]string)
+		annotations[bundle.BundleUnpackTimeoutAnnotationKey] = timeout
+		ip.SetAnnotations(annotations)
+
+		return c.Update(ctx, ip)
+	}).Should(Succeed())
 }
 
 type cleanupFunc func()
@@ -502,14 +530,18 @@ func TearDown(namespace string) {
 	logf("test resources deleted")
 }
 
-func buildCatalogSourceCleanupFunc(crc versioned.Interface, namespace string, catalogSource *operatorsv1alpha1.CatalogSource) cleanupFunc {
+func buildCatalogSourceCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interface, namespace string, catalogSource *operatorsv1alpha1.CatalogSource) cleanupFunc {
 	return func() {
 		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
 		err := crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.Background(), catalogSource.GetName(), metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() (bool, error) {
-			fetched, err := newKubeClient().KubernetesInterface().CoreV1().Pods(catalogSource.GetNamespace()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalogSource.GetName()})
+			listOpts := metav1.ListOptions{
+				LabelSelector: "olm.catalogSource=" + catalogSource.GetName(),
+				FieldSelector: "status.phase=Running",
+			}
+			fetched, err := c.KubernetesInterface().CoreV1().Pods(catalogSource.GetNamespace()).List(context.Background(), listOpts)
 			if err != nil {
 				return false, err
 			}
@@ -537,7 +569,7 @@ func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientI
 	}
 }
 
-func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace string) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
+func createInvalidGRPCCatalogSource(c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string) (*operatorsv1alpha1.CatalogSource, cleanupFunc) {
 	catalogSource := &operatorsv1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       operatorsv1alpha1.CatalogSourceKind,
@@ -557,7 +589,7 @@ func createInvalidGRPCCatalogSource(crc versioned.Interface, name, namespace str
 	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.Background(), catalogSource, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	ctx.Ctx().Logf("Catalog source %s created", name)
-	return catalogSource, buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)
+	return catalogSource, buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)
 }
 
 func createInternalCatalogSource(
@@ -596,7 +628,7 @@ func createInternalCatalogSource(
 
 	cleanupInternalCatalogSource := func() {
 		configMapCleanup()
-		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
+		buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)()
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }
@@ -638,7 +670,7 @@ func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface,
 
 	cleanupInternalCatalogSource := func() {
 		configMapCleanup()
-		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
+		buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)()
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }
@@ -681,7 +713,7 @@ func createV1CRDInternalCatalogSource(
 
 	cleanupInternalCatalogSource := func() {
 		configMapCleanup()
-		buildCatalogSourceCleanupFunc(crc, namespace, catalogSource)()
+		buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)()
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }
@@ -959,6 +991,12 @@ func HavePhase(goal operatorsv1alpha1.InstallPlanPhase) gtypes.GomegaMatcher {
 	}, Equal(goal))
 }
 
+func CSVHasPhase(goal operatorsv1alpha1.ClusterServiceVersionPhase) gtypes.GomegaMatcher {
+	return WithTransform(func(csv *operatorsv1alpha1.ClusterServiceVersion) operatorsv1alpha1.ClusterServiceVersionPhase {
+		return csv.Status.Phase
+	}, Equal(goal))
+}
+
 func HaveMessage(goal string) gtypes.GomegaMatcher {
 	return WithTransform(func(plan *operatorsv1alpha1.InstallPlan) string {
 		return plan.Status.Message
@@ -972,11 +1010,11 @@ func SetupGeneratedTestNamespaceWithOperatorGroup(name string, og operatorsv1.Op
 		},
 	}
 	Eventually(func() error {
-		return ctx.Ctx().Client().Create(context.Background(), &ns)
+		return ctx.Ctx().E2EClient().Create(context.Background(), &ns)
 	}).Should(Succeed())
 
 	Eventually(func() error {
-		return ctx.Ctx().Client().Create(context.Background(), &og)
+		return ctx.Ctx().E2EClient().Create(context.Background(), &og)
 	}).Should(Succeed())
 
 	ctx.Ctx().Logf("created the %s testing namespace", ns.GetName())
@@ -984,14 +1022,14 @@ func SetupGeneratedTestNamespaceWithOperatorGroup(name string, og operatorsv1.Op
 	return ns
 }
 
-func SetupGeneratedTestNamespace(name string) corev1.Namespace {
+func SetupGeneratedTestNamespace(name string, targetNamespaces ...string) corev1.Namespace {
 	og := operatorsv1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-operatorgroup", name),
 			Namespace: name,
 		},
 		Spec: operatorsv1.OperatorGroupSpec{
-			TargetNamespaces: []string{name},
+			TargetNamespaces: targetNamespaces,
 		},
 	}
 
@@ -1001,9 +1039,9 @@ func SetupGeneratedTestNamespace(name string) corev1.Namespace {
 func TeardownNamespace(ns string) {
 	log := ctx.Ctx().Logf
 
-	currentTest := CurrentGinkgoTestDescription()
-	if currentTest.Failed {
-		log("collecting the %s namespace artifacts as the '%s' test case failed", ns, currentTest.TestText)
+	currentTest := CurrentSpecReport()
+	if currentTest.Failed() {
+		log("collecting the %s namespace artifacts as the '%s' test case failed", ns, currentTest.LeafNodeText)
 		if err := ctx.Ctx().DumpNamespaceArtifacts(ns); err != nil {
 			log("failed to collect namespace artifacts: %v", err)
 		}
@@ -1011,7 +1049,7 @@ func TeardownNamespace(ns string) {
 
 	log("tearing down the %s namespace", ns)
 	Eventually(func() error {
-		return ctx.Ctx().KubeClient().KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), ns, metav1.DeleteOptions{})
+		return ctx.Ctx().E2EClient().Reset()
 	}).Should(Succeed())
 }
 
@@ -1034,5 +1072,28 @@ func inKind(client operatorclient.ClientInterface) (bool, error) {
 }
 
 func K8sSafeCurrentTestDescription() string {
-	return nonAlphaNumericRegexp.ReplaceAllString(CurrentGinkgoTestDescription().TestText, "")
+	return nonAlphaNumericRegexp.ReplaceAllString(CurrentSpecReport().LeafNodeText, "")
+}
+
+func newTokenSecret(client operatorclient.ClientInterface, namespace, saName string) (se *corev1.Secret, cleanup cleanupFunc) {
+	seName := saName + "-token"
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        seName,
+			Namespace:   namespace,
+			Annotations: map[string]string{corev1.ServiceAccountNameKey: saName},
+		},
+		Type: corev1.SecretTypeServiceAccountToken,
+	}
+
+	se, err := client.KubernetesInterface().CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	Expect(se).ToNot(BeNil())
+
+	cleanup = func() {
+		err := client.KubernetesInterface().CoreV1().Secrets(namespace).Delete(context.TODO(), se.GetName(), metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+	}
+
+	return se, cleanup
 }

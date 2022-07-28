@@ -3,11 +3,12 @@ package install
 import (
 	"fmt"
 	"hash/fnv"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/pointer"
@@ -22,13 +23,15 @@ import (
 const DeploymentSpecHashLabelKey = "olm.deployment-spec-hash"
 
 type StrategyDeploymentInstaller struct {
-	strategyClient         wrappers.InstallStrategyDeploymentInterface
-	owner                  ownerutil.Owner
-	previousStrategy       Strategy
-	templateAnnotations    map[string]string
-	initializers           DeploymentInitializerFuncChain
-	apiServiceDescriptions []certResource
-	webhookDescriptions    []certResource
+	strategyClient            wrappers.InstallStrategyDeploymentInterface
+	owner                     ownerutil.Owner
+	previousStrategy          Strategy
+	templateAnnotations       map[string]string
+	initializers              DeploymentInitializerFuncChain
+	apiServiceDescriptions    []certResource
+	webhookDescriptions       []certResource
+	certificateExpirationTime time.Time
+	certificatesRotated       bool
 }
 
 var _ Strategy = &v1alpha1.StrategyDetailsDeployment{}
@@ -77,13 +80,15 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 	}
 
 	return &StrategyDeploymentInstaller{
-		strategyClient:         strategyClient,
-		owner:                  owner,
-		previousStrategy:       previousStrategy,
-		templateAnnotations:    templateAnnotations,
-		initializers:           initializers,
-		apiServiceDescriptions: apiDescs,
-		webhookDescriptions:    webhookDescs,
+		strategyClient:            strategyClient,
+		owner:                     owner,
+		previousStrategy:          previousStrategy,
+		templateAnnotations:       templateAnnotations,
+		initializers:              initializers,
+		apiServiceDescriptions:    apiDescs,
+		webhookDescriptions:       webhookDescs,
+		certificatesRotated:       false,
+		certificateExpirationTime: time.Time{},
 	}
 }
 
@@ -192,7 +197,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	}
 
 	if err := i.installDeployments(updatedStrategy.DeploymentSpecs); err != nil {
-		if k8serrors.IsForbidden(err) {
+		if apierrors.IsForbidden(err) {
 			return StrategyError{Reason: StrategyErrInsufficientPermissions, Message: fmt.Sprintf("install strategy failed: %s", err)}
 		}
 		return err

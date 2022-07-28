@@ -138,7 +138,7 @@ type Options struct {
 	// console when Development is true and JSON otherwise
 	Encoder zapcore.Encoder
 	// EncoderConfigOptions can modify the EncoderConfig needed to initialize an Encoder.
-	// See https://godoc.org/go.uber.org/zap/zapcore#EncoderConfig for the list of options
+	// See https://pkg.go.dev/go.uber.org/zap/zapcore#EncoderConfig for the list of options
 	// that can be configured.
 	// Note that the EncoderConfigOptions are not applied when the Encoder option is already set.
 	EncoderConfigOptions []EncoderConfigOption
@@ -167,6 +167,9 @@ type Options struct {
 	// ZapOpts allows passing arbitrary zap.Options to configure on the
 	// underlying Zap logger.
 	ZapOpts []zap.Option
+	// TimeEncoder specifies the encoder for the timestamps in log messages.
+	// Defaults to EpochTimeEncoder as this is the default in Zap currently.
+	TimeEncoder zapcore.TimeEncoder
 }
 
 // addDefaults adds defaults to the Options.
@@ -212,6 +215,16 @@ func (o *Options) addDefaults() {
 				}))
 		}
 	}
+
+	if o.TimeEncoder == nil {
+		o.TimeEncoder = zapcore.EpochTimeEncoder
+	}
+	f := func(ecfg *zapcore.EncoderConfig) {
+		ecfg.EncodeTime = o.TimeEncoder
+	}
+	// prepend instead of append it in case someone adds a time encoder option in it
+	o.EncoderConfigOptions = append([]EncoderConfigOption{f}, o.EncoderConfigOptions...)
+
 	if o.Encoder == nil {
 		o.Encoder = o.NewEncoder(o.EncoderConfigOptions...)
 	}
@@ -244,6 +257,8 @@ func NewRaw(opts ...Opts) *zap.Logger {
 //  zap-log-level:  Zap Level to configure the verbosity of logging. Can be one of 'debug', 'info', 'error',
 //			       or any integer value > 0 which corresponds to custom debug levels of increasing verbosity")
 //  zap-stacktrace-level: Zap Level at and above which stacktraces are captured (one of 'info', 'error' or 'panic')
+//  zap-time-encoding: Zap time encoding (one of 'epoch', 'millis', 'nano', 'iso8601', 'rfc3339' or 'rfc3339nano').
+//                    Defaults to 'epoch'.
 func (o *Options) BindFlags(fs *flag.FlagSet) {
 	// Set Development mode value
 	fs.BoolVar(&o.Development, "zap-devel", o.Development,
@@ -273,6 +288,13 @@ func (o *Options) BindFlags(fs *flag.FlagSet) {
 	}
 	fs.Var(&stackVal, "zap-stacktrace-level",
 		"Zap Level at and above which stacktraces are captured (one of 'info', 'error', 'panic').")
+
+	// Set the time encoding
+	var timeEncoderVal timeEncodingFlag
+	timeEncoderVal.setFunc = func(fromFlag zapcore.TimeEncoder) {
+		o.TimeEncoder = fromFlag
+	}
+	fs.Var(&timeEncoderVal, "zap-time-encoding", "Zap time encoding (one of 'epoch', 'millis', 'nano', 'iso8601', 'rfc3339' or 'rfc3339nano'). Defaults to 'epoch'.")
 }
 
 // UseFlagOptions configures the logger to use the Options set by parsing zap option flags from the CLI.

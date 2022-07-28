@@ -124,6 +124,11 @@ func validateExamplesAnnotations(csv *v1alpha1.ClusterServiceVersion) (errs []er
 
 func validateJSON(value string) error {
 	var js json.RawMessage
+
+	if len(value) == 0 {
+		return nil
+	}
+
 	byteValue := []byte(value)
 	if err := json.Unmarshal(byteValue, &js); err != nil {
 		switch t := err.(type) {

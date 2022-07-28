@@ -17,13 +17,16 @@ limitations under the License.
 package logs
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 
-	"k8s.io/klog/v2"
-
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/component-base/config"
 	"k8s.io/component-base/config/v1alpha1"
-	"k8s.io/component-base/logs/sanitization"
+	"k8s.io/component-base/featuregate"
+	"k8s.io/component-base/logs/registry"
+	"k8s.io/klog/v2"
 )
 
 // Options has klog format parameters
@@ -40,9 +43,25 @@ func NewOptions() *Options {
 	return o
 }
 
-// Validate verifies if any unsupported flag is set
+// ValidateAndApply combines validation and application of the logging configuration.
+// This should be invoked as early as possible because then the rest of the program
+// startup (including validation of other options) will already run with the final
+// logging configuration.
+//
+// The optional FeatureGate controls logging features. If nil, the default for
+// these features is used.
+func (o *Options) ValidateAndApply(featureGate featuregate.FeatureGate) error {
+	errs := o.validate()
+	if len(errs) > 0 {
+		return utilerrors.NewAggregate(errs)
+	}
+	o.apply(featureGate)
+	return nil
+}
+
+// validate verifies if any unsupported flag is set
 // for non-default logging format
-func (o *Options) Validate() []error {
+func (o *Options) validate() []error {
 	errs := ValidateLoggingConfiguration(&o.Config, nil)
 	if len(errs) != 0 {
 		return errs.ToAggregate().Errors()
@@ -50,17 +69,39 @@ func (o *Options) Validate() []error {
 	return nil
 }
 
-// AddFlags add logging-format flag
+// AddFlags add logging-format flag.
+//
+// Programs using LoggingConfiguration must use SkipLoggingConfigurationFlags
+// when calling AddFlags to avoid the duplicate registration of flags.
 func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	BindLoggingFlags(&o.Config, fs)
 }
 
-// Apply set klog logger from LogFormat type
-func (o *Options) Apply() {
-	// if log format not exists, use nil loggr
-	loggr, _ := LogRegistry.Get(o.Config.Format)
-	klog.SetLogger(loggr)
-	if o.Config.Sanitization {
-		klog.SetLogFilter(&sanitization.SanitizingFilter{})
+// apply set klog logger from LogFormat type
+func (o *Options) apply(featureGate featuregate.FeatureGate) {
+	contextualLoggingEnabled := contextualLoggingDefault
+	if featureGate != nil {
+		contextualLoggingEnabled = featureGate.Enabled(ContextualLogging)
 	}
+
+	// if log format not exists, use nil loggr
+	factory, _ := registry.LogRegistry.Get(o.Config.Format)
+	if factory == nil {
+		klog.ClearLogger()
+	} else {
+		// This logger will do its own verbosity checking, using the exact same
+		// configuration as klog itself.
+		log, flush := factory.Create(o.Config)
+		// Therefore it can get called directly. However, we only allow that
+		// when the feature is enabled.
+		klog.SetLoggerWithOptions(log, klog.ContextualLogger(contextualLoggingEnabled), klog.FlushLogger(flush))
+	}
+	if err := loggingFlags.Lookup("v").Value.Set(o.Config.Verbosity.String()); err != nil {
+		panic(fmt.Errorf("internal error while setting klog verbosity: %v", err))
+	}
+	if err := loggingFlags.Lookup("vmodule").Value.Set(o.Config.VModule.String()); err != nil {
+		panic(fmt.Errorf("internal error while setting klog vmodule: %v", err))
+	}
+	klog.StartFlushDaemon(o.Config.FlushFrequency)
+	klog.EnableContextualLogging(contextualLoggingEnabled)
 }

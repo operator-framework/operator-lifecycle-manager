@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/blang/semver/v4"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,16 +23,16 @@ import (
 )
 
 var _ = Describe("Package Manifest API lists available Operators from Catalog Sources", func() {
-
 	var (
 		crc versioned.Interface
 		pmc pmversioned.Interface
 		c   operatorclient.ClientInterface
 	)
+
 	BeforeEach(func() {
-		crc = newCRClient()
+		crc = ctx.Ctx().OperatorClient()
 		pmc = newPMClient()
-		c = newKubeClient()
+		c = ctx.Ctx().KubeClient()
 	})
 
 	AfterEach(func() {
@@ -40,7 +40,6 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 	})
 
 	Context("Given a CatalogSource created using the ConfigMap as catalog source type", func() {
-
 		var (
 			catsrcName           string
 			packageName          string
@@ -52,8 +51,8 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			csv                  v1alpha1.ClusterServiceVersion
 			cleanupCatalogSource cleanupFunc
 		)
-		BeforeEach(func() {
 
+		BeforeEach(func() {
 			// create a simple catalogsource
 			packageName = genName("nginx")
 			alphaChannel = "alpha"
@@ -191,6 +190,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			packageName, displayName string
 			catalogSource            *v1alpha1.CatalogSource
 		)
+
 		BeforeEach(func() {
 			sourceName := genName("catalog-")
 			packageName = "etcd-test"
@@ -248,7 +248,6 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		When("the display name for catalog source is updated", func() {
 
 			BeforeEach(func() {
-
 				pm, err := fetchPackageManifest(pmc, testNamespace, packageName, packageManifestHasStatus)
 				Expect(err).NotTo(HaveOccurred(), "error getting package manifest")
 				Expect(pm).ShouldNot(BeNil())
@@ -264,6 +263,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 				Expect(err).NotTo(HaveOccurred(), "error updating catalogSource")
 				Expect(catalogSource.Spec.DisplayName).Should(Equal(displayName))
 			})
+
 			It("should successfully update the CatalogSource field", func() {
 
 				Eventually(func() (string, error) {

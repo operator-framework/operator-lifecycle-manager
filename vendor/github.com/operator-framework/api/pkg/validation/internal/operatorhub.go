@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	semver "github.com/blang/semver/v4"
+	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/manifests"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/api/pkg/validation/errors"
@@ -158,6 +158,10 @@ var validCategories = map[string]struct{}{
 	"Streaming & Messaging":     {},
 }
 
+const minKubeVersionWarnMessage = "csv.Spec.minKubeVersion is not informed. It is recommended you provide this information. " +
+	"Otherwise, it would mean that your operator project can be distributed and installed in any cluster version " +
+	"available, which is not necessarily the case for all projects."
+
 func validateOperatorHub(objs ...interface{}) (results []errors.ManifestResult) {
 
 	// Obtain the k8s version if informed via the objects an optional
@@ -211,38 +215,7 @@ func validateBundleOperatorHub(bundle *manifests.Bundle, k8sVersion string) erro
 		result.Add(errors.WarnFailedValidation(warn.Error(), bundle.CSV.GetName()))
 	}
 
-	if warn := validateHubChannels(bundle.Channels); warn != nil {
-		result.Add(errors.WarnFailedValidation(warn.Error(), bundle.CSV.GetName()))
-	}
-
 	return result
-}
-
-// validateHubChannels will check the channels. The motivation for the following check is to ensure that operators
-// authors knows if their operator bundles are or not respecting the Naming Convention Rules.
-// However, the operator authors still able to choose the names as please them.
-func validateHubChannels(channels []string) error {
-	const candidate = "candidate"
-	const stable = "stable"
-	const fast = "fast"
-
-	var channelsNotFollowingConventional []string
-	for _, channel := range channels {
-		if !strings.HasPrefix(channel, candidate) &&
-			!strings.HasPrefix(channel, stable) &&
-			!strings.HasPrefix(channel, fast) {
-			channelsNotFollowingConventional = append(channelsNotFollowingConventional, channel)
-		}
-
-	}
-
-	if len(channelsNotFollowingConventional) > 0 {
-		return fmt.Errorf("channel(s) %+q are not following the recommended naming convention: "+
-			"https://olm.operatorframework.io/docs/best-practices/channel-naming",
-			channelsNotFollowingConventional)
-	}
-
-	return nil
 }
 
 // validateHubCSVSpec will check the CSV against the criteria to publish an

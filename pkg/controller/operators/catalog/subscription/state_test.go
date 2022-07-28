@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	utilclock "k8s.io/utils/clock/testing"
 )
 
 func TestUpdateHealth(t *testing.T) {

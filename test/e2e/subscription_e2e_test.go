@@ -11,7 +11,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/ghodss/yaml"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -19,7 +19,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -47,14 +47,16 @@ const (
 	interval = time.Millisecond * 100
 )
 
-var _ = By
-
 var _ = Describe("Subscription", func() {
 	var (
 		generatedNamespace corev1.Namespace
+		c                  operatorclient.ClientInterface
+		crc                versioned.Interface
 	)
 
 	BeforeEach(func() {
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
 		generatedNamespace = SetupGeneratedTestNamespace(genName("subscription-e2e-"))
 	})
 
@@ -137,8 +139,6 @@ var _ = Describe("Subscription", func() {
 	//      A. If package is not installed, creating a subscription should install latest version
 	It("creation if not installed", func() {
 
-		c := newKubeClient()
-		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -177,8 +177,6 @@ var _ = Describe("Subscription", func() {
 	//         version
 	It("creation using existing CSV", func() {
 
-		c := newKubeClient()
-		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -296,8 +294,6 @@ var _ = Describe("Subscription", func() {
 	// If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 	It("creation manual approval", func() {
 
-		c := newKubeClient()
-		crc := newCRClient()
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
@@ -410,8 +406,6 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create the CatalogSource
-		c := newKubeClient()
-		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
@@ -533,8 +527,6 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create the CatalogSource with just one version
-		c := newKubeClient()
-		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 		defer cleanupCatalogSource()
@@ -586,11 +578,11 @@ var _ = Describe("Subscription", func() {
 
 		// Should eventually GC the CSVs
 		Eventually(func() bool {
-			return csvExists(crc, csvA.Name)
+			return csvExists(generatedNamespace.GetName(), crc, csvA.Name)
 		}).Should(BeFalse())
 
 		Eventually(func() bool {
-			return csvExists(crc, csvB.Name)
+			return csvExists(generatedNamespace.GetName(), crc, csvB.Name)
 		}).Should(BeFalse())
 
 		// TODO: check installplans, subscription status, etc
@@ -621,8 +613,6 @@ var _ = Describe("Subscription", func() {
 		}
 
 		// Create the CatalogSource with just one version
-		c := newKubeClient()
-		crc := newCRClient()
 		catalogSourceName := genName("mock-nginx-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogSourceName, generatedNamespace.GetName(), manifests, nil, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
@@ -716,15 +706,11 @@ var _ = Describe("Subscription", func() {
 
 	Describe("puppeting CatalogSource health status", func() {
 		var (
-			c          operatorclient.ClientInterface
-			crc        versioned.Interface
 			getOpts    metav1.GetOptions
 			deleteOpts *metav1.DeleteOptions
 		)
 
 		BeforeEach(func() {
-			c = newKubeClient()
-			crc = newCRClient()
 			getOpts = metav1.GetOptions{}
 			deleteOpts = &metav1.DeleteOptions{}
 		})
@@ -1023,8 +1009,7 @@ var _ = Describe("Subscription", func() {
 	// - Delete the referenced InstallPlan
 	// - Wait for sub to have status condition SubscriptionInstallPlanMissing true
 	// - Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
-	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2645
-	It("[FLAKE] can reconcile InstallPlan status", func() {
+	It("can reconcile InstallPlan status", func() {
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -1117,7 +1102,25 @@ var _ = Describe("Subscription", func() {
 		// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
 		sub, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, func(s *operatorsv1alpha1.Subscription) bool {
 			cond := s.Status.GetCondition(operatorsv1alpha1.SubscriptionInstallPlanPending)
-			return cond.Status == corev1.ConditionTrue && cond.Reason == string(operatorsv1alpha1.InstallPlanPhaseInstalling)
+			isConditionPresent := cond.Status == corev1.ConditionTrue && cond.Reason == string(operatorsv1alpha1.InstallPlanPhaseInstalling)
+
+			if isConditionPresent {
+				return true
+			}
+
+			// Sometimes the transition from installing to complete can be so quick that the test does not capture
+			// the condition in the subscription before it is removed. To mitigate this, we check if the installplan
+			// has transitioned to complete and exit out the fetch subscription loop if so.
+			// This is a mitigation. We should probably fix this test appropriately.
+			// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2667
+			ip, err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.TODO(), plan.Name, metav1.GetOptions{})
+			if err != nil {
+				// retry on failure
+				return false
+			}
+			isInstallPlanComplete := ip.Status.Phase == operatorsv1alpha1.InstallPlanPhaseComplete
+
+			return isInstallPlanComplete
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -1193,7 +1196,7 @@ var _ = Describe("Subscription", func() {
 			}
 
 			proxy, getErr := client.Proxies().Get(context.Background(), "cluster", metav1.GetOptions{})
-			if k8serrors.IsNotFound(getErr) {
+			if apierrors.IsNotFound(getErr) {
 				return nil
 			}
 			require.NoError(GinkgoT(), getErr)
@@ -1565,13 +1568,15 @@ var _ = Describe("Subscription", func() {
 	})
 
 	Context("to an operator with dependencies from different CatalogSources with priorities", func() {
-		var kubeClient operatorclient.ClientInterface
-		var crClient versioned.Interface
-		var crd apiextensions.CustomResourceDefinition
-		var packageMain, packageDepRight, packageDepWrong registry.PackageManifest
-		var csvsMain, csvsRight, csvsWrong []operatorsv1alpha1.ClusterServiceVersion
-		var catsrcMain, catsrcDepRight, catsrcDepWrong *operatorsv1alpha1.CatalogSource
-		var cleanup, cleanupSubscription cleanupFunc
+		var (
+			kubeClient                                    operatorclient.ClientInterface
+			crClient                                      versioned.Interface
+			crd                                           apiextensions.CustomResourceDefinition
+			packageMain, packageDepRight, packageDepWrong registry.PackageManifest
+			csvsMain, csvsRight, csvsWrong                []operatorsv1alpha1.ClusterServiceVersion
+			catsrcMain, catsrcDepRight, catsrcDepWrong    *operatorsv1alpha1.CatalogSource
+			cleanup, cleanupSubscription                  cleanupFunc
+		)
 		const (
 			mainCSVName  = "csv-main"
 			rightCSVName = "csv-right"
@@ -1598,7 +1603,6 @@ var _ = Describe("Subscription", func() {
 			var catsrcCleanup1, catsrcCleanup2, catsrcCleanup3 cleanupFunc
 
 			BeforeEach(func() {
-
 				packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
 				csv := newCSV(rightCSVName, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"),
 					[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
@@ -1627,6 +1631,7 @@ var _ = Describe("Subscription", func() {
 				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
 			AfterEach(func() {
 				if catsrcCleanup1 != nil {
 					catsrcCleanup1()
@@ -1640,8 +1645,8 @@ var _ = Describe("Subscription", func() {
 			})
 
 			When("creating subscription for the main package", func() {
-
 				var subscription *operatorsv1alpha1.Subscription
+
 				BeforeEach(func() {
 					// Create a subscription for packageA in catsrc
 					subscriptionSpec := &operatorsv1alpha1.SubscriptionSpec{
@@ -1663,6 +1668,7 @@ var _ = Describe("Subscription", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 				})
+
 				AfterEach(func() {
 					if cleanupSubscription != nil {
 						cleanupSubscription()
@@ -1715,6 +1721,7 @@ var _ = Describe("Subscription", func() {
 				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
 			AfterEach(func() {
 				if catsrcCleanup1 != nil {
 					catsrcCleanup1()
@@ -1727,6 +1734,7 @@ var _ = Describe("Subscription", func() {
 
 			When("creating subscription for the main package", func() {
 				var subscription *operatorsv1alpha1.Subscription
+
 				BeforeEach(func() {
 					// Create a subscription for packageA in catsrc
 					subscriptionSpec := &operatorsv1alpha1.SubscriptionSpec{
@@ -1748,6 +1756,7 @@ var _ = Describe("Subscription", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 				})
+
 				AfterEach(func() {
 					if cleanupSubscription != nil {
 						cleanupSubscription()
@@ -1756,6 +1765,7 @@ var _ = Describe("Subscription", func() {
 						cleanup()
 					}
 				})
+
 				It("choose the dependent package from the same catsrc as the installing operator", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
@@ -1766,16 +1776,13 @@ var _ = Describe("Subscription", func() {
 						return ip.Spec.ClusterServiceVersionNames, nil
 					}).Should(ConsistOf(mainCSVName, rightCSVName))
 				})
-
 			})
-
 		})
 
 		Context("creating CatalogSources providing the same dependency with different priority value", func() {
 			var catsrcCleanup1, catsrcCleanup2, catsrcCleanup3 cleanupFunc
 
 			BeforeEach(func() {
-
 				packageDepRight = registry.PackageManifest{PackageName: "PackageDependent"}
 				csv := newCSV(rightCSVName, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"),
 					[]apiextensions.CustomResourceDefinition{crd}, nil, nil)
@@ -1806,6 +1813,7 @@ var _ = Describe("Subscription", func() {
 				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
 			AfterEach(func() {
 				if catsrcCleanup1 != nil {
 					catsrcCleanup1()
@@ -1816,11 +1824,11 @@ var _ = Describe("Subscription", func() {
 				if catsrcCleanup3 != nil {
 					catsrcCleanup3()
 				}
-
 			})
 
 			When("creating subscription for the main package", func() {
 				var subscription *operatorsv1alpha1.Subscription
+
 				BeforeEach(func() {
 					// Create a subscription for packageA in catsrc
 					subscriptionSpec := &operatorsv1alpha1.SubscriptionSpec{
@@ -1842,6 +1850,7 @@ var _ = Describe("Subscription", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 				})
+
 				AfterEach(func() {
 					if cleanupSubscription != nil {
 						cleanupSubscription()
@@ -1850,6 +1859,7 @@ var _ = Describe("Subscription", func() {
 						cleanup()
 					}
 				})
+
 				It("choose the dependent package from the catsrc with higher priority", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
@@ -1860,9 +1870,7 @@ var _ = Describe("Subscription", func() {
 						return ip.Spec.ClusterServiceVersionNames, nil
 					}).Should(ConsistOf(mainCSVName, rightCSVName))
 				})
-
 			})
-
 		})
 
 		Context("creating CatalogSources providing the same dependency under test and global namespaces", func() {
@@ -1899,6 +1907,7 @@ var _ = Describe("Subscription", func() {
 				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), operatorNamespace, catalogSourceRegistryPodSynced)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
 			AfterEach(func() {
 				if catsrcCleanup1 != nil {
 					catsrcCleanup1()
@@ -1909,11 +1918,11 @@ var _ = Describe("Subscription", func() {
 				if catsrcCleanup3 != nil {
 					catsrcCleanup3()
 				}
-
 			})
 
 			When("creating subscription for the main package", func() {
 				var subscription *operatorsv1alpha1.Subscription
+
 				BeforeEach(func() {
 					// Create a subscription for packageA in catsrc
 					subscriptionSpec := &operatorsv1alpha1.SubscriptionSpec{
@@ -1935,6 +1944,7 @@ var _ = Describe("Subscription", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 				})
+
 				AfterEach(func() {
 					if cleanupSubscription != nil {
 						cleanupSubscription()
@@ -1943,6 +1953,7 @@ var _ = Describe("Subscription", func() {
 						cleanup()
 					}
 				})
+
 				It("choose the dependent package from the catsrc in the same namespace as the installing operator", func() {
 					// ensure correct CSVs were picked
 					Eventually(func() ([]string, error) {
@@ -1953,11 +1964,8 @@ var _ = Describe("Subscription", func() {
 						return ip.Spec.ClusterServiceVersionNames, nil
 					}).Should(ConsistOf(mainCSVName, rightCSVName))
 				})
-
 			})
-
 		})
-
 	})
 
 	// csvA owns CRD1 & csvB owns CRD2 and requires CRD1
@@ -2109,7 +2117,6 @@ var _ = Describe("Subscription", func() {
 	})
 
 	When("A subscription is created for an operator that requires an API that is not available", func() {
-
 		var (
 			c          operatorclient.ClientInterface
 			crc        versioned.Interface
@@ -2163,6 +2170,7 @@ var _ = Describe("Subscription", func() {
 		})
 
 		When("the required API is made available", func() {
+
 			BeforeEach(func() {
 				newPkg := registry.PackageManifest{
 					PackageName: "PackageB",
@@ -2177,6 +2185,7 @@ var _ = Describe("Subscription", func() {
 
 				updateInternalCatalog(GinkgoT(), c, crc, catSrcName, generatedNamespace.GetName(), []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, packages)
 			})
+
 			It("the ResolutionFailed condition previously set in its status that indicated the resolution error is cleared off", func() {
 				Eventually(func() (corev1.ConditionStatus, error) {
 					sub, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
@@ -2544,7 +2553,7 @@ func init() {
 func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientInterface, crc versioned.Interface) error {
 	dummyCatalogConfigMap.SetNamespace(namespace)
 	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(context.Background(), dummyCatalogConfigMap, metav1.CreateOptions{}); err != nil {
-		if k8serrors.IsAlreadyExists(err) {
+		if apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
 		return err
@@ -2552,7 +2561,7 @@ func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientIn
 
 	dummyCatalogSource.SetNamespace(namespace)
 	if _, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.Background(), &dummyCatalogSource, metav1.CreateOptions{}); err != nil {
-		if k8serrors.IsAlreadyExists(err) {
+		if apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
 		return err

@@ -28,7 +28,6 @@ var initHooks []stepResolverInitHook
 
 type StepResolver interface {
 	ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
-	Expire(key cache.SourceKey)
 }
 
 type OperatorStepResolver struct {
@@ -36,7 +35,7 @@ type OperatorStepResolver struct {
 	csvLister              v1alpha1listers.ClusterServiceVersionLister
 	client                 versioned.Interface
 	globalCatalogNamespace string
-	satResolver            *SatResolver
+	resolver               *Resolver
 	log                    logrus.FieldLogger
 }
 
@@ -54,13 +53,15 @@ func (pp catsrcPriorityProvider) Priority(key cache.SourceKey) int {
 	return catsrc.Spec.Priority
 }
 
-func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, globalCatalogNamespace string, provider RegistryClientProvider, log logrus.FieldLogger) *OperatorStepResolver {
+func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, globalCatalogNamespace string, sourceProvider cache.SourceProvider, log logrus.FieldLogger) *OperatorStepResolver {
 	cacheSourceProvider := &mergedSourceProvider{
 		sps: []cache.SourceProvider{
-			SourceProviderFromRegistryClientProvider(provider, log),
+			sourceProvider,
+			//SourceProviderFromRegistryClientProvider(provider, log),
 			&csvSourceProvider{
 				csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
 				subLister: lister.OperatorsV1alpha1().SubscriptionLister(),
+				ogLister:  lister.OperatorsV1().OperatorGroupLister(),
 				logger:    log,
 			},
 		},
@@ -70,7 +71,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
 		client:                 client,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(cacheSourceProvider, catsrcPriorityProvider{lister: lister.OperatorsV1alpha1().CatalogSourceLister()}, log),
+		resolver:               NewDefaultResolver(cacheSourceProvider, catsrcPriorityProvider{lister: lister.OperatorsV1alpha1().CatalogSourceLister()}, log),
 		log:                    log,
 	}
 
@@ -84,19 +85,14 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 	return stepResolver
 }
 
-func (r *OperatorStepResolver) Expire(key cache.SourceKey) {
-	r.satResolver.cache.Expire(key)
-}
-
 func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	subs, err := r.listSubscriptions(namespace)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	var operators cache.OperatorSet
 	namespaces := []string{namespace, r.globalCatalogNamespace}
-	operators, err = r.satResolver.SolveOperators(namespaces, subs)
+	operators, err := r.resolver.Resolve(namespaces, subs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -106,7 +102,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 	steps := []*v1alpha1.Step{}
 	updatedSubs := []*v1alpha1.Subscription{}
 	bundleLookups := []v1alpha1.BundleLookup{}
-	for name, op := range operators {
+	for _, op := range operators {
 		// Find any existing subscriptions that resolve to this operator.
 		existingSubscriptions := make(map[*v1alpha1.Subscription]bool)
 		sourceInfo := *op.SourceInfo
@@ -191,7 +187,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 				return nil, nil, nil, err
 			}
 			steps = append(steps, &v1alpha1.Step{
-				Resolving: name,
+				Resolving: op.Name,
 				Resource:  subStep,
 				Status:    v1alpha1.StepStatusUnknown,
 			})

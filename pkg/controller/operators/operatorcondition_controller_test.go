@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -51,6 +51,7 @@ var _ = Describe("OperatorCondition", func() {
 			namespace         *corev1.Namespace
 			namespacedName    types.NamespacedName
 		)
+
 		BeforeEach(func() {
 			ctx = context.Background()
 			namespace = &corev1.Namespace{
@@ -64,6 +65,7 @@ var _ = Describe("OperatorCondition", func() {
 		})
 
 		When("an operatorCondition is created that specifies an array of ServiceAccounts", func() {
+
 			BeforeEach(func() {
 				operatorCondition = &operatorsv2.OperatorCondition{
 					ObjectMeta: metav1.ObjectMeta{
@@ -150,6 +152,7 @@ var _ = Describe("OperatorCondition", func() {
 
 		When("a CSV exists that owns a deployment", func() {
 			var csv *operatorsv1alpha1.ClusterServiceVersion
+
 			BeforeEach(func() {
 				// Create a coppied csv used as an owner in the following tests.
 				// Copied CSVs are ignored by the OperatorConditionGenerator Reconciler, which we don't want to intervine in this test.
@@ -231,6 +234,7 @@ var _ = Describe("OperatorCondition", func() {
 			})
 
 			Context("and an OperatorCondition with a different name than the CSV includes that deployment in its spec.Deployments array", func() {
+
 				BeforeEach(func() {
 					operatorCondition = &operatorsv2.OperatorCondition{
 						ObjectMeta: metav1.ObjectMeta{
@@ -266,6 +270,7 @@ var _ = Describe("OperatorCondition", func() {
 			})
 
 			Context("and an OperatorCondition with the same name as the CSV includes that deployment in its spec.Deployments array", func() {
+
 				BeforeEach(func() {
 					operatorCondition = &operatorsv2.OperatorCondition{
 						ObjectMeta: metav1.ObjectMeta{

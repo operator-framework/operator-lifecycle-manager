@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -180,7 +180,6 @@ var _ = Describe("Adoption Controller", func() {
 				})
 
 				Context("that has an existing installed csv", func() {
-
 					var (
 						providedCRD *apiextensionsv1.CustomResourceDefinition
 					)
@@ -227,6 +226,7 @@ var _ = Describe("Adoption Controller", func() {
 					})
 
 					Context("with an existing provided CRD", func() {
+
 						BeforeEach(func() {
 							Eventually(func() error {
 								return k8sClient.Create(ctx, providedCRD)
@@ -242,6 +242,7 @@ var _ = Describe("Adoption Controller", func() {
 						})
 
 						Context("when its component label is removed", func() {
+
 							BeforeEach(func() {
 								Eventually(func() error {
 									latest := &apiextensionsv1.CustomResourceDefinition{}

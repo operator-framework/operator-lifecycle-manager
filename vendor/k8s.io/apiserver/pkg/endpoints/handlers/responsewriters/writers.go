@@ -36,6 +36,7 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/handlers/negotiation"
 	"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/endpoints/request"
+	endpointsrequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/apiserver/pkg/util/flushwriter"
@@ -201,7 +202,8 @@ func (w *deferredResponseWriter) Write(p []byte) (n int, err error) {
 			w.trace.Step("Write call finished",
 				utiltrace.Field{"writer", fmt.Sprintf("%T", w.w)},
 				utiltrace.Field{"size", len(p)},
-				utiltrace.Field{"firstWrite", firstWrite})
+				utiltrace.Field{"firstWrite", firstWrite},
+				utiltrace.Field{"err", err})
 		}()
 	}
 	if w.hasWritten {
@@ -267,12 +269,12 @@ func WriteObjectNegotiated(s runtime.NegotiatedSerializer, restrictions negotiat
 		return
 	}
 
-	if ae := request.AuditEventFrom(req.Context()); ae != nil {
-		audit.LogResponseObject(ae, object, gv, s)
-	}
+	audit.LogResponseObject(req.Context(), object, gv, s)
 
 	encoder := s.EncoderForVersion(serializer.Serializer, gv)
-	SerializeObject(serializer.MediaType, encoder, w, req, statusCode, object)
+	endpointsrequest.TrackSerializeResponseObjectLatency(req.Context(), func() {
+		SerializeObject(serializer.MediaType, encoder, w, req, statusCode, object)
+	})
 }
 
 // ErrorNegotiated renders an error to the response. Returns the HTTP status code of the error.

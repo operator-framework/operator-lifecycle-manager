@@ -1,4 +1,3 @@
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o resolver/fakes/fake_registry_client_interface.go . ClientInterface
 package registry
 
 import (

@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.2
+    controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
   name: operatorgroups.operators.coreos.com
 spec:
@@ -37,6 +37,8 @@ spec:
             spec:
               description: OperatorGroupSpec is the spec for an OperatorGroup resource.
               type: object
+              default:
+                upgradeStrategy: Default
               properties:
                 selector:
                   description: Selector selects the OperatorGroup's target namespaces.
@@ -80,6 +82,13 @@ spec:
                   items:
                     type: string
                   x-kubernetes-list-type: set
+                upgradeStrategy:
+                  description: "UpgradeStrategy defines the upgrade strategy for operators in the namespace. There are currently two supported upgrade strategies: \n Default: OLM will only allow clusterServiceVersions to move to the replacing phase from the succeeded phase. This effectively means that OLM will not allow operators to move to the next version if an installation or upgrade has failed. \n TechPreviewUnsafeFailForward: OLM will allow clusterServiceVersions to move to the replacing phase from the succeeded phase or from the failed phase. Additionally, OLM will generate new installPlans when a subscription references a failed installPlan and the catalog has been updated with a new upgrade for the existing set of operators. \n WARNING: The TechPreviewUnsafeFailForward upgrade strategy is unsafe and may result in unexpected behavior or unrecoverable data loss unless you have deep understanding of the set of operators being managed in the namespace."
+                  type: string
+                  default: Default
+                  enum:
+                    - Default
+                    - TechPreviewUnsafeFailForward
             status:
               description: OperatorGroupStatus is the status for an OperatorGroupResource.
               type: object
@@ -90,7 +99,7 @@ spec:
                   description: Conditions is an array of the OperatorGroup's conditions.
                   type: array
                   items:
-                    description: "Condition contains details for one aspect of the current state of this API Resource. --- This struct is intended for direct use as an array at the field path .status.conditions.  For example, type FooStatus struct{     // Represents the observations of a foo's current state.     // Known .status.conditions.type are: \"Available\", \"Progressing\", and \"Degraded\"     // +patchMergeKey=type     // +patchStrategy=merge     // +listType=map     // +listMapKey=type     Conditions []metav1.Condition `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"` \n     // other fields }"
+                    description: "Condition contains details for one aspect of the current state of this API Resource. --- This struct is intended for direct use as an array at the field path .status.conditions.  For example, type FooStatus struct{ // Represents the observations of a foo's current state. // Known .status.conditions.type are: \"Available\", \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge // +listType=map // +listMapKey=type Conditions []metav1.Condition `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"` \n // other fields }"
                     type: object
                     required:
                       - lastTransitionTime

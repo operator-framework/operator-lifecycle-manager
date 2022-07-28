@@ -1,0 +1,25 @@
+---
+schema: olm.package
+name: packageA
+defaultChannel: stable
+---
+schema: olm.channel
+package: packageA
+name: stable
+entries:
+  - name: bad-csv
+---
+schema: olm.bundle
+name: bad-csv
+package: packageA
+image: quay.io/olmtest/missing_api_version:latest
+properties:
+  - type: olm.gvk
+    value:
+      group: example.com
+      kind: TestA
+      version: v1alpha1
+  - type: olm.package
+    value:
+      packageName: packageA
+      version: 1.0.0

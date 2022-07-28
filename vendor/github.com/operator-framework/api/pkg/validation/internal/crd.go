@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"strings"
 
 	"github.com/operator-framework/api/pkg/validation/errors"
@@ -12,7 +13,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var scheme = runtime.NewScheme()
@@ -44,8 +44,7 @@ func validateV1Beta1CRD(crd *v1beta1.CustomResourceDefinition) (result errors.Ma
 		return result
 	}
 
-	gv := crd.GetObjectKind().GroupVersionKind().GroupVersion()
-	result = validateInternalCRD(internalCRD, gv)
+	result = validateInternalCRD(internalCRD)
 	return result
 }
 
@@ -58,13 +57,12 @@ func validateV1CRD(crd *v1.CustomResourceDefinition) (result errors.ManifestResu
 		return result
 	}
 
-	gv := crd.GetObjectKind().GroupVersionKind().GroupVersion()
-	result = validateInternalCRD(internalCRD, gv)
+	result = validateInternalCRD(internalCRD)
 	return result
 }
 
-func validateInternalCRD(crd *apiextensions.CustomResourceDefinition, gv schema.GroupVersion) (result errors.ManifestResult) {
-	errList := validation.ValidateCustomResourceDefinition(crd, gv)
+func validateInternalCRD(crd *apiextensions.CustomResourceDefinition) (result errors.ManifestResult) {
+	errList := validation.ValidateCustomResourceDefinition(context.TODO(), crd)
 	for _, err := range errList {
 		if !strings.Contains(err.Field, "openAPIV3Schema") && !strings.Contains(err.Field, "status") {
 			result.Add(errors.NewError(errors.ErrorType(err.Type), err.Error(), err.Field, err.BadValue))

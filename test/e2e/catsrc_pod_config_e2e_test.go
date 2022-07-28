@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
@@ -19,6 +19,7 @@ const catalogSourceLabel = "olm.catalogSource"
 var _ = By
 
 var _ = Describe("CatalogSource Grpc Pod Config", func() {
+
 	var (
 		generatedNamespace corev1.Namespace
 	)

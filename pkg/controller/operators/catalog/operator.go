@@ -21,14 +21,13 @@ import (
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -40,8 +39,10 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
+	utilclock "k8s.io/utils/clock"
 
 	"github.com/operator-framework/api/pkg/operators/reference"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
@@ -102,6 +103,7 @@ type Operator struct {
 	catsrcQueueSet           *queueinformer.ResourceQueueSet
 	subQueueSet              *queueinformer.ResourceQueueSet
 	ipQueueSet               *queueinformer.ResourceQueueSet
+	ogQueueSet               *queueinformer.ResourceQueueSet
 	nsResolveQueue           workqueue.RateLimitingInterface
 	namespace                string
 	recorder                 record.EventRecorder
@@ -117,6 +119,7 @@ type Operator struct {
 	bundleUnpackTimeout      time.Duration
 	clientFactory            clients.Factory
 	muInstallPlan            sync.Mutex
+	sourceInvalidator        *resolver.RegistrySourceProvider
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -180,6 +183,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
+		ogQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient),
@@ -188,8 +192,10 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		clientFactory:            clients.NewFactory(config),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
+	op.sourceInvalidator = resolver.SourceProviderFromRegistryClientProvider(op.sources, logger)
+	resolverSourceProvider := NewOperatorGroupToggleSourceProvider(op.sourceInvalidator, logger, op.lister.OperatorsV1().OperatorGroupLister())
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
-	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, op.sources, logger)
+	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, resolverSourceProvider, logger)
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
 	// Wire OLM CR sharedIndexInformers
@@ -250,6 +256,24 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 	if err := op.RegisterQueueInformer(ipQueueInformer); err != nil {
+		return nil, err
+	}
+
+	operatorGroupInformer := crInformerFactory.Operators().V1().OperatorGroups()
+	op.lister.OperatorsV1().RegisterOperatorGroupLister(metav1.NamespaceAll, operatorGroupInformer.Lister())
+	ogQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ogs")
+	op.ogQueueSet.Set(metav1.NamespaceAll, ogQueue)
+	operatorGroupQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(ogQueue),
+		queueinformer.WithInformer(operatorGroupInformer.Informer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncOperatorGroups).ToSyncer()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(operatorGroupQueueInformer); err != nil {
 		return nil, err
 	}
 
@@ -460,12 +484,12 @@ func (o *Operator) now() metav1.Time {
 func (o *Operator) syncSourceState(state grpc.SourceState) {
 	o.sourcesLastUpdate.Set(o.now().Time)
 
-	o.logger.Infof("state.Key.Namespace=%s state.Key.Name=%s state.State=%s", state.Key.Namespace, state.Key.Name, state.State.String())
+	o.logger.Debugf("state.Key.Namespace=%s state.Key.Name=%s state.State=%s", state.Key.Namespace, state.Key.Name, state.State.String())
 	metrics.RegisterCatalogSourceState(state.Key.Name, state.Key.Namespace, state.State)
 
 	switch state.State {
 	case connectivity.Ready:
-		o.resolver.Expire(resolvercache.SourceKey(state.Key))
+		o.sourceInvalidator.Invalidate(resolvercache.SourceKey(state.Key))
 		if o.namespace == state.Key.Namespace {
 			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
 				state.Key.Name, state.Key.Namespace)
@@ -627,7 +651,7 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 	// Get the catalog source's config map
 	configMap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(in.GetNamespace()).Get(in.Spec.ConfigMap)
 	// Attempt to look up the CM via api call if there is a cache miss
-	if k8serrors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		configMap, err = o.opClient.KubernetesInterface().CoreV1().ConfigMaps(in.GetNamespace()).Get(context.TODO(), in.Spec.ConfigMap, metav1.GetOptions{})
 		// Found cm in the cluster, add managed label to configmap
 		if err == nil {
@@ -725,10 +749,15 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 
 	// requeue the catalog sync based on the polling interval, for accurate syncs of catalogs with polling enabled
 	if out.Spec.UpdateStrategy != nil {
-		logger.Debugf("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
-		resyncPeriod := reconciler.SyncRegistryUpdateInterval(out, time.Now())
-		o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), queueinformer.ResyncWithJitter(resyncPeriod, 0.1)())
-		return
+		if out.Spec.UpdateStrategy.RegistryPoll != nil {
+			if out.Spec.UpdateStrategy.RegistryPoll.ParsingError != "" && out.Status.Reason != v1alpha1.CatalogSourceIntervalInvalidError {
+				out.SetError(v1alpha1.CatalogSourceIntervalInvalidError, fmt.Errorf(out.Spec.UpdateStrategy.RegistryPoll.ParsingError))
+			}
+			logger.Debugf("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
+			resyncPeriod := reconciler.SyncRegistryUpdateInterval(out, time.Now())
+			o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), queueinformer.ResyncWithJitter(resyncPeriod, 0.1)())
+			return
+		}
 	}
 
 	if err := o.sources.Remove(sourceKey); err != nil {
@@ -901,6 +930,11 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
+	failForwardEnabled, err := resolver.IsFailForwardEnabled(o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace))
+	if err != nil {
+		return err
+	}
+
 	// TODO: parallel
 	maxGeneration := 0
 	subscriptionUpdated := false
@@ -917,7 +951,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		}
 
 		// ensure the installplan reference is correct
-		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub)
+		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub, failForwardEnabled)
 		if err != nil {
 			logger.Debugf("error ensuring installplan state: %v", err)
 			return err
@@ -925,7 +959,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		subscriptionUpdated = subscriptionUpdated || changedIP
 
 		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
-		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub)
+		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub, failForwardEnabled)
 		if err != nil {
 			logger.Debugf("error recording current state of CSV in status: %v", err)
 			return err
@@ -1065,6 +1099,20 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 	return nil
 }
 
+// syncOperatorGroups requeues the namespace resolution queue on changes to an operatorgroup
+// This is because the operatorgroup is now an input to resolution via the global catalog exclusion annotation
+func (o *Operator) syncOperatorGroups(obj interface{}) error {
+	og, ok := obj.(*operatorsv1.OperatorGroup)
+	if !ok {
+		o.logger.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting OperatorGroup failed")
+	}
+
+	o.nsResolveQueue.Add(og.GetNamespace())
+
+	return nil
+}
+
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {
 	if sub.Status.InstallPlanRef != nil && sub.Status.State == v1alpha1.SubscriptionStateUpgradePending {
 		logger.Debugf("skipping update: installplan already created")
@@ -1073,7 +1121,7 @@ func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscript
 	return false
 }
 
-func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
+func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription, failForwardEnabled bool) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.InstallPlanRef != nil || sub.Status.Install != nil {
 		return sub, false, nil
 	}
@@ -1103,13 +1151,16 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	out.Status.InstallPlanRef = ref
 	out.Status.Install = v1alpha1.NewInstallPlanReference(ref)
 	out.Status.State = v1alpha1.SubscriptionStateUpgradePending
+	if failForwardEnabled && ip.Status.Phase == v1alpha1.InstallPlanPhaseFailed {
+		out.Status.State = v1alpha1.SubscriptionStateFailed
+	}
 	out.Status.CurrentCSV = out.Spec.StartingCSV
 	out.Status.LastUpdated = o.now()
 
 	return out, true, nil
 }
 
-func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
+func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription, failForwardEnabled bool) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.CurrentCSV == "" {
 		return sub, false, nil
 	}
@@ -1119,6 +1170,14 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	if err != nil {
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
 		out.Status.State = v1alpha1.SubscriptionStateUpgradePending
+		if failForwardEnabled && sub.Status.InstallPlanRef != nil {
+			ip, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).Get(context.TODO(), sub.Status.InstallPlanRef.Name, metav1.GetOptions{})
+			if err != nil {
+				logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching installplan listed in subscription status")
+			} else if ip.Status.Phase == v1alpha1.InstallPlanPhaseFailed {
+				out.Status.State = v1alpha1.SubscriptionStateFailed
+			}
+		}
 	} else {
 		out.Status.State = v1alpha1.SubscriptionStateAtLatest
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
@@ -1345,7 +1404,13 @@ type UnpackedBundleReference struct {
 	Properties             string `json:"properties"`
 }
 
-// unpackBundles makes one walk through the bundlelookups and attempts to progress them
+/* unpackBundles makes one walk through the bundlelookups and attempts to progress them
+Returns:
+    unpacked: bool - If the bundle was successfully unpacked
+    out:      *v1alpha1.InstallPlan - the resulting installPlan
+	error:    error
+*/
+
 func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.InstallPlan, error) {
 	out := plan.DeepCopy()
 	unpacked := true
@@ -1396,6 +1461,10 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 		// Ensure that bundle can be applied by the current version of OLM by converting to steps
 		steps, err := resolver.NewStepsFromBundle(res.Bundle(), out.GetNamespace(), res.Replaces, res.CatalogSourceRef.Name, res.CatalogSourceRef.Namespace)
 		if err != nil {
+			if fatal := olmerrors.IsFatal(err); fatal {
+				return false, nil, err
+			}
+
 			errs = append(errs, fmt.Errorf("failed to turn bundle into steps: %v", err))
 			unpacked = false
 			continue
@@ -1584,6 +1653,14 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	if len(plan.Status.BundleLookups) > 0 {
 		unpacked, out, err := o.unpackBundles(plan)
 		if err != nil {
+			// If the error was fatal capture and fail
+			if fatal := olmerrors.IsFatal(err); fatal {
+				if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, err.Error()); err != nil {
+					// retry for failure to update status
+					syncError = err
+					return
+				}
+			}
 			// Retry sync if non-fatal error
 			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
 			return
@@ -2320,7 +2397,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			}
 			return nil
 		}(i, step); err != nil {
-			if k8serrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				// Check for APIVersions present in the installplan steps that are not available on the server.
 				// The check is made via discovery per step in the plan. Transient communication failures to the api-server are handled by the plan retry logic.
 				notFoundErr := discoveryQuerier.WithStepResource(step.Resource).QueryForGVK()

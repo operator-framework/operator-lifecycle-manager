@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.13.3 (2022-03-31)
+
+### Fixed
+
+- Case sensitive use of the module name
+
+## 1.13.2 (2022-03-30)
+
+### Fixed
+
+- Fix for CVE-2022-21235
+- #103: Fixed CI testing. This included moving to GitHub Actions, updating the
+  the Git submodule handling, and skipping bzr tests on Windows (bzr has
+  discontinued and the installer now installs a broken environment)
+
 ## 1.13.1 (2019-07-09)
 
 ### Fixed

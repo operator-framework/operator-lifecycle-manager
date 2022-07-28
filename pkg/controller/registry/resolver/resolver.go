@@ -19,19 +19,24 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
-type OperatorResolver interface {
-	SolveOperators(csvs []*v1alpha1.ClusterServiceVersion, add map[cache.OperatorSourceInfo]struct{}) (cache.OperatorSet, error)
+// constraintProvider knows how to provide solver constraints for a given cache entry.
+// For instance, it could be used to surface additional constraints against an entry given some
+// properties it may expose. E.g. olm.maxOpenShiftVersion could be checked against the cluster version
+// and prohibit any entry that doesn't meet the requirement
+type constraintProvider interface {
+	// Constraints returns a set of solver constraints for a cache entry.
+	Constraints(e *cache.Entry) ([]solver.Constraint, error)
 }
 
-type SatResolver struct {
-	cache                     cache.OperatorCacheProvider
+type Resolver struct {
+	cache                     *cache.Cache
 	log                       logrus.FieldLogger
 	pc                        *predicateConverter
-	systemConstraintsProvider solver.ConstraintProvider
+	systemConstraintsProvider constraintProvider
 }
 
-func NewDefaultSatResolver(rcp cache.SourceProvider, sourcePriorityProvider cache.SourcePriorityProvider, logger logrus.FieldLogger) *SatResolver {
-	return &SatResolver{
+func NewDefaultResolver(rcp cache.SourceProvider, sourcePriorityProvider cache.SourcePriorityProvider, logger logrus.FieldLogger) *Resolver {
+	return &Resolver{
 		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithSourcePriorityProvider(sourcePriorityProvider)),
 		log:   logger,
 		pc: &predicateConverter{
@@ -50,7 +55,7 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (r *SatResolver) SolveOperators(namespaces []string, subs []*v1alpha1.Subscription) (cache.OperatorSet, error) {
+func (r *Resolver) Resolve(namespaces []string, subs []*v1alpha1.Subscription) ([]*cache.Entry, error) {
 	var errs []error
 
 	variables := make(map[solver.Identifier]solver.Variable)
@@ -146,7 +151,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, subs []*v1alpha1.Subsc
 		}
 	}
 
-	operators := make(map[string]*cache.Entry)
+	var operators []*cache.Entry
 	for _, variableOperator := range operatorVariables {
 		csvName, channel, catalog, err := variableOperator.BundleSourceInfo()
 		if err != nil {
@@ -190,7 +195,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, subs []*v1alpha1.Subsc
 			op.SourceInfo.StartingCSV = csvName
 		}
 
-		operators[csvName] = op
+		operators = append(operators, op)
 	}
 
 	if len(errs) > 0 {
@@ -202,7 +207,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, subs []*v1alpha1.Subsc
 
 // newBundleVariableFromEntry converts an entry into a bundle variable with
 // system constraints applied, if they are defined for the entry
-func (r *SatResolver) newBundleVariableFromEntry(entry *cache.Entry) (*BundleVariable, error) {
+func (r *Resolver) newBundleVariableFromEntry(entry *cache.Entry) (*BundleVariable, error) {
 	bundleInstalleble, err := NewBundleVariableFromOperator(entry)
 	if err != nil {
 		return nil, err
@@ -219,7 +224,7 @@ func (r *SatResolver) newBundleVariableFromEntry(entry *cache.Entry) (*BundleVar
 	return &bundleInstalleble, nil
 }
 
-func (r *SatResolver) getSubscriptionVariables(sub *v1alpha1.Subscription, current *cache.Entry, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Entry]*BundleVariable) (map[solver.Identifier]solver.Variable, error) {
+func (r *Resolver) getSubscriptionVariables(sub *v1alpha1.Subscription, current *cache.Entry, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Entry]*BundleVariable) (map[solver.Identifier]solver.Variable, error) {
 	var cachePredicates, channelPredicates []cache.Predicate
 	variables := make(map[solver.Identifier]solver.Variable)
 
@@ -353,7 +358,7 @@ func (r *SatResolver) getSubscriptionVariables(sub *v1alpha1.Subscription, curre
 	return variables, nil
 }
 
-func (r *SatResolver) getBundleVariables(preferredNamespace string, bundleStack []*cache.Entry, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Entry]*BundleVariable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleVariable, error) {
+func (r *Resolver) getBundleVariables(preferredNamespace string, bundleStack []*cache.Entry, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Entry]*BundleVariable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleVariable, error) {
 	errs := make([]error, 0)
 	variables := make(map[solver.Identifier]*BundleVariable) // all variables, including dependencies
 
@@ -461,7 +466,7 @@ func (r *SatResolver) getBundleVariables(preferredNamespace string, bundleStack 
 	return ids, variables, nil
 }
 
-func (r *SatResolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFinder, variables map[solver.Identifier]solver.Variable) {
+func (r *Resolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFinder, variables map[solver.Identifier]solver.Variable) {
 	// no two operators may provide the same GVK or Package in a namespace
 	gvkConflictToVariable := make(map[opregistry.GVKProperty][]solver.Identifier)
 	packageConflictToVariable := make(map[string][]solver.Identifier)
@@ -518,7 +523,7 @@ func (r *SatResolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFi
 	}
 }
 
-func (r *SatResolver) sortBundles(bundles []*cache.Entry) ([]*cache.Entry, error) {
+func (r *Resolver) sortBundles(bundles []*cache.Entry) ([]*cache.Entry, error) {
 	// assume bundles have been passed in sorted by catalog already
 	catalogOrder := make([]cache.SourceKey, 0)
 
@@ -814,8 +819,8 @@ func predicateForRequiredLabelProperty(value string) (cache.Predicate, error) {
 	return cache.LabelPredicate(label.Label), nil
 }
 
-func providedAPIsToProperties(apis cache.APISet) (out []*api.Property, err error) {
-	out = make([]*api.Property, 0)
+func providedAPIsToProperties(apis cache.APISet) ([]*api.Property, error) {
+	var out []*api.Property
 	for a := range apis {
 		val, err := json.Marshal(opregistry.GVKProperty{
 			Group:   a.Group,
@@ -830,17 +835,14 @@ func providedAPIsToProperties(apis cache.APISet) (out []*api.Property, err error
 			Value: string(val),
 		})
 	}
-	if len(out) > 0 {
-		return
-	}
-	return nil, nil
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Value < out[j].Value
+	})
+	return out, nil
 }
 
-func requiredAPIsToProperties(apis cache.APISet) (out []*api.Property, err error) {
-	if len(apis) == 0 {
-		return
-	}
-	out = make([]*api.Property, 0)
+func requiredAPIsToProperties(apis cache.APISet) ([]*api.Property, error) {
+	var out []*api.Property
 	for a := range apis {
 		val, err := json.Marshal(struct {
 			Group   string `json:"group"`
@@ -859,8 +861,8 @@ func requiredAPIsToProperties(apis cache.APISet) (out []*api.Property, err error
 			Value: string(val),
 		})
 	}
-	if len(out) > 0 {
-		return
-	}
-	return nil, nil
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Value < out[j].Value
+	})
+	return out, nil
 }

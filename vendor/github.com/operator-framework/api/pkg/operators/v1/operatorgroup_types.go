@@ -24,7 +24,28 @@ const (
 	MutlipleOperatorGroupCondition       = "MultipleOperatorGroup"
 	MultipleOperatorGroupsReason         = "MultipleOperatorGroupsFound"
 	OperatorGroupServiceAccountReason    = "ServiceAccountNotFound"
+
+	// UpgradeStrategyDefault configures OLM such that it will only allow
+	// clusterServiceVersions to move to the replacing phase to the succeeded
+	// phase. This effectively means that OLM will not allow operators to move
+	// to the next version if an installation or upgrade has failed.
+	UpgradeStrategyDefault UpgradeStrategy = "Default"
+
+	// UpgradeStrategyUnsafeFailForward configures OLM such that it  will allow
+	// clusterServiceVersions to move to the  replacing phase from the succeeded
+	// phase or from the failed phase. Additionally, OLM will generate new
+	// installPlans when a subscription references a failed installPlan and the
+	// catalog has been updated with a new upgrade for the existing set of
+	// operators.
+	//
+	// WARNING: The UpgradeStrategyUnsafeFailForward upgrade strategy is unsafe
+	// and may result in unexpected behavior or unrecoverable data loss unless
+	// you have deep understanding of the set of operators being managed in the
+	// namespace.
+	UpgradeStrategyUnsafeFailForward UpgradeStrategy = "TechPreviewUnsafeFailForward"
 )
+
+type UpgradeStrategy string
 
 // OperatorGroupSpec is the spec for an OperatorGroup resource.
 type OperatorGroupSpec struct {
@@ -45,6 +66,29 @@ type OperatorGroupSpec struct {
 	// Static tells OLM not to update the OperatorGroup's providedAPIs annotation
 	// +optional
 	StaticProvidedAPIs bool `json:"staticProvidedAPIs,omitempty"`
+
+	// UpgradeStrategy defines the upgrade strategy for operators in the namespace.
+	// There are currently two supported upgrade strategies:
+	//
+	// Default: OLM will only allow clusterServiceVersions to move to the replacing
+	// phase from the succeeded phase. This effectively means that OLM will not
+	// allow operators to move to the next version if an installation or upgrade
+	// has failed.
+	//
+	// TechPreviewUnsafeFailForward: OLM will allow clusterServiceVersions to move to the
+	// replacing phase from the succeeded phase or from the failed phase.
+	// Additionally, OLM will generate new installPlans when a subscription references
+	// a failed installPlan and the catalog has been updated with a new upgrade for
+	// the existing set of operators.
+	//
+	// WARNING: The TechPreviewUnsafeFailForward upgrade strategy is unsafe and may result
+	// in unexpected behavior or unrecoverable data loss unless you have deep
+	// understanding of the set of operators being managed in the namespace.
+	//
+	// +kubebuilder:validation:Enum=Default;TechPreviewUnsafeFailForward
+	// +kubebuilder:default=Default
+	// +optional
+	UpgradeStrategy UpgradeStrategy `json:"upgradeStrategy,omitempty"`
 }
 
 // OperatorGroupStatus is the status for an OperatorGroupResource.
@@ -76,6 +120,7 @@ type OperatorGroup struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	// +optional
+	// +kubebuilder:default={upgradeStrategy:Default}
 	Spec   OperatorGroupSpec   `json:"spec"`
 	Status OperatorGroupStatus `json:"status,omitempty"`
 }
@@ -96,6 +141,17 @@ func (o *OperatorGroup) BuildTargetNamespaces() string {
 	copy(ns, o.Status.Namespaces)
 	sort.Strings(ns)
 	return strings.Join(ns, ",")
+}
+
+// UpgradeStrategy returns the UpgradeStrategy specified or the default value otherwise.
+func (o *OperatorGroup) UpgradeStrategy() UpgradeStrategy {
+	strategyName := o.Spec.UpgradeStrategy
+	switch {
+	case strategyName == UpgradeStrategyUnsafeFailForward:
+		return strategyName
+	default:
+		return UpgradeStrategyDefault
+	}
 }
 
 // IsServiceAccountSpecified returns true if the spec has a service account name specified.

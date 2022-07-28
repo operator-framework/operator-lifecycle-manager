@@ -1,3 +1,4 @@
+//go:build bare
 // +build bare
 
 package e2e
@@ -15,8 +16,8 @@ import (
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/clientcmd"
+	utilclock "k8s.io/utils/clock"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"

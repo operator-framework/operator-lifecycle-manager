@@ -1,7 +1,7 @@
 # Reporting flakes
 
 If you are struggling to get your PR through because unrelated e2e or unit tests are randomly failing, it's likely
-you are being plagued by a flaky test 😱, a test that wasn't constructed as carefully as it should have been as is
+you are being plagued by a flaky test 😱, a test that wasn't constructed as carefully as it should have been and is
 failing even when it should be succeeding. When this happens, check our [issues](https://github.com/operator-framework/operator-lifecycle-manager/issues) 
 to see if it has been filed before. Search also in the `closed issues`. If you find one, re-open it if necessary. 
 Otherwise, [file](https://github.com/operator-framework/operator-lifecycle-manager/issues/new) a flaky test issue.

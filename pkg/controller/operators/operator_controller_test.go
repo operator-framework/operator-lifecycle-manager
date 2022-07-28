@@ -3,7 +3,7 @@ package operators
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -46,10 +46,12 @@ var _ = Describe("Operator Controller", func() {
 
 	Describe("operator deletion", func() {
 		var originalUID types.UID
+
 		JustBeforeEach(func() {
 			originalUID = operator.GetUID()
 			Expect(k8sClient.Delete(ctx, operator)).To(Succeed())
 		})
+
 		Context("with components bearing its label", func() {
 			var (
 				objs      []runtime.Object
@@ -105,6 +107,7 @@ var _ = Describe("Operator Controller", func() {
 	})
 
 	Describe("component selection", func() {
+
 		BeforeEach(func() {
 			Eventually(func() (*operatorsv1.Components, error) {
 				err := k8sClient.Get(ctx, name, operator)
@@ -164,6 +167,7 @@ var _ = Describe("Operator Controller", func() {
 			})
 
 			Context("when new components are labelled", func() {
+
 				BeforeEach(func() {
 					saName := &types.NamespacedName{Namespace: namespace, Name: genName("sa-")}
 					newObjs := testobj.WithLabel(expectedKey, "",
@@ -201,6 +205,7 @@ var _ = Describe("Operator Controller", func() {
 			})
 
 			Context("when component labels are removed", func() {
+
 				BeforeEach(func() {
 					for _, obj := range testobj.StripLabel(expectedKey, objs...) {
 						Expect(k8sClient.Update(ctx, obj.(client.Object))).To(Succeed())

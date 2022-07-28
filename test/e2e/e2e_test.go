@@ -3,15 +3,11 @@ package e2e
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
-	"path"
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/config"
-	"github.com/onsi/ginkgo/reporters"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,13 +29,28 @@ var (
 	communityOperators = flag.String(
 		"communityOperators",
 		"quay.io/operator-framework/upstream-community-operators@sha256:098457dc5e0b6ca9599bd0e7a67809f8eca397907ca4d93597380511db478fec",
-		"reference to upstream-community-operators image")
+		"reference to upstream-community-operators image",
+	)
 
 	dummyImage = flag.String(
 		"dummyImage",
 		"bitnami/nginx:latest",
-		"dummy image to treat as an operator in tests")
+		"dummy image to treat as an operator in tests",
+	)
 
+	collectArtifactsScriptPath = flag.String(
+		"gather-artifacts-script-path",
+		"./collect-ci-artifacts.sh",
+		"configures the relative/absolute path to the script resposible for collecting CI artifacts",
+	)
+
+	testdataPath = flag.String(
+		"test-data-dir",
+		"./testdata",
+		"configures where to find the testdata directory",
+	)
+
+	testdataDir             = ""
 	testNamespace           = ""
 	operatorNamespace       = ""
 	communityOperatorsImage = ""
@@ -53,13 +64,7 @@ func TestEndToEnd(t *testing.T) {
 	SetDefaultConsistentlyDuration(30 * time.Second)
 	SetDefaultConsistentlyPollingInterval(1 * time.Second)
 
-	// always configure a junit report when ARTIFACTS_DIR has been set
-	if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
-		junitReporter := reporters.NewJUnitReporter(path.Join(artifactsDir, junitDir, fmt.Sprintf("junit_e2e_%02d.xml", config.GinkgoConfig.ParallelNode)))
-		RunSpecsWithDefaultAndCustomReporters(t, "End-to-end", []Reporter{junitReporter})
-	} else {
-		RunSpecs(t, "End-to-end")
-	}
+	RunSpecs(t, "End-to-end")
 }
 
 var deprovision func() = func() {}
@@ -70,10 +75,14 @@ var _ = BeforeSuite(func() {
 		// This flag can be deprecated in favor of the kubeconfig provisioner:
 		os.Setenv("KUBECONFIG", *kubeConfigPath)
 	}
+	if collectArtifactsScriptPath != nil && *collectArtifactsScriptPath != "" {
+		os.Setenv("E2E_ARTIFACT_SCRIPT", *collectArtifactsScriptPath)
+	}
 
 	testNamespace = *namespace
 	operatorNamespace = *olmNamespace
 	communityOperatorsImage = *communityOperators
+	testdataDir = *testdataPath
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 
@@ -104,6 +113,7 @@ var _ = BeforeSuite(func() {
 		HaveLen(1),
 		ContainElement(Not(BeZero())),
 	))
+
 	_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced)
 	Expect(err).NotTo(HaveOccurred())
 

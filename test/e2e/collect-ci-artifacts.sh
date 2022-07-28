@@ -7,7 +7,10 @@ set -o errexit
 : "${KUBECONFIG:?}"
 : "${TEST_NAMESPACE:?}"
 : "${TEST_ARTIFACTS_DIR:?}"
+: "${KUBECTL:=kubectl}"
 
+echo "Using the ${KUBECTL} kubectl binary"
+echo "Using the ${TEST_ARTIFACTS_DIR} output directory"
 mkdir -p "${TEST_ARTIFACTS_DIR}"
 
 commands=()
@@ -23,5 +26,5 @@ echo "Storing the test artifact output in the ${TEST_ARTIFACTS_DIR} directory"
 for command in "${commands[@]}"; do
     echo "Collecting ${command} output..."
     COMMAND_OUTPUT_FILE=${TEST_ARTIFACTS_DIR}/${command// /_}
-    kubectl -n ${TEST_NAMESPACE} ${command} >> "${COMMAND_OUTPUT_FILE}"
+    ${KUBECTL} -n ${TEST_NAMESPACE} ${command} >> "${COMMAND_OUTPUT_FILE}"
 done

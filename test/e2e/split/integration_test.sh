@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 function get_total_specs() {
-  go run github.com/onsi/ginkgo/ginkgo -noColor -dryRun -v -seed 1 "$@" ./test/e2e | grep -Po "Ran \K([0-9]+)(?= of .+ Specs in .+ seconds)"
+  go run github.com/onsi/ginkgo/v2/ginkgo -noColor -dryRun -v -seed 1 "$@" ./test/e2e | grep -Po "Ran \K([0-9]+)(?= of .+ Specs in .+ seconds)"
 }
 
 unfocused_specs=$(get_total_specs)
