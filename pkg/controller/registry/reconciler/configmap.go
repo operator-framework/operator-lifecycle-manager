@@ -23,6 +23,7 @@ import (
 // configMapCatalogSourceDecorator wraps CatalogSource to add additional methods
 type configMapCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
+	runAsUser int64
 }
 
 const (
@@ -101,7 +102,7 @@ func (s *configMapCatalogSourceDecorator) Service() *corev1.Service {
 }
 
 func (s *configMapCatalogSourceDecorator) Pod(image string) *corev1.Pod {
-	pod := Pod(s.CatalogSource, "configmap-registry-server", image, "", s.Labels(), s.Annotations(), 5, 5)
+	pod := Pod(s.CatalogSource, "configmap-registry-server", image, "", s.Labels(), s.Annotations(), 5, 5, s.runAsUser)
 	pod.Spec.ServiceAccountName = s.GetName() + ConfigMapServerPostfix
 	pod.Spec.Containers[0].Command = []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
@@ -162,10 +163,11 @@ func (s *configMapCatalogSourceDecorator) RoleBinding() *rbacv1.RoleBinding {
 }
 
 type ConfigMapRegistryReconciler struct {
-	now      nowFunc
-	Lister   operatorlister.OperatorLister
-	OpClient operatorclient.ClientInterface
-	Image    string
+	now             nowFunc
+	Lister          operatorlister.OperatorLister
+	OpClient        operatorclient.ClientInterface
+	Image           string
+	createPodAsUser int64
 }
 
 var _ RegistryEnsurer = &ConfigMapRegistryReconciler{}
@@ -240,7 +242,7 @@ func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(sour
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.CatalogSource) error {
-	source := configMapCatalogSourceDecorator{catalogSource}
+	source := configMapCatalogSourceDecorator{catalogSource, c.createPodAsUser}
 
 	image := c.Image
 	if source.Spec.SourceType == "grpc" {
@@ -389,7 +391,7 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
-	source := configMapCatalogSourceDecorator{catalogSource}
+	source := configMapCatalogSourceDecorator{catalogSource, c.createPodAsUser}
 
 	image := c.Image
 	if source.Spec.SourceType == "grpc" {

@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/utils/pointer"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	crfake "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
@@ -32,6 +33,7 @@ const (
 	opmImage    = "opm-image"
 	utilImage   = "util-image"
 	bundlePath  = "bundle-path"
+	runAsUser   = 1001
 )
 
 func TestConfigMapUnpacker(t *testing.T) {
@@ -220,6 +222,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Spec: corev1.PodSpec{
 									RestartPolicy:    corev1.RestartPolicyNever,
 									ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-secret"}},
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -243,6 +252,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -260,6 +275,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -282,6 +303,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -397,6 +424,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -420,6 +454,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -437,6 +477,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -459,6 +505,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -615,6 +667,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -638,6 +697,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -655,6 +720,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -677,6 +748,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -827,6 +904,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -850,6 +934,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -867,6 +957,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -889,6 +985,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -1009,6 +1111,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -1032,6 +1141,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1049,6 +1164,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -1071,6 +1192,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -1202,6 +1329,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -1225,6 +1359,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1242,6 +1382,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -1264,6 +1410,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -1341,6 +1493,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				WithUtilImage(utilImage),
 				WithNow(now),
 				WithUnpackTimeout(defaultUnpackDuration),
+				WithUserID(int64(runAsUser)),
 			)
 			require.NoError(t, err)
 
