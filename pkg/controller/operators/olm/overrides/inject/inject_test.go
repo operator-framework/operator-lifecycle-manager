@@ -1,6 +1,8 @@
 package inject_test
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -783,4 +785,506 @@ func TestInjectNodeSelectorIntoDeployment(t *testing.T) {
 			assert.Equal(t, podSpecWant, podSpecGot)
 		})
 	}
+}
+
+func TestOverrideDeploymentAffinity(t *testing.T) {
+	tests := []struct {
+		name        string
+		podSpec     *corev1.PodSpec
+		affinity    *corev1.Affinity
+		expected    *corev1.PodSpec
+		expectedErr error
+	}{
+		{
+			// Nil PodSpec is injected with an Affinity
+			// Expected: PodSpec is nil
+			// ExpectedErr: "no pod spec provided"
+			name:        "WithNilPodSpec",
+			podSpec:     nil,
+			affinity:    &corev1.Affinity{},
+			expected:    nil,
+			expectedErr: fmt.Errorf("no pod spec provided"),
+		},
+		{
+			// Affinity is overrides PodSpec with no Affinity
+			// Expected: Affinity is defined in the PodSpec
+			// ExpectedErr: nil
+			name:    "WithPodSpecWithNoAffinity",
+			podSpec: &corev1.PodSpec{},
+			affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+							{
+								MatchFields: []corev1.NodeSelectorRequirement{
+									{
+										Key:      "key",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"val1", "val2"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "key",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"val1", "val2"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Affinity with NodeAffinity overrides PodSpec with NodeAffinity, PodAffinity, PodAntiAffinity
+			// Expected: PodSpec Affinity has overridden NodeAffinity, but not PodAffinity, PodAntiAffinity
+			// ExpectedErr: nil
+			name: "OnlyOverrideNodeAffinity",
+			podSpec: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "key",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"val1", "val2"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey",
+								Namespaces:  []string{"ns1", "ns2"},
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+			affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+							{
+								MatchFields: []corev1.NodeSelectorRequirement{
+									{
+										Key:      "anotherKey",
+										Operator: corev1.NodeSelectorOpExists,
+										Values:   []string{"val3"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "anotherKey",
+											Operator: corev1.NodeSelectorOpExists,
+											Values:   []string{"val3"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey",
+								Namespaces:  []string{"ns1", "ns2"},
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Affinity with NodeAffinity, empty PodAffinity overrides PodSpec with NodeAffinity, PodAffinity, PodAntiAffinity
+			// Expected: PodSpec Affinity has overridden NodeAffinity, PodAffinity, but not PodAntiAffinity
+			// ExpectedErr: nil
+			name: "OverrideNodeAffinityEmptyPodAffinity",
+			podSpec: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "key",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"val1", "val2"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey",
+								Namespaces:  []string{"ns1", "ns2"},
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+			affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+							{
+								MatchFields: []corev1.NodeSelectorRequirement{
+									{
+										Key:      "anotherKey",
+										Operator: corev1.NodeSelectorOpExists,
+										Values:   []string{"val3"},
+									},
+								},
+							},
+						},
+					},
+				},
+				PodAffinity: &corev1.PodAffinity{},
+			},
+			expected: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "anotherKey",
+											Operator: corev1.NodeSelectorOpExists,
+											Values:   []string{"val3"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: nil,
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Affinity with NodeAffinity, PodAffinity overrides PodSpec with nil NodeAffinity, nil PodAffinity, PodAntiAffinity
+			// Expected: PodSpec Affinity has overridden NodeAffinity, PodAffinity, but not PodAntiAffinity
+			// ExpectedErr: nil
+			name: "OverridesNilPodSpecAttributes",
+			podSpec: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+			affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+							{
+								MatchFields: []corev1.NodeSelectorRequirement{
+									{
+										Key:      "anotherKey",
+										Operator: corev1.NodeSelectorOpExists,
+										Values:   []string{"val3"},
+									},
+								},
+							},
+						},
+					},
+				},
+				PodAffinity: &corev1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+						{
+							TopologyKey: "topKey",
+							Namespaces:  []string{"ns1", "ns2"},
+						},
+					},
+				},
+			},
+			expected: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "anotherKey",
+											Operator: corev1.NodeSelectorOpExists,
+											Values:   []string{"val3"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey",
+								Namespaces:  []string{"ns1", "ns2"},
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Empty Affinity overrides PodSpec with NodeAffinity, PodAffinity, PodAntiAffinity
+			// Expected: PodSpec Affinity is nil
+			// ExpectedErr: nil
+			name: "EmptyAffinity",
+			podSpec: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "key",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"val1", "val2"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey",
+								Namespaces:  []string{"ns1", "ns2"},
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+			affinity: &corev1.Affinity{},
+			expected: &corev1.PodSpec{
+				Affinity: nil,
+			},
+		},
+		{
+			// Empty Affinity NodeAffinity, and PodAffinity
+			// overrides PodSpec with NodeAffinity, and PodAffinity
+			// Expected: PodSpec Affinity is nil
+			// ExpectedErr: nil
+			name: "Nil/EmptyAffinityAreEquivalent",
+			podSpec: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "key",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"val1", "val2"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey",
+								Namespaces:  []string{"ns1", "ns2"},
+							},
+						},
+					},
+				},
+			},
+			affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{},
+				PodAffinity:  &corev1.PodAffinity{},
+			},
+			expected: &corev1.PodSpec{
+				Affinity: nil,
+			},
+		},
+		{
+			// Nil Affinity overrides nothing PodSpec
+			// Expected: PodSpec unaffected
+			// ExpectedErr: nil
+			name: "EmptyAffinity",
+			podSpec: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "key",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"val1", "val2"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey",
+								Namespaces:  []string{"ns1", "ns2"},
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+			affinity: nil,
+			expected: &corev1.PodSpec{
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchFields: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "key",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"val1", "val2"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey",
+								Namespaces:  []string{"ns1", "ns2"},
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								TopologyKey: "topKey2",
+								Namespaces:  []string{"n3", "ns4"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := inject.OverrideDeploymentAffinity(tt.podSpec, tt.affinity)
+
+			podSpecWant := tt.expected
+			podSpecGot := tt.podSpec
+
+			assert.Equal(t, tt.expectedErr, err)
+			assert.Equal(t, podSpecWant, podSpecGot)
+		})
+	}
+}
+
+func TestAffinityAPIChanges(t *testing.T) {
+	value := reflect.ValueOf(corev1.Affinity{})
+	assert.Equal(t, 3, value.NumField(), "It seems the corev1.Affinity API has changed. Please revisit the inject.OverrideDeploymentAffinity implementation")
 }
