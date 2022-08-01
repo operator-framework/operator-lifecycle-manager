@@ -59,6 +59,10 @@ var AlphaDeprecatedAPIsValidator = internal.AlphaDeprecatedAPIsValidator
 // GoodPracticesValidator implements Validator to validate the criteria defined as good practices
 var GoodPracticesValidator = internal.GoodPracticesValidator
 
+// MultipleArchitecturesValidator implements Validator to validate MultipleArchitectures configuration. For further
+// information check: https://olm.operatorframework.io/docs/advanced-tasks/ship-operator-supporting-multiarch/
+var MultipleArchitecturesValidator = internal.MultipleArchitecturesValidator
+
 // AllValidators implements Validator to validate all Operator manifest types.
 var AllValidators = interfaces.Validators{
 	PackageManifestValidator,
@@ -71,6 +75,7 @@ var AllValidators = interfaces.Validators{
 	CommunityOperatorValidator,
 	AlphaDeprecatedAPIsValidator,
 	GoodPracticesValidator,
+	MultipleArchitecturesValidator,
 }
 
 var DefaultBundleValidators = interfaces.Validators{

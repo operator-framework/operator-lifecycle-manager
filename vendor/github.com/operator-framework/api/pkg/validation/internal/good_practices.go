@@ -1,9 +1,12 @@
 package internal
 
 import (
-	goerrors "errors"
 	"fmt"
+	"regexp"
 	"strings"
+
+	goerrors "errors"
+	"github.com/blang/semver/v4"
 
 	"github.com/operator-framework/api/pkg/manifests"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -30,6 +33,9 @@ import (
 // b) "An Operator shouldn't deploy or manage other operators (such patterns are known as meta or super operators or include CRDs in its Operands). It's the Operator Lifecycle Manager's job to manage the deployment and lifecycle of operators. For further information check Dependency Resolution: https://olm.operatorframework.io/docs/concepts/olm-architecture/dependency-resolution/"
 //
 // WARNING: if you create CRD's via the reconciliations or via the Operands then, OLM cannot handle CRDs migration and update, validation.
+// - The bundle name (CSV.metadata.name) does not follow the naming convention: <operator-name>.v<semver> e.g. memcached-operator.v0.0.1
+//
+// NOTE: The bundle name must be 63 characters or less because it will be used as k8s ownerref label which only allows max of 63 characters.
 var GoodPracticesValidator interfaces.Validator = interfaces.ValidatorFunc(goodPracticesValidator)
 
 func goodPracticesValidator(objs ...interface{}) (results []errors.ManifestResult) {
@@ -60,6 +66,8 @@ func validateGoodPracticesFrom(bundle *manifests.Bundle) errors.ManifestResult {
 	warns = append(warns, validateCrdDescriptions(bundle.CSV.Spec.CustomResourceDefinitions)...)
 	warns = append(warns, validateHubChannels(bundle))
 	warns = append(warns, validateRBACForCRDsWith(bundle.CSV))
+	warns = append(warns, checkBundleName(bundle.CSV)...)
+
 	for _, err := range errs {
 		if err != nil {
 			result.Add(errors.ErrFailedValidation(err.Error(), bundle.CSV.GetName()))
@@ -94,6 +102,34 @@ func validateResourceRequests(csv *operatorsv1alpha1.ClusterServiceVersion) (err
 		}
 	}
 	return errs, warns
+}
+
+// checkBundleName will validate the operator bundle name informed via CSV.metadata.name.
+// The motivation for the following check is to ensure that operators authors knows that operator bundles names should
+// follow a name and versioning convention
+func checkBundleName(csv *operatorsv1alpha1.ClusterServiceVersion) []error {
+	var warns []error
+	// Check if is following the semver
+	re := regexp.MustCompile("([0-9]+)\\.([0-9]+)\\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?(?:\\+[0-9A-Za-z-]+)?$")
+	match := re.FindStringSubmatch(csv.Name)
+
+	if len(match) > 0 {
+		if _, err := semver.Parse(match[0]); err != nil {
+			warns = append(warns, fmt.Errorf("csv.metadata.Name %v is not following the versioning "+
+				"convention (MAJOR.MINOR.PATCH e.g 0.0.1): https://semver.org/", csv.Name))
+		}
+	} else {
+		warns = append(warns, fmt.Errorf("csv.metadata.Name %v is not following the versioning "+
+			"convention (MAJOR.MINOR.PATCH e.g 0.0.1): https://semver.org/", csv.Name))
+	}
+
+	// Check if its following the name convention
+	if len(strings.Split(csv.Name, ".v")) != 2 {
+		warns = append(warns, fmt.Errorf("csv.metadata.Name %v is not following the recommended "+
+			"naming convention: <operator-name>.v<semver> e.g. memcached-operator.v0.0.1", csv.Name))
+	}
+
+	return warns
 }
 
 // validateHubChannels will check the channels. The motivation for the following check is to ensure that operators
