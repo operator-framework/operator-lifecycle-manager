@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"sync"
 
 	semver "github.com/blang/semver/v4"
 	configv1 "github.com/openshift/api/config/v1"
@@ -119,17 +121,17 @@ func transientErrors(err error) error {
 }
 
 func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error) {
-	desired, err := desiredRelease(ctx, cli)
+	current, err := getCurrentRelease()
 	if err != nil {
 		return nil, err
 	}
 
-	if desired == nil {
+	if current == nil {
 		// Note: This shouldn't happen
 		return nil, fmt.Errorf("failed to determine current OpenShift Y-stream release")
 	}
 
-	next, err := nextY(*desired)
+	next, err := nextY(*current)
 	if err != nil {
 		return nil, err
 	}
@@ -168,24 +170,58 @@ func incompatibleOperators(ctx context.Context, cli client.Client) (skews, error
 	return incompatible, nil
 }
 
-func desiredRelease(ctx context.Context, cli client.Client) (*semver.Version, error) {
-	cv := configv1.ClusterVersion{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: "version"}, &cv); err != nil { // "version" is the name of OpenShift's ClusterVersion singleton
-		return nil, &transientError{fmt.Errorf("failed to get ClusterVersion: %w", err)}
+type openshiftRelease struct {
+	version *semver.Version
+	mu      sync.Mutex
+}
+
+var (
+	currentRelease = &openshiftRelease{}
+)
+
+const (
+	releaseEnvVar = "RELEASE_VERSION" // OpenShift's env variable for defining the current release
+)
+
+// getCurrentRelease thread safely retrieves the current version of OCP at the time of this operator starting.
+// This is defined by an environment variable that our release manifests define (and get dynamically updated)
+// by OCP. For the purposes of this package, that environment variable is a constant under the name of releaseEnvVar.
+//
+// Note: currentRelease is designed to be a singleton that only gets updated the first time that this function
+// is called. As a result, all calls to this will return the same value even if the releaseEnvVar gets
+// changed during runtime somehow.
+func getCurrentRelease() (*semver.Version, error) {
+	currentRelease.mu.Lock()
+	defer currentRelease.mu.Unlock()
+
+	if currentRelease.version != nil {
+		/*
+			If the version is already set, we don't want to set it again as the currentRelease
+			is designed to be a singleton. If a new version is set, we are making an assumption
+			that this controller will be restarted and thus pull in the new version from the
+			environment into memory.
+
+			Note: sync.Once is not used here as it was difficult to reliably test without hitting
+			race conditions.
+		*/
+		return currentRelease.version, nil
 	}
 
-	v := cv.Status.Desired.Version
-	if v == "" {
-		// The release version hasn't been set yet
-		return nil, fmt.Errorf("desired release version missing from ClusterVersion")
+	// Get the raw version from the releaseEnvVar environment variable
+	raw, ok := os.LookupEnv(releaseEnvVar)
+	if !ok || raw == "" {
+		// No env var set, try again later
+		return nil, fmt.Errorf("desired release version missing from %v env variable", releaseEnvVar)
 	}
 
-	desired, err := semver.ParseTolerant(v)
+	release, err := semver.ParseTolerant(raw)
 	if err != nil {
 		return nil, fmt.Errorf("cluster version has invalid desired release version: %w", err)
 	}
 
-	return &desired, nil
+	currentRelease.version = &release
+
+	return currentRelease.version, nil
 }
 
 func nextY(v semver.Version) (semver.Version, error) {

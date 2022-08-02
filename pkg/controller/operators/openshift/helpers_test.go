@@ -221,22 +221,13 @@ func TestIncompatibleOperators(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		description string
-		cv          configv1.ClusterVersion
+		version     string
 		in          skews
 		expect      expect
 	}{
 		{
 			description: "Compatible",
-			cv: configv1.ClusterVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "version",
-				},
-				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Release{
-						Version: "1.0.0",
-					},
-				},
-			},
+			version:     "1.0.0",
 			in: skews{
 				{
 					name:                "almond",
@@ -261,16 +252,7 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "Incompatible",
-			cv: configv1.ClusterVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "version",
-				},
-				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Release{
-						Version: "1.0.0",
-					},
-				},
-			},
+			version:     "1.0.0",
 			in: skews{
 				{
 					name:                "almond",
@@ -331,16 +313,7 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "Mixed",
-			cv: configv1.ClusterVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "version",
-				},
-				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Release{
-						Version: "1.0.0",
-					},
-				},
-			},
+			version:     "1.0.0",
 			in: skews{
 				{
 					name:                "almond",
@@ -376,16 +349,7 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "Mixed/BadVersion",
-			cv: configv1.ClusterVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "version",
-				},
-				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Release{
-						Version: "1.0.0",
-					},
-				},
-			},
+			version:     "1.0.0",
 			in: skews{
 				{
 					name:                "almond",
@@ -424,16 +388,7 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "EmptyVersion",
-			cv: configv1.ClusterVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "version",
-				},
-				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Release{
-						Version: "", // This should result in an transient error
-					},
-				},
-			},
+			version:     "", // This should result in an transient error
 			in: skews{
 				{
 					name:                "almond",
@@ -453,16 +408,7 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "ClusterZ",
-			cv: configv1.ClusterVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "version",
-				},
-				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Release{
-						Version: "1.0.1", // Next Y-stream is 1.1.0, NOT 1.1.1
-					},
-				},
-			},
+			version:     "1.0.1", // Next Y-stream is 1.1.0, NOT 1.1.1
 			in: skews{
 				{
 					name:                "beech",
@@ -477,16 +423,7 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 		{
 			description: "ClusterPre",
-			cv: configv1.ClusterVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "version",
-				},
-				Status: configv1.ClusterVersionStatus{
-					Desired: configv1.Release{
-						Version: "1.1.0-pre", // Next Y-stream is 1.1.0, NOT 1.2.0
-					},
-				},
-			},
+			version:     "1.1.0-pre", // Next Y-stream is 1.1.0, NOT 1.2.0
 			in: skews{
 				{
 					name:                "almond",
@@ -501,7 +438,9 @@ func TestIncompatibleOperators(t *testing.T) {
 		},
 	} {
 		t.Run(tt.description, func(t *testing.T) {
-			objs := []client.Object{tt.cv.DeepCopy()}
+			objs := []client.Object{}
+
+			resetCurrentReleaseTo(tt.version)
 
 			for _, s := range tt.in {
 				csv := &operatorsv1alpha1.ClusterServiceVersion{}
