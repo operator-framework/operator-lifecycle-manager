@@ -1799,8 +1799,7 @@ var _ = Describe("Operator Group", func() {
 
 	// Versions of OLM at 0.14.1 and older had a bug that would place the wrong namespace annotation on copied CSVs,
 	// preventing them from being GCd. This ensures that any leftover CSVs in that state are properly cleared up.
-	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2644
-	It("[FLAKE] cleanup csvs with bad owner operator groups", func() {
+	It("cleanup csvs with bad namespace annotation", func() {
 
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
@@ -2013,18 +2012,28 @@ var _ = Describe("Operator Group", func() {
 			return false, nil
 		})
 		require.NoError(GinkgoT(), err)
-
-		// Give copied CSV a bad operatorgroup annotation
-		updateCSV := func() error {
-			fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
-			require.NoError(GinkgoT(), err)
+		GinkgoT().Log("Copied CSV showed up in other namespace, giving copied CSV a bad OpertorGroup annotation")
+		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
+			if fetchErr != nil {
+				return false, fetchErr
+			}
 			fetchedCSV.Annotations[v1.OperatorGroupNamespaceAnnotationKey] = fetchedCSV.GetNamespace()
-			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
-			return err
-		}
-		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateCSV))
-
-		// wait for CSV to be gc'd
+			_, updateErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
+			if updateErr != nil {
+				return false, updateErr
+			}
+			updatedCSV, updatedfetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
+			if updatedfetchErr != nil {
+				return false, updatedfetchErr
+			}
+			if updatedCSV.Annotations[v1.OperatorGroupNamespaceAnnotationKey] == fetchedCSV.GetNamespace() {
+				return true, nil
+			}
+			return false, nil
+		})
+		require.NoError(GinkgoT(), err)
+		GinkgoT().Log("Done updating copied CSV with bad annotation OperatorGroup, waiting for CSV to be gc'd")
 		err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
 			csv, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
@@ -2034,8 +2043,12 @@ var _ = Describe("Operator Group", func() {
 				GinkgoT().Logf("Error (in %v): %v", opGroupNamespace, fetchErr.Error())
 				return false, fetchErr
 			}
-			GinkgoT().Logf("%#v", csv.Annotations)
-			GinkgoT().Logf(csv.GetNamespace())
+			// The CSV with the wrong annotation could have been replaced with a new copied CSV by this time
+			// If we find a CSV in the namespace, and it contains the correct annotation, it means the CSV
+			// with the wrong annotation was GCed
+			if csv.Annotations[v1.OperatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
+				return true, nil
+			}
 			return false, nil
 		})
 		require.NoError(GinkgoT(), err)

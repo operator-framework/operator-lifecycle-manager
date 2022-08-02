@@ -30,6 +30,7 @@ import (
 
 const (
 	registryImageName = "test:image"
+	runAsUser         = 1001
 	testNamespace     = "testns"
 )
 
@@ -104,6 +105,7 @@ func fakeReconcilerFactory(t *testing.T, stopc <-chan struct{}, options ...fakeR
 		OpClient:             opClientFake,
 		Lister:               lister,
 		ConfigMapServerImage: config.configMapServerImage,
+		createPodAsUser:      runAsUser,
 	}
 
 	var hasSyncedCheckFns []cache.InformerSynced
@@ -186,7 +188,7 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 	var objs []runtime.Object
 	switch catsrc.Spec.SourceType {
 	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
-		decorated := configMapCatalogSourceDecorator{catsrc}
+		decorated := configMapCatalogSourceDecorator{catsrc, runAsUser}
 		objs = clientfake.AddSimpleGeneratedNames(
 			clientfake.AddSimpleGeneratedName(decorated.Pod(registryImageName)),
 			decorated.Service(),
@@ -196,7 +198,7 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 		)
 	case v1alpha1.SourceTypeGrpc:
 		if catsrc.Spec.Image != "" {
-			decorated := grpcCatalogSourceDecorator{catsrc}
+			decorated := grpcCatalogSourceDecorator{catsrc, runAsUser}
 			objs = clientfake.AddSimpleGeneratedNames(
 				decorated.Pod(catsrc.GetName()),
 				decorated.Service(),
@@ -451,7 +453,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			}
 
 			// if no error, the reconciler should create the same set of kube objects every time
-			decorated := configMapCatalogSourceDecorator{tt.in.catsrc}
+			decorated := configMapCatalogSourceDecorator{tt.in.catsrc, runAsUser}
 
 			pod := decorated.Pod(registryImageName)
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}

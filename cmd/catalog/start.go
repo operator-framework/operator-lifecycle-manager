@@ -25,6 +25,7 @@ type options struct {
 	tlsKeyPath           string
 	tlsCertPath          string
 	clientCAPath         string
+	setWorkloadUserID    bool
 
 	installPlanTimeout  time.Duration
 	bundleUnpackTimeout time.Duration
@@ -66,6 +67,7 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&o.opmImage, "opmImage", defaultOPMImage, "the image to use for unpacking bundle content with opm")
 	cmd.Flags().StringVar(&o.utilImage, "util-image", defaultUtilImage, "an image containing custom olm utilities")
 	cmd.Flags().StringVar(&o.writeStatusName, "writeStatusName", defaultOperatorName, "ClusterOperator name in which to write status, set to \"\" to disable.")
+	cmd.Flags().BoolVar(&o.setWorkloadUserID, "set-workload-user-id", false, "set user ID for all workloads (registry pods/bundle unpack jobs to default 1001")
 
 	cmd.Flags().BoolVar(&o.debug, "debug", false, "use debug log level")
 	cmd.Flags().BoolVar(&o.version, "version", false, "displays the olm version")

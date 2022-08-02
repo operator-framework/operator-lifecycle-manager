@@ -17,6 +17,10 @@ spec:
       labels:
         app: catalog-operator
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: olm-operator-serviceaccount
       {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
       volumes:
@@ -33,6 +37,10 @@ spec:
       {{- end }}
       containers:
         - name: catalog-operator
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
           {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
           volumeMounts:
           {{- end }}
@@ -76,6 +84,8 @@ spec:
           - --client-ca
           - /profile-collector-cert/tls.crt
           {{- end }}
+          - --set-workload-user-id
+          - "true"
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:

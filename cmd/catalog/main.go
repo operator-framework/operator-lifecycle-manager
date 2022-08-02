@@ -30,6 +30,7 @@ const (
 	defaultOPMImage             = "quay.io/operator-framework/upstream-opm-builder:latest"
 	defaultUtilImage            = "quay.io/operator-framework/olm:latest"
 	defaultOperatorName         = ""
+	defaultWorkLoadUserID       = int64(1001)
 )
 
 // config flags defined globally so that they appear on the test binary as well
@@ -83,6 +84,10 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 		return fmt.Errorf("error configuring client: %s", err.Error())
 	}
 
+	workloadUserID := int64(-1)
+	if o.setWorkloadUserID {
+		workloadUserID = defaultWorkLoadUserID
+	}
 	// TODO(tflannag): Use options pattern for catalog operator
 	// Create a new instance of the operator.
 	op, err := catalog.NewOperator(
@@ -98,6 +103,7 @@ func (o *options) run(ctx context.Context, logger *logrus.Logger) error {
 		k8sscheme.Scheme,
 		o.installPlanTimeout,
 		o.bundleUnpackTimeout,
+		workloadUserID,
 	)
 	if err != nil {
 		return fmt.Errorf("error configuring catalog operator: %s", err.Error())
