@@ -247,7 +247,7 @@ The metadata section contains general metadata around the name, version and othe
 
 **Version**: The semanic version of the Operator. This value should be incremented each time a new Operator image is published.
 
-**Icon**: a base64 encoded image of the Operator logo or the logo of the publisher. The `base64data` parameter contains the data and the `mediatype` specifies the type of image, eg. `image/png` or `image/svg`.
+**Icon**: a base64 encoded image of the Operator logo or the logo of the publisher. The `base64data` parameter contains the data and the `mediatype` specifies the type of image, eg. `image/png` or `image/svg+xml`. 
 
 **Links**: A list of relevant links for the Operator. Common links include documentation, how-to guides, blog posts, and the company homepage.
 
