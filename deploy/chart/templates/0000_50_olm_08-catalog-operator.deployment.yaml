@@ -84,8 +84,11 @@ spec:
           - --client-ca
           - /profile-collector-cert/tls.crt
           {{- end }}
-          - --set-workload-user-id
-          - "true"
+          {{- if eq .Values.catalog.setWorkloadUserID true }}
+          - --set-workload-user-id=true
+          {{- else }}
+          - --set-workload-user-id=false
+          {{ end }}
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:

@@ -3,8 +3,10 @@ kind: Namespace
 metadata:
   name: {{ .Values.namespace }}
   labels: 
-    pod-security.kubernetes.io/enforce: restricted
-    pod-security.kubernetes.io/enforce-version: latest
+    {{- if .Values.namespace_psa }}
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace_psa.enforceLevel }}
+    pod-security.kubernetes.io/enforce-version: {{ .Values.namespace_psa.enforceVersion }}
+    {{- end }}
 
 ---
 apiVersion: v1
@@ -12,5 +14,7 @@ kind: Namespace
 metadata:
   name: {{ .Values.operator_namespace }}
   labels:
-    pod-security.kubernetes.io/enforce: baseline
-    pod-security.kubernetes.io/enforce-version: latest
+    {{- if .Values.operator_namespace_psa }}
+    pod-security.kubernetes.io/enforce: {{ .Values.operator_namespace_psa.enforceLevel }}
+    pod-security.kubernetes.io/enforce-version: {{ .Values.operator_namespace_psa.enforceVersion }}
+    {{- end }}
