@@ -4206,6 +4206,9 @@ func findLastEvent(events *corev1.EventList) (event corev1.Event) {
 func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interface, csv operatorsv1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
 	return func() {
 		err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
+		if err != nil && apierrors.IsNotFound(err) {
+			err = nil
+		}
 		Expect(err).ShouldNot(HaveOccurred())
 
 		if deleteCRDs {
