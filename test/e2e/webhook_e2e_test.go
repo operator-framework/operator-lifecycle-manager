@@ -639,6 +639,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 		}).Should(Equal(2))
 	})
 	When("Installed from a catalog Source", func() {
+		const csvName = "webhook-operator.v0.0.1"
 		var cleanupCSV cleanupFunc
 		var cleanupCatSrc cleanupFunc
 		var cleanupSubscription cleanupFunc
@@ -687,7 +688,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			defer cleanupSubscription()
 
 			// Wait for webhook-operator v2 csv to succeed
-			csv, err := awaitCSV(crc, source.GetNamespace(), "webhook-operator.v0.0.1", csvSucceededChecker)
+			csv, err := awaitCSV(crc, source.GetNamespace(), csvName, csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			cleanupCSV = buildCSVCleanupFunc(c, crc, *csv, source.GetNamespace(), true, true)
@@ -775,6 +776,25 @@ var _ = Describe("CSVs with a Webhook", func() {
 			require.True(GinkgoT(), ok, "Unable to get spec.conversion.valid of v2 object")
 			require.True(GinkgoT(), v2SpecConversionMutate)
 			require.True(GinkgoT(), v2SpecConversionValid)
+
+			// Check that conversion strategies are disabled after uninstalling the operator.
+			err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.TODO(), csvName, metav1.DeleteOptions{})
+			require.NoError(GinkgoT(), err)
+
+			Eventually(func() error {
+				crd, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "webhooktests.webhook.operators.coreos.io", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+
+				if crd.Spec.Conversion.Strategy != apiextensionsv1.NoneConverter {
+					return fmt.Errorf("conversion strategy is not NoneConverter")
+				}
+				if crd.Spec.Conversion.Webhook != nil {
+					return fmt.Errorf("webhook is not nil")
+				}
+				return nil
+			}).Should(Succeed())
 		})
 	})
 	When("WebhookDescription has conversionCRDs field", func() {

@@ -11,6 +11,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -1119,6 +1120,46 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		w := webhook
 		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, &w)); err != nil {
 			logger.WithError(err).Warnf("failed to requeue gc event: %v", webhook)
+		}
+	}
+
+	// Conversion webhooks are defined within a CRD.
+	// In an effort to prevent customer dataloss, OLM does not delete CRDs associated with a CSV when it is deleted.
+	// Deleting a CSV that introduced a conversion webhook removes the deployment that serviced the conversion webhook calls.
+	// If a conversion webhook is defined and the service isn't available, all requests against the CR associated with the CRD will fail.
+	// This ultimately breaks kubernetes garbage collection and prevents OLM from reinstalling the CSV as CR validation against the new CRD's
+	// openapiv3 schema fails.
+	// As such, when a CSV is deleted OLM will check if it is being replaced. If the CSV is not being replaced, OLM will remove the conversion
+	// webhook from the CRD definition.
+	csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).List(labels.Everything())
+	if err != nil {
+		logger.Errorf("error listing csvs: %v\n", err)
+	}
+	for _, csv := range csvs {
+		if csv.Spec.Replaces == clusterServiceVersion.GetName() {
+			return
+		}
+	}
+
+	for _, desc := range clusterServiceVersion.Spec.WebhookDefinitions {
+		if desc.Type != v1alpha1.ConversionWebhook || len(desc.ConversionCRDs) == 0 {
+			continue
+		}
+
+		for i, crdName := range desc.ConversionCRDs {
+			crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(crdName)
+			if err != nil {
+				logger.Errorf("error getting CRD %v which was defined in CSVs spec.WebhookDefinition[%d]: %v\n", crdName, i, err)
+				continue
+			}
+
+			copy := crd.DeepCopy()
+			copy.Spec.Conversion.Strategy = apiextensionsv1.NoneConverter
+			copy.Spec.Conversion.Webhook = nil
+
+			if _, err = a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), copy, metav1.UpdateOptions{}); err != nil {
+				logger.Errorf("error updating conversion strategy for CRD %v: %v\n", crdName, err)
+			}
 		}
 	}
 }
