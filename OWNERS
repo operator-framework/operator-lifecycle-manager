@@ -9,6 +9,7 @@ approvers:
   - dinhxuanvu
   - timflannagan
   - perdasilva
+  - grokspawn
 # review == this code is good /lgtm
 reviewers:
   - ecordell
@@ -26,3 +27,4 @@ reviewers:
   - perdasilva
   - akihikokuroda
   - oceanc80
+  - grokspawn
