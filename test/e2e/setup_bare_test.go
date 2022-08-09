@@ -7,7 +7,6 @@ import (
 	"context"
 	"flag"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -65,7 +64,7 @@ func TestMain(m *testing.M) {
 
 	testNamespace = *namespace
 	if testNamespace == "" {
-		testNamespaceBytes, err := ioutil.ReadFile("e2e.namespace")
+		testNamespaceBytes, err := os.ReadFile("e2e.namespace")
 		if err != nil || testNamespaceBytes == nil {
 			panic("no namespace set")
 		}

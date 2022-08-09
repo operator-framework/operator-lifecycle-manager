@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/base64"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -68,7 +68,7 @@ func (s *LogoStorage) Connect(ctx context.Context, name string, options runtime.
 				etag := `"` + strings.Join([]string{name, pkgChannel.Name, pkgChannel.CurrentCSV}, ".") + `"`
 
 				reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
-				imgBytes, _ := ioutil.ReadAll(reader)
+				imgBytes, _ := io.ReadAll(reader)
 
 				return imgBytes, mimeType, etag
 			}

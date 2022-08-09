@@ -7,7 +7,6 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,7 +77,7 @@ func (kl kindLogAdapter) V(level log.Level) log.InfoLogger {
 }
 
 func Provision(ctx *TestContext) (func(), error) {
-	dir, err := ioutil.TempDir("", "kind.")
+	dir, err := os.MkdirTemp("", "kind.")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory: %s", err.Error())
 	}

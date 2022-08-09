@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -118,7 +117,7 @@ func getMetadata() (m *metadata, err error) {
 		m.annotationsFile = path
 
 		// Unmarshal metadata
-		content, err := ioutil.ReadFile(path)
+		content, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("couldn't get content of annotations.yaml file: %s", path)
 		}

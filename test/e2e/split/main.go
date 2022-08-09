@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -106,7 +105,7 @@ func findDescribes(logger logrus.FieldLogger, dir string) ([]string, error) {
 		return nil, err
 	}
 	for _, match := range matches {
-		b, err := ioutil.ReadFile(match)
+		b, err := os.ReadFile(match)
 		if err != nil {
 			return nil, err
 		}
