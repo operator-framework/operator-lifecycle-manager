@@ -71,13 +71,13 @@ func GenerateCA(notAfter time.Time, organization string) (*KeyPair, error) {
 	caDetails := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
+			CommonName:   fmt.Sprintf("olm-selfsigned-%x", serial),
 			Organization: []string{organization},
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
 		IsCA:                  true,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		KeyUsage:              x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
 
@@ -120,12 +120,12 @@ func CreateSignedServingPair(notAfter time.Time, organization string, ca *KeyPai
 	certDetails := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
+			CommonName:   hosts[0],
 			Organization: []string{organization},
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 		DNSNames:              hosts,
 	}
