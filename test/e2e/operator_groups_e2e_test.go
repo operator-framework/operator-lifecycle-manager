@@ -2021,16 +2021,10 @@ var _ = Describe("Operator Group", func() {
 			fetchedCSV.Annotations[v1.OperatorGroupNamespaceAnnotationKey] = fetchedCSV.GetNamespace()
 			_, updateErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 			if updateErr != nil {
+				GinkgoT().Logf("Error updating copied CSV (in %v): %v", otherNamespaceName, updateErr.Error())
 				return false, updateErr
 			}
-			updatedCSV, updatedfetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
-			if updatedfetchErr != nil {
-				return false, updatedfetchErr
-			}
-			if updatedCSV.Annotations[v1.OperatorGroupNamespaceAnnotationKey] == fetchedCSV.GetNamespace() {
-				return true, nil
-			}
-			return false, nil
+			return true, nil
 		})
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("Done updating copied CSV with bad annotation OperatorGroup, waiting for CSV to be gc'd")
