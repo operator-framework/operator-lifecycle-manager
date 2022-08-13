@@ -28,8 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
@@ -1304,13 +1306,22 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 		return nil, err
 	}
 
-	res.Status = v1alpha1.InstallPlanStatus{
+	modifiedIP := res.DeepCopy()
+	modifiedIP.Status = v1alpha1.InstallPlanStatus{
 		Phase:          phase,
 		Plan:           steps,
 		CatalogSources: catalogSources,
 		BundleLookups:  bundleLookups,
 	}
-	res, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(context.TODO(), res, metav1.UpdateOptions{})
+
+	patchData, err := createInstallPlanPatchData(res, modifiedIP)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).Patch(
+		context.TODO(), res.Name, types.MergePatchType, patchData, metav1.PatchOptions{}, "status",
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2561,4 +2572,16 @@ var supportedKinds = map[string]struct{}{
 func isSupported(kind string) bool {
 	_, ok := supportedKinds[kind]
 	return ok
+}
+
+func createInstallPlanPatchData(original, modified runtime.Object) ([]byte, error) {
+	originalData, err := json.Marshal(original)
+	if err != nil {
+		return nil, err
+	}
+	modifiedData, err := json.Marshal(modified)
+	if err != nil {
+		return nil, err
+	}
+	return strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, original)
 }
