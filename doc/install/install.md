@@ -25,7 +25,7 @@ This command starts minikube, builds the OLM containers locally with the minikub
 $ make run-local
 ```
 
-You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
+You can verify that the OLM components have been successfully deployed by running `kubectl -n olm get deployments`
 
 **NOTE** It is recommended for development purposes and will use the source locally
 
