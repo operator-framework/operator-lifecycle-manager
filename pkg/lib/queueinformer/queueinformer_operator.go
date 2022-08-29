@@ -13,8 +13,19 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// Operator describes a Reconciler that manages a set of QueueInformers.
-type Operator interface {
+// ExtensibleOperator describes a Reconciler that can be extended with additional informers and queue informers
+type ExtensibleOperator interface {
+	// RegisterQueueInformer registers the given QueueInformer with the Operator.
+	// This method returns an error if the Operator has already been started.
+	RegisterQueueInformer(queueInformer *QueueInformer) error
+
+	// RegisterInformer registers an informer with the Operator.
+	// This method returns an error if the Operator has already been started.
+	RegisterInformer(cache.SharedIndexInformer) error
+}
+
+// ObservableOperator describes a Reconciler whose state can be queried
+type ObservableOperator interface {
 	// Ready returns a channel that is closed when the Operator is ready to run.
 	Ready() <-chan struct{}
 
@@ -29,15 +40,12 @@ type Operator interface {
 
 	// HasSynced returns true if the Operator's Informers have synced, false otherwise.
 	HasSynced() bool
+}
 
-	// RegisterQueueInformer registers the given QueueInformer with the Operator.
-	// This method returns an error if the Operator has already been started.
-	RegisterQueueInformer(queueInformer *QueueInformer) error
-
-	// RegisterInformer registers an informer with the Operator.
-	// This method returns an error if the Operator has already been started.
-	RegisterInformer(cache.SharedIndexInformer) error
-
+// Operator describes a Reconciler that manages a set of QueueInformers.
+type Operator interface {
+	ObservableOperator
+	ExtensibleOperator
 	// RunInformers starts the Operator's underlying Informers.
 	RunInformers(ctx context.Context)
 

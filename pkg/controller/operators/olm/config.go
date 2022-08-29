@@ -37,6 +37,26 @@ type operatorConfig struct {
 	configClient                 configv1client.Interface
 }
 
+func (o *operatorConfig) OperatorClient() operatorclient.ClientInterface {
+	return o.operatorClient
+}
+
+func (o *operatorConfig) ExternalClient() versioned.Interface {
+	return o.externalClient
+}
+
+func (o *operatorConfig) ResyncPeriod() func() time.Duration {
+	return o.resyncPeriod
+}
+
+func (o *operatorConfig) WatchedNamespaces() []string {
+	return o.watchedNamespaces
+}
+
+func (o *operatorConfig) Logger() *logrus.Logger {
+	return o.logger
+}
+
 func (o *operatorConfig) apply(options []OperatorOption) {
 	for _, option := range options {
 		option(o)
