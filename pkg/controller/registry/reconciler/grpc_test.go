@@ -331,7 +331,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			}
 
 			// Check for resource existence
-			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
+			decorated := grpcCatalogSourceDecorator{tt.in.catsrc, runAsUser}
 			pod := decorated.Pod(tt.in.catsrc.GetName())
 			service := decorated.Service()
 			sa := decorated.ServiceAccount()
@@ -421,7 +421,7 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check for resource existence
-			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
+			decorated := grpcCatalogSourceDecorator{tt.in.catsrc, runAsUser}
 			pod := decorated.Pod(tt.in.catsrc.GetName())
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)

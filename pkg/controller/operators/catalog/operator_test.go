@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -1353,7 +1353,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 
 func TestValidateExistingCRs(t *testing.T) {
 	unstructuredForFile := func(file string) *unstructured.Unstructured {
-		data, err := ioutil.ReadFile(file)
+		data, err := os.ReadFile(file)
 		require.NoError(t, err)
 		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
 		k8sFile := &unstructured.Unstructured{}
@@ -1362,7 +1362,7 @@ func TestValidateExistingCRs(t *testing.T) {
 	}
 
 	unversionedCRDForV1beta1File := func(file string) *apiextensions.CustomResourceDefinition {
-		data, err := ioutil.ReadFile(file)
+		data, err := os.ReadFile(file)
 		require.NoError(t, err)
 		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
 		k8sFile := &apiextensionsv1beta1.CustomResourceDefinition{}
@@ -1606,7 +1606,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		}
 		applier := controllerclient.NewFakeApplier(s, "testowner")
 
-		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier)
+		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, 1001)
 	}
 
 	op.RunInformers(ctx)
@@ -1744,7 +1744,7 @@ func objectReference(name string) *corev1.ObjectReference {
 }
 
 func yamlFromFilePath(t *testing.T, fileName string) string {
-	yaml, err := ioutil.ReadFile(fileName)
+	yaml, err := os.ReadFile(fileName)
 	require.NoError(t, err)
 
 	return string(yaml)
@@ -1758,7 +1758,7 @@ func toManifest(t *testing.T, obj runtime.Object) string {
 }
 
 func pod(s v1alpha1.CatalogSource) *corev1.Pod {
-	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetName(), s.GetLabels(), s.GetAnnotations(), 5, 10)
+	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetName(), s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
 	ownerutil.AddOwner(pod, &s, false, false)
 	return pod
 }

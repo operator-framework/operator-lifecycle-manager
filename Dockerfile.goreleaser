@@ -10,4 +10,5 @@ COPY package-server /bin/package-server
 COPY cpb /bin/cpb
 EXPOSE 8080
 EXPOSE 5443
+USER 1001
 ENTRYPOINT ["/bin/olm"]

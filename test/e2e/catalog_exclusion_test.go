@@ -48,7 +48,7 @@ var _ = Describe("Global Catalog Exclusion", func() {
 		globalCatalog := &v1alpha1.CatalogSource{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("bad-global-catalog-"),
-				Namespace: operatorNamespace,
+				Namespace: globalCatalogNamespace,
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				DisplayName: "Broken Global Catalog Source",

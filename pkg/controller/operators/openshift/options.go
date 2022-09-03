@@ -163,7 +163,6 @@ func WithOLMOperator() ReconcilerOption {
 
 		enqueue := handler.EnqueueRequestsFromMapFunc(config.mapClusterOperator)
 
-		name := "version"
 		originalCSV := predicate.NewPredicateFuncs(func(obj client.Object) bool {
 			csv, ok := obj.(*operatorsv1alpha1.ClusterServiceVersion)
 			if !ok {
@@ -174,8 +173,7 @@ func WithOLMOperator() ReconcilerOption {
 			return !csv.IsCopied() // Keep original CSVs only
 		})
 		config.TweakBuilder = func(bldr *builder.Builder) *builder.Builder {
-			return bldr.Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueue, builder.WithPredicates(originalCSV)).
-				Watches(&source.Kind{Type: &configv1.ClusterVersion{}}, enqueue, builder.WithPredicates(watchName(&name)))
+			return bldr.Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueue, builder.WithPredicates(originalCSV))
 		}
 	}
 }

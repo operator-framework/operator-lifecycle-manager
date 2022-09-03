@@ -22,6 +22,7 @@ import (
 	listersbatchv1 "k8s.io/client-go/listers/batch/v1"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	listersrbacv1 "k8s.io/client-go/listers/rbac/v1"
+	"k8s.io/utils/pointer"
 
 	"github.com/operator-framework/api/pkg/operators/reference"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -101,6 +102,11 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-backoff-failure-policy
 					RestartPolicy:    corev1.RestartPolicyNever,
 					ImagePullSecrets: secrets,
+					SecurityContext: &corev1.PodSecurityContext{
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:  "extract",
@@ -129,6 +135,12 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
 							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: pointer.Bool(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+							},
 						},
 					},
 					InitContainers: []corev1.Container{
@@ -146,6 +158,12 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 								Requests: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: pointer.Bool(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
 								},
 							},
 						},
@@ -168,6 +186,12 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 								Requests: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: pointer.Bool(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
 								},
 							},
 						},
@@ -193,7 +217,10 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 	job.SetNamespace(cmRef.Namespace)
 	job.SetName(cmRef.Name)
 	job.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
-
+	if c.runAsUser > 0 {
+		job.Spec.Template.Spec.SecurityContext.RunAsUser = &c.runAsUser
+		job.Spec.Template.Spec.SecurityContext.RunAsNonRoot = pointer.Bool(true)
+	}
 	// By default the BackoffLimit is set to 6 which with exponential backoff 10s + 20s + 40s ...
 	// translates to ~10m of waiting time.
 	// We want to fail faster than that when we have repeated failures from the bundle unpack pod
@@ -246,6 +273,7 @@ type ConfigMapUnpacker struct {
 	loader        *configmap.BundleLoader
 	now           func() metav1.Time
 	unpackTimeout time.Duration
+	runAsUser     int64
 }
 
 type ConfigMapUnpackerOption func(*ConfigMapUnpacker)
@@ -332,6 +360,12 @@ func WithRoleBindingLister(rbLister listersrbacv1.RoleBindingLister) ConfigMapUn
 func WithNow(now func() metav1.Time) ConfigMapUnpackerOption {
 	return func(unpacker *ConfigMapUnpacker) {
 		unpacker.now = now
+	}
+}
+
+func WithUserID(id int64) ConfigMapUnpackerOption {
+	return func(unpacker *ConfigMapUnpacker) {
+		unpacker.runAsUser = id
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -110,10 +109,6 @@ import (
 //
 // - If informed ONLY, check if the value csv.Spec.MinKubeVersion is parsable according to semver (https://semver.org/)
 // Also, this validator will raise warnings when:
-//
-// - The bundle name (CSV.metadata.name) does not follow the naming convention: <operator-name>.v<semver> e.g. memcached-operator.v0.0.1
-//
-// NOTE: The bundle name must be 63 characters or less because it will be used as k8s ownerref label which only allows max of 63 characters.
 //
 // - The channel names seems are not following the convention https://olm.operatorframework.io/docs/best-practices/channel-naming/
 //
@@ -230,7 +225,6 @@ func validateHubCSVSpec(csv v1alpha1.ClusterServiceVersion) CSVChecks {
 	checks = checkSpecVersion(checks)
 	checks = checkSpecIcon(checks)
 	checks = checkSpecMinKubeVersion(checks)
-	checks = checkBundleName(checks)
 
 	return checks
 }
@@ -239,34 +233,6 @@ type CSVChecks struct {
 	csv   v1alpha1.ClusterServiceVersion
 	errs  []error
 	warns []error
-}
-
-// checkBundleName will validate the operator bundle name informed via CSV.metadata.name.
-// The motivation for the following check is to ensure that operators authors knows that operator bundles names should
-// follow a name and versioning convention
-func checkBundleName(checks CSVChecks) CSVChecks {
-
-	// Check if is following the semver
-	re := regexp.MustCompile("([0-9]+)\\.([0-9]+)\\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?(?:\\+[0-9A-Za-z-]+)?$")
-	match := re.FindStringSubmatch(checks.csv.Name)
-
-	if len(match) > 0 {
-		if _, err := semver.Parse(match[0]); err != nil {
-			checks.warns = append(checks.warns, fmt.Errorf("csv.metadata.Name %v is not following the versioning "+
-				"convention (MAJOR.MINOR.PATCH e.g 0.0.1): https://semver.org/", checks.csv.Name))
-		}
-	} else {
-		checks.warns = append(checks.warns, fmt.Errorf("csv.metadata.Name %v is not following the versioning "+
-			"convention (MAJOR.MINOR.PATCH e.g 0.0.1): https://semver.org/", checks.csv.Name))
-	}
-
-	// Check if its following the name convention
-	if len(strings.Split(checks.csv.Name, ".v")) < 2 {
-		checks.warns = append(checks.errs, fmt.Errorf("csv.metadata.Name %v is not following the recommended "+
-			"naming convention: <operator-name>.v<semver> e.g. memcached-operator.v0.0.1", checks.csv.Name))
-	}
-
-	return checks
 }
 
 // checkSpecMinKubeVersion will validate the spec minKubeVersion informed via CSV.spec.minKubeVersion

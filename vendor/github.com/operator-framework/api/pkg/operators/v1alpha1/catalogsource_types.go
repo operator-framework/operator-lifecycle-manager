@@ -88,6 +88,11 @@ type CatalogSourceSpec struct {
 	// +optional
 	Secrets []string `json:"secrets,omitempty"`
 
+	// RunAsRoot allows admins to indicate that they wish to run the CatalogSource pod in a privileged
+	// pod as root.  This should only be enabled when running older catalog images which could not be run as non-root.
+	// +optional
+	RunAsRoot bool `json:"runAsRoot,omitempty"`
+
 	// Metadata
 	DisplayName string `json:"displayName,omitempty"`
 	Description string `json:"description,omitempty"`

@@ -131,17 +131,6 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 	})
 
 	It("global update triggers subscription sync", func() {
-		globalNS := operatorNamespace
-
-		// Determine which namespace is global. Should be `openshift-marketplace` for OCP 4.2+.
-		// Locally it is `olm`
-		namespaces, _ := c.KubernetesInterface().CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
-		for _, ns := range namespaces.Items {
-			if ns.GetName() == "openshift-marketplace" {
-				globalNS = "openshift-marketplace"
-			}
-		}
-
 		mainPackageName := genName("nginx-")
 
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
@@ -179,7 +168,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}
 
 		// Create the initial catalog source
-		cs, cleanup := createInternalCatalogSource(c, crc, mainCatalogName, globalNS, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+		cs, cleanup := createInternalCatalogSource(c, crc, mainCatalogName, globalCatalogNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanup()
 
 		// Attempt to get the catalog source before creating install plan

@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/utils/pointer"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
@@ -61,6 +62,7 @@ type registryReconcilerFactory struct {
 	OpClient             operatorclient.ClientInterface
 	ConfigMapServerImage string
 	SSAClient            *controllerclient.ServerSideApplier
+	createPodAsUser      int64
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -69,18 +71,20 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 	switch source.Spec.SourceType {
 	case operatorsv1alpha1.SourceTypeInternal, operatorsv1alpha1.SourceTypeConfigmap:
 		return &ConfigMapRegistryReconciler{
-			now:      r.now,
-			Lister:   r.Lister,
-			OpClient: r.OpClient,
-			Image:    r.ConfigMapServerImage,
+			now:             r.now,
+			Lister:          r.Lister,
+			OpClient:        r.OpClient,
+			Image:           r.ConfigMapServerImage,
+			createPodAsUser: r.createPodAsUser,
 		}
 	case operatorsv1alpha1.SourceTypeGrpc:
 		if source.Spec.Image != "" {
 			return &GrpcRegistryReconciler{
-				now:       r.now,
-				Lister:    r.Lister,
-				OpClient:  r.OpClient,
-				SSAClient: r.SSAClient,
+				now:             r.now,
+				Lister:          r.Lister,
+				OpClient:        r.OpClient,
+				SSAClient:       r.SSAClient,
+				createPodAsUser: r.createPodAsUser,
 			}
 		} else if source.Spec.Address != "" {
 			return &GrpcAddressRegistryReconciler{
@@ -92,17 +96,18 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier, createPodAsUser int64) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		now:                  now,
 		Lister:               lister,
 		OpClient:             opClient,
 		ConfigMapServerImage: configMapServerImage,
 		SSAClient:            ssaClient,
+		createPodAsUser:      createPodAsUser,
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saName string, labels map[string]string, annotations map[string]string, readinessDelay int32, livenessDelay int32) *corev1.Pod {
+func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saName string, labels map[string]string, annotations map[string]string, readinessDelay int32, livenessDelay int32, runAsUser int64) *corev1.Pod {
 	// Ensure the catalog image is always pulled if the image is not based on a digest, measured by whether an "@" is included.
 	// See https://github.com/docker/distribution/blob/master/reference/reference.go for more info.
 	// This means recreating non-digest based catalog pods will result in the latest version of the catalog content being delivered on-cluster.
@@ -124,8 +129,6 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 	for key, value := range annotations {
 		podAnnotations[key] = value
 	}
-
-	readOnlyRootFilesystem := false
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -179,7 +182,11 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: &readOnlyRootFilesystem,
+						ReadOnlyRootFilesystem:   pointer.Bool(false),
+						AllowPrivilegeEscalation: pointer.Bool(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
 					},
 					ImagePullPolicy:          pullPolicy,
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
@@ -188,10 +195,19 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 			NodeSelector: map[string]string{
 				"kubernetes.io/os": "linux",
 			},
+			SecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
 			ServiceAccountName: saName,
 		},
 	}
 
+	if runAsUser > 0 {
+		pod.Spec.SecurityContext.RunAsUser = &runAsUser
+		pod.Spec.SecurityContext.RunAsNonRoot = pointer.Bool(true)
+	}
 	// Override scheduling options if specified
 	if source.Spec.GrpcPodConfig != nil {
 		grpcPodConfig := source.Spec.GrpcPodConfig

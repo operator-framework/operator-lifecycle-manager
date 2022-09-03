@@ -125,7 +125,7 @@ type Operator struct {
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, opmImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration, bundleUnpackTimeout time.Duration) (*Operator, error) {
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resync time.Duration, configmapRegistryImage, opmImage, utilImage string, operatorNamespace string, scheme *runtime.Scheme, installPlanTimeout time.Duration, bundleUnpackTimeout time.Duration, workloadUserID int64) (*Operator, error) {
 	resyncPeriod := queueinformer.ResyncWithJitter(resync, 0.2)
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
@@ -194,7 +194,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.sourceInvalidator = resolver.SourceProviderFromRegistryClientProvider(op.sources, logger)
 	resolverSourceProvider := NewOperatorGroupToggleSourceProvider(op.sourceInvalidator, logger, op.lister.OperatorsV1().OperatorGroupLister())
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient)
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, ssaClient, workloadUserID)
 	res := resolver.NewOperatorStepResolver(lister, crClient, operatorNamespace, resolverSourceProvider, logger)
 	op.resolver = resolver.NewInstrumentedResolver(res, metrics.RegisterDependencyResolutionSuccess, metrics.RegisterDependencyResolutionFailure)
 
@@ -433,6 +433,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		bundle.WithUtilImage(utilImage),
 		bundle.WithNow(op.now),
 		bundle.WithUnpackTimeout(op.bundleUnpackTimeout),
+		bundle.WithUserID(workloadUserID),
 	)
 	if err != nil {
 		return nil, err
@@ -1403,13 +1404,6 @@ type UnpackedBundleReference struct {
 	Replaces               string `json:"replaces"`
 	Properties             string `json:"properties"`
 }
-
-/* unpackBundles makes one walk through the bundlelookups and attempts to progress them
-Returns:
-    unpacked: bool - If the bundle was successfully unpacked
-    out:      *v1alpha1.InstallPlan - the resulting installPlan
-	error:    error
-*/
 
 func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.InstallPlan, error) {
 	out := plan.DeepCopy()

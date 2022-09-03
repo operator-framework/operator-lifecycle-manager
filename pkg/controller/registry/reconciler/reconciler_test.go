@@ -10,6 +10,8 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
+const workloadUserID = 1001
+
 func TestPodNodeSelector(t *testing.T) {
 	catsrc := &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
@@ -21,7 +23,7 @@ func TestPodNodeSelector(t *testing.T) {
 	key := "kubernetes.io/os"
 	value := "linux"
 
-	gotCatSrcPod := Pod(catsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0))
+	gotCatSrcPod := Pod(catsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
 	gotCatSrcPodSelector := gotCatSrcPod.Spec.NodeSelector
 
 	if gotCatSrcPodSelector[key] != value {
@@ -69,7 +71,7 @@ func TestPullPolicy(t *testing.T) {
 	}
 
 	for _, tt := range table {
-		p := Pod(source, "catalog", tt.image, "", nil, nil, int32(0), int32(0))
+		p := Pod(source, "catalog", tt.image, "", nil, nil, int32(0), int32(0), int64(workloadUserID))
 		policy := p.Spec.Containers[0].ImagePullPolicy
 		if policy != tt.policy {
 			t.Fatalf("expected pull policy %s for image  %s", tt.policy, tt.image)
@@ -79,8 +81,13 @@ func TestPullPolicy(t *testing.T) {
 
 func TestPodContainerSecurityContext(t *testing.T) {
 	expectedReadOnlyRootFilesystem := false
+	allowPrivilegeEscalation := false
 	expectedContainerSecCtx := &corev1.SecurityContext{
-		ReadOnlyRootFilesystem: &expectedReadOnlyRootFilesystem,
+		ReadOnlyRootFilesystem:   &expectedReadOnlyRootFilesystem,
+		AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
 	}
 
 	catsrc := &v1alpha1.CatalogSource{
@@ -90,7 +97,7 @@ func TestPodContainerSecurityContext(t *testing.T) {
 		},
 	}
 
-	gotPod := Pod(catsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0))
+	gotPod := Pod(catsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
 	gotContainerSecCtx := gotPod.Spec.Containers[0].SecurityContext
 	require.Equal(t, expectedContainerSecCtx, gotContainerSecCtx)
 }
@@ -115,7 +122,7 @@ func TestPodAvoidsConcurrentWrite(t *testing.T) {
 		"annotation": "somethingelse",
 	}
 
-	gotPod := Pod(catsrc, "hello", "busybox", "", labels, annotations, int32(0), int32(0))
+	gotPod := Pod(catsrc, "hello", "busybox", "", labels, annotations, int32(0), int32(0), int64(workloadUserID))
 
 	// check labels and annotations point to different addresses between parameters and what's in the pod
 	require.NotEqual(t, &labels, &gotPod.Labels)
@@ -295,7 +302,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod := Pod(testCase.catalogSource, "hello", "busybox", "", map[string]string{}, testCase.annotations, int32(0), int32(0))
+		pod := Pod(testCase.catalogSource, "hello", "busybox", "", map[string]string{}, testCase.annotations, int32(0), int32(0), int64(workloadUserID))
 		require.Equal(t, testCase.expectedNodeSelectors, pod.Spec.NodeSelector)
 		require.Equal(t, testCase.expectedPriorityClassName, pod.Spec.PriorityClassName)
 		require.Equal(t, testCase.expectedTolerations, pod.Spec.Tolerations)
