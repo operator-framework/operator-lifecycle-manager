@@ -182,11 +182,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem:   pointer.Bool(false),
-						AllowPrivilegeEscalation: pointer.Bool(false),
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
+						ReadOnlyRootFilesystem: pointer.Bool(false),
 					},
 					ImagePullPolicy:          pullPolicy,
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
@@ -195,19 +191,18 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 			NodeSelector: map[string]string{
 				"kubernetes.io/os": "linux",
 			},
-			SecurityContext: &corev1.PodSecurityContext{
-				SeccompProfile: &corev1.SeccompProfile{
-					Type: corev1.SeccompProfileTypeRuntimeDefault,
-				},
-			},
 			ServiceAccountName: saName,
 		},
 	}
 
-	if runAsUser > 0 {
-		pod.Spec.SecurityContext.RunAsUser = &runAsUser
-		pod.Spec.SecurityContext.RunAsNonRoot = pointer.Bool(true)
+	if source.Spec.GrpcPodConfig != nil {
+		if source.Spec.GrpcPodConfig.SecurityContextConfig == operatorsv1alpha1.Restricted {
+			addSecurityContext(pod, runAsUser)
+		}
+	} else {
+		addSecurityContext(pod, runAsUser)
 	}
+
 	// Override scheduling options if specified
 	if source.Spec.GrpcPodConfig != nil {
 		grpcPodConfig := source.Spec.GrpcPodConfig
@@ -255,4 +250,20 @@ func hashPodSpec(spec corev1.PodSpec) string {
 	hasher := fnv.New32a()
 	hashutil.DeepHashObject(hasher, &spec)
 	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
+}
+
+func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
+	pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = pointer.Bool(false)
+	pod.Spec.Containers[0].SecurityContext.Capabilities = &corev1.Capabilities{
+		Drop: []corev1.Capability{"ALL"},
+	}
+	pod.Spec.SecurityContext = &corev1.PodSecurityContext{
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+	if runAsUser > 0 {
+		pod.Spec.SecurityContext.RunAsUser = &runAsUser
+		pod.Spec.SecurityContext.RunAsNonRoot = pointer.Bool(true)
+	}
 }
