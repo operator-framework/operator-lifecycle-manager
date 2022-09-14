@@ -51,6 +51,10 @@ func (b *bundleLoader) LoadBundle() error {
 
 // Add values from the annotations when the values are not loaded
 func (b *bundleLoader) addChannelsFromAnnotationsFile() {
+	if b.bundle == nil {
+		// None of this is relevant if the bundle was not found
+		return
+	}
 	// Note that they will not get load for Bundle Format directories
 	// and PackageManifest should not have the annotationsFile. However,
 	// the following check to ensure that channels and default channels

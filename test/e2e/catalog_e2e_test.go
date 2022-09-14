@@ -53,7 +53,11 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 	)
 
 	BeforeEach(func() {
-		namespaceName := genName("catsrc-e2e-")
+		// In OPC, PSA labels for any namespace created that is not prefixed with "openshift-" is overriden to enforce
+		// PSA restricted. This test namespace needs to prefixed with openshift- so that baseline/privileged enforcement
+		// for the PSA specific tests are not overridden,
+		// Change it only after https://github.com/operator-framework/operator-lifecycle-manager/issues/2859 is closed.
+		namespaceName := genName("openshift-catsrc-e2e-")
 		og := operatorsv1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s-operatorgroup", namespaceName),
@@ -1396,7 +1400,147 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			})
 		})
 	})
+	When("The namespace is labled as Pod Security Admission policy enforce:restricted", func() {
+		BeforeEach(func() {
+			var err error
+			testNS := &corev1.Namespace{}
+			Eventually(func() error {
+				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), ns.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				return nil
+			}).Should(BeNil())
 
+			testNS.ObjectMeta.Labels = map[string]string{
+				"pod-security.kubernetes.io/enforce":         "restricted",
+				"pod-security.kubernetes.io/enforce-version": "latest",
+			}
+
+			Eventually(func() error {
+				_, err := c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), testNS, metav1.UpdateOptions{})
+				if err != nil {
+					return err
+				}
+				return nil
+			}).Should(BeNil())
+		})
+		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created without spec.GrpcPodConfig.SecurityContextConfig set to legacy", func() {
+			var sourceName string
+			BeforeEach(func() {
+				sourceName = genName("catalog-")
+				source := &v1alpha1.CatalogSource{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.CatalogSourceKind,
+						APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      sourceName,
+						Namespace: ns.GetName(),
+						Labels:    map[string]string{"olm.catalogSource": sourceName},
+					},
+					Spec: v1alpha1.CatalogSourceSpec{
+						SourceType: v1alpha1.SourceTypeGrpc,
+						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
+					},
+				}
+
+				Eventually(func() error {
+					_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
+					return err
+				}).Should(Succeed())
+			})
+			It("The registry pod fails to become come up because of lack of permission", func() {
+				Eventually(func() (bool, error) {
+					podList, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.TODO(), metav1.ListOptions{})
+					if err != nil {
+						return false, err
+					}
+					for _, pod := range podList.Items {
+						if pod.ObjectMeta.OwnerReferences != nil && pod.ObjectMeta.OwnerReferences[0].Name == sourceName {
+							if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Terminated != nil {
+								return true, nil
+							}
+						}
+					}
+					return false, nil
+				}).Should(BeTrue())
+			})
+		})
+	})
+	When("The namespace is labled as Pod Security Admission policy enforce:baseline", func() {
+		BeforeEach(func() {
+			var err error
+			testNS := &corev1.Namespace{}
+			Eventually(func() error {
+				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), ns.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				return nil
+			}).Should(BeNil())
+
+			testNS.ObjectMeta.Labels = map[string]string{
+				"pod-security.kubernetes.io/enforce":         "baseline",
+				"pod-security.kubernetes.io/enforce-version": "latest",
+			}
+
+			Eventually(func() error {
+				_, err := c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), testNS, metav1.UpdateOptions{})
+				if err != nil {
+					return err
+				}
+				return nil
+			}).Should(BeNil())
+		})
+		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created with spec.GrpcPodConfig.SecurityContextConfig set to legacy", func() {
+			var sourceName string
+			BeforeEach(func() {
+				sourceName = genName("catalog-")
+				source := &v1alpha1.CatalogSource{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.CatalogSourceKind,
+						APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      sourceName,
+						Namespace: ns.GetName(),
+						Labels:    map[string]string{"olm.catalogSource": sourceName},
+					},
+					Spec: v1alpha1.CatalogSourceSpec{
+						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+							SecurityContextConfig: operatorsv1alpha1.Legacy,
+						},
+						SourceType: v1alpha1.SourceTypeGrpc,
+						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
+					},
+				}
+
+				Eventually(func() error {
+					_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
+					return err
+				}).Should(Succeed())
+			})
+			It("The registry pod comes up successfully", func() {
+				Eventually(func() (bool, error) {
+					podList, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.TODO(), metav1.ListOptions{})
+					if err != nil {
+						return false, err
+					}
+					for _, pod := range podList.Items {
+						if pod.ObjectMeta.OwnerReferences != nil && pod.ObjectMeta.OwnerReferences[0].Name == sourceName {
+							if pod.Status.ContainerStatuses != nil {
+								if *pod.Status.ContainerStatuses[0].Started == true {
+									return true, nil
+								}
+							}
+						}
+					}
+					return false, nil
+				}).Should(BeTrue())
+			})
+		})
+	})
 })
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {

@@ -79,6 +79,13 @@ spec:
                     priorityClassName:
                       description: If specified, indicates the pod's priority. If not specified, the pod priority will be default or zero if there is no default.
                       type: string
+                    securityContextConfig:
+                      description: 'SecurityContextConfig can be one of `legacy` or `restricted`. The CatalogSource''s pod is either injected with the right pod.spec.securityContext and pod.spec.container[*].securityContext values to allow the pod to run in Pod Security Admission(PSA) controller''s `restricted` mode, or doesn''t set these values at all, in which case the pod can only be run in PSA `baseline` or `privileged` namespaces. By default, SecurityContextConfig is set to `restricted`. If the value is unspecified, the default value of `restricted` is used.  Specifying any other value will result in a validation error. When using older catalog images, which could not be run in `restricted` mode, the SecurityContextConfig should be set to `legacy`. More information about PSA can be found here: https://kubernetes.io/docs/concepts/security/pod-security-admission/'''
+                      type: string
+                      default: restricted
+                      enum:
+                        - legacy
+                        - restricted
                     tolerations:
                       description: Tolerations are the catalog source's pod's tolerations.
                       type: array
