@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
@@ -80,26 +81,85 @@ func TestPullPolicy(t *testing.T) {
 }
 
 func TestPodContainerSecurityContext(t *testing.T) {
-	expectedReadOnlyRootFilesystem := false
-	allowPrivilegeEscalation := false
-	expectedContainerSecCtx := &corev1.SecurityContext{
-		ReadOnlyRootFilesystem:   &expectedReadOnlyRootFilesystem,
-		AllowPrivilegeEscalation: &allowPrivilegeEscalation,
-		Capabilities: &corev1.Capabilities{
-			Drop: []corev1.Capability{"ALL"},
+	testcases := []struct {
+		title                            string
+		inputCatsrc                      *v1alpha1.CatalogSource
+		expectedSecurityContext          *corev1.PodSecurityContext
+		expectedContainerSecurityContext *corev1.SecurityContext
+	}{
+		{
+			title: "NoSpecDefined/PodContainsSecurityConfigForPSARestricted",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+			},
+			expectedContainerSecurityContext: &corev1.SecurityContext{
+				ReadOnlyRootFilesystem:   pointer.Bool(false),
+				AllowPrivilegeEscalation: pointer.Bool(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			expectedSecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+				RunAsUser:      pointer.Int64(workloadUserID),
+				RunAsNonRoot:   pointer.Bool(true),
+			},
+		},
+		{
+			title: "SpecDefined/SecurityContextConfig:Restricted/PodContainsSecurityConfigForPSARestricted",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
+				},
+			},
+			expectedContainerSecurityContext: &corev1.SecurityContext{
+				ReadOnlyRootFilesystem:   pointer.Bool(false),
+				AllowPrivilegeEscalation: pointer.Bool(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			expectedSecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+				RunAsUser:      pointer.Int64(workloadUserID),
+				RunAsNonRoot:   pointer.Bool(true),
+			},
+		},
+		{
+			title: "SpecDefined/SecurityContextConfig:Legacy/PodDoesNotContainsSecurityConfig",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Legacy,
+					},
+				},
+			},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
 		},
 	}
-
-	catsrc := &v1alpha1.CatalogSource{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: "testns",
-		},
+	for _, testcase := range testcases {
+		outputPod := Pod(testcase.inputCatsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		if testcase.expectedSecurityContext != nil {
+			require.Equal(t, testcase.expectedSecurityContext, outputPod.Spec.SecurityContext)
+		}
+		if testcase.expectedContainerSecurityContext != nil {
+			require.Equal(t, testcase.expectedContainerSecurityContext, outputPod.Spec.Containers[0].SecurityContext)
+		}
 	}
-
-	gotPod := Pod(catsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
-	gotContainerSecCtx := gotPod.Spec.Containers[0].SecurityContext
-	require.Equal(t, expectedContainerSecCtx, gotContainerSecCtx)
 }
 
 // TestPodAvoidsConcurrentWrite is a regression test for
