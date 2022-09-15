@@ -82,6 +82,12 @@ func getAPISecret(logger logrus.FieldLogger, kubeclient operatorclient.ClientInt
 func filterSecretsBySAName(saName string, secrets *corev1.SecretList) map[string]*corev1.Secret {
 	secretMap := make(map[string]*corev1.Secret)
 	for _, ref := range secrets.Items {
+		// Avoid referencing the "ref" created by the range-for loop as
+		// the secret stored in the map will change if there are more
+		// entries in the list of secrets that the range-for loop is
+		// iterating over.
+		ref := ref
+
 		annotations := ref.GetAnnotations()
 		value := annotations[corev1.ServiceAccountNameKey]
 		if value == saName {
