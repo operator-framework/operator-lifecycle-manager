@@ -29,7 +29,11 @@ GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 GIT_COMMIT := $(shell git rev-parse HEAD)
-
+ifeq ($(shell arch), arm64) 
+ARCH := arm64
+else
+ARCH := 386
+endif
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
 	coverage coverage-html e2e \
@@ -82,15 +86,15 @@ build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/..
 build-coverage: clean $(CMDS)
 
 build-linux: build_cmd=build
-build-linux: arch_flags=GOOS=linux GOARCH=386
+build-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-linux: clean $(CMDS)
 
 build-wait: clean bin/wait
 
 bin/wait: FORCE
-	GOOS=linux GOARCH=386 go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
+	GOOS=linux GOARCH=$(ARCH) go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
-build-util-linux: arch_flags=GOOS=linux GOARCH=386
+build-util-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-util-linux: build-util
 
 build-util: bin/cpb
