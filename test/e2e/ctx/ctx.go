@@ -130,7 +130,7 @@ func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
 	}
 
 	cmd := exec.Command(ctx.artifactsScriptPath)
-	cmd.Env = append(cmd.Env, envvars...)
+	cmd.Env = append(os.Environ(), envvars...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
