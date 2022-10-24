@@ -53,7 +53,7 @@ func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient op
 			initializers = append(initializers, r.OverridesBuilderFunc(owner))
 		}
 
-		return NewStrategyDeploymentInstaller(strategyClient, annotations, owner, previousStrategy, initializers, apiServiceDescriptions, webhookDescriptions)
+		return NewStrategyDeploymentInstaller(strategyClient, annotations, owner, previousStrategy, initializers, apiServiceDescriptions, webhookDescriptions, defaultServiceDeletionPollingInterval)
 	}
 
 	// Insurance against these functions being called incorrectly (unmarshal strategy will return a valid strategy name)

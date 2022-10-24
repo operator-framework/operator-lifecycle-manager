@@ -23,15 +23,16 @@ import (
 const DeploymentSpecHashLabelKey = "olm.deployment-spec-hash"
 
 type StrategyDeploymentInstaller struct {
-	strategyClient            wrappers.InstallStrategyDeploymentInterface
-	owner                     ownerutil.Owner
-	previousStrategy          Strategy
-	templateAnnotations       map[string]string
-	initializers              DeploymentInitializerFuncChain
-	apiServiceDescriptions    []certResource
-	webhookDescriptions       []certResource
-	certificateExpirationTime time.Time
-	certificatesRotated       bool
+	strategyClient                 wrappers.InstallStrategyDeploymentInterface
+	owner                          ownerutil.Owner
+	previousStrategy               Strategy
+	templateAnnotations            map[string]string
+	initializers                   DeploymentInitializerFuncChain
+	apiServiceDescriptions         []certResource
+	webhookDescriptions            []certResource
+	certificateExpirationTime      time.Time
+	certificatesRotated            bool
+	serviceDeletionPollingInterval time.Duration
 }
 
 var _ Strategy = &v1alpha1.StrategyDetailsDeployment{}
@@ -68,7 +69,7 @@ func (c DeploymentInitializerFuncChain) Apply(deployment *appsv1.Deployment) (er
 // the given context.
 type DeploymentInitializerBuilderFunc func(owner ownerutil.Owner) DeploymentInitializerFunc
 
-func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy, initializers DeploymentInitializerFuncChain, apiServiceDescriptions []v1alpha1.APIServiceDescription, webhookDescriptions []v1alpha1.WebhookDescription) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy, initializers DeploymentInitializerFuncChain, apiServiceDescriptions []v1alpha1.APIServiceDescription, webhookDescriptions []v1alpha1.WebhookDescription, serviceDeletionPollingInterval time.Duration) StrategyInstaller {
 	apiDescs := make([]certResource, len(apiServiceDescriptions))
 	for i := range apiServiceDescriptions {
 		apiDescs[i] = &apiServiceDescriptionsWithCAPEM{apiServiceDescriptions[i], []byte{}}
@@ -80,15 +81,16 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 	}
 
 	return &StrategyDeploymentInstaller{
-		strategyClient:            strategyClient,
-		owner:                     owner,
-		previousStrategy:          previousStrategy,
-		templateAnnotations:       templateAnnotations,
-		initializers:              initializers,
-		apiServiceDescriptions:    apiDescs,
-		webhookDescriptions:       webhookDescs,
-		certificatesRotated:       false,
-		certificateExpirationTime: time.Time{},
+		strategyClient:                 strategyClient,
+		owner:                          owner,
+		previousStrategy:               previousStrategy,
+		templateAnnotations:            templateAnnotations,
+		initializers:                   initializers,
+		apiServiceDescriptions:         apiDescs,
+		webhookDescriptions:            webhookDescs,
+		certificatesRotated:            false,
+		certificateExpirationTime:      time.Time{},
+		serviceDeletionPollingInterval: serviceDeletionPollingInterval,
 	}
 }
 

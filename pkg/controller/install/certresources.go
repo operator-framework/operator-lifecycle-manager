@@ -46,7 +46,8 @@ const (
 	OLMManagedLabelValue = "true"
 
 	// service deletion timeout
-	serviceDeletionTimeout = 3 * time.Minute
+	serviceDeletionTimeout                = 3 * time.Minute
+	defaultServiceDeletionPollingInterval = 5 * time.Second
 )
 
 type certResource interface {
@@ -265,7 +266,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		service.SetOwnerReferences(existingService.GetOwnerReferences())
 
 		// Delete the Service to replace
-		if err := i.deleteServiceWithTimeout(existingService, serviceDeletionTimeout); err != nil {
+		if err := i.deleteServiceWithTimeout(service, serviceDeletionTimeout); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -546,8 +547,7 @@ func (i *StrategyDeploymentInstaller) deleteServiceWithTimeout(service *corev1.S
 	timeout, cancelFn := context.WithTimeout(context.Background(), deletionTimeout)
 	defer cancelFn()
 
-	const pollingInterval = 5 * time.Second
-	err := wait.PollImmediateInfiniteWithContext(timeout, pollingInterval, func(ctx context.Context) (bool, error) {
+	err := wait.PollImmediateInfiniteWithContext(timeout, i.serviceDeletionPollingInterval, func(ctx context.Context) (bool, error) {
 		// try to delete service
 		err := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
 		if err != nil {
@@ -558,7 +558,8 @@ func (i *StrategyDeploymentInstaller) deleteServiceWithTimeout(service *corev1.S
 		}
 
 		// ensure it is deleted
-		_, err = i.strategyClient.GetOpLister().CoreV1().ServiceLister().Services(i.owner.GetNamespace()).Get(service.GetName())
+		_, err = i.strategyClient.GetOpClient().GetService(i.owner.GetNamespace(), service.GetName())
+		// _, err = i.strategyClient.GetOpLister().CoreV1().ServiceLister().Services(i.owner.GetNamespace()).Get(service.GetName())
 
 		// successfully deleted
 		if err != nil && apierrors.IsNotFound(err) {
