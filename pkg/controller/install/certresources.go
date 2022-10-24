@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -12,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
@@ -42,6 +44,9 @@ const (
 	// olm managed label
 	OLMManagedLabelKey   = "olm.managed"
 	OLMManagedLabelValue = "true"
+
+	// service deletion timeout
+	serviceDeletionTimeout = 3 * time.Minute
 )
 
 type certResource interface {
@@ -260,9 +265,8 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		service.SetOwnerReferences(existingService.GetOwnerReferences())
 
 		// Delete the Service to replace
-		deleteErr := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
-		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
-			return nil, nil, fmt.Errorf("could not delete existing service %s", service.GetName())
+		if err := i.deleteServiceWithTimeout(existingService, serviceDeletionTimeout); err != nil {
+			return nil, nil, err
 		}
 	}
 
@@ -536,6 +540,40 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	// is used by the apiserver if not hot reloading.
 	SetCAAnnotation(&depSpec, caHash)
 	return &depSpec, caPEM, nil
+}
+
+func (i *StrategyDeploymentInstaller) deleteServiceWithTimeout(service *corev1.Service, deletionTimeout time.Duration) error {
+	timeout, cancelFn := context.WithTimeout(context.Background(), deletionTimeout)
+	defer cancelFn()
+
+	const pollingInterval = 5 * time.Second
+	err := wait.PollImmediateInfiniteWithContext(timeout, pollingInterval, func(ctx context.Context) (bool, error) {
+		// try to delete service
+		err := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return true, nil
+			}
+			return false, nil
+		}
+
+		// ensure it is deleted
+		_, err = i.strategyClient.GetOpLister().CoreV1().ServiceLister().Services(i.owner.GetNamespace()).Get(service.GetName())
+
+		// successfully deleted
+		if err != nil && apierrors.IsNotFound(err) {
+			return true, nil
+		}
+
+		// otherwise, try again...
+		return false, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("manual intervention required: unable to delete existing service %s within timeout period %s", service.GetName(), deletionTimeout)
+	}
+
+	return nil
 }
 
 func SetCAAnnotation(depSpec *appsv1.DeploymentSpec, caHash string) {
