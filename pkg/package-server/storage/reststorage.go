@@ -60,6 +60,11 @@ func (m *PackageManifestStorage) NewList() runtime.Object {
 	return &operators.PackageManifestList{}
 }
 
+// Destroy satisfies the Storage interface
+func (*PackageManifestStorage) Destroy() {
+	// no-op
+}
+
 // List satisfies part of the Lister interface
 func (m *PackageManifestStorage) List(ctx context.Context, options *metainternalversion.ListOptions) (runtime.Object, error) {
 	namespace := genericreq.NamespaceValue(ctx)
