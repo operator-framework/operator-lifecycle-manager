@@ -19,6 +19,7 @@ MOCKGEN := ./scripts/update_mockgen.sh
 CODEGEN := ./scripts/update_codegen.sh
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
+VCS_STAMPING ?= "auto"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
@@ -73,7 +74,7 @@ coverage: cover.out
 coverage-html: cover.out
 	go tool cover -html=cover.out
 
-build: build_cmd=build
+build: build_cmd=build -buildvcs=$(VCS_STAMPING)
 build: clean $(CMDS)
 
 test-bare: BUILD_TAGS=-tags=bare
@@ -82,17 +83,17 @@ test-bare: clean $(TCMDS)
 test-bin: clean $(TCMDS)
 
 # build versions of the binaries with coverage enabled
-build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
+build-coverage: build_cmd=test -buildvcs=$(VCS_STAMPING) -c -covermode=count -coverpkg ./pkg/controller/...
 build-coverage: clean $(CMDS)
 
-build-linux: build_cmd=build
+build-linux: build_cmd=build -buildvcs=$(VCS_STAMPING)
 build-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-linux: clean $(CMDS)
 
 build-wait: clean bin/wait
 
 bin/wait: FORCE
-	GOOS=linux GOARCH=$(ARCH) go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
+	GOOS=linux GOARCH=$(ARCH) go build -buildvcs=$(VCS_STAMPING) $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
 build-util-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-util-linux: build-util
@@ -100,7 +101,7 @@ build-util-linux: build-util
 build-util: bin/cpb
 
 bin/cpb: FORCE
-	CGO_ENABLED=0 $(arch_flags) go build $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
+	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=$(VCS_STAMPING) $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
 
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
