@@ -2,6 +2,7 @@ package decorators
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/itchyny/gojq"
@@ -330,6 +331,23 @@ func (o *Operator) AddComponents(components ...runtime.Object) error {
 	}
 
 	o.Status.Components.Refs = append(o.Status.Components.Refs, refs...)
+
+	// Sort the component refs to so subsequent reconciles of the object do not change
+	// the status and result in an update to the object.
+	sort.SliceStable(o.Status.Components.Refs, func(i, j int) bool {
+		if o.Status.Components.Refs[i].Kind != o.Status.Components.Refs[j].Kind {
+			return o.Status.Components.Refs[i].Kind < o.Status.Components.Refs[j].Kind
+		}
+
+		if o.Status.Components.Refs[i].APIVersion != o.Status.Components.Refs[j].APIVersion {
+			return o.Status.Components.Refs[i].APIVersion < o.Status.Components.Refs[j].APIVersion
+		}
+
+		if o.Status.Components.Refs[i].Namespace != o.Status.Components.Refs[j].Namespace {
+			return o.Status.Components.Refs[i].Namespace < o.Status.Components.Refs[j].Namespace
+		}
+		return o.Status.Components.Refs[i].Name < o.Status.Components.Refs[j].Name
+	})
 
 	return nil
 }
