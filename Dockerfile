@@ -20,8 +20,8 @@ COPY go.sum go.sum
 COPY cmd cmd
 COPY util util
 COPY test test
-RUN CGO_ENABLED=0 make build
-RUN make build-util
+RUN CGO_ENABLED=0 make build VCS_STAMPING=false
+RUN make build-util VCS_STAMPING=false
 
 # use debug tag to keep a shell around for backwards compatibility with the previous alpine image
 FROM gcr.io/distroless/static:debug
