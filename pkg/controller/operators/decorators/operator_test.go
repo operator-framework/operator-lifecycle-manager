@@ -176,6 +176,22 @@ func TestAddComponents(t *testing.T) {
 					operator.Status.Components.Refs = []operatorsv1.RichReference{
 						{
 							ObjectReference: &corev1.ObjectReference{
+								APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
+								Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+								Namespace:  "atlantic",
+								Name:       "puffin",
+							},
+							Conditions: []operatorsv1.Condition{
+								{
+									Type:    operatorsv1.ConditionType(operatorsv1alpha1.CSVPhaseSucceeded),
+									Status:  corev1.ConditionTrue,
+									Reason:  string(operatorsv1alpha1.CSVReasonInstallSuccessful),
+									Message: "this puffin is happy",
+								},
+							},
+						},
+						{
+							ObjectReference: &corev1.ObjectReference{
 								APIVersion: "v1",
 								Kind:       "Namespace",
 								Name:       "atlantic",
@@ -192,22 +208,6 @@ func TestAddComponents(t *testing.T) {
 								{
 									Type:   operatorsv1.ConditionType(corev1.PodReady),
 									Status: corev1.ConditionTrue,
-								},
-							},
-						},
-						{
-							ObjectReference: &corev1.ObjectReference{
-								APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
-								Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
-								Namespace:  "atlantic",
-								Name:       "puffin",
-							},
-							Conditions: []operatorsv1.Condition{
-								{
-									Type:    operatorsv1.ConditionType(operatorsv1alpha1.CSVPhaseSucceeded),
-									Status:  corev1.ConditionTrue,
-									Reason:  string(operatorsv1alpha1.CSVReasonInstallSuccessful),
-									Message: "this puffin is happy",
 								},
 							},
 						},

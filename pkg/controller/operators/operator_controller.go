@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
@@ -152,9 +153,11 @@ func (r *OperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			return ctrl.Result{Requeue: true}, nil
 		}
 	} else {
-		if err := r.Status().Update(ctx, operator.Operator); err != nil {
-			log.Error(err, "Could not update Operator status")
-			return ctrl.Result{Requeue: true}, nil
+		if !equality.Semantic.DeepEqual(in.Status, operator.Operator.Status) {
+			if err := r.Status().Update(ctx, operator.Operator); err != nil {
+				log.Error(err, "Could not update Operator status")
+				return ctrl.Result{Requeue: true}, nil
+			}
 		}
 	}
 
