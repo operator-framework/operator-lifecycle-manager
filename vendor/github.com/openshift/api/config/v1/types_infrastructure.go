@@ -124,7 +124,7 @@ const (
 )
 
 // PlatformType is a specific supported infrastructure provider.
-// +kubebuilder:validation:Enum="";AWS;Azure;BareMetal;GCP;Libvirt;OpenStack;None;VSphere;oVirt;IBMCloud;KubeVirt;EquinixMetal;PowerVS;AlibabaCloud
+// +kubebuilder:validation:Enum="";AWS;Azure;BareMetal;GCP;Libvirt;OpenStack;None;VSphere;oVirt;IBMCloud;KubeVirt;EquinixMetal;PowerVS;AlibabaCloud;Nutanix
 type PlatformType string
 
 const (
@@ -169,6 +169,9 @@ const (
 
 	// AlibabaCloudPlatformType represents Alibaba Cloud infrastructure.
 	AlibabaCloudPlatformType PlatformType = "AlibabaCloud"
+
+	// NutanixPlatformType represents Nutanix infrastructure.
+	NutanixPlatformType PlatformType = "Nutanix"
 )
 
 // IBMCloudProviderType is a specific supported IBM Cloud provider cluster type
@@ -180,6 +183,10 @@ const (
 
 	// VPC means that the IBM Cloud cluster is using VPC infrastructure
 	IBMCloudProviderTypeVPC IBMCloudProviderType = "VPC"
+
+	// IBMCloudProviderTypeUPI means that the IBM Cloud cluster is using user provided infrastructure.
+	// This is utilized in IBM Cloud Satellite environments.
+	IBMCloudProviderTypeUPI IBMCloudProviderType = "UPI"
 )
 
 // PlatformSpec holds the desired state specific to the underlying infrastructure provider
@@ -192,7 +199,7 @@ type PlatformSpec struct {
 	// other integrations are enabled. If None, no infrastructure automation is
 	// enabled. Allowed values are "AWS", "Azure", "BareMetal", "GCP", "Libvirt",
 	// "OpenStack", "VSphere", "oVirt", "KubeVirt", "EquinixMetal", "PowerVS",
-	// "AlibabaCloud" and "None". Individual components may not support all platforms,
+	// "AlibabaCloud", "Nutanix" and "None". Individual components may not support all platforms,
 	// and must handle unrecognized platforms as None if they do not support that platform.
 	//
 	// +unionDiscriminator
@@ -245,6 +252,10 @@ type PlatformSpec struct {
 	// AlibabaCloud contains settings specific to the Alibaba Cloud infrastructure provider.
 	// +optional
 	AlibabaCloud *AlibabaCloudPlatformSpec `json:"alibabaCloud,omitempty"`
+
+	// Nutanix contains settings specific to the Nutanix infrastructure provider.
+	// +optional
+	Nutanix *NutanixPlatformSpec `json:"nutanix,omitempty"`
 }
 
 // PlatformStatus holds the current status specific to the underlying infrastructure provider
@@ -256,7 +267,7 @@ type PlatformStatus struct {
 	// balancers, dynamic volume provisioning, machine creation and deletion, and
 	// other integrations are enabled. If None, no infrastructure automation is
 	// enabled. Allowed values are "AWS", "Azure", "BareMetal", "GCP", "Libvirt",
-	// "OpenStack", "VSphere", "oVirt", "EquinixMetal", "PowerVS", "AlibabaCloud" and "None".
+	// "OpenStack", "VSphere", "oVirt", "EquinixMetal", "PowerVS", "AlibabaCloud", "Nutanix" and "None".
 	// Individual components may not support all platforms, and must handle
 	// unrecognized platforms as None if they do not support that platform.
 	//
@@ -311,6 +322,10 @@ type PlatformStatus struct {
 	// AlibabaCloud contains settings specific to the Alibaba Cloud infrastructure provider.
 	// +optional
 	AlibabaCloud *AlibabaCloudPlatformStatus `json:"alibabaCloud,omitempty"`
+
+	// Nutanix contains settings specific to the Nutanix infrastructure provider.
+	// +optional
+	Nutanix *NutanixPlatformStatus `json:"nutanix,omitempty"`
 }
 
 // AWSServiceEndpoint store the configuration of a custom url to
@@ -452,11 +467,34 @@ type BareMetalPlatformStatus struct {
 	// by components inside the cluster, like kubelets using the infrastructure rather
 	// than Kubernetes networking. It is the IP that the Infrastructure.status.apiServerInternalURI
 	// points to. It is the IP for a self-hosted load balancer in front of the API servers.
+	//
+	// Deprecated: Use APIServerInternalIPs instead.
 	APIServerInternalIP string `json:"apiServerInternalIP,omitempty"`
+
+	// apiServerInternalIPs are the IP addresses to contact the Kubernetes API
+	// server that can be used by components inside the cluster, like kubelets
+	// using the infrastructure rather than Kubernetes networking. These are the
+	// IPs for a self-hosted load balancer in front of the API servers. In dual
+	// stack clusters this list contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	APIServerInternalIPs []string `json:"apiServerInternalIPs"`
 
 	// ingressIP is an external IP which routes to the default ingress controller.
 	// The IP is a suitable target of a wildcard DNS record used to resolve default route host names.
+	//
+	// Deprecated: Use IngressIPs instead.
 	IngressIP string `json:"ingressIP,omitempty"`
+
+	// ingressIPs are the external IPs which route to the default ingress
+	// controller. The IPs are suitable targets of a wildcard DNS record used to
+	// resolve default route host names. In dual stack clusters this list
+	// contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	IngressIPs []string `json:"ingressIPs"`
 
 	// nodeDNSIP is the IP address for the internal DNS used by the
 	// nodes. Unlike the one managed by the DNS operator, `NodeDNSIP`
@@ -477,7 +515,19 @@ type OpenStackPlatformStatus struct {
 	// by components inside the cluster, like kubelets using the infrastructure rather
 	// than Kubernetes networking. It is the IP that the Infrastructure.status.apiServerInternalURI
 	// points to. It is the IP for a self-hosted load balancer in front of the API servers.
+	//
+	// Deprecated: Use APIServerInternalIPs instead.
 	APIServerInternalIP string `json:"apiServerInternalIP,omitempty"`
+
+	// apiServerInternalIPs are the IP addresses to contact the Kubernetes API
+	// server that can be used by components inside the cluster, like kubelets
+	// using the infrastructure rather than Kubernetes networking. These are the
+	// IPs for a self-hosted load balancer in front of the API servers. In dual
+	// stack clusters this list contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	APIServerInternalIPs []string `json:"apiServerInternalIPs"`
 
 	// cloudName is the name of the desired OpenStack cloud in the
 	// client configuration file (`clouds.yaml`).
@@ -485,7 +535,18 @@ type OpenStackPlatformStatus struct {
 
 	// ingressIP is an external IP which routes to the default ingress controller.
 	// The IP is a suitable target of a wildcard DNS record used to resolve default route host names.
+	//
+	// Deprecated: Use IngressIPs instead.
 	IngressIP string `json:"ingressIP,omitempty"`
+
+	// ingressIPs are the external IPs which route to the default ingress
+	// controller. The IPs are suitable targets of a wildcard DNS record used to
+	// resolve default route host names. In dual stack clusters this list
+	// contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	IngressIPs []string `json:"ingressIPs"`
 
 	// nodeDNSIP is the IP address for the internal DNS used by the
 	// nodes. Unlike the one managed by the DNS operator, `NodeDNSIP`
@@ -506,19 +567,235 @@ type OvirtPlatformStatus struct {
 	// by components inside the cluster, like kubelets using the infrastructure rather
 	// than Kubernetes networking. It is the IP that the Infrastructure.status.apiServerInternalURI
 	// points to. It is the IP for a self-hosted load balancer in front of the API servers.
+	//
+	// Deprecated: Use APIServerInternalIPs instead.
 	APIServerInternalIP string `json:"apiServerInternalIP,omitempty"`
+
+	// apiServerInternalIPs are the IP addresses to contact the Kubernetes API
+	// server that can be used by components inside the cluster, like kubelets
+	// using the infrastructure rather than Kubernetes networking. These are the
+	// IPs for a self-hosted load balancer in front of the API servers. In dual
+	// stack clusters this list contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	APIServerInternalIPs []string `json:"apiServerInternalIPs"`
 
 	// ingressIP is an external IP which routes to the default ingress controller.
 	// The IP is a suitable target of a wildcard DNS record used to resolve default route host names.
+	//
+	// Deprecated: Use IngressIPs instead.
 	IngressIP string `json:"ingressIP,omitempty"`
+
+	// ingressIPs are the external IPs which route to the default ingress
+	// controller. The IPs are suitable targets of a wildcard DNS record used to
+	// resolve default route host names. In dual stack clusters this list
+	// contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	IngressIPs []string `json:"ingressIPs"`
 
 	// deprecated: as of 4.6, this field is no longer set or honored.  It will be removed in a future release.
 	NodeDNSIP string `json:"nodeDNSIP,omitempty"`
 }
 
+// VSpherePlatformFailureDomainSpec holds the region and zone failure domain and
+// the vCenter topology of that failure domain.
+type VSpherePlatformFailureDomainSpec struct {
+	// name defines the arbitrary but unique name
+	// of a failure domain.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=256
+	Name string `json:"name"`
+
+	// region defines the name of a region tag that will
+	// be attached to a vCenter datacenter. The tag
+	// category in vCenter must be named openshift-region.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=80
+	// +kubebuilder:validation:Required
+	Region string `json:"region"`
+
+	// zone defines the name of a zone tag that will
+	// be attached to a vCenter cluster. The tag
+	// category in vCenter must be named openshift-zone.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=80
+	// +kubebuilder:validation:Required
+	Zone string `json:"zone"`
+
+	// server is the fully-qualified domain name or the IP address of the vCenter server.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	// ---
+	// + Validation is applied via a patch, we validate the format as either ipv4, ipv6 or hostname
+	Server string `json:"server"`
+
+	// Topology describes a given failure domain using vSphere constructs
+	// +kubebuilder:validation:Required
+	Topology VSpherePlatformTopology `json:"topology"`
+}
+
+// VSpherePlatformTopology holds the required and optional vCenter objects - datacenter,
+// computeCluster, networks, datastore and resourcePool - to provision virtual machines.
+type VSpherePlatformTopology struct {
+	// datacenter is the name of vCenter datacenter in which virtual machines will be located.
+	// The maximum length of the datacenter name is 80 characters.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=80
+	Datacenter string `json:"datacenter"`
+
+	// computeCluster the absolute path of the vCenter cluster
+	// in which virtual machine will be located.
+	// The absolute path is of the form /<datacenter>/host/<cluster>.
+	// The maximum length of the path is 2048 characters.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^/.*?/host/.*?`
+	ComputeCluster string `json:"computeCluster"`
+
+	// networks is the list of port group network names within this failure domain.
+	// Currently, we only support a single interface per RHCOS virtual machine.
+	// The available networks (port groups) can be listed using
+	// `govc ls 'network/*'`
+	// The single interface should be the absolute path of the form
+	// /<datacenter>/network/<portgroup>.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxItems=1
+	// +kubebuilder:validation:MinItems=1
+	Networks []string `json:"networks"`
+
+	// datastore is the absolute path of the datastore in which the
+	// virtual machine is located.
+	// The absolute path is of the form /<datacenter>/datastore/<datastore>
+	// The maximum length of the path is 2048 characters.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^/.*?/datastore/.*?`
+	Datastore string `json:"datastore"`
+
+	// resourcePool is the absolute path of the resource pool where virtual machines will be
+	// created. The absolute path is of the form /<datacenter>/host/<cluster>/Resources/<resourcepool>.
+	// The maximum length of the path is 2048 characters.
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^/.*?/host/.*?/Resources.*`
+	// +optional
+	ResourcePool string `json:"resourcePool,omitempty"`
+
+	// folder is the absolute path of the folder where
+	// virtual machines are located. The absolute path
+	// is of the form /<datacenter>/vm/<folder>.
+	// The maximum length of the path is 2048 characters.
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^/.*?/vm/.*?`
+	// +optional
+	Folder string `json:"folder,omitempty"`
+}
+
+// VSpherePlatformVCenterSpec stores the vCenter connection fields.
+// This is used by the vSphere CCM.
+type VSpherePlatformVCenterSpec struct {
+
+	// server is the fully-qualified domain name or the IP address of the vCenter server.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=255
+	// ---
+	// + Validation is applied via a patch, we validate the format as either ipv4, ipv6 or hostname
+	Server string `json:"server"`
+
+	// port is the TCP port that will be used to communicate to
+	// the vCenter endpoint.
+	// When omitted, this means the user has no opinion and
+	// it is up to the platform to choose a sensible default,
+	// which is subject to change over time.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=32767
+	// +optional
+	Port int32 `json:"port,omitempty"`
+
+	// The vCenter Datacenters in which the RHCOS
+	// vm guests are located. This field will
+	// be used by the Cloud Controller Manager.
+	// Each datacenter listed here should be used within
+	// a topology.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	Datacenters []string `json:"datacenters"`
+}
+
+// VSpherePlatformNodeNetworkingSpec holds the network CIDR(s) and port group name for
+// including and excluding IP ranges in the cloud provider.
+// This would be used for example when multiple network adapters are attached to
+// a guest to help determine which IP address the cloud config manager should use
+// for the external and internal node networking.
+type VSpherePlatformNodeNetworkingSpec struct {
+	// networkSubnetCidr IP address on VirtualMachine's network interfaces included in the fields' CIDRs
+	// that will be used in respective status.addresses fields.
+	// ---
+	// + Validation is applied via a patch, we validate the format as cidr
+	// +optional
+	NetworkSubnetCIDR []string `json:"networkSubnetCidr,omitempty"`
+
+	// network VirtualMachine's VM Network names that will be used to when searching
+	// for status.addresses fields. Note that if internal.networkSubnetCIDR and
+	// external.networkSubnetCIDR are not set, then the vNIC associated to this network must
+	// only have a single IP address assigned to it.
+	// The available networks (port groups) can be listed using
+	// `govc ls 'network/*'`
+	// +optional
+	Network string `json:"network,omitempty"`
+
+	// excludeNetworkSubnetCidr IP addresses in subnet ranges will be excluded when selecting
+	// the IP address from the VirtualMachine's VM for use in the status.addresses fields.
+	// ---
+	// + Validation is applied via a patch, we validate the format as cidr
+	// +optional
+	ExcludeNetworkSubnetCIDR []string `json:"excludeNetworkSubnetCidr,omitempty"`
+}
+
+// VSpherePlatformNodeNetworking holds the external and internal node networking spec.
+type VSpherePlatformNodeNetworking struct {
+	// external represents the network configuration of the node that is externally routable.
+	// +optional
+	External VSpherePlatformNodeNetworkingSpec `json:"external"`
+	// internal represents the network configuration of the node that is routable only within the cluster.
+	// +optional
+	Internal VSpherePlatformNodeNetworkingSpec `json:"internal"`
+}
+
 // VSpherePlatformSpec holds the desired state of the vSphere infrastructure provider.
-// This only includes fields that can be modified in the cluster.
-type VSpherePlatformSpec struct{}
+// In the future the cloud provider operator, storage operator and machine operator will
+// use these fields for configuration.
+type VSpherePlatformSpec struct {
+	// vcenters holds the connection details for services to communicate with vCenter.
+	// Currently, only a single vCenter is supported.
+	// ---
+	// + If VCenters is not defined use the existing cloud-config configmap defined
+	// + in openshift-config.
+	// +openshift:enable:FeatureSets=TechPreviewNoUpgrade
+	// +kubebuilder:validation:MaxItems=1
+	// +kubebuilder:validation:MinItems=0
+	// +optional
+	VCenters []VSpherePlatformVCenterSpec `json:"vcenters,omitempty"`
+
+	// failureDomains contains the definition of region, zone and the vCenter topology.
+	// If this is omitted failure domains (regions and zones) will not be used.
+	// +openshift:enable:FeatureSets=TechPreviewNoUpgrade
+	// +optional
+	FailureDomains []VSpherePlatformFailureDomainSpec `json:"failureDomains,omitempty"`
+
+	// nodeNetworking contains the definition of internal and external network constraints for
+	// assigning the node's networking.
+	// If this field is omitted, networking defaults to the legacy
+	// address selection behavior which is to only support a single address and
+	// return the first one found.
+	// +openshift:enable:FeatureSets=TechPreviewNoUpgrade
+	// +optional
+	NodeNetworking VSpherePlatformNodeNetworking `json:"nodeNetworking,omitempty"`
+}
 
 // VSpherePlatformStatus holds the current status of the vSphere infrastructure provider.
 type VSpherePlatformStatus struct {
@@ -526,11 +803,34 @@ type VSpherePlatformStatus struct {
 	// by components inside the cluster, like kubelets using the infrastructure rather
 	// than Kubernetes networking. It is the IP that the Infrastructure.status.apiServerInternalURI
 	// points to. It is the IP for a self-hosted load balancer in front of the API servers.
+	//
+	// Deprecated: Use APIServerInternalIPs instead.
 	APIServerInternalIP string `json:"apiServerInternalIP,omitempty"`
+
+	// apiServerInternalIPs are the IP addresses to contact the Kubernetes API
+	// server that can be used by components inside the cluster, like kubelets
+	// using the infrastructure rather than Kubernetes networking. These are the
+	// IPs for a self-hosted load balancer in front of the API servers. In dual
+	// stack clusters this list contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	APIServerInternalIPs []string `json:"apiServerInternalIPs"`
 
 	// ingressIP is an external IP which routes to the default ingress controller.
 	// The IP is a suitable target of a wildcard DNS record used to resolve default route host names.
+	//
+	// Deprecated: Use IngressIPs instead.
 	IngressIP string `json:"ingressIP,omitempty"`
+
+	// ingressIPs are the external IPs which route to the default ingress
+	// controller. The IPs are suitable targets of a wildcard DNS record used to
+	// resolve default route host names. In dual stack clusters this list
+	// contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	IngressIPs []string `json:"ingressIPs"`
 
 	// nodeDNSIP is the IP address for the internal DNS used by the
 	// nodes. Unlike the one managed by the DNS operator, `NodeDNSIP`
@@ -545,7 +845,7 @@ type VSpherePlatformStatus struct {
 // This only includes fields that can be modified in the cluster.
 type IBMCloudPlatformSpec struct{}
 
-//IBMCloudPlatformStatus holds the current status of the IBMCloud infrastructure provider.
+// IBMCloudPlatformStatus holds the current status of the IBMCloud infrastructure provider.
 type IBMCloudPlatformStatus struct {
 	// Location is where the cluster has been deployed
 	Location string `json:"location,omitempty"`
@@ -559,6 +859,10 @@ type IBMCloudPlatformStatus struct {
 	// CISInstanceCRN is the CRN of the Cloud Internet Services instance managing
 	// the DNS zone for the cluster's base domain
 	CISInstanceCRN string `json:"cisInstanceCRN,omitempty"`
+
+	// DNSInstanceCRN is the CRN of the DNS Services instance managing the DNS zone
+	// for the cluster's base domain
+	DNSInstanceCRN string `json:"dnsInstanceCRN,omitempty"`
 }
 
 // KubevirtPlatformSpec holds the desired state of the kubevirt infrastructure provider.
@@ -599,6 +903,10 @@ type EquinixMetalPlatformStatus struct {
 // override existing defaults of PowerVS Services.
 type PowerVSServiceEndpoint struct {
 	// name is the name of the Power VS service.
+	// Few of the services are
+	// IAM - https://cloud.ibm.com/apidocs/iam-identity-token-api
+	// ResourceController - https://cloud.ibm.com/apidocs/resource-controller/resource-controller
+	// Power Cloud - https://cloud.ibm.com/apidocs/power-cloud
 	//
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^[a-z0-9-]+$`
@@ -617,7 +925,14 @@ type PowerVSServiceEndpoint struct {
 
 // PowerVSPlatformSpec holds the desired state of the IBM Power Systems Virtual Servers infrastructure provider.
 // This only includes fields that can be modified in the cluster.
-type PowerVSPlatformSpec struct{}
+type PowerVSPlatformSpec struct {
+	// serviceEndpoints is a list of custom endpoints which will override the default
+	// service endpoints of a Power VS service.
+	// +listType=map
+	// +listMapKey=name
+	// +optional
+	ServiceEndpoints []PowerVSServiceEndpoint `json:"serviceEndpoints,omitempty"`
+}
 
 // PowerVSPlatformStatus holds the current status of the IBM Power Systems Virtual Servers infrastrucutre provider.
 type PowerVSPlatformStatus struct {
@@ -636,6 +951,10 @@ type PowerVSPlatformStatus struct {
 	// CISInstanceCRN is the CRN of the Cloud Internet Services instance managing
 	// the DNS zone for the cluster's base domain
 	CISInstanceCRN string `json:"cisInstanceCRN,omitempty"`
+
+	// DNSInstanceCRN is the CRN of the DNS Services instance managing the DNS zone
+	// for the cluster's base domain
+	DNSInstanceCRN string `json:"dnsInstanceCRN,omitempty"`
 }
 
 // AlibabaCloudPlatformSpec holds the desired state of the Alibaba Cloud infrastructure provider.
@@ -650,10 +969,9 @@ type AlibabaCloudPlatformStatus struct {
 	// +required
 	Region string `json:"region"`
 	// resourceGroupID is the ID of the resource group for the cluster.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^rg-[0-9A-Za-z]+$`
-	// +required
-	ResourceGroupID string `json:"resourceGroupID"`
+	// +kubebuilder:validation:Pattern=`^(rg-[0-9A-Za-z]+)?$`
+	// +optional
+	ResourceGroupID string `json:"resourceGroupID,omitempty"`
 	// resourceTags is a list of additional tags to apply to Alibaba Cloud resources created for the cluster.
 	// +kubebuilder:validation:MaxItems=20
 	// +listType=map
@@ -676,6 +994,93 @@ type AlibabaCloudResourceTag struct {
 	// +kubebuilder:validation:MaxLength=128
 	// +required
 	Value string `json:"value"`
+}
+
+// NutanixPlatformSpec holds the desired state of the Nutanix infrastructure provider.
+// This only includes fields that can be modified in the cluster.
+type NutanixPlatformSpec struct {
+	// prismCentral holds the endpoint address and port to access the Nutanix Prism Central.
+	// When a cluster-wide proxy is installed, by default, this endpoint will be accessed via the proxy.
+	// Should you wish for communication with this endpoint not to be proxied, please add the endpoint to the
+	// proxy spec.noProxy list.
+	// +kubebuilder:validation:Required
+	PrismCentral NutanixPrismEndpoint `json:"prismCentral"`
+
+	// prismElements holds one or more endpoint address and port data to access the Nutanix
+	// Prism Elements (clusters) of the Nutanix Prism Central. Currently we only support one
+	// Prism Element (cluster) for an OpenShift cluster, where all the Nutanix resources (VMs, subnets, volumes, etc.)
+	// used in the OpenShift cluster are located. In the future, we may support Nutanix resources (VMs, etc.)
+	// spread over multiple Prism Elements (clusters) of the Prism Central.
+	// +kubebuilder:validation:Required
+	// +listType=map
+	// +listMapKey=name
+	PrismElements []NutanixPrismElementEndpoint `json:"prismElements"`
+}
+
+// NutanixPrismEndpoint holds the endpoint address and port to access the Nutanix Prism Central or Element (cluster)
+type NutanixPrismEndpoint struct {
+	// address is the endpoint address (DNS name or IP address) of the Nutanix Prism Central or Element (cluster)
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=256
+	Address string `json:"address"`
+
+	// port is the port number to access the Nutanix Prism Central or Element (cluster)
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	Port int32 `json:"port"`
+}
+
+// NutanixPrismElementEndpoint holds the name and endpoint data for a Prism Element (cluster)
+type NutanixPrismElementEndpoint struct {
+	// name is the name of the Prism Element (cluster). This value will correspond with
+	// the cluster field configured on other resources (eg Machines, PVCs, etc).
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=256
+	Name string `json:"name"`
+
+	// endpoint holds the endpoint address and port data of the Prism Element (cluster).
+	// When a cluster-wide proxy is installed, by default, this endpoint will be accessed via the proxy.
+	// Should you wish for communication with this endpoint not to be proxied, please add the endpoint to the
+	// proxy spec.noProxy list.
+	// +kubebuilder:validation:Required
+	Endpoint NutanixPrismEndpoint `json:"endpoint"`
+}
+
+// NutanixPlatformStatus holds the current status of the Nutanix infrastructure provider.
+type NutanixPlatformStatus struct {
+	// apiServerInternalIP is an IP address to contact the Kubernetes API server that can be used
+	// by components inside the cluster, like kubelets using the infrastructure rather
+	// than Kubernetes networking. It is the IP that the Infrastructure.status.apiServerInternalURI
+	// points to. It is the IP for a self-hosted load balancer in front of the API servers.
+	//
+	// Deprecated: Use APIServerInternalIPs instead.
+	APIServerInternalIP string `json:"apiServerInternalIP,omitempty"`
+
+	// apiServerInternalIPs are the IP addresses to contact the Kubernetes API
+	// server that can be used by components inside the cluster, like kubelets
+	// using the infrastructure rather than Kubernetes networking. These are the
+	// IPs for a self-hosted load balancer in front of the API servers. In dual
+	// stack clusters this list contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	APIServerInternalIPs []string `json:"apiServerInternalIPs"`
+
+	// ingressIP is an external IP which routes to the default ingress controller.
+	// The IP is a suitable target of a wildcard DNS record used to resolve default route host names.
+	//
+	// Deprecated: Use IngressIPs instead.
+	IngressIP string `json:"ingressIP,omitempty"`
+
+	// ingressIPs are the external IPs which route to the default ingress
+	// controller. The IPs are suitable targets of a wildcard DNS record used to
+	// resolve default route host names. In dual stack clusters this list
+	// contains two IPs otherwise only one.
+	//
+	// +kubebuilder:validation:Format=ip
+	// +kubebuilder:validation:MaxItems=2
+	IngressIPs []string `json:"ingressIPs"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

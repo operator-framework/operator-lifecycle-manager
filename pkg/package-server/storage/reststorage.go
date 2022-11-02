@@ -50,6 +50,10 @@ func (m *PackageManifestStorage) New() runtime.Object {
 	return &operators.PackageManifest{}
 }
 
+// Destroy satisfies the Storage interface
+// Performs a no-op
+func (m *PackageManifestStorage) Destroy() {}
+
 // Kind satisfies the KindProvider interface
 func (m *PackageManifestStorage) Kind() string {
 	return "PackageManifest"
