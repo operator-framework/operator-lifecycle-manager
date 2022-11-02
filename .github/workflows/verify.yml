@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
-          go-version: '~1.18'
+          go-version-file: "go.mod"
 
         # Note(tflannag): We need to explicitly setup the GOPATH as the generate-internal-groups.sh
         # codegen script still relies on $GOPATH being set and will return an error otherwise.

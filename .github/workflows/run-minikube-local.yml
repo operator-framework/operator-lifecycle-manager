@@ -9,9 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - uses: actions/setup-go@v2
+    - uses: actions/setup-go@v3
       with:
-        go-version: '~1.18'
+        go-version-file: "go.mod"
     - name: Install minikube
       run: |
         sudo apt-get install conntrack
