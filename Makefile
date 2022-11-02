@@ -30,6 +30,8 @@ GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 GIT_COMMIT := $(shell git rev-parse HEAD)
+GOPATH ?= $(shell go env GOPATH)
+export GOPATH
 ifeq ($(shell arch), arm64) 
 ARCH := arm64
 else
