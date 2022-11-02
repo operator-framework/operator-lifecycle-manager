@@ -2,15 +2,9 @@ FROM quay.io/fedora/fedora:34-x86_64 as builder
 LABEL stage=builder
 WORKDIR /build
 
-# install dependencies and go 1.16
-
-# copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
 RUN dnf update -y && dnf install -y bash make git mercurial jq wget which findutils && dnf upgrade -y
 RUN curl -sSL https://go.dev/dl/go1.19.2.linux-amd64.tar.gz | tar -xzf - -C /usr/local
 ENV PATH=/usr/local/go/bin:$PATH
-COPY .git/HEAD .git/HEAD
-COPY .git/refs/heads/. .git/refs/heads
-RUN mkdir -p .git/objects
 COPY Makefile Makefile
 COPY OLM_VERSION OLM_VERSION
 COPY pkg pkg
