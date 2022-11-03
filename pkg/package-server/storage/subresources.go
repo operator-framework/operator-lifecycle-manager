@@ -36,6 +36,10 @@ func (s *LogoStorage) New() runtime.Object {
 	return &operators.PackageManifest{}
 }
 
+// Destroy satisfies the Storage interface
+// Performs a no-op
+func (s *LogoStorage) Destroy() {}
+
 // Connect satisfies the Connector interface and returns the image icon file for a given `PackageManifest`
 func (s *LogoStorage) Connect(ctx context.Context, name string, options runtime.Object, responder rest.Responder) (http.Handler, error) {
 	var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {

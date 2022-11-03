@@ -5,7 +5,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 )
 
 const (
@@ -50,16 +50,16 @@ func (r *csvStatusReporter) NewNotification(context *csvEventContext) Notificati
 // GetNewStatus returns the expected new status based on the notification context.
 // We cover the following scenarios:
 // a. Fresh install of an operator (v1), no previous version is installed.
-//   1. Working toward v1
-//   2. v1 successfully installed
-//   3. v1 deploy failed
-//   4. v1 has been removed, post successful install.
+//  1. Working toward v1
+//  2. v1 successfully installed
+//  3. v1 deploy failed
+//  4. v1 has been removed, post successful install.
 //
 // b. Newer version of the operator (v2) is being installed (v1 is already installed)
-//   1. Working toward v2. (v1 is being replaced, it waits until v2 successfully
-//	    is successfully installed) Is v1 available while v2 is being installed?
-//   2. When v1 is uninstalled, we remove the old version from status.
-//   3. When v3 is installed successfully, we add the new version (v2) to status.
+//  1. Working toward v2. (v1 is being replaced, it waits until v2 successfully
+//     is successfully installed) Is v1 available while v2 is being installed?
+//  2. When v1 is uninstalled, we remove the old version from status.
+//  3. When v3 is installed successfully, we add the new version (v2) to status.
 func (r *csvStatusReporter) GetNewStatus(existing *configv1.ClusterOperatorStatus, context *csvEventContext) (status *configv1.ClusterOperatorStatus) {
 	builder := &Builder{
 		clock:  r.clock,

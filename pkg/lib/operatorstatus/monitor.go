@@ -7,8 +7,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/discovery"
+	"k8s.io/utils/clock"
 )
 
 const (

@@ -68,6 +68,12 @@ type ClusterVersionSpec struct {
 	// +optional
 	Channel string `json:"channel,omitempty"`
 
+	// capabilities configures the installation of optional, core
+	// cluster components.  A null value here is identical to an
+	// empty object; see the child properties for default semantics.
+	// +optional
+	Capabilities *ClusterVersionCapabilitiesSpec `json:"capabilities,omitempty"`
+
 	// overrides is list of overides for components that are managed by
 	// cluster version operator. Marking a component unmanaged will prevent
 	// the operator from creating or updating the object.
@@ -112,6 +118,9 @@ type ClusterVersionStatus struct {
 	// +kubebuilder:validation:Required
 	// +required
 	VersionHash string `json:"versionHash"`
+
+	// capabilities describes the state of optional, core cluster components.
+	Capabilities ClusterVersionCapabilitiesStatus `json:"capabilities"`
 
 	// conditions provides information about the cluster version. The condition
 	// "Available" is set to true if the desiredUpdate has been reached. The
@@ -214,6 +223,153 @@ type UpdateHistory struct {
 
 // ClusterID is string RFC4122 uuid.
 type ClusterID string
+
+// ClusterVersionCapability enumerates optional, core cluster components.
+// +kubebuilder:validation:Enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot
+type ClusterVersionCapability string
+
+const (
+	// ClusterVersionCapabilityOpenShiftSamples manages the sample
+	// image streams and templates stored in the openshift
+	// namespace, and any registry credentials, stored as a secret,
+	// needed for the image streams to import the images they
+	// reference.
+	ClusterVersionCapabilityOpenShiftSamples ClusterVersionCapability = "openshift-samples"
+
+	// ClusterVersionCapabilityBaremetal manages the cluster
+	// baremetal operator which is responsible for running the metal3
+	// deployment.
+	ClusterVersionCapabilityBaremetal ClusterVersionCapability = "baremetal"
+
+	// ClusterVersionCapabilityMarketplace manages the Marketplace operator which
+	// supplies Operator Lifecycle Manager (OLM) users with default catalogs of
+	// "optional" operators.
+	ClusterVersionCapabilityMarketplace ClusterVersionCapability = "marketplace"
+
+	// ClusterVersionCapabilityConsole manages the Console operator which
+	// installs and maintains the web console.
+	ClusterVersionCapabilityConsole ClusterVersionCapability = "Console"
+
+	// ClusterVersionCapabilityInsights manages the Insights operator which
+	// collects anonymized information about the cluster to generate
+	// recommendations for possible cluster issues.
+	ClusterVersionCapabilityInsights ClusterVersionCapability = "Insights"
+
+	// ClusterVersionCapabilityStorage manages the storage operator which
+	// is responsible for providing cluster-wide storage defaults
+	// WARNING: Do not disable this capability when deployed to
+	// RHEV and OpenStack without reading the docs.
+	// These clusters heavily rely on that capability and may cause
+	// damage to the cluster.
+	ClusterVersionCapabilityStorage ClusterVersionCapability = "Storage"
+
+	// ClusterVersionCapabilityCSISnapshot manages the csi snapshot
+	// controller operator which is responsible for watching the
+	// VolumeSnapshot CRD objects and manages the creation and deletion
+	// lifecycle of volume snapshots
+	ClusterVersionCapabilityCSISnapshot ClusterVersionCapability = "CSISnapshot"
+)
+
+// KnownClusterVersionCapabilities includes all known optional, core cluster components.
+var KnownClusterVersionCapabilities = []ClusterVersionCapability{
+	ClusterVersionCapabilityBaremetal,
+	ClusterVersionCapabilityConsole,
+	ClusterVersionCapabilityInsights,
+	ClusterVersionCapabilityMarketplace,
+	ClusterVersionCapabilityStorage,
+	ClusterVersionCapabilityOpenShiftSamples,
+	ClusterVersionCapabilityCSISnapshot,
+}
+
+// ClusterVersionCapabilitySet defines sets of cluster version capabilities.
+// +kubebuilder:validation:Enum=None;v4.11;v4.12;vCurrent
+type ClusterVersionCapabilitySet string
+
+const (
+	// ClusterVersionCapabilitySetNone is an empty set enabling
+	// no optional capabilities.
+	ClusterVersionCapabilitySetNone ClusterVersionCapabilitySet = "None"
+
+	// ClusterVersionCapabilitySet4_11 is the recommended set of
+	// optional capabilities to enable for the 4.11 version of
+	// OpenShift.  This list will remain the same no matter which
+	// version of OpenShift is installed.
+	ClusterVersionCapabilitySet4_11 ClusterVersionCapabilitySet = "v4.11"
+
+	// ClusterVersionCapabilitySet4_12 is the recommended set of
+	// optional capabilities to enable for the 4.12 version of
+	// OpenShift.  This list will remain the same no matter which
+	// version of OpenShift is installed.
+	ClusterVersionCapabilitySet4_12 ClusterVersionCapabilitySet = "v4.12"
+
+	// ClusterVersionCapabilitySetCurrent is the recommended set
+	// of optional capabilities to enable for the cluster's
+	// current version of OpenShift.
+	ClusterVersionCapabilitySetCurrent ClusterVersionCapabilitySet = "vCurrent"
+)
+
+// ClusterVersionCapabilitySets defines sets of cluster version capabilities.
+var ClusterVersionCapabilitySets = map[ClusterVersionCapabilitySet][]ClusterVersionCapability{
+	ClusterVersionCapabilitySetNone: {},
+	ClusterVersionCapabilitySet4_11: {
+		ClusterVersionCapabilityBaremetal,
+		ClusterVersionCapabilityMarketplace,
+		ClusterVersionCapabilityOpenShiftSamples,
+	},
+	ClusterVersionCapabilitySet4_12: {
+		ClusterVersionCapabilityBaremetal,
+		ClusterVersionCapabilityConsole,
+		ClusterVersionCapabilityInsights,
+		ClusterVersionCapabilityMarketplace,
+		ClusterVersionCapabilityStorage,
+		ClusterVersionCapabilityOpenShiftSamples,
+		ClusterVersionCapabilityCSISnapshot,
+	},
+	ClusterVersionCapabilitySetCurrent: {
+		ClusterVersionCapabilityBaremetal,
+		ClusterVersionCapabilityConsole,
+		ClusterVersionCapabilityInsights,
+		ClusterVersionCapabilityMarketplace,
+		ClusterVersionCapabilityStorage,
+		ClusterVersionCapabilityOpenShiftSamples,
+		ClusterVersionCapabilityCSISnapshot,
+	},
+}
+
+// ClusterVersionCapabilitiesSpec selects the managed set of
+// optional, core cluster components.
+// +k8s:deepcopy-gen=true
+type ClusterVersionCapabilitiesSpec struct {
+	// baselineCapabilitySet selects an initial set of
+	// optional capabilities to enable, which can be extended via
+	// additionalEnabledCapabilities.  If unset, the cluster will
+	// choose a default, and the default may change over time.
+	// The current default is vCurrent.
+	// +optional
+	BaselineCapabilitySet ClusterVersionCapabilitySet `json:"baselineCapabilitySet,omitempty"`
+
+	// additionalEnabledCapabilities extends the set of managed
+	// capabilities beyond the baseline defined in
+	// baselineCapabilitySet.  The default is an empty set.
+	// +listType=atomic
+	// +optional
+	AdditionalEnabledCapabilities []ClusterVersionCapability `json:"additionalEnabledCapabilities,omitempty"`
+}
+
+// ClusterVersionCapabilitiesStatus describes the state of optional,
+// core cluster components.
+// +k8s:deepcopy-gen=true
+type ClusterVersionCapabilitiesStatus struct {
+	// enabledCapabilities lists all the capabilities that are currently managed.
+	// +listType=atomic
+	// +optional
+	EnabledCapabilities []ClusterVersionCapability `json:"enabledCapabilities,omitempty"`
+
+	// knownCapabilities lists all the capabilities known to the current cluster.
+	// +listType=atomic
+	// +optional
+	KnownCapabilities []ClusterVersionCapability `json:"knownCapabilities,omitempty"`
+}
 
 // ComponentOverride allows overriding cluster version operator's behavior
 // for a component.
@@ -408,7 +564,7 @@ type ClusterCondition struct {
 type PromQLClusterCondition struct {
 	// PromQL is a PromQL query classifying clusters. This query
 	// query should return a 1 in the match case and a 0 in the
-	// does-not-match case case. Queries which return no time
+	// does-not-match case. Queries which return no time
 	// series, or which return values besides 0 or 1, are
 	// evaluation failures.
 	// +kubebuilder:validation:Required
