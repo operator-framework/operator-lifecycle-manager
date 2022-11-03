@@ -2072,8 +2072,8 @@ sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2/go.mod h1:B+TnT182UBxE84DiCz
 sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 h1:iXTIw73aPyC+oRdyqqvVJuloN1p0AC/kzH07hu3NE+k=
 sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2/go.mod h1:B8JuhiUyNFVKdsE8h686QcCxMaH6HrOAZj4vswFpcB0=
 sigs.k8s.io/kind v0.11.1/go.mod h1:fRpgVhtqAWrtLB9ED7zQahUimpUXuG/iHT88xYqEGIA=
-sigs.k8s.io/kind v0.14.0 h1:cNmI3jGBvp7UegEGbC5we8plDtCUmaNRL+bod7JoSCE=
-sigs.k8s.io/kind v0.14.0/go.mod h1:UrFRPHG+2a5j0Q7qiR4gtJ4rEyn8TuMQwuOPf+m4oHg=
+sigs.k8s.io/kind v0.16.0 h1:GFXyyxtPnHFKqXr3ZG8/X0+0K9sl69lejStlPn2WQyM=
+sigs.k8s.io/kind v0.16.0/go.mod h1:cKTqagdRyUQmihhBOd+7p43DpOPRn9rHsUC08K1Jbsk=
 sigs.k8s.io/kustomize v2.0.3+incompatible/go.mod h1:MkjgH3RdOWrievjo6c9T245dYlB5QeXV4WCbnt/PEpU=
 sigs.k8s.io/kustomize/api v0.11.4 h1:/0Mr3kfBBNcNPOW5Qwk/3eb8zkswCwnqQxxKtmrTkRo=
 sigs.k8s.io/kustomize/api v0.11.4/go.mod h1:k+8RsqYbgpkIrJ4p9jcdPqe8DprLxFUUO0yNOq8C+xI=
