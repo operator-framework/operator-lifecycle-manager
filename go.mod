@@ -53,7 +53,7 @@ require (
 	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73
 	sigs.k8s.io/controller-runtime v0.12.1
 	sigs.k8s.io/controller-tools v0.8.0
-	sigs.k8s.io/kind v0.14.0
+	sigs.k8s.io/kind v0.16.0
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.40.0
