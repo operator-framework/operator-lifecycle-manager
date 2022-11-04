@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,7 +21,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -48,6 +48,11 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/util"
+)
+
+const (
+	deprecatedCRDDir = "deprecated-crd"
 )
 
 var _ = Describe("Install Plan", func() {
@@ -76,11 +81,11 @@ var _ = Describe("Install Plan", func() {
 
 	When("an InstallPlan step contains a deprecated resource version", func() {
 		var (
-			csv      operatorsv1alpha1.ClusterServiceVersion
-			plan     operatorsv1alpha1.InstallPlan
-			pdb      policyv1beta1.PodDisruptionBudget
-			manifest string
-			counter  float64
+			csv        operatorsv1alpha1.ClusterServiceVersion
+			plan       operatorsv1alpha1.InstallPlan
+			deprecated client.Object
+			manifest   string
+			counter    float64
 		)
 
 		BeforeEach(func() {
@@ -90,13 +95,8 @@ var _ = Describe("Install Plan", func() {
 			v, err := dc.ServerVersion()
 			Expect(err).ToNot(HaveOccurred())
 
-			if minor, err := strconv.Atoi(v.Minor); err == nil && minor < 21 {
-				// This is a tactical can-kick with
-				// the expectation that the
-				// event-emitting behavior being
-				// tested in this context will have
-				// moved by the time 1.25 arrives.
-				Skip("hack: test is dependent on 1.21+ behavior")
+			if minor, err := strconv.Atoi(v.Minor); err == nil && minor < 16 {
+				Skip("test is dependent on CRD v1 introduced at 1.16")
 			}
 		})
 
@@ -107,26 +107,21 @@ var _ = Describe("Install Plan", func() {
 					counter = metric.Value
 				}
 			}
+			deprecatedCRD, err := util.DecodeFile(filepath.Join(testdataDir, deprecatedCRDDir, "deprecated.crd.yaml"), &apiextensionsv1.CustomResourceDefinition{})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(ctx.Ctx().Client().Create(context.Background(), deprecatedCRD)).To(Succeed())
 
 			csv = newCSV(genName("test-csv-"), ns.GetName(), "", semver.Version{}, nil, nil, nil)
 			Expect(ctx.Ctx().Client().Create(context.Background(), &csv)).To(Succeed())
 
-			pdb = policyv1beta1.PodDisruptionBudget{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: genName("test-pdb-"),
-				},
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "PodDisruptionBudget",
-					APIVersion: policyv1beta1.SchemeGroupVersion.String(),
-				},
-				Spec: policyv1beta1.PodDisruptionBudgetSpec{},
-			}
+			deprecated, err = util.DecodeFile(filepath.Join(testdataDir, deprecatedCRDDir, "deprecated.cr.yaml"), &unstructured.Unstructured{}, util.WithNamespace(ns.GetName()))
+			Expect(err).NotTo(HaveOccurred())
 
 			scheme := runtime.NewScheme()
-			Expect(policyv1beta1.AddToScheme(scheme)).To(Succeed())
 			{
 				var b bytes.Buffer
-				Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(&pdb, &b)).To(Succeed())
+				Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(deprecated, &b)).To(Succeed())
 				manifest = b.String()
 			}
 
@@ -150,9 +145,9 @@ var _ = Describe("Install Plan", func() {
 						Resolving: csv.GetName(),
 						Status:    operatorsv1alpha1.StepStatusUnknown,
 						Resource: operatorsv1alpha1.StepResource{
-							Name:     pdb.GetName(),
-							Version:  pdb.APIVersion,
-							Kind:     pdb.Kind,
+							Name:     deprecated.GetName(),
+							Version:  "v1",
+							Kind:     "Deprecated",
 							Manifest: manifest,
 						},
 					},
@@ -167,6 +162,14 @@ var _ = Describe("Install Plan", func() {
 		AfterEach(func() {
 			Eventually(func() error {
 				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &csv))
+			}).Should(Succeed())
+			Eventually(func() error {
+				deprecatedCRD := &apiextensionsv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "deprecateds.operators.io.operator-framework",
+					},
+				}
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), deprecatedCRD))
 			}).Should(Succeed())
 		})
 
@@ -200,9 +203,8 @@ var _ = Describe("Install Plan", func() {
 					FieldPath:  "status.plan[0]",
 				},
 				Reason:  "AppliedWithWarnings",
-				Message: fmt.Sprintf("1 warning(s) generated during installation of operator \"%s\" (PodDisruptionBudget \"%s\"): policy/v1beta1 PodDisruptionBudget is deprecated in v1.21+, unavailable in v1.25+; use policy/v1 PodDisruptionBudget", csv.GetName(), pdb.GetName()),
+				Message: fmt.Sprintf("1 warning(s) generated during installation of operator \"%s\" (Deprecated \"%s\"): operators.io.operator-framework/v1 Deprecated is deprecated", csv.GetName(), deprecated.GetName()),
 			}))
-
 		})
 
 		It("increments a metric counting the warning", func() {
