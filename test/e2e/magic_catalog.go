@@ -257,7 +257,7 @@ func (c *MagicCatalog) makeCatalogSource() *operatorsv1alpha1.CatalogSource {
 func (c *MagicCatalog) makeCatalogSourcePod() *corev1.Pod {
 
 	const (
-		image                  = "quay.io/operator-framework/upstream-opm-builder"
+		image                  = "quay.io/operator-framework/opm"
 		readinessDelay  int32  = 5
 		livenessDelay   int32  = 10
 		volumeMountName string = "fbc-catalog"
