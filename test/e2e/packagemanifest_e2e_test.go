@@ -8,12 +8,12 @@ import (
 	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	opver "github.com/operator-framework/api/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
-	opver "github.com/operator-framework/api/pkg/lib/version"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -140,11 +140,27 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 						Name:           alphaChannel,
 						CurrentCSV:     packageAlpha,
 						CurrentCSVDesc: packagev1.CreateCSVDescription(&csvAlpha, string(csvAlphaJSON)),
+						Entries: []packagev1.ChannelEntry{
+							{
+								Name:    csvAlpha.Name,
+								Version: csvAlpha.Spec.Version.String(),
+							},
+							{
+								Name:    csv.Name,
+								Version: csv.Spec.Version.String(),
+							},
+						},
 					},
 					{
 						Name:           stableChannel,
 						CurrentCSV:     packageStable,
 						CurrentCSVDesc: packagev1.CreateCSVDescription(&csv, string(csvJSON)),
+						Entries: []packagev1.ChannelEntry{
+							{
+								Name:    csv.Name,
+								Version: csv.Spec.Version.String(),
+							},
+						},
 					},
 				},
 				DefaultChannel: stableChannel,
