@@ -10,7 +10,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
 
-	"github.com/operator-framework/operator-registry/internal/model"
+	"github.com/operator-framework/operator-registry/alpha/model"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -51,10 +51,10 @@ func initializeModelPackages(ctx context.Context, q *SQLQuerier) (model.Model, e
 	pkgs := model.Model{}
 	for _, rPkg := range rPkgs {
 		pkg := model.Package{
-			Name: rPkg.PackageName,
+			Name:     rPkg.PackageName,
+			Channels: map[string]*model.Channel{},
 		}
 
-		pkg.Channels = map[string]*model.Channel{}
 		for _, ch := range rPkg.Channels {
 			channel := &model.Channel{
 				Package: &pkg,

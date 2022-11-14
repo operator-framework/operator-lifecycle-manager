@@ -21,8 +21,10 @@ package sqlite3
 #cgo CFLAGS: -DSQLITE_ENABLE_UPDATE_DELETE_LIMIT
 #cgo CFLAGS: -Wno-deprecated-declarations
 #cgo linux,!android CFLAGS: -DHAVE_PREAD64=1 -DHAVE_PWRITE64=1
+#cgo openbsd CFLAGS: -I/usr/local/include
+#cgo openbsd LDFLAGS: -L/usr/local/lib
 #ifndef USE_LIBSQLITE3
-#include <sqlite3-binding.h>
+#include "sqlite3-binding.h"
 #else
 #include <sqlite3.h>
 #endif
@@ -828,6 +830,10 @@ func (c *SQLiteConn) exec(ctx context.Context, query string, args []namedValue) 
 		tail := s.(*SQLiteStmt).t
 		s.Close()
 		if tail == "" {
+			if res == nil {
+				// https://github.com/mattn/go-sqlite3/issues/963
+				res = &SQLiteResult{0, 0}
+			}
 			return res, nil
 		}
 		query = tail
@@ -1409,12 +1415,6 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 		return nil, errors.New("sqlite succeeded without returning a database")
 	}
 
-	rv = C.sqlite3_busy_timeout(db, C.int(busyTimeout))
-	if rv != C.SQLITE_OK {
-		C.sqlite3_close_v2(db)
-		return nil, Error{Code: ErrNo(rv)}
-	}
-
 	exec := func(s string) error {
 		cs := C.CString(s)
 		rv := C.sqlite3_exec(db, cs, nil, nil, nil)
@@ -1423,6 +1423,12 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 			return lastError(db)
 		}
 		return nil
+	}
+
+	// Busy timeout
+	if err := exec(fmt.Sprintf("PRAGMA busy_timeout = %d;", busyTimeout)); err != nil {
+		C.sqlite3_close_v2(db)
+		return nil, err
 	}
 
 	// USER AUTHENTICATION
@@ -1676,7 +1682,7 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 	//
 	// Because default is NORMAL this statement is always executed
 	if err := exec(fmt.Sprintf("PRAGMA synchronous = %s;", synchronousMode)); err != nil {
-		C.sqlite3_close_v2(db)
+		conn.Close()
 		return nil, err
 	}
 
@@ -2005,6 +2011,13 @@ func (s *SQLiteStmt) execSync(args []namedValue) (driver.Result, error) {
 	}
 
 	return &SQLiteResult{id: int64(rowid), changes: int64(changes)}, nil
+}
+
+// Readonly reports if this statement is considered readonly by SQLite.
+//
+// See: https://sqlite.org/c3ref/stmt_readonly.html
+func (s *SQLiteStmt) Readonly() bool {
+	return C.sqlite3_stmt_readonly(s.s) == 1
 }
 
 // Close the rows.
