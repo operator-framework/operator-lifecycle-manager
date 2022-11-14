@@ -8,6 +8,10 @@ $(warning Undefining GOFLAGS set in CI)
 undefine GOFLAGS
 endif
 
+# update_codegen.sh requires setting GOPATH, so ensure it is set always
+GOPATH ?= $(shell go env GOPATH)
+export GOPATH
+
 SHELL := /bin/bash
 ORG := github.com/operator-framework
 PKG   := $(ORG)/operator-lifecycle-manager

@@ -371,6 +371,18 @@ type FakeQuery struct {
 		result1 []string
 		result2 error
 	}
+	SendBundlesStub        func(context.Context, registry.BundleSender) error
+	sendBundlesMutex       sync.RWMutex
+	sendBundlesArgsForCall []struct {
+		arg1 context.Context
+		arg2 registry.BundleSender
+	}
+	sendBundlesReturns struct {
+		result1 error
+	}
+	sendBundlesReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -1987,6 +1999,67 @@ func (fake *FakeQuery) ListTablesReturnsOnCall(i int, result1 []string, result2 
 	}{result1, result2}
 }
 
+func (fake *FakeQuery) SendBundles(arg1 context.Context, arg2 registry.BundleSender) error {
+	fake.sendBundlesMutex.Lock()
+	ret, specificReturn := fake.sendBundlesReturnsOnCall[len(fake.sendBundlesArgsForCall)]
+	fake.sendBundlesArgsForCall = append(fake.sendBundlesArgsForCall, struct {
+		arg1 context.Context
+		arg2 registry.BundleSender
+	}{arg1, arg2})
+	fake.recordInvocation("SendBundles", []interface{}{arg1, arg2})
+	fake.sendBundlesMutex.Unlock()
+	if fake.SendBundlesStub != nil {
+		return fake.SendBundlesStub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.sendBundlesReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeQuery) SendBundlesCallCount() int {
+	fake.sendBundlesMutex.RLock()
+	defer fake.sendBundlesMutex.RUnlock()
+	return len(fake.sendBundlesArgsForCall)
+}
+
+func (fake *FakeQuery) SendBundlesCalls(stub func(context.Context, registry.BundleSender) error) {
+	fake.sendBundlesMutex.Lock()
+	defer fake.sendBundlesMutex.Unlock()
+	fake.SendBundlesStub = stub
+}
+
+func (fake *FakeQuery) SendBundlesArgsForCall(i int) (context.Context, registry.BundleSender) {
+	fake.sendBundlesMutex.RLock()
+	defer fake.sendBundlesMutex.RUnlock()
+	argsForCall := fake.sendBundlesArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeQuery) SendBundlesReturns(result1 error) {
+	fake.sendBundlesMutex.Lock()
+	defer fake.sendBundlesMutex.Unlock()
+	fake.SendBundlesStub = nil
+	fake.sendBundlesReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeQuery) SendBundlesReturnsOnCall(i int, result1 error) {
+	fake.sendBundlesMutex.Lock()
+	defer fake.sendBundlesMutex.Unlock()
+	fake.SendBundlesStub = nil
+	if fake.sendBundlesReturnsOnCall == nil {
+		fake.sendBundlesReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.sendBundlesReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
 func (fake *FakeQuery) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -2040,6 +2113,8 @@ func (fake *FakeQuery) Invocations() map[string][][]interface{} {
 	defer fake.listRegistryBundlesMutex.RUnlock()
 	fake.listTablesMutex.RLock()
 	defer fake.listTablesMutex.RUnlock()
+	fake.sendBundlesMutex.RLock()
+	defer fake.sendBundlesMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
