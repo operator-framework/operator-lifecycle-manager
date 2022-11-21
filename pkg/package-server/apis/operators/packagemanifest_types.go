@@ -1,10 +1,9 @@
 package operators
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/operator-framework/api/pkg/lib/version"
 	operatorv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // PackageManifestList is a list of PackageManifest objects.
@@ -81,6 +80,18 @@ type PackageChannel struct {
 
 	// CurrentCSVSpec holds the spec of the current CSV
 	CurrentCSVDesc CSVDescription
+
+	// Entries lists all CSVs in the channel.
+	Entries []ChannelEntry
+}
+
+// ChannelEntry defines a member of a package channel.
+type ChannelEntry struct {
+	// Name is the name of the bundle for this entry.
+	Name string
+
+	// Version is the version of the bundle for this entry.
+	Version string
 }
 
 // CSVDescription defines a description of a CSV

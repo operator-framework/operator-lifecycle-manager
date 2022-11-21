@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-
+	"github.com/blang/semver/v4"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -20,16 +22,15 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	operatorslisters "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	registrygrpc "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	pkglisters "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/listers/operators/internalversion"
-	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 const (
@@ -277,10 +278,51 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 		"source": key,
 	})
 
+	bundleStream, err := client.ListBundles(ctx, &api.ListBundlesRequest{})
+	if err != nil {
+		logger.WithField("err", err.Error()).Warnf("error getting bundle stream")
+		return nil
+	}
+
+	bundles := map[string]map[string][]operators.ChannelEntry{}
+	for {
+		bundle, err := bundleStream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			logger.WithField("err", err.Error()).Warnf("error getting bundle data")
+			break
+		}
+		if _, ok := bundles[bundle.PackageName]; !ok {
+			bundles[bundle.PackageName] = map[string][]operators.ChannelEntry{}
+		}
+		bundles[bundle.PackageName][bundle.ChannelName] = append(bundles[bundle.PackageName][bundle.ChannelName], operators.ChannelEntry{
+			Name:    bundle.CsvName,
+			Version: bundle.Version,
+		})
+	}
+
 	stream, err := client.ListPackages(ctx, &api.ListPackageRequest{})
 	if err != nil {
-		logger.WithField("err", err.Error()).Warnf("error getting stream")
+		logger.WithField("err", err.Error()).Warnf("error getting package stream")
 		return nil
+	}
+
+	for pkgName := range bundles {
+		for chName := range bundles[pkgName] {
+			sort.Slice(bundles[pkgName][chName], func(i, j int) bool {
+				iV, err := semver.Parse(bundles[pkgName][chName][i].Version)
+				if err != nil {
+					iV = semver.Version{}
+				}
+				jV, err := semver.Parse(bundles[pkgName][chName][j].Version)
+				if err != nil {
+					jV = semver.Version{}
+				}
+				return iV.GT(jV)
+			})
+		}
 	}
 
 	var (
@@ -294,7 +336,7 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 			break
 		}
 		if err != nil {
-			logger.WithField("err", err.Error()).Warnf("error getting data")
+			logger.WithField("err", err.Error()).Warnf("error getting package name data")
 			break
 		}
 
@@ -307,7 +349,7 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 				return
 			}
 
-			newPkg, err := newPackageManifest(ctx, logger, pkg, client)
+			newPkg, err := newPackageManifest(ctx, logger, pkg, client, bundles[pkg.GetName()])
 			if err != nil {
 				logger.WithField("err", err.Error()).Warnf("eliding package: error converting to packagemanifest")
 				return
@@ -454,7 +496,7 @@ func (p *RegistryProvider) List(namespace string, selector labels.Selector) (*op
 	return pkgList, nil
 }
 
-func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Package, client *registryClient) (*operators.PackageManifest, error) {
+func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Package, client *registryClient, entriesByChannel map[string][]operators.ChannelEntry) (*operators.PackageManifest, error) {
 	pkgChannels := pkg.GetChannels()
 	catsrc := client.catsrc
 	manifest := &operators.PackageManifest{
@@ -503,6 +545,7 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 			Name:           pkgChannel.GetName(),
 			CurrentCSV:     csv.GetName(),
 			CurrentCSVDesc: operators.CreateCSVDescription(&csv, bundle.GetCsvJson()),
+			Entries:        entriesByChannel[pkgChannel.GetName()],
 		})
 
 		if manifest.Status.DefaultChannel != "" && pkgChannel.GetName() == manifest.Status.DefaultChannel || !providerSet {

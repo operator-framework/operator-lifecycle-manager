@@ -1,5 +1,6 @@
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../client/fakes/fake_registry_client.go github.com/operator-framework/operator-registry/pkg/api.RegistryClient
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../client/fakes/fake_list_packages_client.go github.com/operator-framework/operator-registry/pkg/api.Registry_ListPackagesClient
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../client/fakes/fake_list_bundles_client.go github.com/operator-framework/operator-registry/pkg/api.Registry_ListBundlesClient
 package provider
 
 import (
@@ -14,8 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/selection"
-
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	registryserver "github.com/operator-framework/operator-registry/pkg/server"
 	"github.com/operator-framework/operator-registry/pkg/sqlite"
@@ -25,9 +25,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -133,6 +133,36 @@ var (
 	etcdUpgradesCRDJSON   = "{\"apiVersion\":\"apiextensions.k8s.io/v1beta1\",\"kind\":\"CustomResourceDefinition\",\"metadata\":{\"name\":\"etcdclusters.etcd.database.coreos.com\"},\"spec\":{\"group\":\"etcd.database.coreos.com\",\"names\":{\"kind\":\"EtcdCluster\",\"listKind\":\"EtcdClusterList\",\"plural\":\"etcdclusters\",\"shortNames\":[\"etcdclus\",\"etcd\"],\"singular\":\"etcdcluster\"},\"scope\":\"Namespaced\",\"version\":\"v1beta2\"}}"
 	etcdRestoresCRDJSON   = "{\"apiVersion\":\"apiextensions.k8s.io/v1beta1\",\"kind\":\"CustomResourceDefinition\",\"metadata\":{\"name\":\"etcdrestores.etcd.database.coreos.com\"},\"spec\":{\"group\":\"etcd.database.coreos.com\",\"names\":{\"kind\":\"EtcdRestore\",\"listKind\":\"EtcdRestoreList\",\"plural\":\"etcdrestores\",\"singular\":\"etcdrestore\"},\"scope\":\"Namespaced\",\"version\":\"v1beta2\"}}"
 	prometheusCSVJSON     = `{"apiVersion":"operators.coreos.com/v1alpha1","kind":"ClusterServiceVersion","metadata":{"annotations":{"alm-examples":"[{\"apiVersion\":\"monitoring.coreos.com/v1\",\"kind\":\"Prometheus\",\"metadata\":{\"name\":\"example\",\"labels\":{\"prometheus\":\"k8s\"}},\"spec\":{\"replicas\":2,\"version\":\"v2.3.2\",\"serviceAccountName\":\"prometheus-k8s\",\"securityContext\": {}, \"serviceMonitorSelector\":{\"matchExpressions\":[{\"key\":\"k8s-app\",\"operator\":\"Exists\"}]},\"ruleSelector\":{\"matchLabels\":{\"role\":\"prometheus-rulefiles\",\"prometheus\":\"k8s\"}},\"alerting\":{\"alertmanagers\":[{\"namespace\":\"monitoring\",\"name\":\"alertmanager-main\",\"port\":\"web\"}]}}},{\"apiVersion\":\"monitoring.coreos.com/v1\",\"kind\":\"ServiceMonitor\",\"metadata\":{\"name\":\"example\",\"labels\":{\"k8s-app\":\"prometheus\"}},\"spec\":{\"selector\":{\"matchLabels\":{\"k8s-app\":\"prometheus\"}},\"endpoints\":[{\"port\":\"web\",\"interval\":\"30s\"}]}},{\"apiVersion\":\"monitoring.coreos.com/v1\",\"kind\":\"Alertmanager\",\"metadata\":{\"name\":\"alertmanager-main\"},\"spec\":{\"replicas\":3, \"securityContext\": {}}}]"},"name":"prometheusoperator.0.22.2","namespace":"placeholder"},"spec":{"customresourcedefinitions":{"owned":[{"description":"A running Prometheus instance","displayName":"Prometheus","kind":"Prometheus","name":"prometheuses.monitoring.coreos.com","resources":[{"kind":"StatefulSet","version":"v1beta2"},{"kind":"Pod","version":"v1"}],"specDescriptors":[{"description":"Desired number of Pods for the cluster","displayName":"Size","path":"replicas","x-descriptors":["urn:alm:descriptor:com.tectonic.ui:podCount"]},{"description":"A selector for the ConfigMaps from which to load rule files","displayName":"Rule Config Map Selector","path":"ruleSelector","x-descriptors":["urn:alm:descriptor:com.tectonic.ui:selector:core:v1:ConfigMap"]},{"description":"ServiceMonitors to be selected for target discovery","displayName":"Service Monitor Selector","path":"serviceMonitorSelector","x-descriptors":["urn:alm:descriptor:com.tectonic.ui:selector:monitoring.coreos.com:v1:ServiceMonitor"]},{"description":"The ServiceAccount to use to run the Prometheus pods","displayName":"Service Account","path":"serviceAccountName","x-descriptors":["urn:alm:descriptor:io.kubernetes:ServiceAccount"]},{"description":"Limits describes the minimum/maximum amount of compute resources required/allowed","displayName":"Resource Requirements","path":"resources","x-descriptors":["urn:alm:descriptor:com.tectonic.ui:resourceRequirements"]}],"version":"v1"},{"description":"A Prometheus Rule configures groups of sequentially evaluated recording and alerting rules.","displayName":"Prometheus Rule","kind":"PrometheusRule","name":"prometheusrules.monitoring.coreos.com","version":"v1"},{"description":"Configures prometheus to monitor a particular k8s service","displayName":"Service Monitor","kind":"ServiceMonitor","name":"servicemonitors.monitoring.coreos.com","resources":[{"kind":"Pod","version":"v1"}],"specDescriptors":[{"description":"The label to use to retrieve the job name from","displayName":"Job Label","path":"jobLabel","x-descriptors":["urn:alm:descriptor:com.tectonic.ui:label"]},{"description":"A list of endpoints allowed as part of this ServiceMonitor","displayName":"Endpoints","path":"endpoints","x-descriptors":["urn:alm:descriptor:com.tectonic.ui:endpointList"]}],"version":"v1"},{"description":"Configures an Alertmanager for the namespace","displayName":"Alertmanager","kind":"Alertmanager","name":"alertmanagers.monitoring.coreos.com","resources":[{"kind":"StatefulSet","version":"v1beta2"},{"kind":"Pod","version":"v1"}],"specDescriptors":[{"description":"Desired number of Pods for the cluster","displayName":"Size","path":"replicas","x-descriptors":["urn:alm:descriptor:com.tectonic.ui:podCount"]},{"description":"Limits describes the minimum/maximum amount of compute resources required/allowed","displayName":"Resource Requirements","path":"resources","x-descriptors":["urn:alm:descriptor:com.tectonic.ui:resourceRequirements"]}],"version":"v1"}]},"description":"The Prometheus Operator for Kubernetes provides easy monitoring definitions for Kubernetes services and deployment and management of Prometheus instances.\n\nOnce installed, the Prometheus Operator provides the following features:\n\n* **Create/Destroy**: Easily launch a Prometheus instance for your Kubernetes namespace, a specific application or team easily using the Operator.\n\n* **Simple Configuration**: Configure the fundamentals of Prometheus like versions, persistence, retention policies, and replicas from a native Kubernetes resource.\n\n* **Target Services via Labels**: Automatically generate monitoring target configurations based on familiar Kubernetes label queries; no need to learn a Prometheus specific configuration language.\n\n### Other Supported Features\n\n**High availability**\n\nMultiple instances are run across failure zones and data is replicated. This keeps your monitoring available during an outage, when you need it most.\n\n**Updates via automated operations**\n\nNew Prometheus versions are deployed using a rolling update with no downtime, making it easy to stay up to date.\n\n**Handles the dynamic nature of containers**\n\nAlerting rules are attached to groups of containers instead of individual instances, which is ideal for the highly dynamic nature of container deployment.\n","displayName":"Prometheus Operator","icon":[{"base64data":"PHN2ZyB3aWR0aD0iMjQ5MCIgaGVpZ2h0PSIyNTAwIiB2aWV3Qm94PSIwIDAgMjU2IDI1NyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCI+PHBhdGggZD0iTTEyOC4wMDEuNjY3QzU3LjMxMS42NjcgMCA1Ny45NzEgMCAxMjguNjY0YzAgNzAuNjkgNTcuMzExIDEyNy45OTggMTI4LjAwMSAxMjcuOTk4UzI1NiAxOTkuMzU0IDI1NiAxMjguNjY0QzI1NiA1Ny45NyAxOTguNjg5LjY2NyAxMjguMDAxLjY2N3ptMCAyMzkuNTZjLTIwLjExMiAwLTM2LjQxOS0xMy40MzUtMzYuNDE5LTMwLjAwNGg3Mi44MzhjMCAxNi41NjYtMTYuMzA2IDMwLjAwNC0zNi40MTkgMzAuMDA0em02MC4xNTMtMzkuOTRINjcuODQyVjE3OC40N2gxMjAuMzE0djIxLjgxNmgtLjAwMnptLS40MzItMzMuMDQ1SDY4LjE4NWMtLjM5OC0uNDU4LS44MDQtLjkxLTEuMTg4LTEuMzc1LTEyLjMxNS0xNC45NTQtMTUuMjE2LTIyLjc2LTE4LjAzMi0zMC43MTYtLjA0OC0uMjYyIDE0LjkzMyAzLjA2IDI1LjU1NiA1LjQ1IDAgMCA1LjQ2NiAxLjI2NSAxMy40NTggMi43MjItNy42NzMtOC45OTQtMTIuMjMtMjAuNDI4LTEyLjIzLTMyLjExNiAwLTI1LjY1OCAxOS42OC00OC4wNzkgMTIuNTgtNjYuMjAxIDYuOTEuNTYyIDE0LjMgMTQuNTgzIDE0LjggMzYuNTA1IDcuMzQ2LTEwLjE1MiAxMC40Mi0yOC42OSAxMC40Mi00MC4wNTYgMC0xMS43NjkgNy43NTUtMjUuNDQgMTUuNTEyLTI1LjkwNy02LjkxNSAxMS4zOTYgMS43OSAyMS4xNjUgOS41MyA0NS40IDIuOTAyIDkuMTAzIDIuNTMyIDI0LjQyMyA0Ljc3MiAzNC4xMzguNzQ0LTIwLjE3OCA0LjIxMy00OS42MiAxNy4wMTQtNTkuNzg0LTUuNjQ3IDEyLjguODM2IDI4LjgxOCA1LjI3IDM2LjUxOCA3LjE1NCAxMi40MjQgMTEuNDkgMjEuODM2IDExLjQ5IDM5LjYzOCAwIDExLjkzNi00LjQwNyAyMy4xNzMtMTEuODQgMzEuOTU4IDguNDUyLTEuNTg2IDE0LjI4OS0zLjAxNiAxNC4yODktMy4wMTZsMjcuNDUtNS4zNTVjLjAwMi0uMDAyLTMuOTg3IDE2LjQwMS0xOS4zMTQgMzIuMTk3eiIgZmlsbD0iI0RBNEUzMSIvPjwvc3ZnPg==","mediatype":"image/svg+xml"}],"install":{"spec":{"deployments":[{"name":"prometheus-operator","spec":{"replicas":1,"selector":{"matchLabels":{"k8s-app":"prometheus-operator"}},"template":{"metadata":{"labels":{"k8s-app":"prometheus-operator"}},"spec":{"containers":[{"args":["-namespace=$(K8S_NAMESPACE)","-manage-crds=false","-logtostderr=true","--config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1","--prometheus-config-reloader=quay.io/coreos/prometheus-config-reloader:v0.22.2"],"env":[{"name":"K8S_NAMESPACE","valueFrom":{"fieldRef":{"fieldPath":"metadata.namespace"}}}],"image":"quay.io/coreos/prometheus-operator@sha256:3daa69a8c6c2f1d35dcf1fe48a7cd8b230e55f5229a1ded438f687debade5bcf","name":"prometheus-operator","ports":[{"containerPort":8080,"name":"http"}],"resources":{"limits":{"cpu":"200m","memory":"100Mi"},"requests":{"cpu":"100m","memory":"50Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"readOnlyRootFilesystem":true}}],"nodeSelector":{"kubernetes.io/os":"linux"},"serviceAccount":"prometheus-operator-0-22-2"}}}}],"permissions":[{"rules":[{"apiGroups":[""],"resources":["nodes","services","endpoints","pods"],"verbs":["get","list","watch"]},{"apiGroups":[""],"resources":["configmaps"],"verbs":["get"]}],"serviceAccountName":"prometheus-k8s"},{"rules":[{"apiGroups":["apiextensions.k8s.io"],"resources":["customresourcedefinitions"],"verbs":["*"]},{"apiGroups":["monitoring.coreos.com"],"resources":["alertmanagers","prometheuses","prometheuses/finalizers","alertmanagers/finalizers","servicemonitors","prometheusrules"],"verbs":["*"]},{"apiGroups":["apps"],"resources":["statefulsets"],"verbs":["*"]},{"apiGroups":[""],"resources":["configmaps","secrets"],"verbs":["*"]},{"apiGroups":[""],"resources":["pods"],"verbs":["list","delete"]},{"apiGroups":[""],"resources":["services","endpoints"],"verbs":["get","create","update"]},{"apiGroups":[""],"resources":["nodes"],"verbs":["list","watch"]},{"apiGroups":[""],"resources":["namespaces"],"verbs":["list","watch"]}],"serviceAccountName":"prometheus-operator-0-22-2"}]},"strategy":"deployment"},"keywords":["prometheus","monitoring","tsdb","alerting"],"labels":{"alm-owner-prometheus":"prometheusoperator","alm-status-descriptors":"prometheusoperator.0.22.2"},"links":[{"name":"Prometheus","url":"https://www.prometheus.io/"},{"name":"Documentation","url":"https://coreos.com/operators/prometheus/docs/latest/"},{"name":"Prometheus Operator","url":"https://github.com/coreos/prometheus-operator"}],"maintainers":[{"email":"openshift-operators@redhat.com","name":"Red Hat"}],"maturity":"beta","provider":{"name":"Red Hat"},"replaces":"prometheusoperator.0.15.0","selector":{"matchLabels":{"alm-owner-prometheus":"prometheusoperator"}},"version":"0.22.2"}}`
+
+	etcdChannelEntries = []operators.ChannelEntry{
+		{
+			Name:    "etcdoperator.v0.9.2",
+			Version: "0.9.2",
+		},
+		{
+			Name:    "etcdoperator.v0.9.0",
+			Version: "0.9.0",
+		},
+		{
+			Name:    "etcdoperator.v0.6.1",
+			Version: "0.6.1",
+		},
+	}
+
+	prometheusChannelEntries = []operators.ChannelEntry{
+		{
+			Name:    "prometheusoperator.0.22.2",
+			Version: "0.22.2",
+		},
+		{
+			Name:    "prometheusoperator.0.15.0",
+			Version: "0.15.0",
+		},
+		{
+			Name:    "prometheusoperator.0.14.0",
+			Version: "0.14.0",
+		},
+	}
 )
 
 func TestToPackageManifest(t *testing.T) {
@@ -429,7 +459,7 @@ func TestToPackageManifest(t *testing.T) {
 				catsrc:         test.catalogSource,
 			}
 
-			packageManifest, err := newPackageManifest(context.Background(), logrus.NewEntry(logrus.New()), test.apiPkg, client)
+			packageManifest, err := newPackageManifest(context.Background(), logrus.NewEntry(logrus.New()), test.apiPkg, client, nil)
 			if test.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, test.expectedErr, err.Error())
@@ -512,6 +542,7 @@ func TestRegistryProviderGet(t *testing.T) {
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
+							Entries: etcdChannelEntries,
 						},
 					},
 				},
@@ -561,6 +592,7 @@ func TestRegistryProviderGet(t *testing.T) {
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
+							Entries: etcdChannelEntries,
 						},
 					},
 				},
@@ -609,6 +641,7 @@ func TestRegistryProviderGet(t *testing.T) {
 								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 							}(),
+							Entries: etcdChannelEntries,
 						},
 					},
 				},
@@ -696,6 +729,7 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
+								Entries: prometheusChannelEntries,
 							},
 						},
 					},
@@ -730,6 +764,7 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
+								Entries: etcdChannelEntries,
 							},
 						},
 					},
@@ -776,6 +811,7 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
+								Entries: prometheusChannelEntries,
 							},
 						},
 					},
@@ -810,6 +846,7 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
+								Entries: etcdChannelEntries,
 							},
 						},
 					},
@@ -856,6 +893,7 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
+								Entries: prometheusChannelEntries,
 							},
 						},
 					},
@@ -890,6 +928,7 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
+								Entries: etcdChannelEntries,
 							},
 						},
 					},
@@ -924,6 +963,7 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
+								Entries: prometheusChannelEntries,
 							},
 						},
 					},
@@ -958,6 +998,7 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
+								Entries: etcdChannelEntries,
 							},
 						},
 					},
@@ -970,12 +1011,23 @@ func TestRegistryProviderList(t *testing.T) {
 			registryClients: []*registryClient{
 				func() *registryClient {
 					catsrc := catalogSource("cool-operators", "ns")
+
+					listBundlesFake := &fakes.FakeRegistry_ListBundlesClient{}
+					listBundlesFake.RecvReturnsOnCall(0, &api.Bundle{
+						PackageName: "has-bundle",
+						ChannelName: "alpha",
+						CsvName:     "etcdoperator.v0.9.2",
+						Version:     "0.9.2",
+					}, nil)
+					listBundlesFake.RecvReturnsOnCall(1, nil, io.EOF)
+
 					listFake := &fakes.FakeRegistry_ListPackagesClient{}
 					listFake.RecvReturnsOnCall(0, &api.PackageName{Name: "no-bundle"}, nil)
 					listFake.RecvReturnsOnCall(1, &api.PackageName{Name: "has-bundle"}, nil)
 					listFake.RecvReturnsOnCall(2, nil, io.EOF)
 
 					clientFake := &fakes.FakeRegistryClient{}
+					clientFake.ListBundlesReturns(listBundlesFake, nil)
 					clientFake.ListPackagesReturns(listFake, nil)
 					clientFake.GetPackageReturnsOnCall(0, &api.Package{
 						Name: "no-bundle",
@@ -1047,6 +1099,12 @@ func TestRegistryProviderList(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
+								Entries: []operators.ChannelEntry{
+									{
+										Name:    "etcdoperator.v0.9.2",
+										Version: "0.9.2",
+									},
+								},
 							},
 						},
 					},
@@ -1139,6 +1197,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
+								Entries: prometheusChannelEntries,
 							},
 						},
 					},
@@ -1173,6 +1232,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
+								Entries: etcdChannelEntries,
 							},
 						},
 					},
@@ -1222,6 +1282,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
+								Entries: prometheusChannelEntries,
 							},
 						},
 					},
@@ -1256,6 +1317,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
+								Entries: etcdChannelEntries,
 							},
 						},
 					},
@@ -1315,6 +1377,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, prometheusCSVJSON)
 								}(),
+								Entries: prometheusChannelEntries,
 							},
 						},
 					},
@@ -1349,6 +1412,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
 									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
 								}(),
+								Entries: etcdChannelEntries,
 							},
 						},
 					},
