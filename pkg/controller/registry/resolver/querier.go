@@ -31,6 +31,7 @@ type SourceQuerier interface {
 	FindProvider(api opregistry.APIKey, initialSource registry.CatalogKey, excludedPackages map[string]struct{}) (*api.Bundle, *registry.CatalogKey, error)
 	FindBundle(pkgName, channelName, bundleName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
 	FindLatestBundle(pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
+	// Deprecated: This FindReplacement function will be deprecated soon
 	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error)
 	Queryable() error
 }
@@ -123,6 +124,7 @@ func (q *NamespaceSourceQuerier) FindLatestBundle(pkgName, channelName string, i
 	return nil, nil, fmt.Errorf("%s/%s not found in any available CatalogSource", pkgName, channelName)
 }
 
+// Deprecated: This FindReplacement function will be deprecated soon
 func (q *NamespaceSourceQuerier) FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource registry.CatalogKey) (*api.Bundle, *registry.CatalogKey, error) {
 	errs := []error{}
 
