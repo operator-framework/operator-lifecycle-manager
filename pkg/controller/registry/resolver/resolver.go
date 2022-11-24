@@ -55,6 +55,46 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
+// DumpCache writes out the contents of the cache to logs
+// This is useful for debugging resolution errors
+func (r *Resolver) DumpCache(namespaces []string) {
+	if r.log == nil {
+		return
+	}
+
+	if r.cache == nil {
+		r.log.Warningln("resolver cache is nil")
+		return
+	}
+
+	cacheEntries := r.cache.Namespaced(namespaces...).Find(cache.True())
+	r.log.Infof("found %d cached items", len(cacheEntries))
+	for _, entry := range cacheEntries {
+		if entry == nil {
+			r.log.Warnln("entry is nil")
+			continue
+		}
+		var catalogNamespace = "-"
+		var catalogName = "-"
+		if entry.SourceInfo != nil {
+			catalogNamespace = entry.SourceInfo.Catalog.Namespace
+			catalogName = entry.SourceInfo.Catalog.Name
+		}
+
+		var packageName = entry.Package()
+		var packageChannel = entry.Channel()
+		var bundleName = entry.Name
+		var bundleVersion = "-"
+		if entry.Version != nil {
+			bundleVersion = entry.Version.String()
+		}
+		var replaces = entry.Replaces
+		var skips = strings.Join(entry.Skips, ",")
+
+		r.log.Infof("catalog-namespace=%s catalog-name=%s package=%s channel=%s name=%s version=%s replaces=%s skips=%s", catalogNamespace, catalogName, packageName, packageChannel, bundleName, bundleVersion, replaces, skips)
+	}
+}
+
 func (r *Resolver) Resolve(namespaces []string, subs []*v1alpha1.Subscription) ([]*cache.Entry, error) {
 	var errs []error
 

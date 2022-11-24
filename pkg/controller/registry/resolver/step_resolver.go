@@ -28,6 +28,7 @@ var initHooks []stepResolverInitHook
 
 type StepResolver interface {
 	ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
+	DumpCache(namespace string)
 }
 
 type OperatorStepResolver struct {
@@ -83,6 +84,12 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		}
 	}
 	return stepResolver
+}
+
+// DumpCache writes out the content of the cache to logs
+// this is useful for debugging resolution errors
+func (r *OperatorStepResolver) DumpCache(namespace string) {
+	r.resolver.DumpCache([]string{namespace, r.globalCatalogNamespace})
 }
 
 func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {

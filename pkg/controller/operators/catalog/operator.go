@@ -997,6 +997,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// not-satisfiable error
 		if _, ok := err.(solver.NotSatisfiable); ok {
 			logger.WithError(err).Debug("resolution failed")
+			o.resolver.DumpCache(namespace)
 			_, updateErr := o.updateSubscriptionStatuses(
 				o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
 					Type:    v1alpha1.SubscriptionResolutionFailed,

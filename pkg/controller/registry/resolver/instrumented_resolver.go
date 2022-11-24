@@ -32,3 +32,7 @@ func (ir *InstrumentedResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step
 	}
 	return steps, lookups, subs, err
 }
+
+func (ir *InstrumentedResolver) DumpCache(namespace string) {
+	ir.resolver.DumpCache(namespace)
+}
