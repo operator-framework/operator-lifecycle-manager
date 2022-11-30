@@ -7,7 +7,6 @@ approvers:
   - benluddy
   - awgreene
   - dinhxuanvu
-  - timflannagan
   - perdasilva
   - grokspawn
 # review == this code is good /lgtm
@@ -23,7 +22,6 @@ reviewers:
   - awgreene
   - ankitathomas
   - joelanford
-  - timflannagan
   - perdasilva
   - akihikokuroda
   - oceanc80
