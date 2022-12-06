@@ -3,7 +3,7 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  name: etcdoperator.v0.6.1
+  name: etcdoperator.v0.6.0
   namespace: placeholder
   annotations:		
     tectonic-visibility: ocs		
@@ -29,9 +29,8 @@ spec:
     **Backups included**
     Coming soon, the ability to schedule backups to happen on or off cluster.
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-  version: 0.6.1
+  version: 0.6.0
   maturity: alpha
-  replaces: etcdoperator.v0.6.0
   maintainers:
   - name: CoreOS, Inc
     email: support@coreos.com
@@ -39,7 +38,7 @@ spec:
   provider:
     name: CoreOS, Inc
   labels:
-    alm-status-descriptors: etcdoperator.v0.6.1
+    alm-status-descriptors: etcdoperator.v0.6.0
     alm-owner-etcd: etcdoperator
     operated-by: etcdoperator
   selector:
