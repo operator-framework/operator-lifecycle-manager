@@ -3923,9 +3923,10 @@ func TestUpdates(t *testing.T) {
 					simulateSuccessfulRollout(current, op.opClient)
 				}
 				for current.Status.Phase != e.whenIn.phase {
-					fmt.Printf("waiting for (when) %s to be %s\n", e.whenIn.name, e.whenIn.phase)
 					csvsToSync = syncCSVs(csvsToSync, deletedCSVs(e.shouldBe))
 					current = csvsToSync[e.whenIn.name]
+					fmt.Printf("waiting for (when) %s to be %s\n", e.whenIn.name, e.whenIn.phase)
+					time.Sleep(1 * time.Millisecond)
 				}
 
 				// sync the other csvs until they're in the expected status
