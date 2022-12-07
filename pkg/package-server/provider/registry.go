@@ -13,6 +13,7 @@ import (
 	"github.com/blang/semver/v4"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-registry/pkg/api"
+	orregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -285,6 +286,7 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 	}
 
 	bundles := map[string]map[string][]operators.ChannelEntry{}
+
 	for {
 		bundle, err := bundleStream.Recv()
 		if err == io.EOF {
@@ -293,6 +295,9 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 		if err != nil {
 			logger.WithField("err", err.Error()).Warnf("error getting bundle data")
 			break
+		}
+		if isDeprecated(bundle) {
+			continue
 		}
 		if _, ok := bundles[bundle.PackageName]; !ok {
 			bundles[bundle.PackageName] = map[string][]operators.ChannelEntry{}
@@ -372,6 +377,15 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 
 	// Garbage collect orphaned packagemanifests from the cache
 	return p.gcPackages(key, added)
+}
+
+func isDeprecated(b *api.Bundle) bool {
+	for _, p := range b.Properties {
+		if p.Type == orregistry.DeprecatedType {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *RegistryProvider) gcPackages(key registry.CatalogKey, keep map[string]struct{}) error {

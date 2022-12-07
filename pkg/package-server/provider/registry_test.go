@@ -65,6 +65,11 @@ func server() {
 	if err := loader.Populate(); err != nil {
 		logrus.Fatal(err)
 	}
+	const bundlePath = "localhost:5000/etcdoperator:v0.6.0"
+	if _, err := db.Exec(`UPDATE operatorbundle SET bundlePath=? WHERE name="etcdoperator.v0.6.0"`, bundlePath); err != nil {
+		logrus.Fatal(err)
+	}
+	load.DeprecateBundle(bundlePath)
 	if err := db.Close(); err != nil {
 		logrus.Fatal(err)
 	}
