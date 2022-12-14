@@ -1425,7 +1425,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				return nil
 			}).Should(BeNil())
 		})
-		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created without spec.GrpcPodConfig.SecurityContextConfig set to legacy", func() {
+		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created with spec.GrpcPodConfig.SecurityContextConfig set to restricted", func() {
 			var sourceName string
 			BeforeEach(func() {
 				sourceName = genName("catalog-")
@@ -1442,6 +1442,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 					Spec: v1alpha1.CatalogSourceSpec{
 						SourceType: v1alpha1.SourceTypeGrpc,
 						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
+						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+							SecurityContextConfig: operatorsv1alpha1.Restricted,
+						},
 					},
 				}
 

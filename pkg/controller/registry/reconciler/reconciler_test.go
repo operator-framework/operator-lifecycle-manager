@@ -88,25 +88,57 @@ func TestPodContainerSecurityContext(t *testing.T) {
 		expectedContainerSecurityContext *corev1.SecurityContext
 	}{
 		{
-			title: "NoSpecDefined/PodContainsSecurityConfigForPSARestricted",
+			title: "NoSpecDefined/PodContainsSecurityConfigForPSALegacy",
 			inputCatsrc: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: "testns",
 				},
 			},
-			expectedContainerSecurityContext: &corev1.SecurityContext{
-				ReadOnlyRootFilesystem:   pointer.Bool(false),
-				AllowPrivilegeEscalation: pointer.Bool(false),
-				Capabilities: &corev1.Capabilities{
-					Drop: []corev1.Capability{"ALL"},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
+		},
+		{
+			title: "SpecDefined/NoGRPCPodConfig/PodContainsSecurityConfigForPSALegacy",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{},
+			},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
+		},
+		{
+			title: "SpecDefined/GRPCPodConfigDefined/PodContainsSecurityConfigForPSALegacy",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{},
 				},
 			},
-			expectedSecurityContext: &corev1.PodSecurityContext{
-				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-				RunAsUser:      pointer.Int64(workloadUserID),
-				RunAsNonRoot:   pointer.Bool(true),
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
+		},
+		{
+			title: "SpecDefined/SecurityContextConfig:Legacy/PodContainsSecurityConfigForPSALegacy",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Legacy,
+					},
+				},
 			},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
 		},
 		{
 			title: "SpecDefined/SecurityContextConfig:Restricted/PodContainsSecurityConfigForPSARestricted",

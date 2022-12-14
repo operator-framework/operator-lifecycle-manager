@@ -76,6 +76,9 @@ type Server struct {
 	// "", "1.0", "1.1", "1.2" and "1.3" only ("" is equivalent to "1.0" for backwards compatibility)
 	TLSMinVersion string
 
+	// TLSOpts is used to allow configuring the TLS config used for the server
+	TLSOpts []func(*tls.Config)
+
 	// WebhookMux is the multiplexer that handles different webhooks.
 	WebhookMux *http.ServeMux
 
@@ -254,6 +257,11 @@ func (s *Server) Start(ctx context.Context) error {
 		cfg.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
+	// fallback TLS config ready, will now mutate if passer wants full control over it
+	for _, op := range s.TLSOpts {
+		op(cfg)
+	}
+
 	listener, err := tls.Listen("tcp", net.JoinHostPort(s.Host, strconv.Itoa(s.Port)), cfg)
 	if err != nil {
 		return err
@@ -291,7 +299,7 @@ func (s *Server) Start(ctx context.Context) error {
 // server has been started.
 func (s *Server) StartedChecker() healthz.Checker {
 	config := &tls.Config{
-		InsecureSkipVerify: true, // nolint:gosec // config is used to connect to our own webhook port.
+		InsecureSkipVerify: true, //nolint:gosec // config is used to connect to our own webhook port.
 	}
 	return func(req *http.Request) error {
 		s.mu.Lock()
