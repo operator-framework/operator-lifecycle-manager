@@ -195,11 +195,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 		},
 	}
 
-	if source.Spec.GrpcPodConfig != nil {
-		if source.Spec.GrpcPodConfig.SecurityContextConfig == operatorsv1alpha1.Restricted {
-			addSecurityContext(pod, runAsUser)
-		}
-	} else {
+	if source.Spec.GrpcPodConfig != nil && source.Spec.GrpcPodConfig.SecurityContextConfig == operatorsv1alpha1.Restricted {
 		addSecurityContext(pod, runAsUser)
 	}
 
