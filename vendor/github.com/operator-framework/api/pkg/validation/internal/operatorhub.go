@@ -71,15 +71,15 @@ import (
 // containing a list of categories will enable those categories to be used when comparing CSV categories for
 // OperatorHub validation. The json file should be in the following format:
 //
-//	```json
-//	{
-//		"categories":[
-//      "Cloud Pak",
-//      "Registry",
-//      "MyCoolThing",
-//  	 ]
-//	}
-// 	```
+//		```json
+//		{
+//			"categories":[
+//	     "Cloud Pak",
+//	     "Registry",
+//	     "MyCoolThing",
+//	 	 ]
+//		}
+//		```
 //
 // - The `csv.Spec.Provider.Name` was provided
 //

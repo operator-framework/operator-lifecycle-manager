@@ -2,12 +2,16 @@ package internal
 
 import (
 	"fmt"
-	"github.com/blang/semver"
+	"sort"
+	"strings"
+
+	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/manifests"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/api/pkg/validation/errors"
 	interfaces "github.com/operator-framework/api/pkg/validation/interfaces"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sort"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // k8sVersionKey defines the key which can be used by its consumers
@@ -147,11 +151,12 @@ func checkRemovedAPIsForVersion(
 	errs []error, warns []error) ([]error, []error) {
 
 	found := map[string][]string{}
+	warnsFound := map[string][]string{}
 	switch k8sVersionToCheck.String() {
 	case "1.22.0":
 		found = getRemovedAPIsOn1_22From(bundle)
 	case "1.25.0":
-		found = getRemovedAPIsOn1_25From(bundle)
+		found, warnsFound = getRemovedAPIsOn1_25From(bundle)
 	case "1.26.0":
 		found = getRemovedAPIsOn1_26From(bundle)
 	default:
@@ -172,6 +177,16 @@ func checkRemovedAPIsForVersion(
 			warns = append(warns, msg)
 		}
 	}
+
+	if len(warnsFound) > 0 {
+		deprecatedAPIsMessage := generateMessageWithDeprecatedAPIs(warnsFound)
+		msg := fmt.Errorf(DeprecateMessage,
+			k8sVersionToCheck.Major, k8sVersionToCheck.Minor,
+			k8sVersionToCheck.Major, k8sVersionToCheck.Minor,
+			deprecatedAPIsMessage)
+		warns = append(warns, msg)
+	}
+
 	return errs, warns
 }
 
@@ -287,40 +302,129 @@ func getRemovedAPIsOn1_22From(bundle *manifests.Bundle) map[string][]string {
 // add manifests on the bundle using these APIs. On top of that some Kinds such as the CronJob
 // are not currently a valid/supported by OLM and never would to be added to bundle.
 // See: https://github.com/operator-framework/operator-registry/blob/v1.19.5/pkg/lib/bundle/supported_resources.go#L3-L23
-func getRemovedAPIsOn1_25From(bundle *manifests.Bundle) map[string][]string {
+func getRemovedAPIsOn1_25From(bundle *manifests.Bundle) (map[string][]string, map[string][]string) {
 	deprecatedAPIs := make(map[string][]string)
+	warnDeprecatedAPIs := make(map[string][]string)
+
+	addIfDeprecated := func(u *unstructured.Unstructured) {
+		switch u.GetAPIVersion() {
+		case "batch/v1beta1":
+			if u.GetKind() == "CronJob" {
+				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
+			}
+		case "discovery.k8s.io/v1beta1":
+			if u.GetKind() == "EndpointSlice" {
+				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
+			}
+		case "events.k8s.io/v1beta1":
+			if u.GetKind() == "Event" {
+				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
+			}
+		case "autoscaling/v2beta1":
+			if u.GetKind() == "HorizontalPodAutoscaler" {
+				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
+			}
+		case "policy/v1beta1":
+			if u.GetKind() == "PodDisruptionBudget" || u.GetKind() == "PodSecurityPolicy" {
+				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
+			}
+		case "node.k8s.io/v1beta1":
+			if u.GetKind() == "RuntimeClass" {
+				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
+			}
+		}
+	}
+
+	warnIfDeprecated := func(res string, msg string) {
+		switch res {
+		case "cronjobs":
+			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
+		case "endpointslices":
+			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
+		case "events":
+			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
+		case "horizontalpodautoscalers":
+			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
+		case "poddisruptionbudgets":
+			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
+		case "podsecuritypolicies":
+			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
+		case "runtimeclasses":
+			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
+		}
+	}
+
 	for _, obj := range bundle.Objects {
 		switch u := obj.GetObjectKind().(type) {
 		case *unstructured.Unstructured:
 			switch u.GetAPIVersion() {
-			case "batch/v1beta1":
-				if u.GetKind() == "CronJob" {
-					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
+			case "operators.coreos.com/v1alpha1":
+				// Check a couple CSV fields for references to deprecated APIs
+				if u.GetKind() == "ClusterServiceVersion" {
+					resInCsvCrds := make(map[string]struct{})
+					csv := &v1alpha1.ClusterServiceVersion{}
+					err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, csv)
+					if err != nil {
+						fmt.Println("failed to convert unstructured.Unstructed to v1alpha1.ClusterServiceVersion:", err)
+					}
+
+					// Loop through all the CRDDescriptions to see
+					// if there is any with an API Version & Kind that is deprecated
+					crdCheck := func(crdsField string, crdDescriptions []v1alpha1.CRDDescription) {
+						for i, desc := range crdDescriptions {
+							for j, res := range desc.Resources {
+								resFromKind := fmt.Sprintf("%ss", strings.ToLower(res.Kind))
+								resInCsvCrds[resFromKind] = struct{}{}
+								unstruct := &unstructured.Unstructured{
+									Object: map[string]interface{}{
+										"apiVersion": res.Version,
+										"kind":       res.Kind,
+										"metadata": map[string]interface{}{
+											"name": fmt.Sprintf("ClusterServiceVersion.Spec.CustomResourceDefinitions.%s[%d].Resource[%d]", crdsField, i, j),
+										},
+									},
+								}
+								addIfDeprecated(unstruct)
+							}
+						}
+					}
+
+					// Check the Owned Resources
+					crdCheck("Owned", csv.Spec.CustomResourceDefinitions.Owned)
+
+					// Check the Required Resources
+					crdCheck("Required", csv.Spec.CustomResourceDefinitions.Required)
+
+					// Loop through all the StrategyDeploymentPermissions to see
+					// if the rbacv1.PolicyRule that is defined specifies a resource that
+					// *may* have a deprecated API then add it to the warnings.
+					// Only present a warning if the resource was NOT found as a resource
+					// in the ClusterServiceVersion.Spec.CustomResourceDefinitions fields
+					permCheck := func(permField string, perms []v1alpha1.StrategyDeploymentPermissions) {
+						for i, perm := range perms {
+							for j, rule := range perm.Rules {
+								for _, res := range rule.Resources {
+									if _, ok := resInCsvCrds[res]; ok {
+										continue
+									}
+									warnIfDeprecated(res, fmt.Sprintf("ClusterServiceVersion.Spec.InstallStrategy.StrategySpec.%s[%d].Rules[%d]", permField, i, j))
+								}
+							}
+						}
+					}
+
+					// Check the ClusterPermissions
+					permCheck("ClusterPermissions", csv.Spec.InstallStrategy.StrategySpec.ClusterPermissions)
+
+					// Check the Permissions
+					permCheck("Permissions", csv.Spec.InstallStrategy.StrategySpec.Permissions)
 				}
-			case "discovery.k8s.io/v1beta1":
-				if u.GetKind() == "EndpointSlice" {
-					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
-				}
-			case "events.k8s.io/v1beta1":
-				if u.GetKind() == "Event" {
-					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
-				}
-			case "autoscaling/v2beta1":
-				if u.GetKind() == "HorizontalPodAutoscaler" {
-					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
-				}
-			case "policy/v1beta1":
-				if u.GetKind() == "PodDisruptionBudget" || u.GetKind() == "PodSecurityPolicy" {
-					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
-				}
-			case "node.k8s.io/v1beta1":
-				if u.GetKind() == "RuntimeClass" {
-					deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], obj.GetName())
-				}
+			default:
+				addIfDeprecated(u)
 			}
 		}
 	}
-	return deprecatedAPIs
+	return deprecatedAPIs, warnDeprecatedAPIs
 }
 
 // getRemovedAPIsOn1_26From return the list of resources which were deprecated
