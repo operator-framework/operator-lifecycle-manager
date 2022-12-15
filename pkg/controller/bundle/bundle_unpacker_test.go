@@ -33,6 +33,7 @@ const (
 	opmImage    = "opm-image"
 	utilImage   = "util-image"
 	bundlePath  = "bundle-path"
+	digestImage = "bundle@sha256:54d626e08c1c802b305dad30b7e54a82f102390cc92c7d4db112048935236e9c"
 	runAsUser   = 1001
 )
 
@@ -398,7 +399,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			},
 		},
 		{
-			description: "CatalogSourcePresent/ConfigMapPresent/JobPresent/Unpacked",
+			description: "CatalogSourcePresent/ConfigMapPresent/JobPresent/DigestImage/Unpacked",
 			fields: fields{
 				objs: []runtime.Object{
 					&batchv1.Job{
@@ -488,8 +489,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 										},
 										{
 											Name:            "pull",
-											Image:           bundlePath,
-											ImagePullPolicy: "Always",
+											Image:           digestImage,
+											ImagePullPolicy: "IfNotPresent",
 											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
@@ -731,8 +732,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 										},
 										{
 											Name:            "pull",
-											Image:           bundlePath,
-											ImagePullPolicy: "Always",
+											Image:           digestImage,
+											ImagePullPolicy: "IfNotPresent",
 											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{

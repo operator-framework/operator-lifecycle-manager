@@ -29,6 +29,7 @@ import (
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/image"
 )
 
 const (
@@ -170,7 +171,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 						{
 							Name:            "pull",
 							Image:           bundlePath,
-							ImagePullPolicy: "Always",
+							ImagePullPolicy: image.InferImagePullPolicy(c.utilImage),
 							Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 							VolumeMounts: []corev1.VolumeMount{
 								{
