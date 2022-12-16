@@ -3089,6 +3089,9 @@ var _ = Describe("Install Plan", func() {
 			Spec: operatorsv1alpha1.CatalogSourceSpec{
 				Image:      "quay.io/operator-framework/ci-index:latest",
 				SourceType: operatorsv1alpha1.SourceTypeGrpc,
+				GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+					SecurityContextConfig: operatorsv1alpha1.Restricted,
+				},
 			},
 		}
 		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.Background(), catsrc, metav1.CreateOptions{})
@@ -3245,6 +3248,9 @@ var _ = Describe("Install Plan", func() {
 					Spec: operatorsv1alpha1.CatalogSourceSpec{
 						SourceType: operatorsv1alpha1.SourceTypeGrpc,
 						Address:    dependentCatalogSource.Status.RegistryServiceStatus.Address(),
+						GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+							SecurityContextConfig: operatorsv1alpha1.Restricted,
+						},
 					},
 				}
 				addressSource.SetName(genName("alt-dep-"))
@@ -3419,6 +3425,9 @@ var _ = Describe("Install Plan", func() {
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
 					Image:      "localhost:0/not/exist:catsrc",
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
+					GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+						SecurityContextConfig: operatorsv1alpha1.Restricted,
+					},
 				},
 			}
 			Eventually(func() error {
@@ -3633,6 +3642,9 @@ var _ = Describe("Install Plan", func() {
 			Spec: operatorsv1alpha1.CatalogSourceSpec{
 				Image:      "quay.io/operator-framework/ci-index:latest",
 				SourceType: operatorsv1alpha1.SourceTypeGrpc,
+				GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+					SecurityContextConfig: operatorsv1alpha1.Restricted,
+				},
 			},
 		}
 		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.Background(), catsrc, metav1.CreateOptions{})

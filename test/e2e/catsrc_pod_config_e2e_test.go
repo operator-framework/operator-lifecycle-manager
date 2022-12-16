@@ -56,6 +56,9 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
 					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
 				},
 			}
 		})
@@ -78,7 +81,8 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 
 			// create catalog source
 			catalogSource.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{
-				PriorityClassName: &overridenPriorityClassName,
+				PriorityClassName:     &overridenPriorityClassName,
+				SecurityContextConfig: v1alpha1.Restricted,
 			}
 			mustCreateCatalogSource(client, catalogSource)
 
@@ -95,7 +99,8 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 
 			// create catalog source
 			catalogSource.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{
-				PriorityClassName: &overridenPriorityClassName,
+				PriorityClassName:     &overridenPriorityClassName,
+				SecurityContextConfig: v1alpha1.Restricted,
 			}
 			mustCreateCatalogSource(client, catalogSource)
 
@@ -115,7 +120,8 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 
 			// create catalog source
 			catalogSource.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{
-				NodeSelector: overridenNodeSelector,
+				NodeSelector:          overridenNodeSelector,
+				SecurityContextConfig: v1alpha1.Restricted,
 			}
 			mustCreateCatalogSource(client, catalogSource)
 
@@ -145,7 +151,8 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 
 			// create catalog source
 			catalogSource.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{
-				Tolerations: overriddenTolerations,
+				Tolerations:           overriddenTolerations,
+				SecurityContextConfig: v1alpha1.Restricted,
 			}
 			mustCreateCatalogSource(client, catalogSource)
 

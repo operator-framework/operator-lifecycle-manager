@@ -582,6 +582,9 @@ func createInvalidGRPCCatalogSource(c operatorclient.ClientInterface, crc versio
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "grpc",
 			Image:      "localhost:0/not/exists:catsrc",
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 
@@ -616,6 +619,9 @@ func createInternalCatalogSource(
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 
@@ -657,6 +663,9 @@ func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface,
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
 			Priority:   priority,
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 	catalogSource.SetNamespace(namespace)
@@ -700,6 +709,9 @@ func createV1CRDInternalCatalogSource(
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 	catalogSource.SetNamespace(namespace)

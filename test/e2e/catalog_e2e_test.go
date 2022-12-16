@@ -562,6 +562,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Address:    net.JoinHostPort(mainCopy.Status.PodIP, "50051"),
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
 
@@ -702,6 +705,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Image:      communityOperatorsImage,
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
 
@@ -830,6 +836,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Image:      image,
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 				UpdateStrategy: &v1alpha1.UpdateStrategy{
 					RegistryPoll: &v1alpha1.RegistryPoll{
 						// Using RawInterval rather than Interval due to this issue:
@@ -1014,6 +1023,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Image:      catSrcImage + ":1.0.0-with-ListBundles-method",
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
 
@@ -1117,6 +1129,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
 					Image:      "quay.io/olmtest/catsrc-update-test:new",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
 					UpdateStrategy: &v1alpha1.UpdateStrategy{
 						RegistryPoll: &v1alpha1.RegistryPoll{
 							RawInterval: "45s",
@@ -1195,6 +1210,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
 					Image:      "quay.io/olmtest/catsrc-update-test:new",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
 					UpdateStrategy: &v1alpha1.UpdateStrategy{
 						RegistryPoll: &v1alpha1.RegistryPoll{
 							RawInterval: incorrectInterval,
@@ -1274,6 +1292,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Image:      "quay.io/olmtest/catsrc-update-test:old",
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
 
@@ -1511,11 +1532,11 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 						Labels:    map[string]string{"olm.catalogSource": sourceName},
 					},
 					Spec: v1alpha1.CatalogSourceSpec{
+						SourceType: v1alpha1.SourceTypeGrpc,
+						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
 						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 							SecurityContextConfig: operatorsv1alpha1.Legacy,
 						},
-						SourceType: v1alpha1.SourceTypeGrpc,
-						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
 					},
 				}
 

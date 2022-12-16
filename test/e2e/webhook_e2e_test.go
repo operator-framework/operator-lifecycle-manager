@@ -669,6 +669,9 @@ var _ = Describe("CSVs with a Webhook", func() {
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
 					Image:      catSrcImage + ":0.0.3",
+					GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+						SecurityContextConfig: operatorsv1alpha1.Restricted,
+					},
 				},
 			}
 

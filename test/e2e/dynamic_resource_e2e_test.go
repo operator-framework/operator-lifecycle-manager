@@ -68,6 +68,9 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 						Spec: v1alpha1.CatalogSourceSpec{
 							Image:      "quay.io/olmtest/catsrc_dynamic_resources:e2e-test",
 							SourceType: v1alpha1.SourceTypeGrpc,
+							GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+								SecurityContextConfig: v1alpha1.Restricted,
+							},
 						},
 					}
 
