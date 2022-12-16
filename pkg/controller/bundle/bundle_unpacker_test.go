@@ -39,6 +39,7 @@ const (
 
 func TestConfigMapUnpacker(t *testing.T) {
 	pathHash := hash(bundlePath)
+	digestHash := hash(digestPath)
 	start := metav1.Now()
 	now := func() metav1.Time {
 		return start
@@ -404,13 +405,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 				objs: []runtime.Object{
 					&batchv1.Job{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      hash(digestPath),
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
 									Kind:               "ConfigMap",
-									Name:               hash(digestPath),
+									Name:               digestHash,
 									Controller:         &blockOwnerDeletion,
 									BlockOwnerDeletion: &blockOwnerDeletion,
 								},
@@ -421,7 +422,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: hash(digestPath),
+									Name: digestHash,
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -436,7 +437,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", hash(digestPath), "-z"},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", digestHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
@@ -549,7 +550,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 					},
 					&corev1.ConfigMap{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      hash(digestPath),
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
@@ -608,7 +609,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 							Name:      "src-a",
 						},
 					},
-					name: hash(digestPath),
+					name: digestHash,
 					bundle: &api.Bundle{
 						CsvName: "etcdoperator.v0.9.2",
 						CsvJson: csvJSON + "\n",
@@ -623,7 +624,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				configMaps: []*corev1.ConfigMap{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      hash(digestPath),
+							Name:      digestHash,
 							Namespace: "ns-a",
 							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
@@ -647,13 +648,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 				jobs: []*batchv1.Job{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      hash(digestPath),
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
 									Kind:               "ConfigMap",
-									Name:               hash(digestPath),
+									Name:               digestHash,
 									Controller:         &blockOwnerDeletion,
 									BlockOwnerDeletion: &blockOwnerDeletion,
 								},
@@ -664,7 +665,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: hash(digestPath),
+									Name: digestHash,
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -679,7 +680,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", hash(digestPath), "-z"},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", digestHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
@@ -794,13 +795,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 				roles: []*rbacv1.Role{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      hash(digestPath),
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
 									Kind:               "ConfigMap",
-									Name:               hash(digestPath),
+									Name:               digestHash,
 									Controller:         &blockOwnerDeletion,
 									BlockOwnerDeletion: &blockOwnerDeletion,
 								},
@@ -818,7 +819,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									"configmaps",
 								},
 								ResourceNames: []string{
-									hash(digestPath),
+									digestHash,
 								},
 							},
 						},
@@ -827,13 +828,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 				roleBindings: []*rbacv1.RoleBinding{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      hash(digestPath),
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
 									Kind:               "ConfigMap",
-									Name:               hash(digestPath),
+									Name:               digestHash,
 									Controller:         &blockOwnerDeletion,
 									BlockOwnerDeletion: &blockOwnerDeletion,
 								},
@@ -850,7 +851,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						RoleRef: rbacv1.RoleRef{
 							APIGroup: "rbac.authorization.k8s.io",
 							Kind:     "Role",
-							Name:     hash(digestPath),
+							Name:     digestHash,
 						},
 					},
 				},
