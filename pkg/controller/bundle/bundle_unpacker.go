@@ -171,7 +171,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 						{
 							Name:            "pull",
 							Image:           bundlePath,
-							ImagePullPolicy: image.InferImagePullPolicy(c.utilImage),
+							ImagePullPolicy: image.InferImagePullPolicy(bundlePath),
 							Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 							VolumeMounts: []corev1.VolumeMount{
 								{
