@@ -50,8 +50,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 	defaultUnpackTimeoutSeconds := int64(defaultUnpackDuration.Seconds())
 
 	// Custom timeout to override the default cmdline flag ActiveDeadlineSeconds value
-	//customAnnotationDuration := 2 * time.Minute
-	//customAnnotationTimeoutSeconds := int64(customAnnotationDuration.Seconds())
+	customAnnotationDuration := 2 * time.Minute
+	customAnnotationTimeoutSeconds := int64(customAnnotationDuration.Seconds())
 
 	type fields struct {
 		objs []runtime.Object
@@ -77,7 +77,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 		args        args
 		expected    expected
 	}{
-		/*{
+		{
 			description: "NoCatalogSource/NoConfigMap/NoJob/NotCreated/Pending",
 			fields:      fields{},
 			args: args{
@@ -397,7 +397,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 					},
 				},
 			},
-		},*/
+		},
 		{
 			description: "CatalogSourcePresent/ConfigMapPresent/JobPresent/DigestImage/Unpacked",
 			fields: fields{
