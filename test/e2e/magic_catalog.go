@@ -247,6 +247,9 @@ func (c *MagicCatalog) makeCatalogSource() *operatorsv1alpha1.CatalogSource {
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: operatorsv1alpha1.SourceTypeGrpc,
 			Address:    fmt.Sprintf("%s.%s.svc:50051", c.serviceName, c.namespace),
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 }
