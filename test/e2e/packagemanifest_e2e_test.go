@@ -227,6 +227,9 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 					SourceType:  v1alpha1.SourceTypeGrpc,
 					Image:       image,
 					DisplayName: displayName,
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
 				},
 			}
 

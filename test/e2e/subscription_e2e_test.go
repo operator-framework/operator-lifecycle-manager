@@ -773,6 +773,9 @@ var _ = Describe("Subscription", func() {
 						},
 						Spec: operatorsv1alpha1.CatalogSourceSpec{
 							SourceType: "goose",
+							GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+								SecurityContextConfig: operatorsv1alpha1.Restricted,
+							},
 						},
 					}
 
@@ -832,6 +835,9 @@ var _ = Describe("Subscription", func() {
 						},
 						Spec: operatorsv1alpha1.CatalogSourceSpec{
 							SourceType: operatorsv1alpha1.SourceTypeGrpc,
+							GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+								SecurityContextConfig: operatorsv1alpha1.Restricted,
+							},
 						},
 					}
 
@@ -889,6 +895,9 @@ var _ = Describe("Subscription", func() {
 						},
 						Spec: operatorsv1alpha1.CatalogSourceSpec{
 							SourceType: operatorsv1alpha1.SourceTypeInternal,
+							GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+								SecurityContextConfig: operatorsv1alpha1.Restricted,
+							},
 						},
 					}
 
@@ -942,6 +951,9 @@ var _ = Describe("Subscription", func() {
 						},
 						Spec: operatorsv1alpha1.CatalogSourceSpec{
 							SourceType: operatorsv1alpha1.SourceTypeInternal,
+							GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+								SecurityContextConfig: operatorsv1alpha1.Restricted,
+							},
 						},
 					}
 
@@ -2528,6 +2540,9 @@ var (
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  catalogConfigMapName,
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 )
