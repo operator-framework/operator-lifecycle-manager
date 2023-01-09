@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -203,6 +204,8 @@ var (
 	// Subscription objects. The key of a record is the Subscription name, while the value
 	//  is struct containing label values used in the counter
 	subscriptionSyncCounters = make(map[string]subscriptionSyncLabelValues)
+
+	subscriptionSyncCountersLock sync.Mutex
 )
 
 type subscriptionSyncLabelValues struct {
@@ -280,6 +283,8 @@ func EmitSubMetric(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
+	subscriptionSyncCountersLock.Lock()
+	defer subscriptionSyncCountersLock.Unlock()
 	SubscriptionSyncCount.WithLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package, string(sub.Spec.InstallPlanApproval)).Inc()
 	if _, present := subscriptionSyncCounters[sub.GetName()]; !present {
 		subscriptionSyncCounters[sub.GetName()] = subscriptionSyncLabelValues{
@@ -302,6 +307,8 @@ func UpdateSubsSyncCounterStorage(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
+	subscriptionSyncCountersLock.Lock()
+	defer subscriptionSyncCountersLock.Unlock()
 	counterValues := subscriptionSyncCounters[sub.GetName()]
 	approvalStrategy := string(sub.Spec.InstallPlanApproval)
 
