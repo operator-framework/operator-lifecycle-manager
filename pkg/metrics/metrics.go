@@ -200,25 +200,31 @@ var (
 		},
 	)
 
-	subscriptionSyncCounters subscriptionSync
+	subscriptionSyncCounters = newSubscriptionSyncCounter()
 )
 
-// subscriptionSyncCounters keeps a record of the Prometheus counters emitted by
+// subscriptionSyncCounter keeps a record of the Prometheus counters emitted by
 // Subscription objects. The key of a record is the Subscription name, while the value
 // is struct containing label values used in the counter. Read and Write access are
 // protected by mutex.
-type subscriptionSync struct {
+type subscriptionSyncCounter struct {
 	counters     map[string]subscriptionSyncLabelValues
 	countersLock sync.Mutex
 }
 
-func (s *subscriptionSync) setValues(key string, val subscriptionSyncLabelValues) {
+func newSubscriptionSyncCounter() subscriptionSyncCounter {
+	return subscriptionSyncCounter{
+		counters: make(map[string]subscriptionSyncLabelValues),
+	}
+}
+
+func (s *subscriptionSyncCounter) setValues(key string, val subscriptionSyncLabelValues) {
 	s.countersLock.Lock()
 	defer s.countersLock.Unlock()
 	s.counters[key] = val
 }
 
-func (s *subscriptionSync) readValues(key string) (subscriptionSyncLabelValues, bool) {
+func (s *subscriptionSyncCounter) readValues(key string) (subscriptionSyncLabelValues, bool) {
 	s.countersLock.Lock()
 	defer s.countersLock.Unlock()
 	val, ok := s.counters[key]
