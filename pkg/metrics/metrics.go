@@ -200,13 +200,30 @@ var (
 		},
 	)
 
-	// subscriptionSyncCounters keeps a record of the Prometheus counters emitted by
-	// Subscription objects. The key of a record is the Subscription name, while the value
-	//  is struct containing label values used in the counter
-	subscriptionSyncCounters = make(map[string]subscriptionSyncLabelValues)
-
-	subscriptionSyncCountersLock sync.Mutex
+	subscriptionSyncCounters subscriptionSync
 )
+
+// subscriptionSyncCounters keeps a record of the Prometheus counters emitted by
+// Subscription objects. The key of a record is the Subscription name, while the value
+// is struct containing label values used in the counter. Read and Write access are
+// protected by mutex.
+type subscriptionSync struct {
+	counters     map[string]subscriptionSyncLabelValues
+	countersLock sync.Mutex
+}
+
+func (s *subscriptionSync) setValues(key string, val subscriptionSyncLabelValues) {
+	s.countersLock.Lock()
+	defer s.countersLock.Unlock()
+	s.counters[key] = val
+}
+
+func (s *subscriptionSync) readValues(key string) (subscriptionSyncLabelValues, bool) {
+	s.countersLock.Lock()
+	defer s.countersLock.Unlock()
+	val, ok := s.counters[key]
+	return val, ok
+}
 
 type subscriptionSyncLabelValues struct {
 	installedCSV     string
@@ -283,16 +300,15 @@ func EmitSubMetric(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
-	subscriptionSyncCountersLock.Lock()
-	defer subscriptionSyncCountersLock.Unlock()
+
 	SubscriptionSyncCount.WithLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package, string(sub.Spec.InstallPlanApproval)).Inc()
-	if _, present := subscriptionSyncCounters[sub.GetName()]; !present {
-		subscriptionSyncCounters[sub.GetName()] = subscriptionSyncLabelValues{
+	if _, present := subscriptionSyncCounters.readValues(sub.GetName()); !present {
+		subscriptionSyncCounters.setValues(sub.GetName(), subscriptionSyncLabelValues{
 			installedCSV:     sub.Status.InstalledCSV,
 			pkg:              sub.Spec.Package,
 			channel:          sub.Spec.Channel,
 			approvalStrategy: string(sub.Spec.InstallPlanApproval),
-		}
+		})
 	}
 }
 
@@ -307,9 +323,7 @@ func UpdateSubsSyncCounterStorage(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
-	subscriptionSyncCountersLock.Lock()
-	defer subscriptionSyncCountersLock.Unlock()
-	counterValues := subscriptionSyncCounters[sub.GetName()]
+	counterValues, _ := subscriptionSyncCounters.readValues(sub.GetName())
 	approvalStrategy := string(sub.Spec.InstallPlanApproval)
 
 	if sub.Spec.Channel != counterValues.channel ||
@@ -324,7 +338,7 @@ func UpdateSubsSyncCounterStorage(sub *operatorsv1alpha1.Subscription) {
 		counterValues.channel = sub.Spec.Channel
 		counterValues.approvalStrategy = approvalStrategy
 
-		subscriptionSyncCounters[sub.GetName()] = counterValues
+		subscriptionSyncCounters.setValues(sub.GetName(), counterValues)
 	}
 }
 
