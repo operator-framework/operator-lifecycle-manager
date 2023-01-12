@@ -209,7 +209,7 @@ var (
 // protected by mutex.
 type subscriptionSyncCounter struct {
 	counters     map[string]subscriptionSyncLabelValues
-	countersLock sync.Mutex
+	countersLock sync.RWMutex
 }
 
 func newSubscriptionSyncCounter() subscriptionSyncCounter {
@@ -225,8 +225,8 @@ func (s *subscriptionSyncCounter) setValues(key string, val subscriptionSyncLabe
 }
 
 func (s *subscriptionSyncCounter) readValues(key string) (subscriptionSyncLabelValues, bool) {
-	s.countersLock.Lock()
-	defer s.countersLock.Unlock()
+	s.countersLock.RLock()
+	defer s.countersLock.RUnlock()
 	val, ok := s.counters[key]
 	return val, ok
 }
