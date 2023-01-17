@@ -58,7 +58,7 @@ type OperatorReconciler struct {
 
 // SetupWithManager adds the operator reconciler to the given controller manager.
 func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Trigger operator events from the events of their compoenents.
+	// Trigger operator events from the events of their components.
 	enqueueOperator := handler.EnqueueRequestsFromMapFunc(r.mapComponentRequests)
 	// Note: If we want to support resources composed of custom resources, we need to figure out how
 	// to dynamically add resource types to watch.

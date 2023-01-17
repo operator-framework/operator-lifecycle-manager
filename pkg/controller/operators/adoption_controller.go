@@ -47,7 +47,7 @@ type AdoptionReconciler struct {
 
 // SetupWithManager adds the operator reconciler to the given controller manager.
 func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Trigger operator events from the events of their compoenents.
+	// Trigger operator events from the events of their components.
 	enqueueSub := handler.EnqueueRequestsFromMapFunc(r.mapToSubscriptions)
 
 	// Create multiple controllers for resource types that require automatic adoption
