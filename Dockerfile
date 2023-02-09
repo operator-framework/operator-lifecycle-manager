@@ -1,4 +1,4 @@
-FROM quay.io/fedora/fedora:34-x86_64 as builder
+FROM quay.io/fedora/fedora:37-x86_64 as builder
 LABEL stage=builder
 WORKDIR /build
 
