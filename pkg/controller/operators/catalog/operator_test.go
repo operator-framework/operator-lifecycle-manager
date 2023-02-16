@@ -1415,6 +1415,54 @@ func TestValidateExistingCRs(t *testing.T) {
 	}
 }
 
+func TestSyncRegistryServer(t *testing.T) {
+	namespace := "ns"
+
+	tests := []struct {
+		testName   string
+		err        error
+		catSrc     *v1alpha1.CatalogSource
+		clientObjs []runtime.Object
+	}{
+		{
+			testName: "EmptyRegistryPoll",
+			err:      fmt.Errorf("empty polling interval; cannot requeue registry server sync without a provided polling interval"),
+			catSrc: &v1alpha1.CatalogSource{
+				Spec: v1alpha1.CatalogSourceSpec{
+					UpdateStrategy: &v1alpha1.UpdateStrategy{
+						RegistryPoll: &v1alpha1.RegistryPoll{},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			tt.clientObjs = append(tt.clientObjs, tt.catSrc)
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.clientObjs...))
+			require.NoError(t, err)
+
+			op.reconciler = &fakes.FakeRegistryReconcilerFactory{
+				ReconcilerForSourceStub: func(source *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
+					return &fakes.FakeRegistryReconciler{
+						EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
+							return nil
+						},
+					}
+				},
+			}
+			require.NotPanics(t, func() {
+				_, _, err = op.syncRegistryServer(logrus.NewEntry(op.logger), tt.catSrc)
+			})
+			require.Equal(t, tt.err, err)
+		})
+	}
+}
+
 func fakeConfigMapData() map[string]string {
 	data := make(map[string]string)
 	yaml, err := yaml.Marshal([]apiextensionsv1beta1.CustomResourceDefinition{crd("fake-crd")})

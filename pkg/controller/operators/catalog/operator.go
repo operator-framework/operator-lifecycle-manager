@@ -749,16 +749,19 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 	logger.Debug("ensured registry server")
 
 	// requeue the catalog sync based on the polling interval, for accurate syncs of catalogs with polling enabled
-	if out.Spec.UpdateStrategy != nil {
-		if out.Spec.UpdateStrategy.RegistryPoll != nil {
-			if out.Spec.UpdateStrategy.RegistryPoll.ParsingError != "" && out.Status.Reason != v1alpha1.CatalogSourceIntervalInvalidError {
-				out.SetError(v1alpha1.CatalogSourceIntervalInvalidError, fmt.Errorf(out.Spec.UpdateStrategy.RegistryPoll.ParsingError))
-			}
-			logger.Debugf("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
-			resyncPeriod := reconciler.SyncRegistryUpdateInterval(out, time.Now())
-			o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), queueinformer.ResyncWithJitter(resyncPeriod, 0.1)())
+	if out.Spec.UpdateStrategy != nil && out.Spec.UpdateStrategy.RegistryPoll != nil {
+		if out.Spec.UpdateStrategy.Interval == nil {
+			syncError = fmt.Errorf("empty polling interval; cannot requeue registry server sync without a provided polling interval")
+			out.SetError(v1alpha1.CatalogSourceIntervalInvalidError, syncError)
 			return
 		}
+		if out.Spec.UpdateStrategy.RegistryPoll.ParsingError != "" && out.Status.Reason != v1alpha1.CatalogSourceIntervalInvalidError {
+			out.SetError(v1alpha1.CatalogSourceIntervalInvalidError, fmt.Errorf(out.Spec.UpdateStrategy.RegistryPoll.ParsingError))
+		}
+		logger.Debugf("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
+		resyncPeriod := reconciler.SyncRegistryUpdateInterval(out, time.Now())
+		o.catsrcQueueSet.RequeueAfter(out.GetNamespace(), out.GetName(), queueinformer.ResyncWithJitter(resyncPeriod, 0.1)())
+		return
 	}
 
 	if err := o.sources.Remove(sourceKey); err != nil {
