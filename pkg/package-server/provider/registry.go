@@ -512,6 +512,9 @@ func (p *RegistryProvider) List(namespace string, selector labels.Selector) (*op
 
 func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Package, client *registryClient, entriesByChannel map[string][]operators.ChannelEntry) (*operators.PackageManifest, error) {
 	pkgChannels := pkg.GetChannels()
+	sort.Slice(pkgChannels, func(i, j int) bool {
+		return pkgChannels[i].Name < pkgChannels[j].Name
+	})
 	catsrc := client.catsrc
 	manifest := &operators.PackageManifest{
 		ObjectMeta: metav1.ObjectMeta{
