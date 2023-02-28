@@ -329,6 +329,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
 								},
 							},
 						},
@@ -530,6 +533,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
 										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
 									},
 								},
 							},
@@ -774,6 +780,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
 								},
 							},
 						},
@@ -1011,6 +1020,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
 								},
 							},
 						},
@@ -1217,6 +1229,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
 										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
 									},
 								},
 							},
@@ -1435,6 +1450,9 @@ func TestConfigMapUnpacker(t *testing.T) {
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
 										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
 									},
 								},
 							},
