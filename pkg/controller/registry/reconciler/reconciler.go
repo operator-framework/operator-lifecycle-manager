@@ -214,6 +214,11 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, img string, saNam
 				pod.Spec.Tolerations[index] = *toleration.DeepCopy()
 			}
 		}
+
+		// Override affinity
+		if grpcPodConfig.Affinity != nil {
+			pod.Spec.Affinity = grpcPodConfig.Affinity.DeepCopy()
+		}
 	}
 
 	// Set priorityclass if its annotation exists
