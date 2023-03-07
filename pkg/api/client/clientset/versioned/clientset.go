@@ -39,8 +39,7 @@ type Interface interface {
 	OperatorsV2() operatorsv2.OperatorsV2Interface
 }
 
-// Clientset contains the clients for groups. Each group has exactly one
-// version included in a Clientset.
+// Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
 	operatorsV1alpha1 *operatorsv1alpha1.OperatorsV1alpha1Client
