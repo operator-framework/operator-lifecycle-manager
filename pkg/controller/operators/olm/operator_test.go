@@ -3852,7 +3852,8 @@ func TestUpdates(t *testing.T) {
 			in:   []*v1alpha1.ClusterServiceVersion{c, a, b},
 		},
 	}
-	for _, tt := range tests {
+	for _, xt := range tests {
+		tt := xt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
