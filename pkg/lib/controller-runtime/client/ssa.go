@@ -90,10 +90,11 @@ type ServerSideApplier struct {
 // plan := &InstallPlan{}
 // plan.SetNamespace("ns")
 // plan.SetName("install-123def")
-// Eventually(c.Apply(plan, func(p *v1alpha1.InstallPlan) error {
-//		p.Spec.Approved = true
-//		return nil
-// })).Should(Succeed())
+//
+//	Eventually(c.Apply(plan, func(p *v1alpha1.InstallPlan) error {
+//			p.Spec.Approved = true
+//			return nil
+//	})).Should(Succeed())
 func (c *ServerSideApplier) Apply(ctx context.Context, obj Object, changeFunc interface{}) func() error {
 	// Ensure given object is a pointer
 	objType := reflect.TypeOf(obj)

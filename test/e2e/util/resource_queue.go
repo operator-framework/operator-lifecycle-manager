@@ -79,7 +79,7 @@ func (q *ResourceQueue) DequeueHead() (k8scontrollerclient.Object, bool) {
 func (q *ResourceQueue) DequeueTail() (k8scontrollerclient.Object, bool) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
-	
+
 	if len(q.queue) == 0 {
 		return nil, false
 	}

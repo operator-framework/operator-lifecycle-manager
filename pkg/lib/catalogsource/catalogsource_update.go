@@ -12,7 +12,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 )
 
-/* UpdateStatus can be used to update the status of the provided catalog source. Note that
+/*
+UpdateStatus can be used to update the status of the provided catalog source. Note that
 the caller is responsible for ensuring accurate status values in the catsrc argument (i.e.
 the status is used as-is).
 
@@ -34,7 +35,8 @@ func UpdateStatus(logger *logrus.Entry, client versioned.Interface, catsrc *v1al
 	return nil
 }
 
-/* UpdateStatusWithConditions can be used to update the status conditions for the provided catalog source.
+/*
+UpdateStatusWithConditions can be used to update the status conditions for the provided catalog source.
 This function will make no changes to the other status fields (those fields will be used as-is).
 If the provided conditions do not result in any status condition changes, then the API server will not be updated.
 Note that the caller is responsible for ensuring accurate status values for all other fields.
@@ -71,7 +73,8 @@ func UpdateStatusWithConditions(logger *logrus.Entry, client versioned.Interface
 	return nil
 }
 
-/* UpdateSpecAndStatusConditions can be used to update the catalog source with the provided status conditions.
+/*
+UpdateSpecAndStatusConditions can be used to update the catalog source with the provided status conditions.
 This will update the spec and status portions of the catalog source. Calls to the API server will occur
 even if the provided conditions result in no changes.
 
@@ -98,7 +101,8 @@ func UpdateSpecAndStatusConditions(logger *logrus.Entry, client versioned.Interf
 	return nil
 }
 
-/* RemoveStatusConditions can be used to remove the status conditions for the provided catalog source.
+/*
+RemoveStatusConditions can be used to remove the status conditions for the provided catalog source.
 This function will make no changes to the other status fields (those fields will be used as-is).
 If the provided conditions do not result in any status condition changes, then the API server will not be updated.
 Note that the caller is responsible for ensuring accurate status values for all other fields.
