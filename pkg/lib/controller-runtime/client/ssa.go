@@ -183,7 +183,10 @@ func (c *ServerSideApplier) Apply(ctx context.Context, obj Object, changeFunc in
 			return err
 		}
 
-		if err := c.client.Status().Patch(ctx, cp, k8scontrollerclient.Apply, k8scontrollerclient.ForceOwnership, c.Owner); err != nil {
+		pos := &k8scontrollerclient.SubResourcePatchOptions{}
+		k8scontrollerclient.ForceOwnership.ApplyToPatch(&pos.PatchOptions)
+
+		if err := c.client.Status().Patch(ctx, cp, k8scontrollerclient.Apply, pos, c.Owner); err != nil {
 			fmt.Printf("second patch error: %s\n", err)
 			return err
 		}

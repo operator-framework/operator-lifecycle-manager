@@ -35,8 +35,7 @@ type fakeStatusWriter struct {
 	k8scontrollerclient.StatusWriter
 }
 
-func (c fakeStatusWriter) Patch(ctx context.Context, obj k8scontrollerclient.Object, patch k8scontrollerclient.Patch, opts ...k8scontrollerclient.PatchOption) error {
-	patch, opts = convertApplyToMergePatch(patch, opts...)
+func (c fakeStatusWriter) Patch(ctx context.Context, obj k8scontrollerclient.Object, patch k8scontrollerclient.Patch, opts ...k8scontrollerclient.SubResourcePatchOption) error {
 	return c.StatusWriter.Patch(ctx, obj, patch, opts...)
 }
 
