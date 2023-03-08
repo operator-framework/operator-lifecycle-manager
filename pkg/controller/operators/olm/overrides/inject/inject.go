@@ -235,10 +235,12 @@ func InjectNodeSelectorIntoDeployment(podSpec *corev1.PodSpec, nodeSelector map[
 // with the given corev1.Affinity. Any nil top-level sub-attributes (e.g. NodeAffinity, PodAffinity, and PodAntiAffinity)
 // will be ignored. Hint: to overwrite those top-level attributes, empty them out. I.e. use the empty/default object ({})
 // e.g. NodeAffinity{}. In yaml:
-// affinity:
-//   nodeAffinity: {}
-//   podAffinity: {}
-//   podAntiAffinity: {}
+//
+//	affinity:
+//	  nodeAffinity: {}
+//	  podAffinity: {}
+//	  podAntiAffinity: {}
+//
 // will completely remove the deployment podSpec.affinity and is equivalent to
 // affinity: {}
 func OverrideDeploymentAffinity(podSpec *corev1.PodSpec, affinity *corev1.Affinity) error {
