@@ -175,7 +175,7 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 	// By default, each deployment created by OLM could spawn up to 10 replicaSets.
 	// By setting the deployments revisionHistoryLimit to 1, OLM will only create up
 	// to 2 ReplicaSets per deployment it manages, saving memory.
-	dep.Spec.RevisionHistoryLimit = pointer.Int32Ptr(1)
+	dep.Spec.RevisionHistoryLimit = pointer.Int32(1)
 
 	hash = HashDeploymentSpec(dep.Spec)
 	dep.Labels[DeploymentSpecHashLabelKey] = hash

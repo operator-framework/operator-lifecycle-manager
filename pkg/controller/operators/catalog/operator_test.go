@@ -1333,7 +1333,8 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 			expectedResult: true,
 		},
 	}
-	for _, tt := range tests {
+	for _, xt := range tests {
+		tt := xt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

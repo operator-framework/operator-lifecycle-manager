@@ -28,6 +28,7 @@ import (
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ./operatorlisterfakes/fake_clusterserviceversion_v1alpha1_namespace_lister.go ../../api/client/listers/operators/v1alpha1.ClusterServiceVersionNamespaceLister
 
 // OperatorLister is a union of versioned informer listers
+//
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorLister
 type OperatorLister interface {
 	AppsV1() AppsV1Lister

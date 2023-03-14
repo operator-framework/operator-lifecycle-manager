@@ -90,10 +90,11 @@ type ServerSideApplier struct {
 // plan := &InstallPlan{}
 // plan.SetNamespace("ns")
 // plan.SetName("install-123def")
-// Eventually(c.Apply(plan, func(p *v1alpha1.InstallPlan) error {
-//		p.Spec.Approved = true
-//		return nil
-// })).Should(Succeed())
+//
+//	Eventually(c.Apply(plan, func(p *v1alpha1.InstallPlan) error {
+//			p.Spec.Approved = true
+//			return nil
+//	})).Should(Succeed())
 func (c *ServerSideApplier) Apply(ctx context.Context, obj Object, changeFunc interface{}) func() error {
 	// Ensure given object is a pointer
 	objType := reflect.TypeOf(obj)
@@ -182,7 +183,10 @@ func (c *ServerSideApplier) Apply(ctx context.Context, obj Object, changeFunc in
 			return err
 		}
 
-		if err := c.client.Status().Patch(ctx, cp, k8scontrollerclient.Apply, k8scontrollerclient.ForceOwnership, c.Owner); err != nil {
+		pos := &k8scontrollerclient.SubResourcePatchOptions{}
+		k8scontrollerclient.ForceOwnership.ApplyToPatch(&pos.PatchOptions)
+
+		if err := c.client.Status().Patch(ctx, cp, k8scontrollerclient.Apply, pos, c.Owner); err != nil {
 			fmt.Printf("second patch error: %s\n", err)
 			return err
 		}
