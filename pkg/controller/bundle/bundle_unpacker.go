@@ -35,7 +35,7 @@ import (
 
 const (
 	// TODO: This can be a spec field
-	// BundleUnpackTimeoutAnnotationKey allows setting a bundle unpack timeout per InstallPlan
+	// BundleUnpackTimeoutAnnotationKey allows setting a bundle unpack timeout per OperatorGroup
 	// and overrides the default specified by the --bundle-unpack-timeout flag
 	// The time duration should be in the same format as accepted by time.ParseDuration()
 	// e.g 1m30s
