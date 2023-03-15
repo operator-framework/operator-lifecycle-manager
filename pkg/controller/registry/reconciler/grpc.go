@@ -124,7 +124,7 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 
 func (s *grpcCatalogSourceDecorator) Pod(saName string) *corev1.Pod {
 	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, saName, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser)
-	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
+	ownerutil.AddOwner(pod, s.CatalogSource, false, true)
 	return pod
 }
 
