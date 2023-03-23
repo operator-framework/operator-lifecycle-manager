@@ -49,6 +49,8 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle/bundlefakes"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
@@ -1127,6 +1129,12 @@ func TestSyncResolvingNamespace(t *testing.T) {
 	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
 	testNamespace := "testNamespace"
+	og := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "og",
+			Namespace: testNamespace,
+		},
+	}
 
 	type fields struct {
 		clientOptions   []clientfake.Option
@@ -1181,6 +1189,13 @@ func TestSyncResolvingNamespace(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "",
 						State:      "",
+						Conditions: []v1alpha1.SubscriptionCondition{
+							{
+								Type:   v1alpha1.SubscriptionBundleUnpacking,
+								Status: corev1.ConditionFalse,
+							},
+						},
+						LastUpdated: now,
 					},
 				},
 			},
@@ -1319,7 +1334,7 @@ func TestSyncResolvingNamespace(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(tt.fields.existingOLMObjs...), withFakeClientOptions(tt.fields.clientOptions...))
+			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(append(tt.fields.existingOLMObjs, og)...), withFakeClientOptions(tt.fields.clientOptions...))
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
@@ -1560,17 +1575,18 @@ func fakeConfigMapData() map[string]string {
 
 // fakeOperatorConfig is the configuration for a fake operator.
 type fakeOperatorConfig struct {
-	clock         utilclock.Clock
-	clientObjs    []runtime.Object
-	k8sObjs       []runtime.Object
-	extObjs       []runtime.Object
-	regObjs       []runtime.Object
-	clientOptions []clientfake.Option
-	logger        *logrus.Logger
-	resolver      resolver.StepResolver
-	recorder      record.EventRecorder
-	reconciler    reconciler.RegistryReconcilerFactory
-	sources       []sourceAddress
+	clock          utilclock.Clock
+	clientObjs     []runtime.Object
+	k8sObjs        []runtime.Object
+	extObjs        []runtime.Object
+	regObjs        []runtime.Object
+	clientOptions  []clientfake.Option
+	logger         *logrus.Logger
+	resolver       resolver.StepResolver
+	recorder       record.EventRecorder
+	reconciler     reconciler.RegistryReconcilerFactory
+	bundleUnpacker bundle.Unpacker
+	sources        []sourceAddress
 }
 
 // fakeOperatorOption applies an option to the given fake operator configuration.
@@ -1579,6 +1595,12 @@ type fakeOperatorOption func(*fakeOperatorConfig)
 func withResolver(res resolver.StepResolver) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.resolver = res
+	}
+}
+
+func withBundleUnpacker(bundleUnpacker bundle.Unpacker) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.bundleUnpacker = bundleUnpacker
 	}
 }
 
@@ -1627,10 +1649,11 @@ type sourceAddress struct {
 func NewFakeOperator(ctx context.Context, namespace string, namespaces []string, fakeOptions ...fakeOperatorOption) (*Operator, error) {
 	// Apply options to default config
 	config := &fakeOperatorConfig{
-		logger:   logrus.StandardLogger(),
-		clock:    utilclock.RealClock{},
-		resolver: &fakes.FakeStepResolver{},
-		recorder: &record.FakeRecorder{},
+		logger:         logrus.StandardLogger(),
+		clock:          utilclock.RealClock{},
+		resolver:       &fakes.FakeStepResolver{},
+		recorder:       &record.FakeRecorder{},
+		bundleUnpacker: &bundlefakes.FakeUnpacker{},
 	}
 	for _, option := range fakeOptions {
 		option(config)
@@ -1669,12 +1692,14 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	subInformer := operatorsFactory.Operators().V1alpha1().Subscriptions()
 	ipInformer := operatorsFactory.Operators().V1alpha1().InstallPlans()
 	csvInformer := operatorsFactory.Operators().V1alpha1().ClusterServiceVersions()
-	sharedInformers = append(sharedInformers, catsrcInformer.Informer(), subInformer.Informer(), ipInformer.Informer(), csvInformer.Informer())
+	ogInformer := operatorsFactory.Operators().V1().OperatorGroups()
+	sharedInformers = append(sharedInformers, catsrcInformer.Informer(), subInformer.Informer(), ipInformer.Informer(), csvInformer.Informer(), ogInformer.Informer())
 
 	lister.OperatorsV1alpha1().RegisterCatalogSourceLister(metav1.NamespaceAll, catsrcInformer.Lister())
 	lister.OperatorsV1alpha1().RegisterSubscriptionLister(metav1.NamespaceAll, subInformer.Lister())
 	lister.OperatorsV1alpha1().RegisterInstallPlanLister(metav1.NamespaceAll, ipInformer.Lister())
 	lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvInformer.Lister())
+	lister.OperatorsV1().RegisterOperatorGroupLister(metav1.NamespaceAll, ogInformer.Lister())
 
 	factory := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), wakeupInterval, informers.WithNamespace(metav1.NamespaceAll))
 	roleInformer := factory.Rbac().V1().Roles()
@@ -1722,6 +1747,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		recorder:              config.recorder,
 		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
+		bundleUnpacker:        config.bundleUnpacker,
 		catsrcQueueSet:        queueinformer.NewEmptyResourceQueueSet(),
 		clientFactory: &stubClientFactory{
 			operatorClient:   opClientFake,

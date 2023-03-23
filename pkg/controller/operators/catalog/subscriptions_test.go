@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -10,9 +11,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilclocktesting "k8s.io/utils/clock/testing"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle/bundlefakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
@@ -23,12 +28,19 @@ func TestSyncSubscriptions(t *testing.T) {
 	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
 	testNamespace := "testNamespace"
+	og := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "og",
+			Namespace: testNamespace,
+		},
+	}
 
 	type fields struct {
 		clientOptions        []clientfake.Option
 		resolveSteps         []*v1alpha1.Step
 		resolveSubs          []*v1alpha1.Subscription
 		resolveBundleLookups []v1alpha1.BundleLookup
+		unpackBundleErr      error
 		existingOLMObjs      []runtime.Object
 	}
 	type args struct {
@@ -385,10 +397,122 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 						Conditions: []v1alpha1.BundleLookupCondition{
 							{
-								Type:               v1alpha1.BundleLookupPending,
+								Type:    v1alpha1.BundleLookupPending,
+								Status:  corev1.ConditionTrue,
+								Reason:  "JobIncomplete",
+								Message: "unpack job not completed",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+					},
+				},
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV:  "",
+						State:       "",
+						LastUpdated: now,
+						Conditions: []v1alpha1.SubscriptionCondition{
+							{
+								Type:   v1alpha1.SubscriptionBundleUnpacking,
+								Status: corev1.ConditionTrue,
+								Reason: "UnpackingInProgress",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "NoStatus/NoCurrentCSV/BundleUnpackFailed",
+			fields: fields{
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
+				existingOLMObjs: []runtime.Object{
+					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      "",
+						},
+					},
+				},
+				resolveSubs: []*v1alpha1.Subscription{
+					{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      v1alpha1.SubscriptionStateUpgradePending,
+						},
+					},
+				},
+				resolveBundleLookups: []v1alpha1.BundleLookup{
+					{
+						Path:       "bundle-path-a",
+						Identifier: "bundle-a",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: testNamespace,
+							Name:      "src",
+						},
+						Conditions: []v1alpha1.BundleLookupCondition{
+							{
+								Type:               v1alpha1.BundleLookupFailed,
 								Status:             corev1.ConditionTrue,
-								Reason:             "JobIncomplete",
-								Message:            "unpack job not completed",
+								Reason:             "JobFailed",
+								Message:            "unpack job failed",
 								LastTransitionTime: &now,
 							},
 						},
@@ -430,55 +554,89 @@ func TestSyncSubscriptions(t *testing.T) {
 						CatalogSourceNamespace: testNamespace,
 					},
 					Status: v1alpha1.SubscriptionStatus{
-						CurrentCSV: "",
-						State:      v1alpha1.SubscriptionStateUpgradePending,
-						Install: &v1alpha1.InstallPlanReference{
-							Kind:       v1alpha1.InstallPlanKind,
-							APIVersion: v1alpha1.InstallPlanAPIVersion,
-						},
-						InstallPlanRef: &corev1.ObjectReference{
-							Namespace:  testNamespace,
-							Kind:       v1alpha1.InstallPlanKind,
-							APIVersion: v1alpha1.InstallPlanAPIVersion,
-						},
-						InstallPlanGeneration: 1,
-						LastUpdated:           now,
-					},
-				},
-			},
-			wantInstallPlans: []v1alpha1.InstallPlan{
-				{
-					Spec: v1alpha1.InstallPlanSpec{
-						ClusterServiceVersionNames: []string{"bundle-a"},
-						Approval:                   v1alpha1.ApprovalAutomatic,
-						Approved:                   true,
-						Generation:                 1,
-					},
-					Status: v1alpha1.InstallPlanStatus{
-						Phase:          v1alpha1.InstallPlanPhaseInstalling,
-						CatalogSources: []string{},
-						BundleLookups: []v1alpha1.BundleLookup{
+						CurrentCSV:  "",
+						State:       "",
+						LastUpdated: now,
+						Conditions: []v1alpha1.SubscriptionCondition{
 							{
-								Path:       "bundle-path-a",
-								Identifier: "bundle-a",
-								CatalogSourceRef: &corev1.ObjectReference{
-									Namespace: testNamespace,
-									Name:      "src",
-								},
-								Conditions: []v1alpha1.BundleLookupCondition{
-									{
-										Type:               v1alpha1.BundleLookupPending,
-										Status:             corev1.ConditionTrue,
-										Reason:             "JobIncomplete",
-										Message:            "unpack job not completed",
-										LastTransitionTime: &now,
-									},
-								},
+								Type:    v1alpha1.SubscriptionBundleUnpackFailed,
+								Reason:  "BundleUnpackFailed",
+								Message: "bundle unpacking failed. Reason: JobFailed, and Message: unpack job failed",
+								Status:  corev1.ConditionTrue,
 							},
 						},
 					},
 				},
 			},
+		},
+		{
+			name: "NoStatus/NoCurrentCSV/BundleLookupError",
+			fields: fields{
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
+				existingOLMObjs: []runtime.Object{
+					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      "",
+						},
+					},
+				},
+				resolveBundleLookups: []v1alpha1.BundleLookup{{}},
+				unpackBundleErr:      errors.New("fake unpack error"),
+			},
+			args: args{
+				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+					},
+				},
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+					},
+				},
+			},
+			wantErr: fmt.Errorf("bundle unpacking failed with an error: %w", utilerrors.NewAggregate([]error{errors.New("fake unpack error")})),
 		},
 		{
 			name: "Status/HaveCurrentCSV/UpdateFoundInCatalog",
@@ -1013,7 +1171,12 @@ func TestSyncSubscriptions(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(tt.fields.existingOLMObjs...), withFakeClientOptions(tt.fields.clientOptions...))
+			fakeBundleUnpacker := &bundlefakes.FakeUnpacker{
+				UnpackBundleStub: func(lookup *v1alpha1.BundleLookup, timeout time.Duration) (*bundle.BundleUnpackResult, error) {
+					return &bundle.BundleUnpackResult{BundleLookup: lookup.DeepCopy()}, tt.fields.unpackBundleErr
+				},
+			}
+			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(append(tt.fields.existingOLMObjs, og)...), withFakeClientOptions(tt.fields.clientOptions...), withBundleUnpacker(fakeBundleUnpacker))
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
