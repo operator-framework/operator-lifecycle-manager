@@ -25,14 +25,11 @@ func TestSyncSubscriptions(t *testing.T) {
 	testNamespace := "testNamespace"
 
 	type fields struct {
-		clientOptions     []clientfake.Option
-		sourcesLastUpdate metav1.Time
-		resolveSteps      []*v1alpha1.Step
-		resolveSubs       []*v1alpha1.Subscription
-		bundleLookups     []v1alpha1.BundleLookup
-		resolveErr        error
-		existingOLMObjs   []runtime.Object
-		existingObjects   []runtime.Object
+		clientOptions        []clientfake.Option
+		resolveSteps         []*v1alpha1.Step
+		resolveSubs          []*v1alpha1.Subscription
+		resolveBundleLookups []v1alpha1.BundleLookup
+		existingOLMObjs      []runtime.Object
 	}
 	type args struct {
 		obj interface{}
@@ -378,7 +375,7 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 					},
 				},
-				bundleLookups: []v1alpha1.BundleLookup{
+				resolveBundleLookups: []v1alpha1.BundleLookup{
 					{
 						Path:       "bundle-path-a",
 						Identifier: "bundle-a",
@@ -1016,7 +1013,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.clientOptions...))
+			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(tt.fields.existingOLMObjs...), withFakeClientOptions(tt.fields.clientOptions...))
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
@@ -1029,10 +1026,9 @@ func TestSyncSubscriptions(t *testing.T) {
 				},
 			}
 
-			o.sourcesLastUpdate.Set(tt.fields.sourcesLastUpdate.Time)
 			o.resolver = &fakes.FakeStepResolver{
 				ResolveStepsStub: func(string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
-					return tt.fields.resolveSteps, tt.fields.bundleLookups, tt.fields.resolveSubs, tt.fields.resolveErr
+					return tt.fields.resolveSteps, tt.fields.resolveBundleLookups, tt.fields.resolveSubs, nil
 				},
 			}
 
