@@ -1125,19 +1125,19 @@ func TestSyncCatalogSources(t *testing.T) {
 
 func TestSyncResolvingNamespace(t *testing.T) {
 	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	now := metav1.NewTime(clockFake.Now())
 	testNamespace := "testNamespace"
 
 	type fields struct {
-		clientOptions     []clientfake.Option
-		sourcesLastUpdate metav1.Time
-		resolveErr        error
-		existingOLMObjs   []runtime.Object
-		existingObjects   []runtime.Object
+		clientOptions   []clientfake.Option
+		resolveErr      error
+		existingOLMObjs []runtime.Object
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		wantErr error
+		name              string
+		fields            fields
+		wantSubscriptions []*v1alpha1.Subscription
+		wantErr           error
 	}{
 		{
 			name: "NoError",
@@ -1161,6 +1161,26 @@ func TestSyncResolvingNamespace(t *testing.T) {
 							CurrentCSV: "",
 							State:      "",
 						},
+					},
+				},
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
 					},
 				},
 			},
@@ -1193,6 +1213,35 @@ func TestSyncResolvingNamespace(t *testing.T) {
 					{
 						Variable:   resolver.NewSubscriptionVariable("a", nil),
 						Constraint: resolver.PrettyConstraint(solver.Mandatory(), "something"),
+					},
+				},
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+						Conditions: []v1alpha1.SubscriptionCondition{
+							{
+								Type:    v1alpha1.SubscriptionResolutionFailed,
+								Reason:  "ConstraintsNotSatisfiable",
+								Message: "constraints not satisfiable: something",
+								Status:  corev1.ConditionTrue,
+							},
+						},
+						LastUpdated: now,
 					},
 				},
 			},
@@ -1232,6 +1281,35 @@ func TestSyncResolvingNamespace(t *testing.T) {
 				},
 				resolveErr: fmt.Errorf("some error"),
 			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+						Conditions: []v1alpha1.SubscriptionCondition{
+							{
+								Type:    v1alpha1.SubscriptionResolutionFailed,
+								Reason:  "ErrorPreventedResolution",
+								Message: "some error",
+								Status:  corev1.ConditionTrue,
+							},
+						},
+						LastUpdated: now,
+					},
+				},
+			},
 			wantErr: fmt.Errorf("some error"),
 		},
 	}
@@ -1241,7 +1319,7 @@ func TestSyncResolvingNamespace(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.clientOptions...))
+			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(tt.fields.existingOLMObjs...), withFakeClientOptions(tt.fields.clientOptions...))
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
@@ -1254,7 +1332,6 @@ func TestSyncResolvingNamespace(t *testing.T) {
 				},
 			}
 
-			o.sourcesLastUpdate.Set(tt.fields.sourcesLastUpdate.Time)
 			o.resolver = &fakes.FakeStepResolver{
 				ResolveStepsStub: func(string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 					return nil, nil, nil, tt.fields.resolveErr
@@ -1272,6 +1349,12 @@ func TestSyncResolvingNamespace(t *testing.T) {
 				require.Equal(t, tt.wantErr, err)
 			} else {
 				require.NoError(t, err)
+			}
+
+			for _, s := range tt.wantSubscriptions {
+				fetched, err := o.client.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), s.GetName(), metav1.GetOptions{})
+				require.NoError(t, err)
+				require.Equal(t, s, fetched)
 			}
 		})
 	}
