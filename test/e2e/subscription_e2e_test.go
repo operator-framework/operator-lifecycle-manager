@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -22,11 +23,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/operator-framework/api/pkg/lib/version"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -50,6 +54,7 @@ const (
 var _ = Describe("Subscription", func() {
 	var (
 		generatedNamespace corev1.Namespace
+		operatorGroup      operatorsv1.OperatorGroup
 		c                  operatorclient.ClientInterface
 		crc                versioned.Interface
 	)
@@ -57,7 +62,15 @@ var _ = Describe("Subscription", func() {
 	BeforeEach(func() {
 		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
-		generatedNamespace = SetupGeneratedTestNamespace(genName("subscription-e2e-"))
+
+		nsName := genName("subscription-e2e-")
+		operatorGroup = operatorsv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-operatorgroup", nsName),
+				Namespace: nsName,
+			},
+		}
+		generatedNamespace = SetupGeneratedTestNamespaceWithOperatorGroup(nsName, operatorGroup)
 	})
 
 	AfterEach(func() {
@@ -2329,6 +2342,186 @@ var _ = Describe("Subscription", func() {
 			)))
 		})
 	})
+
+	It("unpacks bundle image", func() {
+		catsrc := &operatorsv1alpha1.CatalogSource{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("kiali-"),
+				Namespace: generatedNamespace.GetName(),
+				Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
+			},
+			Spec: operatorsv1alpha1.CatalogSourceSpec{
+				Image:      "quay.io/operator-framework/ci-index:latest",
+				SourceType: operatorsv1alpha1.SourceTypeGrpc,
+				GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+					SecurityContextConfig: operatorsv1alpha1.Restricted,
+				},
+			},
+		}
+		catsrc, err := crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.Background(), catsrc, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			Eventually(func() error {
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), catsrc))
+			}).Should(Succeed())
+		}()
+
+		By("waiting for the CatalogSource to be ready")
+		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
+		require.NoError(GinkgoT(), err)
+
+		By("generating a Subscription")
+		subName := genName("kiali-")
+		cleanUpSubscriptionFn := createSubscriptionForCatalog(crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+		defer cleanUpSubscriptionFn()
+
+		By("waiting for the InstallPlan to get created for the subscription")
+		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
+		require.NoError(GinkgoT(), err)
+
+		By("waiting for the expected InstallPlan's execution to either fail or succeed")
+		ipName := sub.Status.InstallPlanRef.Name
+		ip, err := waitForInstallPlan(crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
+		require.NoError(GinkgoT(), err)
+		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, ip.Status.Phase, "InstallPlan not complete")
+
+		By("ensuring the InstallPlan contains the steps resolved from the bundle image")
+		operatorName := "kiali-operator"
+		expectedSteps := map[registry.ResourceKey]struct{}{
+			{Name: operatorName, Kind: "ClusterServiceVersion"}:                                  {},
+			{Name: "kialis.kiali.io", Kind: "CustomResourceDefinition"}:                          {},
+			{Name: "monitoringdashboards.monitoring.kiali.io", Kind: "CustomResourceDefinition"}: {},
+			{Name: operatorName, Kind: "ServiceAccount"}:                                         {},
+			{Name: operatorName, Kind: "ClusterRole"}:                                            {},
+			{Name: operatorName, Kind: "ClusterRoleBinding"}:                                     {},
+		}
+		require.Lenf(GinkgoT(), ip.Status.Plan, len(expectedSteps), "number of expected steps does not match installed: %v", ip.Status.Plan)
+
+		for _, step := range ip.Status.Plan {
+			key := registry.ResourceKey{
+				Name: step.Resource.Name,
+				Kind: step.Resource.Kind,
+			}
+			for expected := range expectedSteps {
+				if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
+					delete(expectedSteps, expected)
+				}
+			}
+		}
+		require.Lenf(GinkgoT(), expectedSteps, 0, "Actual resource steps do not match expected: %#v", expectedSteps)
+	})
+
+	When("unpacking bundle", func() {
+		var (
+			magicCatalog      *MagicCatalog
+			catalogSourceName string
+			subName           string
+		)
+
+		BeforeEach(func() {
+			By("deploying the testing catalog")
+			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.1.0.yaml"))
+			Expect(err).To(BeNil())
+			catalogSourceName = fmt.Sprintf("%s-catsrc", generatedNamespace.GetName())
+			magicCatalog = NewMagicCatalog(ctx.Ctx().Client(), generatedNamespace.GetName(), catalogSourceName, provider)
+			Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
+
+			By("creating the testing subscription")
+			subName = fmt.Sprintf("%s-packagea-sub", generatedNamespace.GetName())
+			createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subName, catalogSourceName, "packageA", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+
+			By("waiting until the subscription has an IP reference")
+			subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasInstallPlanChecker)
+			Expect(err).Should(BeNil())
+
+			By("waiting for the v0.1.0 CSV to report a succeeded phase")
+			_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("should not report unpacking progress or errors after successfull unpacking", func() {
+			By("verifying that the subscription is not reporting unpacking progress")
+			Eventually(
+				func() (corev1.ConditionStatus, error) {
+					fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
+					if err != nil {
+						return "", err
+					}
+					cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpacking)
+					return cond.Status, nil
+				},
+				5*time.Minute,
+				interval,
+			).Should(Equal(corev1.ConditionFalse))
+
+			By("verifying that the subscription is not reporting unpacking errors")
+			Eventually(
+				func() (corev1.ConditionStatus, error) {
+					fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
+					if err != nil {
+						return "", err
+					}
+					cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed)
+					return cond.Status, nil
+				},
+				5*time.Minute,
+				interval,
+			).Should(Equal(corev1.ConditionUnknown))
+		})
+
+		Context("with bundle which OLM will fail to unpack", func() {
+			BeforeEach(func() {
+				By("patching the OperatorGroup to reduce the bundle unpacking timeout")
+				ogNN := types.NamespacedName{Name: operatorGroup.GetName(), Namespace: generatedNamespace.GetName()}
+				addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
+
+				By("updating the catalog with a broken v0.2.0 bundle image")
+				brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-non-existent-tag.yaml"))
+				Expect(err).To(BeNil())
+				err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
+				Expect(err).To(BeNil())
+			})
+
+			It("should expose a condition indicating failure to unpack", func() {
+				By("verifying that the subscription is reporting bundle unpack failure condition")
+				Eventually(
+					func() (string, error) {
+						fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
+						if err != nil {
+							return "", err
+						}
+						cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed)
+						if cond.Status != corev1.ConditionTrue || cond.Reason != "BundleUnpackFailed" {
+							return "", fmt.Errorf("%s condition not found", v1alpha1.SubscriptionBundleUnpackFailed)
+						}
+
+						return cond.Message, nil
+					},
+					5*time.Minute,
+					interval,
+				).Should(ContainSubstring("bundle unpacking failed. Reason: DeadlineExceeded"))
+
+				By("waiting for the subscription to maintain the example-operator.v0.1.0 status.currentCSV")
+				Consistently(subscriptionCurrentCSVGetter(crc, generatedNamespace.GetName(), subName)).Should(Equal("example-operator.v0.1.0"))
+			})
+
+			It("should be able to recover when catalog gets updated with a fixed version", func() {
+				By("patching the OperatorGroup to reduce the bundle unpacking timeout")
+				ogNN := types.NamespacedName{Name: operatorGroup.GetName(), Namespace: generatedNamespace.GetName()}
+				addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "5m")
+
+				By("updating the catalog with a fixed v0.2.0 bundle image")
+				brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0.yaml"))
+				Expect(err).To(BeNil())
+				err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
+				Expect(err).To(BeNil())
+
+				By("waiting for the subscription to have v0.2.0 installed")
+				_, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasCurrentCSV("example-operator.v0.2.0"))
+				Expect(err).Should(BeNil())
+			})
+		})
+	})
 })
 
 const (
@@ -2950,4 +3143,26 @@ func updateCatSrcPriority(crClient versioned.Interface, namespace string, catsrc
 	catsrc.Spec.Priority = priority
 	_, err := crClient.OperatorsV1alpha1().CatalogSources(namespace).Update(context.Background(), catsrc, metav1.UpdateOptions{})
 	Expect(err).Should(BeNil())
+}
+
+func subscriptionCurrentCSVGetter(crclient versioned.Interface, namespace, subName string) func() string {
+	return func() string {
+		subscription, err := crclient.OperatorsV1alpha1().Subscriptions(namespace).Get(context.Background(), subName, metav1.GetOptions{})
+		if err != nil || subscription == nil {
+			return ""
+		}
+		return subscription.Status.CurrentCSV
+	}
+}
+
+func operatorGroupServiceAccountNameSetter(crclient versioned.Interface, namespace, name, saName string) func() error {
+	return func() error {
+		toUpdate, err := crclient.OperatorsV1().OperatorGroups(namespace).Get(context.Background(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		toUpdate.Spec.ServiceAccountName = saName
+		_, err = crclient.OperatorsV1().OperatorGroups(namespace).Update(context.Background(), toUpdate, metav1.UpdateOptions{})
+		return err
+	}
 }
