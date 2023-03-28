@@ -1327,26 +1327,51 @@ var _ = Describe("Operator Group", func() {
 	It("CSV copy watching all namespaces", func() {
 
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
+		// don't use the default openshift-operators project since the default OperatorGroup global-operators will be reset by CVO every 15 mins
+		opGroupNamespaceName := genName(testNamespace + "-")
+		matchingLabel := map[string]string{"inGroup": opGroupNamespaceName}
 
-		opGroupNamespace := testNamespace
-		matchingLabel := map[string]string{"inGroup": opGroupNamespace}
-		otherNamespaceName := genName(opGroupNamespace + "-")
+		GinkgoT().Logf("Create a new namespace %s", opGroupNamespaceName)
+		opGroupNamespace := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   opGroupNamespaceName,
+				Labels: matchingLabel,
+			},
+		}
+		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &opGroupNamespace, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), opGroupNamespaceName, metav1.DeleteOptions{})
+			require.NoError(GinkgoT(), err)
+		}()
+		// create an operator group called "global-operators" to watch all namespaces
+		GinkgoT().Logf("Creating operator group to watch all namespaces %v", opGroupNamespace)
+		operatorGroup := v1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "global-operators",
+				Namespace: opGroupNamespaceName,
+			},
+			Spec: v1.OperatorGroupSpec{
+				TargetNamespaces: []string{},
+			},
+		}
+		_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespaceName).Create(context.TODO(), &operatorGroup, metav1.CreateOptions{})
+		require.NoError(GinkgoT(), err)
+
+		otherNamespaceName := genName(opGroupNamespaceName + "-")
 		GinkgoT().Log("Creating CRD")
 		mainCRDPlural := genName("opgroup-")
 		mainCRD := newCRD(mainCRDPlural)
 		cleanupCRD, err := createCRD(c, mainCRD)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCRD()
-		GinkgoT().Logf("Getting default operator group 'global-operators' installed via operatorgroup-default.yaml %v", opGroupNamespace)
-		operatorGroup, err := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(context.TODO(), "global-operators", metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
 
 		expectedOperatorGroupStatus := v1.OperatorGroupStatus{
 			Namespaces: []string{metav1.NamespaceAll},
 		}
 		GinkgoT().Log("Waiting on operator group to have correct status")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-			fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
+			fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespaceName).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
 			if fetchErr != nil {
 				return false, fetchErr
 			}
@@ -1376,27 +1401,27 @@ var _ = Describe("Operator Group", func() {
 
 		serviceAccount := &corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: opGroupNamespace,
+				Namespace: opGroupNamespaceName,
 				Name:      serviceAccountName,
 			},
 		}
 		role := &rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: opGroupNamespace,
+				Namespace: opGroupNamespaceName,
 				Name:      serviceAccountName + "-role",
 			},
 			Rules: permissions[0].Rules,
 		}
 		roleBinding := &rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: opGroupNamespace,
+				Namespace: opGroupNamespaceName,
 				Name:      serviceAccountName + "-rb",
 			},
 			Subjects: []rbacv1.Subject{
 				{
 					Kind:      "ServiceAccount",
 					Name:      serviceAccountName,
-					Namespace: opGroupNamespace,
+					Namespace: opGroupNamespaceName,
 				},
 			},
 			RoleRef: rbacv1.RoleRef{
@@ -1423,11 +1448,11 @@ var _ = Describe("Operator Group", func() {
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
-		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
+		aCSV := newCSV(csvName, opGroupNamespaceName, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
 		// Use the It spec name as label after stripping whitespaces
 		aCSV.Labels = map[string]string{"label": K8sSafeCurrentTestDescription()}
-		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
+		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespaceName).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
 		err = ownerutil.AddOwnerLabels(createdRole, createdCSV)
@@ -1440,7 +1465,7 @@ var _ = Describe("Operator Group", func() {
 		_, err = c.UpdateRoleBinding(createdRoleBinding)
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("wait for CSV to succeed")
-		_, err = fetchCSV(crc, createdCSV.GetName(), opGroupNamespace, csvSucceededChecker)
+		_, err = fetchCSV(crc, createdCSV.GetName(), opGroupNamespaceName, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("wait for roles to be promoted to clusterroles")
 		var fetchedRole *rbacv1.ClusterRole
@@ -1477,7 +1502,7 @@ var _ = Describe("Operator Group", func() {
 		GinkgoT().Log("ensure operator was granted namespace list permission")
 		res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
 			Spec: authorizationv1.SubjectAccessReviewSpec{
-				User: "system:serviceaccount:" + opGroupNamespace + ":" + serviceAccountName,
+				User: "system:serviceaccount:" + opGroupNamespaceName + ":" + serviceAccountName,
 				ResourceAttributes: &authorizationv1.ResourceAttributes{
 					Group:    corev1.GroupName,
 					Version:  "v1",
@@ -1490,7 +1515,7 @@ var _ = Describe("Operator Group", func() {
 		require.True(GinkgoT(), res.Status.Allowed, "got %#v", res.Status)
 		GinkgoT().Log("Waiting for operator namespace csv to have annotations")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
+			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
 				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
@@ -1498,7 +1523,7 @@ var _ = Describe("Operator Group", func() {
 				GinkgoT().Logf("Error (in %v): %v", testNamespace, fetchErr.Error())
 				return false, fetchErr
 			}
-			if checkOperatorGroupAnnotations(fetchedCSV, operatorGroup, true, corev1.NamespaceAll) == nil {
+			if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, true, corev1.NamespaceAll) == nil {
 				return true, nil
 			}
 			return false, nil
@@ -1531,7 +1556,7 @@ var _ = Describe("Operator Group", func() {
 				GinkgoT().Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
 				return false, fetchErr
 			}
-			if checkOperatorGroupAnnotations(fetchedCSV, operatorGroup, false, "") == nil {
+			if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, false, "") == nil {
 				return true, nil
 			}
 			return false, nil
@@ -1539,17 +1564,17 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		GinkgoT( // verify created CSV is cleaned up after operator group is "contracted"
 		).Log("Modifying operator group to no longer watch all namespaces")
-		currentOperatorGroup, err := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
+		currentOperatorGroup, err := crc.OperatorsV1().OperatorGroups(opGroupNamespaceName).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
-		currentOperatorGroup.Spec.TargetNamespaces = []string{opGroupNamespace}
-		_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Update(context.TODO(), currentOperatorGroup, metav1.UpdateOptions{})
+		currentOperatorGroup.Spec.TargetNamespaces = []string{opGroupNamespaceName}
+		_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespaceName).Update(context.TODO(), currentOperatorGroup, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
 			GinkgoT().Log("Re-modifying operator group to be watching all namespaces")
-			currentOperatorGroup, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
+			currentOperatorGroup, err = crc.OperatorsV1().OperatorGroups(opGroupNamespaceName).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
 			require.NoError(GinkgoT(), err)
 			currentOperatorGroup.Spec = v1.OperatorGroupSpec{}
-			_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Update(context.TODO(), currentOperatorGroup, metav1.UpdateOptions{})
+			_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespaceName).Update(context.TODO(), currentOperatorGroup, metav1.UpdateOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
