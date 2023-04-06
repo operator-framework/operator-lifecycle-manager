@@ -476,7 +476,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 	logger := a.logger.WithField("opgroup", operatorGroup.GetName()).WithField("csv", csv.GetName())
 
 	// if OperatorGroup is global (all namespaces) we generate cluster roles / cluster role bindings instead
-	if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
+	if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll && csv.Annotations["olm.skipLocalRoleLiftForGlobalOperatorGroup"] != "yes" {
 		logger.Debug("opgroup is global")
 
 		// synthesize cluster permissions to verify rbac
