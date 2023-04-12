@@ -87,13 +87,12 @@ type ServerSideApplier struct {
 // The underlying value of the given resource pointer is updated to reflect the latest cluster state each time the closure is successfully invoked.
 // Ex. Change the spec of an existing InstallPlan
 //
-// plan := &InstallPlan{}
-// plan.SetNamespace("ns")
-// plan.SetName("install-123def")
-//
+//	plan := &InstallPlan{}
+//	plan.SetNamespace("ns")
+//	plan.SetName("install-123def")
 //	Eventually(c.Apply(plan, func(p *v1alpha1.InstallPlan) error {
-//			p.Spec.Approved = true
-//			return nil
+//		p.Spec.Approved = true
+//		return nil
 //	})).Should(Succeed())
 func (c *ServerSideApplier) Apply(ctx context.Context, obj Object, changeFunc interface{}) func() error {
 	// Ensure given object is a pointer
