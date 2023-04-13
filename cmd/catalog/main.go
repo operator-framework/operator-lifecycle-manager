@@ -27,7 +27,7 @@ const (
 	defaultWakeupInterval       = 15 * time.Minute
 	defaultCatalogNamespace     = "olm"
 	defaultConfigMapServerImage = "quay.io/operator-framework/configmap-operator-registry:latest"
-	defaultOPMImage             = "quay.io/operator-framework/upstream-opm-builder:latest"
+	defaultOPMImage             = "quay.io/operator-framework/opm:latest"
 	defaultUtilImage            = "quay.io/operator-framework/olm:latest"
 	defaultOperatorName         = ""
 	defaultWorkLoadUserID       = int64(1001)
