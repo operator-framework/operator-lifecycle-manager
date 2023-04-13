@@ -119,7 +119,7 @@ spec:
                           resources:
                             type: array
                             items:
-                              description: APIResourceReference is a Kubernetes resource type used by a custom resource
+                              description: APIResourceReference is a reference to a Kubernetes resource type that the referrer utilizes.
                               type: object
                               required:
                                 - kind
@@ -127,10 +127,13 @@ spec:
                                 - version
                               properties:
                                 kind:
+                                  description: Kind of the referenced resource type.
                                   type: string
                                 name:
+                                  description: Plural name of the referenced resource type (CustomResourceDefinition.Spec.Names[].Plural). Empty string if the referenced resource type is not a custom resource.
                                   type: string
                                 version:
+                                  description: API Version of the referenced resource type.
                                   type: string
                           specDescriptors:
                             type: array
@@ -229,7 +232,7 @@ spec:
                           resources:
                             type: array
                             items:
-                              description: APIResourceReference is a Kubernetes resource type used by a custom resource
+                              description: APIResourceReference is a reference to a Kubernetes resource type that the referrer utilizes.
                               type: object
                               required:
                                 - kind
@@ -237,10 +240,13 @@ spec:
                                 - version
                               properties:
                                 kind:
+                                  description: Kind of the referenced resource type.
                                   type: string
                                 name:
+                                  description: Plural name of the referenced resource type (CustomResourceDefinition.Spec.Names[].Plural). Empty string if the referenced resource type is not a custom resource.
                                   type: string
                                 version:
+                                  description: API Version of the referenced resource type.
                                   type: string
                           specDescriptors:
                             type: array
@@ -343,7 +349,7 @@ spec:
                           resources:
                             type: array
                             items:
-                              description: APIResourceReference is a Kubernetes resource type used by a custom resource
+                              description: APIResourceReference is a reference to a Kubernetes resource type that the referrer utilizes.
                               type: object
                               required:
                                 - kind
@@ -351,10 +357,13 @@ spec:
                                 - version
                               properties:
                                 kind:
+                                  description: Kind of the referenced resource type.
                                   type: string
                                 name:
+                                  description: Plural name of the referenced resource type (CustomResourceDefinition.Spec.Names[].Plural). Empty string if the referenced resource type is not a custom resource.
                                   type: string
                                 version:
+                                  description: API Version of the referenced resource type.
                                   type: string
                           specDescriptors:
                             type: array
@@ -445,7 +454,7 @@ spec:
                           resources:
                             type: array
                             items:
-                              description: APIResourceReference is a Kubernetes resource type used by a custom resource
+                              description: APIResourceReference is a reference to a Kubernetes resource type that the referrer utilizes.
                               type: object
                               required:
                                 - kind
@@ -453,10 +462,13 @@ spec:
                                 - version
                               properties:
                                 kind:
+                                  description: Kind of the referenced resource type.
                                   type: string
                                 name:
+                                  description: Plural name of the referenced resource type (CustomResourceDefinition.Spec.Names[].Plural). Empty string if the referenced resource type is not a custom resource.
                                   type: string
                                 version:
+                                  description: API Version of the referenced resource type.
                                   type: string
                           specDescriptors:
                             type: array
@@ -505,10 +517,13 @@ spec:
                           version:
                             type: string
                 description:
+                  description: Description of the operator. Can include the features, limitations or use-cases of the operator.
                   type: string
                 displayName:
+                  description: The name of the operator in display format.
                   type: string
                 icon:
+                  description: The icon for this operator.
                   type: array
                   items:
                     type: object
@@ -1664,6 +1679,21 @@ spec:
                                                   description: 'Compute Resources required by this container. Cannot be updated. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                                                   type: object
                                                   properties:
+                                                    claims:
+                                                      description: "Claims lists the names of resources, defined in spec.resourceClaims, that are used by this container. \n This is an alpha field and requires enabling the DynamicResourceAllocation feature gate. \n This field is immutable."
+                                                      type: array
+                                                      items:
+                                                        description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                                                        type: object
+                                                        required:
+                                                          - name
+                                                        properties:
+                                                          name:
+                                                            description: Name must match the name of one entry in pod.spec.resourceClaims of the Pod where this field is used. It makes that resource available inside a container.
+                                                            type: string
+                                                      x-kubernetes-list-map-keys:
+                                                        - name
+                                                      x-kubernetes-list-type: map
                                                     limits:
                                                       description: 'Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                                                       type: object
@@ -2476,6 +2506,21 @@ spec:
                                                   description: Resources are not allowed for ephemeral containers. Ephemeral containers use spare resources already allocated to the pod.
                                                   type: object
                                                   properties:
+                                                    claims:
+                                                      description: "Claims lists the names of resources, defined in spec.resourceClaims, that are used by this container. \n This is an alpha field and requires enabling the DynamicResourceAllocation feature gate. \n This field is immutable."
+                                                      type: array
+                                                      items:
+                                                        description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                                                        type: object
+                                                        required:
+                                                          - name
+                                                        properties:
+                                                          name:
+                                                            description: Name must match the name of one entry in pod.spec.resourceClaims of the Pod where this field is used. It makes that resource available inside a container.
+                                                            type: string
+                                                      x-kubernetes-list-map-keys:
+                                                        - name
+                                                      x-kubernetes-list-type: map
                                                     limits:
                                                       description: 'Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                                                       type: object
@@ -3299,6 +3344,21 @@ spec:
                                                   description: 'Compute Resources required by this container. Cannot be updated. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                                                   type: object
                                                   properties:
+                                                    claims:
+                                                      description: "Claims lists the names of resources, defined in spec.resourceClaims, that are used by this container. \n This is an alpha field and requires enabling the DynamicResourceAllocation feature gate. \n This field is immutable."
+                                                      type: array
+                                                      items:
+                                                        description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                                                        type: object
+                                                        required:
+                                                          - name
+                                                        properties:
+                                                          name:
+                                                            description: Name must match the name of one entry in pod.spec.resourceClaims of the Pod where this field is used. It makes that resource available inside a container.
+                                                            type: string
+                                                      x-kubernetes-list-map-keys:
+                                                        - name
+                                                      x-kubernetes-list-type: map
                                                     limits:
                                                       description: 'Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                                                       type: object
@@ -3617,6 +3677,31 @@ spec:
                                                 conditionType:
                                                   description: ConditionType refers to a condition in the pod's condition list with matching type.
                                                   type: string
+                                          resourceClaims:
+                                            description: "ResourceClaims defines which ResourceClaims must be allocated and reserved before the Pod is allowed to start. The resources will be made available to those containers which consume them by name. \n This is an alpha field and requires enabling the DynamicResourceAllocation feature gate. \n This field is immutable."
+                                            type: array
+                                            items:
+                                              description: PodResourceClaim references exactly one ResourceClaim through a ClaimSource. It adds a name to it that uniquely identifies the ResourceClaim inside the Pod. Containers that need access to the ResourceClaim reference it with this name.
+                                              type: object
+                                              required:
+                                                - name
+                                              properties:
+                                                name:
+                                                  description: Name uniquely identifies this resource claim inside the pod. This must be a DNS_LABEL.
+                                                  type: string
+                                                source:
+                                                  description: Source describes where to find the ResourceClaim.
+                                                  type: object
+                                                  properties:
+                                                    resourceClaimName:
+                                                      description: ResourceClaimName is the name of a ResourceClaim object in the same namespace as this pod.
+                                                      type: string
+                                                    resourceClaimTemplateName:
+                                                      description: "ResourceClaimTemplateName is the name of a ResourceClaimTemplate object in the same namespace as this pod. \n The template will be used to create a new ResourceClaim, which will be bound to this pod. When this pod is deleted, the ResourceClaim will also be deleted. The name of the ResourceClaim will be <pod name>-<resource name>, where <resource name> is the PodResourceClaim.Name. Pod validation will reject the pod if the concatenated name is not valid for a ResourceClaim (e.g. too long). \n An existing ResourceClaim with that name that is not owned by the pod will not be used for the pod to avoid using an unrelated resource by mistake. Scheduling and pod startup are then blocked until the unrelated ResourceClaim is removed. \n This field is immutable and no changes will be made to the corresponding ResourceClaim by the control plane after creating the ResourceClaim."
+                                                      type: string
+                                            x-kubernetes-list-map-keys:
+                                              - name
+                                            x-kubernetes-list-type: map
                                           restartPolicy:
                                             description: 'Restart policy for all containers within the pod. One of Always, OnFailure, Never. Default to Always. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#restart-policy'
                                             type: string
@@ -3626,6 +3711,21 @@ spec:
                                           schedulerName:
                                             description: If specified, the pod will be dispatched by specified scheduler. If not specified, the pod will be dispatched by default scheduler.
                                             type: string
+                                          schedulingGates:
+                                            description: "SchedulingGates is an opaque list of values that if specified will block scheduling the pod. More info:  https://git.k8s.io/enhancements/keps/sig-scheduling/3521-pod-scheduling-readiness. \n This is an alpha-level feature enabled by PodSchedulingReadiness feature gate."
+                                            type: array
+                                            items:
+                                              description: PodSchedulingGate is associated to a Pod to guard its scheduling.
+                                              type: object
+                                              required:
+                                                - name
+                                              properties:
+                                                name:
+                                                  description: Name of the scheduling gate. Each scheduling gate must have a unique name field.
+                                                  type: string
+                                            x-kubernetes-list-map-keys:
+                                              - name
+                                            x-kubernetes-list-type: map
                                           securityContext:
                                             description: 'SecurityContext holds pod-level security attributes and common container settings. Optional: Defaults to empty.  See type description for default values of each field.'
                                             type: object
@@ -3677,7 +3777,7 @@ spec:
                                                     description: "type indicates which kind of seccomp profile will be applied. Valid options are: \n Localhost - a profile defined in a file on the node should be used. RuntimeDefault - the container runtime default profile should be used. Unconfined - no profile should be applied."
                                                     type: string
                                               supplementalGroups:
-                                                description: A list of groups applied to the first process run in each container, in addition to the container's primary GID.  If unspecified, no groups will be added to any container. Note that this field cannot be set when spec.os.name is windows.
+                                                description: A list of groups applied to the first process run in each container, in addition to the container's primary GID, the fsGroup (if specified), and group memberships defined in the container image for the uid of the container process. If unspecified, no additional groups are added to any container. Note that group memberships defined in the container image for the uid of the container process are still effective, even if they are not included in this list. Note that this field cannot be set when spec.os.name is windows.
                                                 type: array
                                                 items:
                                                   type: integer
@@ -3812,10 +3912,10 @@ spec:
                                                   type: integer
                                                   format: int32
                                                 nodeAffinityPolicy:
-                                                  description: "NodeAffinityPolicy indicates how we will treat Pod's nodeAffinity/nodeSelector when calculating pod topology spread skew. Options are: - Honor: only nodes matching nodeAffinity/nodeSelector are included in the calculations. - Ignore: nodeAffinity/nodeSelector are ignored. All nodes are included in the calculations. \n If this value is nil, the behavior is equivalent to the Honor policy. This is a alpha-level feature enabled by the NodeInclusionPolicyInPodTopologySpread feature flag."
+                                                  description: "NodeAffinityPolicy indicates how we will treat Pod's nodeAffinity/nodeSelector when calculating pod topology spread skew. Options are: - Honor: only nodes matching nodeAffinity/nodeSelector are included in the calculations. - Ignore: nodeAffinity/nodeSelector are ignored. All nodes are included in the calculations. \n If this value is nil, the behavior is equivalent to the Honor policy. This is a beta-level feature default enabled by the NodeInclusionPolicyInPodTopologySpread feature flag."
                                                   type: string
                                                 nodeTaintsPolicy:
-                                                  description: "NodeTaintsPolicy indicates how we will treat node taints when calculating pod topology spread skew. Options are: - Honor: nodes without taints, along with tainted nodes for which the incoming pod has a toleration, are included. - Ignore: node taints are ignored. All nodes are included. \n If this value is nil, the behavior is equivalent to the Ignore policy. This is a alpha-level feature enabled by the NodeInclusionPolicyInPodTopologySpread feature flag."
+                                                  description: "NodeTaintsPolicy indicates how we will treat node taints when calculating pod topology spread skew. Options are: - Honor: nodes without taints, along with tainted nodes for which the incoming pod has a toleration, are included. - Ignore: node taints are ignored. All nodes are included. \n If this value is nil, the behavior is equivalent to the Ignore policy. This is a beta-level feature default enabled by the NodeInclusionPolicyInPodTopologySpread feature flag."
                                                   type: string
                                                 topologyKey:
                                                   description: TopologyKey is the key of node labels. Nodes that have a label with this key and identical values are considered to be in the same topology. We consider each <key, value> as a "bucket", and try to put balanced number of pods into each bucket. We define a domain as a particular instance of a topology. Also, we define an eligible domain as a domain whose nodes meet the requirements of nodeAffinityPolicy and nodeTaintsPolicy. e.g. If TopologyKey is "kubernetes.io/hostname", each Node is a domain of that topology. And, if TopologyKey is "topology.kubernetes.io/zone", each zone is a domain of that topology. It's a required field.
@@ -4101,7 +4201,7 @@ spec:
                                                               items:
                                                                 type: string
                                                             dataSource:
-                                                              description: 'dataSource field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source. If the AnyVolumeDataSource feature gate is enabled, this field will always have the same contents as the DataSourceRef field.'
+                                                              description: 'dataSource field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot) * An existing PVC (PersistentVolumeClaim) If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source. When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef, and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified. If the namespace is specified, then dataSourceRef will not be copied to dataSource.'
                                                               type: object
                                                               required:
                                                                 - kind
@@ -4117,7 +4217,7 @@ spec:
                                                                   description: Name is the name of resource being referenced
                                                                   type: string
                                                             dataSourceRef:
-                                                              description: 'dataSourceRef specifies the object from which to populate the volume with data, if a non-empty volume is desired. This may be any local object from a non-empty API group (non core object) or a PersistentVolumeClaim object. When this field is specified, volume binding will only succeed if the type of the specified object matches some installed volume populator or dynamic provisioner. This field will replace the functionality of the DataSource field and as such if both fields are non-empty, they must have the same value. For backwards compatibility, both fields (DataSource and DataSourceRef) will be set to the same value automatically if one of them is empty and the other is non-empty. There are two important differences between DataSource and DataSourceRef: * While DataSource only allows two specific types of objects, DataSourceRef allows any non-core object, as well as PersistentVolumeClaim objects. * While DataSource ignores disallowed values (dropping them), DataSourceRef preserves all values, and generates an error if a disallowed value is specified. (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.'
+                                                              description: 'dataSourceRef specifies the object from which to populate the volume with data, if a non-empty volume is desired. This may be any object from a non-empty API group (non core object) or a PersistentVolumeClaim object. When this field is specified, volume binding will only succeed if the type of the specified object matches some installed volume populator or dynamic provisioner. This field will replace the functionality of the dataSource field and as such if both fields are non-empty, they must have the same value. For backwards compatibility, when namespace isn''t specified in dataSourceRef, both fields (dataSource and dataSourceRef) will be set to the same value automatically if one of them is empty and the other is non-empty. When namespace is specified in dataSourceRef, dataSource isn''t set to the same value and must be empty. There are three important differences between dataSource and dataSourceRef: * While dataSource only allows two specific types of objects, dataSourceRef allows any non-core object, as well as PersistentVolumeClaim objects. * While dataSource ignores disallowed values (dropping them), dataSourceRef preserves all values, and generates an error if a disallowed value is specified. * While dataSource only allows local objects, dataSourceRef allows objects in any namespaces. (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled. (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.'
                                                               type: object
                                                               required:
                                                                 - kind
@@ -4132,10 +4232,28 @@ spec:
                                                                 name:
                                                                   description: Name is the name of resource being referenced
                                                                   type: string
+                                                                namespace:
+                                                                  description: Namespace is the namespace of resource being referenced Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details. (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                                                                  type: string
                                                             resources:
                                                               description: 'resources represents the minimum resources the volume should have. If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements that are lower than previous value but must still be higher than capacity recorded in the status field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                                                               type: object
                                                               properties:
+                                                                claims:
+                                                                  description: "Claims lists the names of resources, defined in spec.resourceClaims, that are used by this container. \n This is an alpha field and requires enabling the DynamicResourceAllocation feature gate. \n This field is immutable."
+                                                                  type: array
+                                                                  items:
+                                                                    description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                                                                    type: object
+                                                                    required:
+                                                                      - name
+                                                                    properties:
+                                                                      name:
+                                                                        description: Name must match the name of one entry in pod.spec.resourceClaims of the Pod where this field is used. It makes that resource available inside a container.
+                                                                        type: string
+                                                                  x-kubernetes-list-map-keys:
+                                                                    - name
+                                                                  x-kubernetes-list-type: map
                                                                 limits:
                                                                   description: 'Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                                                                   type: object
@@ -4805,6 +4923,7 @@ spec:
                         description: InstallModeType is a supported type of install mode for CSV installation
                         type: string
                 keywords:
+                  description: A list of keywords describing the operator.
                   type: array
                   items:
                     type: string
@@ -4814,6 +4933,7 @@ spec:
                   additionalProperties:
                     type: string
                 links:
+                  description: A list of links related to the operator.
                   type: array
                   items:
                     type: object
@@ -4823,6 +4943,7 @@ spec:
                       url:
                         type: string
                 maintainers:
+                  description: A list of organizational entities maintaining the operator.
                   type: array
                   items:
                     type: object
@@ -4852,6 +4973,7 @@ spec:
                       version:
                         type: string
                 provider:
+                  description: The publishing entity behind the operator.
                   type: object
                   properties:
                     name:
@@ -4990,22 +5112,26 @@ spec:
                               type: array
                               items:
                                 type: string
+                              x-kubernetes-list-type: atomic
                             apiVersions:
                               description: APIVersions is the API versions the resources belong to. '*' is all versions. If '*' is present, the length of the slice must be one. Required.
                               type: array
                               items:
                                 type: string
+                              x-kubernetes-list-type: atomic
                             operations:
                               description: Operations is the operations the admission hook cares about - CREATE, UPDATE, DELETE, CONNECT or * for all of those operations and any future admission operations that are added. If '*' is present, the length of the slice must be one. Required.
                               type: array
                               items:
                                 description: OperationType specifies an operation for a request.
                                 type: string
+                              x-kubernetes-list-type: atomic
                             resources:
                               description: "Resources is a list of resources this rule applies to. \n For example: 'pods' means pods. 'pods/log' means the log subresource of pods. '*' means all resources, but not subresources. 'pods/*' means all subresources of pods. '*/scale' means all scale subresources. '*/*' means all resources and their subresources. \n If wildcard is present, the validation rule will ensure resources do not overlap with each other. \n Depending on the enclosing object, subresources might not be allowed. Required."
                               type: array
                               items:
                                 type: string
+                              x-kubernetes-list-type: atomic
                             scope:
                               description: scope specifies the scope of this rule. Valid values are "Cluster", "Namespaced", and "*" "Cluster" means that only cluster-scoped resources will match this rule. Namespace API objects are cluster-scoped. "Namespaced" means that only namespaced resources will match this rule. "*" means that there are no scope restrictions. Subresources match the scope of their parent resource. Default is "*".
                               type: string
