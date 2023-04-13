@@ -1408,22 +1408,9 @@ type UnpackedBundleReference struct {
 	Properties             string `json:"properties"`
 }
 
-func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.InstallPlan, error) {
+func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan, unpackTimeout time.Duration) (bool, *v1alpha1.InstallPlan, error) {
 	out := plan.DeepCopy()
 	unpacked := true
-
-	// The bundle timeout annotation if specified overrides the --bundle-unpack-timeout flag value
-	// If the timeout cannot be parsed it's set to < 0 and subsequently ignored
-	unpackTimeout := -1 * time.Minute
-	timeoutStr, ok := plan.GetAnnotations()[bundle.BundleUnpackTimeoutAnnotationKey]
-	if ok {
-		d, err := time.ParseDuration(timeoutStr)
-		if err != nil {
-			o.logger.Errorf("failed to parse unpack timeout annotation(%s: %s): %v", bundle.BundleUnpackTimeoutAnnotationKey, timeoutStr, err)
-		} else {
-			unpackTimeout = d
-		}
-	}
 
 	var errs []error
 	for i := 0; i < len(out.Status.BundleLookups); i++ {
@@ -1599,7 +1586,6 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
 	ref, err := querier()
-
 	out := plan.DeepCopy()
 	if err != nil {
 		// Set status condition/message and retry sync if any error
@@ -1645,10 +1631,16 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		}
 	}
 
+	ogLister := o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(plan.GetNamespace())
+	unpackTimeout, err := bundle.OperatorGroupBundleUnpackTimeout(ogLister)
+	if err != nil {
+		return err
+	}
+
 	// Attempt to unpack bundles before installing
 	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
 	if len(plan.Status.BundleLookups) > 0 {
-		unpacked, out, err := o.unpackBundles(plan)
+		unpacked, out, err := o.unpackBundles(plan, unpackTimeout)
 		if err != nil {
 			// If the error was fatal capture and fail
 			if fatal := olmerrors.IsFatal(err); fatal {

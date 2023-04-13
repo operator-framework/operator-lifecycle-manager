@@ -26,6 +26,7 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/reference"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	v1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
@@ -770,4 +771,31 @@ func getCondition(job *batchv1.Job, conditionType batchv1.JobConditionType) (con
 		}
 	}
 	return
+}
+
+// OperatorGroupBundleUnpackTimeout returns bundle timeout from annotation if specified.
+// If the timeout annotation is not set, return timeout < 0 which is subsequently ignored.
+// This is to overrides the --bundle-unpack-timeout flag value on per-OperatorGroup basis.
+func OperatorGroupBundleUnpackTimeout(ogLister v1listers.OperatorGroupNamespaceLister) (time.Duration, error) {
+	ignoreTimeout := -1 * time.Minute
+
+	ogs, err := ogLister.List(k8slabels.Everything())
+	if err != nil {
+		return ignoreTimeout, err
+	}
+	if len(ogs) != 1 {
+		return ignoreTimeout, fmt.Errorf("found %d operatorGroups, expected 1", len(ogs))
+	}
+
+	timeoutStr, ok := ogs[0].GetAnnotations()[BundleUnpackTimeoutAnnotationKey]
+	if !ok {
+		return ignoreTimeout, nil
+	}
+
+	d, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		return ignoreTimeout, fmt.Errorf("failed to parse unpack timeout annotation(%s: %s): %w", BundleUnpackTimeoutAnnotationKey, timeoutStr, err)
+	}
+
+	return d, nil
 }

@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
@@ -41,7 +42,6 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
@@ -3407,6 +3407,7 @@ var _ = Describe("Install Plan", func() {
 			ns         *corev1.Namespace
 			catsrcName string
 			ip         *operatorsv1alpha1.InstallPlan
+			ogName     string
 		)
 
 		BeforeEach(func() {
@@ -3446,6 +3447,7 @@ var _ = Describe("Install Plan", func() {
 					TargetNamespaces: []string{ns.GetName()},
 				},
 			}
+			ogName = og.GetName()
 			Eventually(func() error {
 				return ctx.Ctx().Client().Create(context.Background(), og)
 			}, timeout, interval).Should(Succeed(), "could not create OperatorGroup")
@@ -3485,11 +3487,9 @@ var _ = Describe("Install Plan", func() {
 
 		It("should show an error on the bundlelookup condition for a non-existent bundle image", func() {
 			// We wait for some time over the bundle unpack timeout (i.e ActiveDeadlineSeconds) so that the Job can eventually fail
-			// Since the default --bundle-unpack-timeout=10m, we override with a shorter timeout via the
-			// unpack timeout annotation on the InstallPlan
-			annotations := make(map[string]string)
-			annotations[bundle.BundleUnpackTimeoutAnnotationKey] = "1m"
-			ip.SetAnnotations(annotations)
+			// Since the default --bundle-unpack-timeout=10m, we override with a shorter timeout
+			By("patching the OperatorGroup to reduce the bundle unpacking timeout")
+			addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "1m")
 
 			Eventually(func() error {
 				return ctx.Ctx().Client().Create(context.Background(), ip)
