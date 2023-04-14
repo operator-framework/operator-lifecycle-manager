@@ -1423,7 +1423,7 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan, unpackTimeout time.
 		out.Status.BundleLookups[i] = *res.BundleLookup
 
 		// if the failed condition is present it means the bundle unpacking has failed
-		failedCondition := res.GetCondition(bundle.BundleLookupFailed)
+		failedCondition := res.GetCondition(v1alpha1.BundleLookupFailed)
 		if failedCondition.Status == corev1.ConditionTrue {
 			unpacked = false
 			continue
@@ -1726,7 +1726,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 func hasBundleLookupFailureCondition(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.BundleLookupCondition) {
 	for _, bundleLookup := range plan.Status.BundleLookups {
 		for _, cond := range bundleLookup.Conditions {
-			if cond.Type == bundle.BundleLookupFailed && cond.Status == corev1.ConditionTrue {
+			if cond.Type == v1alpha1.BundleLookupFailed && cond.Status == corev1.ConditionTrue {
 				return true, &cond
 			}
 		}
