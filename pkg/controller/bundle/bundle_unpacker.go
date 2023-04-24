@@ -211,6 +211,9 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							},
 						},
 					},
+					NodeSelector: map[string]string{
+						"kubernetes.io/os": "linux",
+					},
 				},
 			},
 		},
