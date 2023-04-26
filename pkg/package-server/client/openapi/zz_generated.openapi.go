@@ -141,28 +141,31 @@ func schema_api_pkg_operators_v1alpha1_APIResourceReference(ref common.Reference
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "APIResourceReference is a Kubernetes resource type used by a custom resource",
+				Description: "APIResourceReference is a reference to a Kubernetes resource type that the referrer utilizes.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Description: "Plural name of the referenced resource type (CustomResourceDefinition.Spec.Names[].Plural). Empty string if the referenced resource type is not a custom resource.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Description: "Kind of the referenced resource type.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"version": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Description: "API Version of the referenced resource type.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},
@@ -679,20 +682,23 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 					},
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Description: "The name of the operator in display format.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"description": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "Description of the operator. Can include the features, limitations or use-cases of the operator.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"keywords": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "A list of keywords describing the operator.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -706,7 +712,8 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 					},
 					"maintainers": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "A list of organizational entities maintaining the operator.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -719,13 +726,15 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 					},
 					"provider": {
 						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink"),
+							Description: "The publishing entity behind the operator.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/operator-framework/api/pkg/operators/v1alpha1.AppLink"),
 						},
 					},
 					"links": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "A list of links related to the operator.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -738,7 +747,8 @@ func schema_api_pkg_operators_v1alpha1_ClusterServiceVersionSpec(ref common.Refe
 					},
 					"icon": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "The icon for this operator.",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{

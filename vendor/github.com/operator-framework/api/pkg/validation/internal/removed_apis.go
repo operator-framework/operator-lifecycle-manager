@@ -12,6 +12,7 @@ import (
 	interfaces "github.com/operator-framework/api/pkg/validation/interfaces"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // k8sVersionKey defines the key which can be used by its consumers
@@ -306,51 +307,35 @@ func getRemovedAPIsOn1_25From(bundle *manifests.Bundle) (map[string][]string, ma
 	deprecatedAPIs := make(map[string][]string)
 	warnDeprecatedAPIs := make(map[string][]string)
 
+	deprecatedGvk := map[schema.GroupVersionKind]struct{}{
+		{Group: "batch", Version: "v1beta1", Kind: "CronJob"}:                       {},
+		{Group: "discovery.k8s.io", Version: "v1beta1", Kind: "EndpointSlice"}:      {},
+		{Group: "events.k8s.io", Version: "v1beta1", Kind: "Event"}:                 {},
+		{Group: "autoscaling", Version: "v2beta1", Kind: "HorizontalPodAutoscaler"}: {},
+		{Group: "policy", Version: "v1beta1", Kind: "PodDisruptionBudget"}:          {},
+		{Group: "policy", Version: "v1beta1", Kind: "PodSecurityPolicy"}:            {},
+		{Group: "node.k8s.io", Version: "v1beta1", Kind: "RuntimeClass"}:            {},
+	}
+
 	addIfDeprecated := func(u *unstructured.Unstructured) {
-		switch u.GetAPIVersion() {
-		case "batch/v1beta1":
-			if u.GetKind() == "CronJob" {
-				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
-			}
-		case "discovery.k8s.io/v1beta1":
-			if u.GetKind() == "EndpointSlice" {
-				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
-			}
-		case "events.k8s.io/v1beta1":
-			if u.GetKind() == "Event" {
-				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
-			}
-		case "autoscaling/v2beta1":
-			if u.GetKind() == "HorizontalPodAutoscaler" {
-				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
-			}
-		case "policy/v1beta1":
-			if u.GetKind() == "PodDisruptionBudget" || u.GetKind() == "PodSecurityPolicy" {
-				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
-			}
-		case "node.k8s.io/v1beta1":
-			if u.GetKind() == "RuntimeClass" {
-				deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
-			}
+		if _, ok := deprecatedGvk[u.GetObjectKind().GroupVersionKind()]; ok {
+			deprecatedAPIs[u.GetKind()] = append(deprecatedAPIs[u.GetKind()], u.GetName())
 		}
 	}
 
-	warnIfDeprecated := func(res string, msg string) {
-		switch res {
-		case "cronjobs":
-			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
-		case "endpointslices":
-			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
-		case "events":
-			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
-		case "horizontalpodautoscalers":
-			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
-		case "poddisruptionbudgets":
-			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
-		case "podsecuritypolicies":
-			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
-		case "runtimeclasses":
-			warnDeprecatedAPIs[res] = append(warnDeprecatedAPIs[res], msg)
+	deprecatedGroupResource := map[schema.GroupResource]struct{}{
+		{Group: "batch", Resource: "cronjobs"}:                       {},
+		{Group: "discovery.k8s.io", Resource: "endpointslices"}:      {},
+		{Group: "events.k8s.io", Resource: "events"}:                 {},
+		{Group: "autoscaling", Resource: "horizontalpodautoscalers"}: {},
+		{Group: "policy", Resource: "poddisruptionbudgets"}:          {},
+		{Group: "policy", Resource: "podsecuritypolicies"}:           {},
+		{Group: "node.k8s.io", Resource: "runtimeclasses"}:           {},
+	}
+
+	warnIfDeprecated := func(gr schema.GroupResource, msg string) {
+		if _, ok := deprecatedGroupResource[gr]; ok {
+			warnDeprecatedAPIs[gr.Resource] = append(warnDeprecatedAPIs[gr.Resource], msg)
 		}
 	}
 
@@ -403,11 +388,13 @@ func getRemovedAPIsOn1_25From(bundle *manifests.Bundle) (map[string][]string, ma
 					permCheck := func(permField string, perms []v1alpha1.StrategyDeploymentPermissions) {
 						for i, perm := range perms {
 							for j, rule := range perm.Rules {
-								for _, res := range rule.Resources {
-									if _, ok := resInCsvCrds[res]; ok {
-										continue
+								for _, apiGroup := range rule.APIGroups {
+									for _, res := range rule.Resources {
+										if _, ok := resInCsvCrds[res]; ok {
+											continue
+										}
+										warnIfDeprecated(schema.GroupResource{Group: apiGroup, Resource: res}, fmt.Sprintf("ClusterServiceVersion.Spec.InstallStrategy.StrategySpec.%s[%d].Rules[%d]", permField, i, j))
 									}
-									warnIfDeprecated(res, fmt.Sprintf("ClusterServiceVersion.Spec.InstallStrategy.StrategySpec.%s[%d].Rules[%d]", permField, i, j))
 								}
 							}
 						}
