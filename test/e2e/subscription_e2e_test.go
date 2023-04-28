@@ -2445,7 +2445,7 @@ var _ = Describe("Subscription", func() {
 			addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
 
 			By("updating the catalog with a broken v0.2.0 bundle image")
-			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0.yaml"))
+			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-non-existent-tag.yaml"))
 			Expect(err).To(BeNil())
 			err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
 			Expect(err).To(BeNil())
