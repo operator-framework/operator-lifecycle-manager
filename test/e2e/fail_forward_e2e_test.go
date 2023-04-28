@@ -100,7 +100,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "1s")
 
 			By("updating the catalog with a broken v0.2.0 bundle image")
-			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0.yaml"))
+			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-non-existent-tag.yaml"))
 			Expect(err).To(BeNil())
 
 			err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
@@ -122,7 +122,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 		})
 		It("eventually reports a successful state when multiple bad versions are rolled forward", func() {
 			By("patching the catalog with another bad bundle version")
-			badProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fail-forward/multiple-bad-versions", "example-operator.v0.2.1.yaml"))
+			badProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fail-forward/multiple-bad-versions", "example-operator.v0.2.1-non-existent-tag.yaml"))
 			Expect(err).To(BeNil())
 
 			err = magicCatalog.UpdateCatalog(context.Background(), badProvider)
@@ -239,7 +239,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("updating the catalog with a broken v0.2.0 csv")
-			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-2.yaml"))
+			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-invalid-csv.yaml"))
 			Expect(err).To(BeNil())
 
 			err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
