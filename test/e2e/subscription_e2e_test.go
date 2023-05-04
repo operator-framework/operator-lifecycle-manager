@@ -2411,7 +2411,7 @@ var _ = Describe("Subscription", func() {
 		require.Lenf(GinkgoT(), expectedSteps, 0, "Actual resource steps do not match expected: %#v", expectedSteps)
 	})
 
-	When("waiting on the bundle unpacking job", func() {
+	When("unpacking bundle", func() {
 		var (
 			magicCatalog      *MagicCatalog
 			catalogSourceName string
@@ -2439,39 +2439,88 @@ var _ = Describe("Subscription", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should expose a condition indicating failure to unpack", func() {
-			By("patching the OperatorGroup to reduce the bundle unpacking timeout")
-			ogNN := types.NamespacedName{Name: operatorGroup.GetName(), Namespace: generatedNamespace.GetName()}
-			addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
-
-			By("updating the catalog with a broken v0.2.0 bundle image")
-			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-non-existent-tag.yaml"))
-			Expect(err).To(BeNil())
-			err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
-			Expect(err).To(BeNil())
-
-			By("waiting for the subscription to maintain the example-operator.v0.1.0 status.currentCSV")
-			Consistently(subscriptionCurrentCSVGetter(crc, generatedNamespace.GetName(), subName)).Should(Equal("example-operator.v0.1.0"))
-
-			By("verifying that the subscription is reporting bundle unpack failure condition")
+		It("should not report unpacking progress or errors after successfull unpacking", func() {
+			By("verifying that the subscription is not reporting unpacking progress")
 			Eventually(
-				func() (string, error) {
+				func() (corev1.ConditionStatus, error) {
+					fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
+					if err != nil {
+						return "", err
+					}
+					cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpacking)
+					return cond.Status, nil
+				},
+				5*time.Minute,
+				interval,
+			).Should(Equal(corev1.ConditionFalse))
+
+			By("verifying that the subscription is not reporting unpacking errors")
+			Eventually(
+				func() (corev1.ConditionStatus, error) {
 					fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
 					if err != nil {
 						return "", err
 					}
 					cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed)
-					if cond.Status != corev1.ConditionTrue || cond.Reason != "BundleUnpackFailed" {
-						return "", fmt.Errorf("%s condition not found", v1alpha1.SubscriptionBundleUnpackFailed)
-					}
-
-					return cond.Message, nil
+					return cond.Status, nil
 				},
 				5*time.Minute,
 				interval,
-			).Should(ContainSubstring("bundle unpacking failed. Reason:"))
+			).Should(Equal(corev1.ConditionUnknown))
 		})
 
+		Context("with bundle which OLM will fail to unpack", func() {
+			BeforeEach(func() {
+				By("patching the OperatorGroup to reduce the bundle unpacking timeout")
+				ogNN := types.NamespacedName{Name: operatorGroup.GetName(), Namespace: generatedNamespace.GetName()}
+				addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
+
+				By("updating the catalog with a broken v0.2.0 bundle image")
+				brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-non-existent-tag.yaml"))
+				Expect(err).To(BeNil())
+				err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
+				Expect(err).To(BeNil())
+			})
+
+			It("should expose a condition indicating failure to unpack", func() {
+				By("verifying that the subscription is reporting bundle unpack failure condition")
+				Eventually(
+					func() (string, error) {
+						fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
+						if err != nil {
+							return "", err
+						}
+						cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed)
+						if cond.Status != corev1.ConditionTrue || cond.Reason != "BundleUnpackFailed" {
+							return "", fmt.Errorf("%s condition not found", v1alpha1.SubscriptionBundleUnpackFailed)
+						}
+
+						return cond.Message, nil
+					},
+					5*time.Minute,
+					interval,
+				).Should(ContainSubstring("bundle unpacking failed. Reason: DeadlineExceeded"))
+
+				By("waiting for the subscription to maintain the example-operator.v0.1.0 status.currentCSV")
+				Consistently(subscriptionCurrentCSVGetter(crc, generatedNamespace.GetName(), subName)).Should(Equal("example-operator.v0.1.0"))
+			})
+
+			It("should be able to recover when catalog gets updated with a fixed version", func() {
+				By("patching the OperatorGroup to reduce the bundle unpacking timeout")
+				ogNN := types.NamespacedName{Name: operatorGroup.GetName(), Namespace: generatedNamespace.GetName()}
+				addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "5m")
+
+				By("updating the catalog with a fixed v0.2.0 bundle image")
+				brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0.yaml"))
+				Expect(err).To(BeNil())
+				err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
+				Expect(err).To(BeNil())
+
+				By("waiting for the subscription to have v0.2.0 installed")
+				_, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasCurrentCSV("example-operator.v0.2.0"))
+				Expect(err).Should(BeNil())
+			})
+		})
 	})
 })
 
