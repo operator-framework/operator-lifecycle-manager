@@ -3513,7 +3513,7 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 					), "csv1-dep1", []string{"c1.g1"}),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1", "g1"),
+					crdWithConversionWebhook(crd("c1", "v1", "g1"), nil),
 				},
 				desc: v1alpha1.WebhookDescription{
 					GenerateName:   "webhook",

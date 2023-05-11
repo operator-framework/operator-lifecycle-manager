@@ -2359,7 +2359,12 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		return fmt.Errorf(msg)
 	}
 
-	if !webhooksInstalled || webhookErr != nil {
+	if webhookErr != nil {
+		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseInstallReady, requeueConditionReason, fmt.Sprintf("Webhook install failed: %s", webhookErr), now, a.recorder)
+		return webhookErr
+	}
+
+	if !webhooksInstalled {
 		msg := "webhooks not installed"
 		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, msg, now, a.recorder)
 		if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
