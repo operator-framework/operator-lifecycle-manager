@@ -34,10 +34,6 @@ import (
 )
 
 const (
-	// TODO: Move to operator-framework/api/pkg/operators/v1alpha1
-	// BundleLookupFailed describes conditions types for when BundleLookups fail
-	BundleLookupFailed operatorsv1alpha1.BundleLookupConditionType = "BundleLookupFailed"
-
 	// TODO: This can be a spec field
 	// BundleUnpackTimeoutAnnotationKey allows setting a bundle unpack timeout per InstallPlan
 	// and overrides the default specified by the --bundle-unpack-timeout flag
@@ -426,7 +422,7 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 	result = newBundleUnpackResult(lookup)
 
 	// if bundle lookup failed condition already present, then there is nothing more to do
-	failedCond := result.GetCondition(BundleLookupFailed)
+	failedCond := result.GetCondition(operatorsv1alpha1.BundleLookupFailed)
 	if failedCond.Status == corev1.ConditionTrue {
 		return result, nil
 	}

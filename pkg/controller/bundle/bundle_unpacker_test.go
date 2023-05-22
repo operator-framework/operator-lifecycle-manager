@@ -1318,7 +1318,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								LastTransitionTime: &start,
 							},
 							{
-								Type:               BundleLookupFailed,
+								Type:               operatorsv1alpha1.BundleLookupFailed,
 								Status:             corev1.ConditionTrue,
 								Reason:             "DeadlineExceeded",
 								Message:            "Job was active longer than specified deadline",
