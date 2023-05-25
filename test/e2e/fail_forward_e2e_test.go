@@ -55,16 +55,21 @@ var _ = Describe("Fail Forward Upgrades", func() {
 		TeardownNamespace(ns.GetName())
 	})
 
-	When("InstallPlan is not being created due to failed upgrade", func() {
+	When("an InstallPlan is reporting a failed state", func() {
 
 		var (
 			magicCatalog           *MagicCatalog
 			catalogSourceName      string
 			subscription           *operatorsv1alpha1.Subscription
 			originalInstallPlanRef *corev1.ObjectReference
+			failedInstallPlanRef   *corev1.ObjectReference
 		)
 
 		BeforeEach(func() {
+			By("creating a service account with no permission")
+			saNameWithNoPerms := genName("scoped-sa-")
+			newServiceAccount(ctx.Ctx().KubeClient(), ns.GetName(), saNameWithNoPerms)
+
 			By("deploying the testing catalog")
 			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.1.0.yaml"))
 			Expect(err).To(BeNil())
@@ -97,36 +102,43 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, ns.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("patching the OperatorGroup to reduce the bundle unpacking timeout")
-			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "1s")
+			By("updating the operator group to use the service account without required permissions to simulate InstallPlan failure")
+			Eventually(operatorGroupServiceAccountNameSetter(crclient, ns.GetName(), ogName, saNameWithNoPerms)).Should(Succeed())
 
-			By("updating the catalog with a broken v0.2.0 bundle image")
-			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-non-existent-tag.yaml"))
+			By("updating the catalog with v0.2.0 bundle image")
+			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0.yaml"))
 			Expect(err).To(BeNil())
 			err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
 			Expect(err).To(BeNil())
 
-			By("waiting for the subscription to maintain the example-operator.v0.1.0 status.currentCSV")
-			Consistently(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.1.0"))
-
-			By("verifying the subscription is referencing the same InstallPlan")
-			subscription, err = fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
+			By("verifying the subscription is referencing a new installplan")
+			subscription, err = fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanDifferentChecker(originalInstallPlanRef.Name))
 			Expect(err).Should(BeNil())
-			Expect(subscription.Status.InstallPlanRef.Name).To(Equal(originalInstallPlanRef.Name))
+
+			By("waiting for the bad InstallPlan to report a failed installation state")
+			failedInstallPlanRef = subscription.Status.InstallPlanRef
+			_, err = fetchInstallPlan(GinkgoT(), crclient, failedInstallPlanRef.Name, failedInstallPlanRef.Namespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
+			Expect(err).To(BeNil())
+
+			By("updating the operator group remove service account without permissions")
+			Eventually(operatorGroupServiceAccountNameSetter(crclient, ns.GetName(), ogName, "")).Should(Succeed())
 		})
 		AfterEach(func() {
 			By("removing the testing catalog resources")
 			Expect(magicCatalog.UndeployCatalog(context.Background())).To(BeNil())
 		})
-		It("eventually gets created and reports a successful state when multiple bad versions are rolled forward", func() {
-			By("patching the catalog with another bad bundle version")
+		It("eventually reports a successful state when multiple bad versions are rolled forward", func() {
+			By("patching the OperatorGroup to reduce the bundle unpacking timeout")
+			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "1s")
+
+			By("patching the catalog with a bad bundle version")
 			badProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fail-forward/multiple-bad-versions", "example-operator.v0.2.1-non-existent-tag.yaml"))
 			Expect(err).To(BeNil())
 			err = magicCatalog.UpdateCatalog(context.Background(), badProvider)
 			Expect(err).To(BeNil())
 
-			By("waiting for the subscription to maintain the example-operator.v0.1.0 status.currentCSV")
-			Consistently(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.1.0"))
+			By("waiting for the subscription to maintain the example-operator.v0.2.0 status.currentCSV")
+			Consistently(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.2.0"))
 
 			By("patching the OperatorGroup to increase the bundle unpacking timeout")
 			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "5m")
@@ -151,10 +163,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).To(BeNil())
 		})
 
-		It("eventually gets created and reports a successful state when using skip ranges", func() {
-			By("patching the OperatorGroup to increase the bundle unpacking timeout")
-			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "5m")
-
+		It("eventually reports a successful state when using skip ranges", func() {
 			By("patching the catalog with a fixed version")
 			fixedProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fail-forward/skip-range", "example-operator.v0.3.0.yaml"))
 			Expect(err).To(BeNil())
@@ -174,10 +183,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			_, err = fetchInstallPlan(GinkgoT(), crclient, ref.Name, ref.Namespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			Expect(err).To(BeNil())
 		})
-		It("eventually gets created and reports a successful state when using skips", func() {
-			By("patching the OperatorGroup to increase the bundle unpacking timeout")
-			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "5m")
-
+		It("eventually reports a successful state when using skips", func() {
 			By("patching the catalog with a fixed version")
 			fixedProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fail-forward/skips", "example-operator.v0.3.0.yaml"))
 			Expect(err).To(BeNil())
@@ -197,10 +203,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			_, err = fetchInstallPlan(GinkgoT(), crclient, ref.Name, ref.Namespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 			Expect(err).To(BeNil())
 		})
-		It("never gets created when using replaces", func() {
-			By("patching the OperatorGroup to increase the bundle unpacking timeout")
-			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "5m")
-
+		It("eventually reports a failed state when using replaces", func() {
 			By("patching the catalog with a fixed version")
 			fixedProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fail-forward/replaces", "example-operator.v0.3.0.yaml"))
 			Expect(err).To(BeNil())
@@ -208,12 +211,12 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).To(BeNil())
 
 			By("waiting for the subscription to maintain the example-operator.v0.2.0 status.currentCSV")
-			Consistently(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.1.0"))
+			Consistently(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.2.0"))
 
 			By("verifying the subscription is referencing the same InstallPlan")
 			subscription, err = fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
 			Expect(err).Should(BeNil())
-			Expect(subscription.Status.InstallPlanRef.Name).To(Equal(originalInstallPlanRef.Name))
+			Expect(subscription.Status.InstallPlanRef.Name).To(Equal(failedInstallPlanRef.Name))
 		})
 	})
 	When("a CSV resource is in a failed state", func() {

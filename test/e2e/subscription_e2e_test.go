@@ -3154,3 +3154,15 @@ func subscriptionCurrentCSVGetter(crclient versioned.Interface, namespace, subNa
 		return subscription.Status.CurrentCSV
 	}
 }
+
+func operatorGroupServiceAccountNameSetter(crclient versioned.Interface, namespace, name, saName string) func() error {
+	return func() error {
+		toUpdate, err := crclient.OperatorsV1().OperatorGroups(namespace).Get(context.Background(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		toUpdate.Spec.ServiceAccountName = saName
+		_, err = crclient.OperatorsV1().OperatorGroups(namespace).Update(context.Background(), toUpdate, metav1.UpdateOptions{})
+		return err
+	}
+}
