@@ -13,7 +13,7 @@ entries:
 schema: olm.bundle
 name: example-operator.v0.2.0
 package: packageA
-image: quay.io/olmtest/example-operator-bundle:0.2.0
+image: quay.io/olmtest/example-operator-bundle:non-existent-tag
 properties:
   - type: olm.gvk
     value:

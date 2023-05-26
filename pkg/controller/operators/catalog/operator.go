@@ -934,7 +934,13 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
-	failForwardEnabled, err := resolver.IsFailForwardEnabled(o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace))
+	ogLister := o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace)
+	failForwardEnabled, err := resolver.IsFailForwardEnabled(ogLister)
+	if err != nil {
+		return err
+	}
+
+	unpackTimeout, err := bundle.OperatorGroupBundleUnpackTimeout(ogLister)
 	if err != nil {
 		return err
 	}
@@ -1028,6 +1034,80 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
+	// Attempt to unpack bundles before installing
+	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
+	if len(bundleLookups) > 0 {
+		logger.Debug("unpacking bundles")
+
+		var unpacked bool
+		unpacked, steps, bundleLookups, err = o.unpackBundles(namespace, steps, bundleLookups, unpackTimeout)
+		if err != nil {
+			// If the error was fatal capture and fail
+			if olmerrors.IsFatal(err) {
+				_, updateErr := o.updateSubscriptionStatuses(
+					o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+						Type:    v1alpha1.SubscriptionBundleUnpackFailed,
+						Reason:  "ErrorPreventedUnpacking",
+						Message: err.Error(),
+						Status:  corev1.ConditionTrue,
+					}))
+				if updateErr != nil {
+					logger.WithError(updateErr).Debug("failed to update subs conditions")
+					return updateErr
+				}
+				return nil
+			}
+			// Retry sync if non-fatal error
+			return fmt.Errorf("bundle unpacking failed with an error: %w", err)
+		}
+
+		// Check BundleLookup status conditions to see if the BundleLookupFailed condtion is true
+		// which means bundle lookup has failed and subscriptions need to be updated
+		// with a condition indicating the failure.
+		isFailed, cond := hasBundleLookupFailureCondition(bundleLookups)
+		if isFailed {
+			err := fmt.Errorf("bundle unpacking failed. Reason: %v, and Message: %v", cond.Reason, cond.Message)
+			logger.Infof("%v", err)
+
+			_, updateErr := o.updateSubscriptionStatuses(
+				o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+					Type:    v1alpha1.SubscriptionBundleUnpackFailed,
+					Reason:  "BundleUnpackFailed",
+					Message: err.Error(),
+					Status:  corev1.ConditionTrue,
+				}))
+			if updateErr != nil {
+				logger.WithError(updateErr).Debug("failed to update subs conditions")
+				return updateErr
+			}
+			// Since this is likely requires intervention we do not want to
+			// requeue too often. We return no error here and rely on a
+			// periodic resync which will help to automatically resolve
+			// some issues such as unreachable bundle images caused by
+			// bad catalog updates.
+			return nil
+		}
+
+		// This means that the unpack job is still running (most likely) or
+		// there was some issue which we did not handle above.
+		if !unpacked {
+			_, updateErr := o.updateSubscriptionStatuses(
+				o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+					Type:   v1alpha1.SubscriptionBundleUnpacking,
+					Reason: "UnpackingInProgress",
+					Status: corev1.ConditionTrue,
+				}))
+			if updateErr != nil {
+				logger.WithError(updateErr).Debug("failed to update subs conditions")
+				return updateErr
+			}
+
+			logger.Debug("unpacking is not complete yet, requeueing")
+			o.nsResolveQueue.AddAfter(namespace, 5*time.Second)
+			return nil
+		}
+	}
+
 	// create installplan if anything updated
 	if len(updatedSubs) > 0 {
 		logger.Debug("resolution caused subscription changes, creating installplan")
@@ -1062,8 +1142,17 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		logger.Debugf("no subscriptions were updated")
 	}
 
+	// Make sure that we no longer indicate unpacking progress
+	subs = o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
+		Type:   v1alpha1.SubscriptionBundleUnpacking,
+		Status: corev1.ConditionFalse,
+	})
+
+	// Remove BundleUnpackFailed condition from subscriptions
+	o.removeSubsCond(subs, v1alpha1.SubscriptionBundleUnpackFailed)
+
 	// Remove resolutionfailed condition from subscriptions
-	subs = o.removeSubsCond(subs, v1alpha1.SubscriptionResolutionFailed)
+	o.removeSubsCond(subs, v1alpha1.SubscriptionResolutionFailed)
 	newSub := true
 	for _, updatedSub := range updatedSubs {
 		updatedSub.Status.RemoveConditions(v1alpha1.SubscriptionResolutionFailed)
@@ -1408,19 +1497,27 @@ type UnpackedBundleReference struct {
 	Properties             string `json:"properties"`
 }
 
-func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan, unpackTimeout time.Duration) (bool, *v1alpha1.InstallPlan, error) {
-	out := plan.DeepCopy()
+func (o *Operator) unpackBundles(namespace string, installPlanSteps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup, unpackTimeout time.Duration) (bool, []*v1alpha1.Step, []v1alpha1.BundleLookup, error) {
 	unpacked := true
 
+	outBundleLookups := make([]v1alpha1.BundleLookup, len(bundleLookups))
+	for i := range bundleLookups {
+		bundleLookups[i].DeepCopyInto(&outBundleLookups[i])
+	}
+	outInstallPlanSteps := make([]*v1alpha1.Step, len(installPlanSteps))
+	for i := range installPlanSteps {
+		outInstallPlanSteps[i] = installPlanSteps[i].DeepCopy()
+	}
+
 	var errs []error
-	for i := 0; i < len(out.Status.BundleLookups); i++ {
-		lookup := out.Status.BundleLookups[i]
+	for i := 0; i < len(outBundleLookups); i++ {
+		lookup := outBundleLookups[i]
 		res, err := o.bundleUnpacker.UnpackBundle(&lookup, unpackTimeout)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		out.Status.BundleLookups[i] = *res.BundleLookup
+		outBundleLookups[i] = *res.BundleLookup
 
 		// if the failed condition is present it means the bundle unpacking has failed
 		failedCondition := res.GetCondition(v1alpha1.BundleLookupFailed)
@@ -1442,11 +1539,11 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan, unpackTimeout time.
 			continue
 		}
 
-		// Ensure that bundle can be applied by the current version of OLM by converting to steps
-		steps, err := resolver.NewStepsFromBundle(res.Bundle(), out.GetNamespace(), res.Replaces, res.CatalogSourceRef.Name, res.CatalogSourceRef.Namespace)
+		// Ensure that bundle can be applied by the current version of OLM by converting to bundleSteps
+		bundleSteps, err := resolver.NewStepsFromBundle(res.Bundle(), namespace, res.Replaces, res.CatalogSourceRef.Name, res.CatalogSourceRef.Namespace)
 		if err != nil {
 			if fatal := olmerrors.IsFatal(err); fatal {
-				return false, nil, err
+				return false, nil, nil, err
 			}
 
 			errs = append(errs, fmt.Errorf("failed to turn bundle into steps: %v", err))
@@ -1455,7 +1552,7 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan, unpackTimeout time.
 		}
 
 		// step manifests are replaced with references to the configmap containing them
-		for i, s := range steps {
+		for i, s := range bundleSteps {
 			ref := UnpackedBundleReference{
 				Kind:                   "ConfigMap",
 				Namespace:              res.CatalogSourceRef.Namespace,
@@ -1472,19 +1569,19 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan, unpackTimeout time.
 				continue
 			}
 			s.Resource.Manifest = string(r)
-			steps[i] = s
+			bundleSteps[i] = s
 		}
 		res.RemoveCondition(resolver.BundleLookupConditionPacked)
-		out.Status.BundleLookups[i] = *res.BundleLookup
-		out.Status.Plan = append(out.Status.Plan, steps...)
+		outBundleLookups[i] = *res.BundleLookup
+		outInstallPlanSteps = append(outInstallPlanSteps, bundleSteps...)
 	}
 
 	if err := utilerrors.NewAggregate(errs); err != nil {
 		o.logger.Debugf("failed to unpack bundles: %v", err)
-		return false, nil, err
+		return false, nil, nil, err
 	}
 
-	return unpacked, out, nil
+	return unpacked, outInstallPlanSteps, outBundleLookups, nil
 }
 
 // gcInstallPlans garbage collects installplans that are too old
@@ -1631,71 +1728,6 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		}
 	}
 
-	ogLister := o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(plan.GetNamespace())
-	unpackTimeout, err := bundle.OperatorGroupBundleUnpackTimeout(ogLister)
-	if err != nil {
-		return err
-	}
-
-	// Attempt to unpack bundles before installing
-	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
-	if len(plan.Status.BundleLookups) > 0 {
-		unpacked, out, err := o.unpackBundles(plan, unpackTimeout)
-		if err != nil {
-			// If the error was fatal capture and fail
-			if fatal := olmerrors.IsFatal(err); fatal {
-				if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, err.Error()); err != nil {
-					// retry for failure to update status
-					syncError = err
-					return
-				}
-			}
-			// Retry sync if non-fatal error
-			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
-			return
-		}
-
-		if !reflect.DeepEqual(plan.Status, out.Status) {
-			logger.Warnf("status not equal, updating...")
-			if _, err := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{}); err != nil {
-				syncError = fmt.Errorf("failed to update installplan bundle lookups: %v", err)
-			}
-
-			return
-		}
-
-		// Check BundleLookup status conditions to see if the BundleLookupPending condtion is false
-		// which means bundle lookup has failed and the InstallPlan should be failed as well
-		isFailed, cond := hasBundleLookupFailureCondition(plan)
-		if isFailed {
-			err := fmt.Errorf("bundle unpacking failed. Reason: %v, and Message: %v", cond.Reason, cond.Message)
-			// Mark the InstallPlan as failed for a fatal bundle unpack error
-			logger.Infof("%v", err)
-
-			if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, err.Error()); err != nil {
-				// retry for failure to update status
-				syncError = err
-				return
-			}
-
-			// Requeue subscription to propagate SubscriptionInstallPlanFailed condtion to subscription
-			o.requeueSubscriptionForInstallPlan(plan, logger)
-			return
-		}
-
-		// TODO: Remove in favor of job and configmap informer requeuing
-		if !unpacked {
-			err := o.ipQueueSet.RequeueAfter(plan.GetNamespace(), plan.GetName(), 5*time.Second)
-			if err != nil {
-				syncError = err
-				return
-			}
-			logger.Debug("install plan not yet populated from bundle image, requeueing")
-
-			return
-		}
-	}
-
 	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan, o.now(), o.installPlanTimeout)
 
 	if syncError != nil {
@@ -1723,8 +1755,8 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	return
 }
 
-func hasBundleLookupFailureCondition(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.BundleLookupCondition) {
-	for _, bundleLookup := range plan.Status.BundleLookups {
+func hasBundleLookupFailureCondition(bundleLookups []v1alpha1.BundleLookup) (bool, *v1alpha1.BundleLookupCondition) {
+	for _, bundleLookup := range bundleLookups {
 		for _, cond := range bundleLookup.Conditions {
 			if cond.Type == v1alpha1.BundleLookupFailed && cond.Status == corev1.ConditionTrue {
 				return true, &cond
@@ -1732,27 +1764,6 @@ func hasBundleLookupFailureCondition(plan *v1alpha1.InstallPlan) (bool, *v1alpha
 		}
 	}
 	return false, nil
-}
-
-func (o *Operator) transitionInstallPlanToFailed(plan *v1alpha1.InstallPlan, logger logrus.FieldLogger, reason v1alpha1.InstallPlanConditionReason, message string) error {
-	now := o.now()
-	out := plan.DeepCopy()
-	out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
-		reason, message, &now))
-	out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-
-	logger.Info("transitioning InstallPlan to failed")
-	_, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
-	if err == nil {
-		return nil
-	}
-
-	updateErr := errors.New("error updating InstallPlan status: " + err.Error())
-	logger = logger.WithField("updateError", updateErr)
-	logger.Errorf("error transitioning InstallPlan to failed")
-
-	// retry sync with error to update InstallPlan status
-	return fmt.Errorf("installplan failed: %s and error updating InstallPlan status as failed: %s", message, updateErr)
 }
 
 func (o *Operator) requeueSubscriptionForInstallPlan(plan *v1alpha1.InstallPlan, logger *logrus.Entry) {
