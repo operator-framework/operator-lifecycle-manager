@@ -1062,7 +1062,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		}
 
 		// Check BundleLookup status conditions to see if the BundleLookupFailed condtion is true
-		// which means bundle lookup has failed and subscriptions need to be updated
+		// which means bundle lookup has failed and subscriptions needs to be updated
 		// with a condition indicating the failure.
 		isFailed, cond := hasBundleLookupFailureCondition(bundleLookups)
 		if isFailed {
