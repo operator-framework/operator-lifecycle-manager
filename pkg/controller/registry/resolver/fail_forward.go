@@ -17,8 +17,8 @@ import (
 // backwards compatible.
 func IsFailForwardEnabled(ogLister v1listers.OperatorGroupNamespaceLister) (bool, error) {
 	ogs, err := ogLister.List(labels.Everything())
-	if err != nil || len(ogs) == 0 {
-		return false, nil
+	if err != nil {
+		return false, err
 	}
 	if len(ogs) != 1 {
 		return false, fmt.Errorf("found %d operatorGroups, expected 1", len(ogs))

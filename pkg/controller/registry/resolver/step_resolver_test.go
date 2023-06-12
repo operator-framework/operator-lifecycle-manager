@@ -335,6 +335,7 @@ func TestResolver(t *testing.T) {
 			name: "SubscriptionOmitsChannel",
 			clusterState: []runtime.Object{
 				newSub(namespace, "package", "", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -354,6 +355,7 @@ func TestResolver(t *testing.T) {
 			name: "SubscriptionWithNoCandidates/Error",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			out: resolverTestOut{
 				solverError: solver.NotSatisfiable{
@@ -372,6 +374,7 @@ func TestResolver(t *testing.T) {
 			name: "SubscriptionWithNoCandidatesInPackage/Error",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -395,6 +398,7 @@ func TestResolver(t *testing.T) {
 			name: "SubscriptionWithNoCandidatesInChannel/Error",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -418,6 +422,7 @@ func TestResolver(t *testing.T) {
 			name: "SubscriptionWithNoCandidatesWithStartingCSVName/Error",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog, withStartingCSV("notfound")),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -441,6 +446,7 @@ func TestResolver(t *testing.T) {
 			name: "SingleNewSubscription/NoDeps",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -460,6 +466,7 @@ func TestResolver(t *testing.T) {
 			name: "SingleNewSubscription/ResolveOne",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -482,6 +489,7 @@ func TestResolver(t *testing.T) {
 			name: "SingleNewSubscription/ResolveOne/BundlePath",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -528,6 +536,7 @@ func TestResolver(t *testing.T) {
 			name: "SingleNewSubscription/ResolveOne/AdditionalBundleObjects",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -550,6 +559,7 @@ func TestResolver(t *testing.T) {
 			name: "SingleNewSubscription/ResolveOne/AdditionalBundleObjects/Service",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -572,6 +582,7 @@ func TestResolver(t *testing.T) {
 			name: "SingleNewSubscription/DependencyMissing",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -606,6 +617,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -620,6 +632,7 @@ func TestResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingSub(namespace, "b.v1", "b", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -638,6 +651,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
 				newSub(namespace, "a", "beta", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -664,6 +678,7 @@ func TestResolver(t *testing.T) {
 					s.Name = s.Name + "-2"
 					return
 				}(),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -689,6 +704,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingOperator("ns1", "a.v1", "a", "alpha", "", nil, nil, nil, nil),
 				existingOperator("ns2", "a.v1", "a", "alpha", "", nil, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			out: nothing,
 		},
@@ -697,6 +713,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -718,6 +735,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				stripManifests(withBundlePath(bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil), "quay.io/test/bundle@sha256:abcd"))},
@@ -759,6 +777,7 @@ func TestResolver(t *testing.T) {
 			name: "InstalledSub/NoRunningOperator",
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -778,6 +797,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -802,6 +822,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", nil, nil, Provides1, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -827,6 +848,7 @@ func TestResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
 				newSub(namespace, "b", "beta", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -851,6 +873,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				newSub(namespace, "b", "beta", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -873,6 +896,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				newSub(namespace, "b", "beta", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -898,6 +922,7 @@ func TestResolver(t *testing.T) {
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, Requires2, nil, nil),
 				existingSub(namespace, "b.v1", "b", "alpha", catalog),
 				existingOperator(namespace, "b.v1", "b", "alpha", "", Provides2, Requires1, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -924,6 +949,7 @@ func TestResolver(t *testing.T) {
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
 				existingSub(namespace, "b.v1", "b", "alpha", catalog),
 				existingOperator(namespace, "b.v1", "b", "alpha", "", nil, Requires1, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -946,6 +972,7 @@ func TestResolver(t *testing.T) {
 			name: "PicksOlderProvider",
 			clusterState: []runtime.Object{
 				newSub(namespace, "b", "alpha", catalog),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -970,6 +997,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil, withVersion("1.0.0"), withSkipRange("< 1.0.0")),
@@ -990,6 +1018,7 @@ func TestResolver(t *testing.T) {
 				existingSub(namespace, "b.v1", "b", "beta", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
 				existingOperator(namespace, "b.v1", "b", "beta", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{
 				catalog: {
@@ -1015,6 +1044,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v2", "a", "alpha", "", nil, nil, nil, nil, withVersion("1.0.0"), withSkipRange("< 1.0.0")),
@@ -1034,6 +1064,7 @@ func TestResolver(t *testing.T) {
 			name: "NewSub/StartingCSV",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog, withStartingCSV("a.v2")),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
@@ -1054,6 +1085,7 @@ func TestResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v2", "a", "alpha", "", nil, nil, nil, nil, withVersion("1.0.0"), withSkips([]string{"a.v1"})),
@@ -1074,6 +1106,7 @@ func TestResolver(t *testing.T) {
 				existingSub(namespace, "a.v2", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseReplacing)),
 				existingOperator(namespace, "a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseFailed)),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withVersion("1.0.0")),
@@ -1121,6 +1154,7 @@ func TestResolver(t *testing.T) {
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseReplacing)),
 				existingOperator(namespace, "a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseReplacing)),
 				existingOperator(namespace, "a.v3", "a", "alpha", "a.v2", Provides1, nil, nil, nil, withPhase(v1alpha1.CSVPhaseFailed)),
+				newOperatorGroup("foo", namespace),
 			},
 			bundlesByCatalog: map[resolvercache.SourceKey][]*api.Bundle{catalog: {
 				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil, withVersion("1.0.0")),

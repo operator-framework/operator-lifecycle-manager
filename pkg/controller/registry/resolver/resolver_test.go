@@ -12,8 +12,10 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/api/pkg/constraints"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
@@ -1373,6 +1375,12 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
+	og := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "og",
+			Namespace: namespace,
+		},
+	}
 
 	phases := []struct {
 		subs     []*v1alpha1.Subscription
@@ -1442,7 +1450,7 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 						key:       cache.NewVirtualSourceKey(namespace),
 						csvLister: &csvs,
 						subLister: fakeSubscriptionLister(p.subs),
-						ogLister:  fakeOperatorGroupLister{},
+						ogLister:  fakeOperatorGroupLister{og},
 						logger:    logger,
 					},
 				}),
