@@ -78,7 +78,7 @@ func TestOperatorRunChannelClosure(t *testing.T) {
 
 			o.Run(ctx)
 
-			timeout := time.After(time.Second)
+			timeout := time.After(2 * defaultServerVersionInterval)
 			for n, ch := range map[string]<-chan struct{}{
 				"ready": o.Ready(),
 				"done":  o.Done(),

@@ -129,9 +129,18 @@ func (m *monitor) Run(stopCh <-chan struct{}) {
 	m.logger.Infof("initializing clusteroperator resource(s) for %s", m.names)
 
 	for _, name := range m.names {
-		if err := m.init(name); err != nil {
-			m.logger.Errorf("initialization error - %v", err)
-			break
+		for {
+			if err := m.init(name); err != nil {
+				m.logger.Errorf("initialization error - %v", err)
+			} else {
+				m.logger.Infof("initialized cluster resource - %s", name)
+				break
+			}
+			select {
+			case <-time.After(defaultProbeInterval):
+			case <-stopCh:
+				return
+			}
 		}
 	}
 

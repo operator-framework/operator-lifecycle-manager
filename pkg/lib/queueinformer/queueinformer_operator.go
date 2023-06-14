@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/pkg/errors"
@@ -11,6 +12,10 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
+)
+
+const (
+	defaultServerVersionInterval = 1 * time.Minute
 )
 
 // ExtensibleOperator describes a Reconciler that can be extended with additional informers and queue informers
@@ -194,6 +199,16 @@ func (o *operator) start(ctx context.Context) error {
 	go func() {
 		defer close(errs)
 		v, err := o.serverVersion.ServerVersion()
+		if err == nil {
+			o.logger.Infof("connection established. cluster-version: %v", v)
+			return
+		}
+		select {
+		case <-time.After(defaultServerVersionInterval):
+		case <-ctx.Done():
+			return
+		}
+		v, err = o.serverVersion.ServerVersion()
 		if err != nil {
 			select {
 			case errs <- errors.Wrap(err, "communicating with server failed"):
