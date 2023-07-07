@@ -254,11 +254,33 @@ func TestPodSchedulingOverrides(t *testing.T) {
 		},
 	}
 
+	var overriddenAffinity = &corev1.Affinity{
+		NodeAffinity: &corev1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{
+					{
+						MatchExpressions: []corev1.NodeSelectorRequirement{
+							{
+								Key:      "kubernetes.io/arch",
+								Operator: corev1.NodeSelectorOpIn,
+								Values: []string{
+									"amd64",
+									"arm",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
 	testCases := []struct {
 		title                     string
 		catalogSource             *v1alpha1.CatalogSource
 		expectedNodeSelectors     map[string]string
 		expectedTolerations       []corev1.Toleration
+		expectedAffinity          *corev1.Affinity
 		expectedPriorityClassName string
 		annotations               map[string]string
 	}{
@@ -275,6 +297,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       nil,
+			expectedAffinity:          nil,
 			expectedPriorityClassName: defaultPriorityClassName,
 			expectedNodeSelectors:     defaultNodeSelectors,
 		}, {
@@ -293,6 +316,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       nil,
+			expectedAffinity:          nil,
 			expectedPriorityClassName: defaultPriorityClassName,
 			expectedNodeSelectors:     overriddenNodeSelectors,
 		}, {
@@ -311,6 +335,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       nil,
+			expectedAffinity:          nil,
 			expectedPriorityClassName: overriddenPriorityClassName,
 			expectedNodeSelectors:     defaultNodeSelectors,
 		}, {
@@ -329,6 +354,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       nil,
+			expectedAffinity:          nil,
 			expectedPriorityClassName: defaultPriorityClassName,
 			expectedNodeSelectors:     defaultNodeSelectors,
 		}, {
@@ -347,6 +373,26 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       overriddenTolerations,
+			expectedAffinity:          nil,
+			expectedPriorityClassName: defaultPriorityClassName,
+			expectedNodeSelectors:     defaultNodeSelectors,
+		}, {
+			title: "Override affinity",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						Affinity: overriddenAffinity,
+					},
+				},
+			},
+			expectedTolerations:       nil,
+			expectedAffinity:          overriddenAffinity,
 			expectedPriorityClassName: defaultPriorityClassName,
 			expectedNodeSelectors:     defaultNodeSelectors,
 		}, {
@@ -363,10 +409,12 @@ func TestPodSchedulingOverrides(t *testing.T) {
 						NodeSelector:      overriddenNodeSelectors,
 						PriorityClassName: &overriddenPriorityClassName,
 						Tolerations:       overriddenTolerations,
+						Affinity:          overriddenAffinity,
 					},
 				},
 			},
 			expectedTolerations:       overriddenTolerations,
+			expectedAffinity:          overriddenAffinity,
 			expectedPriorityClassName: overriddenPriorityClassName,
 			expectedNodeSelectors:     overriddenNodeSelectors,
 		}, {
@@ -385,6 +433,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations: nil,
+			expectedAffinity:    nil,
 			annotations: map[string]string{
 				CatalogPriorityClassKey: "some-OTHER-prio-class",
 			},
@@ -398,5 +447,6 @@ func TestPodSchedulingOverrides(t *testing.T) {
 		require.Equal(t, testCase.expectedNodeSelectors, pod.Spec.NodeSelector)
 		require.Equal(t, testCase.expectedPriorityClassName, pod.Spec.PriorityClassName)
 		require.Equal(t, testCase.expectedTolerations, pod.Spec.Tolerations)
+		require.Equal(t, testCase.expectedAffinity, pod.Spec.Affinity)
 	}
 }
