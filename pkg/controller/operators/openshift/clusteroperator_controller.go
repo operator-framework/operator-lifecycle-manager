@@ -76,7 +76,7 @@ func (r *ClusterOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	bldr := ctrl.NewControllerManagedBy(mgr).
 		For(&configv1.ClusterOperator{}, builder.WithPredicates(watchName(&r.Name))).
-		Watches(&source.Channel{Source: r.syncTracker.Events()}, &handler.EnqueueRequestForObject{})
+		WatchesRawSource(&source.Channel{Source: r.syncTracker.Events()}, &handler.EnqueueRequestForObject{})
 
 	return r.TweakBuilder(bldr).Complete(r)
 }
