@@ -24,7 +24,6 @@ import (
 	v2 "github.com/operator-framework/api/pkg/operators/v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeOperatorConditions struct {
 	ns   string
 }
 
-var operatorconditionsResource = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v2", Resource: "operatorconditions"}
+var operatorconditionsResource = v2.SchemeGroupVersion.WithResource("operatorconditions")
 
-var operatorconditionsKind = schema.GroupVersionKind{Group: "operators.coreos.com", Version: "v2", Kind: "OperatorCondition"}
+var operatorconditionsKind = v2.SchemeGroupVersion.WithKind("OperatorCondition")
 
 // Get takes name of the operatorCondition, and returns the corresponding operatorCondition object, and an error if there is any.
 func (c *FakeOperatorConditions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v2.OperatorCondition, err error) {
