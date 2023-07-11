@@ -6,10 +6,9 @@ import (
 	"io/fs"
 	"strings"
 
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 type bundleParser struct {
@@ -74,7 +73,7 @@ func (b *bundleParser) addManifests(manifests fs.FS, bundle *Bundle) error {
 		}
 
 		obj := &unstructured.Unstructured{}
-		if err = decodeFileFS(manifests, name, obj); err != nil {
+		if err = decodeFileFS(manifests, name, obj, b.log); err != nil {
 			b.log.Warnf("failed to decode: %s", err)
 			continue
 		}
@@ -128,7 +127,7 @@ func (b *bundleParser) addMetadata(metadata fs.FS, bundle *Bundle) error {
 		name := f.Name()
 		if af == nil {
 			decoded := AnnotationsFile{}
-			if err = decodeFileFS(metadata, name, &decoded); err == nil {
+			if err = decodeFileFS(metadata, name, &decoded, b.log); err == nil {
 				if decoded != (AnnotationsFile{}) {
 					af = &decoded
 				}
@@ -136,7 +135,7 @@ func (b *bundleParser) addMetadata(metadata fs.FS, bundle *Bundle) error {
 		}
 		if df == nil {
 			decoded := DependenciesFile{}
-			if err = decodeFileFS(metadata, name, &decoded); err == nil {
+			if err = decodeFileFS(metadata, name, &decoded, b.log); err == nil {
 				if len(decoded.Dependencies) > 0 {
 					df = &decoded
 				}
@@ -144,7 +143,7 @@ func (b *bundleParser) addMetadata(metadata fs.FS, bundle *Bundle) error {
 		}
 		if pf == nil {
 			decoded := PropertiesFile{}
-			if err = decodeFileFS(metadata, name, &decoded); err == nil {
+			if err = decodeFileFS(metadata, name, &decoded, b.log); err == nil {
 				if len(decoded.Properties) > 0 {
 					pf = &decoded
 				}

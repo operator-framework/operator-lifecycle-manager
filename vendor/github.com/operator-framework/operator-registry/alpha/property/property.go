@@ -39,14 +39,19 @@ type Package struct {
 	Version     string `json:"version"`
 }
 
+// NOTICE: The Channel properties are for internal use only.
+//
+//	DO NOT use it for any public-facing functionalities.
+//	This API is in alpha stage and it is subject to change.
+type Channel struct {
+	ChannelName string `json:"channelName"`
+	//Priority    string `json:"priority"`
+	Priority int `json:"priority"`
+}
+
 type PackageRequired struct {
 	PackageName  string `json:"packageName"`
 	VersionRange string `json:"versionRange"`
-}
-
-type Channel struct {
-	Name     string `json:"name"`
-	Replaces string `json:"replaces,omitempty"`
 }
 
 type GVK struct {
@@ -60,9 +65,6 @@ type GVKRequired struct {
 	Kind    string `json:"kind"`
 	Version string `json:"version"`
 }
-
-type Skips string
-type SkipRange string
 
 type BundleObject struct {
 	File `json:",inline"`
@@ -121,27 +123,23 @@ func (f File) GetData(root fs.FS, cwd string) ([]byte, error) {
 }
 
 type Properties struct {
-	Packages         []Package
-	PackagesRequired []PackageRequired
-	Channels         []Channel
-	GVKs             []GVK
-	GVKsRequired     []GVKRequired
-	Skips            []Skips
-	SkipRanges       []SkipRange
-	BundleObjects    []BundleObject
+	Packages         []Package         `hash:"set"`
+	PackagesRequired []PackageRequired `hash:"set"`
+	GVKs             []GVK             `hash:"set"`
+	GVKsRequired     []GVKRequired     `hash:"set"`
+	BundleObjects    []BundleObject    `hash:"set"`
+	Channels         []Channel         `hash:"set"`
 
-	Others []Property
+	Others []Property `hash:"set"`
 }
 
 const (
 	TypePackage         = "olm.package"
 	TypePackageRequired = "olm.package.required"
-	TypeChannel         = "olm.channel"
 	TypeGVK             = "olm.gvk"
 	TypeGVKRequired     = "olm.gvk.required"
-	TypeSkips           = "olm.skips"
-	TypeSkipRange       = "olm.skipRange"
 	TypeBundleObject    = "olm.bundle.object"
+	TypeChannel         = "olm.channel"
 )
 
 func Parse(in []Property) (*Properties, error) {
@@ -160,12 +158,6 @@ func Parse(in []Property) (*Properties, error) {
 				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
 			}
 			out.PackagesRequired = append(out.PackagesRequired, p)
-		case TypeChannel:
-			var p Channel
-			if err := json.Unmarshal(prop.Value, &p); err != nil {
-				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
-			}
-			out.Channels = append(out.Channels, p)
 		case TypeGVK:
 			var p GVK
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
@@ -178,24 +170,21 @@ func Parse(in []Property) (*Properties, error) {
 				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
 			}
 			out.GVKsRequired = append(out.GVKsRequired, p)
-		case TypeSkips:
-			var p Skips
-			if err := json.Unmarshal(prop.Value, &p); err != nil {
-				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
-			}
-			out.Skips = append(out.Skips, p)
-		case TypeSkipRange:
-			var p SkipRange
-			if err := json.Unmarshal(prop.Value, &p); err != nil {
-				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
-			}
-			out.SkipRanges = append(out.SkipRanges, p)
 		case TypeBundleObject:
 			var p BundleObject
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
 				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
 			}
 			out.BundleObjects = append(out.BundleObjects, p)
+		// NOTICE: The Channel properties are for internal use only.
+		//   DO NOT use it for any public-facing functionalities.
+		//   This API is in alpha stage and it is subject to change.
+		case TypeChannel:
+			var p Channel
+			if err := json.Unmarshal(prop.Value, &p); err != nil {
+				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
+			}
+			out.Channels = append(out.Channels, p)
 		default:
 			var p json.RawMessage
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
@@ -285,26 +274,23 @@ func MustBuildPackage(name, version string) Property {
 func MustBuildPackageRequired(name, versionRange string) Property {
 	return MustBuild(&PackageRequired{name, versionRange})
 }
-func MustBuildChannel(name, replaces string) Property {
-	return MustBuild(&Channel{name, replaces})
-}
 func MustBuildGVK(group, version, kind string) Property {
 	return MustBuild(&GVK{group, kind, version})
 }
 func MustBuildGVKRequired(group, version, kind string) Property {
 	return MustBuild(&GVKRequired{group, kind, version})
 }
-func MustBuildSkips(skips string) Property {
-	s := Skips(skips)
-	return MustBuild(&s)
-}
-func MustBuildSkipRange(skipRange string) Property {
-	s := SkipRange(skipRange)
-	return MustBuild(&s)
-}
 func MustBuildBundleObjectRef(ref string) Property {
 	return MustBuild(&BundleObject{File: File{ref: ref}})
 }
 func MustBuildBundleObjectData(data []byte) Property {
 	return MustBuild(&BundleObject{File: File{data: data}})
+}
+
+// NOTICE: The Channel properties are for internal use only.
+//
+//	DO NOT use it for any public-facing functionalities.
+//	This API is in alpha stage and it is subject to change.
+func MustBuildChannelPriority(name string, priority int) Property {
+	return MustBuild(&Channel{ChannelName: name, Priority: priority})
 }

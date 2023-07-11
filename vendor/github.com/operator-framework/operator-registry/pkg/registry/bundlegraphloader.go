@@ -3,7 +3,7 @@ package registry
 import (
 	"fmt"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 )
 
 // BundleGraphLoader generates updated graphs by adding bundles to them, updating

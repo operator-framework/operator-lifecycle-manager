@@ -50,7 +50,7 @@ const (
 	description = "description"
 
 	// The yaml attribute that specifies the version of the ClusterServiceVersion
-	// expected to be semver and parseable by blang/semver
+	// expected to be semver and parseable by blang/semver/v4
 	version = "version"
 
 	// The yaml attribute that specifies the related images of the ClusterServiceVersion

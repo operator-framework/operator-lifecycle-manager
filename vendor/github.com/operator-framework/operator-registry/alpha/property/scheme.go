@@ -6,18 +6,16 @@ import (
 )
 
 func init() {
-	skips := Skips("")
-	skipRange := SkipRange("")
-
 	scheme = map[reflect.Type]string{
 		reflect.TypeOf(&Package{}):         TypePackage,
 		reflect.TypeOf(&PackageRequired{}): TypePackageRequired,
-		reflect.TypeOf(&Channel{}):         TypeChannel,
 		reflect.TypeOf(&GVK{}):             TypeGVK,
 		reflect.TypeOf(&GVKRequired{}):     TypeGVKRequired,
-		reflect.TypeOf(&skips):             TypeSkips,
-		reflect.TypeOf(&skipRange):         TypeSkipRange,
 		reflect.TypeOf(&BundleObject{}):    TypeBundleObject,
+		// NOTICE: The Channel properties are for internal use only.
+		//   DO NOT use it for any public-facing functionalities.
+		//   This API is in alpha stage and it is subject to change.
+		reflect.TypeOf(&Channel{}): TypeChannel,
 	}
 }
 

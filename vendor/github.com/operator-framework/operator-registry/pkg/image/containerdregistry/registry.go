@@ -47,7 +47,7 @@ func (r *Registry) Pull(ctx context.Context, ref image.Reference) error {
 
 	name, root, err := r.resolver.Resolve(ctx, ref.String())
 	if err != nil {
-		return fmt.Errorf("error resolving name %s: %v", name, err)
+		return fmt.Errorf("error resolving name for image ref %s: %v", ref.String(), err)
 	}
 	r.log.Debugf("resolved name: %s", name)
 

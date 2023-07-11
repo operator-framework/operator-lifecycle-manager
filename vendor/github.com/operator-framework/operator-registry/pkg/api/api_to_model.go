@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/operator-framework/operator-registry/internal/model"
-	"github.com/operator-framework/operator-registry/internal/property"
+	"github.com/operator-framework/operator-registry/alpha/model"
+	"github.com/operator-framework/operator-registry/alpha/property"
 )
 
 func ConvertAPIBundleToModelBundle(b *Bundle) (*model.Bundle, error) {
@@ -25,6 +25,7 @@ func ConvertAPIBundleToModelBundle(b *Bundle) (*model.Bundle, error) {
 		Image:         b.BundlePath,
 		Replaces:      b.Replaces,
 		Skips:         b.Skips,
+		SkipRange:     b.SkipRange,
 		CsvJSON:       b.CsvJson,
 		Objects:       b.Object,
 		Properties:    bundleProps,
@@ -34,16 +35,6 @@ func ConvertAPIBundleToModelBundle(b *Bundle) (*model.Bundle, error) {
 
 func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 	var out []property.Property
-
-	for _, skip := range b.Skips {
-		out = append(out, property.MustBuildSkips(skip))
-	}
-
-	if b.SkipRange != "" {
-		out = append(out, property.MustBuildSkipRange(b.SkipRange))
-	}
-
-	out = append(out, property.MustBuildChannel(b.ChannelName, b.Replaces))
 
 	providedGVKs := map[property.GVK]struct{}{}
 	requiredGVKs := map[property.GVKRequired]struct{}{}
