@@ -10,7 +10,7 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
 
-	"github.com/operator-framework/operator-registry/internal/model"
+	"github.com/operator-framework/operator-registry/alpha/model"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 )
@@ -51,10 +51,10 @@ func initializeModelPackages(ctx context.Context, q *SQLQuerier) (model.Model, e
 	pkgs := model.Model{}
 	for _, rPkg := range rPkgs {
 		pkg := model.Package{
-			Name: rPkg.PackageName,
+			Name:     rPkg.PackageName,
+			Channels: map[string]*model.Channel{},
 		}
 
-		pkg.Channels = map[string]*model.Channel{}
 		for _, ch := range rPkg.Channels {
 			channel := &model.Channel{
 				Package: &pkg,
@@ -76,7 +76,16 @@ func populateModelChannels(ctx context.Context, pkgs model.Model, q *SQLQuerier)
 	if err != nil {
 		return err
 	}
+
+ConvertBundles:
 	for _, bundle := range bundles {
+		for _, prop := range bundle.Properties {
+			if prop.Type == registry.DeprecatedType {
+				// bundle contains `olm.Deprecated` property
+				// exclude this bundle from being rendered
+				continue ConvertBundles
+			}
+		}
 		pkg, ok := pkgs[bundle.PackageName]
 		if !ok {
 			return fmt.Errorf("unknown package %q for bundle %q", bundle.PackageName, bundle.CsvName)
