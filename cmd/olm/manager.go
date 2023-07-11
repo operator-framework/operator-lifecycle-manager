@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -50,8 +51,8 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: "0", // TODO(njhale): Enable metrics on non-conflicting port (not 8080)
-		NewCache: cache.BuilderWithOptions(cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
 				&corev1.Secret{}: {
 					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
 				},
@@ -59,7 +60,7 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 					Label: copiedLabelDoesNotExist,
 				},
 			},
-		}),
+		},
 	})
 	if err != nil {
 		return nil, err

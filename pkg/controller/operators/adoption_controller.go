@@ -23,7 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -53,8 +52,8 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Create multiple controllers for resource types that require automatic adoption
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.Subscription{}).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueueSub).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.InstallPlan{}}, enqueueSub).
+		Watches(&operatorsv1alpha1.ClusterServiceVersion{}, enqueueSub).
+		Watches(&operatorsv1alpha1.InstallPlan{}, enqueueSub).
 		Complete(reconcile.Func(r.ReconcileSubscription))
 	if err != nil {
 		return err
@@ -66,20 +65,20 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	)
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.ClusterServiceVersion{}).
-		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Service{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueProviders).
-		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&appsv1.Deployment{}, enqueueCSV).
+		Watches(&corev1.Namespace{}, enqueueCSV).
+		Watches(&corev1.Service{}, enqueueCSV).
+		Watches(&apiextensionsv1.CustomResourceDefinition{}, enqueueProviders).
+		Watches(&apiregistrationv1.APIService{}, enqueueCSV).
+		Watches(&operatorsv1alpha1.Subscription{}, enqueueCSV).
+		Watches(&operatorsv2.OperatorCondition{}, enqueueCSV).
+		Watches(&corev1.Secret{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&corev1.ConfigMap{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&corev1.ServiceAccount{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&rbacv1.Role{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&rbacv1.RoleBinding{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&rbacv1.ClusterRole{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&rbacv1.ClusterRoleBinding{}, enqueueCSV, builder.OnlyMetadata).
 		Complete(reconcile.Func(r.ReconcileClusterServiceVersion))
 	if err != nil {
 		return err
@@ -447,14 +446,13 @@ func (r *AdoptionReconciler) adoptInstallPlan(ctx context.Context, operator *dec
 	return utilerrors.NewAggregate(errs)
 }
 
-func (r *AdoptionReconciler) mapToSubscriptions(obj client.Object) (requests []reconcile.Request) {
+func (r *AdoptionReconciler) mapToSubscriptions(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
 	if obj == nil {
 		return
 	}
 
 	// Requeue all Subscriptions in the resource namespace
 	// The Subscription reconciler will sort out the important changes
-	ctx := context.TODO()
 	subs := &operatorsv1alpha1.SubscriptionList{}
 	if err := r.List(ctx, subs, client.InNamespace(obj.GetNamespace())); err != nil {
 		r.log.Error(err, "error listing subscriptions")
@@ -476,7 +474,7 @@ func (r *AdoptionReconciler) mapToSubscriptions(obj client.Object) (requests []r
 	return
 }
 
-func (r *AdoptionReconciler) mapToClusterServiceVersions(obj client.Object) (requests []reconcile.Request) {
+func (r *AdoptionReconciler) mapToClusterServiceVersions(_ context.Context, obj client.Object) (requests []reconcile.Request) {
 	if obj == nil {
 		return
 	}
@@ -502,13 +500,12 @@ func (r *AdoptionReconciler) mapToClusterServiceVersions(obj client.Object) (req
 	return
 }
 
-func (r *AdoptionReconciler) mapToProviders(obj client.Object) (requests []reconcile.Request) {
+func (r *AdoptionReconciler) mapToProviders(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
 	if obj == nil {
 		return nil
 	}
 
 	var (
-		ctx  = context.TODO()
 		csvs = &operatorsv1alpha1.ClusterServiceVersionList{}
 	)
 	if err := r.List(ctx, csvs); err != nil {

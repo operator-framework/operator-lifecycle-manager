@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -41,20 +40,17 @@ type OperatorConditionReconciler struct {
 // SetupWithManager adds the OperatorCondition Reconciler reconciler to the given controller manager.
 func (r *OperatorConditionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	deploymentHandler := handler.EnqueueRequestsFromMapFunc(r.mapToOperatorCondition)
-	handler := &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &operatorsv2.OperatorCondition{},
-	}
+	handler := handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &operatorsv2.OperatorCondition{}, handler.OnlyControllerOwner())
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv2.OperatorCondition{}).
-		Watches(&source.Kind{Type: &rbacv1.Role{}}, handler).
-		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, handler).
-		Watches(&source.Kind{Type: &appsv1.Deployment{}}, deploymentHandler).
+		Watches(&rbacv1.Role{}, handler).
+		Watches(&rbacv1.RoleBinding{}, handler).
+		Watches(&appsv1.Deployment{}, deploymentHandler).
 		Complete(r)
 }
 
-func (r *OperatorConditionReconciler) mapToOperatorCondition(obj client.Object) (requests []reconcile.Request) {
+func (r *OperatorConditionReconciler) mapToOperatorCondition(_ context.Context, obj client.Object) (requests []reconcile.Request) {
 	if obj == nil {
 		return nil
 	}

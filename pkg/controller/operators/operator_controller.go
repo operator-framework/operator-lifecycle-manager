@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -64,23 +63,23 @@ func (r *OperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// to dynamically add resource types to watch.
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1.Operator{}).
-		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.InstallPlan{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueueOperator).
-		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, enqueueOperator).
+		Watches(&appsv1.Deployment{}, enqueueOperator).
+		Watches(&corev1.Namespace{}, enqueueOperator).
+		Watches(&apiextensionsv1.CustomResourceDefinition{}, enqueueOperator).
+		Watches(&apiregistrationv1.APIService{}, enqueueOperator).
+		Watches(&operatorsv1alpha1.Subscription{}, enqueueOperator).
+		Watches(&operatorsv1alpha1.InstallPlan{}, enqueueOperator).
+		Watches(&operatorsv1alpha1.ClusterServiceVersion{}, enqueueOperator).
+		Watches(&operatorsv2.OperatorCondition{}, enqueueOperator).
 		// Metadata is sufficient to build component refs for
 		// GVKs that don't have a .status.conditions field.
-		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueOperator, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueOperator, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueOperator, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueOperator, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueOperator, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueOperator, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&corev1.ServiceAccount{}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&corev1.Secret{}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&corev1.ConfigMap{}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&rbacv1.Role{}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&rbacv1.RoleBinding{}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&rbacv1.ClusterRole{}, enqueueOperator, builder.OnlyMetadata).
+		Watches(&rbacv1.ClusterRoleBinding{}, enqueueOperator, builder.OnlyMetadata).
 		// TODO(njhale): Add WebhookConfigurations
 		Complete(r)
 }
@@ -224,7 +223,7 @@ func (r *OperatorReconciler) hasExistingComponents(ctx context.Context, name str
 	return false, nil
 }
 
-func (r *OperatorReconciler) mapComponentRequests(obj client.Object) []reconcile.Request {
+func (r *OperatorReconciler) mapComponentRequests(_ context.Context, obj client.Object) []reconcile.Request {
 	var requests []reconcile.Request
 	if obj == nil {
 		return requests
