@@ -340,27 +340,31 @@ var _ = Describe("Operator Group", func() {
 		})
 
 		// validate provided API clusterroles for the operatorgroup
-		adminRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), operatorGroup.Name+"-admin", metav1.GetOptions{})
+		existingClusterRoleList, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(ownerutil.OwnerLabel(&operatorGroup, "OperatorGroup")).String(),
+		})
 		require.NoError(GinkgoT(), err)
-		adminPolicyRules := []rbacv1.PolicyRule{
-			{Verbs: []string{"*"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
-		}
-		require.Equal(GinkgoT(), adminPolicyRules, adminRole.Rules)
+		require.Len(GinkgoT(), existingClusterRoleList.Items, 3)
 
-		editRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), operatorGroup.Name+"-edit", metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
-		editPolicyRules := []rbacv1.PolicyRule{
-			{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
+		for _, role := range existingClusterRoleList.Items {
+			if strings.HasSuffix(role.Name, "admin") {
+				adminPolicyRules := []rbacv1.PolicyRule{
+					{Verbs: []string{"*"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
+				}
+				require.Equal(GinkgoT(), adminPolicyRules, role.Rules)
+			} else if strings.HasSuffix(role.Name, "edit") {
+				editPolicyRules := []rbacv1.PolicyRule{
+					{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
+				}
+				require.Equal(GinkgoT(), editPolicyRules, role.Rules)
+			} else if strings.HasSuffix(role.Name, "view") {
+				viewPolicyRules := []rbacv1.PolicyRule{
+					{Verbs: []string{"get"}, APIGroups: []string{"apiextensions.k8s.io"}, Resources: []string{"customresourcedefinitions"}, ResourceNames: []string{mainCRD.Name}},
+					{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
+				}
+				require.Equal(GinkgoT(), viewPolicyRules, role.Rules)
+			}
 		}
-		require.Equal(GinkgoT(), editPolicyRules, editRole.Rules)
-
-		viewRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), operatorGroup.Name+"-view", metav1.GetOptions{})
-		require.NoError(GinkgoT(), err)
-		viewPolicyRules := []rbacv1.PolicyRule{
-			{Verbs: []string{"get"}, APIGroups: []string{"apiextensions.k8s.io"}, Resources: []string{"customresourcedefinitions"}, ResourceNames: []string{mainCRD.Name}},
-			{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
-		}
-		require.Equal(GinkgoT(), viewPolicyRules, viewRole.Rules)
 
 		// Unsupport all InstallModes
 		log("unsupporting all csv installmodes")

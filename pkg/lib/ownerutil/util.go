@@ -271,6 +271,11 @@ func CSVOwnerSelector(owner *operatorsv1alpha1.ClusterServiceVersion) labels.Sel
 	return labels.SelectorFromSet(OwnerLabel(owner, operatorsv1alpha1.ClusterServiceVersionKind))
 }
 
+// OperatorGroupOwnerSelector returns a label selector to find generated objects owned by owner
+func OperatorGroupOwnerSelector(owner *operatorsv1.OperatorGroup) labels.Selector {
+	return labels.SelectorFromSet(OwnerLabel(owner, "OperatorGroup"))
+}
+
 // AddOwner adds an owner to the ownerref list.
 func AddOwner(object metav1.Object, owner Owner, blockOwnerDeletion, isController bool) {
 	// Most of the time we won't have TypeMeta on the object, so we infer it for types we know about
