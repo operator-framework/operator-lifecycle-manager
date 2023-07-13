@@ -30,7 +30,7 @@ func TestBuilder(t *testing.T) {
 			},
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:               configv1.OperatorProgressing,
 						Status:             configv1.ConditionTrue,
 						Message:            "message",
@@ -51,7 +51,7 @@ func TestBuilder(t *testing.T) {
 			},
 			existing: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:   configv1.OperatorProgressing,
 						Status: configv1.ConditionFalse,
 					},
@@ -61,7 +61,7 @@ func TestBuilder(t *testing.T) {
 			},
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:               configv1.OperatorProgressing,
 						Status:             configv1.ConditionTrue,
 						Message:            "message",
@@ -82,7 +82,7 @@ func TestBuilder(t *testing.T) {
 			},
 			existing: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:               configv1.OperatorProgressing,
 						Status:             configv1.ConditionTrue,
 						LastTransitionTime: minuteAgo,
@@ -93,7 +93,7 @@ func TestBuilder(t *testing.T) {
 			},
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:               configv1.OperatorProgressing,
 						Status:             configv1.ConditionTrue,
 						Message:            "message",
@@ -199,7 +199,7 @@ func TestBuilder(t *testing.T) {
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "1.00",
 					},
@@ -218,7 +218,7 @@ func TestBuilder(t *testing.T) {
 			existing: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "1.00",
 					},
@@ -228,7 +228,7 @@ func TestBuilder(t *testing.T) {
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "1.00",
 					},
@@ -247,7 +247,7 @@ func TestBuilder(t *testing.T) {
 			existing: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "1.00",
 					},
@@ -257,7 +257,7 @@ func TestBuilder(t *testing.T) {
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "2.00",
 					},
@@ -275,7 +275,7 @@ func TestBuilder(t *testing.T) {
 			existing: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "1.00",
 					},
@@ -285,11 +285,11 @@ func TestBuilder(t *testing.T) {
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "2.00",
 					},
-					configv1.OperandVersion{
+					{
 						Name:    "bar",
 						Version: "1.00",
 					},
@@ -308,11 +308,11 @@ func TestBuilder(t *testing.T) {
 			existing: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "1.00",
 					},
-					configv1.OperandVersion{
+					{
 						Name:    "bar",
 						Version: "1.00",
 					},
@@ -322,7 +322,7 @@ func TestBuilder(t *testing.T) {
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "bar",
 						Version: "1.00",
 					},
@@ -342,7 +342,7 @@ func TestBuilder(t *testing.T) {
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions:   []configv1.OperandVersion{},
 				RelatedObjects: []configv1.ObjectReference{
-					configv1.ObjectReference{
+					{
 						Group:     "group",
 						Resource:  "resources",
 						Namespace: "namespace",
@@ -363,7 +363,7 @@ func TestBuilder(t *testing.T) {
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions:   []configv1.OperandVersion{},
 				RelatedObjects: []configv1.ObjectReference{
-					configv1.ObjectReference{
+					{
 						Group:     "group",
 						Resource:  "resources",
 						Namespace: "namespace",
@@ -375,7 +375,7 @@ func TestBuilder(t *testing.T) {
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions:   []configv1.OperandVersion{},
 				RelatedObjects: []configv1.ObjectReference{
-					configv1.ObjectReference{
+					{
 						Group:     "group",
 						Resource:  "resources",
 						Namespace: "namespace",
@@ -396,7 +396,7 @@ func TestBuilder(t *testing.T) {
 				Conditions: []configv1.ClusterOperatorStatusCondition{},
 				Versions:   []configv1.OperandVersion{},
 				RelatedObjects: []configv1.ObjectReference{
-					configv1.ObjectReference{
+					{
 						Group:     "group",
 						Resource:  "resources",
 						Namespace: "namespace",
