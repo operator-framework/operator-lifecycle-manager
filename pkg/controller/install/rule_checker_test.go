@@ -594,12 +594,14 @@ func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *operatorsv1alpha1.Clus
 	for _, informer := range []cache.SharedIndexInformer{roleInformer.Informer(), roleBindingInformer.Informer(), clusterRoleInformer.Informer(), clusterRoleBindingInformer.Informer()} {
 		go informer.Run(stopCh)
 
-		synced := func() (bool, error) {
+		synced := func(_ context.Context) (done bool, err error) {
 			return informer.HasSynced(), nil
 		}
 
 		// wait until the informer has synced to continue
-		wait.PollUntil(500*time.Millisecond, synced, stopCh)
+		if err := wait.PollUntilContextTimeout(context.Background(), 500*time.Millisecond, 5*time.Second, true, synced); err != nil {
+			return nil, err
+		}
 	}
 
 	ruleChecker := NewCSVRuleChecker(roleInformer.Lister(), roleBindingInformer.Lister(), clusterRoleInformer.Lister(), clusterRoleBindingInformer.Lister(), csv)

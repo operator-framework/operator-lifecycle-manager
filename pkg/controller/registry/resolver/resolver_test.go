@@ -24,10 +24,7 @@ import (
 )
 
 var testGVKKey = opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // tests can directly specify fixtures as cache entries instead of depending on this translation
 func csvSnapshotOrPanic(ns string, subs []*v1alpha1.Subscription, csvs ...*v1alpha1.ClusterServiceVersion) *cache.Snapshot {
@@ -778,7 +775,7 @@ func (g entryGenerator) gen() *cache.Entry {
 func genEntriesRandom(ops ...entryGenerator) []*cache.Entry {
 	entries := make([]*cache.Entry, len(ops))
 	// Randomize entry order to fuzz input operators over time.
-	idxs := rand.Perm(len(ops))
+	idxs := rnd.Perm(len(ops))
 	for destIdx, srcIdx := range idxs {
 		entries[destIdx] = ops[srcIdx].gen()
 	}

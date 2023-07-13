@@ -31,15 +31,15 @@ func TestToEnvVar(t *testing.T) {
 				},
 			},
 			envVarWant: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  envHTTPProxyName,
 					Value: "http://",
 				},
-				corev1.EnvVar{
+				{
 					Name:  envHTTPSProxyName,
 					Value: "https://",
 				},
-				corev1.EnvVar{
+				{
 					Name:  envNoProxyName,
 					Value: "foo,bar",
 				},
@@ -56,15 +56,15 @@ func TestToEnvVar(t *testing.T) {
 				},
 			},
 			envVarWant: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  envHTTPProxyName,
 					Value: "http://",
 				},
-				corev1.EnvVar{
+				{
 					Name:  envHTTPSProxyName,
 					Value: "",
 				},
-				corev1.EnvVar{
+				{
 					Name:  envNoProxyName,
 					Value: "",
 				},
