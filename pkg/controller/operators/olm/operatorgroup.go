@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"math/rand"
 	"reflect"
 	"strings"
 
-	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -18,14 +18,17 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/errors"
 
+	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
+
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 const (
@@ -65,6 +68,8 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		"operatorGroup": op.GetName(),
 		"namespace":     op.GetNamespace(),
 	})
+
+	logger.Infof("syncing OperatorGroup %s/%s", op.GetNamespace(), op.GetName())
 
 	// Query OG in this namespace
 	groups, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(op.GetNamespace()).List(labels.Everything())
@@ -981,18 +986,89 @@ func (a *Operator) updateNamespaceList(op *operatorsv1.OperatorGroup) ([]string,
 	return namespaceList, nil
 }
 
-func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffix string, apis cache.APISet) error {
-	clusterRole := &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   strings.Join([]string{op.GetName(), suffix}, "-"),
-			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
-		},
+func (a *Operator) stableRand(op *operatorsv1.OperatorGroup) (string, error) {
+	key := fmt.Sprintf("%s/%s", op.GetNamespace(), op.GetName())
+	h := fnv.New64a()
+	_, err := h.Write([]byte(key))
+	if err != nil {
+		return "", err
 	}
+	rnd := rand.NewSource(int64(h.Sum64()))
+	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+	b := make([]byte, 7)
+	for i := range b {
+		b[i] = alphabet[rnd.Int63()%int64(len(alphabet))]
+	}
+	return string(b), nil
+}
+
+func (a *Operator) getClusterRoleName(op *operatorsv1.OperatorGroup, roleType string) (string, error) {
+	roleSuffix, err := a.stableRand(op)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("olm.operatorgroup.%s-%s", roleType, roleSuffix), nil
+}
+
+func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffix string, apis cache.APISet) error {
+	// create target cluster role spec
+	var clusterRole *rbacv1.ClusterRole
+	clusterRoleName, err := a.getClusterRoleName(op, suffix)
+	if err != nil {
+		return err
+	}
+	aggregationRule, err := a.getClusterRoleAggregationRule(apis, suffix)
+	if err != nil {
+		return err
+	}
+
+	clusterRole = &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterRoleName,
+		},
+		AggregationRule: aggregationRule,
+	}
+
+	if err := ownerutil.AddOwnerLabels(clusterRole, op); err != nil {
+		return err
+	}
+
+	// get existing cluster role for this level (suffix: admin, edit, view))
+	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRoleName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if existingRole != nil && existingRole.Name == clusterRoleName {
+		// if the existing role conforms to the naming convention, check for skew
+		if labels.Equals(existingRole.Labels, clusterRole.Labels) && reflect.DeepEqual(existingRole.AggregationRule, aggregationRule) {
+			return nil
+		}
+		// if skew was found, correct it
+		clusterRole.Name = existingRole.Name
+		if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
+			a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
+			return err
+		}
+		return nil
+	}
+
+	a.logger.Infof("Creating cluster role: %s owned by operator group: %s/%s", clusterRole.GetName(), op.GetNamespace(), op.GetName())
+	_, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
+	if err == nil {
+		return nil
+	}
+	// name collision, try again with a new name in the next reconcile
+	a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
+	return err
+}
+
+func (a *Operator) getClusterRoleAggregationRule(apis cache.APISet, suffix string) (*rbacv1.AggregationRule, error) {
 	var selectors []metav1.LabelSelector
 	for api := range apis {
 		aggregationLabel, err := aggregationLabelFromAPIKey(api, suffix)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		selectors = append(selectors, metav1.LabelSelector{
 			MatchLabels: map[string]string{
@@ -1001,39 +1077,11 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 		})
 	}
 	if len(selectors) > 0 {
-		clusterRole.AggregationRule = &rbacv1.AggregationRule{
+		return &rbacv1.AggregationRule{
 			ClusterRoleSelectors: selectors,
-		}
+		}, nil
 	}
-	err := ownerutil.AddOwnerLabels(clusterRole, op)
-	if err != nil {
-		return err
-	}
-
-	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	if apierrors.IsNotFound(err) {
-		existingRole, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
-		if err == nil {
-			return nil
-		}
-		if !apierrors.IsAlreadyExists(err) {
-			a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
-			return err
-		}
-	}
-
-	if existingRole != nil && labels.Equals(existingRole.Labels, clusterRole.Labels) && reflect.DeepEqual(existingRole.AggregationRule, clusterRole.AggregationRule) {
-		return nil
-	}
-
-	if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
-		a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
-		return err
-	}
-	return nil
+	return nil, nil
 }
 
 func (a *Operator) ensureOpGroupClusterRoles(op *operatorsv1.OperatorGroup, apis cache.APISet) error {
