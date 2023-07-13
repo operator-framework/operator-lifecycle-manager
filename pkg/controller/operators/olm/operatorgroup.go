@@ -2,12 +2,15 @@ package olm
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"hash/fnv"
+	"math/big"
 	"reflect"
 	"strings"
 
-	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
+	"k8s.io/apimachinery/pkg/api/equality"
+
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -18,20 +21,30 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/errors"
 
+	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
+
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 const (
 	AdminSuffix = "admin"
 	EditSuffix  = "edit"
 	ViewSuffix  = "view"
+
+	// kubeResourceNameLimit is the maximum length of a Kubernetes resource name
+	kubeResourceNameLimit = 253
+
+	// operatorGroupClusterRoleNameFmt template for ClusterRole names owned by OperatorGroups\
+	// e.g. olm.og.my-group.admin-<hash>
+	operatorGroupClusterRoleNameFmt = "olm.og.%s.%s-%s"
 )
 
 var (
@@ -65,6 +78,8 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		"operatorGroup": op.GetName(),
 		"namespace":     op.GetNamespace(),
 	})
+
+	logger.Infof("syncing OperatorGroup %s/%s", op.GetNamespace(), op.GetName())
 
 	// Query OG in this namespace
 	groups, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(op.GetNamespace()).List(labels.Everything())
@@ -981,18 +996,75 @@ func (a *Operator) updateNamespaceList(op *operatorsv1.OperatorGroup) ([]string,
 	return namespaceList, nil
 }
 
-func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffix string, apis cache.APISet) error {
-	clusterRole := &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   strings.Join([]string{op.GetName(), suffix}, "-"),
-			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
-		},
+func (a *Operator) getClusterRoleName(op *operatorsv1.OperatorGroup, roleType string) (string, error) {
+	roleSuffix := hash(fmt.Sprintf("%s/%s/%s", op.GetNamespace(), op.GetName(), roleType))
+	// calculate how many characters are left for the operator group name
+	nameLimit := kubeResourceNameLimit - len(strings.Replace(operatorGroupClusterRoleNameFmt, "%s", "", -1)) - len(roleType) - len(roleSuffix)
+	if len(op.GetName()) < nameLimit {
+		return fmt.Sprintf(operatorGroupClusterRoleNameFmt, op.GetName(), roleType, roleSuffix), nil
 	}
+	return fmt.Sprintf(operatorGroupClusterRoleNameFmt, op.GetName()[:nameLimit], roleType, roleSuffix), nil
+}
+
+func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffix string, apis cache.APISet) error {
+	// create target cluster role spec
+	var clusterRole *rbacv1.ClusterRole
+	clusterRoleName, err := a.getClusterRoleName(op, suffix)
+	if err != nil {
+		return err
+	}
+	aggregationRule, err := a.getClusterRoleAggregationRule(apis, suffix)
+	if err != nil {
+		return err
+	}
+
+	// get existing cluster role for this level (suffix: admin, edit, view))
+	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRoleName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	if existingRole != nil {
+		// if the existing role conforms to the naming convention, check for skew
+		cp := existingRole.DeepCopy()
+		if err := ownerutil.AddOwnerLabels(cp, op); err != nil {
+			return err
+		}
+
+		// ensure that the labels and aggregation rules are correct
+		if labels.Equals(existingRole.Labels, cp.Labels) && equality.Semantic.DeepEqual(existingRole.AggregationRule, aggregationRule) {
+			return nil
+		}
+
+		cp.AggregationRule = aggregationRule
+		if _, err := a.opClient.UpdateClusterRole(cp); err != nil {
+			a.logger.WithError(err).Errorf("update existing cluster role failed: %v", clusterRole)
+		}
+		return err
+	}
+
+	clusterRole = &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterRoleName,
+		},
+		AggregationRule: aggregationRule,
+	}
+
+	if err := ownerutil.AddOwnerLabels(clusterRole, op); err != nil {
+		return err
+	}
+
+	a.logger.Infof("creating cluster role: %s owned by operator group: %s/%s", clusterRole.GetName(), op.GetNamespace(), op.GetName())
+	_, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
+	return err
+}
+
+func (a *Operator) getClusterRoleAggregationRule(apis cache.APISet, suffix string) (*rbacv1.AggregationRule, error) {
 	var selectors []metav1.LabelSelector
 	for api := range apis {
 		aggregationLabel, err := aggregationLabelFromAPIKey(api, suffix)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		selectors = append(selectors, metav1.LabelSelector{
 			MatchLabels: map[string]string{
@@ -1001,39 +1073,11 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 		})
 	}
 	if len(selectors) > 0 {
-		clusterRole.AggregationRule = &rbacv1.AggregationRule{
+		return &rbacv1.AggregationRule{
 			ClusterRoleSelectors: selectors,
-		}
+		}, nil
 	}
-	err := ownerutil.AddOwnerLabels(clusterRole, op)
-	if err != nil {
-		return err
-	}
-
-	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	if apierrors.IsNotFound(err) {
-		existingRole, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
-		if err == nil {
-			return nil
-		}
-		if !apierrors.IsAlreadyExists(err) {
-			a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
-			return err
-		}
-	}
-
-	if existingRole != nil && labels.Equals(existingRole.Labels, clusterRole.Labels) && reflect.DeepEqual(existingRole.AggregationRule, clusterRole.AggregationRule) {
-		return nil
-	}
-
-	if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
-		a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
-		return err
-	}
-	return nil
+	return nil, nil
 }
 
 func (a *Operator) ensureOpGroupClusterRoles(op *operatorsv1.OperatorGroup, apis cache.APISet) error {
@@ -1129,4 +1173,14 @@ func csvCopyPrototype(src, dst *v1alpha1.ClusterServiceVersion) {
 	dst.Labels[v1alpha1.CopiedLabelKey] = src.Namespace
 	dst.Status.Reason = v1alpha1.CSVReasonCopied
 	dst.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", src.GetNamespace())
+}
+
+func hash(s string) string {
+	return toBase62(sha256.Sum224([]byte(s)))
+}
+
+func toBase62(hash [28]byte) string {
+	var i big.Int
+	i.SetBytes(hash[:])
+	return i.Text(62)
 }
