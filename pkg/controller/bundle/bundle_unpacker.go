@@ -211,6 +211,28 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					NodeSelector: map[string]string{
 						"kubernetes.io/os": "linux",
 					},
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "amd64",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "arm64",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "ppc64le",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "s390x",
+							Operator: "Equal",
+						},
+					},
 				},
 			},
 		},
