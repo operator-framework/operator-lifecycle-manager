@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
@@ -80,26 +81,117 @@ func TestPullPolicy(t *testing.T) {
 }
 
 func TestPodContainerSecurityContext(t *testing.T) {
-	expectedReadOnlyRootFilesystem := false
-	allowPrivilegeEscalation := false
-	expectedContainerSecCtx := &corev1.SecurityContext{
-		ReadOnlyRootFilesystem:   &expectedReadOnlyRootFilesystem,
-		AllowPrivilegeEscalation: &allowPrivilegeEscalation,
-		Capabilities: &corev1.Capabilities{
-			Drop: []corev1.Capability{"ALL"},
+	testcases := []struct {
+		title                            string
+		inputCatsrc                      *v1alpha1.CatalogSource
+		expectedSecurityContext          *corev1.PodSecurityContext
+		expectedContainerSecurityContext *corev1.SecurityContext
+	}{
+		{
+			title: "NoSpecDefined/PodContainsSecurityConfigForPSALegacy",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+			},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
+		},
+		{
+			title: "SpecDefined/NoGRPCPodConfig/PodContainsSecurityConfigForPSALegacy",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{},
+			},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
+		},
+		{
+			title: "SpecDefined/GRPCPodConfigDefined/PodContainsSecurityConfigForPSALegacy",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{},
+				},
+			},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
+		},
+		{
+			title: "SpecDefined/SecurityContextConfig:Legacy/PodContainsSecurityConfigForPSALegacy",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Legacy,
+					},
+				},
+			},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
+		},
+		{
+			title: "SpecDefined/SecurityContextConfig:Restricted/PodContainsSecurityConfigForPSARestricted",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
+				},
+			},
+			expectedContainerSecurityContext: &corev1.SecurityContext{
+				ReadOnlyRootFilesystem:   pointer.Bool(false),
+				AllowPrivilegeEscalation: pointer.Bool(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			expectedSecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+				RunAsUser:      pointer.Int64(workloadUserID),
+				RunAsNonRoot:   pointer.Bool(true),
+			},
+		},
+		{
+			title: "SpecDefined/SecurityContextConfig:Legacy/PodDoesNotContainsSecurityConfig",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Legacy,
+					},
+				},
+			},
+			expectedContainerSecurityContext: nil,
+			expectedSecurityContext:          nil,
 		},
 	}
-
-	catsrc := &v1alpha1.CatalogSource{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: "testns",
-		},
+	for _, testcase := range testcases {
+		outputPod := Pod(testcase.inputCatsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		if testcase.expectedSecurityContext != nil {
+			require.Equal(t, testcase.expectedSecurityContext, outputPod.Spec.SecurityContext)
+		}
+		if testcase.expectedContainerSecurityContext != nil {
+			require.Equal(t, testcase.expectedContainerSecurityContext, outputPod.Spec.Containers[0].SecurityContext)
+		}
 	}
-
-	gotPod := Pod(catsrc, "hello", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
-	gotContainerSecCtx := gotPod.Spec.Containers[0].SecurityContext
-	require.Equal(t, expectedContainerSecCtx, gotContainerSecCtx)
 }
 
 // TestPodAvoidsConcurrentWrite is a regression test for
@@ -162,11 +254,33 @@ func TestPodSchedulingOverrides(t *testing.T) {
 		},
 	}
 
+	var overriddenAffinity = &corev1.Affinity{
+		NodeAffinity: &corev1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{
+					{
+						MatchExpressions: []corev1.NodeSelectorRequirement{
+							{
+								Key:      "kubernetes.io/arch",
+								Operator: corev1.NodeSelectorOpIn,
+								Values: []string{
+									"amd64",
+									"arm",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
 	testCases := []struct {
 		title                     string
 		catalogSource             *v1alpha1.CatalogSource
 		expectedNodeSelectors     map[string]string
 		expectedTolerations       []corev1.Toleration
+		expectedAffinity          *corev1.Affinity
 		expectedPriorityClassName string
 		annotations               map[string]string
 	}{
@@ -183,6 +297,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       nil,
+			expectedAffinity:          nil,
 			expectedPriorityClassName: defaultPriorityClassName,
 			expectedNodeSelectors:     defaultNodeSelectors,
 		}, {
@@ -201,6 +316,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       nil,
+			expectedAffinity:          nil,
 			expectedPriorityClassName: defaultPriorityClassName,
 			expectedNodeSelectors:     overriddenNodeSelectors,
 		}, {
@@ -219,6 +335,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       nil,
+			expectedAffinity:          nil,
 			expectedPriorityClassName: overriddenPriorityClassName,
 			expectedNodeSelectors:     defaultNodeSelectors,
 		}, {
@@ -237,6 +354,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       nil,
+			expectedAffinity:          nil,
 			expectedPriorityClassName: defaultPriorityClassName,
 			expectedNodeSelectors:     defaultNodeSelectors,
 		}, {
@@ -255,6 +373,26 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations:       overriddenTolerations,
+			expectedAffinity:          nil,
+			expectedPriorityClassName: defaultPriorityClassName,
+			expectedNodeSelectors:     defaultNodeSelectors,
+		}, {
+			title: "Override affinity",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+					Image:      "repo/image:tag",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						Affinity: overriddenAffinity,
+					},
+				},
+			},
+			expectedTolerations:       nil,
+			expectedAffinity:          overriddenAffinity,
 			expectedPriorityClassName: defaultPriorityClassName,
 			expectedNodeSelectors:     defaultNodeSelectors,
 		}, {
@@ -271,10 +409,12 @@ func TestPodSchedulingOverrides(t *testing.T) {
 						NodeSelector:      overriddenNodeSelectors,
 						PriorityClassName: &overriddenPriorityClassName,
 						Tolerations:       overriddenTolerations,
+						Affinity:          overriddenAffinity,
 					},
 				},
 			},
 			expectedTolerations:       overriddenTolerations,
+			expectedAffinity:          overriddenAffinity,
 			expectedPriorityClassName: overriddenPriorityClassName,
 			expectedNodeSelectors:     overriddenNodeSelectors,
 		}, {
@@ -293,6 +433,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 				},
 			},
 			expectedTolerations: nil,
+			expectedAffinity:    nil,
 			annotations: map[string]string{
 				CatalogPriorityClassKey: "some-OTHER-prio-class",
 			},
@@ -306,5 +447,6 @@ func TestPodSchedulingOverrides(t *testing.T) {
 		require.Equal(t, testCase.expectedNodeSelectors, pod.Spec.NodeSelector)
 		require.Equal(t, testCase.expectedPriorityClassName, pod.Spec.PriorityClassName)
 		require.Equal(t, testCase.expectedTolerations, pod.Spec.Tolerations)
+		require.Equal(t, testCase.expectedAffinity, pod.Spec.Affinity)
 	}
 }

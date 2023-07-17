@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,7 +21,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -41,13 +41,17 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/util"
+)
+
+const (
+	deprecatedCRDDir = "deprecated-crd"
 )
 
 var _ = Describe("Install Plan", func() {
@@ -76,11 +80,11 @@ var _ = Describe("Install Plan", func() {
 
 	When("an InstallPlan step contains a deprecated resource version", func() {
 		var (
-			csv      operatorsv1alpha1.ClusterServiceVersion
-			plan     operatorsv1alpha1.InstallPlan
-			pdb      policyv1beta1.PodDisruptionBudget
-			manifest string
-			counter  float64
+			csv        operatorsv1alpha1.ClusterServiceVersion
+			plan       operatorsv1alpha1.InstallPlan
+			deprecated client.Object
+			manifest   string
+			counter    float64
 		)
 
 		BeforeEach(func() {
@@ -90,13 +94,8 @@ var _ = Describe("Install Plan", func() {
 			v, err := dc.ServerVersion()
 			Expect(err).ToNot(HaveOccurred())
 
-			if minor, err := strconv.Atoi(v.Minor); err == nil && minor < 21 {
-				// This is a tactical can-kick with
-				// the expectation that the
-				// event-emitting behavior being
-				// tested in this context will have
-				// moved by the time 1.25 arrives.
-				Skip("hack: test is dependent on 1.21+ behavior")
+			if minor, err := strconv.Atoi(v.Minor); err == nil && minor < 16 {
+				Skip("test is dependent on CRD v1 introduced at 1.16")
 			}
 		})
 
@@ -107,26 +106,21 @@ var _ = Describe("Install Plan", func() {
 					counter = metric.Value
 				}
 			}
+			deprecatedCRD, err := util.DecodeFile(filepath.Join(testdataDir, deprecatedCRDDir, "deprecated.crd.yaml"), &apiextensionsv1.CustomResourceDefinition{})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(ctx.Ctx().Client().Create(context.Background(), deprecatedCRD)).To(Succeed())
 
 			csv = newCSV(genName("test-csv-"), ns.GetName(), "", semver.Version{}, nil, nil, nil)
 			Expect(ctx.Ctx().Client().Create(context.Background(), &csv)).To(Succeed())
 
-			pdb = policyv1beta1.PodDisruptionBudget{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: genName("test-pdb-"),
-				},
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "PodDisruptionBudget",
-					APIVersion: policyv1beta1.SchemeGroupVersion.String(),
-				},
-				Spec: policyv1beta1.PodDisruptionBudgetSpec{},
-			}
+			deprecated, err = util.DecodeFile(filepath.Join(testdataDir, deprecatedCRDDir, "deprecated.cr.yaml"), &unstructured.Unstructured{}, util.WithNamespace(ns.GetName()))
+			Expect(err).NotTo(HaveOccurred())
 
 			scheme := runtime.NewScheme()
-			Expect(policyv1beta1.AddToScheme(scheme)).To(Succeed())
 			{
 				var b bytes.Buffer
-				Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(&pdb, &b)).To(Succeed())
+				Expect(k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false).Encode(deprecated, &b)).To(Succeed())
 				manifest = b.String()
 			}
 
@@ -150,9 +144,9 @@ var _ = Describe("Install Plan", func() {
 						Resolving: csv.GetName(),
 						Status:    operatorsv1alpha1.StepStatusUnknown,
 						Resource: operatorsv1alpha1.StepResource{
-							Name:     pdb.GetName(),
-							Version:  pdb.APIVersion,
-							Kind:     pdb.Kind,
+							Name:     deprecated.GetName(),
+							Version:  "v1",
+							Kind:     "Deprecated",
 							Manifest: manifest,
 						},
 					},
@@ -167,6 +161,14 @@ var _ = Describe("Install Plan", func() {
 		AfterEach(func() {
 			Eventually(func() error {
 				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &csv))
+			}).Should(Succeed())
+			Eventually(func() error {
+				deprecatedCRD := &apiextensionsv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "deprecateds.operators.io.operator-framework",
+					},
+				}
+				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), deprecatedCRD))
 			}).Should(Succeed())
 		})
 
@@ -200,9 +202,8 @@ var _ = Describe("Install Plan", func() {
 					FieldPath:  "status.plan[0]",
 				},
 				Reason:  "AppliedWithWarnings",
-				Message: fmt.Sprintf("1 warning(s) generated during installation of operator \"%s\" (PodDisruptionBudget \"%s\"): policy/v1beta1 PodDisruptionBudget is deprecated in v1.21+, unavailable in v1.25+; use policy/v1 PodDisruptionBudget", csv.GetName(), pdb.GetName()),
+				Message: fmt.Sprintf("1 warning(s) generated during installation of operator \"%s\" (Deprecated \"%s\"): operators.io.operator-framework/v1 Deprecated is deprecated", csv.GetName(), deprecated.GetName()),
 			}))
-
 		})
 
 		It("increments a metric counting the warning", func() {
@@ -3060,87 +3061,6 @@ var _ = Describe("Install Plan", func() {
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 	})
 
-	It("unpacks bundle image", func() {
-		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("ns-"),
-			},
-		}, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-
-		og := &operatorsv1.OperatorGroup{}
-		og.SetName("og")
-		_, err = crc.OperatorsV1().OperatorGroups(ns.GetName()).Create(context.Background(), og, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-
-		deleteOpts := &metav1.DeleteOptions{}
-		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), ns.GetName(), *deleteOpts))
-		}()
-
-		catsrc := &operatorsv1alpha1.CatalogSource{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      genName("kiali-"),
-				Namespace: ns.GetName(),
-				Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
-			},
-			Spec: operatorsv1alpha1.CatalogSourceSpec{
-				Image:      "quay.io/operator-framework/ci-index:latest",
-				SourceType: operatorsv1alpha1.SourceTypeGrpc,
-			},
-		}
-		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.Background(), catsrc, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-		defer func() {
-			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), catsrc))
-			}).Should(Succeed())
-		}()
-
-		// Wait for the CatalogSource to be ready
-		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
-		require.NoError(GinkgoT(), err)
-
-		// Generate a Subscription
-		subName := genName("kiali-")
-		cleanUpSubscriptionFn := createSubscriptionForCatalog(crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-		defer cleanUpSubscriptionFn()
-
-		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
-		require.NoError(GinkgoT(), err)
-
-		// Wait for the expected InstallPlan's execution to either fail or succeed
-		ipName := sub.Status.InstallPlanRef.Name
-		ip, err := waitForInstallPlan(crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
-		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, ip.Status.Phase, "InstallPlan not complete")
-
-		// Ensure the InstallPlan contains the steps resolved from the bundle image
-		operatorName := "kiali-operator"
-		expectedSteps := map[registry.ResourceKey]struct{}{
-			{Name: operatorName, Kind: "ClusterServiceVersion"}:                                  {},
-			{Name: "kialis.kiali.io", Kind: "CustomResourceDefinition"}:                          {},
-			{Name: "monitoringdashboards.monitoring.kiali.io", Kind: "CustomResourceDefinition"}: {},
-			{Name: operatorName, Kind: "ServiceAccount"}:                                         {},
-			{Name: operatorName, Kind: "ClusterRole"}:                                            {},
-			{Name: operatorName, Kind: "ClusterRoleBinding"}:                                     {},
-		}
-		require.Lenf(GinkgoT(), ip.Status.Plan, len(expectedSteps), "number of expected steps does not match installed: %v", ip.Status.Plan)
-
-		for _, step := range ip.Status.Plan {
-			key := registry.ResourceKey{
-				Name: step.Resource.Name,
-				Kind: step.Resource.Kind,
-			}
-			for expected := range expectedSteps {
-				if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
-					delete(expectedSteps, expected)
-				}
-			}
-		}
-		require.Lenf(GinkgoT(), expectedSteps, 0, "Actual resource steps do not match expected: %#v", expectedSteps)
-	})
-
 	// This It spec verifies that, in cases where there are multiple options to fulfil a dependency
 	// across multiple catalogs, we only generate one installplan with one set of resolved resources.
 	//issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2633
@@ -3243,6 +3163,9 @@ var _ = Describe("Install Plan", func() {
 					Spec: operatorsv1alpha1.CatalogSourceSpec{
 						SourceType: operatorsv1alpha1.SourceTypeGrpc,
 						Address:    dependentCatalogSource.Status.RegistryServiceStatus.Address(),
+						GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+							SecurityContextConfig: operatorsv1alpha1.Restricted,
+						},
 					},
 				}
 				addressSource.SetName(genName("alt-dep-"))
@@ -3394,215 +3317,6 @@ var _ = Describe("Install Plan", func() {
 		})
 	})
 
-	When("waiting on the bundle unpacking job", func() {
-		var (
-			ns         *corev1.Namespace
-			catsrcName string
-			ip         *operatorsv1alpha1.InstallPlan
-		)
-
-		BeforeEach(func() {
-			ns = &corev1.Namespace{}
-			ns.SetName(genName("ns-"))
-			Eventually(func() error {
-				return ctx.Ctx().Client().Create(context.Background(), ns)
-			}, timeout, interval).Should(Succeed(), "could not create Namespace")
-
-			// Create a dummy CatalogSource to bypass the bundle unpacker's check for a CatalogSource
-			catsrc := &operatorsv1alpha1.CatalogSource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      genName("dummy-catsrc-"),
-					Namespace: ns.GetName(),
-				},
-				Spec: operatorsv1alpha1.CatalogSourceSpec{
-					Image:      "localhost:0/not/exist:catsrc",
-					SourceType: operatorsv1alpha1.SourceTypeGrpc,
-				},
-			}
-			Eventually(func() error {
-				return ctx.Ctx().Client().Create(context.Background(), catsrc)
-			}, timeout, interval).Should(Succeed(), "could not create CatalogSource")
-
-			catsrcName = catsrc.GetName()
-
-			// Create the OperatorGroup
-			og := &operatorsv1.OperatorGroup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "og",
-					Namespace: ns.GetName(),
-				},
-				Spec: operatorsv1.OperatorGroupSpec{
-					TargetNamespaces: []string{ns.GetName()},
-				},
-			}
-			Eventually(func() error {
-				return ctx.Ctx().Client().Create(context.Background(), og)
-			}, timeout, interval).Should(Succeed(), "could not create OperatorGroup")
-
-			// Wait for the OperatorGroup to be synced so the InstallPlan doesn't have to be resynced due to an invalid OperatorGroup
-			Eventually(
-				func() ([]string, error) {
-					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(og), og)
-					ctx.Ctx().Logf("Waiting for OperatorGroup(%v) to be synced with status.namespaces: %v", og.Name, og.Status.Namespaces)
-					return og.Status.Namespaces, err
-				},
-				1*time.Minute,
-				interval,
-			).Should(ContainElement(ns.GetName()))
-
-			ip = &operatorsv1alpha1.InstallPlan{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ip",
-					Namespace: ns.GetName(),
-				},
-				Spec: operatorsv1alpha1.InstallPlanSpec{
-					ClusterServiceVersionNames: []string{"foobar"},
-					Approval:                   operatorsv1alpha1.ApprovalAutomatic,
-					Approved:                   true,
-				},
-			}
-		})
-
-		AfterEach(func() {
-			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), ns))
-			}, timeout, interval).Should(Succeed(), "could not delete Namespace")
-			Eventually(func() error {
-				return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), ip))
-			}, timeout, interval).Should(Succeed(), "could not delete Namespace")
-		})
-
-		It("should show an error on the bundlelookup condition for a non-existent bundle image", func() {
-			// We wait for some time over the bundle unpack timeout (i.e ActiveDeadlineSeconds) so that the Job can eventually fail
-			// Since the default --bundle-unpack-timeout=10m, we override with a shorter timeout via the
-			// unpack timeout annotation on the InstallPlan
-			annotations := make(map[string]string)
-			annotations[bundle.BundleUnpackTimeoutAnnotationKey] = "1m"
-			ip.SetAnnotations(annotations)
-
-			Eventually(func() error {
-				return ctx.Ctx().Client().Create(context.Background(), ip)
-			}, timeout, interval).Should(Succeed(), "could not create InstallPlan")
-
-			now := metav1.Now()
-			// Create an InstallPlan status.bundleLookups.Path specified for a non-existent bundle image
-			ip.Status = operatorsv1alpha1.InstallPlanStatus{
-				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-				CatalogSources: []string{},
-				BundleLookups: []operatorsv1alpha1.BundleLookup{
-					{
-						Path:       "localhost:0/not/exist:v0.0.1",
-						Identifier: "foobar.v0.0.1",
-						CatalogSourceRef: &corev1.ObjectReference{
-							Namespace: ns.GetName(),
-							Name:      catsrcName,
-						},
-						Conditions: []operatorsv1alpha1.BundleLookupCondition{
-							{
-								Type:               operatorsv1alpha1.BundleLookupPending,
-								Status:             corev1.ConditionTrue,
-								Reason:             "JobIncomplete",
-								Message:            "unpack job not completed",
-								LastTransitionTime: &now,
-							},
-						},
-					},
-				},
-			}
-
-			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
-			// InstallPlans without any steps or bundle lookups
-			Eventually(func() error {
-				return ctx.Ctx().Client().Status().Update(context.Background(), ip)
-			}, timeout, interval).Should(Succeed(), "could not update InstallPlan status")
-
-			// The InstallPlan's status.bundleLookup.conditions should have a BundleLookupPending condition
-			// with the container status from unpack pod that mentions an image pull failure for the non-existent
-			// image, e.g ErrImagePull or ImagePullBackOff
-			Eventually(
-				func() (string, error) {
-					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
-					if err != nil {
-						return "", err
-					}
-					for _, bl := range ip.Status.BundleLookups {
-						for _, cond := range bl.Conditions {
-							if cond.Type != operatorsv1alpha1.BundleLookupPending {
-								continue
-							}
-							return cond.Message, nil
-						}
-					}
-					return "", fmt.Errorf("%s condition not found", operatorsv1alpha1.BundleLookupPending)
-				},
-				1*time.Minute,
-				interval,
-			).Should(ContainSubstring("ErrImagePull"))
-
-			waitFor := 1*time.Minute + 30*time.Second
-			// The InstallPlan should eventually fail due to the ActiveDeadlineSeconds limit
-			Eventually(
-				func() (*operatorsv1alpha1.InstallPlan, error) {
-					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
-					return ip, err
-				},
-				waitFor,
-				interval,
-			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
-		})
-
-		It("should timeout and fail the InstallPlan for an invalid bundle image", func() {
-			Eventually(func() error {
-				return ctx.Ctx().Client().Create(context.Background(), ip)
-			}, timeout, interval).Should(Succeed(), "could not create InstallPlan")
-
-			// The status gets ignored on create so we need to update it else the InstallPlan sync ignores
-			// InstallPlans without any steps or bundle lookups
-			// Create an InstallPlan status.bundleLookups.Path specified for an invalid bundle image
-			now := metav1.Now()
-			ip.Status = operatorsv1alpha1.InstallPlanStatus{
-				Phase:          operatorsv1alpha1.InstallPlanPhaseInstalling,
-				CatalogSources: []string{},
-				BundleLookups: []operatorsv1alpha1.BundleLookup{
-					{
-						Path:       "alpine:3.13",
-						Identifier: "foobar.v0.0.1",
-						CatalogSourceRef: &corev1.ObjectReference{
-							Namespace: ns.GetName(),
-							Name:      catsrcName,
-						},
-						Conditions: []operatorsv1alpha1.BundleLookupCondition{
-							{
-								Type:               operatorsv1alpha1.BundleLookupPending,
-								Status:             corev1.ConditionTrue,
-								Reason:             "JobIncomplete",
-								Message:            "unpack job not completed",
-								LastTransitionTime: &now,
-							},
-						},
-					},
-				},
-			}
-
-			Eventually(func() error {
-				return ctx.Ctx().Client().Status().Update(context.Background(), ip)
-			}, timeout, interval).Should(Succeed(), "could not update InstallPlan status")
-
-			// The InstallPlan should fail after the unpack pod keeps failing and exceeds the job's
-			// BackoffLimit(set to 3), which for 4 failures is an exponential backoff (10s + 20s + 40s + 80s)= 2m30s
-			// so we wait a little over that.
-			Eventually(
-				func() (*operatorsv1alpha1.InstallPlan, error) {
-					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
-					return ip, err
-				},
-				5*time.Minute,
-				interval,
-			).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
-		})
-
-	})
-
 	It("compresses installplan step resource manifests to configmap references", func() {
 		// Test ensures that all steps for index-based catalogs are references to configmaps. This avoids the problem
 		// of installplans growing beyond the etcd size limit when manifests are written to the ip status.
@@ -3631,6 +3345,9 @@ var _ = Describe("Install Plan", func() {
 			Spec: operatorsv1alpha1.CatalogSourceSpec{
 				Image:      "quay.io/operator-framework/ci-index:latest",
 				SourceType: operatorsv1alpha1.SourceTypeGrpc,
+				GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+					SecurityContextConfig: operatorsv1alpha1.Restricted,
+				},
 			},
 		}
 		catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.Background(), catsrc, metav1.CreateOptions{})

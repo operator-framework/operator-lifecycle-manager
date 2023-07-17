@@ -89,21 +89,20 @@ func objectRefToNamespacedName(ip *corev1.ObjectReference) types.NamespacedName 
 	}
 }
 
-// addBundleUnpackTimeoutIPAnnotation is a helper function that's responsible for
-// adding the "operatorframework.io/bundle-unpack-timeout" annotation to an InstallPlan
-// resource. This allows you to have more control over the bundle unpack timeout when interacting
-// with test InstallPlan resources.
-func addBundleUnpackTimeoutIPAnnotation(ctx context.Context, c k8scontrollerclient.Client, ipNN types.NamespacedName, timeout string) {
+// addBundleUnpackTimeoutOGAnnotation is a helper function that's responsible for
+// adding the "operatorframework.io/bundle-unpack-timeout" annotation to an OperatorGroup
+// resource.
+func addBundleUnpackTimeoutOGAnnotation(ctx context.Context, c k8scontrollerclient.Client, ogNN types.NamespacedName, timeout string) {
 	Eventually(func() error {
-		ip := &operatorsv1alpha1.InstallPlan{}
-		if err := c.Get(ctx, ipNN, ip); err != nil {
+		og := &operatorsv1.OperatorGroup{}
+		if err := c.Get(ctx, ogNN, og); err != nil {
 			return err
 		}
-		annotations := make(map[string]string)
+		annotations := og.GetAnnotations()
 		annotations[bundle.BundleUnpackTimeoutAnnotationKey] = timeout
-		ip.SetAnnotations(annotations)
+		og.SetAnnotations(annotations)
 
-		return c.Update(ctx, ip)
+		return c.Update(ctx, og)
 	}).Should(Succeed())
 }
 
@@ -582,6 +581,9 @@ func createInvalidGRPCCatalogSource(c operatorclient.ClientInterface, crc versio
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "grpc",
 			Image:      "localhost:0/not/exists:catsrc",
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 
@@ -616,6 +618,9 @@ func createInternalCatalogSource(
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 
@@ -657,6 +662,9 @@ func createInternalCatalogSourceWithPriority(c operatorclient.ClientInterface,
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
 			Priority:   priority,
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 	catalogSource.SetNamespace(namespace)
@@ -700,6 +708,9 @@ func createV1CRDInternalCatalogSource(
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
 			ConfigMap:  configMap.GetName(),
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 	catalogSource.SetNamespace(namespace)

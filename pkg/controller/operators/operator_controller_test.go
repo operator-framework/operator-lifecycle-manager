@@ -2,6 +2,7 @@ package operators
 
 import (
 	"context"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -201,6 +202,44 @@ var _ = Describe("Operator Controller", func() {
 						err := k8sClient.Get(ctx, name, operator)
 						return operator.Status.Components.Refs, err
 					}, timeout, interval).Should(ConsistOf(expectedRefs))
+				})
+			})
+
+			Context("when multiple types of a gvk are labeled", func() {
+				BeforeEach(func() {
+					newObjs := make([]runtime.Object, 9)
+
+					// Create objects in reverse order to ensure they are eventually ordered alphabetically in the status of the operator.
+					for i := 8; i >= 0; i-- {
+						newObjs[8-i] = testobj.WithLabels(map[string]string{expectedKey: ""}, testobj.WithNamespacedName(
+							&types.NamespacedName{Namespace: namespace, Name: fmt.Sprintf("sa-%d", i)}, &corev1.ServiceAccount{},
+						))
+					}
+
+					for _, obj := range newObjs {
+						Expect(k8sClient.Create(ctx, obj.(client.Object))).To(Succeed())
+					}
+
+					objs = append(objs, newObjs...)
+					expectedRefs = append(expectedRefs, toRefs(scheme, newObjs...)...)
+				})
+
+				It("should list each of the component references in alphabetical order by namespace and name", func() {
+					Eventually(func() ([]operatorsv1.RichReference, error) {
+						err := k8sClient.Get(ctx, name, operator)
+						return operator.Status.Components.Refs, err
+					}, timeout, interval).Should(ConsistOf(expectedRefs))
+
+					serviceAccountCount := 0
+					for _, ref := range operator.Status.Components.Refs {
+						if ref.Kind != rbacv1.ServiceAccountKind {
+							continue
+						}
+
+						Expect(ref.Name).Should(Equal(fmt.Sprintf("sa-%d", serviceAccountCount)))
+						serviceAccountCount++
+					}
+					Expect(serviceAccountCount).To(Equal(9))
 				})
 			})
 

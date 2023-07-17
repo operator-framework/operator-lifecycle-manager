@@ -34,6 +34,7 @@ var _ rest.Lister = &PackageManifestStorage{}
 var _ rest.Getter = &PackageManifestStorage{}
 var _ rest.Scoper = &PackageManifestStorage{}
 var _ rest.TableConvertor = &PackageManifestStorage{}
+var _ rest.SingularNameProvider = &PackageManifestStorage{}
 
 // NewStorage returns a struct that implements methods needed for Kubernetes to satisfy API requests for the `PackageManifest` resource
 func NewStorage(groupResource schema.GroupResource, prov provider.PackageManifestProvider, scheme *runtime.Scheme) *PackageManifestStorage {
@@ -50,9 +51,17 @@ func (m *PackageManifestStorage) New() runtime.Object {
 	return &operators.PackageManifest{}
 }
 
+// Destroy satisfies the Storage interface
+// Performs a no-op
+func (m *PackageManifestStorage) Destroy() {}
+
 // Kind satisfies the KindProvider interface
 func (m *PackageManifestStorage) Kind() string {
 	return "PackageManifest"
+}
+
+func (m *PackageManifestStorage) GetSingularName() string {
+	return m.Kind()
 }
 
 // NewList satisfies part of the Lister interface

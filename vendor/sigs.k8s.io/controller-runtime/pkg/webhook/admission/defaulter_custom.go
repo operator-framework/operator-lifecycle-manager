@@ -19,11 +19,12 @@ package admission
 import (
 	"context"
 	"encoding/json"
-
 	"errors"
 	"net/http"
 
+	admissionv1 "k8s.io/api/admission/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -33,9 +34,9 @@ type CustomDefaulter interface {
 }
 
 // WithCustomDefaulter creates a new Webhook for a CustomDefaulter interface.
-func WithCustomDefaulter(obj runtime.Object, defaulter CustomDefaulter) *Webhook {
+func WithCustomDefaulter(scheme *runtime.Scheme, obj runtime.Object, defaulter CustomDefaulter) *Webhook {
 	return &Webhook{
-		Handler: &defaulterForType{object: obj, defaulter: defaulter},
+		Handler: &defaulterForType{object: obj, defaulter: defaulter, decoder: NewDecoder(scheme)},
 	}
 }
 
@@ -45,21 +46,29 @@ type defaulterForType struct {
 	decoder   *Decoder
 }
 
-var _ DecoderInjector = &defaulterForType{}
-
-func (h *defaulterForType) InjectDecoder(d *Decoder) error {
-	h.decoder = d
-	return nil
-}
-
 // Handle handles admission requests.
 func (h *defaulterForType) Handle(ctx context.Context, req Request) Response {
+	if h.decoder == nil {
+		panic("decoder should never be nil")
+	}
 	if h.defaulter == nil {
 		panic("defaulter should never be nil")
 	}
 	if h.object == nil {
 		panic("object should never be nil")
 	}
+
+	// Always skip when a DELETE operation received in custom mutation handler.
+	if req.Operation == admissionv1.Delete {
+		return Response{AdmissionResponse: admissionv1.AdmissionResponse{
+			Allowed: true,
+			Result: &metav1.Status{
+				Code: http.StatusOK,
+			},
+		}}
+	}
+
+	ctx = NewContextWithRequest(ctx, req)
 
 	// Get the object in the request
 	obj := h.object.DeepCopyObject()

@@ -11,7 +11,7 @@ endif
 SHELL := /bin/bash
 ORG := github.com/operator-framework
 PKG   := $(ORG)/operator-lifecycle-manager
-MOD_FLAGS := $(shell (go version | grep -q -E "1\.1[1-9]") && echo -mod=vendor)
+MOD_FLAGS := -mod=vendor -buildvcs=false
 BUILD_TAGS := "json1"
 CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
 TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
@@ -29,7 +29,11 @@ GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 GIT_COMMIT := $(shell git rev-parse HEAD)
-
+ifeq ($(shell arch), arm64) 
+ARCH := arm64
+else
+ARCH := 386
+endif
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
 	coverage coverage-html e2e \
@@ -82,21 +86,21 @@ build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/..
 build-coverage: clean $(CMDS)
 
 build-linux: build_cmd=build
-build-linux: arch_flags=GOOS=linux GOARCH=386
+build-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-linux: clean $(CMDS)
 
 build-wait: clean bin/wait
 
 bin/wait: FORCE
-	GOOS=linux GOARCH=386 go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
+	GOOS=linux GOARCH=$(ARCH) go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
-build-util-linux: arch_flags=GOOS=linux GOARCH=386
+build-util-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-util-linux: build-util
 
 build-util: bin/cpb
 
 bin/cpb: FORCE
-	CGO_ENABLED=0 $(arch_flags) go build $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
+	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
 
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
@@ -142,7 +146,7 @@ e2e:
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
-e2e-local: BUILD_TAGS="json1 experimental_metrics"
+e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
 e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar -test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
 e2e-local: run=bin/e2e-local.test
 e2e-local: bin/e2e-local.test test/e2e-local.image.tar

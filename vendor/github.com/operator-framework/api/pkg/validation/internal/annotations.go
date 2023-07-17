@@ -30,13 +30,13 @@ which are known to be case sensitive. It also checks to see if the olm.propertie
 annotation is defined in order to add a warning if present. This function can be
 used anywhere annotations need to be checked for case sensitivity.
 
-Arguments
+# Arguments
 
 • annotations: annotations map usually obtained from ObjectMeta.GetAnnotations()
 
 • value: is the field or file that caused an error or warning
 
-Returns
+# Returns
 
 • errs: Any errors that may have been detected with the annotation keys provided
 */

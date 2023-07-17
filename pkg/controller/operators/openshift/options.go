@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
@@ -88,7 +87,7 @@ func (c *ReconcilerConfig) complete() error {
 	return nil
 }
 
-func (c *ReconcilerConfig) mapClusterOperator(_ client.Object) []reconcile.Request {
+func (c *ReconcilerConfig) mapClusterOperator(_ context.Context, _ client.Object) []reconcile.Request {
 	// Enqueue the cluster operator
 	return []reconcile.Request{
 		{NamespacedName: types.NamespacedName{Name: c.Name}},
@@ -173,7 +172,7 @@ func WithOLMOperator() ReconcilerOption {
 			return !csv.IsCopied() // Keep original CSVs only
 		})
 		config.TweakBuilder = func(bldr *builder.Builder) *builder.Builder {
-			return bldr.Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueue, builder.WithPredicates(originalCSV))
+			return bldr.Watches(&operatorsv1alpha1.ClusterServiceVersion{}, enqueue, builder.WithPredicates(originalCSV))
 		}
 	}
 }

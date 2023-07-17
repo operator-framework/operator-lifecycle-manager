@@ -21,16 +21,24 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"regexp"
 	"strings"
+	"time"
 
+	celgo "github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/interpreter"
 
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
-	"k8s.io/apiextensions-apiserver/third_party/forked/celopenapi/model"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/cel/model"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/apiserver/pkg/cel"
+	"k8s.io/apiserver/pkg/cel/metrics"
+	"k8s.io/klog/v2"
+
+	celconfig "k8s.io/apiserver/pkg/apis/cel"
 )
 
 // Validator parallels the structure of schema.Structural and includes the compiled CEL programs
@@ -51,37 +59,72 @@ type Validator struct {
 	// isResourceRoot is true if this validator node is for the root of a resource. Either the root of the
 	// custom resource being validated, or the root of an XEmbeddedResource object.
 	isResourceRoot bool
+
+	// celActivationFactory produces an Activation, which resolves identifiers (e.g. self and
+	// oldSelf) to CEL values.
+	celActivationFactory func(sts *schema.Structural, obj, oldObj interface{}) interpreter.Activation
 }
 
 // NewValidator returns compiles all the CEL programs defined in x-kubernetes-validations extensions
 // of the Structural schema and returns a custom resource validator that contains nested
 // validators for all items, properties and additionalProperties that transitively contain validator rules.
-// Returns nil only if there no validator rules in the Structural schema. May return a validator containing
-// only errors.
-// Adding perCallLimit as input arg for testing purpose only. Callers should always use const PerCallLimit as input
-func NewValidator(s *schema.Structural, perCallLimit uint64) *Validator {
-	return validator(s, true, perCallLimit)
+// Returns nil if there are no validator rules in the Structural schema. May return a validator containing only errors.
+// Adding perCallLimit as input arg for testing purpose only. Callers should always use const PerCallLimit from k8s.io/apiserver/pkg/apis/cel/config.go as input
+func NewValidator(s *schema.Structural, isResourceRoot bool, perCallLimit uint64) *Validator {
+	if !hasXValidations(s) {
+		return nil
+	}
+	return validator(s, isResourceRoot, model.SchemaDeclType(s, isResourceRoot), perCallLimit)
 }
 
-func validator(s *schema.Structural, isResourceRoot bool, perCallLimit uint64) *Validator {
-	compiledRules, err := Compile(s, isResourceRoot, perCallLimit)
+// validator creates a Validator for all x-kubernetes-validations at the level of the provided schema and lower and
+// returns the Validator if any x-kubernetes-validations exist in the schema, or nil if no x-kubernetes-validations
+// exist. declType is expected to be a CEL DeclType corresponding to the structural schema.
+// perCallLimit was added for testing purpose only. Callers should always use const PerCallLimit from k8s.io/apiserver/pkg/apis/cel/config.go as input.
+func validator(s *schema.Structural, isResourceRoot bool, declType *cel.DeclType, perCallLimit uint64) *Validator {
+	compiledRules, err := Compile(s, declType, perCallLimit)
 	var itemsValidator, additionalPropertiesValidator *Validator
 	var propertiesValidators map[string]Validator
 	if s.Items != nil {
-		itemsValidator = validator(s.Items, s.Items.XEmbeddedResource, perCallLimit)
+		itemsValidator = validator(s.Items, s.Items.XEmbeddedResource, declType.ElemType, perCallLimit)
 	}
 	if len(s.Properties) > 0 {
 		propertiesValidators = make(map[string]Validator, len(s.Properties))
-		for k, prop := range s.Properties {
-			if p := validator(&prop, prop.XEmbeddedResource, perCallLimit); p != nil {
+		for k, p := range s.Properties {
+			prop := p
+			var fieldType *cel.DeclType
+			if escapedPropName, ok := cel.Escape(k); ok {
+				if f, ok := declType.Fields[escapedPropName]; ok {
+					fieldType = f.Type
+				} else {
+					// fields with unknown types are omitted from CEL validation entirely
+					continue
+				}
+			} else {
+				// field may be absent from declType if the property name is unescapable, in which case we should convert
+				// the field value type to a DeclType.
+				fieldType = model.SchemaDeclType(&prop, prop.XEmbeddedResource)
+				if fieldType == nil {
+					continue
+				}
+			}
+			if p := validator(&prop, prop.XEmbeddedResource, fieldType, perCallLimit); p != nil {
 				propertiesValidators[k] = *p
 			}
 		}
 	}
 	if s.AdditionalProperties != nil && s.AdditionalProperties.Structural != nil {
-		additionalPropertiesValidator = validator(s.AdditionalProperties.Structural, s.AdditionalProperties.Structural.XEmbeddedResource, perCallLimit)
+		additionalPropertiesValidator = validator(s.AdditionalProperties.Structural, s.AdditionalProperties.Structural.XEmbeddedResource, declType.ElemType, perCallLimit)
 	}
 	if len(compiledRules) > 0 || err != nil || itemsValidator != nil || additionalPropertiesValidator != nil || len(propertiesValidators) > 0 {
+		var activationFactory func(*schema.Structural, interface{}, interface{}) interpreter.Activation = validationActivationWithoutOldSelf
+		for _, rule := range compiledRules {
+			if rule.TransitionRule {
+				activationFactory = validationActivationWithOldSelf
+				break
+			}
+		}
+
 		return &Validator{
 			compiledRules:        compiledRules,
 			compilationErr:       err,
@@ -89,6 +132,7 @@ func validator(s *schema.Structural, isResourceRoot bool, perCallLimit uint64) *
 			Items:                itemsValidator,
 			AdditionalProperties: additionalPropertiesValidator,
 			Properties:           propertiesValidators,
+			celActivationFactory: activationFactory,
 		}
 	}
 
@@ -100,6 +144,10 @@ func validator(s *schema.Structural, isResourceRoot bool, perCallLimit uint64) *
 // Most callers can ignore the returned remainingBudget value unless another validate call is going to be made
 // context is passed for supporting context cancellation during cel validation
 func (s *Validator) Validate(ctx context.Context, fldPath *field.Path, sts *schema.Structural, obj, oldObj interface{}, costBudget int64) (errs field.ErrorList, remainingBudget int64) {
+	t := time.Now()
+	defer func() {
+		metrics.Metrics.ObserveEvaluation(time.Since(t))
+	}()
 	remainingBudget = costBudget
 	if s == nil || obj == nil {
 		return nil, remainingBudget
@@ -131,7 +179,7 @@ func (s *Validator) validateExpressions(ctx context.Context, fldPath *field.Path
 	if oldObj != nil {
 		v := reflect.ValueOf(oldObj)
 		switch v.Kind() {
-		case reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice:
+		case reflect.Map, reflect.Pointer, reflect.Interface, reflect.Slice:
 			if v.IsNil() {
 				oldObj = nil // +k8s:verify-mutation:reason=clone
 			}
@@ -159,7 +207,7 @@ func (s *Validator) validateExpressions(ctx context.Context, fldPath *field.Path
 	if s.isResourceRoot {
 		sts = model.WithTypeAndObjectMeta(sts)
 	}
-	var activation interpreter.Activation = NewValidationActivation(obj, oldObj, sts)
+	activation := s.celActivationFactory(sts, obj, oldObj)
 	for i, compiled := range s.compiledRules {
 		rule := sts.XValidations[i]
 		if compiled.Error != nil {
@@ -209,14 +257,100 @@ func (s *Validator) validateExpressions(ctx context.Context, fldPath *field.Path
 			continue
 		}
 		if evalResult != types.True {
-			if len(rule.Message) != 0 {
-				errs = append(errs, field.Invalid(fldPath, sts.Type, rule.Message))
+			if compiled.MessageExpression != nil {
+				messageExpression, newRemainingBudget, msgErr := evalMessageExpression(ctx, compiled.MessageExpression, rule.MessageExpression, activation, remainingBudget)
+				if msgErr != nil {
+					if msgErr.Type == cel.ErrorTypeInternal {
+						errs = append(errs, field.InternalError(fldPath, msgErr))
+						return errs, -1
+					} else if msgErr.Type == cel.ErrorTypeInvalid {
+						errs = append(errs, field.Invalid(fldPath, sts.Type, msgErr.Error()))
+						return errs, -1
+					} else {
+						klog.V(2).ErrorS(msgErr, "messageExpression evaluation failed")
+						errs = append(errs, field.Invalid(fldPath, sts.Type, ruleMessageOrDefault(rule)))
+						remainingBudget = newRemainingBudget
+					}
+				} else {
+					errs = append(errs, field.Invalid(fldPath, sts.Type, messageExpression))
+					remainingBudget = newRemainingBudget
+				}
 			} else {
-				errs = append(errs, field.Invalid(fldPath, sts.Type, fmt.Sprintf("failed rule: %s", ruleErrorString(rule))))
+				errs = append(errs, field.Invalid(fldPath, sts.Type, ruleMessageOrDefault(rule)))
 			}
 		}
 	}
 	return errs, remainingBudget
+}
+
+// evalMessageExpression evaluates the given message expression and returns the evaluated string form and the remaining budget, or an error if one
+// occurred during evaluation.
+func evalMessageExpression(ctx context.Context, expr celgo.Program, exprSrc string, activation interpreter.Activation, remainingBudget int64) (string, int64, *cel.Error) {
+	evalResult, evalDetails, err := expr.ContextEval(ctx, activation)
+	if evalDetails == nil {
+		return "", -1, &cel.Error{
+			Type:   cel.ErrorTypeInternal,
+			Detail: fmt.Sprintf("runtime cost could not be calculated for messageExpression: %q", exprSrc),
+		}
+	}
+	rtCost := evalDetails.ActualCost()
+	if rtCost == nil {
+		return "", -1, &cel.Error{
+			Type:   cel.ErrorTypeInternal,
+			Detail: fmt.Sprintf("runtime cost could not be calculated for messageExpression: %q", exprSrc),
+		}
+	} else if *rtCost > math.MaxInt64 || int64(*rtCost) > remainingBudget {
+		return "", -1, &cel.Error{
+			Type:   cel.ErrorTypeInvalid,
+			Detail: "messageExpression evaluation failed due to running out of cost budget, no further validation rules will be run",
+		}
+	}
+	if err != nil {
+		if strings.HasPrefix(err.Error(), "operation cancelled: actual cost limit exceeded") {
+			return "", -1, &cel.Error{
+				Type:   cel.ErrorTypeInvalid,
+				Detail: fmt.Sprintf("no further validation rules will be run due to call cost exceeds limit for messageExpression: %q", exprSrc),
+			}
+		}
+		return "", remainingBudget - int64(*rtCost), &cel.Error{
+			Detail: fmt.Sprintf("messageExpression evaluation failed due to: %v", err.Error()),
+		}
+	}
+	messageStr, ok := evalResult.Value().(string)
+	if !ok {
+		return "", remainingBudget - int64(*rtCost), &cel.Error{
+			Detail: "messageExpression failed to convert to string",
+		}
+	}
+	trimmedMsgStr := strings.TrimSpace(messageStr)
+	if len(trimmedMsgStr) > celconfig.MaxEvaluatedMessageExpressionSizeBytes {
+		return "", remainingBudget - int64(*rtCost), &cel.Error{
+			Detail: fmt.Sprintf("messageExpression beyond allowable length of %d", celconfig.MaxEvaluatedMessageExpressionSizeBytes),
+		}
+	} else if hasNewlines(trimmedMsgStr) {
+		return "", remainingBudget - int64(*rtCost), &cel.Error{
+			Detail: "messageExpression should not contain line breaks",
+		}
+	} else if len(trimmedMsgStr) == 0 {
+		return "", remainingBudget - int64(*rtCost), &cel.Error{
+			Detail: "messageExpression should evaluate to a non-empty string",
+		}
+	}
+	return trimmedMsgStr, remainingBudget - int64(*rtCost), nil
+}
+
+var newlineMatcher = regexp.MustCompile(`[\n]+`)
+
+func hasNewlines(s string) bool {
+	return newlineMatcher.MatchString(s)
+}
+
+func ruleMessageOrDefault(rule apiextensions.ValidationRule) string {
+	if len(rule.Message) == 0 {
+		return fmt.Sprintf("failed rule: %s", ruleErrorString(rule))
+	} else {
+		return strings.TrimSpace(rule.Message)
+	}
 }
 
 func ruleErrorString(rule apiextensions.ValidationRule) string {
@@ -231,15 +365,21 @@ type validationActivation struct {
 	hasOldSelf    bool
 }
 
-func NewValidationActivation(obj, oldObj interface{}, structural *schema.Structural) *validationActivation {
+func validationActivationWithOldSelf(sts *schema.Structural, obj, oldObj interface{}) interpreter.Activation {
 	va := &validationActivation{
-		self: UnstructuredToVal(obj, structural),
+		self: UnstructuredToVal(obj, sts),
 	}
 	if oldObj != nil {
-		va.oldSelf = UnstructuredToVal(oldObj, structural) // +k8s:verify-mutation:reason=clone
-		va.hasOldSelf = true                               // +k8s:verify-mutation:reason=clone
+		va.oldSelf = UnstructuredToVal(oldObj, sts) // +k8s:verify-mutation:reason=clone
+		va.hasOldSelf = true                        // +k8s:verify-mutation:reason=clone
 	}
 	return va
+}
+
+func validationActivationWithoutOldSelf(sts *schema.Structural, obj, _ interface{}) interpreter.Activation {
+	return &validationActivation{
+		self: UnstructuredToVal(obj, sts),
+	}
 }
 
 func (a *validationActivation) ResolveName(name string) (interface{}, bool) {
@@ -318,7 +458,7 @@ func (s *Validator) validateArray(ctx context.Context, fldPath *field.Path, sts 
 		correlatableOldItems := makeMapList(sts, oldObj)
 		for i := range obj {
 			var err field.ErrorList
-			err, remainingBudget = s.Items.Validate(ctx, fldPath.Index(i), sts.Items, obj[i], correlatableOldItems.get(obj[i]), remainingBudget)
+			err, remainingBudget = s.Items.Validate(ctx, fldPath.Index(i), sts.Items, obj[i], correlatableOldItems.Get(obj[i]), remainingBudget)
 			errs = append(errs, err...)
 			if remainingBudget < 0 {
 				return errs, remainingBudget
@@ -334,4 +474,27 @@ func (s *Validator) validateArray(ctx context.Context, fldPath *field.Path, sts 
 func MapIsCorrelatable(mapType *string) bool {
 	// if a third map type is introduced, assume it's not correlatable. granular is the default if unspecified.
 	return mapType == nil || *mapType == "granular" || *mapType == "atomic"
+}
+
+func hasXValidations(s *schema.Structural) bool {
+	if s == nil {
+		return false
+	}
+	if len(s.XValidations) > 0 {
+		return true
+	}
+	if hasXValidations(s.Items) {
+		return true
+	}
+	if s.AdditionalProperties != nil && hasXValidations(s.AdditionalProperties.Structural) {
+		return true
+	}
+	if s.Properties != nil {
+		for _, prop := range s.Properties {
+			if hasXValidations(&prop) {
+				return true
+			}
+		}
+	}
+	return false
 }

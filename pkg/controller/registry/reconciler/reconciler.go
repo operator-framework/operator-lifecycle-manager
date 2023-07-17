@@ -4,7 +4,6 @@ package reconciler
 import (
 	"fmt"
 	"hash/fnv"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -14,6 +13,7 @@ import (
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/image"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -107,17 +107,7 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saName string, labels map[string]string, annotations map[string]string, readinessDelay int32, livenessDelay int32, runAsUser int64) *corev1.Pod {
-	// Ensure the catalog image is always pulled if the image is not based on a digest, measured by whether an "@" is included.
-	// See https://github.com/docker/distribution/blob/master/reference/reference.go for more info.
-	// This means recreating non-digest based catalog pods will result in the latest version of the catalog content being delivered on-cluster.
-	var pullPolicy corev1.PullPolicy
-	if strings.Contains(image, "@") {
-		pullPolicy = corev1.PullIfNotPresent
-	} else {
-		pullPolicy = corev1.PullAlways
-	}
-
+func Pod(source *operatorsv1alpha1.CatalogSource, name string, img string, saName string, labels map[string]string, annotations map[string]string, readinessDelay int32, livenessDelay int32, runAsUser int64) *corev1.Pod {
 	// make a copy of the labels and annotations to avoid mutating the input parameters
 	podLabels := make(map[string]string)
 	podAnnotations := make(map[string]string)
@@ -141,7 +131,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 			Containers: []corev1.Container{
 				{
 					Name:  name,
-					Image: image,
+					Image: img,
 					Ports: []corev1.ContainerPort{
 						{
 							Name:          "grpc",
@@ -172,8 +162,9 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 								Command: []string{"grpc_health_probe", "-addr=:50051"},
 							},
 						},
-						FailureThreshold: 15,
+						FailureThreshold: 10,
 						PeriodSeconds:    10,
+						TimeoutSeconds:   5,
 					},
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
@@ -182,32 +173,23 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem:   pointer.Bool(false),
-						AllowPrivilegeEscalation: pointer.Bool(false),
-						Capabilities: &corev1.Capabilities{
-							Drop: []corev1.Capability{"ALL"},
-						},
+						ReadOnlyRootFilesystem: pointer.Bool(false),
 					},
-					ImagePullPolicy:          pullPolicy,
+					ImagePullPolicy:          image.InferImagePullPolicy(img),
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 				},
 			},
 			NodeSelector: map[string]string{
 				"kubernetes.io/os": "linux",
 			},
-			SecurityContext: &corev1.PodSecurityContext{
-				SeccompProfile: &corev1.SeccompProfile{
-					Type: corev1.SeccompProfileTypeRuntimeDefault,
-				},
-			},
 			ServiceAccountName: saName,
 		},
 	}
 
-	if runAsUser > 0 {
-		pod.Spec.SecurityContext.RunAsUser = &runAsUser
-		pod.Spec.SecurityContext.RunAsNonRoot = pointer.Bool(true)
+	if source.Spec.GrpcPodConfig != nil && source.Spec.GrpcPodConfig.SecurityContextConfig == operatorsv1alpha1.Restricted {
+		addSecurityContext(pod, runAsUser)
 	}
+
 	// Override scheduling options if specified
 	if source.Spec.GrpcPodConfig != nil {
 		grpcPodConfig := source.Spec.GrpcPodConfig
@@ -232,6 +214,11 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, image string, saN
 				pod.Spec.Tolerations[index] = *toleration.DeepCopy()
 			}
 		}
+
+		// Override affinity
+		if grpcPodConfig.Affinity != nil {
+			pod.Spec.Affinity = grpcPodConfig.Affinity.DeepCopy()
+		}
 	}
 
 	// Set priorityclass if its annotation exists
@@ -255,4 +242,20 @@ func hashPodSpec(spec corev1.PodSpec) string {
 	hasher := fnv.New32a()
 	hashutil.DeepHashObject(hasher, &spec)
 	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
+}
+
+func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
+	pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = pointer.Bool(false)
+	pod.Spec.Containers[0].SecurityContext.Capabilities = &corev1.Capabilities{
+		Drop: []corev1.Capability{"ALL"},
+	}
+	pod.Spec.SecurityContext = &corev1.PodSecurityContext{
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+	if runAsUser > 0 {
+		pod.Spec.SecurityContext.RunAsUser = &runAsUser
+		pod.Spec.SecurityContext.RunAsNonRoot = pointer.Bool(true)
+	}
 }

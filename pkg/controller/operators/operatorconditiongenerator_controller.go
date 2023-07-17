@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -34,10 +33,7 @@ type OperatorConditionGeneratorReconciler struct {
 
 // SetupWithManager adds the OperatorCondition Reconciler reconciler to the given controller manager.
 func (r *OperatorConditionGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	handler := &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &operatorsv1alpha1.ClusterServiceVersion{},
-	}
+	handler := handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &operatorsv1alpha1.ClusterServiceVersion{}, handler.OnlyControllerOwner())
 	p := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			if _, ok := e.Object.GetLabels()[operatorsv1alpha1.CopiedLabelKey]; ok {
@@ -67,7 +63,7 @@ func (r *OperatorConditionGeneratorReconciler) SetupWithManager(mgr ctrl.Manager
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.ClusterServiceVersion{}, builder.WithPredicates(p)).
-		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, handler).
+		Watches(&operatorsv2.OperatorCondition{}, handler).
 		Complete(r)
 }
 

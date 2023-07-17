@@ -26,18 +26,16 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/reference"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	v1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/image"
 )
 
 const (
-	// TODO: Move to operator-framework/api/pkg/operators/v1alpha1
-	// BundleLookupFailed describes conditions types for when BundleLookups fail
-	BundleLookupFailed operatorsv1alpha1.BundleLookupConditionType = "BundleLookupFailed"
-
 	// TODO: This can be a spec field
-	// BundleUnpackTimeoutAnnotationKey allows setting a bundle unpack timeout per InstallPlan
+	// BundleUnpackTimeoutAnnotationKey allows setting a bundle unpack timeout per OperatorGroup
 	// and overrides the default specified by the --bundle-unpack-timeout flag
 	// The time duration should be in the same format as accepted by time.ParseDuration()
 	// e.g 1m30s
@@ -170,7 +168,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 						{
 							Name:            "pull",
 							Image:           bundlePath,
-							ImagePullPolicy: "Always",
+							ImagePullPolicy: image.InferImagePullPolicy(bundlePath),
 							Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -208,6 +206,31 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							VolumeSource: corev1.VolumeSource{
 								EmptyDir: &corev1.EmptyDirVolumeSource{},
 							},
+						},
+					},
+					NodeSelector: map[string]string{
+						"kubernetes.io/os": "linux",
+					},
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "amd64",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "arm64",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "ppc64le",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "s390x",
+							Operator: "Equal",
 						},
 					},
 				},
@@ -421,7 +444,7 @@ func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup,
 	result = newBundleUnpackResult(lookup)
 
 	// if bundle lookup failed condition already present, then there is nothing more to do
-	failedCond := result.GetCondition(BundleLookupFailed)
+	failedCond := result.GetCondition(operatorsv1alpha1.BundleLookupFailed)
 	if failedCond.Status == corev1.ConditionTrue {
 		return result, nil
 	}
@@ -766,4 +789,31 @@ func getCondition(job *batchv1.Job, conditionType batchv1.JobConditionType) (con
 		}
 	}
 	return
+}
+
+// OperatorGroupBundleUnpackTimeout returns bundle timeout from annotation if specified.
+// If the timeout annotation is not set, return timeout < 0 which is subsequently ignored.
+// This is to overrides the --bundle-unpack-timeout flag value on per-OperatorGroup basis.
+func OperatorGroupBundleUnpackTimeout(ogLister v1listers.OperatorGroupNamespaceLister) (time.Duration, error) {
+	ignoreTimeout := -1 * time.Minute
+
+	ogs, err := ogLister.List(k8slabels.Everything())
+	if err != nil {
+		return ignoreTimeout, err
+	}
+	if len(ogs) != 1 {
+		return ignoreTimeout, fmt.Errorf("found %d operatorGroups, expected 1", len(ogs))
+	}
+
+	timeoutStr, ok := ogs[0].GetAnnotations()[BundleUnpackTimeoutAnnotationKey]
+	if !ok {
+		return ignoreTimeout, nil
+	}
+
+	d, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		return ignoreTimeout, fmt.Errorf("failed to parse unpack timeout annotation(%s: %s): %w", BundleUnpackTimeoutAnnotationKey, timeoutStr, err)
+	}
+
+	return d, nil
 }

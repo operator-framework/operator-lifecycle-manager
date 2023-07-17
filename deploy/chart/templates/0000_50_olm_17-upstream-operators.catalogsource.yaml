@@ -9,6 +9,8 @@ spec:
   image: quay.io/operatorhubio/catalog:latest
   displayName: Community Operators
   publisher: OperatorHub.io
+  grpcPodConfig:
+    securityContextConfig: restricted
   updateStrategy:
     registryPoll:
       interval: 60m

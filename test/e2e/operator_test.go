@@ -267,6 +267,9 @@ var _ = Describe("Operator API", func() {
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
 					Image:      "quay.io/operator-framework/ci-index:latest",
+					GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+						SecurityContextConfig: operatorsv1alpha1.Restricted,
+					},
 				},
 			}
 			cs.SetNamespace(ns.GetName())

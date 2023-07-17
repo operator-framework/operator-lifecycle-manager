@@ -37,15 +37,14 @@ var log = logf.RuntimeLog.WithName("test-env")
 
 /*
 It's possible to override some defaults, by setting the following environment variables:
-	USE_EXISTING_CLUSTER (boolean): if set to true, envtest will use an existing cluster
-	TEST_ASSET_KUBE_APISERVER (string): path to the api-server binary to use
-	TEST_ASSET_ETCD (string): path to the etcd binary to use
-	TEST_ASSET_KUBECTL (string): path to the kubectl binary to use
-	KUBEBUILDER_ASSETS (string): directory containing the binaries to use (api-server, etcd and kubectl). Defaults to /usr/local/kubebuilder/bin.
-	KUBEBUILDER_CONTROLPLANE_START_TIMEOUT (string supported by time.ParseDuration): timeout for test control plane to start. Defaults to 20s.
-	KUBEBUILDER_CONTROLPLANE_STOP_TIMEOUT (string supported by time.ParseDuration): timeout for test control plane to start. Defaults to 20s.
-	KUBEBUILDER_ATTACH_CONTROL_PLANE_OUTPUT (boolean): if set to true, the control plane's stdout and stderr are attached to os.Stdout and os.Stderr
-
+* USE_EXISTING_CLUSTER (boolean): if set to true, envtest will use an existing cluster
+* TEST_ASSET_KUBE_APISERVER (string): path to the api-server binary to use
+* TEST_ASSET_ETCD (string): path to the etcd binary to use
+* TEST_ASSET_KUBECTL (string): path to the kubectl binary to use
+* KUBEBUILDER_ASSETS (string): directory containing the binaries to use (api-server, etcd and kubectl). Defaults to /usr/local/kubebuilder/bin.
+* KUBEBUILDER_CONTROLPLANE_START_TIMEOUT (string supported by time.ParseDuration): timeout for test control plane to start. Defaults to 20s.
+* KUBEBUILDER_CONTROLPLANE_STOP_TIMEOUT (string supported by time.ParseDuration): timeout for test control plane to start. Defaults to 20s.
+* KUBEBUILDER_ATTACH_CONTROL_PLANE_OUTPUT (boolean): if set to true, the control plane's stdout and stderr are attached to os.Stdout and os.Stderr
 */
 const (
 	envUseExistingCluster = "USE_EXISTING_CLUSTER"
@@ -231,17 +230,19 @@ func (te *Environment) Start() (*rest.Config, error) {
 		if os.Getenv(envAttachOutput) == "true" {
 			te.AttachControlPlaneOutput = true
 		}
-		if apiServer.Out == nil && te.AttachControlPlaneOutput {
-			apiServer.Out = os.Stdout
-		}
-		if apiServer.Err == nil && te.AttachControlPlaneOutput {
-			apiServer.Err = os.Stderr
-		}
-		if te.ControlPlane.Etcd.Out == nil && te.AttachControlPlaneOutput {
-			te.ControlPlane.Etcd.Out = os.Stdout
-		}
-		if te.ControlPlane.Etcd.Err == nil && te.AttachControlPlaneOutput {
-			te.ControlPlane.Etcd.Err = os.Stderr
+		if te.AttachControlPlaneOutput {
+			if apiServer.Out == nil {
+				apiServer.Out = os.Stdout
+			}
+			if apiServer.Err == nil {
+				apiServer.Err = os.Stderr
+			}
+			if te.ControlPlane.Etcd.Out == nil {
+				te.ControlPlane.Etcd.Out = os.Stdout
+			}
+			if te.ControlPlane.Etcd.Err == nil {
+				te.ControlPlane.Etcd.Err = os.Stderr
+			}
 		}
 
 		apiServer.Path = process.BinPathFinder("kube-apiserver", te.BinaryAssetsDirectory)

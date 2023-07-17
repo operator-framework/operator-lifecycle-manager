@@ -467,6 +467,12 @@ func (f fakeOperatorGroupLister) Get(name string) (*operatorsv1.OperatorGroup, e
 }
 
 func TestPropertiesAnnotationHonored(t *testing.T) {
+	og := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "og",
+			Namespace: "fake-ns",
+		},
+	}
 	src := &csvSource{
 		csvLister: fakeCSVLister{
 			&v1alpha1.ClusterServiceVersion{
@@ -478,7 +484,7 @@ func TestPropertiesAnnotationHonored(t *testing.T) {
 			},
 		},
 		subLister: fakeSubscriptionLister{},
-		ogLister:  fakeOperatorGroupLister{},
+		ogLister:  fakeOperatorGroupLister{og},
 	}
 	ss, err := src.Snapshot(context.Background())
 	require.NoError(t, err)

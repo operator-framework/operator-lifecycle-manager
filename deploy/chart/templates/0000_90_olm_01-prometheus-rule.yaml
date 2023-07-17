@@ -29,7 +29,7 @@ spec:
           namespace: "{{ "{{ $labels.namespace }}" }}"
         annotations:
           summary: CSV abnormal for over 30 minutes
-          description: Fires whenever a CSV is in the Replacing, Pending, Deleting, or Unkown phase for more than 30 minutes.
+          description: Fires whenever a CSV is in the Replacing, Pending, Deleting, or Unknown phase for more than 30 minutes.
           message: Failed to install Operator {{ printf "{{ $labels.name }}"  }} version {{ printf "{{ $labels.version }}"  }}. Phase-{{ printf "{{ $labels.phase }}" }} Reason-{{ printf "{{ $labels.reason }}" }}
   - name: olm.installplan.rules
     rules:

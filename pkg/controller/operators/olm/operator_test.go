@@ -3513,7 +3513,7 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 					), "csv1-dep1", []string{"c1.g1"}),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1", "g1"),
+					crdWithConversionWebhook(crd("c1", "v1", "g1"), nil),
 				},
 				desc: v1alpha1.WebhookDescription{
 					GenerateName:   "webhook",
@@ -3852,7 +3852,8 @@ func TestUpdates(t *testing.T) {
 			in:   []*v1alpha1.ClusterServiceVersion{c, a, b},
 		},
 	}
-	for _, tt := range tests {
+	for _, xt := range tests {
+		tt := xt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -3923,9 +3924,10 @@ func TestUpdates(t *testing.T) {
 					simulateSuccessfulRollout(current, op.opClient)
 				}
 				for current.Status.Phase != e.whenIn.phase {
-					fmt.Printf("waiting for (when) %s to be %s\n", e.whenIn.name, e.whenIn.phase)
 					csvsToSync = syncCSVs(csvsToSync, deletedCSVs(e.shouldBe))
 					current = csvsToSync[e.whenIn.name]
+					fmt.Printf("waiting for (when) %s to be %s\n", e.whenIn.name, e.whenIn.phase)
+					time.Sleep(1 * time.Millisecond)
 				}
 
 				// sync the other csvs until they're in the expected status
@@ -4951,7 +4953,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				require.NoError(t, err)
 
 				// Wait for the lister cache to catch up
-				err = wait.PollImmediateWithContext(ctx, tick, timeout, func(ctx context.Context) (bool, error) {
+				err = wait.PollUntilContextTimeout(ctx, tick, timeout, true, func(ctx context.Context) (bool, error) {
 					deployment, err := op.lister.AppsV1().DeploymentLister().Deployments(namespace).Get(dep.GetName())
 					if err != nil || deployment == nil {
 						return false, err
@@ -4972,7 +4974,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			require.NoError(t, err)
 
 			// Wait on operator group updated status to be in the cache as it is required for later CSV operations
-			err = wait.PollImmediateWithContext(ctx, tick, timeout, func(ctx context.Context) (bool, error) {
+			err = wait.PollUntilContextTimeout(ctx, tick, timeout, true, func(ctx context.Context) (bool, error) {
 				og, err := op.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(operatorGroup.GetNamespace()).Get(operatorGroup.GetName())
 				if err != nil {
 					return false, err
@@ -4991,14 +4993,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			// This must be done (at least) twice to have annotateCSVs run in syncOperatorGroups and to catch provided API changes
 			// syncOperatorGroups is eventually consistent and may return errors until the cache has caught up with the cluster (fake client here)
-			wait.PollImmediateWithContext(ctx, tick, timeout, func(ctx context.Context) (bool, error) { // Throw away timeout errors since any timeout will coincide with err != nil anyway
+			err = wait.PollUntilContextTimeout(ctx, tick, timeout, true, func(ctx context.Context) (bool, error) { // Throw away timeout errors since any timeout will coincide with err != nil anyway
 				err = op.syncOperatorGroups(operatorGroup)
 				return err == nil, nil
 			})
 			require.NoError(t, err)
 
 			// Sync csvs enough to get them back to a succeeded state
-			err = wait.PollImmediateWithContext(ctx, tick, timeout, func(ctx context.Context) (bool, error) {
+			err = wait.PollUntilContextTimeout(ctx, tick, timeout, true, func(ctx context.Context) (bool, error) {
 				csvs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(ctx, metav1.ListOptions{})
 				if err != nil {
 					return false, err

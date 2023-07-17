@@ -22,7 +22,7 @@ if [ -n "$KIND" ]; then
   # kind will use the cluster named kind by default, so if there is only one cluster, specify it
   if [[ ${#CLUSTERS[@]} == 1 ]]; then
     KIND_FLAGS="--name ${CLUSTERS[0]}"
-    echo 'Use cluster ${CLUSTERS[0]}'
+    echo "Use cluster ${CLUSTERS[0]}"
   fi
 
   kind load docker-image quay.io/operator-framework/olm:local ${KIND_FLAGS}

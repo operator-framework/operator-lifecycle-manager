@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -246,6 +247,9 @@ func (c *MagicCatalog) makeCatalogSource() *operatorsv1alpha1.CatalogSource {
 		Spec: operatorsv1alpha1.CatalogSourceSpec{
 			SourceType: operatorsv1alpha1.SourceTypeGrpc,
 			Address:    fmt.Sprintf("%s.%s.svc:50051", c.serviceName, c.namespace),
+			GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+				SecurityContextConfig: operatorsv1alpha1.Restricted,
+			},
 		},
 	}
 }
@@ -253,13 +257,11 @@ func (c *MagicCatalog) makeCatalogSource() *operatorsv1alpha1.CatalogSource {
 func (c *MagicCatalog) makeCatalogSourcePod() *corev1.Pod {
 
 	const (
-		image                  = "quay.io/operator-framework/upstream-opm-builder"
+		image                  = "quay.io/operator-framework/opm"
 		readinessDelay  int32  = 5
 		livenessDelay   int32  = 10
 		volumeMountName string = "fbc-catalog"
 	)
-
-	readOnlyRootFilesystem := false
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -268,6 +270,11 @@ func (c *MagicCatalog) makeCatalogSourcePod() *corev1.Pod {
 			Labels:    c.makeCatalogSourcePodLabels(),
 		},
 		Spec: corev1.PodSpec{
+			SecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:    "catalog",
@@ -304,7 +311,13 @@ func (c *MagicCatalog) makeCatalogSourcePod() *corev1.Pod {
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: &readOnlyRootFilesystem,
+						ReadOnlyRootFilesystem:   pointer.Bool(false),
+						AllowPrivilegeEscalation: pointer.Bool(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot: pointer.Bool(true),
+						RunAsUser:    pointer.Int64(1001),
 					},
 					ImagePullPolicy:          corev1.PullAlways,
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,

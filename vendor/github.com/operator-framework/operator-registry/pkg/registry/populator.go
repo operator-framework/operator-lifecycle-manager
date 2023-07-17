@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
@@ -20,22 +21,20 @@ type Dependencies struct {
 
 // DirectoryPopulator loads an unpacked operator bundle from a directory into the database.
 type DirectoryPopulator struct {
-	loader          Load
-	graphLoader     GraphLoader
-	querier         Query
-	imageDirMap     map[image.Reference]string
-	overwriteDirMap map[string]map[image.Reference]string
-	overwrite       bool
+	loader            Load
+	graphLoader       GraphLoader
+	querier           Query
+	imageDirMap       map[image.Reference]string
+	overwrittenImages map[string][]string
 }
 
-func NewDirectoryPopulator(loader Load, graphLoader GraphLoader, querier Query, imageDirMap map[image.Reference]string, overwriteDirMap map[string]map[image.Reference]string, overwrite bool) *DirectoryPopulator {
+func NewDirectoryPopulator(loader Load, graphLoader GraphLoader, querier Query, imageDirMap map[image.Reference]string, overwrittenImages map[string][]string) *DirectoryPopulator {
 	return &DirectoryPopulator{
-		loader:          loader,
-		graphLoader:     graphLoader,
-		querier:         querier,
-		imageDirMap:     imageDirMap,
-		overwriteDirMap: overwriteDirMap,
-		overwrite:       overwrite,
+		loader:            loader,
+		graphLoader:       graphLoader,
+		querier:           querier,
+		imageDirMap:       imageDirMap,
+		overwrittenImages: overwrittenImages,
 	}
 }
 
@@ -52,24 +51,11 @@ func (i *DirectoryPopulator) Populate(mode Mode) error {
 		imagesToAdd = append(imagesToAdd, imageInput)
 	}
 
-	imagesToReAdd := make([]*ImageInput, 0)
-	for pkg := range i.overwriteDirMap {
-		for to, from := range i.overwriteDirMap[pkg] {
-			imageInput, err := NewImageInput(to, from)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-
-			imagesToReAdd = append(imagesToReAdd, imageInput)
-		}
-	}
-
 	if len(errs) > 0 {
 		return utilerrors.NewAggregate(errs)
 	}
 
-	err := i.loadManifests(imagesToAdd, imagesToReAdd, mode)
+	err := i.loadManifests(imagesToAdd, mode)
 	if err != nil {
 		return err
 	}
@@ -78,6 +64,7 @@ func (i *DirectoryPopulator) Populate(mode Mode) error {
 }
 
 func (i *DirectoryPopulator) globalSanityCheck(imagesToAdd []*ImageInput) error {
+	overwrite := len(i.overwrittenImages) > 0
 	var errs []error
 	images := make(map[string]struct{})
 	for _, image := range imagesToAdd {
@@ -111,7 +98,7 @@ func (i *DirectoryPopulator) globalSanityCheck(imagesToAdd []*ImageInput) error 
 				continue
 			}
 			if bundle != nil {
-				if !i.overwrite {
+				if !overwrite {
 					// raise error that this package + channel + csv combo is already in the db
 					errs = append(errs, PackageVersionAlreadyAddedErr{ErrorString: "Bundle already added that provides package and csv"})
 					break
@@ -142,10 +129,13 @@ func (i *DirectoryPopulator) globalSanityCheck(imagesToAdd []*ImageInput) error 
 		}
 	}
 
+	if err := i.ValidateEdgeBundlePackage(imagesToAdd); err != nil {
+		errs = append(errs, err)
+	}
 	return utilerrors.NewAggregate(errs)
 }
 
-func (i *DirectoryPopulator) loadManifests(imagesToAdd []*ImageInput, imagesToReAdd []*ImageInput, mode Mode) error {
+func (i *DirectoryPopulator) loadManifests(imagesToAdd []*ImageInput, mode Mode) error {
 	// global sanity checks before insertion
 	if err := i.globalSanityCheck(imagesToAdd); err != nil {
 		return err
@@ -153,17 +143,30 @@ func (i *DirectoryPopulator) loadManifests(imagesToAdd []*ImageInput, imagesToRe
 
 	switch mode {
 	case ReplacesMode:
-		for pkg := range i.overwriteDirMap {
-			// TODO: If this succeeds but the add fails there will be a disconnect between
-			// the registry and the index. Loading the bundles in a single transactions as
-			// described above would allow us to do the removable in that same transaction
-			// and ensure that rollback is possible.
-			if err := i.loader.RemovePackage(pkg); err != nil {
-				return err
+		// TODO: If this succeeds but the add fails there will be a disconnect between
+		// the registry and the index. Loading the bundles in a single transactions as
+		// described above would allow us to do the removable in that same transaction
+		// and ensure that rollback is possible.
+
+		// globalSanityCheck should have verified this to be a head without anything replacing it
+		// and that we have a single overwrite per package
+
+		if len(i.overwrittenImages) > 0 {
+			if overwriter, ok := i.loader.(HeadOverwriter); ok {
+				// Assume loader has some way to handle overwritten heads if HeadOverwriter isn't implemented explicitly
+				for pkg, imgToDelete := range i.overwrittenImages {
+					if len(imgToDelete) == 0 {
+						continue
+					}
+					// delete old head bundle and swap it with the previous real bundle in its replaces chain
+					if err := overwriter.RemoveOverwrittenChannelHead(pkg, imgToDelete[0]); err != nil {
+						return err
+					}
+				}
 			}
 		}
 
-		return i.loadManifestsReplaces(append(imagesToAdd, imagesToReAdd...))
+		return i.loadManifestsReplaces(imagesToAdd)
 	case SemVerMode:
 		for _, image := range imagesToAdd {
 			if err := i.loadManifestsSemver(image.Bundle, false); err != nil {
@@ -252,7 +255,7 @@ func (i *DirectoryPopulator) loadManifestsSemver(bundle *Bundle, skippatch bool)
 	}
 
 	if err := i.loader.AddBundleSemver(updatedGraph, bundle); err != nil {
-		return fmt.Errorf("error loading bundle into db: %s", err)
+		return fmt.Errorf("error loading bundle %s into db: %s", bundle.Name, err)
 	}
 
 	return nil
@@ -265,7 +268,7 @@ func (i *DirectoryPopulator) loadOperatorBundle(manifest PackageManifest, bundle
 	}
 
 	if err := i.loader.AddBundlePackageChannels(manifest, bundle); err != nil {
-		return fmt.Errorf("error loading bundle into db: %s", err)
+		return fmt.Errorf("error loading bundle %s into db: %s", bundle.Name, err)
 	}
 
 	return nil
@@ -407,4 +410,55 @@ func DecodeFile(path string, into interface{}) error {
 	decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
 
 	return decoder.Decode(into)
+}
+
+// ValidateEdgeBundlePackage ensures that all bundles in the input will only skip or replace bundles in the same package.
+func (i *DirectoryPopulator) ValidateEdgeBundlePackage(images []*ImageInput) error {
+	// track packages for encountered bundles
+	expectedBundlePackages := map[string]string{}
+	for _, b := range images {
+		r, err := b.Bundle.Replaces()
+		if err != nil {
+			return fmt.Errorf("failed to validate replaces for bundle %s(%s): %v", b.Bundle.Name, b.Bundle.BundleImage, err)
+		}
+
+		skipped, err := b.Bundle.Skips()
+		if err != nil {
+			return fmt.Errorf("failed to validate skipped entries for bundle %s(%s): %v", b.Bundle.Name, b.Bundle.BundleImage, err)
+		}
+
+		for _, bndl := range append(skipped, r, b.Bundle.Name) {
+			if len(bndl) == 0 {
+				continue
+			}
+
+			if pkg, ok := expectedBundlePackages[bndl]; ok && pkg != b.Bundle.Package {
+				pkgs := []string{pkg, b.Bundle.Package}
+				sort.Strings(pkgs)
+				return fmt.Errorf("bundle %s must belong to exactly one package, found on: %v", bndl, pkgs)
+			}
+			expectedBundlePackages[bndl] = b.Bundle.Package
+		}
+	}
+	if len(expectedBundlePackages) == 0 {
+		return nil
+	}
+
+	pkgs, err := i.querier.ListPackages(context.TODO())
+	if err != nil {
+		return fmt.Errorf("unable to verify bundle packages: %v", err)
+	}
+	for _, pkg := range pkgs {
+		entries, err := i.querier.GetChannelEntriesFromPackage(context.TODO(), pkg)
+		if err != nil {
+			return fmt.Errorf("unable to verify bundles for package %v", err)
+		}
+		for _, b := range entries {
+			if bundlePkg, ok := expectedBundlePackages[b.BundleName]; ok && bundlePkg != b.PackageName {
+				return fmt.Errorf("bundle %s belongs to package %s on index, cannot be added as an edge for package %s", b.BundleName, b.PackageName, bundlePkg)
+			}
+		}
+	}
+
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
 	"github.com/sirupsen/logrus"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -61,6 +62,10 @@ var (
 	ErrAPIServiceOwnerConflict = errors.New("unable to adopt APIService")
 )
 
+// this unexported operator plugin slice provides an entrypoint for
+// downstream to inject its own plugins to augment the controller behavior
+var operatorPlugInFactoryFuncs []plugins.OperatorPlugInFactoryFunc
+
 type Operator struct {
 	queueinformer.Operator
 
@@ -91,6 +96,7 @@ type Operator struct {
 	clientAttenuator             *scoped.ClientAttenuator
 	serviceAccountQuerier        *scoped.UserDefinedServiceAccountQuerier
 	clientFactory                clients.Factory
+	plugins                      []plugins.OperatorPlugin
 }
 
 func NewOperator(ctx context.Context, options ...OperatorOption) (*Operator, error) {
@@ -586,6 +592,31 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	overridesBuilderFunc := overrides.NewDeploymentInitializer(op.logger, proxyQuerierInUse, op.lister)
 	op.resolver = &install.StrategyResolver{
 		OverridesBuilderFunc: overridesBuilderFunc.GetDeploymentInitializer,
+	}
+
+	// initialize plugins
+	for _, makePlugIn := range operatorPlugInFactoryFuncs {
+		plugin, err := makePlugIn(ctx, config, op)
+		if err != nil {
+			return nil, fmt.Errorf("error creating plugin: %s", err)
+		}
+		op.plugins = append(op.plugins, plugin)
+	}
+
+	if len(operatorPlugInFactoryFuncs) > 0 {
+		go func() {
+			// block until operator is done
+			<-op.Done()
+
+			// shutdown plug-ins
+			for _, plugin := range op.plugins {
+				if err := plugin.Shutdown(); err != nil {
+					if op.logger != nil {
+						op.logger.Warnf("error shutting down plug-in: %s", err)
+					}
+				}
+			}
+		}()
 	}
 
 	return op, nil
@@ -1215,7 +1246,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 
 func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) error {
 	logger.Debug("gcing csv")
-	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(context.TODO(), csv.GetName(), *metav1.NewDeleteOptions(0))
+	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
@@ -2256,7 +2287,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			syncError = fmt.Errorf("marked as replacement, but no replacement CSV found in cluster")
 		}
 	case v1alpha1.CSVPhaseDeleting:
-		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(context.TODO(), out.GetName(), *metav1.NewDeleteOptions(0))
+		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(context.TODO(), out.GetName(), metav1.DeleteOptions{})
 		if syncError != nil {
 			logger.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
 		}
@@ -2328,7 +2359,12 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 		return fmt.Errorf(msg)
 	}
 
-	if !webhooksInstalled || webhookErr != nil {
+	if webhookErr != nil {
+		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseInstallReady, requeueConditionReason, fmt.Sprintf("Webhook install failed: %s", webhookErr), now, a.recorder)
+		return webhookErr
+	}
+
+	if !webhooksInstalled {
 		msg := "webhooks not installed"
 		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, msg, now, a.recorder)
 		if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {

@@ -18,6 +18,7 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -61,24 +62,24 @@ Deleting Kubernetes objects) or external Events (GitHub Webhooks, polling extern
 
 Example reconcile Logic:
 
-	* Read an object and all the Pods it owns.
-	* Observe that the object spec specifies 5 replicas but actual cluster contains only 1 Pod replica.
-	* Create 4 Pods and set their OwnerReferences to the object.
+* Read an object and all the Pods it owns.
+* Observe that the object spec specifies 5 replicas but actual cluster contains only 1 Pod replica.
+* Create 4 Pods and set their OwnerReferences to the object.
 
 reconcile may be implemented as either a type:
 
-	type reconcile struct {}
+	type reconciler struct {}
 
-	func (reconcile) reconcile(controller.Request) (controller.Result, error) {
+	func (reconciler) Reconcile(ctx context.Context, o reconcile.Request) (reconcile.Result, error) {
 		// Implement business logic of reading and writing objects here
-		return controller.Result{}, nil
+		return reconcile.Result{}, nil
 	}
 
 Or as a function:
 
-	controller.Func(func(o controller.Request) (controller.Result, error) {
+	reconcile.Func(func(ctx context.Context, o reconcile.Request) (reconcile.Result, error) {
 		// Implement business logic of reading and writing objects here
-		return controller.Result{}, nil
+		return reconcile.Result{}, nil
 	})
 
 Reconciliation is level-based, meaning action isn't driven off changes in individual Events, but instead is
@@ -100,3 +101,26 @@ var _ Reconciler = Func(nil)
 
 // Reconcile implements Reconciler.
 func (r Func) Reconcile(ctx context.Context, o Request) (Result, error) { return r(ctx, o) }
+
+// TerminalError is an error that will not be retried but still be logged
+// and recorded in metrics.
+func TerminalError(wrapped error) error {
+	return &terminalError{err: wrapped}
+}
+
+type terminalError struct {
+	err error
+}
+
+func (te *terminalError) Unwrap() error {
+	return te.err
+}
+
+func (te *terminalError) Error() string {
+	return "terminal error: " + te.err.Error()
+}
+
+func (te *terminalError) Is(target error) bool {
+	tp := &terminalError{}
+	return errors.As(target, &tp)
+}

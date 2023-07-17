@@ -102,6 +102,9 @@ var _ = Describe("Installing bundles with new object types", func() {
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
 					Image:      imageName,
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
 				},
 			}
 

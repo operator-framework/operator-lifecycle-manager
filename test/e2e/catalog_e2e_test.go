@@ -53,7 +53,11 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 	)
 
 	BeforeEach(func() {
-		namespaceName := genName("catsrc-e2e-")
+		// In OPC, PSA labels for any namespace created that is not prefixed with "openshift-" is overriden to enforce
+		// PSA restricted. This test namespace needs to prefixed with openshift- so that baseline/privileged enforcement
+		// for the PSA specific tests are not overridden,
+		// Change it only after https://github.com/operator-framework/operator-lifecycle-manager/issues/2859 is closed.
+		namespaceName := genName("openshift-catsrc-e2e-")
 		og := operatorsv1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s-operatorgroup", namespaceName),
@@ -558,6 +562,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Address:    net.JoinHostPort(mainCopy.Status.PodIP, "50051"),
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
 
@@ -698,6 +705,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Image:      communityOperatorsImage,
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
 
@@ -826,6 +836,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Image:      image,
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 				UpdateStrategy: &v1alpha1.UpdateStrategy{
 					RegistryPoll: &v1alpha1.RegistryPoll{
 						// Using RawInterval rather than Interval due to this issue:
@@ -997,7 +1010,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		catSrcImage := "quay.io/olmtest/busybox-dependencies-index"
 
-		// Create gRPC CatalogSource
+		By("creating gRPC CatalogSource")
 		source := &v1alpha1.CatalogSource{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       v1alpha1.CatalogSourceKind,
@@ -1010,9 +1023,11 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Image:      catSrcImage + ":1.0.0-with-ListBundles-method",
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
-
 		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 		defer func() {
@@ -1020,22 +1035,22 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
-		// Wait for the CatalogSource to be ready
+		By("waiting for the CatalogSource to be ready")
 		_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
-		// Create a Subscription for busybox
+		By("creating a Subscription for busybox")
 		subscriptionName := genName("sub-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 		defer cleanupSubscription()
 
-		// Wait for the Subscription to succeed
+		By("waiting for the Subscription to succeed")
 		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 		Expect(subscription.Status.InstalledCSV).To(Equal("busybox.v1.0.0"))
 
-		// Confirm that a subscription was created for busybox-dependency
+		By("confirming that a subscription was created for busybox-dependency")
 		subscriptionList, err := crc.OperatorsV1alpha1().Subscriptions(source.GetNamespace()).List(context.Background(), metav1.ListOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 		dependencySubscriptionName := ""
@@ -1046,13 +1061,13 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}
 		Expect(dependencySubscriptionName).ToNot(BeEmpty())
 
-		// Wait for the Subscription to succeed
+		By("waiting for the Subscription to succeed")
 		subscription, err = fetchSubscription(crc, ns.GetName(), dependencySubscriptionName, subscriptionStateAtLatestChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 		Expect(subscription.Status.InstalledCSV).To(Equal("busybox-dependency.v1.0.0"))
 
-		// Update the catalog image
+		By("updating the catalog image")
 		Eventually(func() error {
 			existingSource, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(context.Background(), sourceName, metav1.GetOptions{})
 			if err != nil {
@@ -1064,11 +1079,11 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			return err
 		}).Should(Succeed())
 
-		// Wait for the CatalogSource to be ready
+		By("waiting for the CatalogSource to be ready")
 		_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
 		Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
-		// Wait for the busybox v2 Subscription to succeed
+		By("waiting for the busybox v2 Subscription to succeed")
 		subChecker := func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox.v2.0.0"
 		}
@@ -1076,12 +1091,12 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
-		// Wait for busybox v2 csv to succeed and check the replaces field
+		By("waiting for busybox v2 csv to succeed and check the replaces field")
 		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(csv.Spec.Replaces).To(Equal("busybox.v1.0.0"))
 
-		// Wait for the busybox-dependency v2 Subscription to succeed
+		By("waiting for the busybox-dependency v2 Subscription to succeed")
 		subChecker = func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox-dependency.v2.0.0"
 		}
@@ -1089,7 +1104,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
-		// Wait for busybox-dependency v2 csv to succeed and check the replaces field
+		By("waiting for busybox-dependency v2 csv to succeed and check the replaces field")
 		csv, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(csv.Spec.Replaces).To(Equal("busybox-dependency.v1.0.0"))
@@ -1113,6 +1128,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
 					Image:      "quay.io/olmtest/catsrc-update-test:new",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
 					UpdateStrategy: &v1alpha1.UpdateStrategy{
 						RegistryPoll: &v1alpha1.RegistryPoll{
 							RawInterval: "45s",
@@ -1191,6 +1209,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				Spec: v1alpha1.CatalogSourceSpec{
 					SourceType: v1alpha1.SourceTypeGrpc,
 					Image:      "quay.io/olmtest/catsrc-update-test:new",
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
 					UpdateStrategy: &v1alpha1.UpdateStrategy{
 						RegistryPoll: &v1alpha1.RegistryPoll{
 							RawInterval: incorrectInterval,
@@ -1270,6 +1291,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
 				Image:      "quay.io/olmtest/catsrc-update-test:old",
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
 
@@ -1378,25 +1402,162 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				Expect(c.Create(context.Background(), subscription)).To(BeNil())
 			})
 
-			It("fails with a ResolutionFailed error condition, and a message that highlights the missing field in the CSV", func() {
+			It("fails with a BundleUnpackFailed error condition, and a message that highlights the missing field in the CSV", func() {
+				Eventually(func(g Gomega) string {
+					fetchedSubscription, err := crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).Get(context.Background(), subscription.GetName(), metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
 
-				subscription, err := fetchSubscription(crc, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
-				Expect(err).Should(BeNil())
-				installPlanName := subscription.Status.Install.Name
-
-				// ensure we wait for the installPlan to fail before moving forward then fetch the subscription again
-				_, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, subscription.GetNamespace(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
-				Expect(err).To(BeNil())
-				subscription, err = fetchSubscription(crc, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
-				Expect(err).To(BeNil())
-
-				// expect the message that API missing
-				failingCondition := subscription.Status.GetCondition(operatorsv1alpha1.SubscriptionInstallPlanFailed)
-				Expect(failingCondition.Message).To(ContainSubstring("missing APIVersion"))
+					// expect the message that API missing
+					failingCondition := fetchedSubscription.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed)
+					return failingCondition.Message
+				}).Should(ContainSubstring("missing APIVersion"))
 			})
 		})
 	})
+	When("The namespace is labled as Pod Security Admission policy enforce:restricted", func() {
+		BeforeEach(func() {
+			var err error
+			testNS := &corev1.Namespace{}
+			Eventually(func() error {
+				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), ns.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				return nil
+			}).Should(BeNil())
 
+			testNS.ObjectMeta.Labels = map[string]string{
+				"pod-security.kubernetes.io/enforce":         "restricted",
+				"pod-security.kubernetes.io/enforce-version": "latest",
+			}
+
+			Eventually(func() error {
+				_, err := c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), testNS, metav1.UpdateOptions{})
+				if err != nil {
+					return err
+				}
+				return nil
+			}).Should(BeNil())
+		})
+		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created with spec.GrpcPodConfig.SecurityContextConfig set to restricted", func() {
+			var sourceName string
+			BeforeEach(func() {
+				sourceName = genName("catalog-")
+				source := &v1alpha1.CatalogSource{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.CatalogSourceKind,
+						APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      sourceName,
+						Namespace: ns.GetName(),
+						Labels:    map[string]string{"olm.catalogSource": sourceName},
+					},
+					Spec: v1alpha1.CatalogSourceSpec{
+						SourceType: v1alpha1.SourceTypeGrpc,
+						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
+						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+							SecurityContextConfig: operatorsv1alpha1.Restricted,
+						},
+					},
+				}
+
+				Eventually(func() error {
+					_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
+					return err
+				}).Should(Succeed())
+			})
+			It("The registry pod fails to become come up because of lack of permission", func() {
+				Eventually(func() (bool, error) {
+					podList, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.TODO(), metav1.ListOptions{})
+					if err != nil {
+						return false, err
+					}
+					for _, pod := range podList.Items {
+						if pod.ObjectMeta.OwnerReferences != nil && pod.ObjectMeta.OwnerReferences[0].Name == sourceName {
+							if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Terminated != nil {
+								return true, nil
+							}
+						}
+					}
+					return false, nil
+				}).Should(BeTrue())
+			})
+		})
+	})
+	When("The namespace is labled as Pod Security Admission policy enforce:baseline", func() {
+		BeforeEach(func() {
+			var err error
+			testNS := &corev1.Namespace{}
+			Eventually(func() error {
+				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), ns.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				return nil
+			}).Should(BeNil())
+
+			testNS.ObjectMeta.Labels = map[string]string{
+				"pod-security.kubernetes.io/enforce":         "baseline",
+				"pod-security.kubernetes.io/enforce-version": "latest",
+			}
+
+			Eventually(func() error {
+				_, err := c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), testNS, metav1.UpdateOptions{})
+				if err != nil {
+					return err
+				}
+				return nil
+			}).Should(BeNil())
+		})
+		When("A CatalogSource built with opm v1.21.0 (<v1.23.2)is created with spec.GrpcPodConfig.SecurityContextConfig set to legacy", func() {
+			var sourceName string
+			BeforeEach(func() {
+				sourceName = genName("catalog-")
+				source := &v1alpha1.CatalogSource{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.CatalogSourceKind,
+						APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      sourceName,
+						Namespace: ns.GetName(),
+						Labels:    map[string]string{"olm.catalogSource": sourceName},
+					},
+					Spec: v1alpha1.CatalogSourceSpec{
+						SourceType: v1alpha1.SourceTypeGrpc,
+						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
+						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+							SecurityContextConfig: operatorsv1alpha1.Legacy,
+						},
+					},
+				}
+
+				Eventually(func() error {
+					_, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
+					return err
+				}).Should(Succeed())
+			})
+			It("The registry pod comes up successfully", func() {
+				Eventually(func() (bool, error) {
+					podList, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.TODO(), metav1.ListOptions{})
+					if err != nil {
+						return false, err
+					}
+					for _, pod := range podList.Items {
+						if pod.ObjectMeta.OwnerReferences != nil && pod.ObjectMeta.OwnerReferences[0].Name == sourceName {
+							if pod.Status.ContainerStatuses != nil {
+								if *pod.Status.ContainerStatuses[0].Started == true {
+									return true, nil
+								}
+							}
+						}
+					}
+					return false, nil
+				}).Should(BeTrue())
+			})
+		})
+	})
 })
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {

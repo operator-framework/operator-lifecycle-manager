@@ -52,6 +52,33 @@ spec:
               required:
                 - clusterID
               properties:
+                capabilities:
+                  description: capabilities configures the installation of optional, core cluster components.  A null value here is identical to an empty object; see the child properties for default semantics.
+                  type: object
+                  properties:
+                    additionalEnabledCapabilities:
+                      description: additionalEnabledCapabilities extends the set of managed capabilities beyond the baseline defined in baselineCapabilitySet.  The default is an empty set.
+                      type: array
+                      items:
+                        description: ClusterVersionCapability enumerates optional, core cluster components.
+                        type: string
+                        enum:
+                          - openshift-samples
+                          - baremetal
+                          - marketplace
+                          - Console
+                          - Insights
+                          - Storage
+                          - CSISnapshot
+                      x-kubernetes-list-type: atomic
+                    baselineCapabilitySet:
+                      description: baselineCapabilitySet selects an initial set of optional capabilities to enable, which can be extended via additionalEnabledCapabilities.  If unset, the cluster will choose a default, and the default may change over time. The current default is vCurrent.
+                      type: string
+                      enum:
+                        - None
+                        - v4.11
+                        - v4.12
+                        - vCurrent
                 channel:
                   description: channel is an identifier for explicitly requesting that a non-default set of updates be applied to this cluster. The default channel will be contain stable updates that are appropriate for production clusters.
                   type: string
@@ -133,6 +160,40 @@ spec:
                         description: version is a semantic versioning identifying the update version. When this field is part of spec, version is optional if image is specified.
                         type: string
                   nullable: true
+                capabilities:
+                  description: capabilities describes the state of optional, core cluster components.
+                  type: object
+                  properties:
+                    enabledCapabilities:
+                      description: enabledCapabilities lists all the capabilities that are currently managed.
+                      type: array
+                      items:
+                        description: ClusterVersionCapability enumerates optional, core cluster components.
+                        type: string
+                        enum:
+                          - openshift-samples
+                          - baremetal
+                          - marketplace
+                          - Console
+                          - Insights
+                          - Storage
+                          - CSISnapshot
+                      x-kubernetes-list-type: atomic
+                    knownCapabilities:
+                      description: knownCapabilities lists all the capabilities known to the current cluster.
+                      type: array
+                      items:
+                        description: ClusterVersionCapability enumerates optional, core cluster components.
+                        type: string
+                        enum:
+                          - openshift-samples
+                          - baremetal
+                          - marketplace
+                          - Console
+                          - Insights
+                          - Storage
+                          - CSISnapshot
+                      x-kubernetes-list-type: atomic
                 conditionalUpdates:
                   description: conditionalUpdates contains the list of updates that may be recommended for this cluster if it meets specific required conditions. Consumers interested in the set of updates that are actually recommended for this cluster should use availableUpdates. This list may be empty if no updates are recommended, if the update service is unavailable, or if an empty or invalid channel has been specified.
                   type: array
@@ -147,7 +208,7 @@ spec:
                         description: 'conditions represents the observations of the conditional update''s current status. Known types are: * Evaluating, for whether the cluster-version operator will attempt to evaluate any risks[].matchingRules. * Recommended, for whether the update is recommended for the current cluster.'
                         type: array
                         items:
-                          description: "Condition contains details for one aspect of the current state of this API Resource. --- This struct is intended for direct use as an array at the field path .status.conditions.  For example, type FooStatus struct{     // Represents the observations of a foo's current state.     // Known .status.conditions.type are: \"Available\", \"Progressing\", and \"Degraded\"     // +patchMergeKey=type     // +patchStrategy=merge     // +listType=map     // +listMapKey=type     Conditions []metav1.Condition `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"` \n     // other fields }"
+                          description: "Condition contains details for one aspect of the current state of this API Resource. --- This struct is intended for direct use as an array at the field path .status.conditions.  For example, \n type FooStatus struct{ // Represents the observations of a foo's current state. // Known .status.conditions.type are: \"Available\", \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge // +listType=map // +listMapKey=type Conditions []metav1.Condition `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"` \n // other fields }"
                           type: object
                           required:
                             - lastTransitionTime
@@ -238,7 +299,7 @@ spec:
                                       - promql
                                     properties:
                                       promql:
-                                        description: PromQL is a PromQL query classifying clusters. This query query should return a 1 in the match case and a 0 in the does-not-match case case. Queries which return no time series, or which return values besides 0 or 1, are evaluation failures.
+                                        description: PromQL is a PromQL query classifying clusters. This query query should return a 1 in the match case and a 0 in the does-not-match case. Queries which return no time series, or which return values besides 0 or 1, are evaluation failures.
                                         type: string
                                   type:
                                     description: type represents the cluster-condition type. This defines the members and semantics of any additional properties.

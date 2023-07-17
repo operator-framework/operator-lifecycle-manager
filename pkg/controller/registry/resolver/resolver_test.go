@@ -12,8 +12,10 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/api/pkg/constraints"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
@@ -22,10 +24,7 @@ import (
 )
 
 var testGVKKey = opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // tests can directly specify fixtures as cache entries instead of depending on this translation
 func csvSnapshotOrPanic(ns string, subs []*v1alpha1.Subscription, csvs ...*v1alpha1.ClusterServiceVersion) *cache.Snapshot {
@@ -776,7 +775,7 @@ func (g entryGenerator) gen() *cache.Entry {
 func genEntriesRandom(ops ...entryGenerator) []*cache.Entry {
 	entries := make([]*cache.Entry, len(ops))
 	// Randomize entry order to fuzz input operators over time.
-	idxs := rand.Perm(len(ops))
+	idxs := rnd.Perm(len(ops))
 	for destIdx, srcIdx := range idxs {
 		entries[destIdx] = ops[srcIdx].gen()
 	}
@@ -1373,6 +1372,12 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
+	og := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "og",
+			Namespace: namespace,
+		},
+	}
 
 	phases := []struct {
 		subs     []*v1alpha1.Subscription
@@ -1442,7 +1447,7 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 						key:       cache.NewVirtualSourceKey(namespace),
 						csvLister: &csvs,
 						subLister: fakeSubscriptionLister(p.subs),
-						ogLister:  fakeOperatorGroupLister{},
+						ogLister:  fakeOperatorGroupLister{og},
 						logger:    logger,
 					},
 				}),

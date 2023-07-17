@@ -3,11 +3,12 @@ package v1alpha1
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"time"
 )
 
 const (
@@ -95,6 +96,13 @@ type CatalogSourceSpec struct {
 	Icon        Icon   `json:"icon,omitempty"`
 }
 
+type SecurityConfig string
+
+const (
+	Legacy     SecurityConfig = "legacy"
+	Restricted SecurityConfig = "restricted"
+)
+
 // GrpcPodConfig contains configuration specified for a catalog source
 type GrpcPodConfig struct {
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
@@ -106,11 +114,32 @@ type GrpcPodConfig struct {
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 
+	// Affinity is the catalog source's pod's affinity.
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
 	// If specified, indicates the pod's priority.
 	// If not specified, the pod priority will be default or zero if there is no
 	// default.
 	// +optional
 	PriorityClassName *string `json:"priorityClassName,omitempty"`
+
+	// SecurityContextConfig can be one of `legacy` or `restricted`. The CatalogSource's pod is either injected with the
+	// right pod.spec.securityContext and pod.spec.container[*].securityContext values to allow the pod to run in Pod
+	// Security Admission (PSA) `restricted` mode, or doesn't set these values at all, in which case the pod can only be
+	// run in PSA `baseline` or `privileged` namespaces. Currently if the SecurityContextConfig is unspecified, the default
+	// value of `legacy` is used. Specifying a value other than `legacy` or `restricted` result in a validation error.
+	// When using older catalog images, which could not be run in `restricted` mode, the SecurityContextConfig should be
+	// set to `legacy`.
+	//
+	// In a future version will the default will be set to `restricted`, catalog maintainers should rebuild their catalogs
+	// with a version of opm that supports running catalogSource pods in `restricted` mode to prepare for these changes.
+	//
+	// More information about PSA can be found here: https://kubernetes.io/docs/concepts/security/pod-security-admission/'
+	// +optional
+	// +kubebuilder:validation:Enum=legacy;restricted
+	// +kubebuilder:default:=legacy
+	SecurityContextConfig SecurityConfig `json:"securityContextConfig,omitempty"`
 }
 
 // UpdateStrategy holds all the different types of catalog source update strategies

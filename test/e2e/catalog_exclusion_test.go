@@ -54,6 +54,9 @@ var _ = Describe("Global Catalog Exclusion", func() {
 				DisplayName: "Broken Global Catalog Source",
 				SourceType:  v1alpha1.SourceTypeGrpc,
 				Address:     "1.1.1.1:1337", // points to non-existing service
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+				},
 			},
 		}
 		_ = determinedE2eClient.Create(context.Background(), globalCatalog)
