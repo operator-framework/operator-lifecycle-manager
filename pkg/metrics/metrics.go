@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -8,25 +9,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	olmv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 )
 
 const (
-	NAME_LABEL      = "name"
-	INSTALLED_LABEL = "installed"
-	NAMESPACE_LABEL = "namespace"
-	CHANNEL_LABEL   = "channel"
-	VERSION_LABEL   = "version"
-	PHASE_LABEL     = "phase"
-	REASON_LABEL    = "reason"
-	PACKAGE_LABEL   = "package"
-	Outcome         = "outcome"
-	Succeeded       = "succeeded"
-	Failed          = "failed"
-	APPROVAL_LABEL  = "approval"
-	WARNING_LABEL   = "warning"
-	GVK_LABEL       = "gvk"
+	NameLabel      = "name"
+	InstalledLabel = "installed"
+	NamespaceLabel = "namespace"
+	ChannelLabel   = "channel"
+	VersionLabel   = "version"
+	PhaseLabel     = "phase"
+	ReasonLabel    = "reason"
+	PackageLabel   = "package"
+	Outcome        = "outcome"
+	Succeeded      = "succeeded"
+	Failed         = "failed"
+	ApprovalLabel  = "approval"
+	WarningLabel   = "warning"
+	GVKLabel       = "gvk"
 )
 
 type MetricsProvider interface {
@@ -90,7 +91,6 @@ type metricsCatalogSource struct {
 
 func NewMetricsCatalogSource(lister v1alpha1.CatalogSourceLister) MetricsProvider {
 	return &metricsCatalogSource{lister}
-
 }
 
 func (m *metricsCatalogSource) HandleMetrics() error {
@@ -149,7 +149,7 @@ var (
 			Name: "catalogsource_ready",
 			Help: "State of a CatalogSource. 1 indicates that the CatalogSource is in a READY state. 0 indicates CatalogSource is in a Non READY state.",
 		},
-		[]string{NAMESPACE_LABEL, NAME_LABEL},
+		[]string{NamespaceLabel, NameLabel},
 	)
 
 	// exported since it's not handled by HandleMetrics
@@ -165,7 +165,7 @@ var (
 			Name: "subscription_sync_total",
 			Help: "Monotonic count of subscription syncs",
 		},
-		[]string{NAME_LABEL, INSTALLED_LABEL, CHANNEL_LABEL, PACKAGE_LABEL, APPROVAL_LABEL},
+		[]string{NameLabel, InstalledLabel, ChannelLabel, PackageLabel, ApprovalLabel},
 	)
 
 	csvSucceeded = prometheus.NewGaugeVec(
@@ -173,7 +173,7 @@ var (
 			Name: "csv_succeeded",
 			Help: "Successful CSV install",
 		},
-		[]string{NAMESPACE_LABEL, NAME_LABEL, VERSION_LABEL},
+		[]string{NamespaceLabel, NameLabel, VersionLabel},
 	)
 
 	csvAbnormal = prometheus.NewGaugeVec(
@@ -181,7 +181,7 @@ var (
 			Name: "csv_abnormal",
 			Help: "CSV is not installed",
 		},
-		[]string{NAMESPACE_LABEL, NAME_LABEL, VERSION_LABEL, PHASE_LABEL, REASON_LABEL},
+		[]string{NamespaceLabel, NameLabel, VersionLabel, PhaseLabel, ReasonLabel},
 	)
 
 	dependencyResolutionSummary = prometheus.NewSummaryVec(
@@ -200,11 +200,36 @@ var (
 		},
 	)
 
-	// subscriptionSyncCounters keeps a record of the promethues counters emitted by
-	// Subscription objects. The key of a record is the Subscription name, while the value
-	//  is struct containing label values used in the counter
-	subscriptionSyncCounters = make(map[string]subscriptionSyncLabelValues)
+	subscriptionSyncCounters = newSubscriptionSyncCounter()
 )
+
+// subscriptionSyncCounter keeps a record of the Prometheus counters emitted by
+// Subscription objects. The key of a record is the Subscription name, while the value
+// is struct containing label values used in the counter. Read and Write access are
+// protected by mutex.
+type subscriptionSyncCounter struct {
+	counters     map[string]subscriptionSyncLabelValues
+	countersLock sync.RWMutex
+}
+
+func newSubscriptionSyncCounter() subscriptionSyncCounter {
+	return subscriptionSyncCounter{
+		counters: make(map[string]subscriptionSyncLabelValues),
+	}
+}
+
+func (s *subscriptionSyncCounter) setValues(key string, val subscriptionSyncLabelValues) {
+	s.countersLock.Lock()
+	defer s.countersLock.Unlock()
+	s.counters[key] = val
+}
+
+func (s *subscriptionSyncCounter) readValues(key string) (subscriptionSyncLabelValues, bool) {
+	s.countersLock.RLock()
+	defer s.countersLock.RUnlock()
+	val, ok := s.counters[key]
+	return val, ok
+}
 
 type subscriptionSyncLabelValues struct {
 	installedCSV     string
@@ -247,19 +272,19 @@ func DeleteCatalogSourceStateMetric(name, namespace string) {
 	catalogSourceReady.DeleteLabelValues(namespace, name)
 }
 
-func DeleteCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion) {
+func DeleteCSVMetric(oldCSV *operatorsv1alpha1.ClusterServiceVersion) {
 	// Delete the old CSV metrics
 	csvAbnormal.DeleteLabelValues(oldCSV.Namespace, oldCSV.Name, oldCSV.Spec.Version.String(), string(oldCSV.Status.Phase), string(oldCSV.Status.Reason))
 	csvSucceeded.DeleteLabelValues(oldCSV.Namespace, oldCSV.Name, oldCSV.Spec.Version.String())
 }
 
-func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha1.ClusterServiceVersion) {
+func EmitCSVMetric(oldCSV *operatorsv1alpha1.ClusterServiceVersion, newCSV *operatorsv1alpha1.ClusterServiceVersion) {
 	if oldCSV == nil || newCSV == nil {
 		return
 	}
 
 	// Don't update the metric for copies
-	if newCSV.Status.Reason == olmv1alpha1.CSVReasonCopied {
+	if newCSV.Status.Reason == operatorsv1alpha1.CSVReasonCopied {
 		return
 	}
 
@@ -269,7 +294,7 @@ func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha
 	// Get the phase of the new CSV
 	newCSVPhase := string(newCSV.Status.Phase)
 	csvSucceededGauge := csvSucceeded.WithLabelValues(newCSV.Namespace, newCSV.Name, newCSV.Spec.Version.String())
-	if newCSVPhase == string(olmv1alpha1.CSVPhaseSucceeded) {
+	if newCSVPhase == string(operatorsv1alpha1.CSVPhaseSucceeded) {
 		csvSucceededGauge.Set(1)
 	} else {
 		csvSucceededGauge.Set(0)
@@ -277,40 +302,40 @@ func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha
 	}
 }
 
-func EmitSubMetric(sub *olmv1alpha1.Subscription) {
+func EmitSubMetric(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
+
 	SubscriptionSyncCount.WithLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package, string(sub.Spec.InstallPlanApproval)).Inc()
-	if _, present := subscriptionSyncCounters[sub.GetName()]; !present {
-		subscriptionSyncCounters[sub.GetName()] = subscriptionSyncLabelValues{
+	if _, present := subscriptionSyncCounters.readValues(sub.GetName()); !present {
+		subscriptionSyncCounters.setValues(sub.GetName(), subscriptionSyncLabelValues{
 			installedCSV:     sub.Status.InstalledCSV,
 			pkg:              sub.Spec.Package,
 			channel:          sub.Spec.Channel,
 			approvalStrategy: string(sub.Spec.InstallPlanApproval),
-		}
+		})
 	}
 }
 
-func DeleteSubsMetric(sub *olmv1alpha1.Subscription) {
+func DeleteSubsMetric(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
 	SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Channel, sub.Spec.Package, string(sub.Spec.InstallPlanApproval))
 }
 
-func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
+func UpdateSubsSyncCounterStorage(sub *operatorsv1alpha1.Subscription) {
 	if sub.Spec == nil {
 		return
 	}
-	counterValues := subscriptionSyncCounters[sub.GetName()]
+	counterValues, _ := subscriptionSyncCounters.readValues(sub.GetName())
 	approvalStrategy := string(sub.Spec.InstallPlanApproval)
 
 	if sub.Spec.Channel != counterValues.channel ||
 		sub.Spec.Package != counterValues.pkg ||
 		sub.Status.InstalledCSV != counterValues.installedCSV ||
 		approvalStrategy != counterValues.approvalStrategy {
-
 		// Delete metric will label values of old Subscription first
 		SubscriptionSyncCount.DeleteLabelValues(sub.GetName(), counterValues.installedCSV, counterValues.channel, counterValues.pkg, counterValues.approvalStrategy)
 
@@ -319,7 +344,7 @@ func UpdateSubsSyncCounterStorage(sub *olmv1alpha1.Subscription) {
 		counterValues.channel = sub.Spec.Channel
 		counterValues.approvalStrategy = approvalStrategy
 
-		subscriptionSyncCounters[sub.GetName()] = counterValues
+		subscriptionSyncCounters.setValues(sub.GetName(), counterValues)
 	}
 }
 

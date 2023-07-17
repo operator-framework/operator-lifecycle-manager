@@ -1,0 +1,25 @@
+name: flaky-e2e-tests
+on:
+  schedule:
+    - cron: '30 5,17 * * *' # run this every day at 5:30 and 17:30 UTC (00:30 and 12:30 ET)
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+jobs:
+  flaky-e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - run: mkdir -p artifacts
+      - run: make e2e-local E2E_NODES=1 TEST='\[FLAKE\]' ARTIFACT_DIR=./artifacts/
+      - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-output-${{(github.event.pull_request.head.sha||github.sha)}}-${{ github.run_id }}
+          path: ${{ github.workspace }}/bin/artifacts/*

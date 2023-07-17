@@ -109,14 +109,14 @@ func WithImpersonation(handler http.Handler, a authorizer.Authorizer, s runtime.
 				actingAsAttributes.Resource = "uids"
 
 			default:
-				klog.V(4).InfoS("unknown impersonation request type", "Request", impersonationRequest)
+				klog.V(4).InfoS("unknown impersonation request type", "request", impersonationRequest)
 				responsewriters.Forbidden(ctx, actingAsAttributes, w, req, fmt.Sprintf("unknown impersonation request type: %v", impersonationRequest), s)
 				return
 			}
 
 			decision, reason, err := a.Authorize(ctx, actingAsAttributes)
 			if err != nil || decision != authorizer.DecisionAllow {
-				klog.V(4).InfoS("Forbidden", "URI", req.RequestURI, "Reason", reason, "Error", err)
+				klog.V(4).InfoS("Forbidden", "URI", req.RequestURI, "reason", reason, "err", err)
 				responsewriters.Forbidden(ctx, actingAsAttributes, w, req, reason, s)
 				return
 			}
@@ -166,7 +166,7 @@ func WithImpersonation(handler http.Handler, a authorizer.Authorizer, s runtime.
 		oldUser, _ := request.UserFrom(ctx)
 		httplog.LogOf(req, w).Addf("%v is acting as %v", oldUser, newUser)
 
-		ae := request.AuditEventFrom(ctx)
+		ae := audit.AuditEventFrom(ctx)
 		audit.LogImpersonatedUser(ae, newUser)
 
 		// clear all the impersonation headers from the request

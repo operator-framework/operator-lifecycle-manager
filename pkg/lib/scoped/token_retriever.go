@@ -7,7 +7,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -50,29 +49,51 @@ func (r *BearerTokenRetriever) Retrieve(reference *corev1.ObjectReference) (toke
 }
 
 func getAPISecret(logger logrus.FieldLogger, kubeclient operatorclient.ClientInterface, sa *corev1.ServiceAccount) (APISecret *corev1.Secret, err error) {
+	seList, err := kubeclient.KubernetesInterface().CoreV1().Secrets(sa.GetNamespace()).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		logger.Errorf("unable to retrieve list of secrets in the namespace %s - %v", sa.GetNamespace(), err)
+		return nil, err
+	}
+	secrets := filterSecretsBySAName(sa.Name, seList)
+
 	for _, ref := range sa.Secrets {
-		// corev1.ObjectReference only has Name populated.
-		secret, getErr := kubeclient.KubernetesInterface().CoreV1().Secrets(sa.GetNamespace()).Get(context.TODO(), ref.Name, metav1.GetOptions{})
-		if getErr != nil {
-			if k8serrors.IsNotFound(getErr) {
-				logger.Warnf("skipping secret %s - %v", ref.Name, getErr)
-				continue
-			}
-
-			err = getErr
-			break
-		}
-
-		// Validate that this is a token for API access.
-		if !IsServiceAccountToken(secret, sa) {
-			logger.Warnf("skipping secret %s - %v", ref.Name, getErr)
+		if _, ok := secrets[ref.Name]; !ok {
+			logger.Warnf("skipping secret %s: secret not found", ref.Name)
 			continue
 		}
+	}
 
+	for _, secret := range secrets {
+		// Validate that this is a token for API access.
+		if !IsServiceAccountToken(secret, sa) {
+			logger.Warnf("skipping secret %s: not token secret", secret.Name)
+			continue
+		}
 		// The first eligible secret that has an API access token is returned.
 		APISecret = secret
 		break
 	}
 
 	return
+}
+
+// filterSecretsBySAName returna a maps of secrets that are associated with a
+// specific ServiceAccount via annotations kubernetes.io/service-account.name
+func filterSecretsBySAName(saName string, secrets *corev1.SecretList) map[string]*corev1.Secret {
+	secretMap := make(map[string]*corev1.Secret)
+	for _, ref := range secrets.Items {
+		// Avoid referencing the "ref" created by the range-for loop as
+		// the secret stored in the map will change if there are more
+		// entries in the list of secrets that the range-for loop is
+		// iterating over.
+		ref := ref
+
+		annotations := ref.GetAnnotations()
+		value := annotations[corev1.ServiceAccountNameKey]
+		if value == saName {
+			secretMap[ref.Name] = &ref
+		}
+	}
+
+	return secretMap
 }

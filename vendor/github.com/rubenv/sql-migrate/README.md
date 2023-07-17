@@ -1,10 +1,8 @@
 # sql-migrate
 
-> SQL Schema migration tool for [Go](http://golang.org/). Based on [gorp](https://github.com/go-gorp/gorp) and [goose](https://bitbucket.org/liamstask/goose).
+> SQL Schema migration tool for [Go](https://golang.org/). Based on [gorp](https://github.com/go-gorp/gorp) and [goose](https://bitbucket.org/liamstask/goose).
 
 [![Build Status](https://travis-ci.org/rubenv/sql-migrate.svg?branch=master)](https://travis-ci.org/rubenv/sql-migrate) [![GoDoc](https://godoc.org/github.com/rubenv/sql-migrate?status.svg)](https://godoc.org/github.com/rubenv/sql-migrate)
-
-Using [modl](https://github.com/jmoiron/modl)? Check out [modl-migrate](https://github.com/rubenv/modl-migrate).
 
 ## Features
 
@@ -15,7 +13,7 @@ Using [modl](https://github.com/jmoiron/modl)? Check out [modl-migrate](https://
 * Atomic migrations
 * Up/down migrations to allow rollback
 * Supports multiple database types in one project
-* Works great with other libraries such as [sqlx](http://jmoiron.github.io/sqlx/)
+* Works great with other libraries such as [sqlx](https://jmoiron.github.io/sqlx/)
 
 ## Installation
 
@@ -23,6 +21,10 @@ To install the library and command line program, use the following:
 
 ```bash
 go get -v github.com/rubenv/sql-migrate/...
+```
+For Go version from 1.18, use:
+```bash
+go install github.com/rubenv/sql-migrate/...@latest
 ```
 
 ## Usage
@@ -86,12 +88,13 @@ Options:
   -config=dbconfig.yml   Configuration file to use.
   -env="development"     Environment.
   -limit=0               Limit the number of migrations (0 = unlimited).
+  -version               Run migrate up to a specific version, eg: the version number of migration 1_initial.sql is 1.
   -dryrun                Don't apply migrations, just print them.
 ```
 
 The `new` command creates a new empty migration template using the following pattern `<current time>-<name>.sql`.
 
-The `up` command applies all available migrations. By contrast, `down` will only apply one migration by default. This behavior can be changed for both by using the `-limit` parameter.
+The `up` command applies all available migrations. By contrast, `down` will only apply one migration by default. This behavior can be changed for both by using the `-limit` parameter, and the `-version` parameter. Note `-version` has higher priority than `-limit` if you try to use them both.
 
 The `redo` command will unapply the last migration and reapply it. This is useful during development, when you're writing migrations.
 
@@ -298,7 +301,7 @@ Normally each migration is run within a transaction in order to guarantee that i
 
 ```sql
 -- +migrate Up notransaction
-CREATE UNIQUE INDEX people_unique_id_idx CONCURRENTLY ON people (id);
+CREATE UNIQUE INDEX CONCURRENTLY people_unique_id_idx ON people (id);
 
 -- +migrate Down
 DROP INDEX people_unique_id_idx;
@@ -383,7 +386,7 @@ type MigrationSource interface {
 
 The resulting slice of migrations will be executed in the given order, so it should usually be sorted by the `Id` field.
 
-## Usage with [sqlx](http://jmoiron.github.io/sqlx/)
+## Usage with [sqlx](https://jmoiron.github.io/sqlx/)
 
 This library is compatible with sqlx. When calling migrate just dereference the DB from your `*sqlx.DB`:
 
@@ -394,6 +397,10 @@ if err != nil {
     // Handle errors!
 }
 ```
+
+## Questions or Feedback?
+
+You can use Github Issues for feedback or questions.
 
 ## License
 

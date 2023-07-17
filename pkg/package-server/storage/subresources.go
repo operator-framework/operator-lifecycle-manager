@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/base64"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -35,6 +35,10 @@ func NewLogoStorage(groupResource schema.GroupResource, prov provider.PackageMan
 func (s *LogoStorage) New() runtime.Object {
 	return &operators.PackageManifest{}
 }
+
+// Destroy satisfies the Storage interface
+// Performs a no-op
+func (s *LogoStorage) Destroy() {}
 
 // Connect satisfies the Connector interface and returns the image icon file for a given `PackageManifest`
 func (s *LogoStorage) Connect(ctx context.Context, name string, options runtime.Object, responder rest.Responder) (http.Handler, error) {
@@ -68,7 +72,7 @@ func (s *LogoStorage) Connect(ctx context.Context, name string, options runtime.
 				etag := `"` + strings.Join([]string{name, pkgChannel.Name, pkgChannel.CurrentCSV}, ".") + `"`
 
 				reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
-				imgBytes, _ := ioutil.ReadAll(reader)
+				imgBytes, _ := io.ReadAll(reader)
 
 				return imgBytes, mimeType, etag
 			}

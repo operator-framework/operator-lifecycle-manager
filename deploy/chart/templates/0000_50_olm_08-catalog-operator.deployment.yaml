@@ -17,9 +17,13 @@ spec:
       labels:
         app: catalog-operator
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: olm-operator-serviceaccount
       {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
-      volumes: 
+      volumes:
       {{- end }}
       {{- if .Values.catalog.tlsSecret }}
       - name: srv-cert
@@ -33,6 +37,10 @@ spec:
       {{- end }}
       containers:
         - name: catalog-operator
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
           {{- if or .Values.catalog.tlsSecret .Values.catalog.clientCASecret }}
           volumeMounts:
           {{- end }}
@@ -49,10 +57,10 @@ spec:
           command:
           - /bin/catalog
           args:
-          - '-namespace'
+          - '--namespace'
           - {{ .Values.catalog_namespace }}
           {{- if .Values.debug }}
-          - '-debug'
+          - '--debug'
           {{- end }}
           {{- if .Values.catalog.commandArgs }}
           - {{ .Values.catalog.commandArgs }}
@@ -60,10 +68,10 @@ spec:
           {{- if .Values.catalog.opmImageArgs }}
           - {{ .Values.catalog.opmImageArgs }}
           {{- end }}
-          - -util-image
+          - --util-image
           -  {{ .Values.catalog.image.ref }}
           {{- if .Values.writeStatusNameCatalog }}
-          - -writeStatusName
+          - --writeStatusName
           - {{ .Values.writeStatusNameCatalog }}
           {{- end }}
           {{- if .Values.catalog.tlsSecret }}
@@ -76,6 +84,11 @@ spec:
           - --client-ca
           - /profile-collector-cert/tls.crt
           {{- end }}
+          {{- if eq .Values.catalog.setWorkloadUserID true }}
+          - --set-workload-user-id=true
+          {{- else }}
+          - --set-workload-user-id=false
+          {{ end }}
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:

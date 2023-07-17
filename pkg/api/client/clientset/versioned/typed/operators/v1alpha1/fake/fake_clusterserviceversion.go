@@ -24,7 +24,6 @@ import (
 	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeClusterServiceVersions struct {
 	ns   string
 }
 
-var clusterserviceversionsResource = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "clusterserviceversions"}
+var clusterserviceversionsResource = v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions")
 
-var clusterserviceversionsKind = schema.GroupVersionKind{Group: "operators.coreos.com", Version: "v1alpha1", Kind: "ClusterServiceVersion"}
+var clusterserviceversionsKind = v1alpha1.SchemeGroupVersion.WithKind("ClusterServiceVersion")
 
 // Get takes name of the clusterServiceVersion, and returns the corresponding clusterServiceVersion object, and an error if there is any.
 func (c *FakeClusterServiceVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
@@ -117,7 +116,7 @@ func (c *FakeClusterServiceVersions) UpdateStatus(ctx context.Context, clusterSe
 // Delete takes name of the clusterServiceVersion and deletes it. Returns an error if one occurs.
 func (c *FakeClusterServiceVersions) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(clusterserviceversionsResource, c.ns, name), &v1alpha1.ClusterServiceVersion{})
+		Invokes(testing.NewDeleteActionWithOptions(clusterserviceversionsResource, c.ns, name, opts), &v1alpha1.ClusterServiceVersion{})
 
 	return err
 }

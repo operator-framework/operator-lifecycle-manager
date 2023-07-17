@@ -23,13 +23,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 // AdoptionReconciler automagically associates Operator components with their respective operator resource.
@@ -37,7 +37,6 @@ type AdoptionReconciler struct {
 	client.Client
 
 	log     logr.Logger
-	mu      sync.RWMutex
 	factory decorators.OperatorFactory
 }
 
@@ -53,8 +52,8 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Create multiple controllers for resource types that require automatic adoption
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.Subscription{}).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueueSub).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.InstallPlan{}}, enqueueSub).
+		Watches(&operatorsv1alpha1.ClusterServiceVersion{}, enqueueSub).
+		Watches(&operatorsv1alpha1.InstallPlan{}, enqueueSub).
 		Complete(reconcile.Func(r.ReconcileSubscription))
 	if err != nil {
 		return err
@@ -66,20 +65,20 @@ func (r *AdoptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	)
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&operatorsv1alpha1.ClusterServiceVersion{}).
-		Watches(&source.Kind{Type: &appsv1.Deployment{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Namespace{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Service{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &apiextensionsv1.CustomResourceDefinition{}}, enqueueProviders).
-		Watches(&source.Kind{Type: &apiregistrationv1.APIService{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &operatorsv1alpha1.Subscription{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &operatorsv2.OperatorCondition{}}, enqueueCSV).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.Role{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.RoleBinding{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRole{}}, enqueueCSV, builder.OnlyMetadata).
-		Watches(&source.Kind{Type: &rbacv1.ClusterRoleBinding{}}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&appsv1.Deployment{}, enqueueCSV).
+		Watches(&corev1.Namespace{}, enqueueCSV).
+		Watches(&corev1.Service{}, enqueueCSV).
+		Watches(&apiextensionsv1.CustomResourceDefinition{}, enqueueProviders).
+		Watches(&apiregistrationv1.APIService{}, enqueueCSV).
+		Watches(&operatorsv1alpha1.Subscription{}, enqueueCSV).
+		Watches(&operatorsv2.OperatorCondition{}, enqueueCSV).
+		Watches(&corev1.Secret{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&corev1.ConfigMap{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&corev1.ServiceAccount{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&rbacv1.Role{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&rbacv1.RoleBinding{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&rbacv1.ClusterRole{}, enqueueCSV, builder.OnlyMetadata).
+		Watches(&rbacv1.ClusterRoleBinding{}, enqueueCSV, builder.OnlyMetadata).
 		Complete(reconcile.Func(r.ReconcileClusterServiceVersion))
 	if err != nil {
 		return err
@@ -114,6 +113,7 @@ func (r *AdoptionReconciler) ReconcileSubscription(ctx context.Context, req ctrl
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(1).Info("reconciling subscription")
+	metrics.EmitAdoptionSubscriptionReconcile(req.Namespace, req.Name)
 
 	// Fetch the Subscription from the cache
 	in := &operatorsv1alpha1.Subscription{}
@@ -176,6 +176,7 @@ func (r *AdoptionReconciler) ReconcileClusterServiceVersion(ctx context.Context,
 	// Set up a convenient log object so we don't have to type request over and over again
 	log := r.log.WithValues("request", req)
 	log.V(1).Info("reconciling csv")
+	metrics.EmitAdoptionCSVReconcile(req.Namespace, req.Name)
 
 	// Fetch the CSV from the cache
 	in := &operatorsv1alpha1.ClusterServiceVersion{}
@@ -268,7 +269,7 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 
 	cObj, ok := component.(client.Object)
 	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 	}
 
 	if err := r.Get(ctx, types.NamespacedName{Namespace: m.GetNamespace(), Name: m.GetName()}, cObj); err != nil {
@@ -290,7 +291,7 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 		// Only update if freshly adopted
 		pCObj, ok := candidate.(client.Object)
 		if !ok {
-			return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+			return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 		}
 		return r.Patch(ctx, pCObj, client.MergeFrom(cObj))
 	}
@@ -301,7 +302,7 @@ func (r *AdoptionReconciler) adopt(ctx context.Context, operator *decorators.Ope
 func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Operator, component runtime.Object) error {
 	cObj, ok := component.(client.Object)
 	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 	}
 	candidate := component.DeepCopyObject()
 	disowned, err := operator.DisownComponent(candidate)
@@ -318,7 +319,7 @@ func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Op
 	r.log.V(1).Info("component disowned", "component", candidate)
 	uCObj, ok := candidate.(client.Object)
 	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 	}
 	return r.Patch(ctx, uCObj, client.MergeFrom(cObj))
 }
@@ -326,7 +327,7 @@ func (r *AdoptionReconciler) disown(ctx context.Context, operator *decorators.Op
 func (r *AdoptionReconciler) disownFromAll(ctx context.Context, component runtime.Object) error {
 	cObj, ok := component.(client.Object)
 	if !ok {
-		return fmt.Errorf("Unable to typecast runtime.Object to client.Object")
+		return fmt.Errorf("unable to typecast runtime.Object to client.Object")
 	}
 	var operators []decorators.Operator
 	for _, name := range decorators.OperatorNames(cObj.GetLabels()) {
@@ -362,7 +363,7 @@ func (r *AdoptionReconciler) adoptees(ctx context.Context, operator decorators.O
 	for _, list := range componentLists {
 		cList, ok := list.(client.ObjectList)
 		if !ok {
-			return nil, fmt.Errorf("Unable to typecast runtime.Object to client.ObjectList")
+			return nil, fmt.Errorf("unable to typecast runtime.Object to client.ObjectList")
 		}
 		if err := r.List(ctx, cList, opt); err != nil {
 			return nil, err
@@ -445,14 +446,13 @@ func (r *AdoptionReconciler) adoptInstallPlan(ctx context.Context, operator *dec
 	return utilerrors.NewAggregate(errs)
 }
 
-func (r *AdoptionReconciler) mapToSubscriptions(obj client.Object) (requests []reconcile.Request) {
+func (r *AdoptionReconciler) mapToSubscriptions(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
 	if obj == nil {
 		return
 	}
 
 	// Requeue all Subscriptions in the resource namespace
 	// The Subscription reconciler will sort out the important changes
-	ctx := context.TODO()
 	subs := &operatorsv1alpha1.SubscriptionList{}
 	if err := r.List(ctx, subs, client.InNamespace(obj.GetNamespace())); err != nil {
 		r.log.Error(err, "error listing subscriptions")
@@ -474,7 +474,7 @@ func (r *AdoptionReconciler) mapToSubscriptions(obj client.Object) (requests []r
 	return
 }
 
-func (r *AdoptionReconciler) mapToClusterServiceVersions(obj client.Object) (requests []reconcile.Request) {
+func (r *AdoptionReconciler) mapToClusterServiceVersions(_ context.Context, obj client.Object) (requests []reconcile.Request) {
 	if obj == nil {
 		return
 	}
@@ -500,13 +500,12 @@ func (r *AdoptionReconciler) mapToClusterServiceVersions(obj client.Object) (req
 	return
 }
 
-func (r *AdoptionReconciler) mapToProviders(obj client.Object) (requests []reconcile.Request) {
+func (r *AdoptionReconciler) mapToProviders(ctx context.Context, obj client.Object) (requests []reconcile.Request) {
 	if obj == nil {
 		return nil
 	}
 
 	var (
-		ctx  = context.TODO()
 		csvs = &operatorsv1alpha1.ClusterServiceVersionList{}
 	)
 	if err := r.List(ctx, csvs); err != nil {

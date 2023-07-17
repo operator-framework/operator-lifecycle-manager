@@ -19,8 +19,8 @@ package resource
 import (
 	"bytes"
 
-	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
 // KustomizeVisitor handles kustomization.yaml files.
@@ -38,7 +38,7 @@ type KustomizeVisitor struct {
 // Visit passes the result of a kustomize build to a StreamVisitor.
 func (v *KustomizeVisitor) Visit(fn VisitorFunc) error {
 	kOpts := krusty.MakeDefaultOptions()
-	kOpts.DoLegacyResourceSort = true
+	kOpts.Reorder = krusty.ReorderOptionLegacy
 	k := krusty.MakeKustomizer(kOpts)
 	m, err := k.Run(v.fSys, v.dirPath)
 	if err != nil {

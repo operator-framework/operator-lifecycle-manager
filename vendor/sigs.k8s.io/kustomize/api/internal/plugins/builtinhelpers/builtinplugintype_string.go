@@ -11,24 +11,27 @@ func _() {
 	_ = x[Unknown-0]
 	_ = x[AnnotationsTransformer-1]
 	_ = x[ConfigMapGenerator-2]
-	_ = x[HashTransformer-3]
-	_ = x[ImageTagTransformer-4]
-	_ = x[LabelTransformer-5]
-	_ = x[LegacyOrderTransformer-6]
+	_ = x[IAMPolicyGenerator-3]
+	_ = x[HashTransformer-4]
+	_ = x[ImageTagTransformer-5]
+	_ = x[LabelTransformer-6]
 	_ = x[NamespaceTransformer-7]
 	_ = x[PatchJson6902Transformer-8]
 	_ = x[PatchStrategicMergeTransformer-9]
 	_ = x[PatchTransformer-10]
 	_ = x[PrefixSuffixTransformer-11]
-	_ = x[ReplicaCountTransformer-12]
-	_ = x[SecretGenerator-13]
-	_ = x[ValueAddTransformer-14]
-	_ = x[HelmChartInflationGenerator-15]
+	_ = x[PrefixTransformer-12]
+	_ = x[SuffixTransformer-13]
+	_ = x[ReplicaCountTransformer-14]
+	_ = x[SecretGenerator-15]
+	_ = x[ValueAddTransformer-16]
+	_ = x[HelmChartInflationGenerator-17]
+	_ = x[ReplacementTransformer-18]
 }
 
-const _BuiltinPluginType_name = "UnknownAnnotationsTransformerConfigMapGeneratorHashTransformerImageTagTransformerLabelTransformerLegacyOrderTransformerNamespaceTransformerPatchJson6902TransformerPatchStrategicMergeTransformerPatchTransformerPrefixSuffixTransformerReplicaCountTransformerSecretGeneratorValueAddTransformerHelmChartInflationGenerator"
+const _BuiltinPluginType_name = "UnknownAnnotationsTransformerConfigMapGeneratorIAMPolicyGeneratorHashTransformerImageTagTransformerLabelTransformerNamespaceTransformerPatchJson6902TransformerPatchStrategicMergeTransformerPatchTransformerPrefixSuffixTransformerPrefixTransformerSuffixTransformerReplicaCountTransformerSecretGeneratorValueAddTransformerHelmChartInflationGeneratorReplacementTransformer"
 
-var _BuiltinPluginType_index = [...]uint16{0, 7, 29, 47, 62, 81, 97, 119, 139, 163, 193, 209, 232, 255, 270, 289, 316}
+var _BuiltinPluginType_index = [...]uint16{0, 7, 29, 47, 65, 80, 99, 115, 135, 159, 189, 205, 228, 245, 262, 285, 300, 319, 346, 368}
 
 func (i BuiltinPluginType) String() string {
 	if i < 0 || i >= BuiltinPluginType(len(_BuiltinPluginType_index)-1) {

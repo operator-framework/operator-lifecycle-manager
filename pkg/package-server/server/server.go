@@ -127,14 +127,14 @@ func (o *PackageServerOptions) Config(ctx context.Context) (*apiserver.Config, e
 
 	// In some cases the API server can return connection refused when getting the "extension-apiserver-authentication" config map
 	var lastApplyErr error
-	err := wait.PollImmediateUntil(1*time.Second, func() (done bool, err error) {
+	err := wait.PollUntilContextCancel(pollCtx, 1*time.Second, true, func(_ context.Context) (done bool, err error) {
 		lastApplyErr := authenticationOptions.ApplyTo(&config.Authentication, config.SecureServing, config.OpenAPIConfig)
 		if lastApplyErr != nil {
 			log.WithError(lastApplyErr).Warn("Error initializing delegating authentication (will retry)")
 			return false, nil
 		}
 		return true, nil
-	}, pollCtx.Done())
+	})
 
 	if err != nil {
 		return nil, lastApplyErr
@@ -153,14 +153,14 @@ func (o *PackageServerOptions) Config(ctx context.Context) (*apiserver.Config, e
 	authorizationOptions.AllowCacheTTL = 35 * time.Second
 
 	// In some cases the API server can return connection refused when getting the "extension-apiserver-authentication" config map
-	err = wait.PollImmediateUntil(1*time.Second, func() (done bool, err error) {
+	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(_ context.Context) (done bool, err error) {
 		lastApplyErr = authorizationOptions.ApplyTo(&config.Authorization)
 		if lastApplyErr != nil {
 			log.WithError(lastApplyErr).Warn("Error initializing delegating authorization (will retry)")
 			return false, nil
 		}
 		return true, nil
-	}, pollCtx.Done())
+	})
 
 	if err != nil {
 		return nil, lastApplyErr

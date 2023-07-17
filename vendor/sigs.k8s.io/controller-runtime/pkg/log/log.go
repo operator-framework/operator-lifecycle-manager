@@ -17,7 +17,7 @@ limitations under the License.
 // Package log contains utilities for fetching a new logger
 // when one is not already available.
 //
-// The Log Handle
+// # The Log Handle
 //
 // This package contains a root logr.Logger Log.  It may be used to
 // get a handle to whatever the root logging implementation is.  By
@@ -25,17 +25,20 @@ limitations under the License.
 // to loggers.  When the implementation is set using SetLogger, these
 // "promises" will be converted over to real loggers.
 //
-// Logr
+// # Logr
 //
 // All logging in controller-runtime is structured, using a set of interfaces
 // defined by a package called logr
-// (https://godoc.org/github.com/go-logr/logr).  The sub-package zap provides
+// (https://pkg.go.dev/github.com/go-logr/logr).  The sub-package zap provides
 // helpers for setting up logr backed by Zap (go.uber.org/zap).
 package log
 
 import (
 	"context"
-	"sync"
+	"fmt"
+	"os"
+	"runtime/debug"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -43,49 +46,43 @@ import (
 
 // SetLogger sets a concrete logging implementation for all deferred Loggers.
 func SetLogger(l logr.Logger) {
-	loggerWasSetLock.Lock()
-	defer loggerWasSetLock.Unlock()
-
-	loggerWasSet = true
-	Log.Fulfill(l)
+	logFullfilled.Store(true)
+	rootLog.Fulfill(l.GetSink())
 }
 
-// It is safe to assume that if this wasn't set within the first 30 seconds of a binaries
-// lifetime, it will never get set. The DelegatingLogger causes a high number of memory
-// allocations when not given an actual Logger, so we set a NullLogger to avoid that.
-//
-// We need to keep the DelegatingLogger because we have various inits() that get a logger from
-// here. They will always get executed before any code that imports controller-runtime
-// has a chance to run and hence to set an actual logger.
-func init() {
-	// Init is blocking, so start a new goroutine
-	go func() {
-		time.Sleep(30 * time.Second)
-		loggerWasSetLock.Lock()
-		defer loggerWasSetLock.Unlock()
-		if !loggerWasSet {
-			Log.Fulfill(NullLogger{})
+func eventuallyFulfillRoot() {
+	if logFullfilled.Load() {
+		return
+	}
+	if time.Since(rootLogCreated).Seconds() >= 30 {
+		if logFullfilled.CompareAndSwap(false, true) {
+			fmt.Fprintf(os.Stderr, "[controller-runtime] log.SetLogger(...) was never called, logs will not be displayed:\n%s", debug.Stack())
+			SetLogger(logr.New(NullLogSink{}))
 		}
-	}()
+	}
 }
 
 var (
-	loggerWasSetLock sync.Mutex
-	loggerWasSet     bool
+	logFullfilled atomic.Bool
 )
 
 // Log is the base logger used by kubebuilder.  It delegates
 // to another logr.Logger. You *must* call SetLogger to
 // get any actual logging. If SetLogger is not called within
 // the first 30 seconds of a binaries lifetime, it will get
-// set to a NullLogger.
-var Log = NewDelegatingLogger(NullLogger{})
+// set to a NullLogSink.
+var (
+	rootLog, rootLogCreated = func() (*delegatingLogSink, time.Time) {
+		return newDelegatingLogSink(NullLogSink{}), time.Now()
+	}()
+	Log = logr.New(rootLog)
+)
 
 // FromContext returns a logger with predefined values from a context.Context.
 func FromContext(ctx context.Context, keysAndValues ...interface{}) logr.Logger {
-	var log logr.Logger = Log
+	log := Log
 	if ctx != nil {
-		if logger := logr.FromContext(ctx); logger != nil {
+		if logger, err := logr.FromContext(ctx); err == nil {
 			log = logger
 		}
 	}

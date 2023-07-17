@@ -2,7 +2,7 @@ package filemonitor
 
 import (
 	"crypto/x509"
-	"io/ioutil"
+	"os"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -16,7 +16,7 @@ type certPoolStore struct {
 }
 
 func NewCertPoolStore(clientCAPath string) (*certPoolStore, error) {
-	pem, err := ioutil.ReadFile(clientCAPath)
+	pem, err := os.ReadFile(clientCAPath)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func NewCertPoolStore(clientCAPath string) (*certPoolStore, error) {
 }
 
 func (c *certPoolStore) storeCABundle(clientCAPath string) error {
-	pem, err := ioutil.ReadFile(clientCAPath)
+	pem, err := os.ReadFile(clientCAPath)
 	if err == nil {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()

@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
@@ -17,16 +18,6 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
-
-// RequireStepsEqual is similar to require.ElementsMatch, but produces better error messages
-func RequireStepsEqual(t *testing.T, expectedSteps, steps []*v1alpha1.Step) {
-	for _, s := range expectedSteps {
-		require.Contains(t, steps, s, "step in expected not found in steps")
-	}
-	for _, s := range steps {
-		require.Contains(t, expectedSteps, s, "step in steps not found in expected")
-	}
-}
 
 func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requiredAPIServices cache.APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *v1alpha1.ClusterServiceVersion {
 	var singleInstance = int32(1)
@@ -215,25 +206,25 @@ func withVersion(version string) bundleOpt {
 }
 
 func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices cache.APISet, opts ...bundleOpt) *api.Bundle {
-	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil))
+	csvJSON, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil))
 	if err != nil {
 		panic(err)
 	}
 
-	objs := []string{string(csvJson)}
+	objs := []string{string(csvJSON)}
 	for p := range providedCRDs {
-		crdJson, err := json.Marshal(crd(p))
+		crdJSON, err := json.Marshal(crd(p))
 		if err != nil {
 			panic(err)
 		}
-		objs = append(objs, string(crdJson))
+		objs = append(objs, string(crdJSON))
 	}
 
 	b := &api.Bundle{
 		CsvName:      name,
 		PackageName:  pkg,
 		ChannelName:  channel,
-		CsvJson:      string(csvJson),
+		CsvJson:      string(csvJSON),
 		Object:       objs,
 		Version:      "0.0.0",
 		ProvidedApis: apiSetToGVK(providedCRDs, providedAPIServices),
@@ -271,34 +262,29 @@ func withBundlePath(bundle *api.Bundle, path string) *api.Bundle {
 }
 
 func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices cache.APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *api.Bundle {
-	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, permissions, clusterPermissions))
+	csvJSON, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, permissions, clusterPermissions))
 	if err != nil {
 		panic(err)
 	}
 
-	objs := []string{string(csvJson)}
+	objs := []string{string(csvJSON)}
 	for p := range providedCRDs {
-		crdJson, err := json.Marshal(crd(p))
+		crdJSON, err := json.Marshal(crd(p))
 		if err != nil {
 			panic(err)
 		}
-		objs = append(objs, string(crdJson))
+		objs = append(objs, string(crdJSON))
 	}
 
 	return &api.Bundle{
 		CsvName:      name,
 		PackageName:  pkg,
 		ChannelName:  channel,
-		CsvJson:      string(csvJson),
+		CsvJson:      string(csvJSON),
 		Object:       objs,
 		ProvidedApis: apiSetToGVK(providedCRDs, providedAPIServices),
 		RequiredApis: apiSetToGVK(requiredCRDs, requiredAPIServices),
 	}
-}
-
-func withReplaces(operator *cache.Entry, replaces string) *cache.Entry {
-	operator.Replaces = replaces
-	return operator
 }
 
 func requirePropertiesEqual(t *testing.T, a, b []*api.Property) {
@@ -326,8 +312,8 @@ func requirePropertiesEqual(t *testing.T, a, b []*api.Property) {
 	require.ElementsMatch(t, l, r)
 }
 
-func apiSetToProperties(crds, apis cache.APISet, deprecated bool) (out []*api.Property) {
-	out = make([]*api.Property, 0)
+func apiSetToProperties(crds, apis cache.APISet, deprecated bool) []*api.Property {
+	var out []*api.Property
 	for a := range crds {
 		val, err := json.Marshal(opregistry.GVKProperty{
 			Group:   a.Group,
@@ -366,10 +352,10 @@ func apiSetToProperties(crds, apis cache.APISet, deprecated bool) (out []*api.Pr
 			Value: string(val),
 		})
 	}
-	if len(out) == 0 {
-		return nil
-	}
-	return
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Type < out[j].Type || out[i].Value < out[j].Value
+	})
+	return out
 }
 
 func apiSetToDependencies(crds, apis cache.APISet) (out []*api.Dependency) {

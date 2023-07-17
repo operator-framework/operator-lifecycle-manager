@@ -1,3 +1,4 @@
+//go:build !bare
 // +build !bare
 
 package e2e
@@ -12,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/blang/semver/v4"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -30,16 +31,21 @@ import (
 )
 
 var _ = Describe("Metrics are generated for OLM managed resources", func() {
-
 	var (
-		c   operatorclient.ClientInterface
-		crc versioned.Interface
+		c                  operatorclient.ClientInterface
+		crc                versioned.Interface
+		generatedNamespace corev1.Namespace
 	)
 
 	BeforeEach(func() {
-		c = newKubeClient()
-		crc = newCRClient()
+		namespaceName := genName("metrics-e2e-")
+		generatedNamespace = SetupGeneratedTestNamespace(namespaceName, namespaceName)
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
+	})
 
+	AfterEach(func() {
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	Context("Given an OperatorGroup that supports all namespaces", func() {
@@ -48,14 +54,12 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		})
 
 		When("a CSV spec does not include Install Mode", func() {
-
 			var (
 				cleanupCSV cleanupFunc
 				failingCSV v1alpha1.ClusterServiceVersion
 			)
 
 			BeforeEach(func() {
-
 				failingCSV = v1alpha1.ClusterServiceVersion{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -73,10 +77,10 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				}
 
 				var err error
-				cleanupCSV, err = createCSV(c, crc, failingCSV, testNamespace, false, false)
+				cleanupCSV, err = createCSV(c, crc, failingCSV, generatedNamespace.GetName(), false, false)
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = fetchCSV(crc, failingCSV.Name, testNamespace, csvFailedChecker)
+				_, err = fetchCSV(crc, failingCSV.Name, generatedNamespace.GetName(), csvFailedChecker)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -123,35 +127,45 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				cleanupCSV cleanupFunc
 				csv        v1alpha1.ClusterServiceVersion
 			)
+
 			BeforeEach(func() {
 				packageName := genName("csv-test-")
 				packageStable := fmt.Sprintf("%s-stable", packageName)
-				csv = newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, nil)
+				csv = newCSV(packageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), nil, nil, nil)
 
 				var err error
-				_, err = createCSV(c, crc, csv, testNamespace, false, false)
+				_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCSV(crc, csv.Name, testNamespace, csvSucceededChecker)
+				_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 				Expect(err).ToNot(HaveOccurred())
 			})
+
 			AfterEach(func() {
 				if cleanupCSV != nil {
 					cleanupCSV()
 				}
 			})
+
 			It("emits a CSV metrics", func() {
 				Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).To(
 					ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(csv.Name), WithValue(1))),
 				)
 			})
+
 			When("the OLM pod restarts", func() {
+
 				BeforeEach(func() {
 					restartDeploymentWithLabel(c, "app=olm-operator")
 				})
+
 				It("CSV metric is preserved", func() {
-					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).To(
-						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(csv.Name), WithValue(1))),
-					)
+					Eventually(func() []Metric {
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))
+					}).Should(ContainElement(LikeMetric(
+						WithFamily("csv_succeeded"),
+						WithName(csv.Name),
+						WithValue(1),
+					)))
 				})
 			})
 		})
@@ -164,8 +178,9 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		)
 
 		When("A subscription object is created", func() {
+
 			BeforeEach(func() {
-				subscriptionCleanup, _ = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-create", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				subscriptionCleanup, _ = createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), "metric-subscription-for-create", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 			})
 
 			AfterEach(func() {
@@ -206,17 +221,17 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		When("A subscription object is updated after emitting metrics", func() {
 
 			BeforeEach(func() {
-				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-update", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), "metric-subscription-for-update", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-update"))))
 				Eventually(func() error {
-					s, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+					s, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.Background(), subscription.GetName(), metav1.GetOptions{})
 					if err != nil {
 						return err
 					}
 					s.Spec.Channel = betaChannel
-					_, err = crc.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Update(context.TODO(), s, metav1.UpdateOptions{})
+					_, err = crc.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Update(context.Background(), s, metav1.UpdateOptions{})
 					return err
 				}).Should(Succeed())
 			})
@@ -251,12 +266,12 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 				BeforeEach(func() {
 					Eventually(func() error {
-						s, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.TODO(), subscription.GetName(), metav1.GetOptions{})
+						s, err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Get(context.Background(), subscription.GetName(), metav1.GetOptions{})
 						if err != nil {
 							return err
 						}
 						s.Spec.Channel = alphaChannel
-						_, err = crc.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Update(context.TODO(), s, metav1.UpdateOptions{})
+						_, err = crc.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Update(context.Background(), s, metav1.UpdateOptions{})
 						return err
 					}).Should(Succeed())
 				})
@@ -291,7 +306,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 		When("A subscription object is deleted after emitting metrics", func() {
 
 			BeforeEach(func() {
-				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, testNamespace, "metric-subscription-for-delete", testPackageName, stableChannel, v1alpha1.ApprovalManual)
+				subscriptionCleanup, subscription = createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), "metric-subscription-for-delete", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(ContainElement(LikeMetric(WithFamily("subscription_sync_total"), WithLabel("name", "metric-subscription-for-delete"))))
@@ -321,6 +336,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				name    = "metrics-catsrc-valid"
 				cleanup func()
 			)
+
 			BeforeEach(func() {
 				mainPackageName := genName("nginx-")
 
@@ -329,7 +345,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				stableChannel := "stable"
 
 				mainCRD := newCRD(genName("ins-"))
-				mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+				mainCSV := newCSV(mainPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
 
 				mainManifests := []registry.PackageManifest{
 					{
@@ -340,17 +356,26 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						DefaultChannelName: stableChannel,
 					},
 				}
-				_, cleanupAll := createInternalCatalogSource(c, crc, name, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+				cs, cleanupAll := createInternalCatalogSource(c, crc, name, generatedNamespace.GetName(), mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+				// Note(tflannag): Dependending on how ginkgo orders these test specs, and how bloated the cluster we're running
+				// this test case against, we risk creating and then immediately deleting the catalogsource before the catalog
+				// operator can generate all the requisite resources (e.g. the ServiceAccount), which can leave the underlying
+				// registry Pod in a terminating state until kubelet times out waiting for the generated ServiceAccount
+				// resource to be present so it can mount it in the registry container.
+				_, err := fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced)
+				Expect(err).ShouldNot(HaveOccurred())
 
 				var once sync.Once
 				cleanup = func() {
 					once.Do(cleanupAll)
 				}
 			})
+
 			AfterEach(func() {
 				cleanup()
 			})
-			It("emits metrics for the catalogSource", func() {
+
+			It("emits catalogsource_ready metric for the catalogSource with Value equal to 1", func() {
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(And(
@@ -361,15 +386,17 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					ContainElement(LikeMetric(
 						WithFamily("catalogsource_ready"),
 						WithName(name),
-						WithNamespace(testNamespace),
+						WithNamespace(generatedNamespace.GetName()),
 						WithValue(1),
 					)),
 				))
 			})
 			When("The CatalogSource object is deleted", func() {
+
 				BeforeEach(func() {
 					cleanup()
 				})
+
 				It("deletes the metrics for the CatalogSource", func() {
 					Eventually(func() []Metric {
 						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
@@ -377,7 +404,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						Not(ContainElement(LikeMetric(
 							WithFamily("catalogsource_ready"),
 							WithName(name),
-							WithNamespace(testNamespace),
+							WithNamespace(generatedNamespace.GetName()),
 						)))))
 				})
 			})
@@ -388,30 +415,33 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				name    = "metrics-catsrc-invalid"
 				cleanup func()
 			)
+
 			BeforeEach(func() {
-				_, cleanup = createInvalidGRPCCatalogSource(crc, name, testNamespace)
+				_, cleanup = createInvalidGRPCCatalogSource(c, crc, name, generatedNamespace.GetName())
 			})
+
 			AfterEach(func() {
 				cleanup()
 			})
-			It("emits metrics for the CatlogSource with a Value greater than 0", func() {
+
+			It("emits metrics for the CatlogSource with a Value equal to 0", func() {
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(And(
 					ContainElement(LikeMetric(
 						WithFamily("catalogsource_ready"),
 						WithName(name),
-						WithNamespace(testNamespace),
+						WithNamespace(generatedNamespace.GetName()),
 						WithValue(0),
 					)),
 				))
 				Consistently(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
-				}, "3m").Should(And(
+				}, "1m", "30s").Should(And(
 					ContainElement(LikeMetric(
 						WithFamily("catalogsource_ready"),
 						WithName(name),
-						WithNamespace(testNamespace),
+						WithNamespace(generatedNamespace.GetName()),
 						WithValue(0),
 					)),
 				))
@@ -424,7 +454,7 @@ func getPodWithLabel(client operatorclient.ClientInterface, label string) *corev
 	listOptions := metav1.ListOptions{LabelSelector: label}
 	var podList *corev1.PodList
 	EventuallyWithOffset(1, func() (numPods int, err error) {
-		podList, err = client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(context.TODO(), listOptions)
+		podList, err = client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(context.Background(), listOptions)
 		if podList != nil {
 			numPods = len(podList.Items)
 		}
@@ -439,7 +469,7 @@ func getDeploymentWithLabel(client operatorclient.ClientInterface, label string)
 	listOptions := metav1.ListOptions{LabelSelector: label}
 	var deploymentList *appsv1.DeploymentList
 	EventuallyWithOffset(1, func() (numDeps int, err error) {
-		deploymentList, err = client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).List(context.TODO(), listOptions)
+		deploymentList, err = client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).List(context.Background(), listOptions)
 		if deploymentList != nil {
 			numDeps = len(deploymentList.Items)
 		}
@@ -455,11 +485,11 @@ func restartDeploymentWithLabel(client operatorclient.ClientInterface, l string)
 	z := int32(0)
 	oldZ := *d.Spec.Replicas
 	d.Spec.Replicas = &z
-	_, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Update(context.TODO(), d, metav1.UpdateOptions{})
+	_, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Update(context.Background(), d, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	EventuallyWithOffset(1, func() (replicas int32, err error) {
-		deployment, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Get(context.TODO(), d.Name, metav1.GetOptions{})
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Get(context.Background(), d.Name, metav1.GetOptions{})
 		if deployment != nil {
 			replicas = deployment.Status.Replicas
 		}
@@ -468,11 +498,11 @@ func restartDeploymentWithLabel(client operatorclient.ClientInterface, l string)
 
 	updated := getDeploymentWithLabel(client, l)
 	updated.Spec.Replicas = &oldZ
-	_, err = client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Update(context.TODO(), updated, metav1.UpdateOptions{})
+	_, err = client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Update(context.Background(), updated, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	EventuallyWithOffset(1, func() (replicas int32, err error) {
-		deployment, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Get(context.TODO(), d.Name, metav1.GetOptions{})
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(operatorNamespace).Get(context.Background(), d.Name, metav1.GetOptions{})
 		if deployment != nil {
 			replicas = deployment.Status.Replicas
 		}

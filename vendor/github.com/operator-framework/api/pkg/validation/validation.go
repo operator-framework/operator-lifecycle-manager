@@ -40,7 +40,28 @@ var OperatorGroupValidator = internal.OperatorGroupValidator
 
 // CommunityOperatorValidator implements Validator to validate bundle objects
 // for the Community Operator requirements.
+//
+// Deprecated - The checks made for this validator were moved to the external one:
+// https://github.com/redhat-openshift-ecosystem/ocp-olm-catalog-validator.
+// Please no longer use this check it will be removed in the next releases.
 var CommunityOperatorValidator = internal.CommunityOperatorValidator
+
+// AlphaDeprecatedAPIsValidator implements Validator to validate bundle objects
+// for API deprecation requirements.
+//
+// Note that this validator looks at the manifests. If any removed APIs for the mapped k8s versions are found,
+// it raises a warning.
+//
+// This validator only raises an error when the deprecated API found is removed in the specified k8s
+// version informed via the optional key `k8s-version`.
+var AlphaDeprecatedAPIsValidator = internal.AlphaDeprecatedAPIsValidator
+
+// GoodPracticesValidator implements Validator to validate the criteria defined as good practices
+var GoodPracticesValidator = internal.GoodPracticesValidator
+
+// MultipleArchitecturesValidator implements Validator to validate MultipleArchitectures configuration. For further
+// information check: https://olm.operatorframework.io/docs/advanced-tasks/ship-operator-supporting-multiarch/
+var MultipleArchitecturesValidator = internal.MultipleArchitecturesValidator
 
 // AllValidators implements Validator to validate all Operator manifest types.
 var AllValidators = interfaces.Validators{
@@ -52,6 +73,9 @@ var AllValidators = interfaces.Validators{
 	ObjectValidator,
 	OperatorGroupValidator,
 	CommunityOperatorValidator,
+	AlphaDeprecatedAPIsValidator,
+	GoodPracticesValidator,
+	MultipleArchitecturesValidator,
 }
 
 var DefaultBundleValidators = interfaces.Validators{

@@ -5,14 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
-
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/stretchr/testify/require"
+	utilclock "k8s.io/utils/clock/testing"
 )
 
 func TestUpdateHealth(t *testing.T) {
@@ -488,7 +487,6 @@ func TestUpdateHealth(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, sub, clusterSub)
 			}
-
 		})
 	}
 }

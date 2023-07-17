@@ -11,7 +11,7 @@ import (
 	listers "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/discovery"
 )
 
@@ -49,7 +49,7 @@ type Syncer struct {
 func (w *Syncer) QueryProxyConfig() (proxy []corev1.EnvVar, err error) {
 	global, getErr := w.lister.Get(globalProxyName)
 	if getErr != nil {
-		if !k8serrors.IsNotFound(getErr) {
+		if !apierrors.IsNotFound(getErr) {
 			err = getErr
 			return
 		}

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"k8s.io/utils/pointer"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +25,19 @@ const (
 )
 
 func openshiftRegistryAuth(client operatorclient.ClientInterface, namespace string) (string, error) {
-	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), BuilderServiceAccount, metav1.GetOptions{})
+
+	var sa *corev1.ServiceAccount
+	var err error
+
+	// wait for the builder service account to exist and contain image pull secrets
+	err = waitFor(func() (bool, error) {
+		sa, err = client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), BuilderServiceAccount, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return len(sa.ImagePullSecrets) > 0, nil
+	})
+
 	if err != nil {
 		return "", err
 	}
@@ -69,11 +82,25 @@ func createSkopeoPod(client operatorclient.ClientInterface, args []string, names
 			Labels:    map[string]string{"name": skopeo},
 		},
 		Spec: corev1.PodSpec{
+			SecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:  skopeo,
 					Image: skopeoImage,
 					Args:  args,
+					SecurityContext: &corev1.SecurityContext{
+						ReadOnlyRootFilesystem:   pointer.Bool(false),
+						AllowPrivilegeEscalation: pointer.Bool(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+						RunAsNonRoot: pointer.Bool(true),
+						RunAsUser:    pointer.Int64(1001),
+					},
 				},
 			},
 			RestartPolicy: corev1.RestartPolicyNever,

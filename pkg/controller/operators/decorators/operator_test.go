@@ -176,6 +176,22 @@ func TestAddComponents(t *testing.T) {
 					operator.Status.Components.Refs = []operatorsv1.RichReference{
 						{
 							ObjectReference: &corev1.ObjectReference{
+								APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
+								Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
+								Namespace:  "atlantic",
+								Name:       "puffin",
+							},
+							Conditions: []operatorsv1.Condition{
+								{
+									Type:    operatorsv1.ConditionType(operatorsv1alpha1.CSVPhaseSucceeded),
+									Status:  corev1.ConditionTrue,
+									Reason:  string(operatorsv1alpha1.CSVReasonInstallSuccessful),
+									Message: "this puffin is happy",
+								},
+							},
+						},
+						{
+							ObjectReference: &corev1.ObjectReference{
 								APIVersion: "v1",
 								Kind:       "Namespace",
 								Name:       "atlantic",
@@ -192,22 +208,6 @@ func TestAddComponents(t *testing.T) {
 								{
 									Type:   operatorsv1.ConditionType(corev1.PodReady),
 									Status: corev1.ConditionTrue,
-								},
-							},
-						},
-						{
-							ObjectReference: &corev1.ObjectReference{
-								APIVersion: operatorsv1alpha1.SchemeGroupVersion.String(),
-								Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
-								Namespace:  "atlantic",
-								Name:       "puffin",
-							},
-							Conditions: []operatorsv1.Condition{
-								{
-									Type:    operatorsv1.ConditionType(operatorsv1alpha1.CSVPhaseSucceeded),
-									Status:  corev1.ConditionTrue,
-									Reason:  string(operatorsv1alpha1.CSVReasonInstallSuccessful),
-									Message: "this puffin is happy",
 								},
 							},
 						},
@@ -229,5 +229,63 @@ func TestAddComponents(t *testing.T) {
 			require.Equal(t, tt.results.err, err)
 			require.Equal(t, tt.results.operator, operator.Operator)
 		})
+	}
+}
+
+func TestComponentLabelKey(t *testing.T) {
+	tests := []struct {
+		description       string
+		componentLabelKey string
+		name              string
+		expectedLabel     string
+		returnsError      bool
+	}{
+		{
+			description:       "when componentLabelKey is set then return it",
+			componentLabelKey: "my-component-label",
+			name:              "my-operator",
+			expectedLabel:     "my-component-label",
+			returnsError:      false,
+		},
+		{
+			description:       "when componentLabelKey is not set and operator name is less than 63 characters then do not truncate",
+			componentLabelKey: "",
+			name:              "my-operator",
+			expectedLabel:     ComponentLabelKeyPrefix + "my-operator",
+			returnsError:      false,
+		},
+		{
+			description:   "when componentLabelKey is not set and operator name is more than 63 characters truncate",
+			name:          "this-is-my-operator-its-the-coolest-you-got-a-problem-with-that-come-at-me-bro",
+			expectedLabel: ComponentLabelKeyPrefix + "this-is-my-operator-its-the-coolest-you-got-a-problem-with-that",
+			returnsError:  false,
+		},
+		{
+			description:   "when componentLabelKey is not set and operator name is more than 63 characters truncate and drop trailing illegal characters",
+			name:          "this-is-my-operator-its-the-coolest-you-got-a-problem-with----...---___...---",
+			expectedLabel: ComponentLabelKeyPrefix + "this-is-my-operator-its-the-coolest-you-got-a-problem-with",
+			returnsError:  false,
+		},
+		{
+			description:   "when componentLabelKey is not set and operator name is more than 63 characters and is made up of illegal characters then return error",
+			name:          "----...---___...-------...---___...-------...---___...-------...---___...---",
+			expectedLabel: "",
+			returnsError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		operator := &Operator{
+			Operator: &operatorsv1.Operator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: tt.name,
+				},
+			},
+			componentLabelKey: tt.componentLabelKey,
+		}
+
+		actualLabel, actualErr := operator.ComponentLabelKey()
+		require.Equal(t, tt.returnsError, actualErr != nil, actualErr)
+		require.Equal(t, tt.expectedLabel, actualLabel)
 	}
 }

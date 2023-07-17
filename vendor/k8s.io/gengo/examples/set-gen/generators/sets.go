@@ -246,20 +246,39 @@ func (s $.type|public$) HasAny(items ...$.type|raw$) bool {
 	return false
 }
 
-// Difference returns a set of objects that are not in s2
+// Clone returns a new set which is a copy of the current set.
+func (s $.type|public$) Clone() $.type|public$ {
+	result := make($.type|public$, len(s))
+	for key := range s {
+		result.Insert(key)
+	}
+	return result
+}
+
+// Difference returns a set of objects that are not in s2.
 // For example:
 // s1 = {a1, a2, a3}
 // s2 = {a1, a2, a4, a5}
 // s1.Difference(s2) = {a3}
 // s2.Difference(s1) = {a4, a5}
-func (s $.type|public$) Difference(s2 $.type|public$) $.type|public$ {
+func (s1 $.type|public$) Difference(s2 $.type|public$) $.type|public$ {
 	result := New$.type|public$()
-	for key := range s {
+	for key := range s1 {
 		if !s2.Has(key) {
 			result.Insert(key)
 		}
 	}
 	return result
+}
+
+// SymmetricDifference returns a set of elements which are in either of the sets, but not in their intersection.
+// For example:
+// s1 = {a1, a2, a3}
+// s2 = {a1, a2, a4, a5}
+// s1.SymmetricDifference(s2) = {a3, a4, a5}
+// s2.SymmetricDifference(s1) = {a3, a4, a5}
+func (s1 $.type|public$) SymmetricDifference(s2 $.type|public$) $.type|public$ {
+	return s1.Difference(s2).Union(s2.Difference(s1))
 }
 
 // Union returns a new set which includes items in either s1 or s2.
@@ -269,10 +288,7 @@ func (s $.type|public$) Difference(s2 $.type|public$) $.type|public$ {
 // s1.Union(s2) = {a1, a2, a3, a4}
 // s2.Union(s1) = {a1, a2, a3, a4}
 func (s1 $.type|public$) Union(s2 $.type|public$) $.type|public$ {
-	result := New$.type|public$()
-	for key := range s1 {
-		result.Insert(key)
-	}
+	result := s1.Clone()
 	for key := range s2 {
 		result.Insert(key)
 	}

@@ -24,6 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// OLMConfigs returns a OLMConfigInformer.
+	OLMConfigs() OLMConfigInformer
 	// Operators returns a OperatorInformer.
 	Operators() OperatorInformer
 	// OperatorConditions returns a OperatorConditionInformer.
@@ -41,6 +43,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// OLMConfigs returns a OLMConfigInformer.
+func (v *version) OLMConfigs() OLMConfigInformer {
+	return &oLMConfigInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Operators returns a OperatorInformer.

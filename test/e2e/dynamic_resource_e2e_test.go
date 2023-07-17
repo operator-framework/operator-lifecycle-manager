@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -19,7 +19,6 @@ import (
 )
 
 var _ = Describe("Subscriptions create required objects from Catalogs", func() {
-
 	var (
 		c             operatorclient.ClientInterface
 		crc           versioned.Interface
@@ -28,8 +27,8 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 	)
 
 	BeforeEach(func() {
-		c = newKubeClient()
-		crc = newCRClient()
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
 		dynamicClient = ctx.Ctx().DynamicClient()
 
 		deleteOpts = &metav1.DeleteOptions{}
@@ -42,7 +41,6 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 	Context("Given a Namespace", func() {
 		When("a CatalogSource is created with a bundle that contains prometheus objects", func() {
 			Context("creating a subscription using the CatalogSource", func() {
-
 				var (
 					ns         *corev1.Namespace
 					catsrc     *v1alpha1.CatalogSource
@@ -70,6 +68,9 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 						Spec: v1alpha1.CatalogSourceSpec{
 							Image:      "quay.io/olmtest/catsrc_dynamic_resources:e2e-test",
 							SourceType: v1alpha1.SourceTypeGrpc,
+							GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+								SecurityContextConfig: v1alpha1.Restricted,
+							},
 						},
 					}
 

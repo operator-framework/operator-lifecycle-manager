@@ -84,6 +84,12 @@ type SubscriptionConfig struct {
 	// List of VolumeMounts to set in the container.
 	// +optional
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
+
+	// If specified, overrides the pod's scheduling constraints.
+	// nil sub-attributes will *not* override the original values in the pod.spec for those sub-attributes.
+	// Use empty object ({}) to erase original sub-attribute values.
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty" protobuf:"bytes,18,opt,name=affinity"`
 }
 
 // SubscriptionConditionType indicates an explicit state condition about a Subscription in "abnormal-true"
@@ -105,6 +111,12 @@ const (
 
 	// SubscriptionResolutionFailed indicates that the dependency resolution in the namespace in which the subscription is created has failed
 	SubscriptionResolutionFailed SubscriptionConditionType = "ResolutionFailed"
+
+	// SubscriptionBundleUnpacking indicates that the unpack job is currently running
+	SubscriptionBundleUnpacking SubscriptionConditionType = "BundleUnpacking"
+
+	// SubscriptionBundleUnpackFailed indicates that the unpack job failed
+	SubscriptionBundleUnpackFailed SubscriptionConditionType = "BundleUnpackFailed"
 )
 
 const (

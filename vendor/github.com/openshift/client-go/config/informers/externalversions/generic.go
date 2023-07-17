@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	v1 "github.com/openshift/api/config/v1"
+	v1alpha1 "github.com/openshift/api/config/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -55,12 +56,20 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().FeatureGates().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("images"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().Images().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("imagecontentpolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().ImageContentPolicies().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("imagedigestmirrorsets"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().ImageDigestMirrorSets().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("imagetagmirrorsets"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().ImageTagMirrorSets().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("infrastructures"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().Infrastructures().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("ingresses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().Ingresses().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("networks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().Networks().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("nodes"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().Nodes().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("oauths"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().OAuths().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("operatorhubs"):
@@ -71,6 +80,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().Proxies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("schedulers"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1().Schedulers().Informer()}, nil
+
+		// Group=config.openshift.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("insightsdatagathers"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1alpha1().InsightsDataGathers().Informer()}, nil
 
 	}
 

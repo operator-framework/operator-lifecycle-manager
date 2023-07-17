@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
@@ -51,12 +50,12 @@ func (c *ReconcilerConfig) apply(opts []ReconcilerOption) {
 
 func (c *ReconcilerConfig) complete() error {
 	if c.Client == nil {
-		return fmt.Errorf("No client specified")
+		return fmt.Errorf("no client specified")
 	}
 	if c.Name == "" {
-		return fmt.Errorf("No ClusterOperator name specified")
+		return fmt.Errorf("no ClusterOperator name specified")
 	}
-	if c.Log == nil {
+	if c.Log.GetSink() == nil {
 		c.Log = ctrl.Log.WithName(c.Name)
 	}
 	if c.Now == nil {
@@ -88,7 +87,7 @@ func (c *ReconcilerConfig) complete() error {
 	return nil
 }
 
-func (c *ReconcilerConfig) mapClusterOperator(_ client.Object) []reconcile.Request {
+func (c *ReconcilerConfig) mapClusterOperator(_ context.Context, _ client.Object) []reconcile.Request {
 	// Enqueue the cluster operator
 	return []reconcile.Request{
 		{NamespacedName: types.NamespacedName{Name: c.Name}},
@@ -163,7 +162,6 @@ func WithOLMOperator() ReconcilerOption {
 
 		enqueue := handler.EnqueueRequestsFromMapFunc(config.mapClusterOperator)
 
-		name := "version"
 		originalCSV := predicate.NewPredicateFuncs(func(obj client.Object) bool {
 			csv, ok := obj.(*operatorsv1alpha1.ClusterServiceVersion)
 			if !ok {
@@ -174,8 +172,7 @@ func WithOLMOperator() ReconcilerOption {
 			return !csv.IsCopied() // Keep original CSVs only
 		})
 		config.TweakBuilder = func(bldr *builder.Builder) *builder.Builder {
-			return bldr.Watches(&source.Kind{Type: &operatorsv1alpha1.ClusterServiceVersion{}}, enqueue, builder.WithPredicates(originalCSV)).
-				Watches(&source.Kind{Type: &configv1.ClusterVersion{}}, enqueue, builder.WithPredicates(watchName(&name)))
+			return bldr.Watches(&operatorsv1alpha1.ClusterServiceVersion{}, enqueue, builder.WithPredicates(originalCSV))
 		}
 	}
 }

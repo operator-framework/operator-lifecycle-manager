@@ -76,7 +76,7 @@ builds:
     - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
 dockers:
 - image_templates:
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64"
   dockerfile: Dockerfile.goreleaser
   use: buildx
   goos: linux
@@ -84,7 +84,7 @@ dockers:
   build_flag_templates:
   - --platform=linux/amd64
 - image_templates:
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64"
   dockerfile: Dockerfile.goreleaser
   use: buildx
   goos: linux
@@ -92,7 +92,7 @@ dockers:
   build_flag_templates:
   - --platform=linux/arm64
 - image_templates:
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-ppc64le
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-ppc64le"
   dockerfile: Dockerfile.goreleaser
   use: buildx
   goos: linux
@@ -100,7 +100,7 @@ dockers:
   build_flag_templates:
   - --platform=linux/ppc64le
 - image_templates:
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-s390x
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-s390x"
   dockerfile: Dockerfile.goreleaser
   use: buildx
   goos: linux
@@ -108,18 +108,18 @@ dockers:
   build_flag_templates:
   - --platform=linux/s390x
 docker_manifests:
-- name_template: quay.io/{{ .Env.IMAGE_REPO }}:v{{ .Major }}.{{ .Minor }}
+- name_template: "{{ .Env.IMAGE_REPO }}:v{{ .Major }}.{{ .Minor }}"
   image_templates:
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-ppc64le
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-s390x
-- name_template: quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64"
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64"
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-ppc64le"
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-s390x"
+- name_template: "{{ .Env.IMAGE_REPO }}:{{ .Tag }}"
   image_templates:
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-ppc64le
-  - quay.io/{{ .Env.IMAGE_REPO }}:{{ .Tag }}-s390x
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64"
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64"
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-ppc64le"
+  - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-s390x"
 checksum:
   name_template: 'checksums.txt'
 snapshot:
@@ -132,3 +132,13 @@ changelog:
       - '^test:'
 release:
   draft: true
+  header: |
+    ## Install
+
+    ### Scripted
+
+    ```
+    curl -L https://github.com/operator-framework/operator-lifecycle-manager/releases/download/{{ .Tag }}/install.sh -o install.sh
+    chmod +x install.sh
+    ./install.sh {{ .Tag }}
+    ```

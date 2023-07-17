@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -118,18 +119,28 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 		return nil, err
 	}
 
+	// Check unpacked bundled for for missing APIVersion or Kind
+	if csv.APIVersion == "" {
+		return nil, olmerrors.NewFatalError(fmt.Errorf("bundle CSV %s missing APIVersion", csv.Name))
+	}
+
+	if csv.Kind == "" {
+		return nil, olmerrors.NewFatalError(fmt.Errorf("bundle CSV %s missing Kind", csv.Name))
+	}
+
 	csv.SetNamespace(namespace)
 	csv.Spec.Replaces = replaces
-	if anno, err := projection.PropertiesAnnotationFromPropertyList(bundle.Properties); err != nil {
+	anno, err := projection.PropertiesAnnotationFromPropertyList(bundle.Properties)
+	if err != nil {
 		return nil, fmt.Errorf("failed to construct properties annotation for %q: %w", csv.GetName(), err)
-	} else {
-		annos := csv.GetAnnotations()
-		if annos == nil {
-			annos = make(map[string]string)
-		}
-		annos[projection.PropertiesAnnotationKey] = anno
-		csv.SetAnnotations(annos)
 	}
+
+	annos := csv.GetAnnotations()
+	if annos == nil {
+		annos = make(map[string]string)
+	}
+	annos[projection.PropertiesAnnotationKey] = anno
+	csv.SetAnnotations(annos)
 
 	step, err := NewStepResourceFromObject(csv, catalogSourceName, catalogSourceNamespace)
 	if err != nil {

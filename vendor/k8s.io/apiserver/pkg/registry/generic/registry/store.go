@@ -25,6 +25,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/api/validation/path"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,6 +45,7 @@ import (
 	storeerr "k8s.io/apiserver/pkg/storage/errors"
 	"k8s.io/apiserver/pkg/storage/etcd3/metrics"
 	"k8s.io/apiserver/pkg/util/dryrun"
+	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/structured-merge-diff/v4/fieldpath"
 
@@ -108,6 +110,9 @@ type Store struct {
 	// This field is used if there is no request info present in the context.
 	// See qualifiedResourceFromContext for details.
 	DefaultQualifiedResource schema.GroupResource
+
+	// SingularQualifiedResource is the singular name of the resource.
+	SingularQualifiedResource schema.GroupResource
 
 	// KeyRootFunc returns the root etcd key for this resource; should not
 	// include trailing "/".  This is used for operations that work on the
@@ -216,7 +221,10 @@ type Store struct {
 	// If the StorageVersioner is nil, apiserver will leave the
 	// storageVersionHash as empty in the discovery document.
 	StorageVersioner runtime.GroupVersioner
-	// Called to cleanup clients used by the underlying Storage; optional.
+
+	// DestroyFunc cleans up clients used by the underlying Storage; optional.
+	// If set, DestroyFunc has to be implemented in thread-safe way and
+	// be prepared for being called more than once.
 	DestroyFunc func()
 }
 
@@ -224,6 +232,8 @@ type Store struct {
 var _ rest.StandardStorage = &Store{}
 var _ rest.TableConvertor = &Store{}
 var _ GenericStore = &Store{}
+
+var _ rest.SingularNameProvider = &Store{}
 
 const (
 	OptimisticLockErrorMsg        = "the object has been modified; please apply your changes to the latest version and try again"
@@ -278,6 +288,13 @@ func (e *Store) New() runtime.Object {
 	return e.NewFunc()
 }
 
+// Destroy cleans up its resources on shutdown.
+func (e *Store) Destroy() {
+	if e.DestroyFunc != nil {
+		e.DestroyFunc()
+	}
+}
+
 // NewList implements rest.Lister.
 func (e *Store) NewList() runtime.Object {
 	return e.NewListFunc()
@@ -292,7 +309,7 @@ func (e *Store) NamespaceScoped() bool {
 		return e.UpdateStrategy.NamespaceScoped()
 	}
 
-	panic("programmer error: no CRUD for resource, you're crazy, override NamespaceScoped too")
+	panic("programmer error: no CRUD for resource, override NamespaceScoped too")
 }
 
 // GetCreateStrategy implements GenericStore.
@@ -342,16 +359,32 @@ func (e *Store) ListPredicate(ctx context.Context, p storage.SelectionPredicate,
 	p.Continue = options.Continue
 	list := e.NewListFunc()
 	qualifiedResource := e.qualifiedResourceFromContext(ctx)
-	storageOpts := storage.ListOptions{ResourceVersion: options.ResourceVersion, ResourceVersionMatch: options.ResourceVersionMatch, Predicate: p}
+	storageOpts := storage.ListOptions{
+		ResourceVersion:      options.ResourceVersion,
+		ResourceVersionMatch: options.ResourceVersionMatch,
+		Predicate:            p,
+		Recursive:            true,
+	}
+
+	// if we're not already namespace-scoped, see if the field selector narrows the scope of the watch
+	if requestNamespace, _ := genericapirequest.NamespaceFrom(ctx); len(requestNamespace) == 0 {
+		if selectorNamespace, ok := p.MatchesSingleNamespace(); ok {
+			if len(validation.ValidateNamespaceName(selectorNamespace, false)) == 0 {
+				ctx = genericapirequest.WithNamespace(ctx, selectorNamespace)
+			}
+		}
+	}
+
 	if name, ok := p.MatchesSingle(); ok {
 		if key, err := e.KeyFunc(ctx, name); err == nil {
-			err := e.Storage.GetToList(ctx, key, storageOpts, list)
+			storageOpts.Recursive = false
+			err := e.Storage.GetList(ctx, key, storageOpts, list)
 			return list, storeerr.InterpretListError(err, qualifiedResource)
 		}
 		// if we cannot extract a key based on the current context, the optimization is skipped
 	}
 
-	err := e.Storage.List(ctx, e.KeyRootFunc(ctx), storageOpts, list)
+	err := e.Storage.GetList(ctx, e.KeyRootFunc(ctx), storageOpts, list)
 	return list, storeerr.InterpretListError(err, qualifiedResource)
 }
 
@@ -359,8 +392,21 @@ func (e *Store) ListPredicate(ctx context.Context, p storage.SelectionPredicate,
 func finishNothing(context.Context, bool) {}
 
 // Create inserts a new item according to the unique key from the object.
+// Note that registries may mutate the input object (e.g. in the strategy
+// hooks).  Tests which call this might want to call DeepCopy if they expect to
+// be able to examine the input and output objects for differences.
 func (e *Store) Create(ctx context.Context, obj runtime.Object, createValidation rest.ValidateObjectFunc, options *metav1.CreateOptions) (runtime.Object, error) {
 	var finishCreate FinishFunc = finishNothing
+
+	// Init metadata as early as possible.
+	if objectMeta, err := meta.Accessor(obj); err != nil {
+		return nil, err
+	} else {
+		rest.FillObjectMetaSystemFields(objectMeta)
+		if len(objectMeta.GetGenerateName()) > 0 && len(objectMeta.GetName()) == 0 {
+			objectMeta.SetName(e.CreateStrategy.GenerateName(objectMeta.GetGenerateName()))
+		}
+	}
 
 	if e.BeginCreate != nil {
 		fn, err := e.BeginCreate(ctx, obj, options)
@@ -400,7 +446,7 @@ func (e *Store) Create(ctx context.Context, obj runtime.Object, createValidation
 	out := e.NewFunc()
 	if err := e.Storage.Create(ctx, key, obj, out, ttl, dryrun.IsDryRun(options.DryRun)); err != nil {
 		err = storeerr.InterpretCreateError(err, qualifiedResource, name)
-		err = rest.CheckGeneratedNameError(e.CreateStrategy, err, obj)
+		err = rest.CheckGeneratedNameError(ctx, e.CreateStrategy, err, obj)
 		if !apierrors.IsAlreadyExists(err) {
 			return nil, err
 		}
@@ -538,6 +584,13 @@ func (e *Store) Update(ctx context.Context, name string, objInfo rest.UpdatedObj
 		doUnconditionalUpdate := newResourceVersion == 0 && e.UpdateStrategy.AllowUnconditionalUpdate()
 
 		if existingResourceVersion == 0 {
+			// Init metadata as early as possible.
+			if objectMeta, err := meta.Accessor(obj); err != nil {
+				return nil, nil, err
+			} else {
+				rest.FillObjectMetaSystemFields(objectMeta)
+			}
+
 			var finishCreate FinishFunc = finishNothing
 
 			if e.BeginCreate != nil {
@@ -655,7 +708,7 @@ func (e *Store) Update(ctx context.Context, name string, objInfo rest.UpdatedObj
 		}
 		if creating {
 			err = storeerr.InterpretCreateError(err, qualifiedResource, name)
-			err = rest.CheckGeneratedNameError(e.CreateStrategy, err, creatingObj)
+			err = rest.CheckGeneratedNameError(ctx, e.CreateStrategy, err, creatingObj)
 		} else {
 			err = storeerr.InterpretUpdateError(err, qualifiedResource, name)
 		}
@@ -681,8 +734,9 @@ func (e *Store) Update(ctx context.Context, name string, objInfo rest.UpdatedObj
 // create-on-update path.
 func newCreateOptionsFromUpdateOptions(in *metav1.UpdateOptions) *metav1.CreateOptions {
 	co := &metav1.CreateOptions{
-		DryRun:       in.DryRun,
-		FieldManager: in.FieldManager,
+		DryRun:          in.DryRun,
+		FieldManager:    in.FieldManager,
+		FieldValidation: in.FieldValidation,
 	}
 	co.TypeMeta.SetGroupVersionKind(metav1.SchemeGroupVersion.WithKind("CreateOptions"))
 	return co
@@ -749,9 +803,9 @@ func shouldOrphanDependents(ctx context.Context, e *Store, accessor metav1.Objec
 	}
 
 	// An explicit policy was set at deletion time, that overrides everything
-	//lint:ignore SA1019 backwards compatibility
+	//nolint:staticcheck // SA1019 backwards compatibility
 	if options != nil && options.OrphanDependents != nil {
-		//lint:ignore SA1019 backwards compatibility
+		//nolint:staticcheck // SA1019 backwards compatibility
 		return *options.OrphanDependents
 	}
 	if options != nil && options.PropagationPolicy != nil {
@@ -792,7 +846,7 @@ func shouldDeleteDependents(ctx context.Context, e *Store, accessor metav1.Objec
 	}
 
 	// If an explicit policy was set at deletion time, that overrides both
-	//lint:ignore SA1019 backwards compatibility
+	//nolint:staticcheck // SA1019 backwards compatibility
 	if options != nil && options.OrphanDependents != nil {
 		return false
 	}
@@ -889,13 +943,13 @@ func markAsDeleting(obj runtime.Object, now time.Time) (err error) {
 // grace period seconds (graceful deletion) and updating the list of
 // finalizers (finalization); it returns:
 //
-// 1. an error
-// 2. a boolean indicating that the object was not found, but it should be
-//    ignored
-// 3. a boolean indicating that the object's grace period is exhausted and it
-//    should be deleted immediately
-// 4. a new output object with the state that was updated
-// 5. a copy of the last existing state of the object
+//  1. an error
+//  2. a boolean indicating that the object was not found, but it should be
+//     ignored
+//  3. a boolean indicating that the object's grace period is exhausted and it
+//     should be deleted immediately
+//  4. a new output object with the state that was updated
+//  5. a copy of the last existing state of the object
 func (e *Store) updateForGracefulDeletionAndFinalizers(ctx context.Context, name, key string, options *metav1.DeleteOptions, preconditions storage.Preconditions, deleteValidation rest.ValidateObjectFunc, in runtime.Object) (err error, ignoreNotFound, deleteImmediately bool, out, lastExisting runtime.Object) {
 	lastGraceful := int64(0)
 	var pendingFinalizers bool
@@ -1084,11 +1138,6 @@ func (e *Store) DeleteReturnsDeletedObject() bool {
 // DeleteCollection is currently NOT atomic. It can happen that only subset of objects
 // will be deleted from storage, and then an error will be returned.
 // In case of success, the list of deleted objects will be returned.
-//
-// TODO: Currently, there is no easy way to remove 'directory' entry from storage (if we
-// are removing all objects of a given type) with the current API (it's technically
-// possibly with storage API, but watch is not delivered correctly then).
-// It will be possible to fix it with v3 etcd API.
 func (e *Store) DeleteCollection(ctx context.Context, deleteValidation rest.ValidateObjectFunc, options *metav1.DeleteOptions, listOptions *metainternalversion.ListOptions) (runtime.Object, error) {
 	if listOptions == nil {
 		listOptions = &metainternalversion.ListOptions{}
@@ -1123,16 +1172,7 @@ func (e *Store) DeleteCollection(ctx context.Context, deleteValidation rest.Vali
 	wg := sync.WaitGroup{}
 	toProcess := make(chan int, 2*workersNumber)
 	errs := make(chan error, workersNumber+1)
-
-	go func() {
-		defer utilruntime.HandleCrash(func(panicReason interface{}) {
-			errs <- fmt.Errorf("DeleteCollection distributor panicked: %v", panicReason)
-		})
-		for i := 0; i < len(items); i++ {
-			toProcess <- i
-		}
-		close(toProcess)
-	}()
+	workersExited := make(chan struct{})
 
 	wg.Add(workersNumber)
 	for i := 0; i < workersNumber; i++ {
@@ -1161,7 +1201,31 @@ func (e *Store) DeleteCollection(ctx context.Context, deleteValidation rest.Vali
 			}
 		}()
 	}
-	wg.Wait()
+	// In case of all workers exit, notify distributor.
+	go func() {
+		defer utilruntime.HandleCrash(func(panicReason interface{}) {
+			errs <- fmt.Errorf("DeleteCollection workers closer panicked: %v", panicReason)
+		})
+		wg.Wait()
+		close(workersExited)
+	}()
+
+	func() {
+		defer close(toProcess)
+
+		for i := 0; i < len(items); i++ {
+			select {
+			case toProcess <- i:
+			case <-workersExited:
+				klog.V(4).InfoS("workers already exited, and there are some items waiting to be processed", "finished", i, "total", len(items))
+				return
+			}
+		}
+	}()
+
+	// Wait for all workers to exist.
+	<-workersExited
+
 	select {
 	case err := <-errs:
 		return nil, err
@@ -1219,28 +1283,33 @@ func (e *Store) Watch(ctx context.Context, options *metainternalversion.ListOpti
 		resourceVersion = options.ResourceVersion
 		predicate.AllowWatchBookmarks = options.AllowWatchBookmarks
 	}
-	return e.WatchPredicate(ctx, predicate, resourceVersion)
+	return e.WatchPredicate(ctx, predicate, resourceVersion, options.SendInitialEvents)
 }
 
 // WatchPredicate starts a watch for the items that matches.
-func (e *Store) WatchPredicate(ctx context.Context, p storage.SelectionPredicate, resourceVersion string) (watch.Interface, error) {
-	storageOpts := storage.ListOptions{ResourceVersion: resourceVersion, Predicate: p}
+func (e *Store) WatchPredicate(ctx context.Context, p storage.SelectionPredicate, resourceVersion string, sendInitialEvents *bool) (watch.Interface, error) {
+	storageOpts := storage.ListOptions{ResourceVersion: resourceVersion, Predicate: p, Recursive: true, SendInitialEvents: sendInitialEvents}
+
+	// if we're not already namespace-scoped, see if the field selector narrows the scope of the watch
+	if requestNamespace, _ := genericapirequest.NamespaceFrom(ctx); len(requestNamespace) == 0 {
+		if selectorNamespace, ok := p.MatchesSingleNamespace(); ok {
+			if len(validation.ValidateNamespaceName(selectorNamespace, false)) == 0 {
+				ctx = genericapirequest.WithNamespace(ctx, selectorNamespace)
+			}
+		}
+	}
+
+	key := e.KeyRootFunc(ctx)
 	if name, ok := p.MatchesSingle(); ok {
-		if key, err := e.KeyFunc(ctx, name); err == nil {
-			w, err := e.Storage.Watch(ctx, key, storageOpts)
-			if err != nil {
-				return nil, err
-			}
-			if e.Decorator != nil {
-				return newDecoratedWatcher(ctx, w, e.Decorator), nil
-			}
-			return w, nil
+		if k, err := e.KeyFunc(ctx, name); err == nil {
+			key = k
+			storageOpts.Recursive = false
 		}
 		// if we cannot extract a key based on the current context, the
 		// optimization is skipped
 	}
 
-	w, err := e.Storage.WatchList(ctx, e.KeyRootFunc(ctx), storageOpts)
+	w, err := e.Storage.Watch(ctx, key, storageOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1274,6 +1343,12 @@ func (e *Store) calculateTTL(obj runtime.Object, defaultTTL int64, update bool) 
 func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 	if e.DefaultQualifiedResource.Empty() {
 		return fmt.Errorf("store %#v must have a non-empty qualified resource", e)
+	}
+	if e.SingularQualifiedResource.Empty() {
+		return fmt.Errorf("store %#v must have a non-empty singular qualified resource", e)
+	}
+	if e.DefaultQualifiedResource.Group != e.SingularQualifiedResource.Group {
+		return fmt.Errorf("store for %#v, singular and plural qualified resource's group name's must match", e)
 	}
 	if e.NewFunc == nil {
 		return fmt.Errorf("store for %s must have NewFunc set", e.DefaultQualifiedResource.String())
@@ -1413,13 +1488,16 @@ func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 		e.StorageVersioner = opts.StorageConfig.EncodeVersioner
 
 		if opts.CountMetricPollPeriod > 0 {
-			stopFunc := e.startObservingCount(opts.CountMetricPollPeriod)
+			stopFunc := e.startObservingCount(opts.CountMetricPollPeriod, opts.StorageObjectCountTracker)
 			previousDestroy := e.DestroyFunc
+			var once sync.Once
 			e.DestroyFunc = func() {
-				stopFunc()
-				if previousDestroy != nil {
-					previousDestroy()
-				}
+				once.Do(func() {
+					stopFunc()
+					if previousDestroy != nil {
+						previousDestroy()
+					}
+				})
 			}
 		}
 	}
@@ -1428,7 +1506,7 @@ func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 }
 
 // startObservingCount starts monitoring given prefix and periodically updating metrics. It returns a function to stop collection.
-func (e *Store) startObservingCount(period time.Duration) func() {
+func (e *Store) startObservingCount(period time.Duration, objectCountTracker flowcontrolrequest.StorageObjectCountTracker) func() {
 	prefix := e.KeyRootFunc(genericapirequest.NewContext())
 	resourceName := e.DefaultQualifiedResource.String()
 	klog.V(2).InfoS("Monitoring resource count at path", "resource", resourceName, "path", "<storage-prefix>/"+prefix)
@@ -1437,9 +1515,12 @@ func (e *Store) startObservingCount(period time.Duration) func() {
 		count, err := e.Storage.Count(prefix)
 		if err != nil {
 			klog.V(5).InfoS("Failed to update storage count metric", "err", err)
-			metrics.UpdateObjectCount(resourceName, -1)
-		} else {
-			metrics.UpdateObjectCount(resourceName, count)
+			count = -1
+		}
+
+		metrics.UpdateObjectCount(resourceName, count)
+		if objectCountTracker != nil {
+			objectCountTracker.Set(resourceName, count)
 		}
 	}, period, resourceCountPollPeriodJitter, true, stopCh)
 	return func() { close(stopCh) }
@@ -1462,6 +1543,10 @@ func (e *Store) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 		return nil
 	}
 	return e.ResetFieldsStrategy.GetResetFields()
+}
+
+func (e *Store) GetSingularName() string {
+	return e.SingularQualifiedResource.Resource
 }
 
 // validateIndexers will check the prefix of indexers.

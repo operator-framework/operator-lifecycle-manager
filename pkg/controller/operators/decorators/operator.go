@@ -2,6 +2,7 @@ package decorators
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/itchyny/gojq"
@@ -22,9 +23,9 @@ import (
 )
 
 const (
-	newOperatorError       = "Cannot create new Operator: %s"
-	newComponentError      = "Cannot create new Component: %s"
-	componentLabelKeyError = "Cannot generate component label key: %s"
+	newOperatorError       = "cannot create new Operator: %s"
+	newComponentError      = "cannot create new Component: %s"
+	componentLabelKeyError = "cannot generate component label key: %s"
 
 	// ComponentLabelKeyPrefix is the key prefix used for labels marking operator component resources.
 	ComponentLabelKeyPrefix = "operators.coreos.com/"
@@ -128,14 +129,32 @@ func (o *Operator) ComponentLabelKey() (string, error) {
 		return o.componentLabelKey, nil
 	}
 
-	if o.GetName() == "" {
+	name := o.GetName()
+	if name == "" {
 		return "", fmt.Errorf(componentLabelKeyError, "empty name field")
 	}
 
-	name := o.GetName()
 	if len(name) > 63 {
 		// Truncate
 		name = name[0:63]
+
+		// Remove trailing illegal characters
+		idx := len(name) - 1
+		for ; idx >= 0; idx-- {
+			lastChar := name[idx]
+			if lastChar != '.' && lastChar != '_' && lastChar != '-' {
+				break
+			}
+		}
+
+		// Just being defensive. This is unlikely to happen since the operator name should
+		// be compatible kubernetes naming constraints
+		if idx < 0 {
+			return "", fmt.Errorf(componentLabelKeyError, "unsupported name field")
+		}
+
+		// Update Label
+		name = name[0 : idx+1]
 	}
 	o.componentLabelKey = ComponentLabelKeyPrefix + name
 
@@ -295,7 +314,7 @@ func (o *Operator) AddComponents(components ...runtime.Object) error {
 		if matches, err := component.Matches(selector); err != nil {
 			return err
 		} else if !matches {
-			return fmt.Errorf("Cannot add component %s/%s/%s to Operator %s: component labels not selected by %s", component.GetKind(), component.GetNamespace(), component.GetName(), o.GetName(), selector.String())
+			return fmt.Errorf("cannot add component %s/%s/%s to Operator %s: component labels not selected by %s", component.GetKind(), component.GetNamespace(), component.GetName(), o.GetName(), selector.String())
 		}
 
 		ref, err := component.Reference()
@@ -312,6 +331,23 @@ func (o *Operator) AddComponents(components ...runtime.Object) error {
 	}
 
 	o.Status.Components.Refs = append(o.Status.Components.Refs, refs...)
+
+	// Sort the component refs to so subsequent reconciles of the object do not change
+	// the status and result in an update to the object.
+	sort.SliceStable(o.Status.Components.Refs, func(i, j int) bool {
+		if o.Status.Components.Refs[i].Kind != o.Status.Components.Refs[j].Kind {
+			return o.Status.Components.Refs[i].Kind < o.Status.Components.Refs[j].Kind
+		}
+
+		if o.Status.Components.Refs[i].APIVersion != o.Status.Components.Refs[j].APIVersion {
+			return o.Status.Components.Refs[i].APIVersion < o.Status.Components.Refs[j].APIVersion
+		}
+
+		if o.Status.Components.Refs[i].Namespace != o.Status.Components.Refs[j].Namespace {
+			return o.Status.Components.Refs[i].Namespace < o.Status.Components.Refs[j].Namespace
+		}
+		return o.Status.Components.Refs[i].Name < o.Status.Components.Refs[j].Name
+	})
 
 	return nil
 }

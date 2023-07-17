@@ -38,7 +38,7 @@ func selector(t *testing.T, selector string) *metav1.LabelSelector {
 	return s
 }
 
-var staticCerts *certs.KeyPair = nil
+var staticCerts *certs.KeyPair
 
 // staticCertGenerator replaces the CertGenerator to get consistent keys for testing
 func staticCertGenerator(notAfter time.Time, organization string, ca *certs.KeyPair, hosts []string) (*certs.KeyPair, error) {
@@ -125,7 +125,6 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 	assert.NoError(t, err)
 	caHash := certs.PEMSHA256(caPEM)
 	type fields struct {
-		strategyClient         wrappers.InstallStrategyDeploymentInterface
 		owner                  ownerutil.Owner
 		previousStrategy       Strategy
 		templateAnnotations    map[string]string

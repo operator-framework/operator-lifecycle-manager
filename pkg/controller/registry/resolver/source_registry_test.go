@@ -42,15 +42,15 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		},
 	}
 
-	csvJson, err := json.Marshal(csv)
+	csvJSON, err := json.Marshal(csv)
 	require.NoError(t, err)
 	bundleNoAPIs := &api.Bundle{
 		CsvName:     "testBundle",
 		PackageName: "testPackage",
 		ChannelName: "testChannel",
 		Version:     version.String(),
-		CsvJson:     string(csvJson),
-		Object:      []string{string(csvJson)},
+		CsvJson:     string(csvJSON),
+		Object:      []string{string(csvJSON)},
 	}
 
 	csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1.CRDDescription{
@@ -84,7 +84,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		},
 	}
 
-	csvJsonWithApis, err := json.Marshal(csv)
+	csvJSONWithAPIs, err := json.Marshal(csv)
 	require.NoError(t, err)
 
 	crd := v1beta1.CustomResourceDefinition{
@@ -112,7 +112,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			},
 		},
 	}
-	crdJson, err := json.Marshal(crd)
+	crdJSON, err := json.Marshal(crd)
 	require.NoError(t, err)
 
 	bundleWithAPIs := &api.Bundle{
@@ -120,8 +120,8 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		PackageName: "testPackage",
 		ChannelName: "testChannel",
 		Version:     version.String(),
-		CsvJson:     string(csvJsonWithApis),
-		Object:      []string{string(csvJsonWithApis), string(crdJson)},
+		CsvJson:     string(csvJSONWithAPIs),
+		Object:      []string{string(csvJSONWithAPIs), string(crdJSON)},
 		ProvidedApis: []*api.GroupVersionKind{
 			{
 				Group:   "crd.group.com",
@@ -184,14 +184,13 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		CsvName:     "testBundle",
 		PackageName: "testPackage",
 		ChannelName: "testChannel",
-		CsvJson:     string(csvJsonWithApis),
-		Object:      []string{string(csvJsonWithApis), string(crdJson)},
+		CsvJson:     string(csvJSONWithAPIs),
+		Object:      []string{string(csvJSONWithAPIs), string(crdJSON)},
 	}
 
 	type args struct {
 		bundle         *api.Bundle
 		sourceKey      cache.SourceKey
-		replaces       string
 		defaultChannel string
 	}
 	tests := []struct {

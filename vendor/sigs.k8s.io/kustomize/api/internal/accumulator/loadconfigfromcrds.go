@@ -7,13 +7,13 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/go-openapi/spec"
-	"github.com/pkg/errors"
-	"sigs.k8s.io/kustomize/api/filesys"
+	"k8s.io/kube-openapi/pkg/validation/spec"
 	"sigs.k8s.io/kustomize/api/ifc"
 	"sigs.k8s.io/kustomize/api/internal/plugins/builtinconfig"
-	"sigs.k8s.io/kustomize/api/resid"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/errors"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
+	"sigs.k8s.io/kustomize/kyaml/resid"
 	"sigs.k8s.io/yaml"
 )
 
@@ -25,7 +25,7 @@ type OpenAPIDefinition struct {
 	Dependencies []string
 }
 
-type myProperties map[string]spec.Schema
+type myProperties = map[string]spec.Schema
 type nameToApiMap map[string]OpenAPIDefinition
 
 // LoadConfigFromCRDs parse CRD schemas from paths into a TransformerConfig
@@ -39,7 +39,7 @@ func LoadConfigFromCRDs(
 		}
 		m, err := makeNameToApiMap(content)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to parse open API definition from '%s'", path)
+			return nil, errors.WrapPrefixf(err, "unable to parse open API definition from '%s'", path)
 		}
 		otherTc, err := makeConfigFromApiMap(m)
 		if err != nil {
@@ -178,9 +178,12 @@ func loadCrdIntoConfig(
 			}
 		}
 		if property.Ref.GetURL() != nil {
-			loadCrdIntoConfig(
+			err = loadCrdIntoConfig(
 				theConfig, theGvk, theMap,
 				property.Ref.String(), append(path, propName))
+			if err != nil {
+				return
+			}
 		}
 	}
 	return nil

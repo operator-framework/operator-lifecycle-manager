@@ -17,13 +17,16 @@ limitations under the License.
 package routes
 
 import (
-	restful "github.com/emicklei/go-restful"
+	restful "github.com/emicklei/go-restful/v3"
 	"k8s.io/klog/v2"
 
 	"k8s.io/apiserver/pkg/server/mux"
-	"k8s.io/kube-openapi/pkg/builder"
+	builder2 "k8s.io/kube-openapi/pkg/builder"
+	"k8s.io/kube-openapi/pkg/builder3"
 	"k8s.io/kube-openapi/pkg/common"
+	"k8s.io/kube-openapi/pkg/common/restfuladapter"
 	"k8s.io/kube-openapi/pkg/handler"
+	"k8s.io/kube-openapi/pkg/handler3"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )
 
@@ -33,21 +36,44 @@ type OpenAPI struct {
 }
 
 // Install adds the SwaggerUI webservice to the given mux.
-func (oa OpenAPI) Install(c *restful.Container, mux *mux.PathRecorderMux) (*handler.OpenAPIService, *spec.Swagger) {
-	spec, err := builder.BuildOpenAPISpec(c.RegisteredWebServices(), oa.Config)
+func (oa OpenAPI) InstallV2(c *restful.Container, mux *mux.PathRecorderMux) (*handler.OpenAPIService, *spec.Swagger) {
+	spec, err := builder2.BuildOpenAPISpecFromRoutes(restfuladapter.AdaptWebServices(c.RegisteredWebServices()), oa.Config)
 	if err != nil {
 		klog.Fatalf("Failed to build open api spec for root: %v", err)
 	}
 	spec.Definitions = handler.PruneDefaults(spec.Definitions)
-	openAPIVersionedService, err := handler.NewOpenAPIService(spec)
-	if err != nil {
-		klog.Fatalf("Failed to create OpenAPIService: %v", err)
-	}
-
+	openAPIVersionedService := handler.NewOpenAPIService(spec)
 	err = openAPIVersionedService.RegisterOpenAPIVersionedService("/openapi/v2", mux)
 	if err != nil {
 		klog.Fatalf("Failed to register versioned open api spec for root: %v", err)
 	}
 
 	return openAPIVersionedService, spec
+}
+
+// InstallV3 adds the static group/versions defined in the RegisteredWebServices to the OpenAPI v3 spec
+func (oa OpenAPI) InstallV3(c *restful.Container, mux *mux.PathRecorderMux) *handler3.OpenAPIService {
+	openAPIVersionedService := handler3.NewOpenAPIService()
+	err := openAPIVersionedService.RegisterOpenAPIV3VersionedService("/openapi/v3", mux)
+	if err != nil {
+		klog.Fatalf("Failed to register versioned open api spec for root: %v", err)
+	}
+
+	grouped := make(map[string][]*restful.WebService)
+
+	for _, t := range c.RegisteredWebServices() {
+		// Strip the "/" prefix from the name
+		gvName := t.RootPath()[1:]
+		grouped[gvName] = []*restful.WebService{t}
+	}
+
+	for gv, ws := range grouped {
+		spec, err := builder3.BuildOpenAPISpecFromRoutes(restfuladapter.AdaptWebServices(ws), oa.Config)
+		if err != nil {
+			klog.Errorf("Failed to build OpenAPI v3 for group %s, %q", gv, err)
+
+		}
+		openAPIVersionedService.UpdateGroupVersion(gv, spec)
+	}
+	return openAPIVersionedService
 }

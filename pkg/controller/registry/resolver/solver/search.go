@@ -26,8 +26,6 @@ type search struct {
 	assumptions            map[z.Lit]struct{} // set of assumed lits - duplicates guess stack - for fast lookup
 	guesses                []guess            // stack of assumed guesses
 	headChoice, tailChoice *choice            // deque of unmade choices
-	heap                   []choice
-	position               int
 	tracer                 Tracer
 	result                 int
 	buffer                 []z.Lit
@@ -58,8 +56,8 @@ func (h *search) PushGuess() {
 		return
 	}
 
-	installable := h.lits.InstallableOf(g.m)
-	for _, constraint := range installable.Constraints() {
+	variable := h.lits.VariableOf(g.m)
+	for _, constraint := range variable.Constraints() {
 		var ms []z.Lit
 		for _, dependency := range constraint.order() {
 			ms = append(ms, h.lits.LitOf(dependency))
@@ -119,8 +117,8 @@ func (h *search) PopChoiceFront() choice {
 	}
 	h.headChoice = c.next
 	return *c
-
 }
+
 func (h *search) PushChoiceBack(c choice) {
 	if h.tailChoice == nil {
 		h.headChoice = &c
@@ -204,11 +202,11 @@ func (h *search) Do(ctx context.Context, anchors []z.Lit) (int, []z.Lit, map[z.L
 	return result, lits, set
 }
 
-func (h *search) Installables() []Installable {
-	result := make([]Installable, 0, len(h.guesses))
+func (h *search) Variables() []Variable {
+	result := make([]Variable, 0, len(h.guesses))
 	for _, g := range h.guesses {
 		if g.m != z.LitNull {
-			result = append(result, h.lits.InstallableOf(g.candidates[g.index]))
+			result = append(result, h.lits.VariableOf(g.candidates[g.index]))
 		}
 	}
 	return result

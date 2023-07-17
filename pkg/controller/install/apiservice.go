@@ -27,7 +27,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateAPIService(caPEM []byte, des
 	exists := true
 	apiService, err := i.strategyClient.GetOpLister().APIRegistrationV1().APIServiceLister().Get(apiServiceName)
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 
@@ -45,9 +45,10 @@ func (i *StrategyDeploymentInstaller) createOrUpdateAPIService(caPEM []byte, des
 		}
 		apiService.SetName(apiServiceName)
 	} else {
+		apiService = apiService.DeepCopy()
 		csv, ok := i.owner.(*v1alpha1.ClusterServiceVersion)
 		if !ok {
-			return fmt.Errorf("APIServices require a CSV Owner.")
+			return fmt.Errorf("failed to typecast the APIService owner: APIServices require a CSV owner")
 		}
 
 		adoptable, err := IsAPIServiceAdoptable(i.strategyClient.GetOpLister(), csv, apiService)
@@ -123,14 +124,14 @@ func IsAPIServiceAdoptable(opLister operatorlister.OperatorLister, target *v1alp
 
 	// Get the CSV that target replaces
 	replacing, replaceGetErr := opLister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(target.GetNamespace()).Get(target.Spec.Replaces)
-	if replaceGetErr != nil && !k8serrors.IsNotFound(replaceGetErr) && !k8serrors.IsGone(replaceGetErr) {
+	if replaceGetErr != nil && !apierrors.IsNotFound(replaceGetErr) && !apierrors.IsGone(replaceGetErr) {
 		err = replaceGetErr
 		return
 	}
 
 	// Get the current owner CSV of the APIService
 	currentOwnerCSV, ownerGetErr := opLister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ownerNamespace).Get(ownerName)
-	if ownerGetErr != nil && !k8serrors.IsNotFound(ownerGetErr) && !k8serrors.IsGone(ownerGetErr) {
+	if ownerGetErr != nil && !apierrors.IsNotFound(ownerGetErr) && !apierrors.IsGone(ownerGetErr) {
 		err = ownerGetErr
 		return
 	}
@@ -182,13 +183,13 @@ func (i *StrategyDeploymentInstaller) deleteLegacyAPIServiceResources(desc apiSe
 		// Attempt to delete the legacy Service.
 		existingService, err := i.strategyClient.GetOpClient().GetService(namespace, legacyServiceName)
 		if err != nil {
-			if !k8serrors.IsNotFound(err) {
+			if !apierrors.IsNotFound(err) {
 				return err
 			}
 		} else if ownerutil.AdoptableLabels(existingService.GetLabels(), true, i.owner) {
 			logger.Infof("Deleting Service with legacy APIService name %s", existingService.Name)
 			err = i.strategyClient.GetOpClient().DeleteService(namespace, legacyServiceName, &metav1.DeleteOptions{})
-			if err != nil && !k8serrors.IsNotFound(err) {
+			if err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
 		} else {
@@ -201,13 +202,13 @@ func (i *StrategyDeploymentInstaller) deleteLegacyAPIServiceResources(desc apiSe
 	// Attempt to delete the legacy Secret.
 	existingSecret, err := i.strategyClient.GetOpClient().GetSecret(namespace, SecretName(apiServiceName))
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else if ownerutil.AdoptableLabels(existingSecret.GetLabels(), true, i.owner) {
 		logger.Infof("Deleting Secret with legacy APIService name %s", existingSecret.Name)
 		err = i.strategyClient.GetOpClient().DeleteSecret(namespace, SecretName(apiServiceName), &metav1.DeleteOptions{})
-		if err != nil && !k8serrors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else {
@@ -217,13 +218,13 @@ func (i *StrategyDeploymentInstaller) deleteLegacyAPIServiceResources(desc apiSe
 	// Attempt to delete the legacy Role.
 	existingRole, err := i.strategyClient.GetOpClient().GetRole(namespace, SecretName(apiServiceName))
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else if ownerutil.AdoptableLabels(existingRole.GetLabels(), true, i.owner) {
 		logger.Infof("Deleting Role with legacy APIService name %s", existingRole.Name)
 		err = i.strategyClient.GetOpClient().DeleteRole(namespace, SecretName(apiServiceName), &metav1.DeleteOptions{})
-		if err != nil && !k8serrors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else {
@@ -233,13 +234,13 @@ func (i *StrategyDeploymentInstaller) deleteLegacyAPIServiceResources(desc apiSe
 	// Attempt to delete the legacy secret RoleBinding.
 	existingRoleBinding, err := i.strategyClient.GetOpClient().GetRoleBinding(namespace, SecretName(apiServiceName))
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else if ownerutil.AdoptableLabels(existingRoleBinding.GetLabels(), true, i.owner) {
 		logger.Infof("Deleting RoleBinding with legacy APIService name %s", existingRoleBinding.Name)
 		err = i.strategyClient.GetOpClient().DeleteRoleBinding(namespace, SecretName(apiServiceName), &metav1.DeleteOptions{})
-		if err != nil && !k8serrors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else {
@@ -249,13 +250,13 @@ func (i *StrategyDeploymentInstaller) deleteLegacyAPIServiceResources(desc apiSe
 	// Attempt to delete the legacy ClusterRoleBinding.
 	existingClusterRoleBinding, err := i.strategyClient.GetOpClient().GetClusterRoleBinding(apiServiceName + "-system:auth-delegator")
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else if ownerutil.AdoptableLabels(existingClusterRoleBinding.GetLabels(), true, i.owner) {
 		logger.Infof("Deleting ClusterRoleBinding with legacy APIService name %s", existingClusterRoleBinding.Name)
 		err = i.strategyClient.GetOpClient().DeleteClusterRoleBinding(apiServiceName+"-system:auth-delegator", &metav1.DeleteOptions{})
-		if err != nil && !k8serrors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else {
@@ -265,13 +266,13 @@ func (i *StrategyDeploymentInstaller) deleteLegacyAPIServiceResources(desc apiSe
 	// Attempt to delete the legacy AuthReadingRoleBinding.
 	existingRoleBinding, err = i.strategyClient.GetOpClient().GetRoleBinding(KubeSystem, apiServiceName+"-auth-reader")
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else if ownerutil.AdoptableLabels(existingRoleBinding.GetLabels(), true, i.owner) {
 		logger.Infof("Deleting RoleBinding with legacy APIService name %s", existingRoleBinding.Name)
 		err = i.strategyClient.GetOpClient().DeleteRoleBinding(KubeSystem, apiServiceName+"-auth-reader", &metav1.DeleteOptions{})
-		if err != nil && !k8serrors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else {

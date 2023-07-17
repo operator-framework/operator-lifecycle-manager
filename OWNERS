@@ -7,6 +7,8 @@ approvers:
   - benluddy
   - awgreene
   - dinhxuanvu
+  - perdasilva
+  - grokspawn
 # review == this code is good /lgtm
 reviewers:
   - ecordell
@@ -18,9 +20,11 @@ reviewers:
   - anik120
   - exdx
   - awgreene
-  - hasbro17
   - ankitathomas
   - joelanford
-  - timflannagan
-# Bugzilla component
-component: "OLM"
+  - perdasilva
+  - akihikokuroda
+  - oceanc80
+  - grokspawn
+  - dtfranz
+  - asmacdo

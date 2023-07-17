@@ -25,13 +25,17 @@ This command starts minikube, builds the OLM containers locally with the minikub
 $ make run-local
 ```
 
-You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
+You can verify that the OLM components have been successfully deployed by running `kubectl -n olm get deployments`
 
 **NOTE** It is recommended for development purposes and will use the source locally
 
 ## OpenShift
 
 **IMPORTANT:** OLM is installed by default in OpenShift 4.0 and above.
+
+## Install with `operator-sdk olm install`
+
+OLM can be installed with the operator-sdk command `operator-sdk olm install` more information is available in the [operator-sdk documentation.](https://sdk.operatorframework.io/docs/cli/operator-sdk_olm_install/)
 
 ## Customizing OLM installation 
 
@@ -130,6 +134,4 @@ spec:
 
 # Uninstall
 
-Run the command `make uninstall`.
-
-**NOTE** Valid just for local/manual installs. 
+OLM can be uninstalled with the `operator-sdk olm uninstall` command. More information is available in the [operator-sdk documentation](https://sdk.operatorframework.io/docs/cli/operator-sdk_olm_uninstall/)

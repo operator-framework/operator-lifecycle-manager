@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
@@ -48,6 +49,8 @@ func validateCSV(csv *v1alpha1.ClusterServiceVersion) errors.ManifestResult {
 	result.Add(checkFields(*csv)...)
 	// validate case sensitive annotation names
 	result.Add(ValidateAnnotationNames(csv.GetAnnotations(), csv.GetName())...)
+	// validate Version and Kind
+	result.Add(validateVersionKind(csv)...)
 	return result
 }
 
@@ -95,6 +98,12 @@ func validateExamplesAnnotations(csv *v1alpha1.ClusterServiceVersion) (errs []er
 	} else {
 		examplesString = olmExamples
 	}
+
+	if err := validateJSON(examplesString); err != nil {
+		errs = append(errs, errors.ErrInvalidParse("invalid example", err))
+		return errs
+	}
+
 	us := []unstructured.Unstructured{}
 	dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(examplesString), 8)
 	if err := dec.Decode(&us); err != nil && err != io.EOF {
@@ -111,6 +120,31 @@ func validateExamplesAnnotations(csv *v1alpha1.ClusterServiceVersion) (errs []er
 
 	errs = append(errs, matchGVKProvidedAPIs(parsed, providedAPISet)...)
 	return errs
+}
+
+func validateJSON(value string) error {
+	var js json.RawMessage
+
+	if len(value) == 0 {
+		return nil
+	}
+
+	byteValue := []byte(value)
+	if err := json.Unmarshal(byteValue, &js); err != nil {
+		switch t := err.(type) {
+		case *json.SyntaxError:
+			jsn := string(byteValue[0:t.Offset])
+			jsn += "<--(see the invalid character)"
+			return fmt.Errorf("invalid character at %v\n %s", t.Offset, jsn)
+		case *json.UnmarshalTypeError:
+			jsn := string(byteValue[0:t.Offset])
+			jsn += "<--(see the invalid type)"
+			return fmt.Errorf("invalid value at %v\n %s", t.Offset, jsn)
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 func getProvidedAPIs(csv *v1alpha1.ClusterServiceVersion) (provided map[schema.GroupVersionKind]struct{}, errs []errors.Error) {
@@ -193,4 +227,16 @@ func validateInstallModes(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Er
 		errs = append(errs, errors.ErrInvalidCSV("none of InstallModeTypes are supported", csv.GetName()))
 	}
 	return errs
+}
+
+// validateVersionKind checks presence of GroupVersionKind.Version and GroupVersionKind.Kind
+func validateVersionKind(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Error) {
+	gvk := csv.GroupVersionKind()
+	if gvk.Version == "" {
+		errs = append(errs, errors.ErrInvalidCSV("'apiVersion' is missing", csv.GetName()))
+	}
+	if gvk.Kind == "" {
+		errs = append(errs, errors.ErrInvalidCSV("'kind' is missing", csv.GetName()))
+	}
+	return
 }

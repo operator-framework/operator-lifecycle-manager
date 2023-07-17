@@ -24,6 +24,7 @@ import (
 	"github.com/containerd/containerd/filters"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/leases"
+	"github.com/containerd/containerd/sandbox"
 	"github.com/containerd/containerd/snapshots"
 )
 
@@ -90,25 +91,6 @@ func adaptContainer(o interface{}) filters.Adaptor {
 	})
 }
 
-func adaptContentInfo(info content.Info) filters.Adaptor {
-	return filters.AdapterFunc(func(fieldpath []string) (string, bool) {
-		if len(fieldpath) == 0 {
-			return "", false
-		}
-
-		switch fieldpath[0] {
-		case "digest":
-			return info.Digest.String(), true
-		case "size":
-			// TODO: support size based filtering
-		case "labels":
-			return checkMap(fieldpath[1:], info.Labels)
-		}
-
-		return "", false
-	})
-}
-
 func adaptContentStatus(status content.Status) filters.Adaptor {
 	return filters.AdapterFunc(func(fieldpath []string) (string, bool) {
 		if len(fieldpath) == 0 {
@@ -165,6 +147,23 @@ func adaptSnapshot(info snapshots.Info) filters.Adaptor {
 		}
 
 		return "", false
+	})
+}
+
+func adaptSandbox(instance *sandbox.Sandbox) filters.Adaptor {
+	return filters.AdapterFunc(func(fieldpath []string) (string, bool) {
+		if len(fieldpath) == 0 {
+			return "", false
+		}
+
+		switch fieldpath[0] {
+		case "id":
+			return instance.ID, true
+		case "labels":
+			return checkMap(fieldpath[1:], instance.Labels)
+		default:
+			return "", false
+		}
 	})
 }
 

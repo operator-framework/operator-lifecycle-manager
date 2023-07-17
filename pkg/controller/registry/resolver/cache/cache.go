@@ -10,9 +10,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
 const existingOperatorKey = "@existing"
@@ -72,22 +69,26 @@ func (p StaticSourceProvider) Sources(namespaces ...string) map[SourceKey]Source
 
 type OperatorCacheProvider interface {
 	Namespaced(namespaces ...string) MultiCatalogOperatorFinder
-	Expire(catalog SourceKey)
+}
+
+type SourcePriorityProvider interface {
+	Priority(SourceKey) int
+}
+
+type constantSourcePriorityProvider int
+
+func (spp constantSourcePriorityProvider) Priority(SourceKey) int {
+	return int(spp)
 }
 
 type Cache struct {
-	logger       logrus.StdLogger
-	sp           SourceProvider
-	catsrcLister v1alpha1.CatalogSourceLister
-	snapshots    map[SourceKey]*snapshotHeader
-	ttl          time.Duration
-	sem          chan struct{}
-	m            sync.RWMutex
+	logger                 logrus.StdLogger
+	sp                     SourceProvider
+	sourcePriorityProvider SourcePriorityProvider
+	snapshots              map[SourceKey]*snapshotHeader
+	sem                    chan struct{}
+	m                      sync.RWMutex
 }
-
-type catalogSourcePriority int
-
-var _ OperatorCacheProvider = &Cache{}
 
 type Option func(*Cache)
 
@@ -97,9 +98,9 @@ func WithLogger(logger logrus.StdLogger) Option {
 	}
 }
 
-func WithCatalogSourceLister(catalogSourceLister v1alpha1.CatalogSourceLister) Option {
+func WithSourcePriorityProvider(spp SourcePriorityProvider) Option {
 	return func(c *Cache) {
-		c.catsrcLister = catalogSourceLister
+		c.sourcePriorityProvider = spp
 	}
 }
 
@@ -114,11 +115,10 @@ func New(sp SourceProvider, options ...Option) *Cache {
 			logger.SetOutput(io.Discard)
 			return logger
 		}(),
-		sp:           sp,
-		catsrcLister: operatorlister.NewLister().OperatorsV1alpha1().CatalogSourceLister(),
-		snapshots:    make(map[SourceKey]*snapshotHeader),
-		ttl:          5 * time.Minute,
-		sem:          make(chan struct{}, MaxConcurrentSnapshotUpdates),
+		sp:                     sp,
+		sourcePriorityProvider: constantSourcePriorityProvider(0),
+		snapshots:              make(map[SourceKey]*snapshotHeader),
+		sem:                    make(chan struct{}, MaxConcurrentSnapshotUpdates),
 	}
 
 	for _, opt := range options {
@@ -129,7 +129,6 @@ func New(sp SourceProvider, options ...Option) *Cache {
 }
 
 type NamespacedOperatorCache struct {
-	existing  *SourceKey
 	snapshots map[SourceKey]*snapshotHeader
 }
 
@@ -140,20 +139,10 @@ func (c *NamespacedOperatorCache) Error() error {
 		err := snapshot.err
 		snapshot.m.RUnlock()
 		if err != nil {
-			errs = append(errs, fmt.Errorf("error using catalog %s (in namespace %s): %w", key.Name, key.Namespace, err))
+			errs = append(errs, fmt.Errorf("failed to populate resolver cache from source %v: %w", key.String(), err))
 		}
 	}
 	return errors.NewAggregate(errs)
-}
-
-func (c *Cache) Expire(catalog SourceKey) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	s, ok := c.snapshots[catalog]
-	if !ok {
-		return
-	}
-	s.expiry = time.Unix(0, 0)
 }
 
 func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
@@ -161,7 +150,6 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 		CachePopulateTimeout = time.Minute
 	)
 
-	now := time.Now()
 	sources := c.sp.Sources(namespaces...)
 
 	result := NamespacedOperatorCache{
@@ -178,7 +166,7 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 				func() {
 					snapshot.m.RLock()
 					defer snapshot.m.RUnlock()
-					if snapshot.Valid(now) {
+					if snapshot.Valid() {
 						result.snapshots[key] = snapshot
 					} else {
 						misses = append(misses, key)
@@ -201,7 +189,7 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 	// Take the opportunity to clear expired snapshots while holding the lock.
 	var expired []SourceKey
 	for key, snapshot := range c.snapshots {
-		if !snapshot.Valid(now) {
+		if !snapshot.Valid() {
 			snapshot.Cancel()
 			expired = append(expired, key)
 		}
@@ -213,7 +201,7 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 	// Check for any snapshots that were populated while waiting to acquire the lock.
 	var found int
 	for i := range misses {
-		if hdr, ok := c.snapshots[misses[i]]; ok && hdr.Valid(now) {
+		if hdr, ok := c.snapshots[misses[i]]; ok && hdr.Valid() {
 			result.snapshots[misses[i]] = hdr
 			misses[found], misses[i] = misses[i], misses[found]
 			found++
@@ -225,14 +213,9 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 		ctx, cancel := context.WithTimeout(context.Background(), CachePopulateTimeout)
 
 		hdr := snapshotHeader{
-			key:    miss,
-			expiry: now.Add(c.ttl),
-			pop:    cancel,
-		}
-
-		// Ignoring error and treat catsrc priority as 0 if not found.
-		if catsrc, _ := c.catsrcLister.CatalogSources(miss.Namespace).Get(miss.Name); catsrc != nil {
-			hdr.priority = catsrc.Spec.Priority
+			key:      miss,
+			pop:      cancel,
+			priority: c.sourcePriorityProvider.Priority(miss),
 		}
 
 		hdr.m.Lock()
@@ -243,7 +226,13 @@ func (c *Cache) Namespaced(namespaces ...string) MultiCatalogOperatorFinder {
 			defer hdr.m.Unlock()
 			c.sem <- struct{}{}
 			defer func() { <-c.sem }()
-			hdr.snapshot, hdr.err = source.Snapshot(ctx)
+			if snapshot, err := source.Snapshot(ctx); err != nil {
+				hdr.err = err
+			} else if snapshot != nil {
+				hdr.snapshot = snapshot
+			} else {
+				hdr.err = fmt.Errorf("source %q produced no snapshot and no error", hdr.key)
+			}
 		}(ctx, &hdr, sources[miss])
 	}
 
@@ -266,29 +255,12 @@ func (c *NamespacedOperatorCache) FindPreferred(preferred *SourceKey, preferredN
 	if preferred != nil && preferred.Empty() {
 		preferred = nil
 	}
-	sorted := newSortableSnapshots(c.existing, preferred, preferredNamespace, c.snapshots)
+	sorted := newSortableSnapshots(preferred, preferredNamespace, c.snapshots)
 	sort.Sort(sorted)
 	for _, snapshot := range sorted.snapshots {
 		result = append(result, snapshot.Find(p...)...)
 	}
 	return result
-}
-
-func (c *NamespacedOperatorCache) WithExistingOperators(snapshot *Snapshot, namespace string) MultiCatalogOperatorFinder {
-	key := NewVirtualSourceKey(namespace)
-	o := &NamespacedOperatorCache{
-		existing: &key,
-		snapshots: map[SourceKey]*snapshotHeader{
-			key: {
-				key:      key,
-				snapshot: snapshot,
-			},
-		},
-	}
-	for k, v := range c.snapshots {
-		o.snapshots[k] = v
-	}
-	return o
 }
 
 func (c *NamespacedOperatorCache) Find(p ...Predicate) []*Entry {
@@ -297,6 +269,15 @@ func (c *NamespacedOperatorCache) Find(p ...Predicate) []*Entry {
 
 type Snapshot struct {
 	Entries []*Entry
+
+	// Unless closed, the Snapshot is valid.
+	Valid <-chan struct{}
+}
+
+func ValidOnce() <-chan struct{} {
+	c := make(chan struct{})
+	close(c)
+	return c
 }
 
 var _ Source = &Snapshot{}
@@ -309,7 +290,6 @@ type snapshotHeader struct {
 	snapshot *Snapshot
 
 	key      SourceKey
-	expiry   time.Time
 	m        sync.RWMutex
 	pop      context.CancelFunc
 	err      error
@@ -320,10 +300,18 @@ func (hdr *snapshotHeader) Cancel() {
 	hdr.pop()
 }
 
-func (hdr *snapshotHeader) Valid(at time.Time) bool {
+func (hdr *snapshotHeader) Valid() bool {
 	hdr.m.RLock()
 	defer hdr.m.RUnlock()
-	return hdr.snapshot != nil && hdr.err == nil && at.Before(hdr.expiry)
+	if hdr.snapshot == nil || hdr.err != nil {
+		return false
+	}
+	select {
+	case <-hdr.snapshot.Valid:
+		return false
+	default:
+	}
+	return true
 }
 
 type sortableSnapshots struct {
@@ -333,7 +321,14 @@ type sortableSnapshots struct {
 	existing           *SourceKey
 }
 
-func newSortableSnapshots(existing, preferred *SourceKey, preferredNamespace string, snapshots map[SourceKey]*snapshotHeader) sortableSnapshots {
+func newSortableSnapshots(preferred *SourceKey, preferredNamespace string, snapshots map[SourceKey]*snapshotHeader) sortableSnapshots {
+	var existing *SourceKey
+	for key := range snapshots {
+		if key.Virtual() && key.Namespace == preferredNamespace {
+			existing = &key
+			break
+		}
+	}
 	sorted := sortableSnapshots{
 		existing:           existing,
 		preferred:          preferred,
@@ -402,13 +397,13 @@ func (s sortableSnapshots) Swap(i, j int) {
 	s.snapshots[i], s.snapshots[j] = s.snapshots[j], s.snapshots[i]
 }
 
-func (s *snapshotHeader) Find(p ...Predicate) []*Entry {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	if s.snapshot == nil {
+func (hdr *snapshotHeader) Find(p ...Predicate) []*Entry {
+	hdr.m.RLock()
+	defer hdr.m.RUnlock()
+	if hdr.snapshot == nil {
 		return nil
 	}
-	return Filter(s.snapshot.Entries, p...)
+	return Filter(hdr.snapshot.Entries, p...)
 }
 
 type OperatorFinder interface {
@@ -418,7 +413,6 @@ type OperatorFinder interface {
 type MultiCatalogOperatorFinder interface {
 	Catalog(SourceKey) OperatorFinder
 	FindPreferred(preferred *SourceKey, preferredNamespace string, predicates ...Predicate) []*Entry
-	WithExistingOperators(snapshot *Snapshot, namespace string) MultiCatalogOperatorFinder
 	Error() error
 	OperatorFinder
 }
@@ -427,13 +421,6 @@ type EmptyOperatorFinder struct{}
 
 func (f EmptyOperatorFinder) Find(...Predicate) []*Entry {
 	return nil
-}
-
-func AtLeast(n int, operators []*Entry) ([]*Entry, error) {
-	if len(operators) < n {
-		return nil, fmt.Errorf("expected at least %d operator(s), got %d", n, len(operators))
-	}
-	return operators, nil
 }
 
 func ExactlyOne(operators []*Entry) (*Entry, error) {

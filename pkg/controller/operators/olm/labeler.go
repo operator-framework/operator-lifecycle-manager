@@ -6,7 +6,6 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
-	"github.com/operator-framework/operator-registry/pkg/registry"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -98,7 +97,7 @@ func labelSetsForCRDv1beta1(crd *extv1beta1.CustomResourceDefinition) ([]labels.
 
 	// Add label sets for each version
 	for _, version := range crd.Spec.Versions {
-		hash, err := cache.APIKeyToGVKHash(registry.APIKey{
+		hash, err := cache.APIKeyToGVKHash(opregistry.APIKey{
 			Group:   crd.Spec.Group,
 			Version: version.Name,
 			Kind:    crd.Spec.Names.Kind,
@@ -129,7 +128,7 @@ func labelSetsForCRDv1(crd *extv1.CustomResourceDefinition) ([]labels.Set, error
 
 	// Add label sets for each version
 	for _, version := range crd.Spec.Versions {
-		hash, err := cache.APIKeyToGVKHash(registry.APIKey{
+		hash, err := cache.APIKeyToGVKHash(opregistry.APIKey{
 			Group:   crd.Spec.Group,
 			Version: version.Name,
 			Kind:    crd.Spec.Names.Kind,

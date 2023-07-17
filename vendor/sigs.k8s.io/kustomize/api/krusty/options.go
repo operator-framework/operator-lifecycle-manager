@@ -5,8 +5,15 @@ package krusty
 
 import (
 	"sigs.k8s.io/kustomize/api/internal/plugins/builtinhelpers"
-	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/types"
+)
+
+type ReorderOption string
+
+const (
+	ReorderOptionLegacy      ReorderOption = "legacy"
+	ReorderOptionNone        ReorderOption = "none"
+	ReorderOptionUnspecified ReorderOption = "unspecified"
 )
 
 // Options holds high-level kustomize configuration options,
@@ -17,7 +24,15 @@ type Options struct {
 	// per a particular sort order.  When false, don't do the
 	// sort, and instead respect the depth-first resource input
 	// order as specified by the kustomization file(s).
-	DoLegacyResourceSort bool
+
+	// Sort the resources before emitting them. Possible values:
+	// - "legacy": Use a fixed order that kustomize provides for backwards
+	//   compatibility.
+	// - "none": Respect the depth-first resource input order as specified by the
+	//   kustomization file.
+	// - "unspecified": The user didn't specify any preference. Kustomize will
+	//   select the appropriate default.
+	Reorder ReorderOption
 
 	// When true, a label
 	//     app.kubernetes.io/managed-by: kustomize-<version>
@@ -28,40 +43,18 @@ type Options struct {
 	// See type definition.
 	LoadRestrictions types.LoadRestrictions
 
-	// Create an inventory object for pruning.
-	DoPrune bool
-
 	// Options related to kustomize plugins.
 	PluginConfig *types.PluginConfig
-
-	// TODO(#3588): Delete this field (it's always true).
-	// When true, use kyaml/ packages to manipulate KRM yaml.
-	// When false, use k8sdeps/ instead (uses k8s.io/api* packages).
-	UseKyaml bool
-
-	// When true, allow name and kind changing via a patch
-	// When false, patch name/kind don't overwrite target name/kind
-	AllowResourceIdChanges bool
 }
 
 // MakeDefaultOptions returns a default instance of Options.
 func MakeDefaultOptions() *Options {
 	return &Options{
-		DoLegacyResourceSort:   false,
-		AddManagedbyLabel:      false,
-		LoadRestrictions:       types.LoadRestrictionsRootOnly,
-		DoPrune:                false,
-		PluginConfig:           konfig.DisabledPluginConfig(),
-		UseKyaml:               konfig.FlagEnableKyamlDefaultValue,
-		AllowResourceIdChanges: false,
+		Reorder:           ReorderOptionNone,
+		AddManagedbyLabel: false,
+		LoadRestrictions:  types.LoadRestrictionsRootOnly,
+		PluginConfig:      types.DisabledPluginConfig(),
 	}
-}
-
-func (o Options) IfApiMachineryElseKyaml(s1, s2 string) string {
-	if !o.UseKyaml {
-		return s1
-	}
-	return s2
 }
 
 // GetBuiltinPluginNames returns a list of builtin plugin names

@@ -1,3 +1,4 @@
+//go:build bare
 // +build bare
 
 package e2e
@@ -6,7 +7,6 @@ import (
 	"context"
 	"flag"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -15,8 +15,8 @@ import (
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/clientcmd"
+	utilclock "k8s.io/utils/clock"
 
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 
 	testNamespace = *namespace
 	if testNamespace == "" {
-		testNamespaceBytes, err := ioutil.ReadFile("e2e.namespace")
+		testNamespaceBytes, err := os.ReadFile("e2e.namespace")
 		if err != nil || testNamespaceBytes == nil {
 			panic("no namespace set")
 		}

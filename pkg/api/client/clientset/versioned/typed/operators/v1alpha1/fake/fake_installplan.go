@@ -24,7 +24,6 @@ import (
 	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeInstallPlans struct {
 	ns   string
 }
 
-var installplansResource = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "installplans"}
+var installplansResource = v1alpha1.SchemeGroupVersion.WithResource("installplans")
 
-var installplansKind = schema.GroupVersionKind{Group: "operators.coreos.com", Version: "v1alpha1", Kind: "InstallPlan"}
+var installplansKind = v1alpha1.SchemeGroupVersion.WithKind("InstallPlan")
 
 // Get takes name of the installPlan, and returns the corresponding installPlan object, and an error if there is any.
 func (c *FakeInstallPlans) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.InstallPlan, err error) {
@@ -117,7 +116,7 @@ func (c *FakeInstallPlans) UpdateStatus(ctx context.Context, installPlan *v1alph
 // Delete takes name of the installPlan and deletes it. Returns an error if one occurs.
 func (c *FakeInstallPlans) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(installplansResource, c.ns, name), &v1alpha1.InstallPlan{})
+		Invokes(testing.NewDeleteActionWithOptions(installplansResource, c.ns, name, opts), &v1alpha1.InstallPlan{})
 
 	return err
 }

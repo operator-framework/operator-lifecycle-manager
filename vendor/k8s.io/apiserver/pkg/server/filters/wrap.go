@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apiserver/pkg/audit"
 	"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/server/httplog"
@@ -41,8 +42,7 @@ func WithPanicRecovery(handler http.Handler, resolver request.RequestInfoResolve
 			// the client sees an interrupted response but the server doesn't log
 			// an error, panic with the value ErrAbortHandler.
 			//
-			// Note that the ReallyCrash variable controls the behaviour of the HandleCrash function
-			// So it might actually crash, after calling the handlers
+			// Note that HandleCrash function is actually crashing, after calling the handlers
 			if info, err := resolver.NewRequestInfo(req); err != nil {
 				metrics.RecordRequestAbort(req, nil)
 			} else {
@@ -51,11 +51,11 @@ func WithPanicRecovery(handler http.Handler, resolver request.RequestInfoResolve
 			// This call can have different handlers, but the default chain rate limits. Call it after the metrics are updated
 			// in case the rate limit delays it.  If you outrun the rate for this one timed out requests, something has gone
 			// seriously wrong with your server, but generally having a logging signal for timeouts is useful.
-			runtime.HandleError(fmt.Errorf("timeout or abort while handling: method=%v URI=%q audit-ID=%q", req.Method, req.RequestURI, request.GetAuditIDTruncated(req)))
+			runtime.HandleError(fmt.Errorf("timeout or abort while handling: method=%v URI=%q audit-ID=%q", req.Method, req.RequestURI, audit.GetAuditIDTruncated(req.Context())))
 			return
 		}
 		http.Error(w, "This request caused apiserver to panic. Look in the logs for details.", http.StatusInternalServerError)
-		klog.ErrorS(nil, "apiserver panic'd", "method", req.Method, "URI", req.RequestURI, "audit-ID", request.GetAuditIDTruncated(req))
+		klog.ErrorS(nil, "apiserver panic'd", "method", req.Method, "URI", req.RequestURI, "auditID", audit.GetAuditIDTruncated(req.Context()))
 	})
 }
 

@@ -19,10 +19,11 @@ package bootstrap
 import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
-	flowcontrol "k8s.io/api/flowcontrol/v1beta1"
+	flowcontrol "k8s.io/api/flowcontrol/v1beta3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/utils/pointer"
 )
 
 // The objects that define an apiserver's initial behavior.  The
@@ -73,6 +74,7 @@ var (
 		SuggestedFlowSchemaProbes,                    // references "exempt" priority-level
 		SuggestedFlowSchemaSystemLeaderElection,      // references "leader-election" priority-level
 		SuggestedFlowSchemaWorkloadLeaderElection,    // references "leader-election" priority-level
+		SuggestedFlowSchemaEndpointsController,       // references "workload-high" priority-level
 		SuggestedFlowSchemaKubeControllerManager,     // references "workload-high" priority-level
 		SuggestedFlowSchemaKubeScheduler,             // references "workload-high" priority-level
 		SuggestedFlowSchemaKubeSystemServiceAccounts, // references "workload-high" priority-level
@@ -94,7 +96,8 @@ var (
 		flowcontrol.PriorityLevelConfigurationSpec{
 			Type: flowcontrol.PriorityLevelEnablementLimited,
 			Limited: &flowcontrol.LimitedPriorityLevelConfiguration{
-				AssuredConcurrencyShares: 5,
+				NominalConcurrencyShares: 5,
+				LendablePercent:          pointer.Int32(0),
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeReject,
 				},
@@ -166,7 +169,8 @@ var (
 		flowcontrol.PriorityLevelConfigurationSpec{
 			Type: flowcontrol.PriorityLevelEnablementLimited,
 			Limited: &flowcontrol.LimitedPriorityLevelConfiguration{
-				AssuredConcurrencyShares: 30,
+				NominalConcurrencyShares: 30,
+				LendablePercent:          pointer.Int32(33),
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeQueue,
 					Queuing: &flowcontrol.QueuingConfiguration{
@@ -182,7 +186,8 @@ var (
 		flowcontrol.PriorityLevelConfigurationSpec{
 			Type: flowcontrol.PriorityLevelEnablementLimited,
 			Limited: &flowcontrol.LimitedPriorityLevelConfiguration{
-				AssuredConcurrencyShares: 40,
+				NominalConcurrencyShares: 40,
+				LendablePercent:          pointer.Int32(25),
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeQueue,
 					Queuing: &flowcontrol.QueuingConfiguration{
@@ -199,7 +204,8 @@ var (
 		flowcontrol.PriorityLevelConfigurationSpec{
 			Type: flowcontrol.PriorityLevelEnablementLimited,
 			Limited: &flowcontrol.LimitedPriorityLevelConfiguration{
-				AssuredConcurrencyShares: 10,
+				NominalConcurrencyShares: 10,
+				LendablePercent:          pointer.Int32(0),
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeQueue,
 					Queuing: &flowcontrol.QueuingConfiguration{
@@ -216,7 +222,8 @@ var (
 		flowcontrol.PriorityLevelConfigurationSpec{
 			Type: flowcontrol.PriorityLevelEnablementLimited,
 			Limited: &flowcontrol.LimitedPriorityLevelConfiguration{
-				AssuredConcurrencyShares: 40,
+				NominalConcurrencyShares: 40,
+				LendablePercent:          pointer.Int32(50),
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeQueue,
 					Queuing: &flowcontrol.QueuingConfiguration{
@@ -233,7 +240,8 @@ var (
 		flowcontrol.PriorityLevelConfigurationSpec{
 			Type: flowcontrol.PriorityLevelEnablementLimited,
 			Limited: &flowcontrol.LimitedPriorityLevelConfiguration{
-				AssuredConcurrencyShares: 100,
+				NominalConcurrencyShares: 100,
+				LendablePercent:          pointer.Int32(90),
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeQueue,
 					Queuing: &flowcontrol.QueuingConfiguration{
@@ -250,7 +258,8 @@ var (
 		flowcontrol.PriorityLevelConfigurationSpec{
 			Type: flowcontrol.PriorityLevelEnablementLimited,
 			Limited: &flowcontrol.LimitedPriorityLevelConfiguration{
-				AssuredConcurrencyShares: 20,
+				NominalConcurrencyShares: 20,
+				LendablePercent:          pointer.Int32(50),
 				LimitResponse: flowcontrol.LimitResponse{
 					Type: flowcontrol.LimitResponseTypeQueue,
 					Queuing: &flowcontrol.QueuingConfiguration{
@@ -263,23 +272,83 @@ var (
 		})
 )
 
-// Suggested FlowSchema objects
+// Suggested FlowSchema objects.
+// Ordered by matching precedence, so that their interactions are easier
+// to follow while reading this source.
 var (
-	SuggestedFlowSchemaSystemNodes = newFlowSchema(
-		"system-nodes", "system", 500,
-		flowcontrol.FlowDistinguisherMethodByUserType,
+	// the following flow schema exempts probes
+	SuggestedFlowSchemaProbes = newFlowSchema(
+		"probes", "exempt", 2,
+		"", // distinguisherMethodType
 		flowcontrol.PolicyRulesWithSubjects{
-			Subjects: groups(user.NodesGroup), // the nodes group
-			ResourceRules: []flowcontrol.ResourcePolicyRule{resourceRule(
-				[]string{flowcontrol.VerbAll},
-				[]string{flowcontrol.APIGroupAll},
-				[]string{flowcontrol.ResourceAll},
-				[]string{flowcontrol.NamespaceEvery},
-				true)},
+			Subjects: groups(user.AllUnauthenticated, user.AllAuthenticated),
 			NonResourceRules: []flowcontrol.NonResourcePolicyRule{
 				nonResourceRule(
-					[]string{flowcontrol.VerbAll},
-					[]string{flowcontrol.NonResourceAll}),
+					[]string{"get"},
+					[]string{"/healthz", "/readyz", "/livez"}),
+			},
+		},
+	)
+	SuggestedFlowSchemaSystemLeaderElection = newFlowSchema(
+		"system-leader-election", "leader-election", 100,
+		flowcontrol.FlowDistinguisherMethodByUserType,
+		flowcontrol.PolicyRulesWithSubjects{
+			Subjects: append(
+				users(user.KubeControllerManager, user.KubeScheduler),
+				kubeSystemServiceAccount(flowcontrol.NameAll)...),
+			ResourceRules: []flowcontrol.ResourcePolicyRule{
+				resourceRule(
+					[]string{"get", "create", "update"},
+					[]string{coordinationv1.GroupName},
+					[]string{"leases"},
+					[]string{flowcontrol.NamespaceEvery},
+					false),
+			},
+		},
+	)
+	// We add an explicit rule for endpoint-controller with high precedence
+	// to ensure that those calls won't get caught by the following
+	// <workload-leader-election> flow-schema.
+	//
+	// TODO(#80289): Get rid of this rule once we get rid of support for
+	//   using endpoints and configmaps objects for leader election.
+	SuggestedFlowSchemaEndpointsController = newFlowSchema(
+		"endpoint-controller", "workload-high", 150,
+		flowcontrol.FlowDistinguisherMethodByUserType,
+		flowcontrol.PolicyRulesWithSubjects{
+			Subjects: append(
+				users(user.KubeControllerManager),
+				kubeSystemServiceAccount("endpoint-controller", "endpointslicemirroring-controller")...),
+			ResourceRules: []flowcontrol.ResourcePolicyRule{
+				resourceRule(
+					[]string{"get", "create", "update"},
+					[]string{corev1.GroupName},
+					[]string{"endpoints"},
+					[]string{flowcontrol.NamespaceEvery},
+					false),
+			},
+		},
+	)
+	// TODO(#80289): Get rid of this rule once we get rid of support for
+	//   using endpoints and configmaps objects for leader election.
+	SuggestedFlowSchemaWorkloadLeaderElection = newFlowSchema(
+		"workload-leader-election", "leader-election", 200,
+		flowcontrol.FlowDistinguisherMethodByUserType,
+		flowcontrol.PolicyRulesWithSubjects{
+			Subjects: kubeSystemServiceAccount(flowcontrol.NameAll),
+			ResourceRules: []flowcontrol.ResourcePolicyRule{
+				resourceRule(
+					[]string{"get", "create", "update"},
+					[]string{corev1.GroupName},
+					[]string{"endpoints", "configmaps"},
+					[]string{flowcontrol.NamespaceEvery},
+					false),
+				resourceRule(
+					[]string{"get", "create", "update"},
+					[]string{coordinationv1.GroupName},
+					[]string{"leases"},
+					[]string{flowcontrol.NamespaceEvery},
+					false),
 			},
 		},
 	)
@@ -304,47 +373,21 @@ var (
 			},
 		},
 	)
-	SuggestedFlowSchemaSystemLeaderElection = newFlowSchema(
-		"system-leader-election", "leader-election", 100,
+	SuggestedFlowSchemaSystemNodes = newFlowSchema(
+		"system-nodes", "system", 500,
 		flowcontrol.FlowDistinguisherMethodByUserType,
 		flowcontrol.PolicyRulesWithSubjects{
-			Subjects: append(
-				users(user.KubeControllerManager, user.KubeScheduler),
-				kubeSystemServiceAccount(flowcontrol.NameAll)...),
-			ResourceRules: []flowcontrol.ResourcePolicyRule{
-				resourceRule(
-					[]string{"get", "create", "update"},
-					[]string{corev1.GroupName},
-					[]string{"endpoints", "configmaps"},
-					[]string{"kube-system"},
-					false),
-				resourceRule(
-					[]string{"get", "create", "update"},
-					[]string{coordinationv1.GroupName},
-					[]string{"leases"},
-					[]string{flowcontrol.NamespaceEvery},
-					false),
-			},
-		},
-	)
-	SuggestedFlowSchemaWorkloadLeaderElection = newFlowSchema(
-		"workload-leader-election", "leader-election", 200,
-		flowcontrol.FlowDistinguisherMethodByUserType,
-		flowcontrol.PolicyRulesWithSubjects{
-			Subjects: kubeSystemServiceAccount(flowcontrol.NameAll),
-			ResourceRules: []flowcontrol.ResourcePolicyRule{
-				resourceRule(
-					[]string{"get", "create", "update"},
-					[]string{corev1.GroupName},
-					[]string{"endpoints", "configmaps"},
-					[]string{flowcontrol.NamespaceEvery},
-					false),
-				resourceRule(
-					[]string{"get", "create", "update"},
-					[]string{coordinationv1.GroupName},
-					[]string{"leases"},
-					[]string{flowcontrol.NamespaceEvery},
-					false),
+			Subjects: groups(user.NodesGroup), // the nodes group
+			ResourceRules: []flowcontrol.ResourcePolicyRule{resourceRule(
+				[]string{flowcontrol.VerbAll},
+				[]string{flowcontrol.APIGroupAll},
+				[]string{flowcontrol.ResourceAll},
+				[]string{flowcontrol.NamespaceEvery},
+				true)},
+			NonResourceRules: []flowcontrol.NonResourcePolicyRule{
+				nonResourceRule(
+					[]string{flowcontrol.VerbAll},
+					[]string{flowcontrol.NonResourceAll}),
 			},
 		},
 	)
@@ -435,19 +478,6 @@ var (
 				nonResourceRule(
 					[]string{flowcontrol.VerbAll},
 					[]string{flowcontrol.NonResourceAll}),
-			},
-		},
-	)
-	// the following flow schema exempts probes
-	SuggestedFlowSchemaProbes = newFlowSchema(
-		"probes", "exempt", 2,
-		"", // distinguisherMethodType
-		flowcontrol.PolicyRulesWithSubjects{
-			Subjects: groups(user.AllUnauthenticated, user.AllAuthenticated),
-			NonResourceRules: []flowcontrol.NonResourcePolicyRule{
-				nonResourceRule(
-					[]string{"get"},
-					[]string{"/healthz", "/readyz", "/livez"}),
 			},
 		},
 	)

@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -88,7 +87,7 @@ func TestOLMGetCertRotationFn(t *testing.T) {
 		}
 	}()
 
-	caCert, err := ioutil.ReadFile(caCrt)
+	caCert, err := os.ReadFile(caCrt)
 	require.NoError(t, err)
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)

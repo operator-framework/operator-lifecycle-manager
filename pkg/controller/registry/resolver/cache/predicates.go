@@ -7,6 +7,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	"github.com/operator-framework/api/pkg/constraints"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
@@ -234,7 +235,7 @@ func And(p ...Predicate) Predicate {
 
 func (p andPredicate) Test(o *Entry) bool {
 	for _, predicate := range p.predicates {
-		if predicate.Test(o) == false {
+		if !predicate.Test(o) {
 			return false
 		}
 	}
@@ -264,7 +265,7 @@ type orPredicate struct {
 
 func (p orPredicate) Test(o *Entry) bool {
 	for _, predicate := range p.predicates {
-		if predicate.Test(o) == true {
+		if predicate.Test(o) {
 			return true
 		}
 	}
@@ -277,6 +278,32 @@ func (p orPredicate) String() string {
 		b.WriteString(predicate.String())
 		if i != len(p.predicates)-1 {
 			b.WriteString(" or ")
+		}
+	}
+	return b.String()
+}
+
+func Not(p ...Predicate) Predicate {
+	return notPredicate{
+		predicates: p,
+	}
+}
+
+type notPredicate struct {
+	predicates []Predicate
+}
+
+func (p notPredicate) Test(o *Entry) bool {
+	// !pred && !pred is equivalent to !(pred || pred).
+	return !orPredicate(p).Test(o)
+}
+
+func (p notPredicate) String() string {
+	var b bytes.Buffer
+	for i, predicate := range p.predicates {
+		b.WriteString(predicate.String())
+		if i != len(p.predicates)-1 {
+			b.WriteString(" and not ")
 		}
 	}
 	return b.String()
@@ -296,9 +323,9 @@ func (b booleanPredicate) Test(o *Entry) bool {
 
 func (b booleanPredicate) String() string {
 	if b.result {
-		return fmt.Sprintf("predicate is true")
+		return "predicate is true"
 	}
-	return fmt.Sprintf("predicate is false")
+	return "predicate is false"
 }
 
 func True() Predicate {
@@ -328,4 +355,42 @@ func (c countingPredicate) String() string {
 
 func CountingPredicate(p Predicate, n *int) Predicate {
 	return countingPredicate{p: p, n: n}
+}
+
+type celPredicate struct {
+	program        constraints.CelProgram
+	rule           string
+	failureMessage string
+}
+
+func (cp *celPredicate) Test(entry *Entry) bool {
+	props := make([]map[string]interface{}, len(entry.Properties))
+	for i, p := range entry.Properties {
+		var v interface{}
+		if err := json.Unmarshal([]byte(p.Value), &v); err != nil {
+			continue
+		}
+		props[i] = map[string]interface{}{
+			"type":  p.Type,
+			"value": v,
+		}
+	}
+
+	ok, err := cp.program.Evaluate(map[string]interface{}{"properties": props})
+	if err != nil {
+		return false
+	}
+	return ok
+}
+
+func CreateCelPredicate(env *constraints.CelEnvironment, rule string, failureMessage string) (Predicate, error) {
+	prog, err := env.Validate(rule)
+	if err != nil {
+		return nil, err
+	}
+	return &celPredicate{program: prog, rule: rule, failureMessage: failureMessage}, nil
+}
+
+func (cp *celPredicate) String() string {
+	return fmt.Sprintf("with constraint: %q and message: %q", cp.rule, cp.failureMessage)
 }

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -31,8 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
-	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apiserver/pkg/storage/names"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
@@ -44,12 +42,17 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
+	utilclock "k8s.io/utils/clock"
+	utilclocktesting "k8s.io/utils/clock/testing"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle/bundlefakes"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
@@ -77,7 +80,7 @@ func (m *mockTransitioner) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 func TestTransitionInstallPlan(t *testing.T) {
 	errMsg := "transition test error"
 	err := errors.New(errMsg)
-	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
 
 	installed := &v1alpha1.InstallPlanCondition{
@@ -246,7 +249,6 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 			if tt.expectedCondition != nil {
 				require.True(t, hasExpectedCondition(ip, *tt.expectedCondition))
 			}
-
 		})
 	}
 }
@@ -258,7 +260,6 @@ func (ipSet) Generate(rand *rand.Rand, size int) reflect.Value {
 
 	// each i is the generation value
 	for i := 0; i < rand.Intn(size)+1; i++ {
-
 		// generate a few at each generation to account for bugs that don't increment the generation
 		for j := 0; j < rand.Intn(3); j++ {
 			ips = append(ips, v1alpha1.InstallPlan{
@@ -283,7 +284,7 @@ func TestGCInstallPlans(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 
-		var maxGen int64 = 0
+		var maxGen int64
 		for _, i := range ips {
 			if g := i.Generation; g > maxGen {
 				maxGen = g
@@ -296,7 +297,7 @@ func TestGCInstallPlans(t *testing.T) {
 		op, err := NewFakeOperator(ctx, "ns", []string{"ns"}, withClientObjs(objs...))
 		require.NoError(t, err)
 
-		out := make([]v1alpha1.InstallPlan, 0)
+		var out []v1alpha1.InstallPlan
 		for {
 			op.gcInstallPlans(logrus.New(), "ns")
 			require.NoError(t, err)
@@ -759,8 +760,14 @@ func TestExecutePlanDynamicResources(t *testing.T) {
 	}
 }
 
+func withStatus(catalogSource v1alpha1.CatalogSource, status v1alpha1.CatalogSourceStatus) *v1alpha1.CatalogSource {
+	copy := catalogSource.DeepCopy()
+	copy.Status = status
+	return copy
+}
+
 func TestSyncCatalogSources(t *testing.T) {
-	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
 
 	configmapCatalog := &v1alpha1.CatalogSource{
@@ -787,14 +794,15 @@ func TestSyncCatalogSources(t *testing.T) {
 		},
 	}
 	tests := []struct {
-		testName       string
-		namespace      string
-		catalogSource  *v1alpha1.CatalogSource
-		k8sObjs        []runtime.Object
-		configMap      *corev1.ConfigMap
-		expectedStatus *v1alpha1.CatalogSourceStatus
-		expectedObjs   []runtime.Object
-		expectedError  error
+		testName        string
+		namespace       string
+		catalogSource   *v1alpha1.CatalogSource
+		k8sObjs         []runtime.Object
+		configMap       *corev1.ConfigMap
+		expectedStatus  *v1alpha1.CatalogSourceStatus
+		expectedObjs    []runtime.Object
+		expectedError   error
+		existingSources []sourceAddress
 	}{
 		{
 			testName:  "CatalogSourceWithInvalidSourceType",
@@ -1014,6 +1022,48 @@ func TestSyncCatalogSources(t *testing.T) {
 			},
 			expectedError: nil,
 		},
+		{
+			testName:  "GRPCConnectionStateAddressIsUpdated",
+			namespace: "cool-namespace",
+			catalogSource: withStatus(*grpcCatalog, v1alpha1.CatalogSourceStatus{
+				RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+					Protocol:         "grpc",
+					ServiceName:      "cool-catalog",
+					ServiceNamespace: "cool-namespace",
+					Port:             "50051",
+					CreatedAt:        now,
+				},
+				GRPCConnectionState: &v1alpha1.GRPCConnectionState{
+					Address: "..svc:", // Needs to be updated to cool-catalog.cool-namespace.svc:50051
+				},
+			}),
+			k8sObjs: []runtime.Object{
+				pod(*grpcCatalog),
+				service(grpcCatalog.GetName(), grpcCatalog.GetNamespace()),
+				serviceAccount(grpcCatalog.GetName(), grpcCatalog.GetNamespace(), "", objectReference("init secret")),
+			},
+			existingSources: []sourceAddress{
+				{
+					sourceKey: registry.CatalogKey{Name: "cool-catalog", Namespace: "cool-namespace"},
+					address:   "cool-catalog.cool-namespace.svc:50051",
+				},
+			},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+					Protocol:         "grpc",
+					ServiceName:      "cool-catalog",
+					ServiceNamespace: "cool-namespace",
+					Port:             "50051",
+					CreatedAt:        now,
+				},
+				GRPCConnectionState: &v1alpha1.GRPCConnectionState{
+					Address:           "cool-catalog.cool-namespace.svc:50051",
+					LastObservedState: "",
+					LastConnectTime:   now,
+				},
+			},
+			expectedError: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
@@ -1024,7 +1074,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			op, err := NewFakeOperator(ctx, tt.namespace, []string{tt.namespace}, withClock(clockFake), withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...))
+			op, err := NewFakeOperator(ctx, tt.namespace, []string{tt.namespace}, withClock(clockFake), withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...), withSources(tt.existingSources...))
 			require.NoError(t, err)
 
 			// Run sync
@@ -1041,6 +1091,13 @@ func TestSyncCatalogSources(t *testing.T) {
 			require.NotEmpty(t, updated)
 
 			if tt.expectedStatus != nil {
+				if tt.expectedStatus.GRPCConnectionState != nil {
+					updated.Status.GRPCConnectionState.LastConnectTime = now
+					// Ignore LastObservedState difference if an expected LastObservedState is no provided
+					if tt.expectedStatus.GRPCConnectionState.LastObservedState == "" {
+						updated.Status.GRPCConnectionState.LastObservedState = ""
+					}
+				}
 				require.NotEmpty(t, updated.Status)
 				require.Equal(t, *tt.expectedStatus, updated.Status)
 
@@ -1052,7 +1109,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			}
 
 			for _, o := range tt.expectedObjs {
-				switch o.(type) {
+				switch o := o.(type) {
 				case *corev1.Pod:
 					t.Log("verifying pod")
 					pods, err := op.opClient.KubernetesInterface().CoreV1().Pods(tt.catalogSource.Namespace).List(context.TODO(), metav1.ListOptions{})
@@ -1060,7 +1117,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					require.Len(t, pods.Items, 1)
 
 					// set the name to the generated name
-					o.(*corev1.Pod).SetName(pods.Items[0].GetName())
+					o.SetName(pods.Items[0].GetName())
 					require.EqualValues(t, o, &pods.Items[0])
 				}
 			}
@@ -1069,23 +1126,26 @@ func TestSyncCatalogSources(t *testing.T) {
 }
 
 func TestSyncResolvingNamespace(t *testing.T) {
-	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	now := metav1.NewTime(clockFake.Now())
 	testNamespace := "testNamespace"
+	og := &operatorsv1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "og",
+			Namespace: testNamespace,
+		},
+	}
 
 	type fields struct {
-		clientOptions     []clientfake.Option
-		sourcesLastUpdate metav1.Time
-		resolveErr        error
-		existingOLMObjs   []runtime.Object
-		existingObjects   []runtime.Object
-	}
-	type args struct {
-		obj interface{}
+		clientOptions   []clientfake.Option
+		resolveErr      error
+		existingOLMObjs []runtime.Object
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		wantErr error
+		name              string
+		fields            fields
+		wantSubscriptions []*v1alpha1.Subscription
+		wantErr           error
 	}{
 		{
 			name: "NoError",
@@ -1109,6 +1169,33 @@ func TestSyncResolvingNamespace(t *testing.T) {
 							CurrentCSV: "",
 							State:      "",
 						},
+					},
+				},
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+						Conditions: []v1alpha1.SubscriptionCondition{
+							{
+								Type:   v1alpha1.SubscriptionBundleUnpacking,
+								Status: corev1.ConditionFalse,
+							},
+						},
+						LastUpdated: now,
 					},
 				},
 			},
@@ -1139,8 +1226,37 @@ func TestSyncResolvingNamespace(t *testing.T) {
 				},
 				resolveErr: solver.NotSatisfiable{
 					{
-						Installable: resolver.NewSubscriptionInstallable("a", nil),
-						Constraint:  resolver.PrettyConstraint(solver.Mandatory(), "something"),
+						Variable:   resolver.NewSubscriptionVariable("a", nil),
+						Constraint: resolver.PrettyConstraint(solver.Mandatory(), "something"),
+					},
+				},
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+						Conditions: []v1alpha1.SubscriptionCondition{
+							{
+								Type:    v1alpha1.SubscriptionResolutionFailed,
+								Reason:  "ConstraintsNotSatisfiable",
+								Message: "constraints not satisfiable: something",
+								Status:  corev1.ConditionTrue,
+							},
+						},
+						LastUpdated: now,
 					},
 				},
 			},
@@ -1180,6 +1296,35 @@ func TestSyncResolvingNamespace(t *testing.T) {
 				},
 				resolveErr: fmt.Errorf("some error"),
 			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "",
+						State:      "",
+						Conditions: []v1alpha1.SubscriptionCondition{
+							{
+								Type:    v1alpha1.SubscriptionResolutionFailed,
+								Reason:  "ErrorPreventedResolution",
+								Message: "some error",
+								Status:  corev1.ConditionTrue,
+							},
+						},
+						LastUpdated: now,
+					},
+				},
+			},
 			wantErr: fmt.Errorf("some error"),
 		},
 	}
@@ -1189,7 +1334,7 @@ func TestSyncResolvingNamespace(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.clientOptions...))
+			o, err := NewFakeOperator(ctx, testNamespace, []string{testNamespace}, withClock(clockFake), withClientObjs(append(tt.fields.existingOLMObjs, og)...), withFakeClientOptions(tt.fields.clientOptions...))
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
@@ -1202,7 +1347,6 @@ func TestSyncResolvingNamespace(t *testing.T) {
 				},
 			}
 
-			o.sourcesLastUpdate.Set(tt.fields.sourcesLastUpdate.Time)
 			o.resolver = &fakes.FakeStepResolver{
 				ResolveStepsStub: func(string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 					return nil, nil, nil, tt.fields.resolveErr
@@ -1221,11 +1365,18 @@ func TestSyncResolvingNamespace(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
+			for _, s := range tt.wantSubscriptions {
+				fetched, err := o.client.OperatorsV1alpha1().Subscriptions(testNamespace).Get(context.TODO(), s.GetName(), metav1.GetOptions{})
+				require.NoError(t, err)
+				require.Equal(t, s, fetched)
+			}
 		})
 	}
 }
 
 func TestCompetingCRDOwnersExist(t *testing.T) {
+	t.Parallel()
 
 	testNamespace := "default"
 	tests := []struct {
@@ -1280,7 +1431,8 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 			expectedResult: true,
 		},
 	}
-	for _, tt := range tests {
+	for _, xt := range tests {
+		tt := xt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1300,18 +1452,18 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 
 func TestValidateExistingCRs(t *testing.T) {
 	unstructuredForFile := func(file string) *unstructured.Unstructured {
-		data, err := ioutil.ReadFile(file)
+		data, err := os.ReadFile(file)
 		require.NoError(t, err)
-		dec := k8syaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
+		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
 		k8sFile := &unstructured.Unstructured{}
 		require.NoError(t, dec.Decode(k8sFile))
 		return k8sFile
 	}
 
 	unversionedCRDForV1beta1File := func(file string) *apiextensions.CustomResourceDefinition {
-		data, err := ioutil.ReadFile(file)
+		data, err := os.ReadFile(file)
 		require.NoError(t, err)
-		dec := k8syaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
+		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
 		k8sFile := &apiextensionsv1beta1.CustomResourceDefinition{}
 		require.NoError(t, dec.Decode(k8sFile))
 		convertedCRD := &apiextensions.CustomResourceDefinition{}
@@ -1362,6 +1514,54 @@ func TestValidateExistingCRs(t *testing.T) {
 	}
 }
 
+func TestSyncRegistryServer(t *testing.T) {
+	namespace := "ns"
+
+	tests := []struct {
+		testName   string
+		err        error
+		catSrc     *v1alpha1.CatalogSource
+		clientObjs []runtime.Object
+	}{
+		{
+			testName: "EmptyRegistryPoll",
+			err:      fmt.Errorf("empty polling interval; cannot requeue registry server sync without a provided polling interval"),
+			catSrc: &v1alpha1.CatalogSource{
+				Spec: v1alpha1.CatalogSourceSpec{
+					UpdateStrategy: &v1alpha1.UpdateStrategy{
+						RegistryPoll: &v1alpha1.RegistryPoll{},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			tt.clientObjs = append(tt.clientObjs, tt.catSrc)
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.clientObjs...))
+			require.NoError(t, err)
+
+			op.reconciler = &fakes.FakeRegistryReconcilerFactory{
+				ReconcilerForSourceStub: func(source *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
+					return &fakes.FakeRegistryReconciler{
+						EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
+							return nil
+						},
+					}
+				},
+			}
+			require.NotPanics(t, func() {
+				_, _, err = op.syncRegistryServer(logrus.NewEntry(op.logger), tt.catSrc)
+			})
+			require.Equal(t, tt.err, err)
+		})
+	}
+}
+
 func fakeConfigMapData() map[string]string {
 	data := make(map[string]string)
 	yaml, err := yaml.Marshal([]apiextensionsv1beta1.CustomResourceDefinition{crd("fake-crd")})
@@ -1375,16 +1575,18 @@ func fakeConfigMapData() map[string]string {
 
 // fakeOperatorConfig is the configuration for a fake operator.
 type fakeOperatorConfig struct {
-	clock         utilclock.Clock
-	clientObjs    []runtime.Object
-	k8sObjs       []runtime.Object
-	extObjs       []runtime.Object
-	regObjs       []runtime.Object
-	clientOptions []clientfake.Option
-	logger        *logrus.Logger
-	resolver      resolver.StepResolver
-	recorder      record.EventRecorder
-	reconciler    reconciler.RegistryReconcilerFactory
+	clock          utilclock.Clock
+	clientObjs     []runtime.Object
+	k8sObjs        []runtime.Object
+	extObjs        []runtime.Object
+	regObjs        []runtime.Object
+	clientOptions  []clientfake.Option
+	logger         *logrus.Logger
+	resolver       resolver.StepResolver
+	recorder       record.EventRecorder
+	reconciler     reconciler.RegistryReconcilerFactory
+	bundleUnpacker bundle.Unpacker
+	sources        []sourceAddress
 }
 
 // fakeOperatorOption applies an option to the given fake operator configuration.
@@ -1396,9 +1598,15 @@ func withResolver(res resolver.StepResolver) fakeOperatorOption {
 	}
 }
 
-func withReconciler(rec reconciler.RegistryReconcilerFactory) fakeOperatorOption {
+func withBundleUnpacker(bundleUnpacker bundle.Unpacker) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
-		config.reconciler = rec
+		config.bundleUnpacker = bundleUnpacker
+	}
+}
+
+func withSources(sources ...sourceAddress) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.sources = sources
 	}
 }
 
@@ -1432,14 +1640,20 @@ func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
 	}
 }
 
+type sourceAddress struct {
+	address   string
+	sourceKey registry.CatalogKey
+}
+
 // NewFakeOperator creates a new operator using fake clients.
 func NewFakeOperator(ctx context.Context, namespace string, namespaces []string, fakeOptions ...fakeOperatorOption) (*Operator, error) {
 	// Apply options to default config
 	config := &fakeOperatorConfig{
-		logger:   logrus.StandardLogger(),
-		clock:    utilclock.RealClock{},
-		resolver: &fakes.FakeStepResolver{},
-		recorder: &record.FakeRecorder{},
+		logger:         logrus.StandardLogger(),
+		clock:          utilclock.RealClock{},
+		resolver:       &fakes.FakeStepResolver{},
+		recorder:       &record.FakeRecorder{},
+		bundleUnpacker: &bundlefakes.FakeUnpacker{},
 	}
 	for _, option := range fakeOptions {
 		option(config)
@@ -1478,12 +1692,14 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	subInformer := operatorsFactory.Operators().V1alpha1().Subscriptions()
 	ipInformer := operatorsFactory.Operators().V1alpha1().InstallPlans()
 	csvInformer := operatorsFactory.Operators().V1alpha1().ClusterServiceVersions()
-	sharedInformers = append(sharedInformers, catsrcInformer.Informer(), subInformer.Informer(), ipInformer.Informer(), csvInformer.Informer())
+	ogInformer := operatorsFactory.Operators().V1().OperatorGroups()
+	sharedInformers = append(sharedInformers, catsrcInformer.Informer(), subInformer.Informer(), ipInformer.Informer(), csvInformer.Informer(), ogInformer.Informer())
 
 	lister.OperatorsV1alpha1().RegisterCatalogSourceLister(metav1.NamespaceAll, catsrcInformer.Lister())
 	lister.OperatorsV1alpha1().RegisterSubscriptionLister(metav1.NamespaceAll, subInformer.Lister())
 	lister.OperatorsV1alpha1().RegisterInstallPlanLister(metav1.NamespaceAll, ipInformer.Lister())
 	lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvInformer.Lister())
+	lister.OperatorsV1().RegisterOperatorGroupLister(metav1.NamespaceAll, ogInformer.Lister())
 
 	factory := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), wakeupInterval, informers.WithNamespace(metav1.NamespaceAll))
 	roleInformer := factory.Rbac().V1().Roles()
@@ -1504,6 +1720,9 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperator(opClientFake.KubernetesInterface().Discovery())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create queueinformer operator: %w", err)
+	}
 	for _, informer := range sharedInformers {
 		queueOperator.RegisterInformer(informer)
 	}
@@ -1528,6 +1747,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		recorder:              config.recorder,
 		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
+		bundleUnpacker:        config.bundleUnpacker,
 		catsrcQueueSet:        queueinformer.NewEmptyResourceQueueSet(),
 		clientFactory: &stubClientFactory{
 			operatorClient:   opClientFake,
@@ -1544,11 +1764,14 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		}
 		applier := controllerclient.NewFakeApplier(s, "testowner")
 
-		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier)
+		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, 1001)
 	}
 
 	op.RunInformers(ctx)
 	op.sources.Start(ctx)
+	for _, source := range config.sources {
+		op.sources.Add(source.sourceKey, source.address)
+	}
 
 	if ok := cache.WaitForCacheSync(ctx.Done(), op.HasSynced); !ok {
 		return nil, fmt.Errorf("failed to wait for caches to sync")
@@ -1628,26 +1851,6 @@ func crd(name string) apiextensionsv1beta1.CustomResourceDefinition {
 	}
 }
 
-func v1crd(name string) apiextensionsv1.CustomResourceDefinition {
-	return apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group: name + "group",
-			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
-				{
-					Name:   "v1",
-					Served: true,
-				},
-			},
-			Names: apiextensionsv1.CustomResourceDefinitionNames{
-				Kind: name,
-			},
-		},
-	}
-}
-
 func service(name, namespace string) *corev1.Service {
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -1699,7 +1902,7 @@ func objectReference(name string) *corev1.ObjectReference {
 }
 
 func yamlFromFilePath(t *testing.T, fileName string) string {
-	yaml, err := ioutil.ReadFile(fileName)
+	yaml, err := os.ReadFile(fileName)
 	require.NoError(t, err)
 
 	return string(yaml)
@@ -1713,8 +1916,8 @@ func toManifest(t *testing.T, obj runtime.Object) string {
 }
 
 func pod(s v1alpha1.CatalogSource) *corev1.Pod {
-	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetName(), s.GetLabels(), s.GetAnnotations(), 5, 10)
-	ownerutil.AddOwner(pod, &s, false, false)
+	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetName(), s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
+	ownerutil.AddOwner(pod, &s, false, true)
 	return pod
 }
 
@@ -1762,37 +1965,12 @@ func withOwner(owner ownerutil.Owner) modifierFunc {
 	})
 }
 
-func withObjectMeta(t *testing.T, obj runtime.Object, m *metav1.ObjectMeta) runtime.Object {
-	o := obj.DeepCopyObject()
-	accessor, err := meta.Accessor(o)
-	require.NoError(t, err)
-
-	accessor.SetAnnotations(m.GetAnnotations())
-	accessor.SetClusterName(m.GetClusterName())
-	accessor.SetCreationTimestamp(m.GetCreationTimestamp())
-	accessor.SetDeletionGracePeriodSeconds(m.GetDeletionGracePeriodSeconds())
-	accessor.SetDeletionTimestamp(m.GetDeletionTimestamp())
-	accessor.SetFinalizers(m.GetFinalizers())
-	accessor.SetGenerateName(m.GetGenerateName())
-	accessor.SetGeneration(m.GetGeneration())
-	accessor.SetLabels(m.GetLabels())
-	accessor.SetManagedFields(m.GetManagedFields())
-	accessor.SetName(m.GetName())
-	accessor.SetNamespace(m.GetNamespace())
-	accessor.SetOwnerReferences(m.GetOwnerReferences())
-	accessor.SetResourceVersion(m.GetResourceVersion())
-	accessor.SetSelfLink(m.GetSelfLink())
-	accessor.SetUID(m.GetUID())
-
-	return o
-}
-
 func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	apis := []*metav1.APIResourceList{}
 	for _, o := range objs {
-		switch o.(type) {
+		switch o := o.(type) {
 		case *apiextensionsv1beta1.CustomResourceDefinition:
-			crd := o.(*apiextensionsv1beta1.CustomResourceDefinition)
+			crd := o
 			apis = append(apis, &metav1.APIResourceList{
 				GroupVersion: metav1.GroupVersion{Group: crd.Spec.Group, Version: crd.Spec.Versions[0].Name}.String(),
 				APIResources: []metav1.APIResource{
@@ -1807,7 +1985,7 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 				},
 			})
 		case *apiregistrationv1.APIService:
-			a := o.(*apiregistrationv1.APIService)
+			a := o
 			names := strings.Split(a.Name, ".")
 			apis = append(apis, &metav1.APIResourceList{
 				GroupVersion: metav1.GroupVersion{Group: names[1], Version: a.Spec.Version}.String(),

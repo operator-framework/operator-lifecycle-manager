@@ -24,7 +24,6 @@ import (
 	v1alpha2 "github.com/operator-framework/api/pkg/operators/v1alpha2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeOperatorGroups struct {
 	ns   string
 }
 
-var operatorgroupsResource = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha2", Resource: "operatorgroups"}
+var operatorgroupsResource = v1alpha2.SchemeGroupVersion.WithResource("operatorgroups")
 
-var operatorgroupsKind = schema.GroupVersionKind{Group: "operators.coreos.com", Version: "v1alpha2", Kind: "OperatorGroup"}
+var operatorgroupsKind = v1alpha2.SchemeGroupVersion.WithKind("OperatorGroup")
 
 // Get takes name of the operatorGroup, and returns the corresponding operatorGroup object, and an error if there is any.
 func (c *FakeOperatorGroups) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha2.OperatorGroup, err error) {
@@ -117,7 +116,7 @@ func (c *FakeOperatorGroups) UpdateStatus(ctx context.Context, operatorGroup *v1
 // Delete takes name of the operatorGroup and deletes it. Returns an error if one occurs.
 func (c *FakeOperatorGroups) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(operatorgroupsResource, c.ns, name), &v1alpha2.OperatorGroup{})
+		Invokes(testing.NewDeleteActionWithOptions(operatorgroupsResource, c.ns, name, opts), &v1alpha2.OperatorGroup{})
 
 	return err
 }

@@ -8,7 +8,9 @@ service Registry {
 	rpc ListPackages(ListPackageRequest) returns (stream PackageName) {}
 	rpc GetPackage(GetPackageRequest) returns (Package) {}
 	rpc GetBundle(GetBundleRequest) returns (Bundle) {}
-	rpc GetBundleForChannel(GetBundleInChannelRequest) returns (Bundle) {}
+	rpc GetBundleForChannel(GetBundleInChannelRequest) returns (Bundle) {
+		option deprecated = true;
+	}
 	rpc GetChannelEntriesThatReplace(GetAllReplacementsRequest) returns (stream ChannelEntry) {}
 	rpc GetBundleThatReplaces(GetReplacementRequest) returns (Bundle) {}
 	rpc GetChannelEntriesThatProvide(GetAllProvidersRequest) returns (stream ChannelEntry) {}

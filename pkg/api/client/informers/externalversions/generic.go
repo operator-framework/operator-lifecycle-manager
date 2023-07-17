@@ -56,6 +56,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=operators.coreos.com, Version=v1
+	case v1.SchemeGroupVersion.WithResource("olmconfigs"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1().OLMConfigs().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("operators"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1().Operators().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("operatorconditions"):

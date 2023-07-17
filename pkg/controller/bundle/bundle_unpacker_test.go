@@ -2,10 +2,12 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,27 +17,34 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/pointer"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	crfake "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	crinformers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	v1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/configmap"
 )
 
 const (
-	csvJson     = "{\"apiVersion\":\"operators.coreos.com/v1alpha1\",\"kind\":\"ClusterServiceVersion\",\"metadata\":{\"annotations\":{\"olm.skipRange\":\"\\u003c 0.6.0\",\"tectonic-visibility\":\"ocs\"},\"name\":\"etcdoperator.v0.9.2\",\"namespace\":\"placeholder\"},\"spec\":{\"customresourcedefinitions\":{\"owned\":[{\"description\":\"Represents a cluster of etcd nodes.\",\"displayName\":\"etcd Cluster\",\"kind\":\"EtcdCluster\",\"name\":\"etcdclusters.etcd.database.coreos.com\",\"resources\":[{\"kind\":\"Service\",\"version\":\"v1\"},{\"kind\":\"Pod\",\"version\":\"v1\"}],\"specDescriptors\":[{\"description\":\"The desired number of member Pods for the etcd cluster.\",\"displayName\":\"Size\",\"path\":\"size\",\"x-descriptors\":[\"urn:alm:descriptor:com.tectonic.ui:podCount\"]},{\"description\":\"Limits describes the minimum/maximum amount of compute resources required/allowed\",\"displayName\":\"Resource Requirements\",\"path\":\"pod.resources\",\"x-descriptors\":[\"urn:alm:descriptor:com.tectonic.ui:resourceRequirements\"]}],\"statusDescriptors\":[{\"description\":\"The status of each of the member Pods for the etcd cluster.\",\"displayName\":\"Member Status\",\"path\":\"members\",\"x-descriptors\":[\"urn:alm:descriptor:com.tectonic.ui:podStatuses\"]},{\"description\":\"The service at which the running etcd cluster can be accessed.\",\"displayName\":\"Service\",\"path\":\"serviceName\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes:Service\"]},{\"description\":\"The current size of the etcd cluster.\",\"displayName\":\"Cluster Size\",\"path\":\"size\"},{\"description\":\"The current version of the etcd cluster.\",\"displayName\":\"Current Version\",\"path\":\"currentVersion\"},{\"description\":\"The target version of the etcd cluster, after upgrading.\",\"displayName\":\"Target Version\",\"path\":\"targetVersion\"},{\"description\":\"The current status of the etcd cluster.\",\"displayName\":\"Status\",\"path\":\"phase\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes.phase\"]},{\"description\":\"Explanation for the current status of the cluster.\",\"displayName\":\"Status Details\",\"path\":\"reason\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes.phase:reason\"]}],\"version\":\"v1beta2\"},{\"description\":\"Represents the intent to backup an etcd cluster.\",\"displayName\":\"etcd Backup\",\"kind\":\"EtcdBackup\",\"name\":\"etcdbackups.etcd.database.coreos.com\",\"specDescriptors\":[{\"description\":\"Specifies the endpoints of an etcd cluster.\",\"displayName\":\"etcd Endpoint(s)\",\"path\":\"etcdEndpoints\",\"x-descriptors\":[\"urn:alm:descriptor:etcd:endpoint\"]},{\"description\":\"The full AWS S3 path where the backup is saved.\",\"displayName\":\"S3 Path\",\"path\":\"s3.path\",\"x-descriptors\":[\"urn:alm:descriptor:aws:s3:path\"]},{\"description\":\"The name of the secret object that stores the AWS credential and config files.\",\"displayName\":\"AWS Secret\",\"path\":\"s3.awsSecret\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes:Secret\"]}],\"statusDescriptors\":[{\"description\":\"Indicates if the backup was successful.\",\"displayName\":\"Succeeded\",\"path\":\"succeeded\",\"x-descriptors\":[\"urn:alm:descriptor:text\"]},{\"description\":\"Indicates the reason for any backup related failures.\",\"displayName\":\"Reason\",\"path\":\"reason\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes.phase:reason\"]}],\"version\":\"v1beta2\"},{\"description\":\"Represents the intent to restore an etcd cluster from a backup.\",\"displayName\":\"etcd Restore\",\"kind\":\"EtcdRestore\",\"name\":\"etcdrestores.etcd.database.coreos.com\",\"specDescriptors\":[{\"description\":\"References the EtcdCluster which should be restored,\",\"displayName\":\"etcd Cluster\",\"path\":\"etcdCluster.name\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes:EtcdCluster\",\"urn:alm:descriptor:text\"]},{\"description\":\"The full AWS S3 path where the backup is saved.\",\"displayName\":\"S3 Path\",\"path\":\"s3.path\",\"x-descriptors\":[\"urn:alm:descriptor:aws:s3:path\"]},{\"description\":\"The name of the secret object that stores the AWS credential and config files.\",\"displayName\":\"AWS Secret\",\"path\":\"s3.awsSecret\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes:Secret\"]}],\"statusDescriptors\":[{\"description\":\"Indicates if the restore was successful.\",\"displayName\":\"Succeeded\",\"path\":\"succeeded\",\"x-descriptors\":[\"urn:alm:descriptor:text\"]},{\"description\":\"Indicates the reason for any restore related failures.\",\"displayName\":\"Reason\",\"path\":\"reason\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes.phase:reason\"]}],\"version\":\"v1beta2\"}],\"required\":[{\"description\":\"Represents a cluster of etcd nodes.\",\"displayName\":\"etcd Cluster\",\"kind\":\"EtcdCluster\",\"name\":\"etcdclusters.etcd.database.coreos.com\",\"resources\":[{\"kind\":\"Service\",\"version\":\"v1\"},{\"kind\":\"Pod\",\"version\":\"v1\"}],\"specDescriptors\":[{\"description\":\"The desired number of member Pods for the etcd cluster.\",\"displayName\":\"Size\",\"path\":\"size\",\"x-descriptors\":[\"urn:alm:descriptor:com.tectonic.ui:podCount\"]}],\"version\":\"v1beta2\"}]},\"description\":\"etcd is a distributed key value store that provides a reliable way to store data across a cluster of machines. It’s open-source and available on GitHub. etcd gracefully handles leader elections during network partitions and will tolerate machine failure, including the leader. Your applications can read and write data into etcd.\\nA simple use-case is to store database connection details or feature flags within etcd as key value pairs. These values can be watched, allowing your app to reconfigure itself when they change. Advanced uses take advantage of the consistency guarantees to implement database leader elections or do distributed locking across a cluster of workers.\\n\\n_The etcd Open Cloud Service is Public Alpha. The goal before Beta is to fully implement backup features._\\n\\n### Reading and writing to etcd\\n\\nCommunicate with etcd though its command line utility `etcdctl` or with the API using the automatically generated Kubernetes Service.\\n\\n[Read the complete guide to using the etcd Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/etcd-ocs.html)\\n\\n### Supported Features\\n\\n\\n**High availability**\\n\\n\\nMultiple instances of etcd are networked together and secured. Individual failures or networking issues are transparently handled to keep your cluster up and running.\\n\\n\\n**Automated updates**\\n\\n\\nRolling out a new etcd version works like all Kubernetes rolling updates. Simply declare the desired version, and the etcd service starts a safe rolling update to the new version automatically.\\n\\n\\n**Backups included**\\n\\n\\nComing soon, the ability to schedule backups to happen on or off cluster.\\n\",\"displayName\":\"etcd\",\"install\":{\"spec\":{\"deployments\":[{\"name\":\"etcd-operator\",\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"name\":\"etcd-operator-alm-owned\"}},\"template\":{\"metadata\":{\"labels\":{\"name\":\"etcd-operator-alm-owned\"},\"name\":\"etcd-operator-alm-owned\"},\"spec\":{\"containers\":[{\"command\":[\"etcd-operator\",\"--create-crd=false\"],\"env\":[{\"name\":\"MY_POD_NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"MY_POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}],\"image\":\"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2\",\"name\":\"etcd-operator\"},{\"command\":[\"etcd-backup-operator\",\"--create-crd=false\"],\"env\":[{\"name\":\"MY_POD_NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"MY_POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}],\"image\":\"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2\",\"name\":\"etcd-backup-operator\"},{\"command\":[\"etcd-restore-operator\",\"--create-crd=false\"],\"env\":[{\"name\":\"MY_POD_NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"MY_POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}],\"image\":\"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2\",\"name\":\"etcd-restore-operator\"}],\"serviceAccountName\":\"etcd-operator\"}}}}],\"permissions\":[{\"rules\":[{\"apiGroups\":[\"etcd.database.coreos.com\"],\"resources\":[\"etcdclusters\",\"etcdbackups\",\"etcdrestores\"],\"verbs\":[\"*\"]},{\"apiGroups\":[\"\"],\"resources\":[\"pods\",\"services\",\"endpoints\",\"persistentvolumeclaims\",\"events\"],\"verbs\":[\"*\"]},{\"apiGroups\":[\"apps\"],\"resources\":[\"deployments\"],\"verbs\":[\"*\"]},{\"apiGroups\":[\"\"],\"resources\":[\"secrets\"],\"verbs\":[\"get\"]}],\"serviceAccountName\":\"etcd-operator\"}]},\"strategy\":\"deployment\"},\"keywords\":[\"etcd\",\"key value\",\"database\",\"coreos\",\"open source\"],\"labels\":{\"alm-owner-etcd\":\"etcdoperator\",\"operated-by\":\"etcdoperator\"},\"links\":[{\"name\":\"Blog\",\"url\":\"https://coreos.com/etcd\"},{\"name\":\"Documentation\",\"url\":\"https://coreos.com/operators/etcd/docs/latest/\"},{\"name\":\"etcd Operator Source Code\",\"url\":\"https://github.com/coreos/etcd-operator\"}],\"maintainers\":[{\"email\":\"support@coreos.com\",\"name\":\"CoreOS, Inc\"}],\"maturity\":\"alpha\",\"provider\":{\"name\":\"CoreOS, Inc\"},\"relatedImages\":[{\"image\":\"quay.io/coreos/etcd@sha256:3816b6daf9b66d6ced6f0f966314e2d4f894982c6b1493061502f8c2bf86ac84\",\"name\":\"etcd-v3.4.0\"},{\"image\":\"quay.io/coreos/etcd@sha256:49d3d4a81e0d030d3f689e7167f23e120abf955f7d08dbedf3ea246485acee9f\",\"name\":\"etcd-3.4.1\"}],\"replaces\":\"etcdoperator.v0.9.0\",\"selector\":{\"matchLabels\":{\"alm-owner-etcd\":\"etcdoperator\",\"operated-by\":\"etcdoperator\"}},\"skips\":[\"etcdoperator.v0.9.1\"],\"version\":\"0.9.2\"}}"
+	csvJSON     = "{\"apiVersion\":\"operators.coreos.com/v1alpha1\",\"kind\":\"ClusterServiceVersion\",\"metadata\":{\"annotations\":{\"olm.skipRange\":\"\\u003c 0.6.0\",\"tectonic-visibility\":\"ocs\"},\"name\":\"etcdoperator.v0.9.2\",\"namespace\":\"placeholder\"},\"spec\":{\"customresourcedefinitions\":{\"owned\":[{\"description\":\"Represents a cluster of etcd nodes.\",\"displayName\":\"etcd Cluster\",\"kind\":\"EtcdCluster\",\"name\":\"etcdclusters.etcd.database.coreos.com\",\"resources\":[{\"kind\":\"Service\",\"version\":\"v1\"},{\"kind\":\"Pod\",\"version\":\"v1\"}],\"specDescriptors\":[{\"description\":\"The desired number of member Pods for the etcd cluster.\",\"displayName\":\"Size\",\"path\":\"size\",\"x-descriptors\":[\"urn:alm:descriptor:com.tectonic.ui:podCount\"]},{\"description\":\"Limits describes the minimum/maximum amount of compute resources required/allowed\",\"displayName\":\"Resource Requirements\",\"path\":\"pod.resources\",\"x-descriptors\":[\"urn:alm:descriptor:com.tectonic.ui:resourceRequirements\"]}],\"statusDescriptors\":[{\"description\":\"The status of each of the member Pods for the etcd cluster.\",\"displayName\":\"Member Status\",\"path\":\"members\",\"x-descriptors\":[\"urn:alm:descriptor:com.tectonic.ui:podStatuses\"]},{\"description\":\"The service at which the running etcd cluster can be accessed.\",\"displayName\":\"Service\",\"path\":\"serviceName\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes:Service\"]},{\"description\":\"The current size of the etcd cluster.\",\"displayName\":\"Cluster Size\",\"path\":\"size\"},{\"description\":\"The current version of the etcd cluster.\",\"displayName\":\"Current Version\",\"path\":\"currentVersion\"},{\"description\":\"The target version of the etcd cluster, after upgrading.\",\"displayName\":\"Target Version\",\"path\":\"targetVersion\"},{\"description\":\"The current status of the etcd cluster.\",\"displayName\":\"Status\",\"path\":\"phase\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes.phase\"]},{\"description\":\"Explanation for the current status of the cluster.\",\"displayName\":\"Status Details\",\"path\":\"reason\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes.phase:reason\"]}],\"version\":\"v1beta2\"},{\"description\":\"Represents the intent to backup an etcd cluster.\",\"displayName\":\"etcd Backup\",\"kind\":\"EtcdBackup\",\"name\":\"etcdbackups.etcd.database.coreos.com\",\"specDescriptors\":[{\"description\":\"Specifies the endpoints of an etcd cluster.\",\"displayName\":\"etcd Endpoint(s)\",\"path\":\"etcdEndpoints\",\"x-descriptors\":[\"urn:alm:descriptor:etcd:endpoint\"]},{\"description\":\"The full AWS S3 path where the backup is saved.\",\"displayName\":\"S3 Path\",\"path\":\"s3.path\",\"x-descriptors\":[\"urn:alm:descriptor:aws:s3:path\"]},{\"description\":\"The name of the secret object that stores the AWS credential and config files.\",\"displayName\":\"AWS Secret\",\"path\":\"s3.awsSecret\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes:Secret\"]}],\"statusDescriptors\":[{\"description\":\"Indicates if the backup was successful.\",\"displayName\":\"Succeeded\",\"path\":\"succeeded\",\"x-descriptors\":[\"urn:alm:descriptor:text\"]},{\"description\":\"Indicates the reason for any backup related failures.\",\"displayName\":\"Reason\",\"path\":\"reason\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes.phase:reason\"]}],\"version\":\"v1beta2\"},{\"description\":\"Represents the intent to restore an etcd cluster from a backup.\",\"displayName\":\"etcd Restore\",\"kind\":\"EtcdRestore\",\"name\":\"etcdrestores.etcd.database.coreos.com\",\"specDescriptors\":[{\"description\":\"References the EtcdCluster which should be restored,\",\"displayName\":\"etcd Cluster\",\"path\":\"etcdCluster.name\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes:EtcdCluster\",\"urn:alm:descriptor:text\"]},{\"description\":\"The full AWS S3 path where the backup is saved.\",\"displayName\":\"S3 Path\",\"path\":\"s3.path\",\"x-descriptors\":[\"urn:alm:descriptor:aws:s3:path\"]},{\"description\":\"The name of the secret object that stores the AWS credential and config files.\",\"displayName\":\"AWS Secret\",\"path\":\"s3.awsSecret\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes:Secret\"]}],\"statusDescriptors\":[{\"description\":\"Indicates if the restore was successful.\",\"displayName\":\"Succeeded\",\"path\":\"succeeded\",\"x-descriptors\":[\"urn:alm:descriptor:text\"]},{\"description\":\"Indicates the reason for any restore related failures.\",\"displayName\":\"Reason\",\"path\":\"reason\",\"x-descriptors\":[\"urn:alm:descriptor:io.kubernetes.phase:reason\"]}],\"version\":\"v1beta2\"}],\"required\":[{\"description\":\"Represents a cluster of etcd nodes.\",\"displayName\":\"etcd Cluster\",\"kind\":\"EtcdCluster\",\"name\":\"etcdclusters.etcd.database.coreos.com\",\"resources\":[{\"kind\":\"Service\",\"version\":\"v1\"},{\"kind\":\"Pod\",\"version\":\"v1\"}],\"specDescriptors\":[{\"description\":\"The desired number of member Pods for the etcd cluster.\",\"displayName\":\"Size\",\"path\":\"size\",\"x-descriptors\":[\"urn:alm:descriptor:com.tectonic.ui:podCount\"]}],\"version\":\"v1beta2\"}]},\"description\":\"etcd is a distributed key value store that provides a reliable way to store data across a cluster of machines. It’s open-source and available on GitHub. etcd gracefully handles leader elections during network partitions and will tolerate machine failure, including the leader. Your applications can read and write data into etcd.\\nA simple use-case is to store database connection details or feature flags within etcd as key value pairs. These values can be watched, allowing your app to reconfigure itself when they change. Advanced uses take advantage of the consistency guarantees to implement database leader elections or do distributed locking across a cluster of workers.\\n\\n_The etcd Open Cloud Service is Public Alpha. The goal before Beta is to fully implement backup features._\\n\\n### Reading and writing to etcd\\n\\nCommunicate with etcd though its command line utility `etcdctl` or with the API using the automatically generated Kubernetes Service.\\n\\n[Read the complete guide to using the etcd Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/etcd-ocs.html)\\n\\n### Supported Features\\n\\n\\n**High availability**\\n\\n\\nMultiple instances of etcd are networked together and secured. Individual failures or networking issues are transparently handled to keep your cluster up and running.\\n\\n\\n**Automated updates**\\n\\n\\nRolling out a new etcd version works like all Kubernetes rolling updates. Simply declare the desired version, and the etcd service starts a safe rolling update to the new version automatically.\\n\\n\\n**Backups included**\\n\\n\\nComing soon, the ability to schedule backups to happen on or off cluster.\\n\",\"displayName\":\"etcd\",\"install\":{\"spec\":{\"deployments\":[{\"name\":\"etcd-operator\",\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"name\":\"etcd-operator-alm-owned\"}},\"template\":{\"metadata\":{\"labels\":{\"name\":\"etcd-operator-alm-owned\"},\"name\":\"etcd-operator-alm-owned\"},\"spec\":{\"containers\":[{\"command\":[\"etcd-operator\",\"--create-crd=false\"],\"env\":[{\"name\":\"MY_POD_NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"MY_POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}],\"image\":\"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2\",\"name\":\"etcd-operator\"},{\"command\":[\"etcd-backup-operator\",\"--create-crd=false\"],\"env\":[{\"name\":\"MY_POD_NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"MY_POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}],\"image\":\"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2\",\"name\":\"etcd-backup-operator\"},{\"command\":[\"etcd-restore-operator\",\"--create-crd=false\"],\"env\":[{\"name\":\"MY_POD_NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"MY_POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}],\"image\":\"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2\",\"name\":\"etcd-restore-operator\"}],\"serviceAccountName\":\"etcd-operator\"}}}}],\"permissions\":[{\"rules\":[{\"apiGroups\":[\"etcd.database.coreos.com\"],\"resources\":[\"etcdclusters\",\"etcdbackups\",\"etcdrestores\"],\"verbs\":[\"*\"]},{\"apiGroups\":[\"\"],\"resources\":[\"pods\",\"services\",\"endpoints\",\"persistentvolumeclaims\",\"events\"],\"verbs\":[\"*\"]},{\"apiGroups\":[\"apps\"],\"resources\":[\"deployments\"],\"verbs\":[\"*\"]},{\"apiGroups\":[\"\"],\"resources\":[\"secrets\"],\"verbs\":[\"get\"]}],\"serviceAccountName\":\"etcd-operator\"}]},\"strategy\":\"deployment\"},\"keywords\":[\"etcd\",\"key value\",\"database\",\"coreos\",\"open source\"],\"labels\":{\"alm-owner-etcd\":\"etcdoperator\",\"operated-by\":\"etcdoperator\"},\"links\":[{\"name\":\"Blog\",\"url\":\"https://coreos.com/etcd\"},{\"name\":\"Documentation\",\"url\":\"https://coreos.com/operators/etcd/docs/latest/\"},{\"name\":\"etcd Operator Source Code\",\"url\":\"https://github.com/coreos/etcd-operator\"}],\"maintainers\":[{\"email\":\"support@coreos.com\",\"name\":\"CoreOS, Inc\"}],\"maturity\":\"alpha\",\"provider\":{\"name\":\"CoreOS, Inc\"},\"relatedImages\":[{\"image\":\"quay.io/coreos/etcd@sha256:3816b6daf9b66d6ced6f0f966314e2d4f894982c6b1493061502f8c2bf86ac84\",\"name\":\"etcd-v3.4.0\"},{\"image\":\"quay.io/coreos/etcd@sha256:49d3d4a81e0d030d3f689e7167f23e120abf955f7d08dbedf3ea246485acee9f\",\"name\":\"etcd-3.4.1\"}],\"replaces\":\"etcdoperator.v0.9.0\",\"selector\":{\"matchLabels\":{\"alm-owner-etcd\":\"etcdoperator\",\"operated-by\":\"etcdoperator\"}},\"skips\":[\"etcdoperator.v0.9.1\"],\"version\":\"0.9.2\"}}"
 	etcdBackup  = "{\"apiVersion\":\"apiextensions.k8s.io/v1beta1\",\"kind\":\"CustomResourceDefinition\",\"metadata\":{\"name\":\"etcdbackups.etcd.database.coreos.com\"},\"spec\":{\"group\":\"etcd.database.coreos.com\",\"names\":{\"kind\":\"EtcdBackup\",\"listKind\":\"EtcdBackupList\",\"plural\":\"etcdbackups\",\"singular\":\"etcdbackup\"},\"scope\":\"Namespaced\",\"version\":\"v1beta2\"}}"
 	etcdCluster = "{\"apiVersion\":\"apiextensions.k8s.io/v1beta1\",\"kind\":\"CustomResourceDefinition\",\"metadata\":{\"name\":\"etcdclusters.etcd.database.coreos.com\"},\"spec\":{\"group\":\"etcd.database.coreos.com\",\"names\":{\"kind\":\"EtcdCluster\",\"listKind\":\"EtcdClusterList\",\"plural\":\"etcdclusters\",\"shortNames\":[\"etcdclus\",\"etcd\"],\"singular\":\"etcdcluster\"},\"scope\":\"Namespaced\",\"version\":\"v1beta2\"}}"
 	etcdRestore = "{\"apiVersion\":\"apiextensions.k8s.io/v1beta1\",\"kind\":\"CustomResourceDefinition\",\"metadata\":{\"name\":\"etcdrestores.etcd.database.coreos.com\"},\"spec\":{\"group\":\"etcd.database.coreos.com\",\"names\":{\"kind\":\"EtcdRestore\",\"listKind\":\"EtcdRestoreList\",\"plural\":\"etcdrestores\",\"singular\":\"etcdrestore\"},\"scope\":\"Namespaced\",\"version\":\"v1beta2\"}}"
 	opmImage    = "opm-image"
 	utilImage   = "util-image"
 	bundlePath  = "bundle-path"
+	digestPath  = "bundle-path@sha256:54d626e08c1c802b305dad30b7e54a82f102390cc92c7d4db112048935236e9c"
+	runAsUser   = 1001
 )
 
 func TestConfigMapUnpacker(t *testing.T) {
 	pathHash := hash(bundlePath)
+	digestHash := hash(digestPath)
 	start := metav1.Now()
 	now := func() metav1.Time {
 		return start
@@ -220,6 +229,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Spec: corev1.PodSpec{
 									RestartPolicy:    corev1.RestartPolicyNever,
 									ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-secret"}},
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -243,6 +259,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -260,6 +282,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -284,6 +312,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -298,6 +332,31 @@ func TestConfigMapUnpacker(t *testing.T) {
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
+										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
+									Tolerations: []corev1.Toleration{
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "amd64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "arm64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "ppc64le",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "s390x",
+											Operator: "Equal",
 										},
 									},
 								},
@@ -371,18 +430,18 @@ func TestConfigMapUnpacker(t *testing.T) {
 			},
 		},
 		{
-			description: "CatalogSourcePresent/ConfigMapPresent/JobPresent/Unpacked",
+			description: "CatalogSourcePresent/ConfigMapPresent/JobPresent/DigestImage/Unpacked",
 			fields: fields{
 				objs: []runtime.Object{
 					&batchv1.Job{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      pathHash,
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
 									Kind:               "ConfigMap",
-									Name:               pathHash,
+									Name:               digestHash,
 									Controller:         &blockOwnerDeletion,
 									BlockOwnerDeletion: &blockOwnerDeletion,
 								},
@@ -393,19 +452,26 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: pathHash,
+									Name: digestHash,
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash, "-z"},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", digestHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
-													Value: bundlePath,
+													Value: digestPath,
 												},
 											},
 											VolumeMounts: []corev1.VolumeMount{
@@ -418,6 +484,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -439,11 +511,17 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 										{
 											Name:            "pull",
-											Image:           bundlePath,
-											ImagePullPolicy: "Always",
+											Image:           digestPath,
+											ImagePullPolicy: "IfNotPresent",
 											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
@@ -461,6 +539,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -475,6 +559,31 @@ func TestConfigMapUnpacker(t *testing.T) {
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
+										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
+									Tolerations: []corev1.Toleration{
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "amd64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "arm64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "ppc64le",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "s390x",
+											Operator: "Equal",
 										},
 									},
 								},
@@ -496,7 +605,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 					},
 					&corev1.ConfigMap{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      pathHash,
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
@@ -511,7 +620,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						Data: map[string]string{
 							"etcdbackups.crd.json":  etcdBackup,
 							"etcdclusters.crd.json": etcdCluster,
-							"csv.json":              csvJson,
+							"csv.json":              csvJSON,
 							"etcdrestores.crd.json": etcdRestore,
 						},
 					},
@@ -528,7 +637,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 			args: args{
 				annotationTimeout: -1 * time.Minute,
 				lookup: &operatorsv1alpha1.BundleLookup{
-					Path:     bundlePath,
+					Path:     digestPath,
 					Replaces: "",
 					CatalogSourceRef: &corev1.ObjectReference{
 						Namespace: "ns-a",
@@ -548,21 +657,21 @@ func TestConfigMapUnpacker(t *testing.T) {
 			expected: expected{
 				res: &BundleUnpackResult{
 					BundleLookup: &operatorsv1alpha1.BundleLookup{
-						Path:     bundlePath,
+						Path:     digestPath,
 						Replaces: "",
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: "ns-a",
 							Name:      "src-a",
 						},
 					},
-					name: pathHash,
+					name: digestHash,
 					bundle: &api.Bundle{
 						CsvName: "etcdoperator.v0.9.2",
-						CsvJson: csvJson + "\n",
+						CsvJson: csvJSON + "\n",
 						Object: []string{
 							etcdBackup,
 							etcdCluster,
-							csvJson,
+							csvJSON,
 							etcdRestore,
 						},
 					},
@@ -570,7 +679,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				configMaps: []*corev1.ConfigMap{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      pathHash,
+							Name:      digestHash,
 							Namespace: "ns-a",
 							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
@@ -586,7 +695,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						Data: map[string]string{
 							"etcdbackups.crd.json":  etcdBackup,
 							"etcdclusters.crd.json": etcdCluster,
-							"csv.json":              csvJson,
+							"csv.json":              csvJSON,
 							"etcdrestores.crd.json": etcdRestore,
 						},
 					},
@@ -594,13 +703,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 				jobs: []*batchv1.Job{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      pathHash,
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
 									Kind:               "ConfigMap",
-									Name:               pathHash,
+									Name:               digestHash,
 									Controller:         &blockOwnerDeletion,
 									BlockOwnerDeletion: &blockOwnerDeletion,
 								},
@@ -611,19 +720,26 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: pathHash,
+									Name: digestHash,
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
 											Image:   opmImage,
-											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", pathHash, "-z"},
+											Command: []string{"opm", "alpha", "bundle", "extract", "-m", "/bundle/", "-n", "ns-a", "-c", digestHash, "-z"},
 											Env: []corev1.EnvVar{
 												{
 													Name:  configmap.EnvContainerImage,
-													Value: bundlePath,
+													Value: digestPath,
 												},
 											},
 											VolumeMounts: []corev1.VolumeMount{
@@ -636,6 +752,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -657,11 +779,17 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 										{
 											Name:            "pull",
-											Image:           bundlePath,
-											ImagePullPolicy: "Always",
+											Image:           digestPath,
+											ImagePullPolicy: "IfNotPresent",
 											Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
@@ -679,6 +807,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -693,6 +827,31 @@ func TestConfigMapUnpacker(t *testing.T) {
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
+										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
+									Tolerations: []corev1.Toleration{
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "amd64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "arm64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "ppc64le",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "s390x",
+											Operator: "Equal",
 										},
 									},
 								},
@@ -716,13 +875,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 				roles: []*rbacv1.Role{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      pathHash,
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
 									Kind:               "ConfigMap",
-									Name:               pathHash,
+									Name:               digestHash,
 									Controller:         &blockOwnerDeletion,
 									BlockOwnerDeletion: &blockOwnerDeletion,
 								},
@@ -740,7 +899,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 									"configmaps",
 								},
 								ResourceNames: []string{
-									pathHash,
+									digestHash,
 								},
 							},
 						},
@@ -749,13 +908,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 				roleBindings: []*rbacv1.RoleBinding{
 					{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      pathHash,
+							Name:      digestHash,
 							Namespace: "ns-a",
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
 									Kind:               "ConfigMap",
-									Name:               pathHash,
+									Name:               digestHash,
 									Controller:         &blockOwnerDeletion,
 									BlockOwnerDeletion: &blockOwnerDeletion,
 								},
@@ -772,7 +931,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						RoleRef: rbacv1.RoleRef{
 							APIGroup: "rbac.authorization.k8s.io",
 							Kind:     "Role",
-							Name:     pathHash,
+							Name:     digestHash,
 						},
 					},
 				},
@@ -827,6 +986,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -850,6 +1016,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -867,6 +1039,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -891,6 +1069,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -905,6 +1089,31 @@ func TestConfigMapUnpacker(t *testing.T) {
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
+										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
+									Tolerations: []corev1.Toleration{
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "amd64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "arm64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "ppc64le",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "s390x",
+											Operator: "Equal",
 										},
 									},
 								},
@@ -1009,6 +1218,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -1032,6 +1248,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1049,6 +1271,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -1073,6 +1301,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -1087,6 +1321,31 @@ func TestConfigMapUnpacker(t *testing.T) {
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
+										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
+									Tolerations: []corev1.Toleration{
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "amd64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "arm64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "ppc64le",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "s390x",
+											Operator: "Equal",
 										},
 									},
 								},
@@ -1169,7 +1428,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 								LastTransitionTime: &start,
 							},
 							{
-								Type:               BundleLookupFailed,
+								Type:               operatorsv1alpha1.BundleLookupFailed,
 								Status:             corev1.ConditionTrue,
 								Reason:             "DeadlineExceeded",
 								Message:            "Job was active longer than specified deadline",
@@ -1202,6 +1461,13 @@ func TestConfigMapUnpacker(t *testing.T) {
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
+									SecurityContext: &corev1.PodSecurityContext{
+										RunAsNonRoot: pointer.Bool(true),
+										RunAsUser:    pointer.Int64(runAsUser),
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+									},
 									Containers: []corev1.Container{
 										{
 											Name:    "extract",
@@ -1225,6 +1491,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1242,6 +1514,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 												Requests: corev1.ResourceList{
 													corev1.ResourceCPU:    resource.MustParse("10m"),
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
+												},
+											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
 												},
 											},
 										},
@@ -1266,6 +1544,12 @@ func TestConfigMapUnpacker(t *testing.T) {
 													corev1.ResourceMemory: resource.MustParse("50Mi"),
 												},
 											},
+											SecurityContext: &corev1.SecurityContext{
+												AllowPrivilegeEscalation: pointer.Bool(false),
+												Capabilities: &corev1.Capabilities{
+													Drop: []corev1.Capability{"ALL"},
+												},
+											},
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -1280,6 +1564,31 @@ func TestConfigMapUnpacker(t *testing.T) {
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
+										},
+									},
+									NodeSelector: map[string]string{
+										"kubernetes.io/os": "linux",
+									},
+									Tolerations: []corev1.Toleration{
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "amd64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "arm64",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "ppc64le",
+											Operator: "Equal",
+										},
+										{
+											Key:      "kubernetes.io/arch",
+											Value:    "s390x",
+											Operator: "Equal",
 										},
 									},
 								},
@@ -1341,6 +1650,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				WithUtilImage(utilImage),
 				WithNow(now),
 				WithUnpackTimeout(defaultUnpackDuration),
+				WithUserID(int64(runAsUser)),
 			)
 			require.NoError(t, err)
 
@@ -1353,6 +1663,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				if tt.expected.res.bundle == nil {
 					require.Nil(t, res.bundle)
 				} else {
+					require.NotNil(t, res.bundle)
 					require.Equal(t, tt.expected.res.bundle.CsvJson, res.bundle.CsvJson)
 					require.Equal(t, tt.expected.res.bundle.CsvName, res.bundle.CsvName)
 					require.Equal(t, tt.expected.res.bundle.Version, res.bundle.Version)
@@ -1397,5 +1708,115 @@ func TestConfigMapUnpacker(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestOperatorGroupBundleUnpackTimeout(t *testing.T) {
+	nsName := "fake-ns"
+
+	for _, tc := range []struct {
+		name            string
+		operatorGroups  []*operatorsv1.OperatorGroup
+		expectedTimeout time.Duration
+		expectedError   error
+	}{
+		{
+			name:            "No operator groups exist",
+			expectedTimeout: -1 * time.Minute,
+			expectedError:   errors.New("found 0 operatorGroups, expected 1"),
+		},
+		{
+			name: "Multiple operator groups exist",
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "og1",
+						Namespace: nsName,
+					},
+				},
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "og2",
+						Namespace: nsName,
+					},
+				},
+			},
+			expectedTimeout: -1 * time.Minute,
+			expectedError:   errors.New("found 2 operatorGroups, expected 1"),
+		},
+		{
+			name: "One operator group exists with valid timeout annotation",
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "og",
+						Namespace:   nsName,
+						Annotations: map[string]string{BundleUnpackTimeoutAnnotationKey: "1m"},
+					},
+				},
+			},
+			expectedTimeout: 1 * time.Minute,
+			expectedError:   nil,
+		},
+		{
+			name: "One operator group exists with no timeout annotation",
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "og",
+						Namespace: nsName,
+					},
+				},
+			},
+			expectedTimeout: -1 * time.Minute,
+		},
+		{
+			name: "One operator group exists with invalid timeout annotation",
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "og",
+						Namespace:   nsName,
+						Annotations: map[string]string{BundleUnpackTimeoutAnnotationKey: "invalid"},
+					},
+				},
+			},
+			expectedTimeout: -1 * time.Minute,
+			expectedError:   fmt.Errorf("failed to parse unpack timeout annotation(operatorframework.io/bundle-unpack-timeout: invalid): %w", errors.New("time: invalid duration \"invalid\"")),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ogIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			ogLister := v1listers.NewOperatorGroupLister(ogIndexer).OperatorGroups(nsName)
+
+			for _, og := range tc.operatorGroups {
+				err := ogIndexer.Add(og)
+				assert.NoError(t, err)
+			}
+
+			timeout, err := OperatorGroupBundleUnpackTimeout(ogLister)
+
+			assert.Equal(t, tc.expectedTimeout, timeout)
+			assert.Equal(t, tc.expectedError, err)
+		})
+	}
 }

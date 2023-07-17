@@ -2,9 +2,10 @@ package openshift
 
 import (
 	"fmt"
+	"os"
 
 	semver "github.com/blang/semver/v4"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,7 +20,6 @@ import (
 var _ = Describe("ClusterOperator controller", func() {
 	var (
 		clusterOperatorName types.NamespacedName
-		cv                  *configv1.ClusterVersion
 		csv                 *operatorsv1alpha1.ClusterServiceVersion
 	)
 
@@ -55,37 +55,15 @@ var _ = Describe("ClusterOperator controller", func() {
 	})
 
 	BeforeEach(func() {
-		// "version" singleton is available in OpenShift by default
-		cv = &configv1.ClusterVersion{}
-		cv.SetName("version")
-
-		Eventually(func() error {
-			return k8sClient.Create(ctx, cv)
-		}).Should(Succeed())
-
-		cv.Status = configv1.ClusterVersionStatus{
-			Desired: configv1.Update{
-				Version: clusterVersion,
-			},
-		}
-
-		Eventually(func() error {
-			return k8sClient.Status().Update(ctx, cv)
-		}).Should(Succeed())
+		os.Setenv(releaseEnvVar, clusterVersion)
 	})
 
 	AfterEach(func() {
-		Eventually(func() error {
-			err := k8sClient.Delete(ctx, cv)
-			if err != nil && apierrors.IsNotFound(err) {
-				err = nil
-			}
-			return err
-		}).Should(Succeed())
+		resetCurrentReleaseTo(clusterVersion)
 	})
 
 	It("should ensure the ClusterOperator always exists", func() {
-		By("initally creating it")
+		By("initially creating it")
 		co := &configv1.ClusterOperator{}
 		Eventually(func() error {
 			return k8sClient.Get(ctx, clusterOperatorName, co)
@@ -143,10 +121,14 @@ var _ = Describe("ClusterOperator controller", func() {
 		}))
 
 		By("setting upgradeable=false when there's an error determining compatibility")
-		cv.Status = configv1.ClusterVersionStatus{}
-
+		// Reset the ClusterOperator with an invalid version set
+		Expect(resetCurrentReleaseTo("")).To(Succeed())
 		Eventually(func() error {
-			return k8sClient.Status().Update(ctx, cv)
+			err := k8sClient.Delete(ctx, co)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			return nil
 		}).Should(Succeed())
 
 		Eventually(func() ([]configv1.ClusterOperatorStatusCondition, error) {
@@ -156,18 +138,18 @@ var _ = Describe("ClusterOperator controller", func() {
 			Type:               configv1.OperatorUpgradeable,
 			Status:             configv1.ConditionFalse,
 			Reason:             ErrorCheckingOperatorCompatibility,
-			Message:            "Encountered errors while checking compatibility with the next minor version of OpenShift: Desired release version missing from ClusterVersion",
+			Message:            fmt.Sprintf("Encountered errors while checking compatibility with the next minor version of OpenShift: desired release version missing from %v env variable", releaseEnvVar),
 			LastTransitionTime: fixedNow(),
 		}))
 
-		cv.Status = configv1.ClusterVersionStatus{
-			Desired: configv1.Update{
-				Version: clusterVersion,
-			},
-		}
-
+		// Reset the ClusterOperator with a valid version set
+		Expect(resetCurrentReleaseTo(clusterVersion)).To(Succeed())
 		Eventually(func() error {
-			return k8sClient.Status().Update(ctx, cv)
+			err := k8sClient.Delete(ctx, co)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			return nil
 		}).Should(Succeed())
 
 		By("setting upgradeable=false when incompatible operators exist")
@@ -296,7 +278,7 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace: ns.GetName(),
 					name:      incompatible.GetName(),
-					err:       fmt.Errorf(`Failed to parse "garbage" as semver: %w`, parseErr),
+					err:       fmt.Errorf(`failed to parse "garbage" as semver: %w`, parseErr),
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
@@ -320,10 +302,21 @@ var _ = Describe("ClusterOperator controller", func() {
 				{
 					namespace: ns.GetName(),
 					name:      incompatible.GetName(),
-					err:       fmt.Errorf(`Defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty),
+					err:       fmt.Errorf(`defining more than one "%s" property is not allowed`, MaxOpenShiftVersionProperty),
 				},
 			}.String(),
 			LastTransitionTime: fixedNow(),
 		}))
 	})
 })
+
+// resetCurrentRelease thread safely updates the currentRelease.version and then sets the openshift release
+// env var to the desired version. WARNING: This function should only be used for testing purposes as it
+// goes around the desired logic of only setting the version of the cluster for this operator once.
+func resetCurrentReleaseTo(version string) error {
+	currentRelease.mu.Lock()
+	defer currentRelease.mu.Unlock()
+
+	currentRelease.version = nil
+	return os.Setenv(releaseEnvVar, version)
+}

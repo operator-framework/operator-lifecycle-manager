@@ -6,14 +6,14 @@ import (
 	"encoding/json"
 
 	"github.com/blang/semver/v4"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	opver "github.com/operator-framework/api/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
-	opver "github.com/operator-framework/api/pkg/lib/version"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -23,16 +23,16 @@ import (
 )
 
 var _ = Describe("Package Manifest API lists available Operators from Catalog Sources", func() {
-
 	var (
 		crc versioned.Interface
 		pmc pmversioned.Interface
 		c   operatorclient.ClientInterface
 	)
+
 	BeforeEach(func() {
-		crc = newCRClient()
+		crc = ctx.Ctx().OperatorClient()
 		pmc = newPMClient()
-		c = newKubeClient()
+		c = ctx.Ctx().KubeClient()
 	})
 
 	AfterEach(func() {
@@ -40,7 +40,6 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 	})
 
 	Context("Given a CatalogSource created using the ConfigMap as catalog source type", func() {
-
 		var (
 			catsrcName           string
 			packageName          string
@@ -52,8 +51,8 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			csv                  v1alpha1.ClusterServiceVersion
 			cleanupCatalogSource cleanupFunc
 		)
-		BeforeEach(func() {
 
+		BeforeEach(func() {
 			// create a simple catalogsource
 			packageName = genName("nginx")
 			alphaChannel = "alpha"
@@ -100,7 +99,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 			csvAlpha = *csv.DeepCopy()
 			csvAlpha.SetName(packageAlpha)
-			csvAlpha.Spec.Version = opver.OperatorVersion{semver.MustParse("0.1.1")}
+			csvAlpha.Spec.Version = opver.OperatorVersion{Version: semver.MustParse("0.1.1")}
 			csvAlpha.Spec.Replaces = csv.GetName()
 			csvAlpha.Spec.Icon = []v1alpha1.Icon{
 				{
@@ -141,11 +140,27 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 						Name:           alphaChannel,
 						CurrentCSV:     packageAlpha,
 						CurrentCSVDesc: packagev1.CreateCSVDescription(&csvAlpha, string(csvAlphaJSON)),
+						Entries: []packagev1.ChannelEntry{
+							{
+								Name:    csvAlpha.Name,
+								Version: csvAlpha.Spec.Version.String(),
+							},
+							{
+								Name:    csv.Name,
+								Version: csv.Spec.Version.String(),
+							},
+						},
 					},
 					{
 						Name:           stableChannel,
 						CurrentCSV:     packageStable,
 						CurrentCSVDesc: packagev1.CreateCSVDescription(&csv, string(csvJSON)),
+						Entries: []packagev1.ChannelEntry{
+							{
+								Name:    csv.Name,
+								Version: csv.Spec.Version.String(),
+							},
+						},
 					},
 				},
 				DefaultChannel: stableChannel,
@@ -191,6 +206,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			packageName, displayName string
 			catalogSource            *v1alpha1.CatalogSource
 		)
+
 		BeforeEach(func() {
 			sourceName := genName("catalog-")
 			packageName = "etcd-test"
@@ -211,6 +227,9 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 					SourceType:  v1alpha1.SourceTypeGrpc,
 					Image:       image,
 					DisplayName: displayName,
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
 				},
 			}
 
@@ -248,7 +267,6 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		When("the display name for catalog source is updated", func() {
 
 			BeforeEach(func() {
-
 				pm, err := fetchPackageManifest(pmc, testNamespace, packageName, packageManifestHasStatus)
 				Expect(err).NotTo(HaveOccurred(), "error getting package manifest")
 				Expect(pm).ShouldNot(BeNil())
@@ -264,6 +282,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 				Expect(err).NotTo(HaveOccurred(), "error updating catalogSource")
 				Expect(catalogSource.Spec.DisplayName).Should(Equal(displayName))
 			})
+
 			It("should successfully update the CatalogSource field", func() {
 
 				Eventually(func() (string, error) {

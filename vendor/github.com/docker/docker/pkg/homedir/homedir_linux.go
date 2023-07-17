@@ -5,23 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/docker/docker/pkg/idtools"
 )
-
-// GetStatic returns the home directory for the current user without calling
-// os/user.Current(). This is useful for static-linked binary on glibc-based
-// system, because a call to os/user.Current() in a static binary leads to
-// segfault due to a glibc issue that won't be fixed in a short term.
-// (#29344, golang/go#13470, https://sourceware.org/bugzilla/show_bug.cgi?id=19341)
-func GetStatic() (string, error) {
-	uid := os.Getuid()
-	usr, err := idtools.LookupUID(uid)
-	if err != nil {
-		return "", err
-	}
-	return usr.Home, nil
-}
 
 // GetRuntimeDir returns XDG_RUNTIME_DIR.
 // XDG_RUNTIME_DIR is typically configured via pam_systemd.
@@ -106,4 +90,13 @@ func GetConfigHome() (string, error) {
 		return "", errors.New("could not get either XDG_CONFIG_HOME or HOME")
 	}
 	return filepath.Join(home, ".config"), nil
+}
+
+// GetLibHome returns $HOME/.local/lib
+func GetLibHome() (string, error) {
+	home := os.Getenv("HOME")
+	if home == "" {
+		return "", errors.New("could not get HOME")
+	}
+	return filepath.Join(home, ".local/lib"), nil
 }

@@ -13,14 +13,16 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/operator-framework/api/pkg/encoding"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 // bundleLoader loads a bundle directory from disk
 type bundleLoader struct {
-	dir      string
-	bundle   *Bundle
-	foundCSV bool
+	dir             string
+	bundle          *Bundle
+	foundCSV        bool
+	annotationsFile AnnotationsFile
 }
 
 func NewBundleLoader(dir string) bundleLoader {
@@ -35,6 +37,9 @@ func (b *bundleLoader) LoadBundle() error {
 		errs = append(errs, err)
 	}
 
+	errs = append(errs, b.calculateCompressedBundleSize())
+	b.addChannelsFromAnnotationsFile()
+
 	if !b.foundCSV {
 		errs = append(errs, fmt.Errorf("unable to find a csv in bundle directory %s", b.dir))
 	} else if b.bundle == nil {
@@ -42,6 +47,58 @@ func (b *bundleLoader) LoadBundle() error {
 	}
 
 	return utilerrors.NewAggregate(errs)
+}
+
+// Add values from the annotations when the values are not loaded
+func (b *bundleLoader) addChannelsFromAnnotationsFile() {
+	if b.bundle == nil {
+		// None of this is relevant if the bundle was not found
+		return
+	}
+	// Note that they will not get load for Bundle Format directories
+	// and PackageManifest should not have the annotationsFile. However,
+	// the following check to ensure that channels and default channels
+	// are empty before set the annotations is just an extra precaution
+	channels := strings.Split(b.annotationsFile.Annotations.Channels, ",")
+	if len(channels) > 0 && len(b.bundle.Channels) == 0 {
+		b.bundle.Channels = channels
+	}
+	if len(b.annotationsFile.Annotations.DefaultChannelName) > 0 && len(b.bundle.DefaultChannel) == 0 {
+		b.bundle.DefaultChannel = b.annotationsFile.Annotations.DefaultChannelName
+	}
+}
+
+// Compress the bundle to check its size
+func (b *bundleLoader) calculateCompressedBundleSize() error {
+	if b.bundle == nil {
+		return nil
+	}
+	err := filepath.Walk(b.dir,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err == nil {
+				// Sum the bundle amount
+				b.bundle.Size += info.Size()
+
+				// Sum the compressed amount
+				contentGzip, err := encoding.GzipBase64Encode(data)
+				if err != nil {
+					return err
+				}
+				b.bundle.CompressedSize += int64(len(contentGzip))
+			}
+			return err
+		})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // collectWalkErrs calls the given walk func and appends any non-nil, non skip dir error returned to the given errors slice.
@@ -70,6 +127,19 @@ func (b *bundleLoader) LoadBundleWalkFunc(path string, f os.FileInfo, err error)
 
 	if strings.HasPrefix(f.Name(), ".") {
 		return nil
+	}
+
+	annotationsFile := AnnotationsFile{}
+	if strings.HasPrefix(f.Name(), "annotations") {
+		annFile, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := yaml.Unmarshal(annFile, &annotationsFile); err == nil {
+			b.annotationsFile = annotationsFile
+		} else {
+			return fmt.Errorf("unable to load the annotations file %s: %s", path, err)
+		}
 	}
 
 	fileReader, err := os.Open(path)

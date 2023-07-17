@@ -47,6 +47,21 @@ func IsMultipleExistingCRDOwnersError(err error) bool {
 	return false
 }
 
+type FatalError struct {
+	error
+}
+
+func NewFatalError(err error) FatalError {
+	return FatalError{err}
+}
+func IsFatal(err error) bool {
+	switch err.(type) {
+	case FatalError:
+		return true
+	}
+	return false
+}
+
 // GroupVersionKindNotFoundError occurs when we can't find an API via discovery
 type GroupVersionKindNotFoundError struct {
 	Group   string

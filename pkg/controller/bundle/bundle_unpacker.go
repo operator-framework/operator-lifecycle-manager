@@ -22,21 +22,20 @@ import (
 	listersbatchv1 "k8s.io/client-go/listers/batch/v1"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	listersrbacv1 "k8s.io/client-go/listers/rbac/v1"
+	"k8s.io/utils/pointer"
 
 	"github.com/operator-framework/api/pkg/operators/reference"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	v1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/image"
 )
 
 const (
-	// TODO: Move to operator-framework/api/pkg/operators/v1alpha1
-	// BundleLookupFailed describes conditions types for when BundleLookups fail
-	BundleLookupFailed operatorsv1alpha1.BundleLookupConditionType = "BundleLookupFailed"
-
 	// TODO: This can be a spec field
-	// BundleUnpackTimeoutAnnotationKey allows setting a bundle unpack timeout per InstallPlan
+	// BundleUnpackTimeoutAnnotationKey allows setting a bundle unpack timeout per OperatorGroup
 	// and overrides the default specified by the --bundle-unpack-timeout flag
 	// The time duration should be in the same format as accepted by time.ParseDuration()
 	// e.g 1m30s
@@ -101,6 +100,11 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					// See: https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-backoff-failure-policy
 					RestartPolicy:    corev1.RestartPolicyNever,
 					ImagePullSecrets: secrets,
+					SecurityContext: &corev1.PodSecurityContext{
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:  "extract",
@@ -129,6 +133,12 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
 							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: pointer.Bool(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+							},
 						},
 					},
 					InitContainers: []corev1.Container{
@@ -148,11 +158,17 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
 							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: pointer.Bool(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+							},
 						},
 						{
 							Name:            "pull",
 							Image:           bundlePath,
-							ImagePullPolicy: "Always",
+							ImagePullPolicy: image.InferImagePullPolicy(bundlePath),
 							Command:         []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -168,6 +184,12 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 								Requests: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: pointer.Bool(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
 								},
 							},
 						},
@@ -186,6 +208,31 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							},
 						},
 					},
+					NodeSelector: map[string]string{
+						"kubernetes.io/os": "linux",
+					},
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "amd64",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "arm64",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "ppc64le",
+							Operator: "Equal",
+						},
+						{
+							Key:      "kubernetes.io/arch",
+							Value:    "s390x",
+							Operator: "Equal",
+						},
+					},
 				},
 			},
 		},
@@ -193,7 +240,10 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 	job.SetNamespace(cmRef.Namespace)
 	job.SetName(cmRef.Name)
 	job.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
-
+	if c.runAsUser > 0 {
+		job.Spec.Template.Spec.SecurityContext.RunAsUser = &c.runAsUser
+		job.Spec.Template.Spec.SecurityContext.RunAsNonRoot = pointer.Bool(true)
+	}
 	// By default the BackoffLimit is set to 6 which with exponential backoff 10s + 20s + 40s ...
 	// translates to ~10m of waiting time.
 	// We want to fail faster than that when we have repeated failures from the bundle unpack pod
@@ -246,6 +296,7 @@ type ConfigMapUnpacker struct {
 	loader        *configmap.BundleLoader
 	now           func() metav1.Time
 	unpackTimeout time.Duration
+	runAsUser     int64
 }
 
 type ConfigMapUnpackerOption func(*ConfigMapUnpacker)
@@ -335,6 +386,12 @@ func WithNow(now func() metav1.Time) ConfigMapUnpackerOption {
 	}
 }
 
+func WithUserID(id int64) ConfigMapUnpackerOption {
+	return func(unpacker *ConfigMapUnpacker) {
+		unpacker.runAsUser = id
+	}
+}
+
 func (c *ConfigMapUnpacker) apply(options ...ConfigMapUnpackerOption) {
 	for _, option := range options {
 		option(c)
@@ -384,11 +441,10 @@ const (
 )
 
 func (c *ConfigMapUnpacker) UnpackBundle(lookup *operatorsv1alpha1.BundleLookup, timeout time.Duration) (result *BundleUnpackResult, err error) {
-
 	result = newBundleUnpackResult(lookup)
 
 	// if bundle lookup failed condition already present, then there is nothing more to do
-	failedCond := result.GetCondition(BundleLookupFailed)
+	failedCond := result.GetCondition(operatorsv1alpha1.BundleLookupFailed)
 	if failedCond.Status == corev1.ConditionTrue {
 		return result, nil
 	}
@@ -523,8 +579,8 @@ func (c *ConfigMapUnpacker) pendingContainerStatusMessages(job *batchv1.Job) (st
 	podLabel := map[string]string{BundleUnpackPodLabel: job.GetName()}
 	pods, listErr := c.podLister.Pods(job.GetNamespace()).List(k8slabels.SelectorFromValidatedSet(podLabel))
 	if listErr != nil {
-		c.logger.Errorf("Failed to list pods for job(%s): %v", job.GetName(), listErr)
-		return "", fmt.Errorf("Failed to list pods for job(%s): %v", job.GetName(), listErr)
+		c.logger.Errorf("failed to list pods for job(%s): %v", job.GetName(), listErr)
+		return "", fmt.Errorf("failed to list pods for job(%s): %v", job.GetName(), listErr)
 	}
 
 	// Ideally there should be just 1 pod running but inspect all pods in the pending phase
@@ -570,14 +626,14 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 		if err != nil && apierrors.IsAlreadyExists(err) {
 			cm, err = c.client.CoreV1().ConfigMaps(fresh.GetNamespace()).Get(context.TODO(), fresh.GetName(), metav1.GetOptions{})
 			if err != nil {
-				return nil, fmt.Errorf("Failed to retrieve configmap %s: %v", fresh.GetName(), err)
+				return nil, fmt.Errorf("failed to retrieve configmap %s: %v", fresh.GetName(), err)
 			}
 			cm.SetLabels(map[string]string{
 				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
 			})
 			cm, err = c.client.CoreV1().ConfigMaps(cm.GetNamespace()).Update(context.TODO(), cm, metav1.UpdateOptions{})
 			if err != nil {
-				return nil, fmt.Errorf("Failed to update configmap %s: %v", cm.GetName(), err)
+				return nil, fmt.Errorf("failed to update configmap %s: %v", cm.GetName(), err)
 			}
 		}
 	}
@@ -647,6 +703,7 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 			return
 		}
 	}
+	role = role.DeepCopy()
 	role.Rules = append(role.Rules, rule)
 
 	role, err = c.client.RbacV1().Roles(role.GetNamespace()).Update(context.TODO(), role, metav1.UpdateOptions{})
@@ -732,4 +789,31 @@ func getCondition(job *batchv1.Job, conditionType batchv1.JobConditionType) (con
 		}
 	}
 	return
+}
+
+// OperatorGroupBundleUnpackTimeout returns bundle timeout from annotation if specified.
+// If the timeout annotation is not set, return timeout < 0 which is subsequently ignored.
+// This is to overrides the --bundle-unpack-timeout flag value on per-OperatorGroup basis.
+func OperatorGroupBundleUnpackTimeout(ogLister v1listers.OperatorGroupNamespaceLister) (time.Duration, error) {
+	ignoreTimeout := -1 * time.Minute
+
+	ogs, err := ogLister.List(k8slabels.Everything())
+	if err != nil {
+		return ignoreTimeout, err
+	}
+	if len(ogs) != 1 {
+		return ignoreTimeout, fmt.Errorf("found %d operatorGroups, expected 1", len(ogs))
+	}
+
+	timeoutStr, ok := ogs[0].GetAnnotations()[BundleUnpackTimeoutAnnotationKey]
+	if !ok {
+		return ignoreTimeout, nil
+	}
+
+	d, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		return ignoreTimeout, fmt.Errorf("failed to parse unpack timeout annotation(%s: %s): %w", BundleUnpackTimeoutAnnotationKey, timeoutStr, err)
+	}
+
+	return d, nil
 }

@@ -12,15 +12,15 @@ import (
 
 var (
 	globalProxyConfig = []corev1.EnvVar{
-		corev1.EnvVar{
+		{
 			Name:  "HTTP_PROXY",
 			Value: "http://foo.com:8080",
 		},
-		corev1.EnvVar{
+		{
 			Name:  "HTTPS_PROXY",
 			Value: "https://foo.com:443",
 		},
-		corev1.EnvVar{
+		{
 			Name:  "NO_PROXY",
 			Value: "a.com,b.com",
 		},
@@ -46,7 +46,7 @@ func TestIsOverridden(t *testing.T) {
 		{
 			name: "WithUnrelatedEnvVar",
 			envVar: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  "foo",
 					Value: "foo_value",
 				},
@@ -56,7 +56,7 @@ func TestIsOverridden(t *testing.T) {
 		{
 			name: "WithHTTP_PROXY",
 			envVar: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  envHTTPProxyName,
 					Value: "http://",
 				},
@@ -66,7 +66,7 @@ func TestIsOverridden(t *testing.T) {
 		{
 			name: "WithHTTPS_PROXY",
 			envVar: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  envHTTPSProxyName,
 					Value: "https://",
 				},
@@ -76,7 +76,7 @@ func TestIsOverridden(t *testing.T) {
 		{
 			name: "WithNO_PROXY",
 			envVar: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  envNoProxyName,
 					Value: "https://",
 				},
@@ -86,7 +86,7 @@ func TestIsOverridden(t *testing.T) {
 		{
 			name: "WithCaseSensitive",
 			envVar: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  strings.ToLower(envHTTPSProxyName),
 					Value: "http://",
 				},

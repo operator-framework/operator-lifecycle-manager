@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	utilclock "k8s.io/utils/clock/testing"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	versionedfake "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
@@ -1696,7 +1696,6 @@ type fakeReconcilerConfig struct {
 	now                       func() *metav1.Time
 	registryReconcilerFactory registryreconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
-	subscriptionNamespace     string
 	existingObjs              existingObjs
 }
 

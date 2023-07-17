@@ -22,7 +22,12 @@ do
     then
         kubectl replace --force -f "${f}"
     else
-        kubectl apply -f "${f}"
+	# using create / replace instead of apply to avoid
+	# the last-applied-configuration annotation.
+	# it is too big with CRDs.
+	if ! kubectl create -f "${f}"; then
+		kubectl replace -f "${f}"
+	fi
     fi
 done
 

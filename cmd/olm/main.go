@@ -13,7 +13,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -60,10 +60,13 @@ var (
 	tlsKeyPath = pflag.String(
 		"tls-key", "", "Path to use for private key (requires tls-cert)")
 
+	protectedCopiedCSVNamespaces = pflag.String("protectedCopiedCSVNamespaces",
+		"", "A comma-delimited set of namespaces where global Copied CSVs will always appear, even if Copied CSVs are disabled")
+
 	tlsCertPath = pflag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
 
-	profiling = pflag.Bool("profiling", false, "deprecated")
+	_ = pflag.Bool("profiling", false, "deprecated")
 
 	clientCAPath = pflag.String("client-ca", "", "path to watch for client ca bundle")
 
@@ -103,8 +106,8 @@ func main() {
 	// the empty string, the resulting array will be `[]string{""}`.
 	namespaces := strings.Split(*watchedNamespaces, ",")
 	for _, ns := range namespaces {
-		if ns == v1.NamespaceAll {
-			namespaces = []string{v1.NamespaceAll}
+		if ns == corev1.NamespaceAll {
+			namespaces = []string{corev1.NamespaceAll}
 			break
 		}
 	}
@@ -120,7 +123,7 @@ func main() {
 
 	listenAndServe, err := server.GetListenAndServeFunc(server.WithLogger(logger), server.WithTLS(tlsCertPath, tlsKeyPath, clientCAPath), server.WithDebug(*debug))
 	if err != nil {
-		logger.Fatal("Error setting up health/metric/pprof service: %v", err)
+		logger.Fatalf("Error setting up health/metric/pprof service: %v", err)
 	}
 
 	go func() {
@@ -131,7 +134,7 @@ func main() {
 
 	mgr, err := Manager(ctx, *debug)
 	if err != nil {
-		logger.WithError(err).Fatalf("error configuring controller manager")
+		logger.WithError(err).Fatal("error configuring controller manager")
 	}
 	config := mgr.GetConfig()
 
@@ -162,9 +165,10 @@ func main() {
 		olm.WithOperatorClient(opClient),
 		olm.WithRestConfig(config),
 		olm.WithConfigClient(versionedConfigClient),
+		olm.WithProtectedCopiedCSVNamespaces(*protectedCopiedCSVNamespaces),
 	)
 	if err != nil {
-		logger.WithError(err).Fatalf("error configuring operator")
+		logger.WithError(err).Fatal("error configuring operator")
 		return
 	}
 
@@ -173,7 +177,7 @@ func main() {
 
 	// Emit CSV metric
 	if err = op.EnsureCSVMetric(); err != nil {
-		logger.WithError(err).Fatalf("error emitting metrics for existing CSV")
+		logger.WithError(err).Fatal("error emitting metrics for existing CSV")
 	}
 
 	if *writeStatusName != "" {
@@ -187,12 +191,12 @@ func main() {
 			openshift.WithOLMOperator(),
 		)
 		if err != nil {
-			logger.WithError(err).Fatalf("error configuring openshift integration")
+			logger.WithError(err).Fatal("error configuring openshift integration")
 			return
 		}
 
 		if err := reconciler.SetupWithManager(mgr); err != nil {
-			logger.WithError(err).Fatalf("error configuring openshift integration")
+			logger.WithError(err).Fatal("error configuring openshift integration")
 			return
 		}
 	}

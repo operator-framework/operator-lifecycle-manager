@@ -18,12 +18,12 @@ package zap
 
 import (
 	"fmt"
+	"reflect"
 
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // KubeAwareEncoder is a Kubernetes-aware Zap Encoder.
@@ -40,21 +40,6 @@ type KubeAwareEncoder struct {
 	Verbose bool
 }
 
-// namespacedNameWrapper is a zapcore.ObjectMarshaler for Kubernetes NamespacedName.
-type namespacedNameWrapper struct {
-	types.NamespacedName
-}
-
-func (w namespacedNameWrapper) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	if w.Namespace != "" {
-		enc.AddString("namespace", w.Namespace)
-	}
-
-	enc.AddString("name", w.Name)
-
-	return nil
-}
-
 // kubeObjectWrapper is a zapcore.ObjectMarshaler for Kubernetes objects.
 type kubeObjectWrapper struct {
 	obj runtime.Object
@@ -64,6 +49,11 @@ type kubeObjectWrapper struct {
 func (w kubeObjectWrapper) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	// TODO(directxman12): log kind and apiversion if not set explicitly (common case)
 	// -- needs an a scheme to convert to the GVK.
+
+	if reflect.ValueOf(w.obj).IsNil() {
+		return fmt.Errorf("got nil for runtime.Object")
+	}
+
 	if gvk := w.obj.GetObjectKind().GroupVersionKind(); gvk.Version != "" {
 		enc.AddString("apiVersion", gvk.GroupVersion().String())
 		enc.AddString("kind", gvk.Kind)
@@ -112,12 +102,6 @@ func (k *KubeAwareEncoder) EncodeEntry(entry zapcore.Entry, fields []zapcore.Fie
 					Type:      zapcore.ObjectMarshalerType,
 					Key:       field.Key,
 					Interface: kubeObjectWrapper{obj: val},
-				}
-			case types.NamespacedName:
-				fields[i] = zapcore.Field{
-					Type:      zapcore.ObjectMarshalerType,
-					Key:       field.Key,
-					Interface: namespacedNameWrapper{NamespacedName: val},
 				}
 			}
 		}

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-var BenchmarkInput = func() []Installable {
+var BenchmarkInput = func() []Variable {
 	const (
 		length      = 256
 		seed        = 9
@@ -18,47 +18,48 @@ var BenchmarkInput = func() []Installable {
 		nConflict   = 3
 	)
 
+	rnd := rand.New(rand.NewSource(seed))
+
 	id := func(i int) Identifier {
 		return Identifier(strconv.Itoa(i))
 	}
 
-	installable := func(i int) TestInstallable {
+	variable := func(i int) TestVariable {
 		var c []Constraint
-		if rand.Float64() < pMandatory {
+		if rnd.Float64() < pMandatory {
 			c = append(c, Mandatory())
 		}
-		if rand.Float64() < pDependency {
-			n := rand.Intn(nDependency-1) + 1
+		if rnd.Float64() < pDependency {
+			n := rnd.Intn(nDependency-1) + 1
 			var d []Identifier
 			for x := 0; x < n; x++ {
 				y := i
 				for y == i {
-					y = rand.Intn(length)
+					y = rnd.Intn(length)
 				}
 				d = append(d, id(y))
 			}
 			c = append(c, Dependency(d...))
 		}
-		if rand.Float64() < pConflict {
-			n := rand.Intn(nConflict-1) + 1
+		if rnd.Float64() < pConflict {
+			n := rnd.Intn(nConflict-1) + 1
 			for x := 0; x < n; x++ {
 				y := i
 				for y == i {
-					y = rand.Intn(length)
+					y = rnd.Intn(length)
 				}
 				c = append(c, Conflict(id(y)))
 			}
 		}
-		return TestInstallable{
+		return TestVariable{
 			identifier:  id(i),
 			constraints: c,
 		}
 	}
 
-	rand.Seed(seed)
-	result := make([]Installable, length)
+	result := make([]Variable, length)
 	for i := range result {
-		result[i] = installable(i)
+		result[i] = variable(i)
 	}
 	return result
 }()

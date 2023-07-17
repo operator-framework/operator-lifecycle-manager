@@ -1,11 +1,12 @@
+//go:build !windows
 // +build !windows
 
 package registry // import "github.com/docker/docker/registry"
 
-var (
-	// CertsDir is the directory where certificates are stored
-	CertsDir = "/etc/docker/certs.d"
-)
+// defaultCertsDir is the platform-specific default directory where certificates
+// are stored. On Linux, it may be overridden through certsDir, for example, when
+// running in rootless mode.
+const defaultCertsDir = "/etc/docker/certs.d"
 
 // cleanPath is used to ensure that a directory name is valid on the target
 // platform. It will be passed in something *similar* to a URL such as

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -84,6 +83,13 @@ func getMetadata() (m *metadata, err error) {
 		manifestDir:     "/manifests",
 	}
 
+	// Exclude device filesystems and pseudo filesystems from filesystems looking for metadata
+	excludeDir := []string{
+		"/dev",
+		"/proc",
+		"/sys",
+	}
+
 	// Traverse the filesystem looking for metadata
 	err = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -91,7 +97,18 @@ func getMetadata() (m *metadata, err error) {
 			return nil
 		}
 		if info.IsDir() {
-			fmt.Printf("skipping a dir without errors: %+v \n", info.Name())
+			absPath, err := filepath.Abs(path)
+			if err != nil {
+				fmt.Printf("couldn't get the absolute path %q: %v\n", path, err)
+				return nil
+			}
+			for _, v := range excludeDir {
+				if v == absPath {
+					fmt.Printf("skipping all files in the dir: %+v \n", absPath)
+					return filepath.SkipDir
+				}
+			}
+			fmt.Printf("skipping a dir without errors: %+v \n", absPath)
 			return nil
 		}
 		if info.Name() != bundle.AnnotationsFile {
@@ -100,7 +117,7 @@ func getMetadata() (m *metadata, err error) {
 		m.annotationsFile = path
 
 		// Unmarshal metadata
-		content, err := ioutil.ReadFile(path)
+		content, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("couldn't get content of annotations.yaml file: %s", path)
 		}

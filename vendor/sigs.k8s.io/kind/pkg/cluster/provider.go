@@ -17,7 +17,6 @@ limitations under the License.
 package cluster
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -144,7 +143,7 @@ func ProviderWithLogger(logger log.Logger) ProviderOption {
 	})
 }
 
-// providerLoggerOption is a trivial ProviderOption adapter
+// providerRuntimeOption is a trivial ProviderOption adapter
 // we use a type specific to logging options so we can handle them first
 type providerRuntimeOption func(p *Provider)
 
@@ -169,7 +168,6 @@ func ProviderWithPodman() ProviderOption {
 }
 
 // Create provisions and starts a kubernetes-in-docker cluster
-// TODO: move name to an option to override config
 func (p *Provider) Create(name string, options ...CreateOption) error {
 	// apply options
 	opts := &internalcreate.ClusterOptions{
@@ -204,8 +202,8 @@ func (p *Provider) KubeConfig(name string, internal bool) (string, error) {
 // it into the selected file, following the rules from
 // https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#config
 // where explicitPath is the --kubeconfig value.
-func (p *Provider) ExportKubeConfig(name string, explicitPath string) error {
-	return kubeconfig.Export(p.provider, defaultName(name), explicitPath)
+func (p *Provider) ExportKubeConfig(name string, explicitPath string, internal bool) error {
+	return kubeconfig.Export(p.provider, defaultName(name), explicitPath, !internal)
 }
 
 // ListNodes returns the list of container IDs for the "nodes" in the cluster
@@ -236,7 +234,7 @@ func (p *Provider) CollectLogs(name, dir string) error {
 		return errors.Wrap(err, "failed to create logs directory")
 	}
 	// write kind version
-	if err := ioutil.WriteFile(
+	if err := os.WriteFile(
 		filepath.Join(dir, "kind-version.txt"),
 		[]byte(version.DisplayVersion()),
 		0666, // match os.Create

@@ -1,0 +1,25 @@
+name: run-olm-kind
+on:
+  pull_request:
+  schedule:
+  - cron: '0 0 * * *' # daily to pick up releases
+  workflow_dispatch:
+jobs:
+  e2e-kind:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v4
+      with:
+        go-version-file: "go.mod"
+    - name: Install kind
+      run: |
+        curl -sLo kind "$(curl -sL https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r '[.assets[] | select(.name == "kind-linux-amd64")] | first | .browser_download_url')"
+        chmod +x kind
+        sudo mv kind /bin/
+    - name: Create kind cluster
+      run: |
+        kind create cluster
+        kind export kubeconfig
+    - name: Run OLM
+      run: make run-local

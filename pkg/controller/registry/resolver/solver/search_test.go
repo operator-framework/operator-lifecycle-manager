@@ -31,7 +31,7 @@ func (c *TestScopeCounter) Untest() (result int) {
 func TestSearch(t *testing.T) {
 	type tc struct {
 		Name          string
-		Installables  []Installable
+		Variables     []Variable
 		TestReturns   []int
 		UntestReturns []int
 		Result        int
@@ -41,10 +41,10 @@ func TestSearch(t *testing.T) {
 	for _, tt := range []tc{
 		{
 			Name: "children popped from back of deque when guess popped",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("c")),
-				installable("b", Mandatory()),
-				installable("c"),
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("c")),
+				variable("b", Mandatory()),
+				variable("c"),
 			},
 			TestReturns:   []int{0, -1},
 			UntestReturns: []int{-1, -1},
@@ -53,11 +53,11 @@ func TestSearch(t *testing.T) {
 		},
 		{
 			Name: "candidates exhausted",
-			Installables: []Installable{
-				installable("a", Mandatory(), Dependency("x")),
-				installable("b", Mandatory(), Dependency("y")),
-				installable("x"),
-				installable("y"),
+			Variables: []Variable{
+				variable("a", Mandatory(), Dependency("x")),
+				variable("b", Mandatory(), Dependency("y")),
+				variable("x"),
+				variable("y"),
 			},
 			TestReturns:   []int{0, 0, -1, 1},
 			UntestReturns: []int{0},
@@ -79,7 +79,7 @@ func TestSearch(t *testing.T) {
 			var depth int
 			counter := &TestScopeCounter{depth: &depth, S: &s}
 
-			lits, err := newLitMapping(tt.Installables)
+			lits, err := newLitMapping(tt.Variables)
 			assert.NoError(err)
 			h := search{
 				s:      counter,
@@ -97,7 +97,7 @@ func TestSearch(t *testing.T) {
 			assert.Equal(tt.Result, result)
 			var ids []Identifier
 			for _, m := range ms {
-				ids = append(ids, lits.InstallableOf(m).Identifier())
+				ids = append(ids, lits.VariableOf(m).Identifier())
 			}
 			assert.Equal(tt.Assumptions, ids)
 			assert.Equal(0, depth)

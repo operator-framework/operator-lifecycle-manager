@@ -8,7 +8,7 @@ set -e
 [ -x "$(command -v kind)" ] && [[ "$(kubectl config current-context)" =~ ^kind-? ]] && KIND=1 NO_MINIKUBE=1
 
 if [ -z "$NO_MINIKUBE" ]; then
-  pgrep -f "[m]inikube" >/dev/null || minikube start --kubernetes-version="v1.16.4" --extra-config=apiserver.v=4 || { echo 'Cannot start minikube.'; exit 1; }
+  pgrep -f "[m]inikube" >/dev/null || minikube start --extra-config=apiserver.v=4 || { echo 'Cannot start minikube.'; exit 1; }
   eval "$(minikube docker-env)" || { echo 'Cannot switch to minikube docker'; exit 1; }
   kubectl config use-context minikube
 fi
@@ -22,7 +22,7 @@ if [ -n "$KIND" ]; then
   # kind will use the cluster named kind by default, so if there is only one cluster, specify it
   if [[ ${#CLUSTERS[@]} == 1 ]]; then
     KIND_FLAGS="--name ${CLUSTERS[0]}"
-    echo 'Use cluster ${CLUSTERS[0]}'
+    echo "Use cluster ${CLUSTERS[0]}"
   fi
 
   kind load docker-image quay.io/operator-framework/olm:local ${KIND_FLAGS}

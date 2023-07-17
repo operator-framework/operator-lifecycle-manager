@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -48,6 +48,11 @@ func grpcCatalogSourceWithSecret(secretNames []string) *v1alpha1.CatalogSource {
 			Secrets:    secretNames,
 		},
 	}
+}
+func grpcCatalogSourceWithStatus(status v1alpha1.CatalogSourceStatus) *v1alpha1.CatalogSource {
+	catsrc := validGrpcCatalogSource("image", "")
+	catsrc.Status = status
+	return catsrc
 }
 
 func grpcCatalogSourceWithAnnotations(annotations map[string]string) *v1alpha1.CatalogSource {
@@ -284,6 +289,29 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				},
 			},
 		},
+		{
+			testName: "Grpc/ExistingRegistry/UpdateInvalidRegistryServiceStatus",
+			in: in{
+				cluster: cluster{
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("image", "")),
+				},
+				catsrc: grpcCatalogSourceWithStatus(v1alpha1.CatalogSourceStatus{
+					RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+						CreatedAt: now(),
+						Protocol:  "grpc",
+					},
+				}),
+			},
+			out: out{
+				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        now(),
+					Protocol:         "grpc",
+					ServiceName:      "img-catalog",
+					ServiceNamespace: testNamespace,
+					Port:             "50051",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
@@ -303,7 +331,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			}
 
 			// Check for resource existence
-			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
+			decorated := grpcCatalogSourceDecorator{tt.in.catsrc, runAsUser}
 			pod := decorated.Pod(tt.in.catsrc.GetName())
 			service := decorated.Service()
 			sa := decorated.ServiceAccount()
@@ -332,9 +360,8 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 				require.NoError(t, podErr)
 				require.Len(t, outPods.Items, 0)
 				require.NoError(t, err)
-				require.True(t, k8serrors.IsNotFound(serviceErr))
+				require.True(t, apierrors.IsNotFound(serviceErr))
 			}
-
 		})
 	}
 }
@@ -394,7 +421,7 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check for resource existence
-			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
+			decorated := grpcCatalogSourceDecorator{tt.in.catsrc, runAsUser}
 			pod := decorated.Pod(tt.in.catsrc.GetName())
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
@@ -450,6 +477,18 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			in: in{
 				cluster: cluster{
 					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Service{}, "badName"),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/Image/BadServiceAccount",
+			in: in{
+				cluster: cluster{
+					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.ServiceAccount{}, "badName"),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -553,7 +592,6 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			}
 
 			require.Equal(t, tt.out.healthy, healthy)
-
 		})
 	}
 }

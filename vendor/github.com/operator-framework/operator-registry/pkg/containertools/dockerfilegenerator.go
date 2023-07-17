@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	defaultBinarySourceImage = "quay.io/operator-framework/upstream-opm-builder"
+	DefaultBinarySourceImage = "quay.io/operator-framework/opm:latest"
 	DefaultDbLocation        = "/database/index.db"
 	DbLocationLabel          = "operators.operatorframework.io.index.database.v1"
+	ConfigsLocationLabel     = "operators.operatorframework.io.index.configs.v1"
 )
 
 // DockerfileGenerator defines functions to generate index dockerfiles
@@ -36,7 +37,7 @@ func (g *IndexDockerfileGenerator) GenerateIndexDockerfile(binarySourceImage, da
 	var dockerfile string
 
 	if binarySourceImage == "" {
-		binarySourceImage = defaultBinarySourceImage
+		binarySourceImage = DefaultBinarySourceImage
 	}
 
 	g.Logger.Info("Generating dockerfile")

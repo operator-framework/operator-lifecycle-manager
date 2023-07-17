@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
 type InstrumentedResolver struct {
@@ -27,13 +26,9 @@ func (ir *InstrumentedResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step
 	start := time.Now()
 	steps, lookups, subs, err := ir.resolver.ResolveSteps(namespace)
 	if err != nil {
-		ir.failureMetricsEmitter(time.Now().Sub(start))
+		ir.failureMetricsEmitter(time.Since(start))
 	} else {
-		ir.successMetricsEmitter(time.Now().Sub(start))
+		ir.successMetricsEmitter(time.Since(start))
 	}
 	return steps, lookups, subs, err
-}
-
-func (ir *InstrumentedResolver) Expire(key cache.SourceKey) {
-	ir.resolver.Expire(key)
 }

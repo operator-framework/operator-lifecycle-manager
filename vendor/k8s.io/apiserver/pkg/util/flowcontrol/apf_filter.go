@@ -21,17 +21,20 @@ import (
 	"strconv"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
+	endpointsrequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/server/httplog"
 	"k8s.io/apiserver/pkg/server/mux"
-	"k8s.io/apiserver/pkg/util/flowcontrol/counter"
 	fq "k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing"
+	"k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/eventclock"
 	fqs "k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/queueset"
 	"k8s.io/apiserver/pkg/util/flowcontrol/metrics"
+	fcrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 
-	flowcontrol "k8s.io/api/flowcontrol/v1beta1"
-	flowcontrolclient "k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta1"
+	flowcontrol "k8s.io/api/flowcontrol/v1beta3"
+	flowcontrolclient "k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta3"
 )
 
 // ConfigConsumerAsFieldManager is how the config consuminng
@@ -42,8 +45,13 @@ const ConfigConsumerAsFieldManager = "api-priority-and-fairness-config-consumer-
 type Interface interface {
 	// Handle takes care of queuing and dispatching a request
 	// characterized by the given digest.  The given `noteFn` will be
-	// invoked with the results of request classification.  If the
-	// request is queued then `queueNoteFn` will be called twice,
+	// invoked with the results of request classification.
+	// The given `workEstimator` is called, if at all, after noteFn.
+	// `workEstimator` will be invoked only when the request
+	//  is classified as non 'exempt'.
+	// 'workEstimator', when invoked, must return the
+	// work parameters for the request.
+	// If the request is queued then `queueNoteFn` will be called twice,
 	// first with `true` and then with `false`; otherwise
 	// `queueNoteFn` will not be called at all.  If Handle decides
 	// that the request should be executed then `execute()` will be
@@ -53,13 +61,11 @@ type Interface interface {
 	// ctx is cancelled or times out.
 	Handle(ctx context.Context,
 		requestDigest RequestDigest,
-		noteFn func(fs *flowcontrol.FlowSchema, pl *flowcontrol.PriorityLevelConfiguration),
+		noteFn func(fs *flowcontrol.FlowSchema, pl *flowcontrol.PriorityLevelConfiguration, flowDistinguisher string),
+		workEstimator func() fcrequest.WorkEstimate,
 		queueNoteFn fq.QueueNoteFn,
 		execFn func(),
 	)
-
-	// MaintainObservations is a helper for maintaining statistics.
-	MaintainObservations(stopCh <-chan struct{})
 
 	// Run monitors config objects from the main apiservers and causes
 	// any needed changes to local behavior.  This method ceases
@@ -78,12 +84,11 @@ type Interface interface {
 // New creates a new instance to implement API priority and fairness
 func New(
 	informerFactory kubeinformers.SharedInformerFactory,
-	flowcontrolClient flowcontrolclient.FlowcontrolV1beta1Interface,
+	flowcontrolClient flowcontrolclient.FlowcontrolV1beta3Interface,
 	serverConcurrencyLimit int,
 	requestWaitLimit time.Duration,
 ) Interface {
-	grc := counter.NoOp{}
-	clk := clock.RealClock{}
+	clk := eventclock.Real{}
 	return NewTestable(TestableConfig{
 		Name:                   "Controller",
 		Clock:                  clk,
@@ -93,8 +98,9 @@ func New(
 		FlowcontrolClient:      flowcontrolClient,
 		ServerConcurrencyLimit: serverConcurrencyLimit,
 		RequestWaitLimit:       requestWaitLimit,
-		ObsPairGenerator:       metrics.PriorityLevelConcurrencyObserverPairGenerator,
-		QueueSetFactory:        fqs.NewQueueSetFactory(clk, grc),
+		ReqsGaugeVec:           metrics.PriorityLevelConcurrencyGaugeVec,
+		ExecSeatsGaugeVec:      metrics.PriorityLevelExecutionSeatsGaugeVec,
+		QueueSetFactory:        fqs.NewQueueSetFactory(clk),
 	})
 }
 
@@ -124,7 +130,7 @@ type TestableConfig struct {
 	InformerFactory kubeinformers.SharedInformerFactory
 
 	// FlowcontrolClient to use for manipulating config objects
-	FlowcontrolClient flowcontrolclient.FlowcontrolV1beta1Interface
+	FlowcontrolClient flowcontrolclient.FlowcontrolV1beta3Interface
 
 	// ServerConcurrencyLimit for the controller to enforce
 	ServerConcurrencyLimit int
@@ -132,8 +138,11 @@ type TestableConfig struct {
 	// RequestWaitLimit configured on the server
 	RequestWaitLimit time.Duration
 
-	// ObsPairGenerator for metrics
-	ObsPairGenerator metrics.TimedObserverPairGenerator
+	// GaugeVec for metrics about requests, broken down by phase and priority_level
+	ReqsGaugeVec metrics.RatioedGaugeVec
+
+	// RatioedGaugePairVec for metrics about seats occupied by all phases of execution
+	ExecSeatsGaugeVec metrics.RatioedGaugeVec
 
 	// QueueSetFactory for the queuing implementation
 	QueueSetFactory fq.QueueSetFactory
@@ -145,15 +154,15 @@ func NewTestable(config TestableConfig) Interface {
 }
 
 func (cfgCtlr *configController) Handle(ctx context.Context, requestDigest RequestDigest,
-	noteFn func(fs *flowcontrol.FlowSchema, pl *flowcontrol.PriorityLevelConfiguration),
+	noteFn func(fs *flowcontrol.FlowSchema, pl *flowcontrol.PriorityLevelConfiguration, flowDistinguisher string),
+	workEstimator func() fcrequest.WorkEstimate,
 	queueNoteFn fq.QueueNoteFn,
 	execFn func()) {
-	fs, pl, isExempt, req, startWaitingTime := cfgCtlr.startRequest(ctx, requestDigest, queueNoteFn)
+	fs, pl, isExempt, req, startWaitingTime := cfgCtlr.startRequest(ctx, requestDigest, noteFn, workEstimator, queueNoteFn)
 	queued := startWaitingTime != time.Time{}
-	noteFn(fs, pl)
 	if req == nil {
 		if queued {
-			metrics.ObserveWaitingDuration(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), time.Since(startWaitingTime))
+			observeQueueWaitTime(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), cfgCtlr.clock.Since(startWaitingTime))
 		}
 		klog.V(7).Infof("Handle(%#+v) => fsName=%q, distMethod=%#+v, plName=%q, isExempt=%v, reject", requestDigest, fs.Name, fs.Spec.DistinguisherMethod, pl.Name, isExempt)
 		return
@@ -170,18 +179,26 @@ func (cfgCtlr *configController) Handle(ctx context.Context, requestDigest Reque
 	}()
 	idle = req.Finish(func() {
 		if queued {
-			metrics.ObserveWaitingDuration(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), time.Since(startWaitingTime))
+			observeQueueWaitTime(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), cfgCtlr.clock.Since(startWaitingTime))
 		}
 		metrics.AddDispatch(ctx, pl.Name, fs.Name)
+		fqs.OnRequestDispatched(req)
 		executed = true
-		startExecutionTime := time.Now()
+		startExecutionTime := cfgCtlr.clock.Now()
 		defer func() {
-			metrics.ObserveExecutionDuration(ctx, pl.Name, fs.Name, time.Since(startExecutionTime))
+			executionTime := cfgCtlr.clock.Since(startExecutionTime)
+			httplog.AddKeyValue(ctx, "apf_execution_time", executionTime)
+			metrics.ObserveExecutionDuration(ctx, pl.Name, fs.Name, executionTime)
 		}()
 		execFn()
 	})
 	if queued && !executed {
-		metrics.ObserveWaitingDuration(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), time.Since(startWaitingTime))
+		observeQueueWaitTime(ctx, pl.Name, fs.Name, strconv.FormatBool(req != nil), cfgCtlr.clock.Since(startWaitingTime))
 	}
 	panicking = false
+}
+
+func observeQueueWaitTime(ctx context.Context, priorityLevelName, flowSchemaName, execute string, waitTime time.Duration) {
+	metrics.ObserveWaitingDuration(ctx, priorityLevelName, flowSchemaName, execute, waitTime)
+	endpointsrequest.TrackAPFQueueWaitLatency(ctx, waitTime)
 }

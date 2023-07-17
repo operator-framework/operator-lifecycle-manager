@@ -4,14 +4,11 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -26,68 +23,76 @@ const (
 	BundleLookupConditionPacked v1alpha1.BundleLookupConditionType = "BundleLookupNotPersisted"
 )
 
-var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
+// init hooks provides the downstream a way to modify the upstream behavior
+var initHooks []stepResolverInitHook
 
 type StepResolver interface {
 	ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
-	Expire(key cache.SourceKey)
 }
 
 type OperatorStepResolver struct {
 	subLister              v1alpha1listers.SubscriptionLister
 	csvLister              v1alpha1listers.ClusterServiceVersionLister
-	ipLister               v1alpha1listers.InstallPlanLister
 	client                 versioned.Interface
-	kubeclient             kubernetes.Interface
 	globalCatalogNamespace string
-	satResolver            *SatResolver
+	resolver               *Resolver
 	log                    logrus.FieldLogger
 }
 
 var _ StepResolver = &OperatorStepResolver{}
 
-func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface,
-	globalCatalogNamespace string, provider RegistryClientProvider, log logrus.FieldLogger) *OperatorStepResolver {
-	return &OperatorStepResolver{
-		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
-		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
-		ipLister:               lister.OperatorsV1alpha1().InstallPlanLister(),
-		client:                 client,
-		kubeclient:             kubeclient,
-		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(SourceProviderFromRegistryClientProvider(provider, log), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
-		log:                    log,
-	}
+type catsrcPriorityProvider struct {
+	lister v1alpha1listers.CatalogSourceLister
 }
 
-func (r *OperatorStepResolver) Expire(key cache.SourceKey) {
-	r.satResolver.cache.Expire(key)
+func (pp catsrcPriorityProvider) Priority(key cache.SourceKey) int {
+	catsrc, err := pp.lister.CatalogSources(key.Namespace).Get(key.Name)
+	if err != nil {
+		return 0
+	}
+	return catsrc.Spec.Priority
+}
+
+func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versioned.Interface, globalCatalogNamespace string, sourceProvider cache.SourceProvider, log logrus.FieldLogger) *OperatorStepResolver {
+	cacheSourceProvider := &mergedSourceProvider{
+		sps: []cache.SourceProvider{
+			sourceProvider,
+			//SourceProviderFromRegistryClientProvider(provider, log),
+			&csvSourceProvider{
+				csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+				subLister: lister.OperatorsV1alpha1().SubscriptionLister(),
+				ogLister:  lister.OperatorsV1().OperatorGroupLister(),
+				logger:    log,
+			},
+		},
+	}
+	stepResolver := &OperatorStepResolver{
+		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
+		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		client:                 client,
+		globalCatalogNamespace: globalCatalogNamespace,
+		resolver:               NewDefaultResolver(cacheSourceProvider, catsrcPriorityProvider{lister: lister.OperatorsV1alpha1().CatalogSourceLister()}, log),
+		log:                    log,
+	}
+
+	// init hooks can be added to the downstream to
+	// modify resolver behaviour
+	for _, initHook := range initHooks {
+		if err := initHook(stepResolver); err != nil {
+			panic(err)
+		}
+	}
+	return stepResolver
 }
 
 func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
-	// create a generation - a representation of the current set of installed operators and their provided/required apis
-	allCSVs, err := r.csvLister.ClusterServiceVersions(namespace).List(labels.Everything())
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// TODO: build this index ahead of time
-	// omit copied csvs from generation - they indicate that apis are provided to the namespace, not by the namespace
-	var csvs []*v1alpha1.ClusterServiceVersion
-	for i := range allCSVs {
-		if !allCSVs[i].IsCopied() {
-			csvs = append(csvs, allCSVs[i])
-		}
-	}
-
 	subs, err := r.listSubscriptions(namespace)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	var operators cache.OperatorSet
 	namespaces := []string{namespace, r.globalCatalogNamespace}
-	operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs)
+	operators, err := r.resolver.Resolve(namespaces, subs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -97,7 +102,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 	steps := []*v1alpha1.Step{}
 	updatedSubs := []*v1alpha1.Subscription{}
 	bundleLookups := []v1alpha1.BundleLookup{}
-	for name, op := range operators {
+	for _, op := range operators {
 		// Find any existing subscriptions that resolve to this operator.
 		existingSubscriptions := make(map[*v1alpha1.Subscription]bool)
 		sourceInfo := *op.SourceInfo
@@ -166,11 +171,11 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 					},
 				},
 			}
-			if anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties); err != nil {
+			anno, err := projection.PropertiesAnnotationFromPropertyList(op.Properties)
+			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to serialize operator properties for %q: %w", op.Name, err)
-			} else {
-				lookup.Properties = anno
 			}
+			lookup.Properties = anno
 			bundleLookups = append(bundleLookups, lookup)
 		}
 
@@ -182,7 +187,7 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 				return nil, nil, nil, err
 			}
 			steps = append(steps, &v1alpha1.Step{
-				Resolving: name,
+				Resolving: op.Name,
 				Resource:  subStep,
 				Status:    v1alpha1.StepStatusUnknown,
 			})
@@ -230,4 +235,22 @@ func (r *OperatorStepResolver) listSubscriptions(namespace string) ([]*v1alpha1.
 	}
 
 	return subs, nil
+}
+
+type mergedSourceProvider struct {
+	sps    []cache.SourceProvider
+	logger logrus.StdLogger
+}
+
+func (msp *mergedSourceProvider) Sources(namespaces ...string) map[cache.SourceKey]cache.Source {
+	result := make(map[cache.SourceKey]cache.Source)
+	for _, sp := range msp.sps {
+		for key, source := range sp.Sources(namespaces...) {
+			if _, ok := result[key]; ok {
+				msp.logger.Printf("warning: duplicate sourcekey: %q\n", key)
+			}
+			result[key] = source
+		}
+	}
+	return result
 }

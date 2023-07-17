@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -29,9 +29,20 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Operator Group", func() {
+	var (
+		c   operatorclient.ClientInterface
+		crc versioned.Interface
+	)
+
+	BeforeEach(func() {
+		c = ctx.Ctx().KubeClient()
+		crc = ctx.Ctx().OperatorClient()
+	})
+
 	AfterEach(func() {
 		TearDown(testNamespace)
 	})
@@ -56,8 +67,6 @@ var _ = Describe("Operator Group", func() {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := genName(testNamespace + "-")
@@ -218,7 +227,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				log(fmt.Sprintf("Error (in %v): %v", testNamespace, fetchErr.Error()))
@@ -235,7 +244,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				log(fmt.Sprintf("Error (in %v): %v", otherNamespaceName, fetchErr.Error()))
@@ -252,7 +261,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
@@ -269,7 +278,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			createdDeployment, err := c.GetDeployment(opGroupNamespace, deploymentName)
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -292,7 +301,6 @@ var _ = Describe("Operator Group", func() {
 		stopCh := make(chan struct{})
 		defer func() {
 			stopCh <- struct{}{}
-			return
 		}()
 
 		for _, informer := range []cache.SharedIndexInformer{roleInformer.Informer(), roleBindingInformer.Informer(), clusterRoleInformer.Informer(), clusterRoleBindingInformer.Informer()} {
@@ -388,7 +396,7 @@ var _ = Describe("Operator Group", func() {
 			}
 			return true, err
 		})
-		require.True(GinkgoT(), k8serrors.IsNotFound(err))
+		require.True(GinkgoT(), apierrors.IsNotFound(err))
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), operatorGroup.Name+"-edit", metav1.GetOptions{})
@@ -397,7 +405,7 @@ var _ = Describe("Operator Group", func() {
 			}
 			return true, err
 		})
-		require.True(GinkgoT(), k8serrors.IsNotFound(err))
+		require.True(GinkgoT(), apierrors.IsNotFound(err))
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(context.TODO(), operatorGroup.Name+"-view", metav1.GetOptions{})
@@ -406,7 +414,7 @@ var _ = Describe("Operator Group", func() {
 			}
 			return true, err
 		})
-		require.True(GinkgoT(), k8serrors.IsNotFound(err))
+		require.True(GinkgoT(), apierrors.IsNotFound(err))
 	})
 	It("role aggregation", func() {
 
@@ -435,7 +443,6 @@ var _ = Describe("Operator Group", func() {
 		}
 
 		// Generate operatorGroupA - OwnNamespace
-		crc := newCRClient()
 		groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -627,7 +634,6 @@ var _ = Describe("Operator Group", func() {
 		}
 
 		// Generate operatorGroupA
-		crc := newCRClient()
 		groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -870,8 +876,6 @@ var _ = Describe("Operator Group", func() {
 
 		// Create namespaces
 		nsA, nsB, nsC, nsD, nsE := genName("a-"), genName("b-"), genName("c-"), genName("d-"), genName("e-")
-		c := newKubeClient()
-		crc := newCRClient()
 		for _, ns := range []string{nsA, nsB, nsC, nsD, nsE} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1085,7 +1089,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""}))
 
 		// Ensure csvA's deployment is deleted
-		require.NoError(GinkgoT(), waitForDeploymentToDelete(c, pkgAStable))
+		require.NoError(GinkgoT(), waitForDeploymentToDelete(testNamespace, c, pkgAStable))
 
 		// Await csvB's success
 		_, err = awaitCSV(crc, nsB, csvB.GetName(), csvSucceededChecker)
@@ -1144,8 +1148,7 @@ var _ = Describe("Operator Group", func() {
 
 		// Create namespaces
 		nsA, nsB, nsC, nsD := genName("a-"), genName("b-"), genName("c-"), genName("d-")
-		c := newKubeClient()
-		crc := newCRClient()
+
 		for _, ns := range []string{nsA, nsB, nsC, nsD} {
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1318,8 +1321,6 @@ var _ = Describe("Operator Group", func() {
 	// TODO: Test Subscription upgrade paths with + and - providedAPIs
 	It("CSV copy watching all namespaces", func() {
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := testNamespace
@@ -1420,7 +1421,7 @@ var _ = Describe("Operator Group", func() {
 		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
 		// Use the It spec name as label after stripping whitespaces
-		aCSV.Labels = map[string]string{"label": strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1)}
+		aCSV.Labels = map[string]string{"label": K8sSafeCurrentTestDescription()}
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
@@ -1441,7 +1442,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedRole, err = c.GetClusterRole(role.GetName())
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -1457,7 +1458,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedRoleBinding, err = c.GetClusterRoleBinding(roleBinding.GetName())
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -1486,7 +1487,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", testNamespace, fetchErr.Error())
@@ -1499,7 +1500,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1))})
+		csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", K8sSafeCurrentTestDescription())})
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Logf("Found CSV count of %v", len(csvList.Items))
 		GinkgoT().Logf("Create other namespace %s", otherNamespaceName)
@@ -1519,7 +1520,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
@@ -1550,7 +1551,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
 			_, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return true, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", opGroupNamespace, fetchErr.Error())
@@ -1566,8 +1567,6 @@ var _ = Describe("Operator Group", func() {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-")
 
 		newNamespaceName := genName(testNamespace + "-")
@@ -1628,6 +1627,9 @@ var _ = Describe("Operator Group", func() {
 
 		_, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, newNamespaceName, serviceAccount.GetName())
+		defer cleanupSE()
 
 		log("wait for CSV to fail")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -1701,8 +1703,6 @@ var _ = Describe("Operator Group", func() {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-")
 
 		newNamespaceName := genName(testNamespace + "-")
@@ -1763,6 +1763,9 @@ var _ = Describe("Operator Group", func() {
 
 		_, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
+		// Create token secret for the serviceaccount
+		_, cleanupSE := newTokenSecret(c, newNamespaceName, serviceAccount.GetName())
+		defer cleanupSE()
 
 		log("wait for CSV to fail")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -1796,10 +1799,8 @@ var _ = Describe("Operator Group", func() {
 
 	// Versions of OLM at 0.14.1 and older had a bug that would place the wrong namespace annotation on copied CSVs,
 	// preventing them from being GCd. This ensures that any leftover CSVs in that state are properly cleared up.
-	It("cleanup csvs with bad owner operator groups", func() {
+	It("cleanup csvs with bad namespace annotation", func() {
 
-		c := newKubeClient()
-		crc := newCRClient()
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
 		opGroupNamespace := testNamespace
@@ -1900,7 +1901,7 @@ var _ = Describe("Operator Group", func() {
 		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
 		// Use the It spec name as label after stripping whitespaces
-		aCSV.Labels = map[string]string{"label": strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1)}
+		aCSV.Labels = map[string]string{"label": K8sSafeCurrentTestDescription()}
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
@@ -1921,7 +1922,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedRole, err = c.GetClusterRole(role.GetName())
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -1937,7 +1938,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedRoleBinding, err = c.GetClusterRoleBinding(roleBinding.GetName())
 			if err != nil {
-				if k8serrors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, err
@@ -1966,7 +1967,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", testNamespace, fetchErr.Error())
@@ -1979,7 +1980,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", strings.Replace(CurrentGinkgoTestDescription().TestText, " ", "", -1))})
+		csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", K8sSafeCurrentTestDescription())})
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Logf("Found CSV count of %v", len(csvList.Items))
 		GinkgoT().Logf("Create other namespace %s", otherNamespaceName)
@@ -1999,7 +2000,7 @@ var _ = Describe("Operator Group", func() {
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return false, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
@@ -2011,36 +2012,42 @@ var _ = Describe("Operator Group", func() {
 			return false, nil
 		})
 		require.NoError(GinkgoT(), err)
-
-		// Give copied CSV a bad operatorgroup annotation
-		updateCSV := func() error {
-			fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
-			require.NoError(GinkgoT(), err)
+		GinkgoT().Log("Copied CSV showed up in other namespace, giving copied CSV a bad OpertorGroup annotation")
+		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+			fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
+			if fetchErr != nil {
+				return false, fetchErr
+			}
 			fetchedCSV.Annotations[v1.OperatorGroupNamespaceAnnotationKey] = fetchedCSV.GetNamespace()
-			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
-			return err
-		}
-		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateCSV))
-
-		// wait for CSV to be gc'd
+			_, updateErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
+			if updateErr != nil {
+				GinkgoT().Logf("Error updating copied CSV (in %v): %v", otherNamespaceName, updateErr.Error())
+				return false, updateErr
+			}
+			return true, nil
+		})
+		require.NoError(GinkgoT(), err)
+		GinkgoT().Log("Done updating copied CSV with bad annotation OperatorGroup, waiting for CSV to be gc'd")
 		err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
 			csv, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(context.TODO(), csvName, metav1.GetOptions{})
 			if fetchErr != nil {
-				if k8serrors.IsNotFound(fetchErr) {
+				if apierrors.IsNotFound(fetchErr) {
 					return true, nil
 				}
 				GinkgoT().Logf("Error (in %v): %v", opGroupNamespace, fetchErr.Error())
 				return false, fetchErr
 			}
-			GinkgoT().Logf("%#v", csv.Annotations)
-			GinkgoT().Logf(csv.GetNamespace())
+			// The CSV with the wrong annotation could have been replaced with a new copied CSV by this time
+			// If we find a CSV in the namespace, and it contains the correct annotation, it means the CSV
+			// with the wrong annotation was GCed
+			if csv.Annotations[v1.OperatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
+				return true, nil
+			}
 			return false, nil
 		})
 		require.NoError(GinkgoT(), err)
 	})
 	It("OperatorGroupLabels", func() {
-		c := newKubeClient()
-		crc := newCRClient()
 
 		// Create the namespaces that will have an OperatorGroup Label applied.
 		testNamespaceA := genName("namespace-a-")
@@ -2140,8 +2147,6 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 	})
 	It("CleanupDeletedOperatorGroupLabels", func() {
-		c := newKubeClient()
-		crc := newCRClient()
 
 		// Create the namespaces that will have an OperatorGroup Label applied.
 		testNamespaceA := genName("namespace-a-")
@@ -2205,7 +2210,6 @@ var _ = Describe("Operator Group", func() {
 	})
 
 	Context("Given a set of Namespaces", func() {
-
 		var (
 			c              operatorclient.ClientInterface
 			crc            versioned.Interface
@@ -2245,13 +2249,11 @@ var _ = Describe("Operator Group", func() {
 		})
 
 		Context("Associating these Namespaces with a label", func() {
-
 			var (
 				matchingLabel map[string]string
 			)
 
 			BeforeEach(func() {
-
 				matchingLabel = map[string]string{"foo": "bar"}
 
 				// Updating Namespace with labels
@@ -2271,7 +2273,6 @@ var _ = Describe("Operator Group", func() {
 				var operatorGroup *v1.OperatorGroup
 
 				BeforeEach(func() {
-
 					// Creating operator group
 					operatorGroup = &v1.OperatorGroup{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2289,7 +2290,8 @@ var _ = Describe("Operator Group", func() {
 					Expect(err).ToNot(HaveOccurred())
 				})
 
-				It("OLM applies labels to Namespaces that are associated with an OperatorGroup", func() {
+				// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2637
+				It("[FLAKE] OLM applies labels to Namespaces that are associated with an OperatorGroup", func() {
 					ogLabel, err := getOGLabelKey(operatorGroup)
 					Expect(err).ToNot(HaveOccurred())
 
@@ -2438,7 +2440,6 @@ func updateOperatorGroupSpecFunc(t GinkgoTInterface, crc versioned.Interface, na
 }
 
 func pollForNamespaceListCount(c operatorclient.ClientInterface, listOptions metav1.ListOptions, expectedLength int) (list *corev1.NamespaceList, err error) {
-
 	Eventually(func() (bool, error) {
 		list, err = c.KubernetesInterface().CoreV1().Namespaces().List(context.TODO(), listOptions)
 		if err != nil {

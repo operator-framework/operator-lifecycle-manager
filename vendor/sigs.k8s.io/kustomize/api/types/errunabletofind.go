@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
+	"sigs.k8s.io/kustomize/kyaml/errors"
 )
 
 type errUnableToFind struct {
@@ -23,7 +23,7 @@ func (e *errUnableToFind) Error() string {
 		m = append(m, "('"+p.Value+"'; "+p.Key+")")
 	}
 	return fmt.Sprintf(
-		"unable to find plugin root - tried: %s", strings.Join(m, ", "))
+		"unable to find %s - tried: %s", e.what, strings.Join(m, ", "))
 }
 
 func NewErrUnableToFind(w string, a []Pair) *errUnableToFind {
@@ -31,10 +31,6 @@ func NewErrUnableToFind(w string, a []Pair) *errUnableToFind {
 }
 
 func IsErrUnableToFind(err error) bool {
-	_, ok := err.(*errUnableToFind)
-	if ok {
-		return true
-	}
-	_, ok = errors.Cause(err).(*errUnableToFind)
-	return ok
+	e := &errUnableToFind{}
+	return errors.As(err, &e)
 }

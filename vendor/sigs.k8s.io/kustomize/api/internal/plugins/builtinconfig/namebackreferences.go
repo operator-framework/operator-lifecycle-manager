@@ -6,8 +6,8 @@ package builtinconfig
 import (
 	"strings"
 
-	"sigs.k8s.io/kustomize/api/resid"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/resid"
 )
 
 // NameBackReferences is an association between a gvk.GVK (a ReferralTarget)
@@ -22,7 +22,7 @@ import (
 // contains a Pod; Deployment, Job, StatefulSet, etc.
 // The ConfigMap is the ReferralTarget, the others are Referrers.
 //
-// If the the name of a ConfigMap instance changed from 'alice' to 'bob',
+// If the name of a ConfigMap instance changed from 'alice' to 'bob',
 // one must
 //  - visit all objects that could refer to the ConfigMap (the Referrers)
 //  - see if they mention 'alice',

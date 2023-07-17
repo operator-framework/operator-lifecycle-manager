@@ -1,3 +1,4 @@
+//go:build tools
 // +build tools
 
 /*
@@ -18,9 +19,10 @@ limitations under the License.
 
 // This package contains code generation utilities
 // This package imports things required by build scripts, to force `go mod` to see them as dependencies
-package tools
+package codegenerator
 
 import (
+	_ "k8s.io/code-generator/cmd/applyconfiguration-gen"
 	_ "k8s.io/code-generator/cmd/client-gen"
 	_ "k8s.io/code-generator/cmd/conversion-gen"
 	_ "k8s.io/code-generator/cmd/deepcopy-gen"

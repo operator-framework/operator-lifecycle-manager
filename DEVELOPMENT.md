@@ -27,6 +27,8 @@
 
 This project uses the built-in testing support for golang.
 
+Envtest is also used and needs to be set up. Follow [controller-runtime instructions] and set `KUBEBUILDER_ASSETS` environment variable to point to the installation directory, for instance: `/usr/local/kubebuilder/bin`.
+
 To run the tests for all go packages outside of the vendor directory, run:
 ```sh
 $ make test
@@ -46,11 +48,14 @@ To run a specific e2e test locally:
 $ make e2e-local TEST=TestCreateInstallPlanManualApproval
 ```
 
+[controller-runtime instructions]: https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest#section-readme
+
 #### Building
 
-Ensure your version of go is up to date; check that you're running v1.9 with the
-command:
+Ensure your version of go is up to date; check that you're running the same version as in go.mod with the
+commands:
 ```sh
+$ head go.mod
 $ go version
 ```
 

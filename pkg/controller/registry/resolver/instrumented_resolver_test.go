@@ -6,14 +6,12 @@ import (
 	"time"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/stretchr/testify/require"
 )
 
 const (
 	failure = time.Duration(0)
 	success = time.Duration(1)
-	reset   = time.Duration(99999)
 )
 
 type fakeResolverWithError struct{}
@@ -23,14 +21,8 @@ func (r *fakeResolverWithError) ResolveSteps(namespace string) ([]*v1alpha1.Step
 	return nil, nil, nil, errors.New("Fake error")
 }
 
-func (r *fakeResolverWithError) Expire(key cache.SourceKey) {
-}
-
 func (r *fakeResolverWithoutError) ResolveSteps(namespace string) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	return nil, nil, nil, nil
-}
-
-func (r *fakeResolverWithoutError) Expire(key cache.SourceKey) {
 }
 
 func newFakeResolverWithError() *fakeResolverWithError {

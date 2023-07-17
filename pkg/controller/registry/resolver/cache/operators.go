@@ -14,6 +14,7 @@ import (
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
+// todo: drop fields from cache.Entry and move to pkg/controller/operators/olm
 type APISet map[opregistry.APIKey]struct{}
 
 func EmptyAPISet() APISet {
@@ -106,9 +107,7 @@ func (s APISet) Intersection(sets ...APISet) APISet {
 func (s APISet) Difference(set APISet) APISet {
 	difference := make(APISet).Union(s)
 	for api := range set {
-		if _, ok := difference[api]; ok {
-			delete(difference, api)
-		}
+		delete(difference, api)
 	}
 
 	return difference
@@ -135,59 +134,6 @@ func (s APISet) StripPlural() APISet {
 	return set
 }
 
-type APIOwnerSet map[opregistry.APIKey]*Entry
-
-func EmptyAPIOwnerSet() APIOwnerSet {
-	return map[opregistry.APIKey]*Entry{}
-}
-
-type OperatorSet map[string]*Entry
-
-func EmptyOperatorSet() OperatorSet {
-	return map[string]*Entry{}
-}
-
-// Snapshot returns a new set, pointing to the same values
-func (o OperatorSet) Snapshot() OperatorSet {
-	out := make(map[string]*Entry)
-	for key, val := range o {
-		out[key] = val
-	}
-	return out
-}
-
-type APIMultiOwnerSet map[opregistry.APIKey]OperatorSet
-
-func EmptyAPIMultiOwnerSet() APIMultiOwnerSet {
-	return map[opregistry.APIKey]OperatorSet{}
-}
-
-func (s APIMultiOwnerSet) PopAPIKey() *opregistry.APIKey {
-	for a := range s {
-		api := &opregistry.APIKey{
-			Group:   a.Group,
-			Version: a.Version,
-			Kind:    a.Kind,
-			Plural:  a.Plural,
-		}
-		delete(s, a)
-		return api
-	}
-	return nil
-}
-
-func (s APIMultiOwnerSet) PopAPIRequirers() OperatorSet {
-	requirers := EmptyOperatorSet()
-	for a := range s {
-		for key, op := range s[a] {
-			requirers[key] = op
-		}
-		delete(s, a)
-		return requirers
-	}
-	return nil
-}
-
 type OperatorSourceInfo struct {
 	Package        string
 	Channel        string
@@ -200,9 +146,6 @@ type OperatorSourceInfo struct {
 func (i *OperatorSourceInfo) String() string {
 	return fmt.Sprintf("%s/%s in %s/%s", i.Package, i.Channel, i.Catalog.Name, i.Catalog.Namespace)
 }
-
-var NoCatalog = SourceKey{Name: "", Namespace: ""}
-var ExistingOperator = OperatorSourceInfo{Package: "", Channel: "", StartingCSV: "", Catalog: NoCatalog, DefaultChannel: false}
 
 type Entry struct {
 	Name         string

@@ -86,8 +86,8 @@ type handler struct {
 // OnAddOrUpdate is invoked when a CSV has been added or edited. We tap into
 // this notification and do the following:
 //
-// a. Make sure this is the CSV related to the cluster operator resource we are
-//    tracking. Otherwise, do nothing.
+// a. Make sure this is the CSV related to the cluster operator resource we are tracking. Otherwise, do nothing.
+//
 // b. If this is the right CSV then send it to the monitor.
 func (h *handler) OnAddOrUpdate(in *v1alpha1.ClusterServiceVersion) {
 	h.onNotification(in, false)
@@ -96,8 +96,8 @@ func (h *handler) OnAddOrUpdate(in *v1alpha1.ClusterServiceVersion) {
 // OnDelete is invoked when a CSV has been deleted. We tap into
 // this notification and do the following:
 //
-// a. Make sure this is the CSV related to the cluster operator resource we are
-//    tracking. Otherwise, do nothing.
+// a. Make sure this is the CSV related to the cluster operator resource we are tracking. Otherwise, do nothing.
+//
 // b. If this is the right CSV then send it to the monitor.
 func (h *handler) OnDelete(in *v1alpha1.ClusterServiceVersion) {
 	h.onNotification(in, true)

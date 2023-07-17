@@ -4,11 +4,11 @@
 package resmap
 
 import (
-	"github.com/pkg/errors"
 	"sigs.k8s.io/kustomize/api/ifc"
 	"sigs.k8s.io/kustomize/api/internal/kusterr"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/errors"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
@@ -16,14 +16,11 @@ import (
 type Factory struct {
 	// Makes resources.
 	resF *resource.Factory
-	// Makes ConflictDetectors.
-	cdf resource.ConflictDetectorFactory
 }
 
 // NewFactory returns a new resmap.Factory.
-func NewFactory(
-	rf *resource.Factory, cdf resource.ConflictDetectorFactory) *Factory {
-	return &Factory{resF: rf, cdf: cdf}
+func NewFactory(rf *resource.Factory) *Factory {
+	return &Factory{resF: rf}
 }
 
 // RF returns a resource.Factory.
@@ -81,10 +78,10 @@ func (rmF *Factory) NewResMapFromBytes(b []byte) (ResMap, error) {
 func (rmF *Factory) NewResMapFromConfigMapArgs(
 	kvLdr ifc.KvLoader, argList []types.ConfigMapArgs) (ResMap, error) {
 	var resources []*resource.Resource
-	for _, args := range argList {
-		res, err := rmF.resF.MakeConfigMap(kvLdr, &args)
+	for i := range argList {
+		res, err := rmF.resF.MakeConfigMap(kvLdr, &argList[i])
 		if err != nil {
-			return nil, errors.Wrap(err, "NewResMapFromConfigMapArgs")
+			return nil, errors.WrapPrefixf(err, "NewResMapFromConfigMapArgs")
 		}
 		resources = append(resources, res)
 	}
@@ -106,10 +103,10 @@ func (rmF *Factory) FromConfigMapArgs(
 func (rmF *Factory) NewResMapFromSecretArgs(
 	kvLdr ifc.KvLoader, argsList []types.SecretArgs) (ResMap, error) {
 	var resources []*resource.Resource
-	for _, args := range argsList {
-		res, err := rmF.resF.MakeSecret(kvLdr, &args)
+	for i := range argsList {
+		res, err := rmF.resF.MakeSecret(kvLdr, &argsList[i])
 		if err != nil {
-			return nil, errors.Wrap(err, "NewResMapFromSecretArgs")
+			return nil, errors.WrapPrefixf(err, "NewResMapFromSecretArgs")
 		}
 		resources = append(resources, res)
 	}
@@ -126,13 +123,6 @@ func (rmF *Factory) FromSecretArgs(
 	return rmF.FromResource(res), nil
 }
 
-// ConflatePatches creates a new ResMap containing a merger of the
-// incoming patches.
-// Error if conflict found.
-func (rmF *Factory) ConflatePatches(patches []*resource.Resource) (ResMap, error) {
-	return (&merginator{cdf: rmF.cdf}).ConflatePatches(patches)
-}
-
 func newResMapFromResourceSlice(
 	resources []*resource.Resource) (ResMap, error) {
 	result := New()
@@ -146,18 +136,10 @@ func newResMapFromResourceSlice(
 }
 
 // NewResMapFromRNodeSlice returns a ResMap from a slice of RNodes
-func (rmF *Factory) NewResMapFromRNodeSlice(rnodes []*yaml.RNode) (ResMap, error) {
-	var resources []*resource.Resource
-	for _, rnode := range rnodes {
-		s, err := rnode.String()
-		if err != nil {
-			return nil, err
-		}
-		r, err := rmF.resF.SliceFromBytes([]byte(s))
-		if err != nil {
-			return nil, err
-		}
-		resources = append(resources, r...)
+func (rmF *Factory) NewResMapFromRNodeSlice(s []*yaml.RNode) (ResMap, error) {
+	rs, err := rmF.resF.ResourcesFromRNodes(s)
+	if err != nil {
+		return nil, err
 	}
-	return newResMapFromResourceSlice(resources)
+	return newResMapFromResourceSlice(rs)
 }

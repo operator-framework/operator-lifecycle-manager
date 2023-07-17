@@ -243,7 +243,6 @@ func (c *catalogHealthState) UpdateHealth(now *metav1.Time, client clientv1alpha
 	var known CatalogHealthKnownState
 	switch {
 	case missingTargeted:
-		healthy = false
 		cond.Message = fmt.Sprintf("targeted catalogsource %s/%s missing", in.Spec.CatalogSourceNamespace, in.Spec.CatalogSource)
 		fallthrough
 	case !healthy:
@@ -273,7 +272,6 @@ func (c *catalogHealthState) UpdateHealth(now *metav1.Time, client clientv1alpha
 	case numNew < numOld:
 		cond.Reason = v1alpha1.CatalogSourcesDeleted
 	case numNew == 0 && numNew == numOld:
-		healthy = false
 		cond.Reason = v1alpha1.NoCatalogSourcesFound
 		cond.Message = "dependency resolution requires at least one catalogsource"
 	case numNew == numOld:

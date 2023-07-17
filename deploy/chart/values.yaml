@@ -1,7 +1,19 @@
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: operator-lifecycle-manager
+# see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
+namespace_psa: 
+  enforceLevel: baseline
+  enforceVersion: latest
+  auditLevel: restricted
+  auditVersion: latest
+  warnLevel: restricted
+  warnVersion: latest
 catalog_namespace: operator-lifecycle-manager
 operator_namespace: operators
+# see https://kubernetes.io/docs/concepts/security/pod-security-admission/ for more details
+operator_namespace_psa: 
+  enforceLevel: baseline
+  enforceVersion: latest
 minKubeVersion: 1.11.0
 writeStatusName: '""'
 imagestream: false
@@ -25,8 +37,9 @@ olm:
      memory: 160Mi
 
 catalog:
+  setWorkloadUserID: true
   replicaCount: 1
-  commandArgs: -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
+  commandArgs: --configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
   image:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always

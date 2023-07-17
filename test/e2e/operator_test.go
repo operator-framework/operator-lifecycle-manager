@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	gomegatypes "github.com/onsi/gomega/types"
@@ -70,6 +70,7 @@ var _ = Describe("Operator API", func() {
 	// 14. Ensure the reference to ns-a is eventually removed from o's status.components.refs field
 	// 15. Delete o
 	// 16. Ensure o is not re-created
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2628
 	It("should surface components in its status", func() {
 		o := &operatorsv1.Operator{}
 		o.SetName(genName("o-"))
@@ -266,6 +267,9 @@ var _ = Describe("Operator API", func() {
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
 					SourceType: operatorsv1alpha1.SourceTypeGrpc,
 					Image:      "quay.io/operator-framework/ci-index:latest",
+					GrpcPodConfig: &operatorsv1alpha1.GrpcPodConfig{
+						SecurityContextConfig: operatorsv1alpha1.Restricted,
+					},
 				},
 			}
 			cs.SetNamespace(ns.GetName())
@@ -360,6 +364,7 @@ var _ = Describe("Operator API", func() {
 		})
 
 		Context("when a namespace is added", func() {
+
 			var newNs *corev1.Namespace
 
 			BeforeEach(func() {
@@ -370,6 +375,7 @@ var _ = Describe("Operator API", func() {
 					return client.Create(clientCtx, newNs)
 				}).Should(Succeed())
 			})
+
 			AfterEach(func() {
 				Eventually(func() error {
 					err := client.Delete(clientCtx, newNs)
@@ -379,6 +385,7 @@ var _ = Describe("Operator API", func() {
 					return err
 				}).Should(Succeed())
 			})
+
 			It("should not adopt copied csvs", func() {
 				Consistently(func() (*operatorsv1.Operator, error) {
 					o := &operatorsv1.Operator{}
@@ -454,7 +461,7 @@ func (matcher *copiedCSVRefMatcher) Match(actual interface{}) (success bool, err
 func (matcher *copiedCSVRefMatcher) FailureMessage(actual interface{}) (message string) {
 	operator, ok := actual.(*operatorsv1.Operator)
 	if !ok {
-		return fmt.Sprintf("copiedCSVRefMatcher matcher expects an *Operator")
+		return "copiedCSVRefMatcher matcher expects an *Operator"
 	}
 	return fmt.Sprintf("Expected\n\t%#v\nto contain copied CSVs in components\n\t%#v\n", operator, operator.Status.Components)
 }
@@ -462,7 +469,7 @@ func (matcher *copiedCSVRefMatcher) FailureMessage(actual interface{}) (message 
 func (matcher *copiedCSVRefMatcher) NegatedFailureMessage(actual interface{}) (message string) {
 	operator, ok := actual.(*operatorsv1.Operator)
 	if !ok {
-		return fmt.Sprintf("copiedCSVRefMatcher matcher expects an *Operator")
+		return "copiedCSVRefMatcher matcher expects an *Operator"
 	}
 	return fmt.Sprintf("Expected\n\t%#v\nto not contain copied CSVs in components\n\t%#v\n", operator, operator.Status.Components)
 }

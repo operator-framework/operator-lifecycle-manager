@@ -7,13 +7,10 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/pkg/errors"
-	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/internal/utils"
+	"sigs.k8s.io/kustomize/kyaml/errors"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
-
-// Arbitrary, but non-infinite, timeout for running commands.
-const defaultDuration = 27 * time.Second
 
 // gitRunner runs the external git binary.
 type gitRunner struct {
@@ -24,10 +21,10 @@ type gitRunner struct {
 
 // newCmdRunner returns a gitRunner if it can find the binary.
 // It also creats a temp directory for cloning repos.
-func newCmdRunner() (*gitRunner, error) {
+func newCmdRunner(timeout time.Duration) (*gitRunner, error) {
 	gitProgram, err := exec.LookPath("git")
 	if err != nil {
-		return nil, errors.Wrap(err, "no 'git' program on path")
+		return nil, errors.WrapPrefixf(err, "no 'git' program on path")
 	}
 	dir, err := filesys.NewTmpConfirmedDir()
 	if err != nil {
@@ -35,7 +32,7 @@ func newCmdRunner() (*gitRunner, error) {
 	}
 	return &gitRunner{
 		gitProgram: gitProgram,
-		duration:   defaultDuration,
+		duration:   timeout,
 		dir:        dir,
 	}, nil
 }
@@ -49,9 +46,9 @@ func (r gitRunner) run(args ...string) error {
 		cmd.String(),
 		r.duration,
 		func() error {
-			_, err := cmd.CombinedOutput()
+			out, err := cmd.CombinedOutput()
 			if err != nil {
-				return errors.Wrapf(err, "git cmd = '%s'", cmd.String())
+				return errors.WrapPrefixf(err, "failed to run '%s': %s", cmd.String(), string(out))
 			}
 			return err
 		})

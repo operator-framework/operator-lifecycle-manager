@@ -1,3 +1,4 @@
+//go:build kind
 // +build kind
 
 package ctx
@@ -6,7 +7,6 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,13 +77,13 @@ func (kl kindLogAdapter) V(level log.Level) log.InfoLogger {
 }
 
 func Provision(ctx *TestContext) (func(), error) {
-	dir, err := ioutil.TempDir("", "kind.")
+	dir, err := os.MkdirTemp("", "kind.")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory: %s", err.Error())
 	}
-	defer os.RemoveAll(dir)
 	kubeconfigPath := filepath.Join(dir, "kubeconfig")
 
+	ctx.Logf("e2e cluster kubeconfig: %s\n", kubeconfigPath)
 	provider := cluster.NewProvider(
 		cluster.ProviderWithLogger(kindLogAdapter{ctx}),
 	)
@@ -134,15 +134,19 @@ func Provision(ctx *TestContext) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("error loading kubeconfig: %s", err.Error())
 	}
-
 	ctx.restConfig = restConfig
+	ctx.kubeconfigPath = kubeconfigPath
 
 	var once sync.Once
 	deprovision := func() {
 		once.Do(func() {
-			if artifactsDir := os.Getenv("ARTIFACTS_DIR"); artifactsDir != "" {
+			// remove the temporary kubeconfig directory
+			if err := os.RemoveAll(dir); err != nil {
+				ctx.Logf("failed to remove the %s kubeconfig directory: %v", dir, err)
+			}
+			if ctx.artifactsDir != "" {
 				ctx.Logf("collecting container logs for the %s cluster", name)
-				if err := provider.CollectLogs(name, filepath.Join(artifactsDir, logDir)); err != nil {
+				if err := provider.CollectLogs(name, filepath.Join(ctx.artifactsDir, logDir)); err != nil {
 					ctx.Logf("failed to collect logs: %v", err)
 				}
 			}

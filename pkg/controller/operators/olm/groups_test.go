@@ -4,24 +4,24 @@ import (
 	"strings"
 	"testing"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 )
 
-func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []string) *v1.OperatorGroup {
-	return &v1.OperatorGroup{
+func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []string) *operatorsv1.OperatorGroup {
+	return &operatorsv1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 			Annotations: map[string]string{
-				v1.OperatorGroupProvidedAPIsAnnotationKey: strings.Join(gvks, ","),
+				operatorsv1.OperatorGroupProvidedAPIsAnnotationKey: strings.Join(gvks, ","),
 			},
 		},
-		Status: v1.OperatorGroupStatus{
+		Status: operatorsv1.OperatorGroupStatus{
 			Namespaces: targets,
 		},
 	}
@@ -29,7 +29,7 @@ func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []stri
 func TestNewOperatorGroup(t *testing.T) {
 	tests := []struct {
 		name string
-		in   *v1.OperatorGroup
+		in   *operatorsv1.OperatorGroup
 		want *OperatorGroup
 	}{
 		{
@@ -799,7 +799,6 @@ func TestGroupIntersection(t *testing.T) {
 			require.EqualValues(t, tt.want, tt.in.left.GroupIntersection(tt.in.right...))
 		})
 	}
-
 }
 
 func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReconciler) {

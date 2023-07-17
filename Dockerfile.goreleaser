@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM gcr.io/distroless/static:debug
+FROM gcr.io/distroless/static:debug
 LABEL stage=olm
 WORKDIR /
 # bundle unpack Jobs require cp at /bin/cp
@@ -10,4 +10,5 @@ COPY package-server /bin/package-server
 COPY cpb /bin/cpb
 EXPOSE 8080
 EXPOSE 5443
+USER 1001
 ENTRYPOINT ["/bin/olm"]

@@ -36,15 +36,15 @@ var (
 // As a consumer we should be reading off of proxy.status.
 func ToEnvVar(proxy *apiconfigv1.Proxy) []corev1.EnvVar {
 	return []corev1.EnvVar{
-		corev1.EnvVar{
+		{
 			Name:  envHTTPProxyName,
 			Value: proxy.Status.HTTPProxy,
 		},
-		corev1.EnvVar{
+		{
 			Name:  envHTTPSProxyName,
 			Value: proxy.Status.HTTPSProxy,
 		},
-		corev1.EnvVar{
+		{
 			Name:  envNoProxyName,
 			Value: proxy.Status.NoProxy,
 		},

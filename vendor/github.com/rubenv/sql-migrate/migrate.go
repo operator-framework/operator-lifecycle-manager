@@ -15,8 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-gorp/gorp/v3"
+
 	"github.com/rubenv/sql-migrate/sqlparse"
-	"gopkg.in/gorp.v1"
 )
 
 type MigrationDirection int
@@ -37,6 +38,8 @@ type MigrationSet struct {
 	//
 	// This should be used sparingly as it is removing a safety check.
 	IgnoreUnknown bool
+	// DisableCreateTable disable the creation of the migration table
+	DisableCreateTable bool
 }
 
 var migSet = MigrationSet{}
@@ -104,6 +107,11 @@ func SetSchema(name string) {
 	if name != "" {
 		migSet.SchemaName = name
 	}
+}
+
+// SetDisableCreateTable sets the boolean to disable the creation of the migration table
+func SetDisableCreateTable(disable bool) {
+	migSet.DisableCreateTable = disable
 }
 
 // SetIgnoreUnknown sets the flag that skips database check to see if there is a
@@ -229,7 +237,7 @@ type HttpFileSystemMigrationSource struct {
 var _ MigrationSource = (*HttpFileSystemMigrationSource)(nil)
 
 func (f HttpFileSystemMigrationSource) FindMigrations() ([]*Migration, error) {
-	return findMigrations(f.FileSystem)
+	return findMigrations(f.FileSystem, "/")
 }
 
 // A set of migrations loaded from a directory.
@@ -241,13 +249,13 @@ var _ MigrationSource = (*FileMigrationSource)(nil)
 
 func (f FileMigrationSource) FindMigrations() ([]*Migration, error) {
 	filesystem := http.Dir(f.Dir)
-	return findMigrations(filesystem)
+	return findMigrations(filesystem, "/")
 }
 
-func findMigrations(dir http.FileSystem) ([]*Migration, error) {
+func findMigrations(dir http.FileSystem, root string) ([]*Migration, error) {
 	migrations := make([]*Migration, 0)
 
-	file, err := dir.Open("/")
+	file, err := dir.Open(root)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +267,7 @@ func findMigrations(dir http.FileSystem) ([]*Migration, error) {
 
 	for _, info := range files {
 		if strings.HasSuffix(info.Name(), ".sql") {
-			migration, err := migrationFromFile(dir, info)
+			migration, err := migrationFromFile(dir, root, info)
 			if err != nil {
 				return nil, err
 			}
@@ -274,8 +282,8 @@ func findMigrations(dir http.FileSystem) ([]*Migration, error) {
 	return migrations, nil
 }
 
-func migrationFromFile(dir http.FileSystem, info os.FileInfo) (*Migration, error) {
-	path := fmt.Sprintf("/%s", strings.TrimPrefix(info.Name(), "/"))
+func migrationFromFile(dir http.FileSystem, root string, info os.FileInfo) (*Migration, error) {
+	path := path.Join(root, info.Name())
 	file, err := dir.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("Error while opening %s: %s", info.Name(), err)
@@ -437,17 +445,42 @@ func ExecMax(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirecti
 	return migSet.ExecMax(db, dialect, m, dir, max)
 }
 
+// Execute a set of migrations
+//
+// Will apply at the target `version` of migration. Cannot be a negative value.
+//
+// Returns the number of applied migrations.
+func ExecVersion(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, version int64) (int, error) {
+	if version < 0 {
+		return 0, fmt.Errorf("target version %d should not be negative", version)
+	}
+	return migSet.ExecVersion(db, dialect, m, dir, version)
+}
+
 // Returns the number of applied migrations.
 func (ms MigrationSet) ExecMax(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, max int) (int, error) {
 	migrations, dbMap, err := ms.PlanMigration(db, dialect, m, dir, max)
 	if err != nil {
 		return 0, err
 	}
+	return ms.applyMigrations(dir, migrations, dbMap)
+}
 
-	// Apply migrations
+// Returns the number of applied migrations.
+func (ms MigrationSet) ExecVersion(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, version int64) (int, error) {
+	migrations, dbMap, err := ms.PlanMigrationToVersion(db, dialect, m, dir, version)
+	if err != nil {
+		return 0, err
+	}
+	return ms.applyMigrations(dir, migrations, dbMap)
+}
+
+// Applies the planned migrations and returns the number of applied migrations.
+func (ms MigrationSet) applyMigrations(dir MigrationDirection, migrations []*PlannedMigration, dbMap *gorp.DbMap) (int, error) {
 	applied := 0
 	for _, migration := range migrations {
 		var executor SqlExecutor
+		var err error
 
 		if migration.DisableTransaction {
 			executor = dbMap
@@ -517,7 +550,23 @@ func PlanMigration(db *sql.DB, dialect string, m MigrationSource, dir MigrationD
 	return migSet.PlanMigration(db, dialect, m, dir, max)
 }
 
+// Plan a migration to version.
+func PlanMigrationToVersion(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, version int64) ([]*PlannedMigration, *gorp.DbMap, error) {
+	return migSet.PlanMigrationToVersion(db, dialect, m, dir, version)
+}
+
+// Plan a migration.
 func (ms MigrationSet) PlanMigration(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, max int) ([]*PlannedMigration, *gorp.DbMap, error) {
+	return ms.planMigrationCommon(db, dialect, m, dir, max, -1)
+}
+
+// Plan a migration to version.
+func (ms MigrationSet) PlanMigrationToVersion(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, version int64) ([]*PlannedMigration, *gorp.DbMap, error) {
+	return ms.planMigrationCommon(db, dialect, m, dir, 0, version)
+}
+
+// A common method to plan a migration.
+func (ms MigrationSet) planMigrationCommon(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, max int, version int64) ([]*PlannedMigration, *gorp.DbMap, error) {
 	dbMap, err := ms.getMigrationDbMap(db, dialect)
 	if err != nil {
 		return nil, nil, err
@@ -574,7 +623,24 @@ func (ms MigrationSet) PlanMigration(db *sql.DB, dialect string, m MigrationSour
 	// Figure out which migrations to apply
 	toApply := ToApply(migrations, record.Id, dir)
 	toApplyCount := len(toApply)
-	if max > 0 && max < toApplyCount {
+
+	if version >= 0 {
+		targetIndex := 0
+		for targetIndex < len(toApply) {
+			tempVersion := toApply[targetIndex].VersionInt()
+			if dir == Up && tempVersion > version || dir == Down && tempVersion < version {
+				return nil, nil, newPlanError(&Migration{}, fmt.Errorf("unknown migration with version id %d in database", version).Error())
+			}
+			if tempVersion == version {
+				toApplyCount = targetIndex + 1
+				break
+			}
+			targetIndex++
+		}
+		if targetIndex == len(toApply) {
+			return nil, nil, newPlanError(&Migration{}, fmt.Errorf("unknown migration with version id %d in database", version).Error())
+		}
+	} else if max > 0 && max < toApplyCount {
 		toApplyCount = max
 	}
 	for _, v := range toApply[0:toApplyCount] {
@@ -750,6 +816,10 @@ Check https://github.com/go-sql-driver/mysql#parsetime for more info.`)
 
 	if dialect == "oci8" || dialect == "godror" {
 		table.ColMap("Id").SetMaxSize(4000)
+	}
+
+	if migSet.DisableCreateTable {
+		return dbMap, nil
 	}
 
 	err := dbMap.CreateTablesIfNotExists()
