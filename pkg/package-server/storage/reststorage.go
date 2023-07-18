@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/fields"
 
@@ -61,7 +62,7 @@ func (m *PackageManifestStorage) Kind() string {
 }
 
 func (m *PackageManifestStorage) GetSingularName() string {
-	return m.Kind()
+	return strings.ToLower(m.Kind())
 }
 
 // NewList satisfies part of the Lister interface
