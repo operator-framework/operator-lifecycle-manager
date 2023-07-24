@@ -4,6 +4,10 @@ ENV GO111MODULE auto
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
+# Permit the cpb binary to be compiled statically. The Red Hat compiler
+# provided by ART will otherwise force FIPS compliant dynamic compilation.
+ENV GO_COMPLIANCE_EXCLUDE="*util/cpb"
+
 WORKDIR /build
 
 # copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
