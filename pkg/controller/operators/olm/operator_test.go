@@ -29,7 +29,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	meta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	metadatafake "k8s.io/client-go/metadata/fake"
 	"k8s.io/client-go/pkg/version"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -167,6 +168,7 @@ type fakeOperatorConfig struct {
 	k8sObjs           []runtime.Object
 	extObjs           []runtime.Object
 	regObjs           []runtime.Object
+	partialMetadata   []runtime.Object
 	actionLog         *[]clienttesting.Action
 }
 
@@ -231,6 +233,12 @@ func withRegObjs(regObjs ...runtime.Object) fakeOperatorOption {
 	}
 }
 
+func withPartialMetadata(objects ...runtime.Object) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.partialMetadata = objects
+	}
+}
+
 func withActionLog(log *[]clienttesting.Action) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.actionLog = log
@@ -245,6 +253,7 @@ func withLogger(logger *logrus.Logger) fakeOperatorOption {
 
 // NewFakeOperator creates and starts a new operator using fake clients.
 func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Operator, error) {
+	logrus.SetLevel(logrus.DebugLevel)
 	// Apply options to default config
 	config := &fakeOperatorConfig{
 		operatorConfig: &operatorConfig{
@@ -267,8 +276,20 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 		option(config)
 	}
 
+	scheme := runtime.NewScheme()
+	if err := k8sscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := metav1.AddMetaToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := fake.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+
 	// Create client fakes
-	config.externalClient = fake.NewReactionForwardingClientsetDecorator(config.clientObjs, config.fakeClientOptions...)
+	externalFake := fake.NewReactionForwardingClientsetDecorator(config.clientObjs, config.fakeClientOptions...)
+	config.externalClient = externalFake
 	// TODO: Using the ReactionForwardingClientsetDecorator for k8s objects causes issues with adding Resources for discovery.
 	// For now, directly use a SimpleClientset instead.
 	k8sClientFake := k8sfake.NewSimpleClientset(config.k8sObjs...)
@@ -279,6 +300,27 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	}))
 	config.operatorClient = operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
 	config.configClient = configfake.NewSimpleClientset()
+	metadataFake := metadatafake.NewSimpleMetadataClient(scheme, config.partialMetadata...)
+	config.metadataClient = metadataFake
+	// It's a travesty that we need to do this, but the fakes leave us no other option. In the API server, of course
+	// changes to objects are transparently exposed in the metadata client. In fake-land, we need to enforce that ourselves.
+	externalFake.PrependReactor("*", "*", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		var err error
+		switch action.GetVerb() {
+		case "create":
+			a := action.(clienttesting.CreateAction)
+			m := a.GetObject().(metav1.ObjectMetaAccessor).GetObjectMeta().(*metav1.ObjectMeta)
+			_, err = metadataFake.Resource(action.GetResource()).Namespace(action.GetNamespace()).(metadatafake.MetadataClient).CreateFake(&metav1.PartialObjectMetadata{ObjectMeta: *m}, metav1.CreateOptions{})
+		case "update":
+			a := action.(clienttesting.UpdateAction)
+			m := a.GetObject().(metav1.ObjectMetaAccessor).GetObjectMeta().(*metav1.ObjectMeta)
+			_, err = metadataFake.Resource(action.GetResource()).Namespace(action.GetNamespace()).(metadatafake.MetadataClient).UpdateFake(&metav1.PartialObjectMetadata{ObjectMeta: *m}, metav1.UpdateOptions{})
+		case "delete":
+			a := action.(clienttesting.DeleteAction)
+			err = metadataFake.Resource(action.GetResource()).Delete(context.TODO(), a.GetName(), metav1.DeleteOptions{})
+		}
+		return false, nil, err
+	})
 
 	for _, ns := range config.namespaces {
 		_, err := config.operatorClient.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}, metav1.CreateOptions{})
@@ -293,11 +335,6 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 		return nil, err
 	}
 	op.recorder = config.recorder
-
-	scheme := runtime.NewScheme()
-	if err := k8sscheme.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
 
 	op.csvSetGenerator = csvutility.NewSetGenerator(config.logger, op.lister)
 	op.csvReplaceFinder = csvutility.NewReplaceFinder(config.logger, config.externalClient)
@@ -930,7 +967,7 @@ func TestTransitionCSV(t *testing.T) {
 		apiLabeler    labeler.Labeler
 	}
 	type initial struct {
-		csvs       []runtime.Object
+		csvs       []*v1alpha1.ClusterServiceVersion
 		clientObjs []runtime.Object
 		crds       []runtime.Object
 		objs       []runtime.Object
@@ -950,7 +987,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVNoneToPending/CRD",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -972,7 +1009,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVNoneToPending/APIService/Required",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -994,7 +1031,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVPendingToFailed/BadStrategyPermissions",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithUID(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1046,7 +1083,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVPendingToPending/CRD",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1072,7 +1109,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVPendingToPending/APIService/Required/Missing",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1097,7 +1134,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVPendingToPending/APIService/Required/Unavailable",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1123,7 +1160,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVPendingToPending/APIService/Required/Unknown",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1149,7 +1186,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVPendingToPending/APIService/Owned/DeploymentNotFound",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1177,7 +1214,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "CSVPendingToFailed/CRDOwnerConflict",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1221,7 +1258,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "CSVPendingToFailed/APIServiceOwnerConflict",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1305,7 +1342,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVFailedToPending/Deployment",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1330,7 +1367,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVFailedToPending/CRD",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1355,7 +1392,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVPendingToInstallReady/CRD",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1380,7 +1417,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVPendingToInstallReady/APIService/Required",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1403,7 +1440,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVInstallReadyToInstalling",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1428,7 +1465,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVInstallReadyToInstalling/APIService/Owned",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1453,7 +1490,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToPending/APIService/Owned/CertRotation",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1522,7 +1559,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/APIService/Owned/BadCAHash/Deployment",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1591,7 +1628,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/APIService/Owned/BadCAHash/Secret",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1660,7 +1697,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/APIService/Owned/BadCAHash/DeploymentAndSecret",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1729,7 +1766,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/APIService/Owned/BadCA",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1798,7 +1835,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/APIService/Owned/BadServingCert",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1867,7 +1904,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/APIService/Owned/ExpiredCA",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -1936,7 +1973,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVFailedToPending/APIService/Owned/ExpiredCA",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2005,7 +2042,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVFailedToPending/InstallModes/Owned/PreviouslyUnsupported",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2035,7 +2072,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVFailedToPending/InstallModes/Owned/PreviouslyNoOperatorGroups",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2065,7 +2102,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVFailedToPending/InstallModes/Owned/PreviouslyTooManyOperatorGroups",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2095,7 +2132,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/InstallModes/Owned/Unsupported",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withInstallModes(withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2132,7 +2169,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/InstallModes/Owned/NoOperatorGroups",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2164,7 +2201,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/InstallModes/Owned/TooManyOperatorGroups",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2213,7 +2250,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToSucceeded/OperatorGroupChanged",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2258,7 +2295,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVInstallingToSucceeded/UnmanagedDeploymentNotAffected",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2293,7 +2330,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVInstallingToInstallReady",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2322,7 +2359,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVInstallingToInstallReadyDueToAnnotations",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2348,7 +2385,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToSucceeded/UnmanagedDeploymentInNamespace",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2387,7 +2424,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToFailed/CRD",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2409,7 +2446,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "SingleCSVSucceededToPending/DeploymentSpecChanged",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2444,7 +2481,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "CSVSucceededToReplacing",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2453,7 +2490,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*apiextensionsv1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations),
+					), defaultTemplateAnnotations).(*v1alpha1.ClusterServiceVersion),
 					csvWithAnnotations(csv("csv2",
 						namespace,
 						"0.0.0",
@@ -2482,7 +2519,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "CSVReplacingToDeleted",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2527,7 +2564,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "CSVDeletedToGone",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2573,7 +2610,7 @@ func TestTransitionCSV(t *testing.T) {
 			name: "CSVMultipleReplacingToDeleted",
 			initial: initial{
 				// order matters in this test case - we want to apply the latest CSV first to test the GC marking
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithLabels(csvWithAnnotations(csv("csv3",
 						namespace,
 						"0.0.0",
@@ -2638,7 +2675,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "CSVMultipleDeletedToGone",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv3",
 						namespace,
 						"0.0.0",
@@ -2697,7 +2734,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "CSVMultipleDeletedToGone/AfterOneDeleted",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv2",
 						namespace,
 						"0.0.0",
@@ -2743,7 +2780,7 @@ func TestTransitionCSV(t *testing.T) {
 		{
 			name: "CSVMultipleDeletedToGone/AfterTwoDeleted",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv2",
 						namespace,
 						"0.0.0",
@@ -2789,7 +2826,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVNoneToFailed/InterOperatorGroupOwnerConflict",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(APIConflict)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2812,7 +2849,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVNoneToNone/AddAPIs",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(AddAPIs)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2835,7 +2872,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVNoneToNone/RemoveAPIs",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(RemoveAPIs)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2858,7 +2895,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVNoneToFailed/StaticOperatorGroup/AddAPIs",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(AddAPIs)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2888,7 +2925,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVNoneToFailed/StaticOperatorGroup/RemoveAPIs",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(RemoveAPIs)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2918,7 +2955,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVNoneToPending/StaticOperatorGroup/NoAPIConflict",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(NoAPIConflict)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2948,7 +2985,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVFailedToPending/InterOperatorGroupOwnerConflict/NoAPIConflict",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(NoAPIConflict)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -2971,7 +3008,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVFailedToPending/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/NoAPIConflict",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(NoAPIConflict)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3001,7 +3038,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVFailedToFailed/InterOperatorGroupOwnerConflict/APIConflict",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(APIConflict)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3024,7 +3061,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVFailedToFailed/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/AddAPIs",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(AddAPIs)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3054,7 +3091,7 @@ func TestTransitionCSV(t *testing.T) {
 			name:   "SingleCSVFailedToFailed/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/RemoveAPIs",
 			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(RemoveAPIs)},
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3086,13 +3123,22 @@ func TestTransitionCSV(t *testing.T) {
 			// Create test operator
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
+			clientObjects := tt.initial.clientObjs
+			var partials []runtime.Object
+			for _, csv := range tt.initial.csvs {
+				clientObjects = append(clientObjects, csv)
+				partials = append(partials, &metav1.PartialObjectMetadata{
+					ObjectMeta: csv.ObjectMeta,
+				})
+			}
 			op, err := NewFakeOperator(
 				ctx,
 				withNamespaces(namespace, "kube-system"),
-				withClientObjs(append(tt.initial.csvs, tt.initial.clientObjs...)...),
+				withClientObjs(clientObjects...),
 				withK8sObjs(tt.initial.objs...),
 				withExtObjs(tt.initial.crds...),
 				withRegObjs(tt.initial.apis...),
+				withPartialMetadata(partials...),
 				withOperatorNamespace(namespace),
 				withAPIReconciler(tt.config.apiReconciler),
 				withAPILabeler(tt.config.apiLabeler),
@@ -3102,7 +3148,7 @@ func TestTransitionCSV(t *testing.T) {
 			// run csv sync for each CSV
 			for _, csv := range tt.initial.csvs {
 				err := op.syncClusterServiceVersion(csv)
-				expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
+				expectedErr := tt.expected.err[csv.Name]
 				require.Equal(t, expectedErr, err)
 			}
 
@@ -3173,7 +3219,7 @@ func TestTransitionCSVFailForward(t *testing.T) {
 		apiLabeler    labeler.Labeler
 	}
 	type initial struct {
-		csvs       []runtime.Object
+		csvs       []*v1alpha1.ClusterServiceVersion
 		clientObjs []runtime.Object
 		crds       []runtime.Object
 		objs       []runtime.Object
@@ -3193,7 +3239,7 @@ func TestTransitionCSVFailForward(t *testing.T) {
 		{
 			name: "FailForwardEnabled/CSV1/FailedToReplacing",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"1.0.0",
@@ -3231,7 +3277,7 @@ func TestTransitionCSVFailForward(t *testing.T) {
 		{
 			name: "FailForwardDisabled/CSV1/FailedToPending",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"1.0.0",
@@ -3269,7 +3315,7 @@ func TestTransitionCSVFailForward(t *testing.T) {
 		{
 			name: "FailForwardEnabled/ReplacementChain/CSV2/FailedToReplacing",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"1.0.0",
@@ -3317,7 +3363,7 @@ func TestTransitionCSVFailForward(t *testing.T) {
 		{
 			name: "FailForwardDisabled/ReplacementChain/CSV2/FailedToPending",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithAnnotations(csv("csv1",
 						namespace,
 						"1.0.0",
@@ -3368,13 +3414,22 @@ func TestTransitionCSVFailForward(t *testing.T) {
 			// Create test operator
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
+			clientObjects := tt.initial.clientObjs
+			var partials []runtime.Object
+			for _, csv := range tt.initial.csvs {
+				clientObjects = append(clientObjects, csv)
+				partials = append(partials, &metav1.PartialObjectMetadata{
+					ObjectMeta: csv.ObjectMeta,
+				})
+			}
 			op, err := NewFakeOperator(
 				ctx,
 				withNamespaces(namespace, "kube-system"),
-				withClientObjs(append(tt.initial.csvs, tt.initial.clientObjs...)...),
+				withClientObjs(clientObjects...),
 				withK8sObjs(tt.initial.objs...),
 				withExtObjs(tt.initial.crds...),
 				withRegObjs(tt.initial.apis...),
+				withPartialMetadata(partials...),
 				withOperatorNamespace(namespace),
 				withAPIReconciler(tt.config.apiReconciler),
 				withAPILabeler(tt.config.apiLabeler),
@@ -3384,7 +3439,7 @@ func TestTransitionCSVFailForward(t *testing.T) {
 			// run csv sync for each CSV
 			for _, csv := range tt.initial.csvs {
 				err := op.syncClusterServiceVersion(csv)
-				expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
+				expectedErr := tt.expected.err[csv.Name]
 				require.Equal(t, expectedErr, err)
 			}
 
@@ -3423,7 +3478,7 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 	caBundle := []byte("Foo")
 
 	type initial struct {
-		csvs []runtime.Object
+		csvs []*v1alpha1.ClusterServiceVersion
 		crds []runtime.Object
 		objs []runtime.Object
 		desc v1alpha1.WebhookDescription
@@ -3440,7 +3495,7 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 		{
 			name: "MissingCAResource",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3467,7 +3522,7 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 		{
 			name: "RetrieveCAFromConversionWebhook",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithConversionWebhook(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3498,7 +3553,7 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 		{
 			name: "FailToRetrieveCAFromConversionWebhook",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithConversionWebhook(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3529,7 +3584,7 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 		{
 			name: "RetrieveFromValidatingAdmissionWebhook",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithValidatingAdmissionWebhook(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3578,7 +3633,7 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 		{
 			name: "RetrieveFromMutatingAdmissionWebhook",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					csvWithMutatingAdmissionWebhook(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -3630,19 +3685,28 @@ func TestWebhookCABundleRetrieval(t *testing.T) {
 			// Create test operator
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
+			var csvs []runtime.Object
+			var partials []runtime.Object
+			for _, csv := range tt.initial.csvs {
+				csvs = append(csvs, csv)
+				partials = append(partials, &metav1.PartialObjectMetadata{
+					ObjectMeta: csv.ObjectMeta,
+				})
+			}
 			op, err := NewFakeOperator(
 				ctx,
 				withNamespaces(namespace, "kube-system"),
-				withClientObjs(tt.initial.csvs...),
+				withClientObjs(csvs...),
 				withK8sObjs(tt.initial.objs...),
 				withExtObjs(tt.initial.crds...),
+				withPartialMetadata(partials...),
 				withOperatorNamespace(namespace),
 			)
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
 			for _, csv := range tt.initial.csvs {
-				caBundle, err := op.getWebhookCABundle(csv.(*v1alpha1.ClusterServiceVersion), &tt.initial.desc)
+				caBundle, err := op.getWebhookCABundle(csv, &tt.initial.desc)
 				require.Equal(t, tt.expected.err, err)
 				require.Equal(t, tt.expected.caBundle, caBundle)
 			}
@@ -4331,6 +4395,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 	type initial struct {
 		operatorGroup *operatorsv1.OperatorGroup
+		csvs          []*v1alpha1.ClusterServiceVersion
 		clientObjs    []runtime.Object
 		crds          []runtime.Object
 		k8sObjs       []runtime.Object
@@ -4468,7 +4533,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 					},
 				},
-				clientObjs: []runtime.Object{operatorCSV},
+				clientObjs: []runtime.Object{},
+				csvs:       []*v1alpha1.ClusterServiceVersion{operatorCSV},
 				k8sObjs: []runtime.Object{
 					&corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
@@ -4572,7 +4638,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 						TargetNamespaces: []string{operatorNamespace, targetNamespace},
 					},
 				},
-				clientObjs: []runtime.Object{operatorCSV},
+				clientObjs: []runtime.Object{},
+				csvs:       []*v1alpha1.ClusterServiceVersion{operatorCSV},
 				k8sObjs: []runtime.Object{
 					&corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
@@ -4673,7 +4740,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 					},
 					Spec: operatorsv1.OperatorGroupSpec{},
 				},
-				clientObjs: []runtime.Object{operatorCSV},
+				clientObjs: []runtime.Object{},
+				csvs:       []*v1alpha1.ClusterServiceVersion{operatorCSV},
 				k8sObjs: []runtime.Object{
 					&corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
@@ -4832,14 +4900,13 @@ func TestSyncOperatorGroups(t *testing.T) {
 					},
 					Spec: operatorsv1.OperatorGroupSpec{},
 				},
-				clientObjs: []runtime.Object{
-					withInstallModes(operatorCSV.DeepCopy(), []v1alpha1.InstallMode{
-						{
-							Type:      v1alpha1.InstallModeTypeAllNamespaces,
-							Supported: false,
-						},
-					}),
-				},
+				clientObjs: []runtime.Object{},
+				csvs: []*v1alpha1.ClusterServiceVersion{withInstallModes(operatorCSV.DeepCopy(), []v1alpha1.InstallMode{
+					{
+						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Supported: false,
+					},
+				})},
 				k8sObjs: []runtime.Object{
 					&corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
@@ -4923,6 +4990,16 @@ func TestSyncOperatorGroups(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			var partials []runtime.Object
+			for _, csv := range tt.initial.csvs {
+				clientObjs = append(clientObjs, csv)
+				partials = append(partials, &metav1.PartialObjectMetadata{
+					ObjectMeta: csv.ObjectMeta,
+				})
+			}
+			l := logrus.New()
+			l.SetLevel(logrus.DebugLevel)
+			l = l.WithField("test", tt.name).Logger
 			op, err := NewFakeOperator(
 				ctx,
 				withClock(clockFake),
@@ -4932,6 +5009,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 				withK8sObjs(k8sObjs...),
 				withExtObjs(extObjs...),
 				withRegObjs(regObjs...),
+				withPartialMetadata(partials...),
+				withLogger(l),
 			)
 			require.NoError(t, err)
 
@@ -4999,6 +5078,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			var foundErr error
 			// Sync csvs enough to get them back to a succeeded state
 			err = wait.PollUntilContextTimeout(ctx, tick, timeout, true, func(ctx context.Context) (bool, error) {
 				csvs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(ctx, metav1.ListOptions{})
@@ -5007,14 +5087,17 @@ func TestSyncOperatorGroups(t *testing.T) {
 				}
 
 				for _, csv := range csvs.Items {
+					t.Logf("%s/%s", csv.Namespace, csv.Name)
 					if csv.Status.Phase == v1alpha1.CSVPhaseInstalling {
 						simulateSuccessfulRollout(&csv)
 					}
 
+					t.Log("op.syncClusterServiceVersion")
 					if err := op.syncClusterServiceVersion(&csv); err != nil {
 						return false, err
 					}
 
+					t.Log("op.syncCopyCSV")
 					if err := op.syncCopyCSV(&csv); err != nil && !tt.ignoreCopyError {
 						return false, err
 					}
@@ -5022,12 +5105,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 				for namespace, objects := range tt.final.objects {
 					if err := RequireObjectsInCache(t, op.lister, namespace, objects, true); err != nil {
+						foundErr = err
 						return false, nil
 					}
 				}
 
 				return true, nil
 			})
+			t.Log(foundErr)
 			require.NoError(t, err)
 
 			operatorGroup, err = op.client.OperatorsV1().OperatorGroups(operatorGroup.GetNamespace()).Get(ctx, operatorGroup.GetName(), metav1.GetOptions{})
@@ -5037,7 +5122,13 @@ func TestSyncOperatorGroups(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, operatorGroup.Status)
 
 			for namespace, objects := range tt.final.objects {
-				RequireObjectsInNamespace(t, op.opClient, op.client, namespace, objects)
+				var foundErr error
+				err = wait.PollUntilContextTimeout(ctx, tick, timeout, true, func(ctx context.Context) (bool, error) {
+					foundErr = CheckObjectsInNamespace(t, op.opClient, op.client, namespace, objects)
+					return foundErr == nil, nil
+				})
+				t.Log(foundErr)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -5262,7 +5353,7 @@ func RequireObjectsInCache(t *testing.T, lister operatorlister.OperatorLister, n
 		}
 		if doCompare {
 			if !reflect.DeepEqual(object, fetched) {
-				return fmt.Errorf("expected object didn't match %v: %s", object, cmp.Diff(object, fetched))
+				return fmt.Errorf("expected object didn't match: %s", cmp.Diff(object, fetched))
 			}
 		}
 	}
@@ -5270,21 +5361,32 @@ func RequireObjectsInCache(t *testing.T, lister operatorlister.OperatorLister, n
 }
 
 func RequireObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInterface, client versioned.Interface, namespace string, objects []runtime.Object) {
+	require.NoError(t, CheckObjectsInNamespace(t, opClient, client, namespace, objects))
+}
+
+func CheckObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInterface, client versioned.Interface, namespace string, objects []runtime.Object) error {
 	for _, object := range objects {
 		var err error
 		var fetched runtime.Object
+		var name string
 		switch o := object.(type) {
 		case *appsv1.Deployment:
+			name = o.GetName()
 			fetched, err = opClient.GetDeployment(namespace, o.GetName())
 		case *rbacv1.ClusterRole:
+			name = o.GetName()
 			fetched, err = opClient.GetClusterRole(o.GetName())
 		case *rbacv1.Role:
+			name = o.GetName()
 			fetched, err = opClient.GetRole(namespace, o.GetName())
 		case *rbacv1.ClusterRoleBinding:
+			name = o.GetName()
 			fetched, err = opClient.GetClusterRoleBinding(o.GetName())
 		case *rbacv1.RoleBinding:
+			name = o.GetName()
 			fetched, err = opClient.GetRoleBinding(namespace, o.GetName())
 		case *v1alpha1.ClusterServiceVersion:
+			name = o.GetName()
 			fetched, err = client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), o.GetName(), metav1.GetOptions{})
 			// This protects against small timing issues in sync tests
 			// We generally don't care about the conditions (state history in this case, unlike many kube resources)
@@ -5292,15 +5394,22 @@ func RequireObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInter
 			object.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
 			fetched.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
 		case *operatorsv1.OperatorGroup:
+			name = o.GetName()
 			fetched, err = client.OperatorsV1().OperatorGroups(namespace).Get(context.TODO(), o.GetName(), metav1.GetOptions{})
 		case *corev1.Secret:
+			name = o.GetName()
 			fetched, err = opClient.GetSecret(namespace, o.GetName())
 		default:
 			require.Failf(t, "couldn't find expected object", "%#v", object)
 		}
-		require.NoError(t, err, "couldn't fetch %s %v", namespace, object)
-		require.True(t, reflect.DeepEqual(object, fetched), cmp.Diff(object, fetched))
+		if err != nil {
+			return fmt.Errorf("couldn't fetch %s/%s: %w", namespace, name, err)
+		}
+		if diff := cmp.Diff(object, fetched); diff != "" {
+			return fmt.Errorf("incorrect object %s/%s: %v", namespace, name, diff)
+		}
 	}
+	return nil
 }
 
 func TestCARotation(t *testing.T) {
@@ -5350,7 +5459,7 @@ func TestCARotation(t *testing.T) {
 		apiLabeler    labeler.Labeler
 	}
 	type initial struct {
-		csvs       []runtime.Object
+		csvs       []*v1alpha1.ClusterServiceVersion
 		clientObjs []runtime.Object
 		crds       []runtime.Object
 		objs       []runtime.Object
@@ -5365,7 +5474,7 @@ func TestCARotation(t *testing.T) {
 			// Happy path: cert is created and csv status contains the right cert dates
 			name: "NoCertificate/CertificateCreated",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -5387,7 +5496,7 @@ func TestCARotation(t *testing.T) {
 			// resources. If the certs exist and are valid, no need to rotate or update the csv status.
 			name: "HasValidCertificate/ManagedPodDeleted/NoRotation",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withUID(withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -5396,7 +5505,7 @@ func TestCARotation(t *testing.T) {
 						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*apiextensionsv1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), rotateAt, lastUpdate), types.UID("csv-uid")),
+					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), rotateAt, lastUpdate), types.UID("csv-uid")).(*v1alpha1.ClusterServiceVersion),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
@@ -5450,7 +5559,7 @@ func TestCARotation(t *testing.T) {
 			// If the cert secret is deleted, a new one is created
 			name: "ValidCert/SecretMissing/NewCertCreated",
 			initial: initial{
-				csvs: []runtime.Object{
+				csvs: []*v1alpha1.ClusterServiceVersion{
 					withUID(withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
@@ -5459,7 +5568,7 @@ func TestCARotation(t *testing.T) {
 						[]*apiextensionsv1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*apiextensionsv1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), rotateAt, lastUpdate), types.UID("csv-uid")),
+					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), rotateAt, lastUpdate), types.UID("csv-uid")).(*v1alpha1.ClusterServiceVersion),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
@@ -5514,13 +5623,22 @@ func TestCARotation(t *testing.T) {
 			// Create test operator
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
+			clientObjects := tt.initial.clientObjs
+			var partials []runtime.Object
+			for _, csv := range tt.initial.csvs {
+				clientObjects = append(clientObjects, csv)
+				partials = append(partials, &metav1.PartialObjectMetadata{
+					ObjectMeta: csv.ObjectMeta,
+				})
+			}
 			op, err := NewFakeOperator(
 				ctx,
 				withNamespaces(namespace, "kube-system"),
-				withClientObjs(append(tt.initial.csvs, tt.initial.clientObjs...)...),
+				withClientObjs(clientObjects...),
 				withK8sObjs(tt.initial.objs...),
 				withExtObjs(tt.initial.crds...),
 				withRegObjs(tt.initial.apis...),
+				withPartialMetadata(partials...),
 				withOperatorNamespace(namespace),
 				withAPIReconciler(tt.config.apiReconciler),
 				withAPILabeler(tt.config.apiLabeler),
@@ -5528,11 +5646,7 @@ func TestCARotation(t *testing.T) {
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
-			for _, runtimeObject := range tt.initial.csvs {
-				// Convert the rt object to a proper csv for ease
-				csv, ok := runtimeObject.(*v1alpha1.ClusterServiceVersion)
-				require.True(t, ok)
-
+			for _, csv := range tt.initial.csvs {
 				// sync works
 				err := op.syncClusterServiceVersion(csv)
 				require.NoError(t, err)

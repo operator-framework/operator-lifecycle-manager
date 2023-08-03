@@ -204,29 +204,31 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Fields are pruned from local copies of the objects managed
 	// by this informer in order to reduce cached size.
 	prunedCSVInformer := cache.NewSharedIndexInformer(
-		pruning.NewListerWatcher(op.client, metav1.NamespaceAll, func(options *metav1.ListOptions) {
-			options.LabelSelector = fmt.Sprintf("!%s", v1alpha1.CopiedLabelKey)
-		}, pruning.PrunerFunc(func(csv *v1alpha1.ClusterServiceVersion) {
-			*csv = v1alpha1.ClusterServiceVersion{
-				TypeMeta: csv.TypeMeta,
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        csv.Name,
-					Namespace:   csv.Namespace,
-					Labels:      csv.Labels,
-					Annotations: csv.Annotations,
-				},
-				Spec: v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: csv.Spec.CustomResourceDefinitions,
-					APIServiceDefinitions:     csv.Spec.APIServiceDefinitions,
-					Replaces:                  csv.Spec.Replaces,
-					Version:                   csv.Spec.Version,
-				},
-				Status: v1alpha1.ClusterServiceVersionStatus{
-					Phase:  csv.Status.Phase,
-					Reason: csv.Status.Reason,
-				},
-			}
-		})),
+		pruning.NewListerWatcher(op.client, metav1.NamespaceAll,
+			func(options *metav1.ListOptions) {
+				options.LabelSelector = fmt.Sprintf("!%s", v1alpha1.CopiedLabelKey)
+			},
+			pruning.PrunerFunc(func(csv *v1alpha1.ClusterServiceVersion) {
+				*csv = v1alpha1.ClusterServiceVersion{
+					TypeMeta: csv.TypeMeta,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        csv.Name,
+						Namespace:   csv.Namespace,
+						Labels:      csv.Labels,
+						Annotations: csv.Annotations,
+					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						CustomResourceDefinitions: csv.Spec.CustomResourceDefinitions,
+						APIServiceDefinitions:     csv.Spec.APIServiceDefinitions,
+						Replaces:                  csv.Spec.Replaces,
+						Version:                   csv.Spec.Version,
+					},
+					Status: v1alpha1.ClusterServiceVersionStatus{
+						Phase:  csv.Status.Phase,
+						Reason: csv.Status.Reason,
+					},
+				}
+			})),
 		&v1alpha1.ClusterServiceVersion{},
 		resyncPeriod(),
 		cache.Indexers{

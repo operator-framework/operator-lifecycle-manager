@@ -14,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/metadata"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -154,6 +155,10 @@ func main() {
 	if err != nil {
 		logger.WithError(err).Fatal("error configuring custom resource client")
 	}
+	metadataClient, err := metadata.NewForConfig(config)
+	if err != nil {
+		logger.WithError(err).Fatal("error configuring metadata client")
+	}
 
 	// Create a new instance of the operator.
 	op, err := olm.NewOperator(
@@ -162,6 +167,7 @@ func main() {
 		olm.WithWatchedNamespaces(namespaces...),
 		olm.WithResyncPeriod(queueinformer.ResyncWithJitter(*wakeupInterval, 0.2)),
 		olm.WithExternalClient(crClient),
+		olm.WithMetadataClient(metadataClient),
 		olm.WithOperatorClient(opClient),
 		olm.WithRestConfig(config),
 		olm.WithConfigClient(versionedConfigClient),

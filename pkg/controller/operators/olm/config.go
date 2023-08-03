@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"k8s.io/client-go/metadata"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -29,6 +30,7 @@ type operatorConfig struct {
 	clock                        utilclock.Clock
 	logger                       *logrus.Logger
 	operatorClient               operatorclient.ClientInterface
+	metadataClient               metadata.Interface
 	externalClient               versioned.Interface
 	strategyResolver             install.StrategyResolverInterface
 	apiReconciler                APIIntersectionReconciler
@@ -156,6 +158,12 @@ func WithClock(clock utilclock.Clock) OperatorOption {
 func WithOperatorClient(operatorClient operatorclient.ClientInterface) OperatorOption {
 	return func(config *operatorConfig) {
 		config.operatorClient = operatorClient
+	}
+}
+
+func WithMetadataClient(metadataClient metadata.Interface) OperatorOption {
+	return func(config *operatorConfig) {
+		config.metadataClient = metadataClient
 	}
 }
 
