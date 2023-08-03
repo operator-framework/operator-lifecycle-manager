@@ -219,6 +219,24 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, img string, saNam
 		if grpcPodConfig.Affinity != nil {
 			pod.Spec.Affinity = grpcPodConfig.Affinity.DeepCopy()
 		}
+
+		// Add memory targets
+		if grpcPodConfig.MemoryTarget != nil {
+			pod.Spec.Containers[0].Resources.Requests[corev1.ResourceMemory] = *grpcPodConfig.MemoryTarget
+
+			if pod.Spec.Containers[0].Resources.Limits == nil {
+				pod.Spec.Containers[0].Resources.Limits = map[corev1.ResourceName]resource.Quantity{}
+			}
+			double := *grpcPodConfig.MemoryTarget
+			double.Add(double.DeepCopy())
+			pod.Spec.Containers[0].Resources.Limits[corev1.ResourceMemory] = double
+
+			grpcPodConfig.MemoryTarget.Format = resource.BinarySI
+			pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, corev1.EnvVar{
+				Name:  "GOMEMLIMIT",
+				Value: grpcPodConfig.MemoryTarget.String() + "B", // k8s resources use Mi, GOMEMLIMIT wants MiB
+			})
+		}
 	}
 
 	// Set priorityclass if its annotation exists

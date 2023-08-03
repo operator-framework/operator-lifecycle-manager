@@ -3,6 +3,7 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/blang/semver/v4"
 	"io"
 	"reflect"
 	"strings"
@@ -45,6 +46,8 @@ func validateCSV(csv *v1alpha1.ClusterServiceVersion) errors.ManifestResult {
 	result.Add(validateExamplesAnnotations(csv)...)
 	// validate installModes
 	result.Add(validateInstallModes(csv)...)
+	// validate min Kubernetes version
+	result.Add(validateMinKubeVersion(*csv)...)
 	// check missing optional/mandatory fields.
 	result.Add(checkFields(*csv)...)
 	// validate case sensitive annotation names
@@ -239,4 +242,16 @@ func validateVersionKind(csv *v1alpha1.ClusterServiceVersion) (errs []errors.Err
 		errs = append(errs, errors.ErrInvalidCSV("'kind' is missing", csv.GetName()))
 	}
 	return
+}
+
+// validateMinKubeVersion checks format of spec.minKubeVersion field
+func validateMinKubeVersion(csv v1alpha1.ClusterServiceVersion) (errs []errors.Error) {
+	if len(strings.TrimSpace(csv.Spec.MinKubeVersion)) == 0 {
+		errs = append(errs, errors.WarnInvalidCSV(minKubeVersionWarnMessage, csv.GetName()))
+	} else {
+		if _, err := semver.Parse(csv.Spec.MinKubeVersion); err != nil {
+			errs = append(errs, errors.ErrInvalidCSV(fmt.Sprintf("csv.Spec.MinKubeVersion has an invalid value: %s", csv.Spec.MinKubeVersion), csv.GetName()))
+		}
+	}
+	return errs
 }
