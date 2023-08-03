@@ -204,7 +204,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Fields are pruned from local copies of the objects managed
 	// by this informer in order to reduce cached size.
 	prunedCSVInformer := cache.NewSharedIndexInformer(
-		pruning.NewListerWatcher(op.client, metav1.NamespaceAll, func(*metav1.ListOptions) {}, pruning.PrunerFunc(func(csv *v1alpha1.ClusterServiceVersion) {
+		pruning.NewListerWatcher(op.client, metav1.NamespaceAll, func(options *metav1.ListOptions) {
+			options.LabelSelector = fmt.Sprintf("!%s", v1alpha1.CopiedLabelKey)
+		}, pruning.PrunerFunc(func(csv *v1alpha1.ClusterServiceVersion) {
 			*csv = v1alpha1.ClusterServiceVersion{
 				TypeMeta: csv.TypeMeta,
 				ObjectMeta: metav1.ObjectMeta{
