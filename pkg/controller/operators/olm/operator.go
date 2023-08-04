@@ -24,6 +24,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/metadata/metadatainformer"
+	"k8s.io/client-go/metadata/metadatalister"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -35,12 +37,10 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
-	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/pruning"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
-	resolver "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clients"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
@@ -75,7 +75,7 @@ type Operator struct {
 	client                       versioned.Interface
 	lister                       operatorlister.OperatorLister
 	protectedCopiedCSVNamespaces map[string]struct{}
-	copiedCSVLister              operatorsv1alpha1listers.ClusterServiceVersionLister
+	copiedCSVLister              metadatalister.Lister
 	ogQueueSet                   *queueinformer.ResourceQueueSet
 	csvQueueSet                  *queueinformer.ResourceQueueSet
 	olmConfigQueue               workqueue.RateLimitingInterface
@@ -125,6 +125,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 
 	scheme := runtime.NewScheme()
 	if err := k8sscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := metav1.AddMetaToScheme(scheme); err != nil {
 		return nil, err
 	}
 
@@ -208,44 +211,20 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			return nil, err
 		}
 
-		// A separate informer solely for CSV copies. Fields
-		// are pruned from local copies of the objects managed
+		// A separate informer solely for CSV copies. Object metadata requests are used
 		// by this informer in order to reduce cached size.
-		copiedCSVInformer := cache.NewSharedIndexInformer(
-			pruning.NewListerWatcher(
-				op.client,
-				namespace,
-				func(opts *metav1.ListOptions) {
-					opts.LabelSelector = v1alpha1.CopiedLabelKey
-				},
-				pruning.PrunerFunc(func(csv *v1alpha1.ClusterServiceVersion) {
-					nonstatus, status := copyableCSVHash(csv)
-					*csv = v1alpha1.ClusterServiceVersion{
-						TypeMeta:   csv.TypeMeta,
-						ObjectMeta: csv.ObjectMeta,
-						Status: v1alpha1.ClusterServiceVersionStatus{
-							Phase:  csv.Status.Phase,
-							Reason: csv.Status.Reason,
-						},
-					}
-					if csv.Annotations == nil {
-						csv.Annotations = make(map[string]string, 2)
-					}
-					// These annotation keys are
-					// intentionally invalid -- all writes
-					// to copied CSVs are regenerated from
-					// the corresponding non-copied CSV,
-					// so it should never be transmitted
-					// back to the API server.
-					csv.Annotations["$copyhash-nonstatus"] = nonstatus
-					csv.Annotations["$copyhash-status"] = status
-				}),
-			),
-			&v1alpha1.ClusterServiceVersion{},
+		gvr := v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions")
+		copiedCSVInformer := metadatainformer.NewFilteredMetadataInformer(
+			config.metadataClient,
+			gvr,
+			namespace,
 			config.resyncPeriod(),
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-		op.copiedCSVLister = operatorsv1alpha1listers.NewClusterServiceVersionLister(copiedCSVInformer.GetIndexer())
+			func(options *metav1.ListOptions) {
+				options.LabelSelector = v1alpha1.CopiedLabelKey
+			},
+		).Informer()
+		op.copiedCSVLister = metadatalister.New(copiedCSVInformer.GetIndexer(), gvr)
 
 		// Register separate queue for gcing copied csvs
 		copiedCSVGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv-gc", namespace))
@@ -1195,17 +1174,16 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	}
 }
 
-func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
+func (a *Operator) removeDanglingChildCSVs(csv *metav1.PartialObjectMetadata) error {
 	logger := a.logger.WithFields(logrus.Fields{
 		"id":          queueinformer.NewLoopID(),
 		"csv":         csv.GetName(),
 		"namespace":   csv.GetNamespace(),
-		"phase":       csv.Status.Phase,
 		"labels":      csv.GetLabels(),
 		"annotations": csv.GetAnnotations(),
 	})
 
-	if !csv.IsCopied() {
+	if !v1alpha1.IsCopied(csv) {
 		logger.Warning("removeDanglingChild called on a parent. this is a no-op but should be avoided.")
 		return nil
 	}
@@ -1244,7 +1222,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 	return nil
 }
 
-func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) error {
+func (a *Operator) deleteChild(csv *metav1.PartialObjectMetadata, logger *logrus.Entry) error {
 	logger.Debug("gcing csv")
 	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
 }
@@ -1683,12 +1661,12 @@ func (a *Operator) createCSVCopyingDisabledEvent(csv *v1alpha1.ClusterServiceVer
 }
 
 func (a *Operator) syncGcCsv(obj interface{}) (syncError error) {
-	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
+	clusterServiceVersion, ok := obj.(*metav1.PartialObjectMetadata)
 	if !ok {
 		a.logger.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
-	if clusterServiceVersion.IsCopied() {
+	if v1alpha1.IsCopied(clusterServiceVersion) {
 		syncError = a.removeDanglingChildCSVs(clusterServiceVersion)
 		return
 	}

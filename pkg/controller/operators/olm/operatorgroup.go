@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	meta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -797,15 +797,15 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 	prototype.ResourceVersion = ""
 	prototype.UID = ""
 
-	existing, err := a.copiedCSVLister.ClusterServiceVersions(nsTo).Get(prototype.GetName())
+	existing, err := a.copiedCSVLister.Namespace(nsTo).Get(prototype.GetName())
 	if apierrors.IsNotFound(err) {
 		created, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Create(context.TODO(), prototype, metav1.CreateOptions{})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create new CSV: %w", err)
 		}
 		created.Status = prototype.Status
 		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{}); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to update status on new CSV: %w", err)
 		}
 		return &v1alpha1.ClusterServiceVersion{
 			ObjectMeta: metav1.ObjectMeta{
@@ -824,38 +824,39 @@ func (a *Operator) copyToNamespace(prototype *v1alpha1.ClusterServiceVersion, ns
 	existingNonStatus := existing.Annotations["$copyhash-nonstatus"]
 	existingStatus := existing.Annotations["$copyhash-status"]
 
+	var updated *v1alpha1.ClusterServiceVersion
 	if existingNonStatus != nonstatus {
-		if existing, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
-			return nil, err
+		if updated, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).Update(context.TODO(), prototype, metav1.UpdateOptions{}); err != nil {
+			return nil, fmt.Errorf("failed to update: %w", err)
 		}
 	} else {
 		// Avoid mutating cached copied CSV.
-		existing = prototype
+		updated = prototype
 	}
 
 	if existingStatus != status {
-		existing.Status = prototype.Status
-		if _, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), existing, metav1.UpdateOptions{}); err != nil {
-			return nil, err
+		updated.Status = prototype.Status
+		if _, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(nsTo).UpdateStatus(context.TODO(), updated, metav1.UpdateOptions{}); err != nil {
+			return nil, fmt.Errorf("failed to update status: %w", err)
 		}
 	}
 	return &v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      existing.Name,
-			Namespace: existing.Namespace,
-			UID:       existing.UID,
+			Name:      updated.Name,
+			Namespace: updated.Namespace,
+			UID:       updated.UID,
 		},
 	}, nil
 }
 
 func (a *Operator) pruneFromNamespace(operatorGroupName, namespace string) error {
-	fetchedCSVs, err := a.copiedCSVLister.ClusterServiceVersions(namespace).List(labels.Everything())
+	fetchedCSVs, err := a.copiedCSVLister.Namespace(namespace).List(labels.Everything())
 	if err != nil {
 		return err
 	}
 
 	for _, csv := range fetchedCSVs {
-		if csv.IsCopied() && csv.GetAnnotations()[operatorsv1.OperatorGroupAnnotationKey] == operatorGroupName {
+		if v1alpha1.IsCopied(csv) && csv.GetAnnotations()[operatorsv1.OperatorGroupAnnotationKey] == operatorGroupName {
 			a.logger.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), namespace)
 			if err := a.copiedCSVGCQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
 				return err
