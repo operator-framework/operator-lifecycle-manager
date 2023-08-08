@@ -10,6 +10,7 @@ approvers:
   - perdasilva
   - grokspawn
   - joelanford
+  - tmshort
 # review == this code is good /lgtm
 reviewers:
   - ecordell
@@ -29,3 +30,4 @@ reviewers:
   - grokspawn
   - dtfranz
   - asmacdo
+  - tmshort
