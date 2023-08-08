@@ -141,6 +141,12 @@ func (o *operator) RegisterInformer(informer cache.SharedIndexInformer) error {
 }
 
 func (o *operator) registerInformer(informer cache.SharedIndexInformer) {
+	// never double-register an informer
+	for i := range o.informers {
+		if o.informers[i] == informer {
+			return
+		}
+	}
 	o.informers = append(o.informers, informer)
 	o.addHasSynced(informer.HasSynced)
 }
