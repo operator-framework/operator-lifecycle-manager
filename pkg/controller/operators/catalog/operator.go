@@ -20,7 +20,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
-	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,6 +33,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/metadata"
+	"k8s.io/client-go/metadata/metadatainformer"
+	"k8s.io/client-go/metadata/metadatalister"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
@@ -140,6 +142,11 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	// Create a new client for dynamic types (CRs)
 	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	metadataClient, err := metadata.NewForConfig(config)
 	if err != nil {
 		return nil, err
 	}
@@ -443,13 +450,23 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
-	// Register CustomResourceDefinition QueueInformer
-	crdInformer := extinf.NewSharedInformerFactory(op.opClient.ApiextensionsInterface(), resyncPeriod()).Apiextensions().V1().CustomResourceDefinitions()
-	op.lister.APIExtensionsV1().RegisterCustomResourceDefinitionLister(crdInformer.Lister())
+	// Register CustomResourceDefinition QueueInformer. Object metadata requests are used
+	// by this informer in order to reduce cached size.
+	gvr := apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions")
+	crdInformer := metadatainformer.NewFilteredMetadataInformer(
+		metadataClient,
+		gvr,
+		metav1.NamespaceAll,
+		resyncPeriod(),
+		cache.Indexers{},
+		nil,
+	).Informer()
+	crdLister := metadatalister.New(crdInformer.GetIndexer(), gvr)
+	op.lister.APIExtensionsV1().RegisterCustomResourceDefinitionLister(crdLister)
 	crdQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
 		queueinformer.WithLogger(op.logger),
-		queueinformer.WithInformer(crdInformer.Informer()),
+		queueinformer.WithInformer(crdInformer),
 		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)),
 	)
 	if err != nil {

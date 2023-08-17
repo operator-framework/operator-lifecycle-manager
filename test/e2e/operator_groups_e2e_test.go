@@ -563,7 +563,7 @@ var _ = Describe("Operator Group", func() {
 			if res == nil {
 				return false, nil
 			}
-			GinkgoT().Log("checking padmin for permission")
+			GinkgoT().Logf("checking padmin for permission: %#v", res)
 			return res.Status.Allowed, nil
 		})
 		require.NoError(GinkgoT(), err)

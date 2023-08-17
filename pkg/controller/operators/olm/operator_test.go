@@ -298,13 +298,14 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 		*config.actionLog = append(*config.actionLog, action)
 		return false, nil, nil
 	}))
-	config.operatorClient = operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
+	apiextensionsFake := apiextensionsfake.NewSimpleClientset(config.extObjs...)
+	config.operatorClient = operatorclient.NewClient(k8sClientFake, apiextensionsFake, apiregistrationfake.NewSimpleClientset(config.regObjs...))
 	config.configClient = configfake.NewSimpleClientset()
 	metadataFake := metadatafake.NewSimpleMetadataClient(scheme, config.partialMetadata...)
 	config.metadataClient = metadataFake
 	// It's a travesty that we need to do this, but the fakes leave us no other option. In the API server, of course
 	// changes to objects are transparently exposed in the metadata client. In fake-land, we need to enforce that ourselves.
-	externalFake.PrependReactor("*", "*", func(action clienttesting.Action) (bool, runtime.Object, error) {
+	propagate := func(action clienttesting.Action) (bool, runtime.Object, error) {
 		var err error
 		switch action.GetVerb() {
 		case "create":
@@ -320,7 +321,9 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 			err = metadataFake.Resource(action.GetResource()).Delete(context.TODO(), a.GetName(), metav1.DeleteOptions{})
 		}
 		return false, nil, err
-	})
+	}
+	externalFake.PrependReactor("*", "*", propagate)
+	apiextensionsFake.PrependReactor("*", "*", propagate)
 
 	for _, ns := range config.namespaces {
 		_, err := config.operatorClient.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}, metav1.CreateOptions{})
@@ -4397,7 +4400,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		operatorGroup *operatorsv1.OperatorGroup
 		csvs          []*v1alpha1.ClusterServiceVersion
 		clientObjs    []runtime.Object
-		crds          []runtime.Object
+		crds          []*apiextensionsv1.CustomResourceDefinition
 		k8sObjs       []runtime.Object
 		apis          []runtime.Object
 	}
@@ -4474,7 +4477,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					role,
 					roleBinding,
 				},
-				crds: []runtime.Object{crd},
+				crds: []*apiextensionsv1.CustomResourceDefinition{crd},
 			},
 			expectedStatus: operatorsv1.OperatorGroupStatus{},
 			final: final{objects: map[string][]runtime.Object{
@@ -4553,7 +4556,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					role,
 					roleBinding,
 				},
-				crds: []runtime.Object{crd},
+				crds: []*apiextensionsv1.CustomResourceDefinition{crd},
 			},
 			expectedStatus: operatorsv1.OperatorGroupStatus{
 				Namespaces:  []string{operatorNamespace, targetNamespace},
@@ -4656,7 +4659,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					role,
 					roleBinding,
 				},
-				crds: []runtime.Object{crd},
+				crds: []*apiextensionsv1.CustomResourceDefinition{crd},
 			},
 			expectedStatus: operatorsv1.OperatorGroupStatus{
 				Namespaces:  []string{operatorNamespace, targetNamespace},
@@ -4762,7 +4765,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					role,
 					roleBinding,
 				},
-				crds: []runtime.Object{crd},
+				crds: []*apiextensionsv1.CustomResourceDefinition{crd},
 			},
 			expectedStatus: operatorsv1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
@@ -4925,7 +4928,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					role,
 					roleBinding,
 				},
-				crds: []runtime.Object{crd},
+				crds: []*apiextensionsv1.CustomResourceDefinition{crd},
 			},
 			expectedStatus: operatorsv1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
@@ -4982,7 +4985,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				operatorGroup = tt.initial.operatorGroup.DeepCopy()
 				clientObjs    = copyObjs(append(tt.initial.clientObjs, operatorGroup))
 				k8sObjs       = copyObjs(tt.initial.k8sObjs)
-				extObjs       = copyObjs(tt.initial.crds)
+				extObjs       []runtime.Object
 				regObjs       = copyObjs(tt.initial.apis)
 			)
 
@@ -4992,9 +4995,23 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			var partials []runtime.Object
 			for _, csv := range tt.initial.csvs {
-				clientObjs = append(clientObjs, csv)
+				clientObjs = append(clientObjs, csv.DeepCopy())
 				partials = append(partials, &metav1.PartialObjectMetadata{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "ClusterServiceVersion",
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
 					ObjectMeta: csv.ObjectMeta,
+				})
+			}
+			for _, crd := range tt.initial.crds {
+				extObjs = append(extObjs, crd.DeepCopy())
+				partials = append(partials, &metav1.PartialObjectMetadata{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "CustomResourceDefinition",
+						APIVersion: apiextensionsv1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: crd.ObjectMeta,
 				})
 			}
 			l := logrus.New()
@@ -5094,12 +5111,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 					t.Log("op.syncClusterServiceVersion")
 					if err := op.syncClusterServiceVersion(&csv); err != nil {
-						return false, err
+						return false, fmt.Errorf("failed to syncClusterServiceVersion: %w", err)
 					}
 
 					t.Log("op.syncCopyCSV")
 					if err := op.syncCopyCSV(&csv); err != nil && !tt.ignoreCopyError {
-						return false, err
+						return false, fmt.Errorf("failed to syncCopyCSV: %w", err)
 					}
 				}
 
