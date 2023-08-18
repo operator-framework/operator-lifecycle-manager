@@ -107,7 +107,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "855b6c6cf6"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "5c6bb6945f"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -150,9 +150,7 @@ func TestPodMemoryTarget(t *testing.T) {
 									corev1.ResourceCPU:    resource.MustParse("10m"),
 									corev1.ResourceMemory: resource.MustParse("5Mi"),
 								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("10Mi"),
-								},
+								Limits: corev1.ResourceList{},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								ReadOnlyRootFilesystem: pointer.Bool(false),
