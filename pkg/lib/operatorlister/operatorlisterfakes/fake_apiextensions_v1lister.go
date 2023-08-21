@@ -5,30 +5,30 @@ import (
 	"sync"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	v1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1"
+	"k8s.io/client-go/metadata/metadatalister"
 )
 
 type FakeAPIExtensionsV1Lister struct {
-	CustomResourceDefinitionListerStub        func() v1.CustomResourceDefinitionLister
+	CustomResourceDefinitionListerStub        func() metadatalister.Lister
 	customResourceDefinitionListerMutex       sync.RWMutex
 	customResourceDefinitionListerArgsForCall []struct {
 	}
 	customResourceDefinitionListerReturns struct {
-		result1 v1.CustomResourceDefinitionLister
+		result1 metadatalister.Lister
 	}
 	customResourceDefinitionListerReturnsOnCall map[int]struct {
-		result1 v1.CustomResourceDefinitionLister
+		result1 metadatalister.Lister
 	}
-	RegisterCustomResourceDefinitionListerStub        func(v1.CustomResourceDefinitionLister)
+	RegisterCustomResourceDefinitionListerStub        func(metadatalister.Lister)
 	registerCustomResourceDefinitionListerMutex       sync.RWMutex
 	registerCustomResourceDefinitionListerArgsForCall []struct {
-		arg1 v1.CustomResourceDefinitionLister
+		arg1 metadatalister.Lister
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionLister() v1.CustomResourceDefinitionLister {
+func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionLister() metadatalister.Lister {
 	fake.customResourceDefinitionListerMutex.Lock()
 	ret, specificReturn := fake.customResourceDefinitionListerReturnsOnCall[len(fake.customResourceDefinitionListerArgsForCall)]
 	fake.customResourceDefinitionListerArgsForCall = append(fake.customResourceDefinitionListerArgsForCall, struct {
@@ -51,39 +51,39 @@ func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionListerCallCount()
 	return len(fake.customResourceDefinitionListerArgsForCall)
 }
 
-func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionListerCalls(stub func() v1.CustomResourceDefinitionLister) {
+func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionListerCalls(stub func() metadatalister.Lister) {
 	fake.customResourceDefinitionListerMutex.Lock()
 	defer fake.customResourceDefinitionListerMutex.Unlock()
 	fake.CustomResourceDefinitionListerStub = stub
 }
 
-func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionListerReturns(result1 v1.CustomResourceDefinitionLister) {
+func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionListerReturns(result1 metadatalister.Lister) {
 	fake.customResourceDefinitionListerMutex.Lock()
 	defer fake.customResourceDefinitionListerMutex.Unlock()
 	fake.CustomResourceDefinitionListerStub = nil
 	fake.customResourceDefinitionListerReturns = struct {
-		result1 v1.CustomResourceDefinitionLister
+		result1 metadatalister.Lister
 	}{result1}
 }
 
-func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionListerReturnsOnCall(i int, result1 v1.CustomResourceDefinitionLister) {
+func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionListerReturnsOnCall(i int, result1 metadatalister.Lister) {
 	fake.customResourceDefinitionListerMutex.Lock()
 	defer fake.customResourceDefinitionListerMutex.Unlock()
 	fake.CustomResourceDefinitionListerStub = nil
 	if fake.customResourceDefinitionListerReturnsOnCall == nil {
 		fake.customResourceDefinitionListerReturnsOnCall = make(map[int]struct {
-			result1 v1.CustomResourceDefinitionLister
+			result1 metadatalister.Lister
 		})
 	}
 	fake.customResourceDefinitionListerReturnsOnCall[i] = struct {
-		result1 v1.CustomResourceDefinitionLister
+		result1 metadatalister.Lister
 	}{result1}
 }
 
-func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionLister(arg1 v1.CustomResourceDefinitionLister) {
+func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionLister(arg1 metadatalister.Lister) {
 	fake.registerCustomResourceDefinitionListerMutex.Lock()
 	fake.registerCustomResourceDefinitionListerArgsForCall = append(fake.registerCustomResourceDefinitionListerArgsForCall, struct {
-		arg1 v1.CustomResourceDefinitionLister
+		arg1 metadatalister.Lister
 	}{arg1})
 	fake.recordInvocation("RegisterCustomResourceDefinitionLister", []interface{}{arg1})
 	fake.registerCustomResourceDefinitionListerMutex.Unlock()
@@ -98,13 +98,13 @@ func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionListerCal
 	return len(fake.registerCustomResourceDefinitionListerArgsForCall)
 }
 
-func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionListerCalls(stub func(v1.CustomResourceDefinitionLister)) {
+func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionListerCalls(stub func(metadatalister.Lister)) {
 	fake.registerCustomResourceDefinitionListerMutex.Lock()
 	defer fake.registerCustomResourceDefinitionListerMutex.Unlock()
 	fake.RegisterCustomResourceDefinitionListerStub = stub
 }
 
-func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionListerArgsForCall(i int) v1.CustomResourceDefinitionLister {
+func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionListerArgsForCall(i int) metadatalister.Lister {
 	fake.registerCustomResourceDefinitionListerMutex.RLock()
 	defer fake.registerCustomResourceDefinitionListerMutex.RUnlock()
 	argsForCall := fake.registerCustomResourceDefinitionListerArgsForCall[i]

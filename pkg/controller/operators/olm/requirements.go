@@ -1,6 +1,7 @@
 package olm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -94,7 +95,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 		}
 
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
-		crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(r.Name)
+		crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), r.Name, metav1.GetOptions{})
 		if err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			status.Message = "CRD is not present"

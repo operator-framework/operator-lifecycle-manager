@@ -13,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -541,14 +540,25 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	// Register CustomResourceDefinition QueueInformer
-	crdInformer := extinf.NewSharedInformerFactory(op.opClient.ApiextensionsInterface(), config.resyncPeriod()).Apiextensions().V1().CustomResourceDefinitions()
+	// Register CustomResourceDefinition QueueInformer. Object metadata requests are used
+	// by this informer in order to reduce cached size.
+	gvr := apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions")
+	crdInformer := metadatainformer.NewFilteredMetadataInformer(
+		config.metadataClient,
+		gvr,
+		metav1.NamespaceAll,
+		config.resyncPeriod(),
+		cache.Indexers{},
+		nil,
+	).Informer()
+	crdLister := metadatalister.New(crdInformer.GetIndexer(), gvr)
 	informersByNamespace[metav1.NamespaceAll].CRDInformer = crdInformer
-	op.lister.APIExtensionsV1().RegisterCustomResourceDefinitionLister(crdInformer.Lister())
+	informersByNamespace[metav1.NamespaceAll].CRDLister = crdLister
+	op.lister.APIExtensionsV1().RegisterCustomResourceDefinitionLister(crdLister)
 	crdQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
 		queueinformer.WithLogger(op.logger),
-		queueinformer.WithInformer(crdInformer.Informer()),
+		queueinformer.WithInformer(crdInformer),
 		queueinformer.WithSyncer(k8sSyncer),
 	)
 	if err != nil {
@@ -1183,7 +1193,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		}
 
 		for i, crdName := range desc.ConversionCRDs {
-			crd, err := a.lister.APIExtensionsV1().CustomResourceDefinitionLister().Get(crdName)
+			crd, err := a.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			if err != nil {
 				logger.Errorf("error getting CRD %v which was defined in CSVs spec.WebhookDefinition[%d]: %v\n", crdName, i, err)
 				continue

@@ -4,20 +4,30 @@ import (
 	"fmt"
 	"sync"
 
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	aextv1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/metadata/metadatalister"
 )
 
 // UnionCustomResourceDefinitionLister is a custom implementation of an CustomResourceDefinition lister that allows a new
-// Lister to be registered on the fly. This Lister lists both v1 and v1beta1 APIVersion (at the newer version) CRDs.
+// Lister to be registered on the fly.
 type UnionCustomResourceDefinitionLister struct {
-	CustomResourceDefinitionLister aextv1.CustomResourceDefinitionLister
+	CustomResourceDefinitionLister metadatalister.Lister
 	CustomResourceDefinitionLock   sync.RWMutex
 }
 
+func (ucl *UnionCustomResourceDefinitionLister) Namespace(namespace string) metadatalister.NamespaceLister {
+	ucl.CustomResourceDefinitionLock.RLock()
+	defer ucl.CustomResourceDefinitionLock.RUnlock()
+
+	if ucl.CustomResourceDefinitionLister == nil {
+		panic(fmt.Errorf("no CustomResourceDefinition lister registered"))
+	}
+	return ucl.CustomResourceDefinitionLister.Namespace(namespace)
+}
+
 // List lists all CustomResourceDefinitions in the indexer.
-func (ucl *UnionCustomResourceDefinitionLister) List(selector labels.Selector) (ret []*apiextensionsv1.CustomResourceDefinition, err error) {
+func (ucl *UnionCustomResourceDefinitionLister) List(selector labels.Selector) (ret []*metav1.PartialObjectMetadata, err error) {
 	ucl.CustomResourceDefinitionLock.RLock()
 	defer ucl.CustomResourceDefinitionLock.RUnlock()
 
@@ -28,7 +38,7 @@ func (ucl *UnionCustomResourceDefinitionLister) List(selector labels.Selector) (
 }
 
 // Get retrieves the CustomResourceDefinition with the given name
-func (ucl *UnionCustomResourceDefinitionLister) Get(name string) (*apiextensionsv1.CustomResourceDefinition, error) {
+func (ucl *UnionCustomResourceDefinitionLister) Get(name string) (*metav1.PartialObjectMetadata, error) {
 	ucl.CustomResourceDefinitionLock.RLock()
 	defer ucl.CustomResourceDefinitionLock.RUnlock()
 
@@ -39,17 +49,17 @@ func (ucl *UnionCustomResourceDefinitionLister) Get(name string) (*apiextensions
 }
 
 // RegisterCustomResourceDefinitionLister registers a new CustomResourceDefinitionLister
-func (ucl *UnionCustomResourceDefinitionLister) RegisterCustomResourceDefinitionLister(lister aextv1.CustomResourceDefinitionLister) {
+func (ucl *UnionCustomResourceDefinitionLister) RegisterCustomResourceDefinitionLister(lister metadatalister.Lister) {
 	ucl.CustomResourceDefinitionLock.Lock()
 	defer ucl.CustomResourceDefinitionLock.Unlock()
 
 	ucl.CustomResourceDefinitionLister = lister
 }
 
-func (l *apiExtensionsV1Lister) RegisterCustomResourceDefinitionLister(lister aextv1.CustomResourceDefinitionLister) {
+func (l *apiExtensionsV1Lister) RegisterCustomResourceDefinitionLister(lister metadatalister.Lister) {
 	l.customResourceDefinitionLister.RegisterCustomResourceDefinitionLister(lister)
 }
 
-func (l *apiExtensionsV1Lister) CustomResourceDefinitionLister() aextv1.CustomResourceDefinitionLister {
+func (l *apiExtensionsV1Lister) CustomResourceDefinitionLister() metadatalister.Lister {
 	return l.customResourceDefinitionLister
 }

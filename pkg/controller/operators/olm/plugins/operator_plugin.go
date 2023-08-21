@@ -11,7 +11,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/sirupsen/logrus"
-	extensionsv1informers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	rbacv1informers "k8s.io/client-go/informers/rbac/v1"
@@ -46,7 +45,8 @@ type Informers struct {
 	ClusterRoleBindingInformer rbacv1informers.ClusterRoleBindingInformer
 	NamespaceInformer          corev1informers.NamespaceInformer
 	APIServiceInformer         apiregistrationv1informers.APIServiceInformer
-	CRDInformer                extensionsv1informers.CustomResourceDefinitionInformer
+	CRDInformer                cache.SharedIndexInformer
+	CRDLister                  metadatalister.Lister
 }
 
 // OperatorConfig gives access to required configuration from the host operator

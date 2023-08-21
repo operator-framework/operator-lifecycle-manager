@@ -1,10 +1,10 @@
 package operatorlister
 
 import (
-	aextv1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1"
 	appsv1 "k8s.io/client-go/listers/apps/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	rbacv1 "k8s.io/client-go/listers/rbac/v1"
+	"k8s.io/client-go/metadata/metadatalister"
 	aregv1 "k8s.io/kube-aggregator/pkg/client/listers/apiregistration/v1"
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
@@ -88,8 +88,8 @@ type APIRegistrationV1Lister interface {
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . APIExtensionsV1Lister
 type APIExtensionsV1Lister interface {
-	RegisterCustomResourceDefinitionLister(lister aextv1.CustomResourceDefinitionLister)
-	CustomResourceDefinitionLister() aextv1.CustomResourceDefinitionLister
+	RegisterCustomResourceDefinitionLister(lister metadatalister.Lister)
+	CustomResourceDefinitionLister() metadatalister.Lister
 }
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . OperatorsV1alpha1Lister
