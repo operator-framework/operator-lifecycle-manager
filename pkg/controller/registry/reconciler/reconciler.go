@@ -227,9 +227,6 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, img string, saNam
 			if pod.Spec.Containers[0].Resources.Limits == nil {
 				pod.Spec.Containers[0].Resources.Limits = map[corev1.ResourceName]resource.Quantity{}
 			}
-			double := *grpcPodConfig.MemoryTarget
-			double.Add(double.DeepCopy())
-			pod.Spec.Containers[0].Resources.Limits[corev1.ResourceMemory] = double
 
 			grpcPodConfig.MemoryTarget.Format = resource.BinarySI
 			pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, corev1.EnvVar{
