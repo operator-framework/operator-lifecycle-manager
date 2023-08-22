@@ -659,6 +659,14 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 
 		return
 	}
+	// Cleanup old unpacking job and retry
+	if _, isFailed := getCondition(job, batchv1.JobFailed); isFailed {
+		err = c.client.BatchV1().Jobs(job.GetNamespace()).Delete(context.TODO(), job.GetName(), metav1.DeleteOptions{})
+		if err == nil {
+			job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+		}
+		return
+	}
 
 	if equality.Semantic.DeepDerivative(fresh.GetOwnerReferences(), job.GetOwnerReferences()) && equality.Semantic.DeepDerivative(fresh.Spec, job.Spec) {
 		return
