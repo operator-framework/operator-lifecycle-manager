@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -250,6 +251,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "private-catalog",
 								Namespace: testNamespace,
+								Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 								OwnerReferences: []metav1.OwnerReference{
 									{
 										Name:               "private-catalog",

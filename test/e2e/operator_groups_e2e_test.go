@@ -426,8 +426,8 @@ var _ = Describe("Operator Group", func() {
 		// Create crd so csv succeeds
 		// Ensure clusterroles created and aggregated for access provided APIs
 
-		// Generate namespaceA
 		nsA := genName("a")
+		GinkgoT().Logf("generating namespaceA: %s", nsA)
 		c := newKubeClient()
 		for _, ns := range []string{nsA} {
 			namespace := &corev1.Namespace{
@@ -442,25 +442,29 @@ var _ = Describe("Operator Group", func() {
 			}(ns)
 		}
 
-		// Generate operatorGroupA - OwnNamespace
-		groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
+		groupAName := genName("a")
+		GinkgoT().Logf("Generate operatorGroupA - OwnNamespace: %s", groupAName)
+		groupA := newOperatorGroup(nsA, groupAName, nil, nil, []string{nsA}, false)
 		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1().OperatorGroups(nsA).Delete(context.TODO(), groupA.GetName(), metav1.DeleteOptions{}))
 		}()
 
-		// Generate csvA in namespaceA with all installmodes supported
-		crd := newCRD(genName("a"))
-		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		csvA := newCSV("nginx-a", nsA, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
+		crdAName := genName("a")
+		strategyName := genName("dep-")
+		csvAName := "nginx-a"
+		GinkgoT().Logf("Generate csv (%s/%s) with crd %s and with all installmodes supported: %s", nsA, csvAName, crdAName, strategyName)
+		crd := newCRD(crdAName)
+		namedStrategy := newNginxInstallStrategy(strategyName, nil, nil)
+		csvA := newCSV(csvAName, nsA, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Create(context.TODO(), &csvA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(context.TODO(), csvA.GetName(), metav1.DeleteOptions{}))
 		}()
 
-		// Create crd so csv succeeds
+		GinkgoT().Logf("Create crd %s so csv %s/%s succeeds", crdAName, nsA, csvAName)
 		cleanupCRD, err := createCRD(c, crd)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCRD()
@@ -468,8 +472,8 @@ var _ = Describe("Operator Group", func() {
 		_, err = fetchCSV(crc, csvA.GetName(), nsA, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Create a csv for an apiserver
 		depName := genName("hat-server")
+		GinkgoT().Logf("Create csv %s/%s for an apiserver", nsA, depName)
 		mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
 		version := "v1alpha1"
 		mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
@@ -531,19 +535,20 @@ var _ = Describe("Operator Group", func() {
 		}
 		csvB.SetName(depName)
 
-		// Create the APIService CSV
+		GinkgoT().Logf("Create the APIService CSV %s/%s", nsA, depName)
 		cleanupCSV, err := createCSV(c, crc, csvB, nsA, false, true)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCSV()
 
+		GinkgoT().Logf("Fetch the APIService CSV %s/%s", nsA, depName)
 		_, err = fetchCSV(crc, csvB.GetName(), nsA, csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Ensure clusterroles created and aggregated for access provided APIs
+		GinkgoT().Logf("Ensure clusterroles created and aggregated for access provided APIs")
 		padmin, cleanupPadmin := createProjectAdmin(GinkgoT(), c, nsA)
 		defer cleanupPadmin()
 
-		// Check CRD access aggregated
+		GinkgoT().Logf("Check CRD access aggregated")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
 				Spec: authorizationv1.SubjectAccessReviewSpec{
@@ -568,7 +573,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		// Check apiserver access aggregated
+		GinkgoT().Logf("Check apiserver access aggregated")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), &authorizationv1.SubjectAccessReview{
 				Spec: authorizationv1.SubjectAccessReviewSpec{

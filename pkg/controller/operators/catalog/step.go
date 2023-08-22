@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -128,6 +129,10 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 			}
 
 			setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd)
+			if crd.Labels == nil {
+				crd.Labels = map[string]string{}
+			}
+			crd.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if apierrors.IsAlreadyExists(createError) {
@@ -211,6 +216,10 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 			}
 
 			setInstalledAlongsideAnnotation(b.annotator, crd, b.plan.GetNamespace(), step.Resolving, b.csvLister, crd)
+			if crd.Labels == nil {
+				crd.Labels = map[string]string{}
+			}
+			crd.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 			_, createError := client.CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
 			if apierrors.IsAlreadyExists(createError) {

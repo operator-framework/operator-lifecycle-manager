@@ -346,7 +346,7 @@ func catalogSourceRegistryPodSynced(catalog *operatorsv1alpha1.CatalogSource) bo
 	if connState != nil {
 		state = connState.LastObservedState
 	}
-	fmt.Printf("waiting for catalog pod %v to be available (for sync) - %s\n", catalog.GetName(), state)
+	fmt.Printf("waiting for catalog pod %s/%s to be available (for sync) - %s\n", catalog.GetNamespace(), catalog.GetName(), state)
 	return false
 }
 
