@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/validatingroundtripper"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
@@ -140,8 +141,11 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
+	// create a config that validates we're creating objects with labels
+	validatingConfig := validatingroundtripper.Wrap(config)
+
 	// Create a new client for dynamic types (CRs)
-	dynamicClient, err := dynamic.NewForConfig(config)
+	dynamicClient, err := dynamic.NewForConfig(validatingConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +156,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 
 	// Create a new queueinformer-based operator.
-	opClient, err := operatorclient.NewClientFromRestConfig(config)
+	opClient, err := operatorclient.NewClientFromRestConfig(validatingConfig)
 	if err != nil {
 		return nil, err
 	}
