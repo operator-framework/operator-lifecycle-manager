@@ -228,7 +228,7 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 		// if we've reported success, we can sleep longer, otherwise we want to keep watching for
 		// successful
 		if successfulSyncs > 0 {
-			time.Sleep(5 * time.Minute)
+			time.Sleep(25 * time.Second)
 		}
 
 	}, 5*time.Second, stopCh)
