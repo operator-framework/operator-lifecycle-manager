@@ -12,25 +12,21 @@ spec:
   - name: olm.csv_abnormal.rules
     rules:
       - alert: CsvAbnormalFailedOver2Min
-        expr: csv_abnormal{phase=~"^Failed$"}
+        expr: last_over_time(csv_abnormal{phase="Failed"}[5m]}
         for: 2m
         labels:
           severity: warning
-          namespace: "{{ "{{ $labels.namespace }}" }}"
         annotations:
           summary: CSV failed for over 2 minutes
-          description: Fires whenever a CSV has been in the failed phase for more than 2 minutes.
-          message: Failed to install Operator {{ printf "{{ $labels.name }}"  }} version {{ printf "{{ $labels.version }}"  }}. Reason-{{ printf "{{ $labels.reason }}" }}
+          description: Failed to install Operator {{ printf "{{ $labels.name }}" }} version {{ printf "{{ $labels.version }}" }}. Reason-{{ printf "{{ $labels.reason }}" }}
       - alert: CsvAbnormalOver30Min
-        expr: csv_abnormal{phase=~"(^Replacing$|^Pending$|^Deleting$|^Unknown$)"}
+        expr: last_over_time(csv_abnormal{phase=~"(Replacing|Pending|Deleting|Unknown)"}[5m])
         for: 30m
         labels:
           severity: warning
-          namespace: "{{ "{{ $labels.namespace }}" }}"
         annotations:
           summary: CSV abnormal for over 30 minutes
-          description: Fires whenever a CSV is in the Replacing, Pending, Deleting, or Unknown phase for more than 30 minutes.
-          message: Failed to install Operator {{ printf "{{ $labels.name }}"  }} version {{ printf "{{ $labels.version }}"  }}. Phase-{{ printf "{{ $labels.phase }}" }} Reason-{{ printf "{{ $labels.reason }}" }}
+          description: Failed to install Operator {{ printf "{{ $labels.name }}" }} version {{ printf "{{ $labels.version }}" }}. Phase-{{ printf "{{ $labels.phase }}" }} Reason-{{ printf "{{ $labels.reason }}" }}
   - name: olm.installplan.rules
     rules:
     - alert: InstallPlanStepAppliedWithWarnings
@@ -39,6 +35,5 @@ spec:
         severity: warning
       annotations:
         summary: API returned a warning when modifying an operator
-        description: Fires whenever the API server returns a warning when attempting to modify an operator.
-        message: The API server returned a warning during installation or upgrade of an operator. An Event with reason "AppliedWithWarnings" has been created with complete details, including a reference to the InstallPlan step that generated the warning.
+        description: The API server returned a warning during installation or upgrade of an operator. An Event with reason "AppliedWithWarnings" has been created with complete details, including a reference to the InstallPlan step that generated the warning.
 {{ end }}
