@@ -13,6 +13,7 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 
 	"github.com/sirupsen/logrus"
@@ -568,6 +569,14 @@ func TestExecutePlan(t *testing.T) {
 				modify(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{}),
 					withNamespace(namespace),
 					withOwner(csv("csv", namespace, nil, nil)),
+					modifyMeta(func(m metav1.Object) {
+						labels := m.GetLabels()
+						if labels == nil {
+							labels = map[string]string{}
+						}
+						labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
+						m.SetLabels(labels)
+					}),
 				),
 			},
 			err: nil,
@@ -599,7 +608,7 @@ func TestExecutePlan(t *testing.T) {
 				}),
 			want: []runtime.Object{
 				&apiextensionsv1.CustomResourceDefinition{
-					ObjectMeta: metav1.ObjectMeta{Name: "test"},
+					ObjectMeta: metav1.ObjectMeta{Name: "test", Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}},
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "CustomResourceDefinition",
 						APIVersion: "apiextensions.k8s.io/v1", // v1 CRD version of API
@@ -1826,6 +1835,7 @@ func csv(name, namespace string, owned, required []string) *v1alpha1.ClusterServ
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
@@ -1839,7 +1849,8 @@ func csv(name, namespace string, owned, required []string) *v1alpha1.ClusterServ
 func crd(name string) apiextensionsv1beta1.CustomResourceDefinition {
 	return apiextensionsv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:   name,
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
 			Group:   name + "group",
@@ -1860,6 +1871,7 @@ func service(name, namespace string) *corev1.Service {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 	}
 }
@@ -1869,6 +1881,7 @@ func secret(name, namespace string) *corev1.Secret {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 	}
 }
@@ -1877,12 +1890,12 @@ func serviceAccount(name, namespace, generateName string, secretRef *corev1.Obje
 	if secretRef == nil {
 		return &corev1.ServiceAccount{
 			TypeMeta:   metav1.TypeMeta{Kind: serviceAccountKind, APIVersion: ""},
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName, Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}},
 		}
 	}
 	return &corev1.ServiceAccount{
 		TypeMeta:   metav1.TypeMeta{Kind: serviceAccountKind, APIVersion: ""},
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName, Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}},
 		Secrets:    []corev1.ObjectReference{*secretRef},
 	}
 }
@@ -1890,7 +1903,7 @@ func serviceAccount(name, namespace, generateName string, secretRef *corev1.Obje
 func configMap(name, namespace string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		TypeMeta:   metav1.TypeMeta{Kind: configMapKind},
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}},
 	}
 }
 

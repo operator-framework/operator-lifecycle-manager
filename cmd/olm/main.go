@@ -11,6 +11,7 @@ import (
 
 	configclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/validatingroundtripper"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
@@ -139,6 +140,9 @@ func main() {
 	}
 	config := mgr.GetConfig()
 
+	// create a config that validates we're creating objects with labels
+	validatingConfig := validatingroundtripper.Wrap(config)
+
 	versionedConfigClient, err := configclientset.NewForConfig(config)
 	if err != nil {
 		logger.WithError(err).Fatal("error configuring openshift proxy client")
@@ -147,7 +151,7 @@ func main() {
 	if err != nil {
 		logger.WithError(err).Fatal("error configuring config client")
 	}
-	opClient, err := operatorclient.NewClientFromRestConfig(config)
+	opClient, err := operatorclient.NewClientFromRestConfig(validatingConfig)
 	if err != nil {
 		logger.WithError(err).Fatal("error configuring operator client")
 	}

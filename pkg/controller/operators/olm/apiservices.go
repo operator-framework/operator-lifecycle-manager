@@ -228,6 +228,7 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
 		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(desc.GetName())
 		if apierrors.IsNotFound(err) {
+			a.logger.Debugf("APIRegistration APIService %s not found", desc.GetName())
 			return false, nil
 		}
 
@@ -236,10 +237,12 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 		}
 
 		if !install.IsAPIServiceAvailable(apiService) {
+			a.logger.Debugf("APIService not available for %s", desc.GetName())
 			return false, nil
 		}
 
 		if ok, err := a.isGVKRegistered(desc.Group, desc.Version, desc.Kind); !ok || err != nil {
+			a.logger.Debugf("%s.%s/%s not registered for %s", desc.Group, desc.Version, desc.Kind, desc.GetName())
 			return false, err
 		}
 	}

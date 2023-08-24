@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/validatingroundtripper"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
@@ -140,8 +141,11 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
+	// create a config that validates we're creating objects with labels
+	validatingConfig := validatingroundtripper.Wrap(config)
+
 	// Create a new client for dynamic types (CRs)
-	dynamicClient, err := dynamic.NewForConfig(config)
+	dynamicClient, err := dynamic.NewForConfig(validatingConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +156,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 
 	// Create a new queueinformer-based operator.
-	opClient, err := operatorclient.NewClientFromRestConfig(config)
+	opClient, err := operatorclient.NewClientFromRestConfig(validatingConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -2113,6 +2117,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 					// Attempt to create the CSV.
 					csv.SetNamespace(namespace)
+					if csv.Labels == nil {
+						csv.Labels = map[string]string{}
+					}
+					csv.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureClusterServiceVersion(&csv)
 					if err != nil {
@@ -2138,6 +2146,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 					// Attempt to create the Subscription
 					sub.SetNamespace(namespace)
+					if sub.Labels == nil {
+						sub.Labels = map[string]string{}
+					}
+					sub.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureSubscription(&sub)
 					if err != nil {
@@ -2168,6 +2180,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					}
 					s.SetOwnerReferences(updated)
 					s.SetNamespace(namespace)
+					if s.Labels == nil {
+						s.Labels = map[string]string{}
+					}
+					s.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureBundleSecret(plan.Namespace, &s)
 					if err != nil {
@@ -2192,6 +2208,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 					}
 
+					if cr.Labels == nil {
+						cr.Labels = map[string]string{}
+					}
+					cr.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
+
 					status, err := ensurer.EnsureClusterRole(&cr, step)
 					if err != nil {
 						return err
@@ -2206,6 +2227,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					if err != nil {
 						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 					}
+					if rb.Labels == nil {
+						rb.Labels = map[string]string{}
+					}
+					rb.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureClusterRoleBinding(&rb, step)
 					if err != nil {
@@ -2229,6 +2254,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					}
 					r.SetOwnerReferences(updated)
 					r.SetNamespace(namespace)
+					if r.Labels == nil {
+						r.Labels = map[string]string{}
+					}
+					r.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureRole(plan.Namespace, &r)
 					if err != nil {
@@ -2252,6 +2281,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					}
 					rb.SetOwnerReferences(updated)
 					rb.SetNamespace(namespace)
+					if rb.Labels == nil {
+						rb.Labels = map[string]string{}
+					}
+					rb.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureRoleBinding(plan.Namespace, &rb)
 					if err != nil {
@@ -2275,6 +2308,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					}
 					sa.SetOwnerReferences(updated)
 					sa.SetNamespace(namespace)
+					if sa.Labels == nil {
+						sa.Labels = map[string]string{}
+					}
+					sa.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureServiceAccount(namespace, &sa)
 					if err != nil {
@@ -2306,6 +2343,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					}
 					s.SetOwnerReferences(updated)
 					s.SetNamespace(namespace)
+					if s.Labels == nil {
+						s.Labels = map[string]string{}
+					}
+					s.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureService(namespace, &s)
 					if err != nil {
@@ -2336,6 +2377,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					}
 					cfg.SetOwnerReferences(updated)
 					cfg.SetNamespace(namespace)
+					if cfg.Labels == nil {
+						cfg.Labels = map[string]string{}
+					}
+					cfg.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 					status, err := ensurer.EnsureConfigMap(plan.Namespace, &cfg)
 					if err != nil {
@@ -2395,6 +2440,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 							}
 						}
 					}
+					l := unstructuredObject.GetLabels()
+					if l == nil {
+						l = map[string]string{}
+					}
+					l[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
+					unstructuredObject.SetLabels(l)
 
 					// Set up the dynamic client ResourceInterface and set ownerrefs
 					var resourceInterface dynamic.ResourceInterface

@@ -208,6 +208,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -224,7 +225,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: pathHash,
+									Name:   pathHash,
+									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy:    corev1.RestartPolicyNever,
@@ -369,6 +371,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -402,6 +405,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -437,6 +441,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      digestHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -452,7 +457,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: digestHash,
+									Name:   digestHash,
+									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -607,6 +613,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      digestHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "operators.coreos.com/v1alpha1",
@@ -705,6 +712,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      digestHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -720,7 +728,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: digestHash,
+									Name:   digestHash,
+									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -877,6 +886,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      digestHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -910,6 +920,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      digestHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -967,6 +978,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -982,7 +994,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: pathHash,
+									Name:   pathHash,
+									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -1124,6 +1137,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "operators.coreos.com/v1alpha1",
@@ -1199,6 +1213,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -1214,7 +1229,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: pathHash,
+									Name:   pathHash,
+									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
@@ -1368,6 +1384,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "operators.coreos.com/v1alpha1",
@@ -1442,6 +1459,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -1457,7 +1475,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 							BackoffLimit:          &backoffLimit,
 							Template: corev1.PodTemplateSpec{
 								ObjectMeta: metav1.ObjectMeta{
-									Name: pathHash,
+									Name:   pathHash,
+									Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 								},
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,

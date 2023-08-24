@@ -383,7 +383,8 @@ func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs
 				// Matches aggregation rules on the bootstrap ClusterRoles.
 				// https://github.com/kubernetes/kubernetes/blob/61847eab61788fb0543b4cf147773c9da646ed2f/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go#L232
 				fmt.Sprintf("rbac.authorization.k8s.io/aggregate-to-%s", suffix): "true",
-				aggregationLabel: "true",
+				aggregationLabel:           "true",
+				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
 			},
 			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(api)},
 		},
@@ -983,7 +984,8 @@ func (a *Operator) updateNamespaceList(op *operatorsv1.OperatorGroup) ([]string,
 func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffix string, apis cache.APISet) error {
 	clusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: strings.Join([]string{op.GetName(), suffix}, "-"),
+			Name:   strings.Join([]string{op.GetName(), suffix}, "-"),
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 	}
 	var selectors []metav1.LabelSelector

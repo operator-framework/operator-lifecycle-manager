@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -115,6 +116,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, img string, saNam
 	for key, value := range labels {
 		podLabels[key] = value
 	}
+	podLabels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 	for key, value := range annotations {
 		podAnnotations[key] = value

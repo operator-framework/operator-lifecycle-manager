@@ -251,6 +251,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	service.SetName(ServiceName(deploymentName))
 	service.SetNamespace(i.owner.GetNamespace())
 	ownerutil.AddNonBlockingOwner(service, i.owner)
+	service.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 	existingService, err := i.strategyClient.GetOpLister().CoreV1().ServiceLister().Services(i.owner.GetNamespace()).Get(service.GetName())
 	if err == nil {
@@ -366,6 +367,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	}
 	secretRole.SetName(secret.GetName())
 	secretRole.SetNamespace(i.owner.GetNamespace())
+	secretRole.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 	existingSecretRole, err := i.strategyClient.GetOpLister().RbacV1().RoleLister().Roles(i.owner.GetNamespace()).Get(secretRole.GetName())
 	if err == nil {
@@ -412,6 +414,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	}
 	secretRoleBinding.SetName(secret.GetName())
 	secretRoleBinding.SetNamespace(i.owner.GetNamespace())
+	secretRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 	existingSecretRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().RoleBindingLister().RoleBindings(i.owner.GetNamespace()).Get(secretRoleBinding.GetName())
 	if err == nil {
@@ -454,6 +457,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		},
 	}
 	authDelegatorClusterRoleBinding.SetName(service.GetName() + "-system:auth-delegator")
+	authDelegatorClusterRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 	existingAuthDelegatorClusterRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
 	if err == nil {
@@ -502,6 +506,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	}
 	authReaderRoleBinding.SetName(service.GetName() + "-auth-reader")
 	authReaderRoleBinding.SetNamespace(KubeSystem)
+	authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 	existingAuthReaderRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().RoleBindingLister().RoleBindings(KubeSystem).Get(authReaderRoleBinding.GetName())
 	if err == nil {

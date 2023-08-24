@@ -5,11 +5,12 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	meta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -128,6 +129,9 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondit
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operatorCondition.GetName(),
 			Namespace: operatorCondition.GetNamespace(),
+			Labels: map[string]string{
+				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+			},
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -176,6 +180,9 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRoleBinding(operato
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operatorCondition.GetName(),
 			Namespace: operatorCondition.GetNamespace(),
+			Labels: map[string]string{
+				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+			},
 		},
 		Subjects: subjects,
 		RoleRef: rbacv1.RoleRef{

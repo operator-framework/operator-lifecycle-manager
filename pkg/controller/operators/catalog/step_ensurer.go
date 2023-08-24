@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	errorwrap "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -91,6 +92,9 @@ func (o *StepEnsurer) EnsureSecret(operatorNamespace, planNamespace, name string
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secret.Name,
 			Namespace: planNamespace,
+			Labels: map[string]string{
+				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+			},
 		},
 		Data: secret.Data,
 		Type: secret.Type,
