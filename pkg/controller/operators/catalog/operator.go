@@ -11,10 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/alongside"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/validatingroundtripper"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -32,6 +35,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	batchv1applyconfigurations "k8s.io/client-go/applyconfigurations/batch/v1"
+	corev1applyconfigurations "k8s.io/client-go/applyconfigurations/core/v1"
+	rbacv1applyconfigurations "k8s.io/client-go/applyconfigurations/rbac/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/metadata"
@@ -103,6 +109,7 @@ type Operator struct {
 	client                   versioned.Interface
 	dynamicClient            dynamic.Interface
 	lister                   operatorlister.OperatorLister
+	k8sLabelQueueSets        map[schema.GroupVersionResource]workqueue.RateLimitingInterface
 	catsrcQueueSet           *queueinformer.ResourceQueueSet
 	subQueueSet              *queueinformer.ResourceQueueSet
 	ipQueueSet               *queueinformer.ResourceQueueSet
@@ -191,6 +198,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		lister:                   lister,
 		namespace:                operatorNamespace,
 		recorder:                 eventRecorder,
+		k8sLabelQueueSets:        map[schema.GroupVersionResource]workqueue.RateLimitingInterface{},
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
@@ -363,20 +371,83 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, roleInformer.Informer())
 
+	labelObjects := func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, sync queueinformer.LegacySyncHandler) error {
+		op.k8sLabelQueueSets[gvr] = workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
+			Name: gvr.String(),
+		})
+		queueInformer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithInformer(informer),
+			queueinformer.WithSyncer(sync.ToSyncer()),
+		)
+		if err != nil {
+			return err
+		}
+
+		if err := op.RegisterQueueInformer(queueInformer); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	if err := labelObjects(rbacv1.SchemeGroupVersion.WithResource("roles"), roleInformer.Informer(), labeller.ObjectLabeler[*rbacv1.Role, *rbacv1applyconfigurations.RoleApplyConfiguration](
+		ctx, op.logger, labeller.HasOLMOwnerRef,
+		rbacv1applyconfigurations.Role,
+		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.Role, error) {
+			return op.opClient.KubernetesInterface().RbacV1().Roles(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
+
 	// Wire RoleBindings
 	roleBindingInformer := k8sInformerFactory.Rbac().V1().RoleBindings()
 	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, roleBindingInformer.Informer())
+
+	if err := labelObjects(rbacv1.SchemeGroupVersion.WithResource("rolebindings"), roleBindingInformer.Informer(), labeller.ObjectLabeler[*rbacv1.RoleBinding, *rbacv1applyconfigurations.RoleBindingApplyConfiguration](
+		ctx, op.logger, labeller.HasOLMOwnerRef,
+		rbacv1applyconfigurations.RoleBinding,
+		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleBindingApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.RoleBinding, error) {
+			return op.opClient.KubernetesInterface().RbacV1().RoleBindings(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
 
 	// Wire ServiceAccounts
 	serviceAccountInformer := k8sInformerFactory.Core().V1().ServiceAccounts()
 	op.lister.CoreV1().RegisterServiceAccountLister(metav1.NamespaceAll, serviceAccountInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, serviceAccountInformer.Informer())
 
+	if err := labelObjects(corev1.SchemeGroupVersion.WithResource("serviceaccounts"), serviceAccountInformer.Informer(), labeller.ObjectLabeler[*corev1.ServiceAccount, *corev1applyconfigurations.ServiceAccountApplyConfiguration](
+		ctx, op.logger, func(object metav1.Object) bool {
+			return labeller.HasOLMOwnerRef(object) || labeller.HasOLMLabel(object)
+		},
+		corev1applyconfigurations.ServiceAccount,
+		func(namespace string, ctx context.Context, cfg *corev1applyconfigurations.ServiceAccountApplyConfiguration, opts metav1.ApplyOptions) (*corev1.ServiceAccount, error) {
+			return op.opClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
+
 	// Wire Services
 	serviceInformer := k8sInformerFactory.Core().V1().Services()
 	op.lister.CoreV1().RegisterServiceLister(metav1.NamespaceAll, serviceInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, serviceInformer.Informer())
+
+	if err := labelObjects(corev1.SchemeGroupVersion.WithResource("services"), serviceInformer.Informer(), labeller.ObjectLabeler[*corev1.Service, *corev1applyconfigurations.ServiceApplyConfiguration](
+		ctx, op.logger, labeller.HasOLMOwnerRef,
+		corev1applyconfigurations.Service,
+		func(namespace string, ctx context.Context, cfg *corev1applyconfigurations.ServiceApplyConfiguration, opts metav1.ApplyOptions) (*corev1.Service, error) {
+			return op.opClient.KubernetesInterface().CoreV1().Services(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
 
 	// Wire Pods for CatalogSource
 	catsrcReq, err := labels.NewRequirement(reconciler.CatalogSourceLabelKey, selection.Exists, nil)
@@ -391,6 +462,19 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	})).Core().V1().Pods()
 	op.lister.CoreV1().RegisterPodLister(metav1.NamespaceAll, csPodInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, csPodInformer.Informer())
+
+	if err := labelObjects(corev1.SchemeGroupVersion.WithResource("pods"), csPodInformer.Informer(), labeller.ObjectLabeler[*corev1.Pod, *corev1applyconfigurations.PodApplyConfiguration](
+		ctx, op.logger, func(object metav1.Object) bool {
+			_, ok := object.GetLabels()[reconciler.CatalogSourceLabelKey]
+			return ok
+		},
+		corev1applyconfigurations.Pod,
+		func(namespace string, ctx context.Context, cfg *corev1applyconfigurations.PodApplyConfiguration, opts metav1.ApplyOptions) (*corev1.Pod, error) {
+			return op.opClient.KubernetesInterface().CoreV1().Pods(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
 
 	// Wire Pods for BundleUnpack job
 	buReq, err := labels.NewRequirement(bundle.BundleUnpackPodLabel, selection.Exists, nil)
@@ -415,6 +499,27 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	// Wire Jobs
 	jobInformer := k8sInformerFactory.Batch().V1().Jobs()
 	sharedIndexInformers = append(sharedIndexInformers, jobInformer.Informer())
+
+	if err := labelObjects(batchv1.SchemeGroupVersion.WithResource("jobs"), jobInformer.Informer(), labeller.ObjectLabeler[*batchv1.Job, *batchv1applyconfigurations.JobApplyConfiguration](
+		ctx, op.logger, func(object metav1.Object) bool {
+			for _, ownerRef := range object.GetOwnerReferences() {
+				if ownerRef.APIVersion == corev1.SchemeGroupVersion.String() && ownerRef.Kind == "ConfigMap" {
+					cm, err := configMapInformer.Lister().ConfigMaps(object.GetNamespace()).Get(ownerRef.Name)
+					if err != nil {
+						return false
+					}
+					return labeller.HasOLMOwnerRef(cm)
+				}
+			}
+			return false
+		},
+		batchv1applyconfigurations.Job,
+		func(namespace string, ctx context.Context, cfg *batchv1applyconfigurations.JobApplyConfiguration, opts metav1.ApplyOptions) (*batchv1.Job, error) {
+			return op.opClient.KubernetesInterface().BatchV1().Jobs(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
 
 	// Generate and register QueueInformers for k8s resources
 	k8sSyncer := queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)
@@ -477,6 +582,20 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 	if err := op.RegisterQueueInformer(crdQueueInformer); err != nil {
+		return nil, err
+	}
+
+	if err := labelObjects(apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions"), crdInformer, labeller.ObjectPatchLabeler(
+		ctx, op.logger, func(object metav1.Object) bool {
+			for key := range object.GetAnnotations() {
+				if strings.HasPrefix(key, alongside.AnnotationPrefix) {
+					return true
+				}
+			}
+			return false
+		},
+		op.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Patch,
+	)); err != nil {
 		return nil, err
 	}
 

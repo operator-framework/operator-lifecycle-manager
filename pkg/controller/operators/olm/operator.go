@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
 	"github.com/sirupsen/logrus"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -18,9 +20,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	appsv1applyconfigurations "k8s.io/client-go/applyconfigurations/apps/v1"
+	rbacv1applyconfigurations "k8s.io/client-go/applyconfigurations/rbac/v1"
 	"k8s.io/client-go/informers"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/metadata/metadatainformer"
@@ -73,6 +78,7 @@ type Operator struct {
 	opClient                     operatorclient.ClientInterface
 	client                       versioned.Interface
 	lister                       operatorlister.OperatorLister
+	k8sLabelQueueSets            map[schema.GroupVersionResource]workqueue.RateLimitingInterface
 	protectedCopiedCSVNamespaces map[string]struct{}
 	copiedCSVLister              metadatalister.Lister
 	ogQueueSet                   *queueinformer.ResourceQueueSet
@@ -151,6 +157,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		resolver:                     config.strategyResolver,
 		apiReconciler:                config.apiReconciler,
 		lister:                       lister,
+		k8sLabelQueueSets:            map[schema.GroupVersionResource]workqueue.RateLimitingInterface{},
 		recorder:                     eventRecorder,
 		apiLabeler:                   config.apiLabeler,
 		csvIndexers:                  map[string]cache.Indexer{},
@@ -427,6 +434,37 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		}
 	}
 
+	labelObjects := func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, sync queueinformer.LegacySyncHandler) error {
+		op.k8sLabelQueueSets[gvr] = workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
+			Name: gvr.String(),
+		})
+		queueInformer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithInformer(informer),
+			queueinformer.WithSyncer(sync.ToSyncer()),
+		)
+		if err != nil {
+			return err
+		}
+
+		if err := op.RegisterQueueInformer(queueInformer); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	if err := labelObjects(appsv1.SchemeGroupVersion.WithResource("deployments"), informersByNamespace[metav1.NamespaceAll].DeploymentInformer.Informer(), labeller.ObjectLabeler[*appsv1.Deployment, *appsv1applyconfigurations.DeploymentApplyConfiguration](
+		ctx, op.logger, labeller.HasOLMOwnerRef,
+		appsv1applyconfigurations.Deployment,
+		func(namespace string, ctx context.Context, cfg *appsv1applyconfigurations.DeploymentApplyConfiguration, opts metav1.ApplyOptions) (*appsv1.Deployment, error) {
+			return op.opClient.KubernetesInterface().AppsV1().Deployments(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
+
 	// add queue for all namespaces as well
 	objGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/obj-gc", ""))
 	op.objGCQueueSet.Set("", objGCQueue)
@@ -481,6 +519,18 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
+	if err := labelObjects(rbacv1.SchemeGroupVersion.WithResource("clusterroles"), clusterRoleInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRole, *rbacv1applyconfigurations.ClusterRoleApplyConfiguration](
+		ctx, op.logger, labeller.HasOLMOwnerRef,
+		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleApplyConfiguration {
+			return rbacv1applyconfigurations.ClusterRole(name)
+		},
+		func(_ string, ctx context.Context, cfg *rbacv1applyconfigurations.ClusterRoleApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.ClusterRole, error) {
+			return op.opClient.KubernetesInterface().RbacV1().ClusterRoles().Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
+
 	clusterRoleBindingInformer := k8sInformerFactory.Rbac().V1().ClusterRoleBindings()
 	informersByNamespace[metav1.NamespaceAll].ClusterRoleBindingInformer = clusterRoleBindingInformer
 	op.lister.RbacV1().RegisterClusterRoleBindingLister(clusterRoleBindingInformer.Lister())
@@ -494,6 +544,18 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 	if err := op.RegisterQueueInformer(clusterRoleBindingQueueInformer); err != nil {
+		return nil, err
+	}
+
+	if err := labelObjects(rbacv1.SchemeGroupVersion.WithResource("clusterrolebindings"), clusterRoleBindingInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRoleBinding, *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration](
+		ctx, op.logger, labeller.HasOLMOwnerRef,
+		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration {
+			return rbacv1applyconfigurations.ClusterRoleBinding(name)
+		},
+		func(_ string, ctx context.Context, cfg *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.ClusterRoleBinding, error) {
+			return op.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
 		return nil, err
 	}
 

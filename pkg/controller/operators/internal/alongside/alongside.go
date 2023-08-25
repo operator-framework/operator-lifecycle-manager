@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	prefix = "operatorframework.io/installed-alongside-"
+	AnnotationPrefix = "operatorframework.io/installed-alongside-"
 )
 
 // NamespacedName is a reference to an object by namespace and name.
@@ -33,7 +33,7 @@ type Annotator struct{}
 func (a Annotator) FromObject(o Annotatable) []NamespacedName {
 	var result []NamespacedName
 	for k, v := range o.GetAnnotations() {
-		if !strings.HasPrefix(k, prefix) {
+		if !strings.HasPrefix(k, AnnotationPrefix) {
 			continue
 		}
 		tokens := strings.Split(v, "/")
@@ -55,7 +55,7 @@ func (a Annotator) ToObject(o Annotatable, nns []NamespacedName) {
 	annotations := o.GetAnnotations()
 
 	for key := range annotations {
-		if strings.HasPrefix(key, prefix) {
+		if strings.HasPrefix(key, AnnotationPrefix) {
 			delete(annotations, key)
 		}
 	}
@@ -82,5 +82,5 @@ func key(n NamespacedName) string {
 	hasher.Write([]byte(n.Namespace))
 	hasher.Write([]byte{'/'})
 	hasher.Write([]byte(n.Name))
-	return fmt.Sprintf("%s%x", prefix, hasher.Sum64())
+	return fmt.Sprintf("%s%x", AnnotationPrefix, hasher.Sum64())
 }
