@@ -28,7 +28,7 @@ type FakeUnpacker struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeUnpacker) UnpackBundle(arg1 *v1alpha1.BundleLookup, arg2 time.Duration) (*bundle.BundleUnpackResult, error) {
+func (fake *FakeUnpacker) UnpackBundle(arg1 *v1alpha1.BundleLookup, arg2, arg3 time.Duration) (*bundle.BundleUnpackResult, error) {
 	fake.unpackBundleMutex.Lock()
 	ret, specificReturn := fake.unpackBundleReturnsOnCall[len(fake.unpackBundleArgsForCall)]
 	fake.unpackBundleArgsForCall = append(fake.unpackBundleArgsForCall, struct {
