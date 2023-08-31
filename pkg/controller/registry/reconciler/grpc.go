@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"strings"
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -72,7 +73,7 @@ func (s *grpcCatalogSourceDecorator) Annotations() map[string]string {
 func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      s.GetName(),
+			Name:      strings.ReplaceAll(s.GetName(), ".", "-"),
 			Namespace: s.GetNamespace(),
 		},
 		Spec: corev1.ServiceSpec{
