@@ -86,11 +86,19 @@ func newBundleUnpackResult(lookup *operatorsv1alpha1.BundleLookup) *BundleUnpack
 
 func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, annotationUnpackTimeout time.Duration) *batchv1.Job {
 	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+			},
+		},
 		Spec: batchv1.JobSpec{
 			//ttlSecondsAfterFinished: 0 // can use in the future to not have to clean up job
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: cmRef.Name,
+					Labels: map[string]string{
+						install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+					},
 				},
 				Spec: corev1.PodSpec{
 					// With restartPolicy = "OnFailure" when the spec.backoffLimit is reached, the job controller will delete all
@@ -687,6 +695,7 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 	fresh.SetNamespace(cmRef.Namespace)
 	fresh.SetName(cmRef.Name)
 	fresh.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
+	fresh.SetLabels(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue})
 
 	role, err = c.roleLister.Roles(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {
@@ -730,6 +739,7 @@ func (c *ConfigMapUnpacker) ensureRoleBinding(cmRef *corev1.ObjectReference) (ro
 	fresh.SetNamespace(cmRef.Namespace)
 	fresh.SetName(cmRef.Name)
 	fresh.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
+	fresh.SetLabels(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue})
 
 	roleBinding, err = c.rbLister.RoleBindings(fresh.GetNamespace()).Get(fresh.GetName())
 	if err != nil {

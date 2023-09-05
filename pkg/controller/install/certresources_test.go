@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -155,7 +156,8 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				mockOpClient.EXPECT().DeleteService(namespace, "test-service", &metav1.DeleteOptions{}).Return(nil)
 				service := corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service",
+						Name:   "test-service",
+						Labels: map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(&v1alpha1.ClusterServiceVersion{}),
 						},
@@ -198,6 +200,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -214,6 +217,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -233,7 +237,8 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 
 				authDelegatorClusterRoleBinding := &rbacv1.ClusterRoleBinding{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: service.GetName() + "-system:auth-delegator",
+						Name:   service.GetName() + "-system:auth-delegator",
+						Labels: map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -269,6 +274,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				}
 				authReaderRoleBinding.SetName(service.GetName() + "-auth-reader")
 				authReaderRoleBinding.SetNamespace(KubeSystem)
+				authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 				mockOpClient.EXPECT().UpdateRoleBinding(authReaderRoleBinding).Return(authReaderRoleBinding, nil)
 			},
@@ -380,6 +386,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-service",
 						Namespace: owner.GetNamespace(),
+						Labels:    map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(owner),
 						},
@@ -422,6 +429,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -438,6 +446,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -457,7 +466,8 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 
 				authDelegatorClusterRoleBinding := &rbacv1.ClusterRoleBinding{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: service.GetName() + "-system:auth-delegator",
+						Name:   service.GetName() + "-system:auth-delegator",
+						Labels: map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -493,6 +503,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				}
 				authReaderRoleBinding.SetName(service.GetName() + "-auth-reader")
 				authReaderRoleBinding.SetNamespace(KubeSystem)
+				authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 				mockOpClient.EXPECT().UpdateRoleBinding(authReaderRoleBinding).Return(authReaderRoleBinding, nil)
 			},
@@ -596,7 +607,8 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				mockOpClient.EXPECT().DeleteService(namespace, "test-service", &metav1.DeleteOptions{}).Return(nil)
 				service := corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service",
+						Name:   "test-service",
+						Labels: map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 						OwnerReferences: []metav1.OwnerReference{
 							ownerutil.NonBlockingOwner(&v1alpha1.ClusterServiceVersion{}),
 						},
@@ -649,6 +661,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -665,6 +678,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.GetName(),
 						Namespace: namespace,
+						Labels:    map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -684,7 +698,8 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 
 				authDelegatorClusterRoleBinding := &rbacv1.ClusterRoleBinding{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: service.GetName() + "-system:auth-delegator",
+						Name:   service.GetName() + "-system:auth-delegator",
+						Labels: map[string]string{OLMManagedLabelKey: OLMManagedLabelValue},
 					},
 					Subjects: []rbacv1.Subject{
 						{
@@ -720,6 +735,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				}
 				authReaderRoleBinding.SetName(service.GetName() + "-auth-reader")
 				authReaderRoleBinding.SetNamespace(KubeSystem)
+				authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 				mockOpClient.EXPECT().UpdateRoleBinding(authReaderRoleBinding).Return(authReaderRoleBinding, nil)
 			},
@@ -853,7 +869,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("installCertRequirementsForDeployment() \n got  = %v \n want = %v", got, tt.want)
+				t.Errorf("installCertRequirementsForDeployment() \n got  = %v \n want = %v\n diff=%s\n", got, tt.want, cmp.Diff(got, tt.want))
 			}
 		})
 	}

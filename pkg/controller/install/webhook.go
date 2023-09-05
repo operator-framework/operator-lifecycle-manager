@@ -67,11 +67,11 @@ func (i *StrategyDeploymentInstaller) createOrUpdateWebhook(caPEM []byte, desc v
 
 	switch desc.Type {
 	case v1alpha1.ValidatingAdmissionWebhook:
-		i.createOrUpdateValidatingWebhook(ogNamespacelabelSelector, caPEM, desc)
+		return i.createOrUpdateValidatingWebhook(ogNamespacelabelSelector, caPEM, desc)
 	case v1alpha1.MutatingAdmissionWebhook:
-		i.createOrUpdateMutatingWebhook(ogNamespacelabelSelector, caPEM, desc)
+		return i.createOrUpdateMutatingWebhook(ogNamespacelabelSelector, caPEM, desc)
 	case v1alpha1.ConversionWebhook:
-		i.createOrUpdateConversionWebhook(caPEM, desc)
+		return i.createOrUpdateConversionWebhook(caPEM, desc)
 	}
 	return nil
 }
@@ -287,6 +287,7 @@ func addWebhookLabels(object metav1.Object, webhookDesc v1alpha1.WebhookDescript
 	}
 	labels[WebhookDescKey] = webhookDesc.GenerateName
 	labels[WebhookHashKey] = HashWebhookDesc(webhookDesc)
+	labels[OLMManagedLabelKey] = OLMManagedLabelValue
 	object.SetLabels(labels)
 
 	return nil

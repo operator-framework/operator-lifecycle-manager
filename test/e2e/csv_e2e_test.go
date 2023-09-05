@@ -4432,17 +4432,18 @@ func fetchCSV(c versioned.Interface, name, namespace string, checker csvConditio
 	var fetchedCSV *operatorsv1alpha1.ClusterServiceVersion
 	var err error
 
+	ctx.Ctx().Logf("waiting for CSV %s/%s to reach condition", namespace, name)
 	Eventually(func() (bool, error) {
 		fetchedCSV, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
-		ctx.Ctx().Logf("%s (%s): %s", fetchedCSV.Status.Phase, fetchedCSV.Status.Reason, fetchedCSV.Status.Message)
+		ctx.Ctx().Logf("CSV %s/%s: phase %s (%s): %s", namespace, name, fetchedCSV.Status.Phase, fetchedCSV.Status.Reason, fetchedCSV.Status.Message)
 		return checker(fetchedCSV), nil
 	}).Should(BeTrue())
 
 	if err != nil {
-		ctx.Ctx().Logf("never got correct status: %#v", fetchedCSV.Status)
+		ctx.Ctx().Logf("CSV %s/%s never got correct status: %#v", namespace, name, fetchedCSV.Status)
 	}
 	return fetchedCSV, err
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"strings"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -58,7 +60,8 @@ func (s *grpcCatalogSourceDecorator) SelectorForUpdate() labels.Selector {
 
 func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
 	return map[string]string{
-		CatalogSourceLabelKey: s.GetName(),
+		CatalogSourceLabelKey:      s.GetName(),
+		install.OLMManagedLabelKey: install.OLMManagedLabelValue,
 	}
 }
 
@@ -70,7 +73,7 @@ func (s *grpcCatalogSourceDecorator) Annotations() map[string]string {
 func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      s.GetName(),
+			Name:      strings.ReplaceAll(s.GetName(), ".", "-"),
 			Namespace: s.GetNamespace(),
 		},
 		Spec: corev1.ServiceSpec{
@@ -88,6 +91,7 @@ func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
 	labels := map[string]string{}
 	hash := HashServiceSpec(svc.Spec)
 	labels[ServiceHashLabelKey] = hash
+	labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 	svc.SetLabels(labels)
 	ownerutil.AddOwner(svc, s.CatalogSource, false, false)
 	return svc
@@ -107,6 +111,7 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.GetName(),
 			Namespace: s.GetNamespace(),
+			Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					Name:               s.GetName(),
