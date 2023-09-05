@@ -23,7 +23,7 @@ func TestAnnotatorFromObject(t *testing.T) {
 		NamespacedNames []NamespacedName
 	}{
 		{
-			Name: "annotation without prefix ignored",
+			Name: "annotation without AnnotationPrefix ignored",
 			Object: TestAnnotatable{
 				"foo": "namespace/name",
 			},
@@ -66,7 +66,7 @@ func TestAnnotatorToObject(t *testing.T) {
 			},
 		},
 		{
-			Name: "annotation without prefix ignored",
+			Name: "annotation without AnnotationPrefix ignored",
 			Object: TestAnnotatable{
 				"operatorframework.io/something-else": "",
 			},
