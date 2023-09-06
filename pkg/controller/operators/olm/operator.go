@@ -141,6 +141,11 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
+	canFilter, err := labeller.Validate(ctx, config.logger, config.metadataClient)
+	if err != nil {
+		return nil, err
+	}
+
 	op := &Operator{
 		Operator:                     queueOperator,
 		clock:                        config.clock,
@@ -315,7 +320,17 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		}
 
 		// Wire Deployments
-		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), config.resyncPeriod(), informers.WithNamespace(namespace))
+		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), config.resyncPeriod(), func() []informers.SharedInformerOption {
+			opts := []informers.SharedInformerOption{
+				informers.WithNamespace(namespace),
+			}
+			if canFilter {
+				opts = append(opts, informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+					options.LabelSelector = labels.SelectorFromSet(labels.Set{install.OLMManagedLabelKey: install.OLMManagedLabelValue}).String()
+				}))
+			}
+			return opts
+		}()...)
 		depInformer := k8sInformerFactory.Apps().V1().Deployments()
 		informersByNamespace[namespace].DeploymentInformer = depInformer
 		op.lister.AppsV1().RegisterDeploymentLister(namespace, depInformer.Lister())
@@ -435,6 +450,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	}
 
 	labelObjects := func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, sync queueinformer.LegacySyncHandler) error {
+		if canFilter {
+			return nil
+		}
 		op.k8sLabelQueueSets[gvr] = workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
 			Name: gvr.String(),
 		})
@@ -455,8 +473,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil
 	}
 
-	if err := labelObjects(appsv1.SchemeGroupVersion.WithResource("deployments"), informersByNamespace[metav1.NamespaceAll].DeploymentInformer.Informer(), labeller.ObjectLabeler[*appsv1.Deployment, *appsv1applyconfigurations.DeploymentApplyConfiguration](
-		ctx, op.logger, labeller.HasOLMOwnerRef,
+	deploymentsgvk := appsv1.SchemeGroupVersion.WithResource("deployments")
+	if err := labelObjects(deploymentsgvk, informersByNamespace[metav1.NamespaceAll].DeploymentInformer.Informer(), labeller.ObjectLabeler[*appsv1.Deployment, *appsv1applyconfigurations.DeploymentApplyConfiguration](
+		ctx, op.logger, labeller.Filter(deploymentsgvk),
 		appsv1applyconfigurations.Deployment,
 		func(namespace string, ctx context.Context, cfg *appsv1applyconfigurations.DeploymentApplyConfiguration, opts metav1.ApplyOptions) (*appsv1.Deployment, error) {
 			return op.opClient.KubernetesInterface().AppsV1().Deployments(namespace).Apply(ctx, cfg, opts)
@@ -502,7 +521,14 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	k8sInformerFactory := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), config.resyncPeriod())
+	k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), config.resyncPeriod(), func() []informers.SharedInformerOption {
+		if !canFilter {
+			return nil
+		}
+		return []informers.SharedInformerOption{informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+			options.LabelSelector = labels.SelectorFromSet(labels.Set{install.OLMManagedLabelKey: install.OLMManagedLabelValue}).String()
+		})}
+	}()...)
 	clusterRoleInformer := k8sInformerFactory.Rbac().V1().ClusterRoles()
 	informersByNamespace[metav1.NamespaceAll].ClusterRoleInformer = clusterRoleInformer
 	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
@@ -519,8 +545,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	if err := labelObjects(rbacv1.SchemeGroupVersion.WithResource("clusterroles"), clusterRoleInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRole, *rbacv1applyconfigurations.ClusterRoleApplyConfiguration](
-		ctx, op.logger, labeller.HasOLMOwnerRef,
+	clusterrolesgvk := rbacv1.SchemeGroupVersion.WithResource("clusterroles")
+	if err := labelObjects(clusterrolesgvk, clusterRoleInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRole, *rbacv1applyconfigurations.ClusterRoleApplyConfiguration](
+		ctx, op.logger, labeller.Filter(clusterrolesgvk),
 		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleApplyConfiguration {
 			return rbacv1applyconfigurations.ClusterRole(name)
 		},
@@ -547,8 +574,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	if err := labelObjects(rbacv1.SchemeGroupVersion.WithResource("clusterrolebindings"), clusterRoleBindingInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRoleBinding, *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration](
-		ctx, op.logger, labeller.HasOLMOwnerRef,
+	clusterrolebindingssgvk := rbacv1.SchemeGroupVersion.WithResource("clusterrolebindings")
+	if err := labelObjects(clusterrolebindingssgvk, clusterRoleBindingInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRoleBinding, *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration](
+		ctx, op.logger, labeller.Filter(clusterrolebindingssgvk),
 		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration {
 			return rbacv1applyconfigurations.ClusterRoleBinding(name)
 		},
