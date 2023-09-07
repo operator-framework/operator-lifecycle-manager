@@ -7,15 +7,17 @@ import (
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/sirupsen/logrus"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/alongside"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/sirupsen/logrus"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
@@ -254,7 +256,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.Strateg
 }
 
 // permissionStatus checks whether the given CSV's RBAC requirements are met in its namespace
-func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, ruleChecker install.RuleChecker, targetNamespace string, csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus, error) {
+func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, targetNamespace string, csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus, error) {
 	statusesSet := map[string]v1alpha1.RequirementStatus{}
 
 	checkPermissions := func(permissions []v1alpha1.StrategyDeploymentPermissions, namespace string) (bool, error) {
@@ -296,6 +298,57 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.Strategy
 			}
 
 			// Check if PolicyRules are satisfied
+			if a.informersFiltered {
+				// we don't hold the whole set of RBAC in memory, so we can't use the authorizer:
+				// check for rules we would have created ourselves first
+				var err error
+				var permissionMet bool
+				if namespace == metav1.NamespaceAll {
+					permissionMet, err = permissionsPreviouslyCreated[*rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding](
+						perm, csv,
+						a.lister.RbacV1().ClusterRoleLister().List, a.lister.RbacV1().ClusterRoleBindingLister().List,
+					)
+				} else {
+					permissionMet, err = permissionsPreviouslyCreated[*rbacv1.Role, *rbacv1.RoleBinding](
+						perm, csv,
+						a.lister.RbacV1().RoleLister().List, a.lister.RbacV1().RoleBindingLister().List,
+					)
+				}
+				if err != nil {
+					return false, err
+				}
+				if permissionMet {
+					// OLM previously made all the permissions we need, exit early
+					for _, rule := range perm.Rules {
+						dependent := v1alpha1.DependentStatus{
+							Group:   "rbac.authorization.k8s.io",
+							Kind:    "PolicyRule",
+							Version: "v1",
+							Status:  v1alpha1.DependentStatusReasonSatisfied,
+						}
+						marshalled, err := json.Marshal(rule)
+						if err != nil {
+							dependent.Status = v1alpha1.DependentStatusReasonNotSatisfied
+							dependent.Message = "rule unmarshallable"
+							status.Dependents = append(status.Dependents, dependent)
+							continue
+						}
+
+						var scope string
+						if namespace == metav1.NamespaceAll {
+							scope = "cluster"
+						} else {
+							scope = "namespaced"
+						}
+						dependent.Message = fmt.Sprintf("%s rule:%s", scope, marshalled)
+						status.Dependents = append(status.Dependents, dependent)
+					}
+					continue
+				}
+			}
+			// if we have not filtered our informers or if we were unable to detect the correct permissions, we have
+			// no choice but to page in the world and see if the user pre-created permissions for this CSV
+			ruleChecker := a.getRuleChecker()(csv)
 			for _, rule := range perm.Rules {
 				dependent := v1alpha1.DependentStatus{
 					Group:   "rbac.authorization.k8s.io",
@@ -358,6 +411,59 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.Strategy
 	return permMet && clusterPermMet, statuses, nil
 }
 
+func permissionsPreviouslyCreated[T, U metav1.Object](
+	permission v1alpha1.StrategyDeploymentPermissions,
+	csv *v1alpha1.ClusterServiceVersion,
+	listRoles func(labels.Selector) ([]T, error),
+	listBindings func(labels.Selector) ([]U, error),
+) (bool, error) {
+	// first, find the (cluster)role
+	ruleHash, err := resolver.PolicyRuleHashLabelValue(permission.Rules)
+	if err != nil {
+		return false, fmt.Errorf("failed to hash permission rules: %w", err)
+	}
+	roleSelectorMap := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+	roleSelectorMap[resolver.ContentHashLabelKey] = ruleHash
+	roleSelectorSet := labels.Set{}
+	for key, value := range roleSelectorMap {
+		roleSelectorSet[key] = value
+	}
+	roleSelector := labels.SelectorFromSet(roleSelectorSet)
+	roles, err := listRoles(roleSelector)
+	if err != nil {
+		return false, err
+	}
+
+	if len(roles) == 0 {
+		return false, nil
+	}
+
+	// then, find the (cluster)rolebinding, if we found the role
+	bindingHash, err := resolver.RoleReferenceAndSubjectHashLabelValue(rbacv1.RoleRef{
+		Kind:     "Role",
+		Name:     roles[0].GetName(),
+		APIGroup: rbacv1.GroupName,
+	},
+		[]rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      permission.ServiceAccountName,
+			Namespace: csv.GetNamespace(),
+		}},
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to hash binding content: %w", err)
+	}
+	bindingSelectorMap := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
+	bindingSelectorMap[resolver.ContentHashLabelKey] = bindingHash
+	bindingSelectorSet := labels.Set{}
+	for key, value := range bindingSelectorMap {
+		bindingSelectorSet[key] = value
+	}
+	bindingSelector := labels.SelectorFromSet(bindingSelectorSet)
+	bindings, err := listBindings(bindingSelector)
+	return len(roles) > 0 && len(bindings) > 0, err
+}
+
 // requirementAndPermissionStatus returns the aggregate requirement and permissions statuses for the given CSV
 func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus, error) {
 	allReqStatuses := []v1alpha1.RequirementStatus{}
@@ -383,14 +489,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv)
 	allReqStatuses = append(allReqStatuses, reqStatuses...)
 
-	rbacLister := a.lister.RbacV1()
-	roleLister := rbacLister.RoleLister()
-	roleBindingLister := rbacLister.RoleBindingLister()
-	clusterRoleLister := rbacLister.ClusterRoleLister()
-	clusterRoleBindingLister := rbacLister.ClusterRoleBindingLister()
-
-	ruleChecker := install.NewCSVRuleChecker(roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister, csv)
-	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace(), csv)
+	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, csv.GetNamespace(), csv)
 	if err != nil {
 		return false, nil, err
 	}

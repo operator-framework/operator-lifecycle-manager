@@ -173,7 +173,7 @@ func main() {
 		olm.WithExternalClient(crClient),
 		olm.WithMetadataClient(metadataClient),
 		olm.WithOperatorClient(opClient),
-		olm.WithRestConfig(config),
+		olm.WithRestConfig(validatingConfig),
 		olm.WithConfigClient(versionedConfigClient),
 		olm.WithProtectedCopiedCSVNamespaces(*protectedCopiedCSVNamespaces),
 	)

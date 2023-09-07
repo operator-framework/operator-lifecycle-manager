@@ -353,6 +353,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			dep.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
 			dep.Spec.RevisionHistoryLimit = &revisionHistoryLimit
 			dep.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, HashDeploymentSpec(dep.Spec)))
+			dep.Labels[OLMManagedLabelKey] = OLMManagedLabelValue
 			dep.Status.Conditions = append(dep.Status.Conditions, appsv1.DeploymentCondition{
 				Type:   appsv1.DeploymentAvailable,
 				Status: corev1.ConditionTrue,

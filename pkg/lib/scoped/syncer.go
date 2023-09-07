@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	meta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	corev1applyconfigurations "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/tools/reference"
 	"k8s.io/utils/clock"
 
@@ -74,6 +76,14 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 			err = fmt.Errorf("failed to reset status.serviceAccount, sa=%s %v", serviceAccountName, err)
 		}
 		return
+	}
+
+	// A service account has been specified, but likely does not have the labels we expect it to have so it will
+	// show up in our listers, so let's add that and queue again later
+	config := corev1applyconfigurations.ServiceAccount(serviceAccountName, namespace)
+	config.Labels = map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}
+	if _, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Apply(context.TODO(), config, metav1.ApplyOptions{FieldManager: "operator-lifecycle-manager"}); err != nil {
+		return out, fmt.Errorf("failed to apply labels[%s]=%s to serviceaccount %s/%s: %w", install.OLMManagedLabelKey, install.OLMManagedLabelValue, namespace, serviceAccountName, err)
 	}
 
 	// A service account has been specified, we need to update the status.

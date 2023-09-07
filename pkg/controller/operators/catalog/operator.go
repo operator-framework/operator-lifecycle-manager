@@ -207,10 +207,10 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		ogQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
-		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient),
+		clientAttenuator:         scoped.NewClientAttenuator(logger, validatingConfig, opClient),
 		installPlanTimeout:       installPlanTimeout,
 		bundleUnpackTimeout:      bundleUnpackTimeout,
-		clientFactory:            clients.NewFactory(config),
+		clientFactory:            clients.NewFactory(validatingConfig),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.sourceInvalidator = resolver.SourceProviderFromRegistryClientProvider(op.sources, logger)
@@ -380,10 +380,22 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, roleInformer.Informer())
 
-	labelObjects := func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, sync queueinformer.LegacySyncHandler) error {
+	complete := map[schema.GroupVersionResource][]bool{}
+	completeLock := &sync.Mutex{}
+
+	labelObjects := func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, sync func(done func() bool) queueinformer.LegacySyncHandler) error {
 		if canFilter {
 			return nil
 		}
+		var idx int
+		if _, exists := complete[gvr]; exists {
+			idx = len(complete[gvr])
+			complete[gvr] = append(complete[gvr], false)
+		} else {
+			idx = 0
+			complete[gvr] = []bool{false}
+		}
+
 		queue := workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
 			Name: gvr.String(),
 		})
@@ -392,7 +404,18 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 			queueinformer.WithQueue(queue),
 			queueinformer.WithLogger(op.logger),
 			queueinformer.WithInformer(informer),
-			queueinformer.WithSyncer(sync.ToSyncer()),
+			queueinformer.WithSyncer(sync(func() bool {
+				completeLock.Lock()
+				complete[gvr][idx] = true
+				allDone := true
+				for _, items := range complete {
+					for _, done := range items {
+						allDone = allDone && done
+					}
+				}
+				completeLock.Unlock()
+				return allDone
+			}).ToSyncer()),
 		)
 		if err != nil {
 			return err
@@ -408,6 +431,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	rolesgvk := rbacv1.SchemeGroupVersion.WithResource("roles")
 	if err := labelObjects(rolesgvk, roleInformer.Informer(), labeller.ObjectLabeler[*rbacv1.Role, *rbacv1applyconfigurations.RoleApplyConfiguration](
 		ctx, op.logger, labeller.Filter(rolesgvk),
+		roleInformer.Lister().List,
 		rbacv1applyconfigurations.Role,
 		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.Role, error) {
 			return op.opClient.KubernetesInterface().RbacV1().Roles(namespace).Apply(ctx, cfg, opts)
@@ -420,6 +444,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		func(role *rbacv1.Role) (string, error) {
 			return resolver.PolicyRuleHashLabelValue(role.Rules)
 		},
+		roleInformer.Lister().List,
 		rbacv1applyconfigurations.Role,
 		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.Role, error) {
 			return op.opClient.KubernetesInterface().RbacV1().Roles(namespace).Apply(ctx, cfg, opts)
@@ -436,6 +461,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	rolebindingsgvk := rbacv1.SchemeGroupVersion.WithResource("rolebindings")
 	if err := labelObjects(rolebindingsgvk, roleBindingInformer.Informer(), labeller.ObjectLabeler[*rbacv1.RoleBinding, *rbacv1applyconfigurations.RoleBindingApplyConfiguration](
 		ctx, op.logger, labeller.Filter(rolebindingsgvk),
+		roleBindingInformer.Lister().List,
 		rbacv1applyconfigurations.RoleBinding,
 		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleBindingApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.RoleBinding, error) {
 			return op.opClient.KubernetesInterface().RbacV1().RoleBindings(namespace).Apply(ctx, cfg, opts)
@@ -448,6 +474,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		func(roleBinding *rbacv1.RoleBinding) (string, error) {
 			return resolver.RoleReferenceAndSubjectHashLabelValue(roleBinding.RoleRef, roleBinding.Subjects)
 		},
+		roleBindingInformer.Lister().List,
 		rbacv1applyconfigurations.RoleBinding,
 		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleBindingApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.RoleBinding, error) {
 			return op.opClient.KubernetesInterface().RbacV1().RoleBindings(namespace).Apply(ctx, cfg, opts)
@@ -464,6 +491,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	serviceaccountsgvk := corev1.SchemeGroupVersion.WithResource("serviceaccounts")
 	if err := labelObjects(serviceaccountsgvk, serviceAccountInformer.Informer(), labeller.ObjectLabeler[*corev1.ServiceAccount, *corev1applyconfigurations.ServiceAccountApplyConfiguration](
 		ctx, op.logger, labeller.Filter(serviceaccountsgvk),
+		serviceAccountInformer.Lister().List,
 		corev1applyconfigurations.ServiceAccount,
 		func(namespace string, ctx context.Context, cfg *corev1applyconfigurations.ServiceAccountApplyConfiguration, opts metav1.ApplyOptions) (*corev1.ServiceAccount, error) {
 			return op.opClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Apply(ctx, cfg, opts)
@@ -480,6 +508,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	servicesgvk := corev1.SchemeGroupVersion.WithResource("services")
 	if err := labelObjects(servicesgvk, serviceInformer.Informer(), labeller.ObjectLabeler[*corev1.Service, *corev1applyconfigurations.ServiceApplyConfiguration](
 		ctx, op.logger, labeller.Filter(servicesgvk),
+		serviceInformer.Lister().List,
 		corev1applyconfigurations.Service,
 		func(namespace string, ctx context.Context, cfg *corev1applyconfigurations.ServiceApplyConfiguration, opts metav1.ApplyOptions) (*corev1.Service, error) {
 			return op.opClient.KubernetesInterface().CoreV1().Services(namespace).Apply(ctx, cfg, opts)
@@ -505,6 +534,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	podsgvk := corev1.SchemeGroupVersion.WithResource("pods")
 	if err := labelObjects(podsgvk, csPodInformer.Informer(), labeller.ObjectLabeler[*corev1.Pod, *corev1applyconfigurations.PodApplyConfiguration](
 		ctx, op.logger, labeller.Filter(podsgvk),
+		csPodInformer.Lister().List,
 		corev1applyconfigurations.Pod,
 		func(namespace string, ctx context.Context, cfg *corev1applyconfigurations.PodApplyConfiguration, opts metav1.ApplyOptions) (*corev1.Pod, error) {
 			return op.opClient.KubernetesInterface().CoreV1().Pods(namespace).Apply(ctx, cfg, opts)
@@ -542,6 +572,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		ctx, op.logger, labeller.JobFilter(func(namespace, name string) (metav1.Object, error) {
 			return configMapInformer.Lister().ConfigMaps(namespace).Get(name)
 		}),
+		jobInformer.Lister().List,
 		batchv1applyconfigurations.Job,
 		func(namespace string, ctx context.Context, cfg *batchv1applyconfigurations.JobApplyConfiguration, opts metav1.ApplyOptions) (*batchv1.Job, error) {
 			return op.opClient.KubernetesInterface().BatchV1().Jobs(namespace).Apply(ctx, cfg, opts)
@@ -617,6 +648,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	customresourcedefinitionsgvk := apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions")
 	if err := labelObjects(customresourcedefinitionsgvk, crdInformer, labeller.ObjectPatchLabeler(
 		ctx, op.logger, labeller.Filter(customresourcedefinitionsgvk),
+		crdLister.List,
 		op.opClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Patch,
 	)); err != nil {
 		return nil, err
