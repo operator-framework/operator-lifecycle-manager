@@ -75,7 +75,7 @@ var filters = map[schema.GroupVersionResource]func(metav1.Object) bool{
 
 func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadata.Interface) (bool, error) {
 	okLock := sync.Mutex{}
-	var ok bool
+	ok := true
 	g, ctx := errgroup.WithContext(ctx)
 	allFilters := map[schema.GroupVersionResource]func(metav1.Object) bool{}
 	for gvr, filter := range filters {
@@ -124,5 +124,6 @@ func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadat
 	if err := g.Wait(); err != nil {
 		return false, err
 	}
+	logger.WithField("canFilter", ok).Info("detected ability to filter informers")
 	return ok, nil
 }

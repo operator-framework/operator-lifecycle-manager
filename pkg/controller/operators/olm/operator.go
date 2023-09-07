@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
@@ -102,10 +103,55 @@ type Operator struct {
 	clientFactory                clients.Factory
 	plugins                      []plugins.OperatorPlugin
 	informersByNamespace         map[string]*plugins.Informers
+	informersFiltered            bool
+
+	ruleChecker     func(*v1alpha1.ClusterServiceVersion) *install.CSVRuleChecker
+	ruleCheckerLock *sync.RWMutex
+	resyncPeriod    func() time.Duration
+	ctx             context.Context
 }
 
 func (a *Operator) Informers() map[string]*plugins.Informers {
 	return a.informersByNamespace
+}
+
+func (a *Operator) getRuleChecker() func(*v1alpha1.ClusterServiceVersion) *install.CSVRuleChecker {
+	var ruleChecker func(*v1alpha1.ClusterServiceVersion) *install.CSVRuleChecker
+	a.ruleCheckerLock.RLock()
+	ruleChecker = a.ruleChecker
+	a.ruleCheckerLock.RUnlock()
+	if ruleChecker != nil {
+		return ruleChecker
+	}
+
+	a.ruleCheckerLock.Lock()
+	defer a.ruleCheckerLock.Unlock()
+	if a.ruleChecker != nil {
+		return a.ruleChecker
+	}
+
+	sif := informers.NewSharedInformerFactoryWithOptions(a.opClient.KubernetesInterface(), a.resyncPeriod())
+	rolesLister := sif.Rbac().V1().Roles().Lister()
+	roleBindingsLister := sif.Rbac().V1().RoleBindings().Lister()
+	clusterRolesLister := sif.Rbac().V1().ClusterRoles().Lister()
+	clusterRoleBindingsLister := sif.Rbac().V1().ClusterRoleBindings().Lister()
+
+	done := make(chan struct{})
+	go func() {
+		<-a.ctx.Done()
+		done <- struct{}{}
+	}()
+	sif.Start(done)
+	sif.WaitForCacheSync(done)
+
+	a.ruleChecker = func(csv *v1alpha1.ClusterServiceVersion) *install.CSVRuleChecker {
+		return install.NewCSVRuleChecker(
+			rolesLister, roleBindingsLister,
+			clusterRolesLister, clusterRoleBindingsLister,
+			csv,
+		)
+	}
+	return a.ruleChecker
 }
 
 func NewOperator(ctx context.Context, options ...OperatorOption) (*Operator, error) {
@@ -171,6 +217,10 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		serviceAccountQuerier:        scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
 		clientFactory:                clients.NewFactory(config.restConfig),
 		protectedCopiedCSVNamespaces: config.protectedCopiedCSVNamespaces,
+		resyncPeriod:                 config.resyncPeriod,
+		ruleCheckerLock:              &sync.RWMutex{},
+		ctx:                          ctx,
+		informersFiltered:            canFilter,
 	}
 
 	informersByNamespace := map[string]*plugins.Informers{}
@@ -447,9 +497,20 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		}
 	}
 
-	labelObjects := func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, sync queueinformer.LegacySyncHandler) error {
+	complete := map[schema.GroupVersionResource][]bool{}
+	completeLock := &sync.Mutex{}
+
+	labelObjects := func(gvr schema.GroupVersionResource, informer cache.SharedIndexInformer, sync func(done func() bool) queueinformer.LegacySyncHandler) error {
 		if canFilter {
 			return nil
+		}
+		var idx int
+		if _, exists := complete[gvr]; exists {
+			idx = len(complete[gvr])
+			complete[gvr] = append(complete[gvr], false)
+		} else {
+			idx = 0
+			complete[gvr] = []bool{false}
 		}
 		queue := workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
 			Name: gvr.String(),
@@ -459,7 +520,18 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			queueinformer.WithQueue(queue),
 			queueinformer.WithLogger(op.logger),
 			queueinformer.WithInformer(informer),
-			queueinformer.WithSyncer(sync.ToSyncer()),
+			queueinformer.WithSyncer(sync(func() bool {
+				completeLock.Lock()
+				complete[gvr][idx] = true
+				allDone := true
+				for _, items := range complete {
+					for _, done := range items {
+						allDone = allDone && done
+					}
+				}
+				completeLock.Unlock()
+				return allDone
+			}).ToSyncer()),
 		)
 		if err != nil {
 			return err
@@ -475,6 +547,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	deploymentsgvk := appsv1.SchemeGroupVersion.WithResource("deployments")
 	if err := labelObjects(deploymentsgvk, informersByNamespace[metav1.NamespaceAll].DeploymentInformer.Informer(), labeller.ObjectLabeler[*appsv1.Deployment, *appsv1applyconfigurations.DeploymentApplyConfiguration](
 		ctx, op.logger, labeller.Filter(deploymentsgvk),
+		informersByNamespace[metav1.NamespaceAll].DeploymentInformer.Lister().List,
 		appsv1applyconfigurations.Deployment,
 		func(namespace string, ctx context.Context, cfg *appsv1applyconfigurations.DeploymentApplyConfiguration, opts metav1.ApplyOptions) (*appsv1.Deployment, error) {
 			return op.opClient.KubernetesInterface().AppsV1().Deployments(namespace).Apply(ctx, cfg, opts)
@@ -547,6 +620,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	clusterrolesgvk := rbacv1.SchemeGroupVersion.WithResource("clusterroles")
 	if err := labelObjects(clusterrolesgvk, clusterRoleInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRole, *rbacv1applyconfigurations.ClusterRoleApplyConfiguration](
 		ctx, op.logger, labeller.Filter(clusterrolesgvk),
+		clusterRoleInformer.Lister().List,
 		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleApplyConfiguration {
 			return rbacv1applyconfigurations.ClusterRole(name)
 		},
@@ -561,6 +635,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		func(clusterRole *rbacv1.ClusterRole) (string, error) {
 			return resolver.PolicyRuleHashLabelValue(clusterRole.Rules)
 		},
+		clusterRoleInformer.Lister().List,
 		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleApplyConfiguration {
 			return rbacv1applyconfigurations.ClusterRole(name)
 		},
@@ -590,6 +665,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	clusterrolebindingssgvk := rbacv1.SchemeGroupVersion.WithResource("clusterrolebindings")
 	if err := labelObjects(clusterrolebindingssgvk, clusterRoleBindingInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRoleBinding, *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration](
 		ctx, op.logger, labeller.Filter(clusterrolebindingssgvk),
+		clusterRoleBindingInformer.Lister().List,
 		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration {
 			return rbacv1applyconfigurations.ClusterRoleBinding(name)
 		},
@@ -604,6 +680,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		func(clusterRoleBinding *rbacv1.ClusterRoleBinding) (string, error) {
 			return resolver.RoleReferenceAndSubjectHashLabelValue(clusterRoleBinding.RoleRef, clusterRoleBinding.Subjects)
 		},
+		clusterRoleBindingInformer.Lister().List,
 		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration {
 			return rbacv1applyconfigurations.ClusterRoleBinding(name)
 		},
@@ -614,8 +691,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	// register namespace queueinformer
-	namespaceInformer := k8sInformerFactory.Core().V1().Namespaces()
+	// register namespace queueinformer using a new informer factory - since namespaces won't have the labels
+	// that other k8s objects will
+	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), config.resyncPeriod()).Core().V1().Namespaces()
 	informersByNamespace[metav1.NamespaceAll].NamespaceInformer = namespaceInformer
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 	op.nsQueueSet = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver")

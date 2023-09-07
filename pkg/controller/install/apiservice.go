@@ -61,6 +61,7 @@ func (i *StrategyDeploymentInstaller) createOrUpdateAPIService(caPEM []byte, des
 	if err := ownerutil.AddOwnerLabels(apiService, i.owner); err != nil {
 		return err
 	}
+	apiService.Labels[OLMManagedLabelKey] = OLMManagedLabelValue
 
 	// Create a service for the deployment
 	containerPort := int32(443)

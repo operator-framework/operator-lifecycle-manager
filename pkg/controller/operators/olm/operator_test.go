@@ -383,6 +383,7 @@ func deployment(deploymentName, namespace, serviceAccountName string, templateAn
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
 			Namespace: namespace,
+			Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -432,6 +433,7 @@ func serviceAccount(name, namespace string) *corev1.ServiceAccount {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+			Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 	}
 
@@ -440,6 +442,9 @@ func serviceAccount(name, namespace string) *corev1.ServiceAccount {
 
 func service(name, namespace, deploymentName string, targetPort int, ownerReferences ...metav1.OwnerReference) *corev1.Service {
 	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+		},
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{
 				{
@@ -461,6 +466,9 @@ func service(name, namespace, deploymentName string, targetPort int, ownerRefere
 
 func clusterRoleBinding(name, clusterRoleName, serviceAccountName, serviceAccountNamespace string) *rbacv1.ClusterRoleBinding {
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
@@ -482,6 +490,9 @@ func clusterRoleBinding(name, clusterRoleName, serviceAccountName, serviceAccoun
 
 func clusterRole(name string, rules []rbacv1.PolicyRule) *rbacv1.ClusterRole {
 	clusterRole := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+		},
 		Rules: rules,
 	}
 	clusterRole.SetName(name)
@@ -491,6 +502,9 @@ func clusterRole(name string, rules []rbacv1.PolicyRule) *rbacv1.ClusterRole {
 
 func role(name, namespace string, rules []rbacv1.PolicyRule) *rbacv1.Role {
 	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+		},
 		Rules: rules,
 	}
 	role.SetName(name)
@@ -501,6 +515,9 @@ func role(name, namespace string, rules []rbacv1.PolicyRule) *rbacv1.Role {
 
 func roleBinding(name, namespace, roleName, serviceAccountName, serviceAccountNamespace string) *rbacv1.RoleBinding {
 	roleBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
@@ -523,6 +540,9 @@ func roleBinding(name, namespace, roleName, serviceAccountName, serviceAccountNa
 
 func tlsSecret(name, namespace string, certPEM, privPEM []byte) *corev1.Secret {
 	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+		},
 		Data: map[string][]byte{
 			"tls.crt": certPEM,
 			"tls.key": privPEM,
@@ -846,7 +866,8 @@ func apiService(group, version, serviceName, serviceNamespace, deploymentName st
 func crd(name, version, group string) *apiextensionsv1.CustomResourceDefinition {
 	return &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name + "." + group,
+			Name:   name + "." + group,
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
 		},
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: group,
@@ -4371,6 +4392,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		},
 		Rules: permissions[0].Rules,
 	}
+	role.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 	roleBinding := &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -4397,6 +4419,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			Name:     role.GetName(),
 		},
 	}
+	roleBinding.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 	type initial struct {
 		operatorGroup *operatorsv1.OperatorGroup
@@ -4985,6 +5008,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:            "csv-role",
 							Namespace:       targetNamespace,
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
 								"olm.owner.namespace": "target-ns",
@@ -5006,6 +5030,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:            "csv-rolebinding",
 							Namespace:       targetNamespace,
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
 								"olm.owner.namespace": "target-ns",
@@ -5088,6 +5113,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:            "csv-role",
 							Namespace:       targetNamespace,
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
 								"olm.owner.namespace": "target-ns",
@@ -5109,6 +5135,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:            "csv-rolebinding",
 							Namespace:       targetNamespace,
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
 								"olm.owner.namespace": "target-ns",
@@ -5188,6 +5215,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "csv-role",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "csv1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "ClusterServiceVersion",
@@ -5207,6 +5235,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "csv-rolebinding",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "csv1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "ClusterServiceVersion",
@@ -5507,17 +5536,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 				}
 
 				for _, csv := range csvs.Items {
-					t.Logf("%s/%s", csv.Namespace, csv.Name)
 					if csv.Status.Phase == v1alpha1.CSVPhaseInstalling {
 						simulateSuccessfulRollout(&csv)
 					}
 
-					t.Log("op.syncClusterServiceVersion")
 					if err := op.syncClusterServiceVersion(&csv); err != nil {
 						return false, fmt.Errorf("failed to syncClusterServiceVersion: %w", err)
 					}
 
-					t.Log("op.syncCopyCSV")
 					if err := op.syncCopyCSV(&csv); err != nil && !tt.ignoreCopyError {
 						return false, fmt.Errorf("failed to syncCopyCSV: %w", err)
 					}
