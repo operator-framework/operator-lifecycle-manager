@@ -2,9 +2,11 @@ package reconciler
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -355,7 +357,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			}
 
 			// Check for resource existence
-			decorated := grpcCatalogSourceDecorator{tt.in.catsrc, runAsUser}
+			decorated := grpcCatalogSourceDecorator{CatalogSource: tt.in.catsrc, createPodAsUser: runAsUser}
 			pod := decorated.Pod(tt.in.catsrc.GetName())
 			service := decorated.Service()
 			sa := decorated.ServiceAccount()
@@ -367,6 +369,9 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			case *GrpcRegistryReconciler:
 				// Should be created by a GrpcRegistryReconciler
 				require.NoError(t, podErr)
+				if diff := cmp.Diff(outPods.Items, []corev1.Pod{*pod}); diff != "" {
+					fmt.Printf("incorrect pods: %s\n", diff)
+				}
 				require.Len(t, outPods.Items, 1)
 				outPod := outPods.Items[0]
 				require.Equal(t, pod.GetGenerateName(), outPod.GetGenerateName())
@@ -445,7 +450,7 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check for resource existence
-			decorated := grpcCatalogSourceDecorator{tt.in.catsrc, runAsUser}
+			decorated := grpcCatalogSourceDecorator{CatalogSource: tt.in.catsrc, createPodAsUser: runAsUser}
 			pod := decorated.Pod(tt.in.catsrc.GetName())
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)

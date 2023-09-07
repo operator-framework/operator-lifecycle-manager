@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	packageserverclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	k8serror "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -47,13 +49,14 @@ const (
 
 var _ = Describe("Starting CatalogSource e2e tests", func() {
 	var (
-		ns  corev1.Namespace
-		c   operatorclient.ClientInterface
-		crc versioned.Interface
+		ns                  corev1.Namespace
+		c                   operatorclient.ClientInterface
+		crc                 versioned.Interface
+		packageserverClient *packageserverclientset.Clientset
 	)
 
 	BeforeEach(func() {
-		// In OPC, PSA labels for any namespace created that is not prefixed with "openshift-" is overriden to enforce
+		// In OCP, PSA labels for any namespace created that is not prefixed with "openshift-" is overridden to enforce
 		// PSA restricted. This test namespace needs to prefixed with openshift- so that baseline/privileged enforcement
 		// for the PSA specific tests are not overridden,
 		// Change it only after https://github.com/operator-framework/operator-lifecycle-manager/issues/2859 is closed.
@@ -67,6 +70,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		ns = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
 		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
+		packageserverClient = packageserverclientset.NewForConfigOrDie(ctx.Ctx().RESTConfig())
 	})
 
 	AfterEach(func() {
@@ -748,6 +752,54 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
 		Expect(registryPods).ShouldNot(BeNil(), "nil replacement registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
+	})
+
+	It("configure gRPC registry pod to extract content", func() {
+
+		By("Create gRPC CatalogSource using an external registry image (community-operators)")
+		source := &v1alpha1.CatalogSource{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.CatalogSourceKind,
+				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("catalog-"),
+				Namespace: ns.GetName(),
+			},
+			Spec: v1alpha1.CatalogSourceSpec{
+				SourceType: v1alpha1.SourceTypeGrpc,
+				Image:      communityOperatorsImage,
+				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+					SecurityContextConfig: v1alpha1.Restricted,
+					ExtractContent: &v1alpha1.ExtractContentConfig{
+						CacheDir:   "/tmp/cache",
+						CatalogDir: "/configs",
+					},
+				},
+			},
+		}
+
+		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(context.Background(), source, metav1.CreateOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Wait for the CatalogSource to be ready")
+		source, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+		Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
+
+		// the gRPC endpoints are not exposed from the pod, and there's no simple way to get at them -
+		// the index images don't contain `grpcurl`, port-forwarding is a mess, etc. let's use the
+		// package-server as a proxy for a functional catalog
+		By("Waiting for packages from the catalog to show up in the Kubernetes API")
+		Eventually(func() error {
+			manifests, err := packageserverClient.OperatorsV1().PackageManifests("default").List(context.Background(), metav1.ListOptions{})
+			if err != nil {
+				return err
+			}
+			if len(manifests.Items) == 0 {
+				return errors.New("did not find any PackageManifests")
+			}
+			return nil
+		}).Should(Succeed())
 	})
 
 	It("image update", func() {
