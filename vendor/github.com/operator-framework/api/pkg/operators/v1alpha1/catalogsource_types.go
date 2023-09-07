@@ -147,7 +147,6 @@ type GrpcPodConfig struct {
 	// will have the following modifications made to the container running the server:
 	// - the $GOMEMLIMIT environment variable will be set to this value in bytes
 	// - the memory request will be set to this value
-	// - the memory limit will be set to 200% of this value
 	//
 	// This field should be set if it's desired to reduce the footprint of a catalog server as much as possible, or if
 	// a catalog being served is very large and needs more than the default allocation. If your index image has a file-
@@ -155,7 +154,22 @@ type GrpcPodConfig struct {
 	// /tmp/cache/cache/packages.json in the index image.
 	//
 	// This field is best-effort; if unset, no default will be used and no Pod memory limit or $GOMEMLIMIT value will be set.
+	// +optional
 	MemoryTarget *resource.Quantity `json:"memoryTarget,omitempty"`
+
+	// ExtractContent configures the gRPC catalog Pod to extract catalog metadata from the provided index image and
+	// use a well-known version of the `opm` server to expose it. The catalog index image that this CatalogSource is
+	// configured to use *must* be using the file-based catalogs in order to utilize this feature.
+	// +optional
+	ExtractContent *ExtractContentConfig `json:"extractContent,omitempty"`
+}
+
+// ExtractContentConfig configures context extraction from a file-based catalog index image.
+type ExtractContentConfig struct {
+	// CacheDir is the directory storing the pre-calculated API cache.
+	CacheDir string `json:"cacheDir,omitempty"`
+	// CatalogDir is the directory storing the file-based catalog contents.
+	CatalogDir string `json:"catalogDir,omitempty"`
 }
 
 // UpdateStrategy holds all the different types of catalog source update strategies
