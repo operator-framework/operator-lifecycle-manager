@@ -1,8 +1,14 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
+	"github.com/operator-framework/api/pkg/lib/version"
+	"github.com/operator-framework/api/pkg/operators"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-registry/alpha/model"
 	"github.com/operator-framework/operator-registry/alpha/property"
@@ -12,6 +18,38 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 	props, err := parseProperties(b.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("parse properties: %v", err)
+	}
+
+	csvJson := b.CsvJSON
+	if csvJson == "" && len(props.CSVMetadatas) == 1 {
+		var icons []v1alpha1.Icon
+		if b.Package.Icon != nil {
+			icons = []v1alpha1.Icon{{
+				Data:      base64.StdEncoding.EncodeToString(b.Package.Icon.Data),
+				MediaType: b.Package.Icon.MediaType,
+			}}
+		}
+		csv := csvMetadataToCsv(props.CSVMetadatas[0])
+		csv.Name = b.Name
+		csv.Spec.Icon = icons
+		csv.Spec.InstallStrategy = v1alpha1.NamedInstallStrategy{
+			// This stub is required to avoid a panic in OLM's package server that results in
+			// attemptint to write to a nil map.
+			StrategyName: "deployment",
+		}
+		csv.Spec.Version = version.OperatorVersion{b.Version}
+		csv.Spec.RelatedImages = convertModelRelatedImagesToCSVRelatedImages(b.RelatedImages)
+		if csv.Spec.Description == "" {
+			csv.Spec.Description = b.Package.Description
+		}
+		csvData, err := json.Marshal(csv)
+		if err != nil {
+			return nil, err
+		}
+		csvJson = string(csvData)
+		if len(b.Objects) == 0 {
+			b.Objects = []string{csvJson}
+		}
 	}
 
 	apiDeps, err := convertModelPropertiesToAPIDependencies(b.Properties)
@@ -31,7 +69,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		Properties:   convertModelPropertiesToAPIProperties(b.Properties),
 		Replaces:     b.Replaces,
 		Skips:        b.Skips,
-		CsvJson:      b.CsvJSON,
+		CsvJson:      csvJson,
 		Object:       b.Objects,
 	}, nil
 }
@@ -46,7 +84,38 @@ func parseProperties(in []property.Property) (*property.Properties, error) {
 		return nil, fmt.Errorf("expected exactly 1 property of type %q, found %d", property.TypePackage, len(props.Packages))
 	}
 
+	if len(props.CSVMetadatas) > 1 {
+		return nil, fmt.Errorf("expected at most 1 property of type %q, found %d", property.TypeCSVMetadata, len(props.CSVMetadatas))
+	}
+
 	return props, nil
+}
+
+func csvMetadataToCsv(m property.CSVMetadata) v1alpha1.ClusterServiceVersion {
+	return v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       operators.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: m.Annotations,
+			Labels:      m.Labels,
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			APIServiceDefinitions:     m.APIServiceDefinitions,
+			CustomResourceDefinitions: m.CustomResourceDefinitions,
+			Description:               m.Description,
+			DisplayName:               m.DisplayName,
+			InstallModes:              m.InstallModes,
+			Keywords:                  m.Keywords,
+			Links:                     m.Links,
+			Maintainers:               m.Maintainers,
+			Maturity:                  m.Maturity,
+			MinKubeVersion:            m.MinKubeVersion,
+			NativeAPIs:                m.NativeAPIs,
+			Provider:                  m.Provider,
+		},
+	}
 }
 
 func gvksProvidedtoAPIGVKs(in []property.GVK) []*GroupVersionKind {
@@ -82,7 +151,7 @@ func convertModelPropertiesToAPIProperties(props []property.Property) []*Propert
 		//       in its `Data` field, this CSV annotation projection would cause the size of the on-cluster
 		//       CSV to at least double, which is untenable since CSVs already have known issues running up
 		//       against etcd size constraints.
-		if prop.Type == property.TypeBundleObject {
+		if prop.Type == property.TypeBundleObject || prop.Type == property.TypeCSVMetadata {
 			continue
 		}
 
@@ -116,4 +185,15 @@ func convertModelPropertiesToAPIDependencies(props []property.Property) ([]*Depe
 		}
 	}
 	return out, nil
+}
+
+func convertModelRelatedImagesToCSVRelatedImages(in []model.RelatedImage) []v1alpha1.RelatedImage {
+	var out []v1alpha1.RelatedImage
+	for _, ri := range in {
+		out = append(out, v1alpha1.RelatedImage{
+			Name:  ri.Name,
+			Image: ri.Image,
+		})
+	}
+	return out
 }

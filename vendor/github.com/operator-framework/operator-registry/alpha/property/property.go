@@ -9,6 +9,9 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
+
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Property struct {
@@ -70,6 +73,23 @@ type BundleObject struct {
 	File `json:",inline"`
 }
 
+type CSVMetadata struct {
+	Annotations               map[string]string                  `json:"annotations,omitempty"`
+	APIServiceDefinitions     v1alpha1.APIServiceDefinitions     `json:"apiServiceDefinitions,omitempty"`
+	CustomResourceDefinitions v1alpha1.CustomResourceDefinitions `json:"crdDescriptions,omitempty"`
+	Description               string                             `json:"description,omitempty"`
+	DisplayName               string                             `json:"displayName,omitempty"`
+	InstallModes              []v1alpha1.InstallMode             `json:"installModes,omitempty"`
+	Keywords                  []string                           `json:"keywords,omitempty"`
+	Labels                    map[string]string                  `json:"labels,omitempty"`
+	Links                     []v1alpha1.AppLink                 `json:"links,omitempty"`
+	Maintainers               []v1alpha1.Maintainer              `json:"maintainers,omitempty"`
+	Maturity                  string                             `json:"maturity,omitempty"`
+	MinKubeVersion            string                             `json:"minKubeVersion,omitempty"`
+	NativeAPIs                []metav1.GroupVersionKind          `json:"nativeAPIs,omitempty"`
+	Provider                  v1alpha1.AppLink                   `json:"provider,omitempty"`
+}
+
 type File struct {
 	ref  string
 	data []byte
@@ -129,6 +149,7 @@ type Properties struct {
 	GVKsRequired     []GVKRequired     `hash:"set"`
 	BundleObjects    []BundleObject    `hash:"set"`
 	Channels         []Channel         `hash:"set"`
+	CSVMetadatas     []CSVMetadata     `hash:"set"`
 
 	Others []Property `hash:"set"`
 }
@@ -139,6 +160,7 @@ const (
 	TypeGVK             = "olm.gvk"
 	TypeGVKRequired     = "olm.gvk.required"
 	TypeBundleObject    = "olm.bundle.object"
+	TypeCSVMetadata     = "olm.csv.metadata"
 	TypeChannel         = "olm.channel"
 )
 
@@ -176,6 +198,12 @@ func Parse(in []Property) (*Properties, error) {
 				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
 			}
 			out.BundleObjects = append(out.BundleObjects, p)
+		case TypeCSVMetadata:
+			var p CSVMetadata
+			if err := json.Unmarshal(prop.Value, &p); err != nil {
+				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
+			}
+			out.CSVMetadatas = append(out.CSVMetadatas, p)
 		// NOTICE: The Channel properties are for internal use only.
 		//   DO NOT use it for any public-facing functionalities.
 		//   This API is in alpha stage and it is subject to change.
@@ -285,6 +313,25 @@ func MustBuildBundleObjectRef(ref string) Property {
 }
 func MustBuildBundleObjectData(data []byte) Property {
 	return MustBuild(&BundleObject{File: File{data: data}})
+}
+
+func MustBuildCSVMetadata(csv v1alpha1.ClusterServiceVersion) Property {
+	return MustBuild(&CSVMetadata{
+		Annotations:               csv.GetAnnotations(),
+		APIServiceDefinitions:     csv.Spec.APIServiceDefinitions,
+		CustomResourceDefinitions: csv.Spec.CustomResourceDefinitions,
+		Description:               csv.Spec.Description,
+		DisplayName:               csv.Spec.DisplayName,
+		InstallModes:              csv.Spec.InstallModes,
+		Keywords:                  csv.Spec.Keywords,
+		Labels:                    csv.GetLabels(),
+		Links:                     csv.Spec.Links,
+		Maintainers:               csv.Spec.Maintainers,
+		Maturity:                  csv.Spec.Maturity,
+		MinKubeVersion:            csv.Spec.MinKubeVersion,
+		NativeAPIs:                csv.Spec.NativeAPIs,
+		Provider:                  csv.Spec.Provider,
+	})
 }
 
 // NOTICE: The Channel properties are for internal use only.
