@@ -4364,6 +4364,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 	annotatedDeployment := ownedDeployment.DeepCopy()
 	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{operatorsv1.OperatorGroupTargetsAnnotationKey: operatorNamespace + "," + targetNamespace, operatorsv1.OperatorGroupAnnotationKey: "operator-group-1", operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
 	annotatedDeployment.SetLabels(map[string]string{
+		"olm.managed":                      "true",
 		"olm.owner":                        "csv1",
 		"olm.owner.namespace":              "operator-ns",
 		"olm.owner.kind":                   "ClusterServiceVersion",
@@ -4373,6 +4374,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 	annotatedGlobalDeployment := ownedDeployment.DeepCopy()
 	annotatedGlobalDeployment.Spec.Template.SetAnnotations(map[string]string{operatorsv1.OperatorGroupTargetsAnnotationKey: "", operatorsv1.OperatorGroupAnnotationKey: "operator-group-1", operatorsv1.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
 	annotatedGlobalDeployment.SetLabels(map[string]string{
+		"olm.managed":                      "true",
 		"olm.owner":                        "csv1",
 		"olm.owner.namespace":              "operator-ns",
 		"olm.owner.kind":                   "ClusterServiceVersion",

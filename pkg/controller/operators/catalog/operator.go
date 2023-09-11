@@ -185,7 +185,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
-	canFilter, err := labeller.Validate(ctx, logger, metadataClient)
+	canFilter, err := labeller.Validate(ctx, logger, metadataClient, crClient)
 	if err != nil {
 		return nil, err
 	}
@@ -490,7 +490,18 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	serviceaccountsgvk := corev1.SchemeGroupVersion.WithResource("serviceaccounts")
 	if err := labelObjects(serviceaccountsgvk, serviceAccountInformer.Informer(), labeller.ObjectLabeler[*corev1.ServiceAccount, *corev1applyconfigurations.ServiceAccountApplyConfiguration](
-		ctx, op.logger, labeller.Filter(serviceaccountsgvk),
+		ctx, op.logger, labeller.ServiceAccountFilter(func(namespace, name string) bool {
+			operatorGroups, err := operatorGroupInformer.Lister().OperatorGroups(namespace).List(labels.Everything())
+			if err != nil {
+				return false
+			}
+			for _, operatorGroup := range operatorGroups {
+				if operatorGroup.Spec.ServiceAccountName == name {
+					return true
+				}
+			}
+			return false
+		}),
 		serviceAccountInformer.Lister().List,
 		corev1applyconfigurations.ServiceAccount,
 		func(namespace string, ctx context.Context, cfg *corev1applyconfigurations.ServiceAccountApplyConfiguration, opts metav1.ApplyOptions) (*corev1.ServiceAccount, error) {

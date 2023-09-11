@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -16,6 +17,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/metadata"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/internal/alongside"
@@ -49,14 +52,17 @@ func JobFilter(getConfigMap func(namespace, name string) (metav1.Object, error))
 	}
 }
 
+func ServiceAccountFilter(isServiceAccountReferenced func(namespace, name string) bool) func(object metav1.Object) bool {
+	return func(object metav1.Object) bool {
+		return HasOLMOwnerRef(object) || HasOLMLabel(object) || isServiceAccountReferenced(object.GetNamespace(), object.GetName())
+	}
+}
+
 var filters = map[schema.GroupVersionResource]func(metav1.Object) bool{
 	corev1.SchemeGroupVersion.WithResource("services"): HasOLMOwnerRef,
 	corev1.SchemeGroupVersion.WithResource("pods"): func(object metav1.Object) bool {
 		_, ok := object.GetLabels()[reconciler.CatalogSourceLabelKey]
 		return ok
-	},
-	corev1.SchemeGroupVersion.WithResource("serviceaccounts"): func(object metav1.Object) bool {
-		return HasOLMOwnerRef(object) || HasOLMLabel(object)
 	},
 	appsv1.SchemeGroupVersion.WithResource("deployments"):         HasOLMOwnerRef,
 	rbacv1.SchemeGroupVersion.WithResource("roles"):               HasOLMOwnerRef,
@@ -73,7 +79,7 @@ var filters = map[schema.GroupVersionResource]func(metav1.Object) bool{
 	},
 }
 
-func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadata.Interface) (bool, error) {
+func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadata.Interface, operatorClient operators.Interface) (bool, error) {
 	okLock := sync.Mutex{}
 	ok := true
 	g, ctx := errgroup.WithContext(ctx)
@@ -96,6 +102,27 @@ func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadat
 			return previous != nil && previous(object) && ContentHashFilter(object)
 		}
 	}
+
+	operatorGroups, err := operatorClient.OperatorsV1().OperatorGroups(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+	userProvidedServiceAccounts := sets.New[types.NamespacedName]()
+	for _, operatorGroup := range operatorGroups.Items {
+		if operatorGroup.Spec.ServiceAccountName != "" {
+			userProvidedServiceAccounts.Insert(types.NamespacedName{
+				Namespace: operatorGroup.Namespace,
+				Name:      operatorGroup.Spec.ServiceAccountName,
+			})
+		}
+	}
+	allFilters[corev1.SchemeGroupVersion.WithResource("serviceaccounts")] = ServiceAccountFilter(func(namespace, name string) bool {
+		return userProvidedServiceAccounts.Has(types.NamespacedName{
+			Namespace: namespace,
+			Name:      name,
+		})
+	})
+
 	for gvr, filter := range allFilters {
 		gvr, filter := gvr, filter
 		g.Go(func() error {
