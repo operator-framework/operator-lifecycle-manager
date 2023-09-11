@@ -78,14 +78,6 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 		return
 	}
 
-	// A service account has been specified, but likely does not have the labels we expect it to have so it will
-	// show up in our listers, so let's add that and queue again later
-	config := corev1applyconfigurations.ServiceAccount(serviceAccountName, namespace)
-	config.Labels = map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}
-	if _, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Apply(context.TODO(), config, metav1.ApplyOptions{FieldManager: "operator-lifecycle-manager"}); err != nil {
-		return out, fmt.Errorf("failed to apply labels[%s]=%s to serviceaccount %s/%s: %w", install.OLMManagedLabelKey, install.OLMManagedLabelValue, namespace, serviceAccountName, err)
-	}
-
 	// A service account has been specified, we need to update the status.
 	sa, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(context.TODO(), serviceAccountName, metav1.GetOptions{})
 	if err != nil {
@@ -106,6 +98,14 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 		}
 		err = fmt.Errorf("failed to get service account, sa=%s %v", serviceAccountName, err)
 		return
+	}
+
+	// A service account has been specified, but likely does not have the labels we expect it to have so it will
+	// show up in our listers, so let's add that and queue again later
+	config := corev1applyconfigurations.ServiceAccount(serviceAccountName, namespace)
+	config.Labels = map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}
+	if _, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Apply(context.TODO(), config, metav1.ApplyOptions{FieldManager: "operator-lifecycle-manager"}); err != nil {
+		return out, fmt.Errorf("failed to apply labels[%s]=%s to serviceaccount %s/%s: %w", install.OLMManagedLabelKey, install.OLMManagedLabelValue, namespace, serviceAccountName, err)
 	}
 
 	ref, err := reference.GetReference(s.scheme, sa)
