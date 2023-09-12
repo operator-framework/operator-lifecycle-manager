@@ -650,7 +650,7 @@ github.com/openshift/client-go/config/informers/externalversions/config/v1alpha1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
 github.com/openshift/client-go/config/listers/config/v1alpha1
-# github.com/operator-framework/api v0.17.8-0.20230907172037-bb012a3b9b25
+# github.com/operator-framework/api v0.17.8-0.20230908201838-28c6773d2b74
 ## explicit; go 1.19
 github.com/operator-framework/api/crds
 github.com/operator-framework/api/pkg/constraints
