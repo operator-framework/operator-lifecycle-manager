@@ -535,6 +535,9 @@ spec:
                     extractContent:
                       description: ExtractContent configures the gRPC catalog Pod to extract catalog metadata from the provided index image and use a well-known version of the `opm` server to expose it. The catalog index image that this CatalogSource is configured to use *must* be using the file-based catalogs in order to utilize this feature.
                       type: object
+                      required:
+                        - cacheDir
+                        - catalogDir
                       properties:
                         cacheDir:
                           description: CacheDir is the directory storing the pre-calculated API cache.
