@@ -4,6 +4,7 @@ package reconciler
 import (
 	"fmt"
 	"hash/fnv"
+	"path/filepath"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	corev1 "k8s.io/api/core/v1"
@@ -64,6 +65,7 @@ type registryReconcilerFactory struct {
 	ConfigMapServerImage string
 	SSAClient            *controllerclient.ServerSideApplier
 	createPodAsUser      int64
+	opmImage             string
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -86,6 +88,7 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 				OpClient:        r.OpClient,
 				SSAClient:       r.SSAClient,
 				createPodAsUser: r.createPodAsUser,
+				opmImage:        r.opmImage,
 			}
 		} else if source.Spec.Address != "" {
 			return &GrpcAddressRegistryReconciler{
@@ -97,7 +100,7 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier, createPodAsUser int64) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier, createPodAsUser int64, opmImage string) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		now:                  now,
 		Lister:               lister,
@@ -105,10 +108,11 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 		ConfigMapServerImage: configMapServerImage,
 		SSAClient:            ssaClient,
 		createPodAsUser:      createPodAsUser,
+		opmImage:             opmImage,
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name string, img string, saName string, labels map[string]string, annotations map[string]string, readinessDelay int32, livenessDelay int32, runAsUser int64) *corev1.Pod {
+func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, img, saName string, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) *corev1.Pod {
 	// make a copy of the labels and annotations to avoid mutating the input parameters
 	podLabels := make(map[string]string)
 	podAnnotations := make(map[string]string)
@@ -235,6 +239,58 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name string, img string, saNam
 				Name:  "GOMEMLIMIT",
 				Value: grpcPodConfig.MemoryTarget.String() + "B", // k8s resources use Mi, GOMEMLIMIT wants MiB
 			})
+		}
+
+		// Reconfigure pod to extract content
+		if grpcPodConfig.ExtractContent != nil {
+			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+				Name: "utilities",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			}, corev1.Volume{
+				Name: "catalog-content",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			})
+			const utilitiesPath = "/utilities"
+			utilitiesVolumeMount := corev1.VolumeMount{
+				Name:      "utilities",
+				MountPath: utilitiesPath,
+			}
+			const catalogPath = "/extracted-catalog"
+			contentVolumeMount := corev1.VolumeMount{
+				Name:      "catalog-content",
+				MountPath: catalogPath,
+			}
+			pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
+				Name:    "extract-utilities",
+				Image:   opmImg,
+				Command: []string{"sh", "-c"},
+				Args: []string{fmt.Sprintf("cp $( command -v sh ) %s/sh && cp $( command -v cp ) %s/cp",
+					utilitiesPath, utilitiesPath,
+				)},
+				VolumeMounts: []corev1.VolumeMount{utilitiesVolumeMount},
+			}, corev1.Container{
+				Name:    "extract-content",
+				Image:   img,
+				Command: []string{utilitiesPath + "/sh", "-c"},
+				Args: []string{fmt.Sprintf("%s/cp -r %s %s/catalog && %s/cp -r %s %s/cache",
+					utilitiesPath, grpcPodConfig.ExtractContent.CatalogDir, catalogPath,
+					utilitiesPath, grpcPodConfig.ExtractContent.CacheDir, catalogPath,
+				)},
+				VolumeMounts: []corev1.VolumeMount{utilitiesVolumeMount, contentVolumeMount},
+			})
+
+			pod.Spec.Containers[0].Image = opmImg
+			pod.Spec.Containers[0].Command = []string{"/bin/opm"}
+			pod.Spec.Containers[0].Args = []string{
+				"serve",
+				filepath.Join(catalogPath, "catalog"),
+				"--cache-dir=" + filepath.Join(catalogPath, "cache"),
+			}
+			pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, contentVolumeMount)
 		}
 	}
 

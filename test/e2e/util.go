@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -314,6 +315,7 @@ var checkPodHealth = false
 
 func registryPodHealthy(address string) bool {
 	if !checkPodHealth {
+		fmt.Println("skipping health check")
 		return true
 	}
 
@@ -339,7 +341,7 @@ func catalogSourceRegistryPodSynced(catalog *operatorsv1alpha1.CatalogSource) bo
 	registry := catalog.Status.RegistryServiceStatus
 	connState := catalog.Status.GRPCConnectionState
 	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
-		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
+		fmt.Printf("probing catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
 		return registryPodHealthy(registry.Address())
 	}
 	state := "NO_CONNECTION"
@@ -417,6 +419,10 @@ var (
 
 // TearDown deletes all OLM resources in the corresponding namespace and at the cluster scope.
 func TearDown(namespace string) {
+	if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+		fmt.Printf("Skipping cleanup of namespace %s...\n", namespace)
+		return
+	}
 	var (
 		clientCtx   = context.Background()
 		client      = ctx.Ctx().Client()
@@ -531,6 +537,10 @@ func TearDown(namespace string) {
 
 func buildCatalogSourceCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interface, namespace string, catalogSource *operatorsv1alpha1.CatalogSource) cleanupFunc {
 	return func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of CatalogSource %s/%s...\n", namespace, catalogSource.GetName())
+			return
+		}
 		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
 		err := crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.Background(), catalogSource.GetName(), metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -555,6 +565,10 @@ func buildCatalogSourceCleanupFunc(c operatorclient.ClientInterface, crc version
 
 func buildConfigMapCleanupFunc(c operatorclient.ClientInterface, namespace string, configMap *corev1.ConfigMap) cleanupFunc {
 	return func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of ConfigMap %s/%s...\n", namespace, configMap.GetName())
+			return
+		}
 		ctx.Ctx().Logf("Deleting config map %s...", configMap.GetName())
 		err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(context.Background(), configMap.GetName(), metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -563,6 +577,10 @@ func buildConfigMapCleanupFunc(c operatorclient.ClientInterface, namespace strin
 
 func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string, serviceAccount *corev1.ServiceAccount) cleanupFunc {
 	return func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of ServiceAccount %s/%s...\n", namespace, serviceAccount.GetName())
+			return
+		}
 		t.Logf("Deleting service account %s...", serviceAccount.GetName())
 		require.NoError(t, c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(context.Background(), serviceAccount.GetName(), metav1.DeleteOptions{}))
 	}
@@ -884,6 +902,10 @@ func createCR(c operatorclient.ClientInterface, item *unstructured.Unstructured,
 
 func buildCRCleanupFunc(c operatorclient.ClientInterface, apiGroup, version, namespace, resourceKind, resourceName string) cleanupFunc {
 	return func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of custom resource %s.%s/%s %s/%s...\n", apiGroup, resourceKind, version, namespace, resourceName)
+			return
+		}
 		err := c.DeleteCustomResource(apiGroup, version, namespace, resourceKind, resourceName)
 		if err != nil {
 			fmt.Println(err)
@@ -1048,6 +1070,10 @@ func SetupGeneratedTestNamespace(name string, targetNamespaces ...string) corev1
 }
 
 func TeardownNamespace(ns string) {
+	if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+		fmt.Printf("Skipping cleanup of namespace %s...\n", ns)
+		return
+	}
 	log := ctx.Ctx().Logf
 
 	currentTest := CurrentSpecReport()
@@ -1102,6 +1128,10 @@ func newTokenSecret(client operatorclient.ClientInterface, namespace, saName str
 	Expect(se).ToNot(BeNil())
 
 	cleanup = func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of secret %s/%s...\n", namespace, se.GetName())
+			return
+		}
 		err := client.KubernetesInterface().CoreV1().Secrets(namespace).Delete(context.TODO(), se.GetName(), metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}

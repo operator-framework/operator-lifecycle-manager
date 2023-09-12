@@ -35,6 +35,7 @@ const (
 type grpcCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
 	createPodAsUser int64
+	opmImage        string
 }
 
 type UpdateNotReadyErr struct {
@@ -128,7 +129,7 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 }
 
 func (s *grpcCatalogSourceDecorator) Pod(saName string) *corev1.Pod {
-	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, saName, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser)
+	pod := Pod(s.CatalogSource, "registry-server", s.opmImage, s.Spec.Image, saName, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser)
 	ownerutil.AddOwner(pod, s.CatalogSource, false, true)
 	return pod
 }
@@ -139,6 +140,7 @@ type GrpcRegistryReconciler struct {
 	OpClient        operatorclient.ClientInterface
 	SSAClient       *controllerclient.ServerSideApplier
 	createPodAsUser int64
+	opmImage        string
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
@@ -196,16 +198,25 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(source grpcC
 	found := []*corev1.Pod{}
 	newPod := source.Pod(saName)
 	for _, p := range pods {
-		if p.Spec.Containers[0].Image == source.Spec.Image && podHashMatch(p, newPod) {
+		if correctImages(source, p) && podHashMatch(p, newPod) {
 			found = append(found, p)
 		}
 	}
 	return found
 }
 
+func correctImages(source grpcCatalogSourceDecorator, pod *corev1.Pod) bool {
+	if source.CatalogSource.Spec.GrpcPodConfig != nil && source.CatalogSource.Spec.GrpcPodConfig.ExtractContent != nil {
+		return pod.Spec.InitContainers[0].Image == source.opmImage &&
+			pod.Spec.InitContainers[1].Image == source.CatalogSource.Spec.Image &&
+			pod.Spec.Containers[0].Image == source.opmImage
+	}
+	return pod.Spec.Containers[0].Image == source.CatalogSource.Spec.Image
+}
+
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.CatalogSource) error {
-	source := grpcCatalogSourceDecorator{catalogSource, c.createPodAsUser}
+	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage}
 
 	// if service status is nil, we force create every object to ensure they're created the first time
 	overwrite := source.Status.RegistryServiceStatus == nil || !isRegistryServiceStatusValid(&source)
@@ -454,7 +465,7 @@ func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
-	source := grpcCatalogSourceDecorator{catalogSource, c.createPodAsUser}
+	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage}
 	// Check on registry resources
 	// TODO: add gRPC health check
 	if len(c.currentPodsWithCorrectImageAndSpec(source, source.ServiceAccount().GetName())) < 1 ||
