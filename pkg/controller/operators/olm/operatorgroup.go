@@ -1040,26 +1040,22 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 		return err
 	}
 	if existingRole != nil && existingRole.Name == clusterRoleName {
-		// if the existing role conforms to the naming convention, check for skew
+		// if the cluster role already exists, check if it needs to be updated
 		if labels.Equals(existingRole.Labels, clusterRole.Labels) && reflect.DeepEqual(existingRole.AggregationRule, aggregationRule) {
 			return nil
 		}
 		// if skew was found, correct it
-		clusterRole.Name = existingRole.Name
 		if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
 			a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
-			return err
 		}
-		return nil
+		return err
 	}
 
 	a.logger.Infof("Creating cluster role: %s owned by operator group: %s/%s", clusterRole.GetName(), op.GetNamespace(), op.GetName())
-	_, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
-	if err == nil {
-		return nil
+	if _, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{}); err != nil {
+		// name collision, try again with a new name in the next reconcile
+		a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
 	}
-	// name collision, try again with a new name in the next reconcile
-	a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
 	return err
 }
 
