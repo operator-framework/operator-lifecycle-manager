@@ -2,7 +2,6 @@ package ownerutil
 
 import (
 	"fmt"
-
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -269,6 +268,11 @@ func AdoptableLabels(labels map[string]string, checkName bool, targets ...Owner)
 // CSVOwnerSelector returns a label selector to find generated objects owned by owner
 func CSVOwnerSelector(owner *operatorsv1alpha1.ClusterServiceVersion) labels.Selector {
 	return labels.SelectorFromSet(OwnerLabel(owner, operatorsv1alpha1.ClusterServiceVersionKind))
+}
+
+// OperatorGroupOwnerSelector returns a label selector to find generated objects owned by owner
+func OperatorGroupOwnerSelector(owner *operatorsv1.OperatorGroup) labels.Selector {
+	return labels.SelectorFromSet(OwnerLabel(owner, "OperatorGroup"))
 }
 
 // AddOwner adds an owner to the ownerref list.

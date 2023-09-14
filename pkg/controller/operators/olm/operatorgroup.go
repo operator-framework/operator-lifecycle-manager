@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
-	"math/rand"
+	"math"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -35,6 +37,12 @@ const (
 	AdminSuffix = "admin"
 	EditSuffix  = "edit"
 	ViewSuffix  = "view"
+
+	// kubeResourceNameLimit is the maximum length of a Kubernetes resource name
+	kubeResourceNameLimit = 253
+
+	// resourceRandomPrefixLengh is the length of the random prefix added to the resource name
+	resourceRandomPrefixLength = 5
 )
 
 var (
@@ -986,46 +994,30 @@ func (a *Operator) updateNamespaceList(op *operatorsv1.OperatorGroup) ([]string,
 	return namespaceList, nil
 }
 
-func (a *Operator) stableRand(op *operatorsv1.OperatorGroup) (string, error) {
-	key := fmt.Sprintf("%s/%s", op.GetNamespace(), op.GetName())
-	h := fnv.New64a()
-	_, err := h.Write([]byte(key))
-	if err != nil {
-		return "", err
-	}
-	rnd := rand.NewSource(int64(h.Sum64()))
-	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
-
-	b := make([]byte, 7)
-	for i := range b {
-		b[i] = alphabet[rnd.Int63()%int64(len(alphabet))]
-	}
-	return string(b), nil
-}
-
-func (a *Operator) getClusterRoleName(op *operatorsv1.OperatorGroup, roleType string) (string, error) {
-	roleSuffix, err := a.stableRand(op)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("olm.operatorgroup.%s-%s", roleType, roleSuffix), nil
-}
-
-func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffix string, apis cache.APISet) error {
+func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, roleType string, apis cache.APISet) error {
 	// create target cluster role spec
 	var clusterRole *rbacv1.ClusterRole
-	clusterRoleName, err := a.getClusterRoleName(op, suffix)
-	if err != nil {
-		return err
-	}
-	aggregationRule, err := a.getClusterRoleAggregationRule(apis, suffix)
+
+	// to respect kubernetes resource length limitations we need to truncate the operator group name
+	template := "olm.og.%s.%s-" // final name will look like, e.g. olm.og.my-og.admin-pll5s
+	numTemplateChars := len(strings.Replace(template, "%s", "", -1))
+	roleTypeLength := len(roleType)
+
+	// the operator group component of the name must be limited by the resource name length limit
+	// minus the number of characters used up by the other components of the name
+	nameLimit := kubeResourceNameLimit - numTemplateChars - roleTypeLength - resourceRandomPrefixLength
+	operatorGroupName := op.GetName()[:int(math.Min(float64(nameLimit), float64(len(op.GetName()))))]
+
+	clusterRoleName := fmt.Sprintf(template, operatorGroupName, roleType)
+	aggregationRule, err := a.getClusterRoleAggregationRule(apis, roleType)
 	if err != nil {
 		return err
 	}
 
+	// if we'll be creating a fresh cluster role, use generateName to avoid name collisions
 	clusterRole = &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: clusterRoleName,
+			GenerateName: clusterRoleName,
 		},
 		AggregationRule: aggregationRule,
 	}
@@ -1034,29 +1026,74 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 		return err
 	}
 
-	// get existing cluster role for this level (suffix: admin, edit, view))
-	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRoleName)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	if existingRole != nil && existingRole.Name == clusterRoleName {
-		// if the cluster role already exists, check if it needs to be updated
-		if labels.Equals(existingRole.Labels, clusterRole.Labels) && reflect.DeepEqual(existingRole.AggregationRule, aggregationRule) {
-			return nil
-		}
-		// if skew was found, correct it
-		if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
-			a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
-		}
+	// list current cluster roles owned by this operator group
+	clusterRoles, err := a.lister.RbacV1().ClusterRoleLister().List(ownerutil.OperatorGroupOwnerSelector(op))
+	if err != nil {
 		return err
 	}
 
-	a.logger.Infof("Creating cluster role: %s owned by operator group: %s/%s", clusterRole.GetName(), op.GetNamespace(), op.GetName())
-	if _, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{}); err != nil {
-		// name collision, try again with a new name in the next reconcile
-		a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
+	// find the cluster role that matches the template and is of the correct type
+	var existingClusterRoles []*rbacv1.ClusterRole
+	re, ok := ogClusterRoleNameRegExMap[roleType]
+	if !ok {
+		return fmt.Errorf("no regex found for role type: %s", roleType)
 	}
-	return err
+	for _, cr := range clusterRoles {
+		if re.FindStringSubmatch(cr.GetName()) != nil {
+			existingClusterRoles = append(existingClusterRoles, cr)
+		}
+	}
+
+	switch len(existingClusterRoles) {
+	// if no cluster role exists, create one
+	case 0:
+		a.logger.Infof("Creating cluster role: %s owned by operator group: %s/%s", clusterRole.GetGenerateName(), op.GetNamespace(), op.GetName())
+		if _, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{}); err != nil {
+			// name collision, try again with a new name in the next reconcile
+			a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
+		}
+		return err
+	// if an existing cluster role resource is found, update it if necessary
+	case 1:
+		existingClusterRole := existingClusterRoles[0].DeepCopy()
+		// the cluster role will need to be updated if the aggregation rules have changed - otherwise, nothing to do
+		// the resource is guaranteed to have the correct ownership labels because we reached this part of the code
+		if !reflect.DeepEqual(existingClusterRole.AggregationRule, aggregationRule) {
+			if _, err := a.opClient.UpdateClusterRole(existingClusterRole); err != nil {
+				a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
+			}
+			return err
+		}
+	// the inherent race condition created by listing to check if a resource exists and then creating it
+	// and the fact that we are using generateName means that it is possible for multiple cluster roles of the same
+	// role type to be created for the same operator group. In this case, we'll disambiguate by keeping the oldest
+	// cluster role (by creation timestamp - tie-breaking by name) and deleting the others
+	default:
+		a.logger.Warnf("multiple (%d) cluster roles of type %s owned by operator group %s/%s found", len(existingClusterRoles), roleType, op.GetNamespace(), op.GetName())
+		// sort by creation timestamp and tie-break by name
+		sort.Slice(existingClusterRoles, func(i, j int) bool {
+			creationTimeI := existingClusterRoles[i].GetCreationTimestamp()
+			creationTimeJ := existingClusterRoles[j].GetCreationTimestamp()
+			if creationTimeI.Equal(&creationTimeJ) {
+				return strings.Compare(existingClusterRoles[i].GetName(), existingClusterRoles[j].GetName()) < 0
+			}
+			return creationTimeI.Before(&creationTimeJ)
+		})
+
+		// delete all but the oldest cluster role
+		a.logger.Infof("keeping cluster role: %s owned by operator group: %s/%s and deleting %d others", existingClusterRoles[0].GetName(), op.GetNamespace(), op.GetName(), len(existingClusterRoles)-1)
+		for _, cr := range existingClusterRoles[1:] {
+			a.logger.Infof("deleting cluster role: %s owned by operator group: %s/%s - there may be only one", cr.GetName(), op.GetNamespace(), op.GetName())
+			if err := a.opClient.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}); err != nil {
+				a.logger.WithError(err).Errorf("Delete cluster role failed: %v", cr)
+				return err
+			}
+		}
+
+		// now that we're (hopefully) down to one cluster role, re-reconcile
+		return fmt.Errorf("multiple cluster roles of type %s owned by operator group %s/%s found", roleType, op.GetNamespace(), op.GetName())
+	}
+	return nil
 }
 
 func (a *Operator) getClusterRoleAggregationRule(apis cache.APISet, suffix string) (*rbacv1.AggregationRule, error) {
@@ -1173,4 +1210,16 @@ func csvCopyPrototype(src, dst *v1alpha1.ClusterServiceVersion) {
 	dst.Labels[v1alpha1.CopiedLabelKey] = src.Namespace
 	dst.Status.Reason = v1alpha1.CSVReasonCopied
 	dst.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", src.GetNamespace())
+}
+
+// ogClusterRoleNameRegEx returns a regexp for the naming format used for cluster roles owned by operator groups
+// for a particular role type e.g. olm.og.my-og.admin-pll2k (where pll2k is a random suffix and admin is the role type)
+var ogClusterRoleNameRegExMap = map[string]*regexp.Regexp{
+	"admin": ogClusterRoleNameRegEx("admin"),
+	"edit":  ogClusterRoleNameRegEx("edit"),
+	"view":  ogClusterRoleNameRegEx("view"),
+}
+
+func ogClusterRoleNameRegEx(roleType string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`^olm\.og\.[^\.]+\.%s-[a-z0-9]{5}$`, roleType))
 }
