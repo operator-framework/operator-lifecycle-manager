@@ -1016,17 +1016,6 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 		return err
 	}
 
-	clusterRole = &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: clusterRoleName,
-		},
-		AggregationRule: aggregationRule,
-	}
-
-	if err := ownerutil.AddOwnerLabels(clusterRole, op); err != nil {
-		return err
-	}
-
 	// get existing cluster role for this level (suffix: admin, edit, view))
 	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRoleName)
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -1044,9 +1033,22 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 		if labels.Equals(existingRole.Labels, cp.Labels) && reflect.DeepEqual(existingRole.AggregationRule, aggregationRule) {
 			return nil
 		}
-		if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
+
+		cp.AggregationRule = aggregationRule
+		if _, err := a.opClient.UpdateClusterRole(cp); err != nil {
 			a.logger.WithError(err).Errorf("update existing cluster role failed: %v", clusterRole)
 		}
+		return err
+	}
+
+	clusterRole = &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterRoleName,
+		},
+		AggregationRule: aggregationRule,
+	}
+
+	if err := ownerutil.AddOwnerLabels(clusterRole, op); err != nil {
 		return err
 	}
 

@@ -4725,6 +4725,116 @@ func TestSyncOperatorGroups(t *testing.T) {
 			}},
 		},
 		{
+			// ensure that ownership labels are fixed but user labels are preserved
+			name:          "MatchingNamespace/NoCSVs/ClusterRoleOwnershipLabels",
+			expectedEqual: true,
+			initial: initial{
+				operatorGroup: &operatorsv1.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace},
+					Spec: operatorsv1.OperatorGroupSpec{
+						Selector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "app-a"},
+						},
+					},
+				},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: operatorNamespace,
+						},
+					},
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:   targetNamespace,
+							Labels: map[string]string{"app": "app-a"},
+						},
+					},
+					&rbacv1.ClusterRole{
+						ObjectMeta: metav1.ObjectMeta{
+							ResourceVersion: "",
+							Name:            "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
+							Labels: map[string]string{
+								"olm.owner":           "operator-group-1",
+								"olm.owner.namespace": "operator-ns-bob",
+								"olm.owner.kind":      "OperatorGroup",
+								"not.an.olm.label":    "true",
+							},
+						},
+					},
+					&rbacv1.ClusterRole{
+						ObjectMeta: metav1.ObjectMeta{
+							ResourceVersion: "",
+							Name:            "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
+							Labels: map[string]string{
+								"olm.owner":           "operator-group-5",
+								"olm.owner.namespace": "operator-ns",
+								"olm.owner.kind":      "OperatorGroup",
+								"not.an.olm.label":    "false",
+								"another.olm.label":   "or maybe not",
+							},
+						},
+					},
+					&rbacv1.ClusterRole{
+						ObjectMeta: metav1.ObjectMeta{
+							ResourceVersion: "",
+							Name:            "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
+							Labels: map[string]string{
+								"olm.owner":           "operator-group-1",
+								"olm.owner.namespace": "operator-ns",
+								"olm.owner.kind":      "OperatorGroupKind",
+							},
+						},
+					},
+				},
+			},
+			expectedStatus: operatorsv1.OperatorGroupStatus{
+				Namespaces:  []string{targetNamespace},
+				LastUpdated: &now,
+			},
+			final: final{objects: map[string][]runtime.Object{
+				"": {
+					&rbacv1.ClusterRole{
+						ObjectMeta: metav1.ObjectMeta{
+							ResourceVersion: "",
+							Name:            "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
+							Labels: map[string]string{
+								"olm.owner":           "operator-group-1",
+								"olm.owner.namespace": "operator-ns",
+								"olm.owner.kind":      "OperatorGroup",
+								"not.an.olm.label":    "true",
+							},
+						},
+					},
+					&rbacv1.ClusterRole{
+						ObjectMeta: metav1.ObjectMeta{
+							ResourceVersion: "",
+							Name:            "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
+							Labels: map[string]string{
+								"olm.owner":           "operator-group-1",
+								"olm.owner.namespace": "operator-ns",
+								"olm.owner.kind":      "OperatorGroup",
+							},
+						},
+					},
+					&rbacv1.ClusterRole{
+						ObjectMeta: metav1.ObjectMeta{
+							ResourceVersion: "",
+							Name:            "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
+							Labels: map[string]string{
+								"olm.owner":           "operator-group-1",
+								"olm.owner.namespace": "operator-ns",
+								"olm.owner.kind":      "OperatorGroup",
+								"not.an.olm.label":    "false",
+								"another.olm.label":   "or maybe not",
+							},
+						},
+					},
+				},
+			}},
+		},
+		{
 			// if a cluster role exists with the correct name, use that
 			name:          "MatchingNamespace/NoCSVs/DoesNotUpdateClusterRoles",
 			expectedEqual: true,
