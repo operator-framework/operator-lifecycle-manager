@@ -298,18 +298,6 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	k8sClientFake.Resources = apiResourcesForObjects(append(config.extObjs, config.regObjs...))
 	k8sClientFake.PrependReactor("*", "*", clienttesting.ReactionFunc(func(action clienttesting.Action) (bool, runtime.Object, error) {
 		*config.actionLog = append(*config.actionLog, action)
-		switch action.GetVerb() {
-		case "create":
-			a := action.(clienttesting.CreateAction)
-			m := a.GetObject().(metav1.Object)
-
-			// create a name if generateName is set
-			if m.GetGenerateName() != "" {
-				m.SetName(m.GetGenerateName() + "xxxxx")
-				m.SetGenerateName("")
-				return false, a.GetObject(), nil
-			}
-		}
 		return false, nil, nil
 	}))
 	apiextensionsFake := apiextensionsfake.NewSimpleClientset(config.extObjs...)
@@ -4566,7 +4554,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.admin-xxxxx",
+							Name:            "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4577,7 +4565,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.edit-xxxxx",
+							Name:            "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4588,7 +4576,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.view-xxxxx",
+							Name:            "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4670,7 +4658,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.admin-xxxxx",
+							Name:            "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4681,7 +4669,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.edit-xxxxx",
+							Name:            "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4692,7 +4680,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.view-xxxxx",
+							Name:            "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4766,7 +4754,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.admin-xxxxx",
+							Name:            "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4777,7 +4765,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.edit-xxxxx",
+							Name:            "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4788,7 +4776,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.view-xxxxx",
+							Name:            "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4806,7 +4794,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.admin-xxxxx",
+							Name:            "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4817,7 +4805,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.edit-xxxxx",
+							Name:            "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
@@ -4828,7 +4816,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					&rbacv1.ClusterRole{
 						ObjectMeta: metav1.ObjectMeta{
 							ResourceVersion: "",
-							Name:            "olm.og.operator-group-1.view-xxxxx",
+							Name:            "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
