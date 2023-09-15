@@ -108,7 +108,6 @@ type Operator struct {
 	client                   versioned.Interface
 	dynamicClient            dynamic.Interface
 	lister                   operatorlister.OperatorLister
-	k8sLabelQueueSets        map[schema.GroupVersionResource]workqueue.RateLimitingInterface
 	catsrcQueueSet           *queueinformer.ResourceQueueSet
 	subQueueSet              *queueinformer.ResourceQueueSet
 	ipQueueSet               *queueinformer.ResourceQueueSet
@@ -202,7 +201,6 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		lister:                   lister,
 		namespace:                operatorNamespace,
 		recorder:                 eventRecorder,
-		k8sLabelQueueSets:        map[schema.GroupVersionResource]workqueue.RateLimitingInterface{},
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
@@ -386,11 +384,12 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		if canFilter {
 			return nil
 		}
-		op.k8sLabelQueueSets[gvr] = workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
+		queue := workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
 			Name: gvr.String(),
 		})
 		queueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
+			queueinformer.WithQueue(queue),
 			queueinformer.WithLogger(op.logger),
 			queueinformer.WithInformer(informer),
 			queueinformer.WithSyncer(sync.ToSyncer()),
@@ -416,6 +415,18 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	)); err != nil {
 		return nil, err
 	}
+	if err := labelObjects(rolesgvk, roleInformer.Informer(), labeller.ContentHashLabeler[*rbacv1.Role, *rbacv1applyconfigurations.RoleApplyConfiguration](
+		ctx, op.logger, labeller.ContentHashFilter,
+		func(role *rbacv1.Role) (string, error) {
+			return resolver.PolicyRuleHashLabelValue(role.Rules)
+		},
+		rbacv1applyconfigurations.Role,
+		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.Role, error) {
+			return op.opClient.KubernetesInterface().RbacV1().Roles(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
 
 	// Wire RoleBindings
 	roleBindingInformer := k8sInformerFactory.Rbac().V1().RoleBindings()
@@ -425,6 +436,18 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	rolebindingsgvk := rbacv1.SchemeGroupVersion.WithResource("rolebindings")
 	if err := labelObjects(rolebindingsgvk, roleBindingInformer.Informer(), labeller.ObjectLabeler[*rbacv1.RoleBinding, *rbacv1applyconfigurations.RoleBindingApplyConfiguration](
 		ctx, op.logger, labeller.Filter(rolebindingsgvk),
+		rbacv1applyconfigurations.RoleBinding,
+		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleBindingApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.RoleBinding, error) {
+			return op.opClient.KubernetesInterface().RbacV1().RoleBindings(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
+	if err := labelObjects(rolebindingsgvk, roleBindingInformer.Informer(), labeller.ContentHashLabeler[*rbacv1.RoleBinding, *rbacv1applyconfigurations.RoleBindingApplyConfiguration](
+		ctx, op.logger, labeller.ContentHashFilter,
+		func(roleBinding *rbacv1.RoleBinding) (string, error) {
+			return resolver.RoleReferenceAndSubjectHashLabelValue(roleBinding.RoleRef, roleBinding.Subjects)
+		},
 		rbacv1applyconfigurations.RoleBinding,
 		func(namespace string, ctx context.Context, cfg *rbacv1applyconfigurations.RoleBindingApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.RoleBinding, error) {
 			return op.opClient.KubernetesInterface().RbacV1().RoleBindings(namespace).Apply(ctx, cfg, opts)
