@@ -78,7 +78,6 @@ type Operator struct {
 	opClient                     operatorclient.ClientInterface
 	client                       versioned.Interface
 	lister                       operatorlister.OperatorLister
-	k8sLabelQueueSets            map[schema.GroupVersionResource]workqueue.RateLimitingInterface
 	protectedCopiedCSVNamespaces map[string]struct{}
 	copiedCSVLister              metadatalister.Lister
 	ogQueueSet                   *queueinformer.ResourceQueueSet
@@ -162,7 +161,6 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		resolver:                     config.strategyResolver,
 		apiReconciler:                config.apiReconciler,
 		lister:                       lister,
-		k8sLabelQueueSets:            map[schema.GroupVersionResource]workqueue.RateLimitingInterface{},
 		recorder:                     eventRecorder,
 		apiLabeler:                   config.apiLabeler,
 		csvIndexers:                  map[string]cache.Indexer{},
@@ -453,11 +451,12 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if canFilter {
 			return nil
 		}
-		op.k8sLabelQueueSets[gvr] = workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
+		queue := workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
 			Name: gvr.String(),
 		})
 		queueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
+			queueinformer.WithQueue(queue),
 			queueinformer.WithLogger(op.logger),
 			queueinformer.WithInformer(informer),
 			queueinformer.WithSyncer(sync.ToSyncer()),
@@ -557,6 +556,20 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	)); err != nil {
 		return nil, err
 	}
+	if err := labelObjects(clusterrolesgvk, clusterRoleInformer.Informer(), labeller.ContentHashLabeler[*rbacv1.ClusterRole, *rbacv1applyconfigurations.ClusterRoleApplyConfiguration](
+		ctx, op.logger, labeller.ContentHashFilter,
+		func(clusterRole *rbacv1.ClusterRole) (string, error) {
+			return resolver.PolicyRuleHashLabelValue(clusterRole.Rules)
+		},
+		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleApplyConfiguration {
+			return rbacv1applyconfigurations.ClusterRole(name)
+		},
+		func(_ string, ctx context.Context, cfg *rbacv1applyconfigurations.ClusterRoleApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.ClusterRole, error) {
+			return op.opClient.KubernetesInterface().RbacV1().ClusterRoles().Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
 
 	clusterRoleBindingInformer := k8sInformerFactory.Rbac().V1().ClusterRoleBindings()
 	informersByNamespace[metav1.NamespaceAll].ClusterRoleBindingInformer = clusterRoleBindingInformer
@@ -577,6 +590,20 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	clusterrolebindingssgvk := rbacv1.SchemeGroupVersion.WithResource("clusterrolebindings")
 	if err := labelObjects(clusterrolebindingssgvk, clusterRoleBindingInformer.Informer(), labeller.ObjectLabeler[*rbacv1.ClusterRoleBinding, *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration](
 		ctx, op.logger, labeller.Filter(clusterrolebindingssgvk),
+		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration {
+			return rbacv1applyconfigurations.ClusterRoleBinding(name)
+		},
+		func(_ string, ctx context.Context, cfg *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration, opts metav1.ApplyOptions) (*rbacv1.ClusterRoleBinding, error) {
+			return op.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
+	if err := labelObjects(clusterrolebindingssgvk, clusterRoleBindingInformer.Informer(), labeller.ContentHashLabeler[*rbacv1.ClusterRoleBinding, *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration](
+		ctx, op.logger, labeller.ContentHashFilter,
+		func(clusterRoleBinding *rbacv1.ClusterRoleBinding) (string, error) {
+			return resolver.RoleReferenceAndSubjectHashLabelValue(clusterRoleBinding.RoleRef, clusterRoleBinding.Subjects)
+		},
 		func(name, _ string) *rbacv1applyconfigurations.ClusterRoleBindingApplyConfiguration {
 			return rbacv1applyconfigurations.ClusterRoleBinding(name)
 		},

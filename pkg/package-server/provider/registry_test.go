@@ -787,7 +787,7 @@ func TestRegistryProviderList(t *testing.T) {
 			globalNS:         "ns",
 			requestNamespace: "wisconsin",
 			expectedErr:      "",
-			expected:         &operators.PackageManifestList{Items: []operators.PackageManifest{}},
+			expected:         &operators.PackageManifestList{},
 		},
 		{
 			name:     "PackagesFound",
@@ -1230,7 +1230,6 @@ func TestRegistryProviderList(t *testing.T) {
 			} else {
 				require.Nil(t, err)
 			}
-
 			require.Equal(t, len(test.expected.Items), len(packageManifestList.Items))
 			require.ElementsMatch(t, test.expected.Items, packageManifestList.Items)
 		})

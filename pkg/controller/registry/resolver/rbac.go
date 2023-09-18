@@ -1,8 +1,11 @@
 package resolver
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"math/big"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -62,6 +65,37 @@ func (o *OperatorPermissions) AddClusterRoleBinding(clusterRoleBinding *rbacv1.C
 	o.ClusterRoleBindings = append(o.ClusterRoleBindings, clusterRoleBinding)
 }
 
+const ContentHashLabelKey = "olm.permissions.hash"
+
+func PolicyRuleHashLabelValue(rules []rbacv1.PolicyRule) (string, error) {
+	raw, err := json.Marshal(rules)
+	if err != nil {
+		return "", err
+	}
+	return toBase62(sha256.Sum224(raw)), nil
+}
+
+func RoleReferenceAndSubjectHashLabelValue(roleRef rbacv1.RoleRef, subjects []rbacv1.Subject) (string, error) {
+	var container = struct {
+		RoleRef  rbacv1.RoleRef
+		Subjects []rbacv1.Subject
+	}{
+		RoleRef:  roleRef,
+		Subjects: subjects,
+	}
+	raw, err := json.Marshal(&container)
+	if err != nil {
+		return "", err
+	}
+	return toBase62(sha256.Sum224(raw)), nil
+}
+
+func toBase62(hash [28]byte) string {
+	var i big.Int
+	i.SetBytes(hash[:])
+	return i.Text(62)
+}
+
 func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[string]*OperatorPermissions, error) {
 	permissions := map[string]*OperatorPermissions{}
 
@@ -100,6 +134,11 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 			},
 			Rules: permission.Rules,
 		}
+		hash, err := PolicyRuleHashLabelValue(permission.Rules)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash permission rules: %w", err)
+		}
+		role.Labels[ContentHashLabelKey] = hash
 		permissions[permission.ServiceAccountName].AddRole(role)
 
 		// Create RoleBinding
@@ -120,6 +159,11 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 				Namespace: csv.GetNamespace(),
 			}},
 		}
+		hash, err = RoleReferenceAndSubjectHashLabelValue(roleBinding.RoleRef, roleBinding.Subjects)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash binding content: %w", err)
+		}
+		roleBinding.Labels[ContentHashLabelKey] = hash
 		permissions[permission.ServiceAccountName].AddRoleBinding(roleBinding)
 	}
 
@@ -142,6 +186,11 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 			},
 			Rules: permission.Rules,
 		}
+		hash, err := PolicyRuleHashLabelValue(permission.Rules)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash permission rules: %w", err)
+		}
+		role.Labels[ContentHashLabelKey] = hash
 		permissions[permission.ServiceAccountName].AddClusterRole(role)
 
 		// Create ClusterRoleBinding
@@ -162,6 +211,11 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 				Namespace: csv.GetNamespace(),
 			}},
 		}
+		hash, err = RoleReferenceAndSubjectHashLabelValue(roleBinding.RoleRef, roleBinding.Subjects)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash binding content: %w", err)
+		}
+		roleBinding.Labels[ContentHashLabelKey] = hash
 		permissions[permission.ServiceAccountName].AddClusterRoleBinding(roleBinding)
 	}
 	return permissions, nil
