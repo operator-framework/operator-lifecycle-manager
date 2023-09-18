@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -1030,7 +1032,7 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 		}
 
 		// ensure that the labels and aggregation rules are correct
-		if labels.Equals(existingRole.Labels, cp.Labels) && reflect.DeepEqual(existingRole.AggregationRule, aggregationRule) {
+		if labels.Equals(existingRole.Labels, cp.Labels) && equality.Semantic.DeepEqual(existingRole.AggregationRule, aggregationRule) {
 			return nil
 		}
 
