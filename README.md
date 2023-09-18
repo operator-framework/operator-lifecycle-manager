@@ -84,8 +84,8 @@ Learn more about the components used by OLM by reading about the [architecture] 
 
 OLM standardizes interactions with operators by requiring that the interface to an operator be via the Kubernetes API. Because we expect users to define the interfaces to their applications, OLM currently uses CRDs to define the Kubernetes API interactions.
 
-Examples: [EtcdCluster CRD](https://github.com/redhat-openshift-ecosystem/community-operators-prod/blob/main/operators/etcd/0.9.4/etcdclusters.etcd.database.coreos.com.crd.yaml),
-[EtcdBackup CRD](https://github.com/redhat-openshift-ecosystem/community-operators-prod/blob/main/operators/etcd/0.9.4/etcdbackups.etcd.database.coreos.com.crd.yaml)
+Examples: [EtcdCluster CRD](https://github.com/redhat-openshift-ecosystem/community-operators-prod/blob/main/operators/etcd/0.9.4/manifests/etcdclusters.etcd.database.coreos.com.crd.yaml),
+[EtcdBackup CRD](https://github.com/redhat-openshift-ecosystem/community-operators-prod/blob/main/operators/etcd/0.9.4/manifests/etcdbackups.etcd.database.coreos.com.crd.yaml)
 
 ## Descriptors
 
