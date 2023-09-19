@@ -2524,6 +2524,203 @@ var _ = Describe("Subscription", func() {
 			})
 		})
 	})
+	When("bundle unpack retries are enabled", func() {
+		It("should retry failing unpack jobs", func() {
+			By("Ensuring a registry to host bundle images")
+			local, err := Local(c)
+			Expect(err).NotTo(HaveOccurred(), "cannot determine if test running locally or on CI: %s", err)
+
+			var registryURL string
+			var copyImage func(dst, dstTag, src, srcTag string) error
+			if local {
+				registryURL, err = createDockerRegistry(c, generatedNamespace.GetName())
+				Expect(err).NotTo(HaveOccurred(), "error creating container registry: %s", err)
+				defer deleteDockerRegistry(c, generatedNamespace.GetName())
+
+				// ensure registry pod is ready before attempting port-forwarding
+				_ = awaitPod(GinkgoT(), c, generatedNamespace.GetName(), registryName, podReady)
+
+				err = registryPortForward(generatedNamespace.GetName())
+				Expect(err).NotTo(HaveOccurred(), "port-forwarding local registry: %s", err)
+				copyImage = func(dst, dstTag, src, srcTag string) error {
+					if !strings.HasPrefix(src, "docker://") {
+						src = fmt.Sprintf("docker://%s", src)
+					}
+					if !strings.HasPrefix(dst, "docker://") {
+						dst = fmt.Sprintf("docker://%s", dst)
+					}
+					_, err := skopeoLocalCopy(dst, dstTag, src, srcTag)
+					return err
+				}
+			} else {
+				registryURL = fmt.Sprintf("%s/%s", openshiftregistryFQDN, generatedNamespace.GetName())
+				registryAuth, err := openshiftRegistryAuth(c, generatedNamespace.GetName())
+				Expect(err).NotTo(HaveOccurred(), "error getting openshift registry authentication: %s", err)
+				copyImage = func(dst, dstTag, src, srcTag string) error {
+					if !strings.HasPrefix(src, "docker://") {
+						src = fmt.Sprintf("docker://%s", src)
+					}
+					if !strings.HasPrefix(dst, "docker://") {
+						dst = fmt.Sprintf("docker://%s", dst)
+					}
+					skopeoArgs := skopeoCopyCmd(dst, dstTag, src, srcTag, registryAuth)
+					err = createSkopeoPod(c, skopeoArgs, generatedNamespace.GetName())
+					if err != nil {
+						return fmt.Errorf("error creating skopeo pod: %v", err)
+					}
+
+					// wait for skopeo pod to exit successfully
+					awaitPod(GinkgoT(), c, generatedNamespace.GetName(), skopeo, func(pod *corev1.Pod) bool {
+						return pod.Status.Phase == corev1.PodSucceeded
+					})
+
+					if err := deleteSkopeoPod(c, generatedNamespace.GetName()); err != nil {
+						return fmt.Errorf("error deleting skopeo pod: %s", err)
+					}
+					return nil
+				}
+			}
+
+			// testImage is the name of the image used throughout the test - the image overwritten by skopeo
+			// the tag is generated randomly and appended to the end of the testImage
+			srcImage := "quay.io/olmtest/example-operator-bundle:"
+			srcTag := "0.1.0"
+			bundleImage := fmt.Sprint(registryURL, "/unpack-retry-bundle", ":")
+			bundleTag := genName("x")
+			//// hash hashes data with sha256 and returns the hex string.
+			//func hash(data string) string {
+			//	// A SHA256 hash is 64 characters, which is within the 253 character limit for kube resource names
+			//	h := fmt.Sprintf("%x", sha256.Sum256([]byte(data)))
+			//
+			//	// Make the hash 63 characters instead to comply with the 63 character limit for labels
+			//	return fmt.Sprintf(h[:len(h)-1])
+			//}
+			unpackRetryCatalog := fmt.Sprintf(`
+schema: olm.package
+name: unpack-retry-package
+defaultChannel: stable
+---
+schema: olm.channel
+package: unpack-retry-package
+name: stable
+entries:
+  - name: example-operator.v0.1.0
+---
+schema: olm.bundle
+name: example-operator.v0.1.0
+package: unpack-retry-package
+image: %s%s
+properties:
+  - type: olm.package
+    value:
+      packageName: unpack-retry-package
+      version: 1.0.0
+`, bundleImage, bundleTag)
+
+			By("creating a catalog referencing a non-existent bundle image")
+			unpackRetryProvider, err := NewRawFileBasedCatalogProvider(unpackRetryCatalog)
+			Expect(err).ToNot(HaveOccurred())
+			catalogSourceName := fmt.Sprintf("%s-catsrc", generatedNamespace.GetName())
+			magicCatalog := NewMagicCatalog(ctx.Ctx().Client(), generatedNamespace.GetName(), catalogSourceName, unpackRetryProvider)
+			Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
+
+			By("patching the OperatorGroup to reduce the bundle unpacking timeout")
+			ogNN := types.NamespacedName{Name: operatorGroup.GetName(), Namespace: generatedNamespace.GetName()}
+			addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
+
+			By("creating a subscription for the missing bundle")
+			unpackRetrySubName := fmt.Sprintf("%s-unpack-retry-package-sub", generatedNamespace.GetName())
+			createSubscriptionForCatalog(crc, generatedNamespace.GetName(), unpackRetrySubName, catalogSourceName, "unpack-retry-package", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+
+			By("waiting for bundle unpack to fail")
+			Eventually(
+				func() error {
+					fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), unpackRetrySubName, metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+					if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed); cond.Status != corev1.ConditionTrue || cond.Reason != "BundleUnpackFailed" {
+						return fmt.Errorf("%s condition not found", v1alpha1.SubscriptionBundleUnpackFailed)
+					}
+					return nil
+				},
+				5*time.Minute,
+				interval,
+			).Should(Succeed())
+
+			By("pushing missing bundle image")
+			Expect(copyImage(bundleImage, bundleTag, srcImage, srcTag)).To(Succeed())
+
+			By("patching the OperatorGroup to increase the bundle unpacking timeout")
+			addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "") // revert to default unpack timeout
+
+			By("patching operator group to enable unpack retries")
+			setBundleUnpackRetryMinimumIntervalAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
+
+			By("waiting until the subscription has an IP reference")
+			subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), unpackRetrySubName, subscriptionHasInstallPlanChecker())
+			Expect(err).Should(BeNil())
+
+			By("waiting for the v0.1.0 CSV to report a succeeded phase")
+			_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("checking if old unpack conditions on subscription are removed")
+			Eventually(func() error {
+				fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), unpackRetrySubName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpacking); cond.Status != corev1.ConditionFalse {
+					return fmt.Errorf("subscription condition %s has unexpected value %s, expected %s", v1alpha1.SubscriptionBundleUnpacking, cond.Status, corev1.ConditionFalse)
+				}
+				if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed); cond.Status != corev1.ConditionUnknown {
+					return fmt.Errorf("unexpected condition %s on subscription", v1alpha1.SubscriptionBundleUnpackFailed)
+				}
+				return nil
+			}).Should(Succeed())
+		})
+
+		It("should not retry successful unpack jobs", func() {
+			By("deploying the testing catalog")
+			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.1.0.yaml"))
+			Expect(err).To(BeNil())
+			catalogSourceName := fmt.Sprintf("%s-catsrc", generatedNamespace.GetName())
+			magicCatalog := NewMagicCatalog(ctx.Ctx().Client(), generatedNamespace.GetName(), catalogSourceName, provider)
+			Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
+
+			By("creating the testing subscription")
+			subName := fmt.Sprintf("%s-packagea-sub", generatedNamespace.GetName())
+			createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subName, catalogSourceName, "packageA", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
+
+			By("waiting until the subscription has an IP reference")
+			subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasInstallPlanChecker())
+			Expect(err).Should(BeNil())
+
+			By("waiting for the v0.1.0 CSV to report a succeeded phase")
+			_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("patching operator group to enable unpack retries")
+			ogNN := types.NamespacedName{Name: operatorGroup.GetName(), Namespace: generatedNamespace.GetName()}
+			setBundleUnpackRetryMinimumIntervalAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
+
+			By("Ensuring successful bundle unpack jobs are not retried")
+			Consistently(func() error {
+				fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpacking); cond.Status == corev1.ConditionTrue {
+					return fmt.Errorf("unexpected condition status for %s on subscription %s", v1alpha1.SubscriptionBundleUnpacking, subName)
+				}
+				if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed); cond.Status == corev1.ConditionTrue {
+					return fmt.Errorf("unexpected condition status for %s on subscription %s", v1alpha1.SubscriptionBundleUnpackFailed, subName)
+				}
+				return nil
+			}).Should(Succeed())
+		})
+	})
 })
 
 const (

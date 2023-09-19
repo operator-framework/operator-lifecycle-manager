@@ -208,7 +208,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      pathHash,
 							Namespace: "ns-a",
-							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue},
+							Labels:    map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, bundleUnpackRefLabel: pathHash},
 							OwnerReferences: []metav1.OwnerReference{
 								{
 									APIVersion:         "v1",
@@ -1833,6 +1833,118 @@ func TestOperatorGroupBundleUnpackTimeout(t *testing.T) {
 			}
 
 			timeout, err := OperatorGroupBundleUnpackTimeout(ogLister)
+
+			assert.Equal(t, tc.expectedTimeout, timeout)
+			assert.Equal(t, tc.expectedError, err)
+		})
+	}
+}
+
+func TestOperatorGroupBundleUnpackRetryInterval(t *testing.T) {
+	nsName := "fake-ns"
+
+	for _, tc := range []struct {
+		name            string
+		operatorGroups  []*operatorsv1.OperatorGroup
+		expectedTimeout time.Duration
+		expectedError   error
+	}{
+		{
+			name:            "No operator groups exist",
+			expectedTimeout: 0,
+			expectedError:   errors.New("found 0 operatorGroups, expected 1"),
+		},
+		{
+			name: "Multiple operator groups exist",
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "og1",
+						Namespace: nsName,
+					},
+				},
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "og2",
+						Namespace: nsName,
+					},
+				},
+			},
+			expectedTimeout: 0,
+			expectedError:   errors.New("found 2 operatorGroups, expected 1"),
+		},
+		{
+			name: "One operator group exists with valid unpack retry annotation",
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "og",
+						Namespace:   nsName,
+						Annotations: map[string]string{BundleUnpackRetryMinimumIntervalAnnotationKey: "1m"},
+					},
+				},
+			},
+			expectedTimeout: 1 * time.Minute,
+			expectedError:   nil,
+		},
+		{
+			name: "One operator group exists with no unpack retry annotation",
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "og",
+						Namespace: nsName,
+					},
+				},
+			},
+			expectedTimeout: 0,
+			expectedError:   nil,
+		},
+		{
+			name: "One operator group exists with invalid unpack retry annotation",
+			operatorGroups: []*operatorsv1.OperatorGroup{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       operatorsv1.OperatorGroupKind,
+						APIVersion: operatorsv1.GroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "og",
+						Namespace:   nsName,
+						Annotations: map[string]string{BundleUnpackRetryMinimumIntervalAnnotationKey: "invalid"},
+					},
+				},
+			},
+			expectedTimeout: 0,
+			expectedError:   fmt.Errorf("failed to parse unpack retry annotation(operatorframework.io/bundle-unpack-min-retry-interval: invalid): %w", errors.New("time: invalid duration \"invalid\"")),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ogIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			ogLister := v1listers.NewOperatorGroupLister(ogIndexer).OperatorGroups(nsName)
+
+			for _, og := range tc.operatorGroups {
+				err := ogIndexer.Add(og)
+				assert.NoError(t, err)
+			}
+
+			timeout, err := OperatorGroupBundleUnpackRetryInterval(ogLister)
 
 			assert.Equal(t, tc.expectedTimeout, timeout)
 			assert.Equal(t, tc.expectedError, err)

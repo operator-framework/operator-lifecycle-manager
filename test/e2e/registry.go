@@ -54,6 +54,7 @@ func createDockerRegistry(client operatorclient.ClientInterface, namespace strin
 					Port: int32(5000),
 				},
 			},
+			Type: corev1.ServiceTypeNodePort,
 		},
 	}
 

@@ -1172,7 +1172,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			defer cancel()
 
 			fakeBundleUnpacker := &bundlefakes.FakeUnpacker{
-				UnpackBundleStub: func(lookup *v1alpha1.BundleLookup, timeout time.Duration) (*bundle.BundleUnpackResult, error) {
+				UnpackBundleStub: func(lookup *v1alpha1.BundleLookup, timeout, retryInterval time.Duration) (*bundle.BundleUnpackResult, error) {
 					return &bundle.BundleUnpackResult{BundleLookup: lookup.DeepCopy()}, tt.fields.unpackBundleErr
 				},
 			}
