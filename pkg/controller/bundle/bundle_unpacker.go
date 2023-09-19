@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/kubernetes"
 	listersbatchv1 "k8s.io/client-go/listers/batch/v1"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
@@ -96,6 +97,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
 				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+				bundleUnpackRefLabel:       cmRef.Name,
 			},
 		},
 		Spec: batchv1.JobSpec{
@@ -254,7 +256,6 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 	}
 	job.SetNamespace(cmRef.Namespace)
 	job.SetName(cmRef.Name)
-	job.SetLabels(map[string]string{bundleUnpackRefLabel: cmRef.Name})
 	job.SetOwnerReferences([]metav1.OwnerReference{ownerRef(cmRef)})
 	if c.runAsUser > 0 {
 		job.Spec.Template.Spec.SecurityContext.RunAsUser = &c.runAsUser
@@ -695,10 +696,10 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 
 			if failed {
 				if time.Now().After(lastFailureTime.Add(unpackRetryInterval)) {
-					fresh.SetName(fmt.Sprintf("%s-%d", fresh.GetName(), len(jobs)))
+					fresh.SetName(names.SimpleNameGenerator.GenerateName(fresh.GetName()))
 					job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
-					return
 				}
+				return
 			}
 		}
 	}
@@ -890,7 +891,7 @@ func OperatorGroupBundleUnpackRetryInterval(ogLister v1listers.OperatorGroupName
 
 	d, err := time.ParseDuration(timeoutStr)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse unpack timeout annotation(%s: %s): %w", BundleUnpackRetryMinimumIntervalAnnotationKey, timeoutStr, err)
+		return 0, fmt.Errorf("failed to parse unpack retry annotation(%s: %s): %w", BundleUnpackRetryMinimumIntervalAnnotationKey, timeoutStr, err)
 	}
 
 	return d, nil

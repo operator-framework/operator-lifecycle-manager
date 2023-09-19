@@ -31,3 +31,9 @@ func NewFileBasedFiledBasedCatalogProvider(path string) (FileBasedCatalogProvide
 func (f *fileBasedFileBasedCatalogProvider) GetCatalog() string {
 	return f.fbc
 }
+
+func NewRawFileBasedCatalogProvider(data string) (FileBasedCatalogProvider, error) {
+	return &fileBasedFileBasedCatalogProvider{
+		fbc: string(data),
+	}, nil
+}
