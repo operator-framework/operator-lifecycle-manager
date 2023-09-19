@@ -688,8 +688,8 @@ github.com/operator-framework/operator-registry/pkg/registry
 github.com/operator-framework/operator-registry/pkg/server
 github.com/operator-framework/operator-registry/pkg/sqlite
 github.com/operator-framework/operator-registry/pkg/sqlite/migrations
-# github.com/otiai10/copy v1.2.0
-## explicit; go 1.12
+# github.com/otiai10/copy v1.12.0
+## explicit; go 1.18
 github.com/otiai10/copy
 # github.com/pbnjay/strptime v0.0.0-20140226051138-5c05b0d668c9
 ## explicit

@@ -33,6 +33,7 @@ COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server
 COPY --from=builder /build/bin/cpb /bin/cpb
+COPY --from=builder /build/bin/copy-content /bin/copy-content
 USER 1001
 EXPOSE 8080
 EXPOSE 5443
