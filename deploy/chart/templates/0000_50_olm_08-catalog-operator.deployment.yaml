@@ -90,6 +90,11 @@ spec:
           - --set-workload-user-id=false
           {{ end }}
           image: {{ .Values.catalog.image.ref }}
+          {{- if .Values.debug }}
+          env:
+            - name: CI
+              value: "true"
+          {{- end }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.olm.service.internalPort }}
