@@ -5,6 +5,7 @@ on:
       - master
   pull_request:
   workflow_dispatch:
+  merge_group:
 jobs:
   verify:
     runs-on: ubuntu-latest
