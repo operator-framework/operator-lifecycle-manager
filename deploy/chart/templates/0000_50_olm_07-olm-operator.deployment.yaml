@@ -110,6 +110,10 @@ spec:
                 fieldPath: metadata.namespace
           - name: OPERATOR_NAME
             value: olm-operator
+          {{- if .Values.debug }}
+          - name: CI
+            value: "true"
+          {{- end }}
           {{- if .Values.olm.resources }}
           resources:
 {{ toYaml .Values.olm.resources | indent 12 }}
