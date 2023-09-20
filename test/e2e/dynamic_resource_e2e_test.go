@@ -78,7 +78,7 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 					Expect(err).NotTo(HaveOccurred())
 
 					// Wait for the CatalogSource to be ready
-					_, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
+					_, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced())
 					Expect(err).NotTo(HaveOccurred())
 
 					// Generate a Subscription
@@ -110,13 +110,13 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 
 				It("should install the operator successfully", func() {
 					Skip("this test disabled pending fix of the v1 CRD feature")
-					_, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
+					_, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker())
 					Expect(err).NotTo(HaveOccurred())
 				})
 
 				It("should have created the expected prometheus objects", func() {
 					Skip("this test disabled pending fix of the v1 CRD feature")
-					sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
+					sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker())
 					Expect(err).NotTo(HaveOccurred())
 
 					ipName := sub.Status.InstallPlanRef.Name

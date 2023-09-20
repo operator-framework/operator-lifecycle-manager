@@ -938,15 +938,15 @@ var _ = Describe("Operator Group", func() {
 		catalog := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, nsA, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
-		_, err := fetchCatalogSourceOnStatus(crc, catalog, nsA, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalog, nsA, catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 		_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsB, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsB, catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 		_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catalog, nsD, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsD, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsD, catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// Create operatorgroups
@@ -965,7 +965,7 @@ var _ = Describe("Operator Group", func() {
 		subDName := genName("d-")
 		cleanupSubD := createSubscriptionForCatalog(crc, nsD, subDName, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubD()
-		subD, err := fetchSubscription(crc, nsD, subDName, subscriptionHasInstallPlanChecker)
+		subD, err := fetchSubscription(crc, nsD, subDName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subD)
 
@@ -988,7 +988,7 @@ var _ = Describe("Operator Group", func() {
 		subD2Name := genName("d2-")
 		cleanupSubD2 := createSubscriptionForCatalog(crc, nsA, subD2Name, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubD2()
-		subD2, err := fetchSubscription(crc, nsA, subD2Name, subscriptionHasInstallPlanChecker)
+		subD2, err := fetchSubscription(crc, nsA, subD2Name, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subD2)
 
@@ -1012,7 +1012,7 @@ var _ = Describe("Operator Group", func() {
 		subAName := genName("a-")
 		cleanupSubA := createSubscriptionForCatalog(crc, nsA, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubA()
-		subA, err := fetchSubscription(crc, nsA, subAName, subscriptionHasInstallPlanChecker)
+		subA, err := fetchSubscription(crc, nsA, subAName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subA)
 
@@ -1083,7 +1083,7 @@ var _ = Describe("Operator Group", func() {
 		subBName := genName("b-")
 		cleanupSubB := createSubscriptionForCatalog(crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubB()
-		subB, err := fetchSubscription(crc, nsB, subBName, subscriptionHasInstallPlanChecker)
+		subB, err := fetchSubscription(crc, nsB, subBName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subB)
 
@@ -1205,11 +1205,11 @@ var _ = Describe("Operator Group", func() {
 		catalog := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
-		_, err := fetchCatalogSourceOnStatus(crc, catalog, nsB, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalog, nsB, catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 		_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catalog, nsC, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
-		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsC, catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsC, catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// Create OperatorGroups
@@ -1228,7 +1228,7 @@ var _ = Describe("Operator Group", func() {
 		subAName := genName("a-")
 		cleanupSubA := createSubscriptionForCatalog(crc, nsB, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubA()
-		subA, err := fetchSubscription(crc, nsB, subAName, subscriptionHasInstallPlanChecker)
+		subA, err := fetchSubscription(crc, nsB, subAName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subA)
 
@@ -1254,7 +1254,7 @@ var _ = Describe("Operator Group", func() {
 		// Create subscription for csvA in namespaceC
 		cleanupSubAC := createSubscriptionForCatalog(crc, nsC, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubAC()
-		subAC, err := fetchSubscription(crc, nsC, subAName, subscriptionHasInstallPlanChecker)
+		subAC, err := fetchSubscription(crc, nsC, subAName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subAC)
 
@@ -1280,7 +1280,7 @@ var _ = Describe("Operator Group", func() {
 		subBName := genName("b-")
 		cleanupSubB := createSubscriptionForCatalog(crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubB()
-		subB, err := fetchSubscription(crc, nsB, subBName, subscriptionHasInstallPlanChecker)
+		subB, err := fetchSubscription(crc, nsB, subBName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subB)
 

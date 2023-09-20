@@ -736,14 +736,14 @@ var _ = Describe("Install Plan", func() {
 		defer cleanupDependentCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, dependentCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, dependentCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), mainManifests, nil, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// Create expected install plan step sources
@@ -758,7 +758,7 @@ var _ = Describe("Install Plan", func() {
 		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -806,7 +806,7 @@ var _ = Describe("Install Plan", func() {
 		log("All expected resources resolved")
 
 		// Verify that the dependent subscription is in a good state
-		dependentSubscription, err := fetchSubscription(crc, ns.GetName(), strings.Join([]string{dependentPackageStable, dependentCatalogName, ns.GetName()}, "-"), subscriptionStateAtLatestChecker)
+		dependentSubscription, err := fetchSubscription(crc, ns.GetName(), strings.Join([]string{dependentPackageStable, dependentCatalogName, ns.GetName()}, "-"), subscriptionStateAtLatestChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), dependentSubscription)
 		require.NotNil(GinkgoT(), dependentSubscription.Status.InstallPlanRef)
@@ -909,7 +909,7 @@ var _ = Describe("Install Plan", func() {
 			defer cleanupCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan(s)
-			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			expectedSteps := map[registry.ResourceKey]struct{}{
@@ -930,7 +930,7 @@ var _ = Describe("Install Plan", func() {
 			subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
-			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
@@ -1334,14 +1334,14 @@ var _ = Describe("Install Plan", func() {
 			defer cleanupCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan(s)
-			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			subscriptionName := genName("sub-nginx-alpha-")
 			cleanupSubscription := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer cleanupSubscription()
 
-			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
@@ -1385,12 +1385,12 @@ var _ = Describe("Install Plan", func() {
 			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, ns.GetName(), []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
 
 			// Attempt to get the catalog source before creating install plan(s)
-			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			// Update the subscription resource to point to the beta CSV
 			err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-				subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+				subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 				require.NoError(GinkgoT(), err)
 				require.NotNil(GinkgoT(), subscription)
 
@@ -1582,7 +1582,7 @@ var _ = Describe("Install Plan", func() {
 			defer cleanupCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan(s)
-			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			subscriptionName := genName("sub-nginx-")
@@ -1590,7 +1590,7 @@ var _ = Describe("Install Plan", func() {
 			// this subscription will be cleaned up below without the clean up function
 			createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
-			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 
@@ -1623,7 +1623,7 @@ var _ = Describe("Install Plan", func() {
 
 			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, ns.GetName(), []apiextensions.CustomResourceDefinition{*tt.intermediateCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
 			// Attempt to get the catalog source before creating install plan(s)
-			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 			subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
 			require.NoError(GinkgoT(), err)
@@ -1663,7 +1663,7 @@ var _ = Describe("Install Plan", func() {
 
 			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, ns.GetName(), []apiextensions.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV, mainDeltaCSV}, mainManifests)
 			// Attempt to get the catalog source before creating install plan(s)
-			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 			subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanDifferentChecker(installPlanName))
 			require.NoError(GinkgoT(), err)
@@ -1797,14 +1797,14 @@ var _ = Describe("Install Plan", func() {
 			defer cleanupMainCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan
-			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			subscriptionName := genName("sub-nginx-update-perms1")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
-			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
@@ -1995,14 +1995,14 @@ var _ = Describe("Install Plan", func() {
 			defer cleanupMainCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan
-			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			subscriptionName := genName("sub-nginx-update-perms1")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
-			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
@@ -2211,14 +2211,14 @@ var _ = Describe("Install Plan", func() {
 			defer cleanupMainCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan
-			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			subscriptionName := genName("sub-nginx-stompy-")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
-			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
@@ -2451,13 +2451,13 @@ var _ = Describe("Install Plan", func() {
 			defer cleanupMainCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan
-			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			subscriptionName := genName("sub-nginx-update-")
 			createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
-			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
@@ -2650,14 +2650,14 @@ var _ = Describe("Install Plan", func() {
 			defer cleanupMainCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan
-			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			subscriptionName := genName("sub-nginx-update2-")
 			subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 			defer subscriptionCleanup()
 
-			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 			require.NoError(GinkgoT(), err)
 			require.NotNil(GinkgoT(), subscription)
 			require.NotNil(GinkgoT(), subscription.Status.InstallPlanRef)
@@ -2792,14 +2792,14 @@ var _ = Describe("Install Plan", func() {
 		defer cleanupCatalogSource()
 
 		// Attempt to get CatalogSource
-		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
 		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogSourceName, packageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -3040,14 +3040,14 @@ var _ = Describe("Install Plan", func() {
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, catalogSourceName, packageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -3145,7 +3145,7 @@ var _ = Describe("Install Plan", func() {
 		defer cleanupDependentCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		dependentCatalogSource, err := fetchCatalogSourceOnStatus(crc, dependentCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		dependentCatalogSource, err := fetchCatalogSourceOnStatus(crc, dependentCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// Create the alt dependent catalog sources
@@ -3174,7 +3174,7 @@ var _ = Describe("Install Plan", func() {
 				require.NoError(GinkgoT(), err)
 
 				// Attempt to get the catalog source before creating install plan
-				_, err = fetchCatalogSourceOnStatus(crc, addressSource.GetName(), ns.GetName(), catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crc, addressSource.GetName(), ns.GetName(), catalogSourceRegistryPodSynced())
 				require.NoError(GinkgoT(), err)
 				wg.Done()
 			}(i)
@@ -3186,14 +3186,14 @@ var _ = Describe("Install Plan", func() {
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
 		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -3354,7 +3354,7 @@ var _ = Describe("Install Plan", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// Wait for the CatalogSource to be ready
-		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
+		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced())
 		Expect(err).ToNot(HaveOccurred())
 
 		// Generate a Subscription
@@ -3362,7 +3362,7 @@ var _ = Describe("Install Plan", func() {
 		cleanUpSubscriptionFn := createSubscriptionForCatalog(crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanUpSubscriptionFn()
 
-		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
+		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker())
 		Expect(err).ToNot(HaveOccurred())
 
 		// Wait for the expected InstallPlan's execution to either fail or succeed
@@ -3929,8 +3929,14 @@ func validateCRDVersions(t GinkgoTInterface, c operatorclient.ClientInterface, n
 }
 
 func buildInstallPlanPhaseCheckFunc(phases ...operatorsv1alpha1.InstallPlanPhase) checkInstallPlanFunc {
+	var lastPhase operatorsv1alpha1.InstallPlanPhase
+	lastTime := time.Now()
 	return func(fip *operatorsv1alpha1.InstallPlan) bool {
-		ctx.Ctx().Logf("installplan %v is in phase %v", fip.GetName(), fip.Status.Phase)
+		if fip.Status.Phase != lastPhase {
+			ctx.Ctx().Logf("waiting %s for installplan %s/%s to be phases %v, in phase %s", time.Since(lastTime), fip.Namespace, fip.Name, phases, fip.Status.Phase)
+			lastPhase = fip.Status.Phase
+			lastTime = time.Now()
+		}
 		satisfiesAny := false
 		for _, phase := range phases {
 			satisfiesAny = satisfiesAny || fip.Status.Phase == phase

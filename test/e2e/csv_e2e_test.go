@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -4205,6 +4206,11 @@ func findLastEvent(events *corev1.EventList) (event corev1.Event) {
 
 func buildCSVCleanupFunc(c operatorclient.ClientInterface, crc versioned.Interface, csv operatorsv1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
 	return func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping deletion of CSV %s/%s...\n", namespace, csv.Name)
+			return
+		}
+
 		err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
 		if err != nil && apierrors.IsNotFound(err) {
 			err = nil
@@ -4248,6 +4254,11 @@ func createCSV(c operatorclient.ClientInterface, crc versioned.Interface, csv op
 
 func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) cleanupFunc {
 	return func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping deletion of CRD %s...\n", crdName)
+			return
+		}
+
 		err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crdName, *metav1.NewDeleteOptions(immediateDeleteGracePeriod))
 		if err != nil {
 			fmt.Println(err)
@@ -4262,6 +4273,11 @@ func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) clean
 
 func buildAPIServiceCleanupFunc(c operatorclient.ClientInterface, apiServiceName string) cleanupFunc {
 	return func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping deletion of APIService %s...\n", apiServiceName)
+			return
+		}
+
 		err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Delete(context.TODO(), apiServiceName, *metav1.NewDeleteOptions(immediateDeleteGracePeriod))
 		if err != nil {
 			fmt.Println(err)
@@ -4402,20 +4418,42 @@ func newMockExtServerDeployment(labelName string, mGVKs []mockGroupVersionKind) 
 type csvConditionChecker func(csv *operatorsv1alpha1.ClusterServiceVersion) bool
 
 func buildCSVConditionChecker(phases ...operatorsv1alpha1.ClusterServiceVersionPhase) csvConditionChecker {
+	var lastPhase operatorsv1alpha1.ClusterServiceVersionPhase
+	var lastReason operatorsv1alpha1.ConditionReason
+	var lastMessage string
+	lastTime := time.Now()
+
 	return func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 		conditionMet := false
 		for _, phase := range phases {
 			conditionMet = conditionMet || csv.Status.Phase == phase
+		}
+		phase, reason, message := csv.Status.Phase, csv.Status.Reason, csv.Status.Message
+		if phase != lastPhase || reason != lastReason || message != lastMessage {
+			ctx.Ctx().Logf("waited %s for CSV %s/%s: to be in phases %s, in phase %s (%s): %s", time.Since(lastTime), csv.Namespace, csv.Name, phases, phase, reason, message)
+			lastPhase, lastReason, lastMessage = phase, reason, message
+			lastTime = time.Now()
 		}
 		return conditionMet
 	}
 }
 
 func buildCSVReasonChecker(reasons ...operatorsv1alpha1.ConditionReason) csvConditionChecker {
+	var lastPhase operatorsv1alpha1.ClusterServiceVersionPhase
+	var lastReason operatorsv1alpha1.ConditionReason
+	var lastMessage string
+	lastTime := time.Now()
+
 	return func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 		conditionMet := false
 		for _, reason := range reasons {
 			conditionMet = conditionMet || csv.Status.Reason == reason
+		}
+		phase, reason, message := csv.Status.Phase, csv.Status.Reason, csv.Status.Message
+		if phase != lastPhase || reason != lastReason || message != lastMessage {
+			ctx.Ctx().Logf("waited %s for CSV %s/%s: to have reasons %s, in phase %s (%s): %s", time.Since(lastTime), csv.Namespace, csv.Name, reasons, phase, reason, message)
+			lastPhase, lastReason, lastMessage = phase, reason, message
+			lastTime = time.Now()
 		}
 		return conditionMet
 	}
@@ -4438,7 +4476,6 @@ func fetchCSV(c versioned.Interface, name, namespace string, checker csvConditio
 		if err != nil {
 			return false, err
 		}
-		ctx.Ctx().Logf("CSV %s/%s: phase %s (%s): %s", namespace, name, fetchedCSV.Status.Phase, fetchedCSV.Status.Reason, fetchedCSV.Status.Message)
 		return checker(fetchedCSV), nil
 	}).Should(BeTrue())
 

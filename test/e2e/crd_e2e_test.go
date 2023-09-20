@@ -92,14 +92,14 @@ var _ = Describe("CRD Versions", func() {
 		}()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
 		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(Equal(nil))
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -231,14 +231,14 @@ var _ = Describe("CRD Versions", func() {
 		}()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
 		subscriptionCleanup := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -261,8 +261,9 @@ var _ = Describe("CRD Versions", func() {
 		})).Should(Succeed())
 		ctx.Ctx().Logf("updated subscription to point to alpha channel")
 
+		checker := subscriptionStateAtLatestChecker()
 		subscriptionAtLatestWithDifferentInstallPlan := func(v *operatorsv1alpha1.Subscription) bool {
-			return subscriptionStateAtLatestChecker(v) && v.Status.InstallPlanRef != nil && v.Status.InstallPlanRef.Name != fetchedInstallPlan.Name
+			return checker(v) && v.Status.InstallPlanRef != nil && v.Status.InstallPlanRef.Name != fetchedInstallPlan.Name
 		}
 
 		// fetch new subscription
@@ -421,13 +422,13 @@ var _ = Describe("CRD Versions", func() {
 		defer cleanupMainCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ToNot(HaveOccurred())
 
 		subscriptionName := genName("sub-nginx-update2-")
 		_ = createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))
@@ -467,7 +468,7 @@ var _ = Describe("CRD Versions", func() {
 		subscriptionNameNew := genName("sub-nginx-update2-new-")
 		_ = createSubscriptionForCatalog(crc, ns.GetName(), subscriptionNameNew, mainCatalogName, mainPackageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
-		subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionNameNew, subscriptionHasInstallPlanChecker)
+		subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionNameNew, subscriptionHasInstallPlanChecker())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
 		Expect(subscription.Status.InstallPlanRef).ToNot(Equal(nil))

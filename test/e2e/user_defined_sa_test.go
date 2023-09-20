@@ -50,15 +50,15 @@ var _ = Describe("User defined service account", func() {
 
 	It("with no permission", func() {
 
-		// Create a service account, but add no permission to it.
+		By("Create a service account, but add no permission to it.")
 		saName := genName("scoped-sa-")
 		_, cleanupSA := newServiceAccount(c, generatedNamespace.GetName(), saName)
 		defer cleanupSA()
-		// Create token secret for the serviceaccount
+		By("Create token secret for the serviceaccount")
 		_, cleanupSE := newTokenSecret(c, generatedNamespace.GetName(), saName)
 		defer cleanupSE()
 
-		// Add an OperatorGroup and specify the service account.
+		By("Add an OperatorGroup and specify the service account.")
 		ogName := genName("scoped-og-")
 		_, cleanupOG := newOperatorGroupWithServiceAccount(crc, generatedNamespace.GetName(), ogName, saName)
 		defer cleanupOG()
@@ -67,20 +67,20 @@ var _ = Describe("User defined service account", func() {
 		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), c, crc, "scoped", generatedNamespace.GetName(), permissions)
 		defer catsrcCleanup()
 
-		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSourceOnStatus(crc, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		By("Ensure that the catalog source is resolved before we create a subscription.")
+		_, err := fetchCatalogSourceOnStatus(crc, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("scoped-sub-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 		defer cleanupSubscription()
 
-		// Wait until an install plan is created.
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		By("Wait until an install plan is created.")
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		// We expect the InstallPlan to be in status: Failed.
+		By("We expect the InstallPlan to be in status: Failed.")
 		ipName := subscription.Status.Install.Name
 		ipPhaseCheckerFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed)
 		ipGot, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ipName, generatedNamespace.GetName(), ipPhaseCheckerFunc)
@@ -91,29 +91,29 @@ var _ = Describe("User defined service account", func() {
 		assert.Equal(GinkgoT(), v1alpha1.InstallPlanReasonComponentFailed, conditionGot.Reason)
 		assert.Contains(GinkgoT(), conditionGot.Message, fmt.Sprintf("is forbidden: User \"system:serviceaccount:%s:%s\" cannot create resource", generatedNamespace.GetName(), saName))
 
-		// Verify that all step resources are in Unknown state.
+		By("Verify that all step resources are in Unknown state.")
 		for _, step := range ipGot.Status.Plan {
 			assert.Equal(GinkgoT(), v1alpha1.StepStatusUnknown, step.Status)
 		}
 	})
 	It("with permission", func() {
 
-		// Create the CatalogSource
+		By("Create the CatalogSource")
 		namespace := genName("scoped-ns-")
 		_, cleanupNS := newNamespace(c, namespace)
 		defer cleanupNS()
 
-		// Create a service account, add enough permission to it so that operator install is successful.
+		By("Create a service account, add enough permission to it so that operator install is successful.")
 		saName := genName("scoped-sa")
 		_, cleanupSA := newServiceAccount(c, generatedNamespace.GetName(), saName)
 		defer cleanupSA()
-		// Create token secret for the serviceaccount
+		By("Create token secret for the serviceaccount")
 		_, cleanupSE := newTokenSecret(c, generatedNamespace.GetName(), saName)
 		defer cleanupSE()
 		cleanupPerm := grantPermission(GinkgoT(), c, generatedNamespace.GetName(), saName)
 		defer cleanupPerm()
 
-		// Add an OperatorGroup and specify the service account.
+		By("Add an OperatorGroup and specify the service account.")
 		ogName := genName("scoped-og-")
 		_, cleanupOG := newOperatorGroupWithServiceAccount(crc, generatedNamespace.GetName(), ogName, saName)
 		defer cleanupOG()
@@ -122,20 +122,20 @@ var _ = Describe("User defined service account", func() {
 		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), c, crc, "scoped", generatedNamespace.GetName(), permissions)
 		defer catsrcCleanup()
 
-		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSourceOnStatus(crc, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		By("Ensure that the catalog source is resolved before we create a subscription.")
+		_, err := fetchCatalogSourceOnStatus(crc, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("scoped-sub-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 		defer cleanupSubscription()
 
-		// Wait until an install plan is created.
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		By("Wait until an install plan is created.")
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		// We expect the InstallPlan to be in status: Complete.
+		By("We expect the InstallPlan to be in status: Complete.")
 		ipName := subscription.Status.Install.Name
 		ipPhaseCheckerFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete)
 		ipGot, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ipName, generatedNamespace.GetName(), ipPhaseCheckerFunc)
@@ -146,7 +146,7 @@ var _ = Describe("User defined service account", func() {
 		assert.Equal(GinkgoT(), corev1.ConditionTrue, conditionGot.Status)
 		assert.Equal(GinkgoT(), "", conditionGot.Message)
 
-		// Verify that all step resources are in Created state.
+		By("Verify that all step resources are in Created state.")
 		for _, step := range ipGot.Status.Plan {
 			// TODO: switch back to commented assertion once InstallPlan status is being patched instead of updated
 			// assert.Equal(GinkgoT(), v1alpha1.StepStatusCreated, step.Status)
@@ -155,15 +155,15 @@ var _ = Describe("User defined service account", func() {
 	})
 	It("with retry", func() {
 
-		// Create a service account, but add no permission to it.
+		By("Create a service account, but add no permission to it.")
 		saName := genName("scoped-sa-")
 		_, cleanupSA := newServiceAccount(c, generatedNamespace.GetName(), saName)
 		defer cleanupSA()
-		// Create token secret for the serviceaccount
+		By("Create token secret for the serviceaccount")
 		_, cleanupSE := newTokenSecret(c, generatedNamespace.GetName(), saName)
 		defer cleanupSE()
 
-		// Add an OperatorGroup and specify the service account.
+		By("Add an OperatorGroup and specify the service account.")
 		ogName := genName("scoped-og-")
 		_, cleanupOG := newOperatorGroupWithServiceAccount(crc, generatedNamespace.GetName(), ogName, saName)
 		defer cleanupOG()
@@ -172,27 +172,27 @@ var _ = Describe("User defined service account", func() {
 		catsrc, subSpec, catsrcCleanup := newCatalogSource(GinkgoT(), c, crc, "scoped", generatedNamespace.GetName(), permissions)
 		defer catsrcCleanup()
 
-		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSourceOnStatus(crc, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		By("Ensure that the catalog source is resolved before we create a subscription.")
+		_, err := fetchCatalogSourceOnStatus(crc, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("scoped-sub-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 		defer cleanupSubscription()
 
-		// Wait until an install plan is created.
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		By("Wait until an install plan is created.")
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		// We expect the InstallPlan to be in status: Failed.
+		By("We expect the InstallPlan to be in status: Failed.")
 		ipNameOld := subscription.Status.InstallPlanRef.Name
 		ipPhaseCheckerFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed)
 		ipGotOld, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ipNameOld, generatedNamespace.GetName(), ipPhaseCheckerFunc)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), v1alpha1.InstallPlanPhaseFailed, ipGotOld.Status.Phase)
 
-		// Grant permission now and this should trigger an retry of InstallPlan.
+		By("Grant permission now and this should trigger an retry of InstallPlan.")
 		cleanupPerm := grantPermission(GinkgoT(), c, generatedNamespace.GetName(), saName)
 		defer cleanupPerm()
 

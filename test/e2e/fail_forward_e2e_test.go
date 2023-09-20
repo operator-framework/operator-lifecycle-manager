@@ -93,7 +93,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(c.Create(context.Background(), subscription)).To(BeNil())
 
 			By("waiting until the subscription has an IP reference")
-			subscription, err := fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker())
 			Expect(err).Should(BeNil())
 
 			originalInstallPlanRef = subscription.Status.InstallPlanRef
@@ -214,7 +214,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Consistently(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.2.0"))
 
 			By("verifying the subscription is referencing the same InstallPlan")
-			subscription, err = fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
+			subscription, err = fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker())
 			Expect(err).Should(BeNil())
 			Expect(subscription.Status.InstallPlanRef.Name).To(Equal(failedInstallPlanRef.Name))
 		})
@@ -251,7 +251,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(c.Create(context.Background(), subscription)).To(BeNil())
 
 			By("waiting until the subscription has an IP reference")
-			subscription, err := fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker())
 			Expect(err).Should(BeNil())
 
 			By("waiting for the v0.1.0 CSV to report a succeeded phase")

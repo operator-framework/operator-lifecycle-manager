@@ -126,7 +126,7 @@ var _ = BeforeSuite(func() {
 		ContainElement(Not(BeZero())),
 	))
 
-	_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced)
+	_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced())
 	Expect(err).NotTo(HaveOccurred())
 
 })

@@ -13,6 +13,7 @@ olm::util::await_csv_success() {
     echo "awaiting ${namespace}/${csv} csv installation success"
     until [[ "${retries}" -le "0" || "${phase:=$(kubectl get csv -n "${namespace}" "${csv}" -o jsonpath='{.status.phase}' 2>/dev/null || echo "missing")}" == "Succeeded" ]]; do
         retries=$((retries - 1))
+        kubectl get csv -n "${namespace}" "${csv}" -o yaml
         echo "current phase: ${phase}, remaining attempts: ${retries}"
         unset phase
         sleep 1
@@ -29,7 +30,7 @@ olm::util::await_csv_success() {
 olm::util::await_olm_ready() {
     local namespace="$1"
 
-    kubectl rollout status -w deployment/olm-operator --namespace="${namespace}" || return
-    kubectl rollout status -w deployment/catalog-operator --namespace="${namespace}" || return
+    kubectl rollout status -w deployment/olm-operator --namespace="${namespace}" || kubectl get deployment olm-operator --namespace="${namespace}" -o yaml && return
+    kubectl rollout status -w deployment/catalog-operator --namespace="${namespace}" || kubectl get deployment catalog-operator --namespace="${namespace}" -o yaml && return
     olm::util::await_csv_success "${namespace}" "packageserver" 32 || return
 }

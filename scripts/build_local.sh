@@ -4,11 +4,12 @@
 # This is used to start and build services for running e2e tests
 
 set -e
+set -o xtrace
 
 [ -x "$(command -v kind)" ] && [[ "$(kubectl config current-context)" =~ ^kind-? ]] && KIND=1 NO_MINIKUBE=1
 
 if [ -z "$NO_MINIKUBE" ]; then
-  pgrep -f "[m]inikube" >/dev/null || minikube start --extra-config=apiserver.v=4 || { echo 'Cannot start minikube.'; exit 1; }
+  pgrep -f "[m]inikube" >/dev/null || minikube start "${MINIKUBE_ARGS}" --extra-config=apiserver.v=4 || { echo 'Cannot start minikube.'; exit 1; }
   eval "$(minikube docker-env)" || { echo 'Cannot switch to minikube docker'; exit 1; }
   kubectl config use-context minikube
 fi
