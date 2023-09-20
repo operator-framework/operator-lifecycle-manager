@@ -682,7 +682,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			}
 
 			// Wait for the CatalogSource to be ready
-			_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crc, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			// Create a Subscription for the webhook-operator

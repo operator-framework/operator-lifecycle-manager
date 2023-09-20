@@ -362,7 +362,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				// operator can generate all the requisite resources (e.g. the ServiceAccount), which can leave the underlying
 				// registry Pod in a terminating state until kubelet times out waiting for the generated ServiceAccount
 				// resource to be present so it can mount it in the registry container.
-				_, err := fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced())
 				Expect(err).ShouldNot(HaveOccurred())
 
 				var once sync.Once

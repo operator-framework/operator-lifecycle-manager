@@ -20,6 +20,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -110,7 +111,7 @@ var _ = Describe("Subscription", func() {
 			}
 
 			_, teardown = createInternalCatalogSource(ctx.Ctx().KubeClient(), ctx.Ctx().OperatorClient(), "test-catalog", generatedNamespace.GetName(), packages, crds, csvs)
-			_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "test-catalog", generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "test-catalog", generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 			Expect(err).NotTo(HaveOccurred())
 
 			createSubscriptionForCatalog(ctx.Ctx().OperatorClient(), generatedNamespace.GetName(), "test-subscription", "test-catalog", "root", "channel-root", "", operatorsv1alpha1.ApprovalAutomatic)
@@ -202,7 +203,7 @@ var _ = Describe("Subscription", func() {
 		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), testSubscriptionName, testPackageName, alphaChannel, operatorsv1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), testSubscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), testSubscriptionName, subscriptionStateAtLatestChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
@@ -281,7 +282,7 @@ var _ = Describe("Subscription", func() {
 		_, cleanupMainCatalogSource := createInternalCatalogSource(c, crc, mainCatalogName, generatedNamespace.GetName(), mainManifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{mainCSV})
 		defer cleanupMainCatalogSource()
 		// Attempt to get the catalog source before creating subscription
-		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// Create a subscription
@@ -315,7 +316,7 @@ var _ = Describe("Subscription", func() {
 		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), "manual-subscription", testPackageName, stableChannel, operatorsv1alpha1.ApprovalManual)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), "manual-subscription", subscriptionStateUpgradePendingChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), "manual-subscription", subscriptionStateUpgradePendingChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -358,7 +359,7 @@ var _ = Describe("Subscription", func() {
 			return nil
 		})).Should(Succeed())
 
-		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), "manual-subscription", subscriptionStateAtLatestChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), "manual-subscription", subscriptionStateAtLatestChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -424,14 +425,14 @@ var _ = Describe("Subscription", func() {
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalManual)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -545,14 +546,14 @@ var _ = Describe("Subscription", func() {
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("sub-nginx-")
 		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -631,7 +632,7 @@ var _ = Describe("Subscription", func() {
 		defer cleanupCatalogSource()
 
 		// Attempt to get the catalog source before creating install plan
-		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// Create a subscription to just get an InstallPlan for csvB
@@ -642,7 +643,7 @@ var _ = Describe("Subscription", func() {
 		_, err = awaitCSV(crc, generatedNamespace.GetName(), csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, subscription.Status.InstallPlanRef.Name, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
 
 		// Delete this subscription
@@ -678,7 +679,7 @@ var _ = Describe("Subscription", func() {
 		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), operatorsv1alpha1.ApprovalManual)
 		defer cleanupSubscription()
 
-		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -699,7 +700,7 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Wait for the subscription to begin upgrading to csvB
-		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateUpgradePendingChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateUpgradePendingChecker())
 		require.NoError(GinkgoT(), err)
 
 		// Fetch existing csvB installPlan
@@ -768,7 +769,7 @@ var _ = Describe("Subscription", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Wait for success
-				_, err = fetchSubscription(crc, generatedNamespace.GetName(), testSubscriptionName, subscriptionStateAtLatestChecker)
+				_, err = fetchSubscription(crc, generatedNamespace.GetName(), testSubscriptionName, subscriptionStateAtLatestChecker())
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
@@ -1055,7 +1056,7 @@ var _ = Describe("Subscription", func() {
 		catalogName := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalogName, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csv})
 		defer cleanupCatalogSource()
-		_, err := fetchCatalogSourceOnStatus(crc, catalogName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalogName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ToNot(HaveOccurred())
 
 		// Create Subscription to a package of cs in ns, sub
@@ -1063,6 +1064,7 @@ var _ = Describe("Subscription", func() {
 		defer createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subName, catalogName, pkgName, channelName, pkgName, operatorsv1alpha1.ApprovalAutomatic)()
 
 		// Wait for the package from sub to install successfully with no remaining InstallPlan status conditions
+		checker := subscriptionStateAtLatestChecker()
 		sub, err := fetchSubscription(crc, generatedNamespace.GetName(), subName, func(s *operatorsv1alpha1.Subscription) bool {
 			for _, cond := range s.Status.Conditions {
 				switch cond.Type {
@@ -1070,7 +1072,7 @@ var _ = Describe("Subscription", func() {
 					return false
 				}
 			}
-			return subscriptionStateAtLatestChecker(s)
+			return checker(s)
 		})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sub).ToNot(BeNil())
@@ -1333,7 +1335,7 @@ var _ = Describe("Subscription", func() {
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("podconfig-sub-")
@@ -1341,7 +1343,7 @@ var _ = Describe("Subscription", func() {
 		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -1392,7 +1394,7 @@ var _ = Describe("Subscription", func() {
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionName := genName("podconfig-sub-")
@@ -1400,7 +1402,7 @@ var _ = Describe("Subscription", func() {
 		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -1424,7 +1426,7 @@ var _ = Describe("Subscription", func() {
 		defer catsrcCleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// Create duplicates of the CatalogSource
@@ -1433,7 +1435,7 @@ var _ = Describe("Subscription", func() {
 			defer duplicateCatSrcCleanup()
 
 			// Ensure that the catalog source is resolved before we create a subscription.
-			_, err = fetchCatalogSourceOnStatus(crClient, duplicateCatsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crClient, duplicateCatsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 		}
 
@@ -1442,7 +1444,7 @@ var _ = Describe("Subscription", func() {
 		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -1557,9 +1559,9 @@ var _ = Describe("Subscription", func() {
 		defer cleanup()
 
 		By("waiting for catalogsources to be ready", func() {
-			_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
-			_, err = fetchCatalogSourceOnStatus(crClient, catsrc2.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crClient, catsrc2.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 		})
 
@@ -1575,7 +1577,7 @@ var _ = Describe("Subscription", func() {
 		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subscriptionSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -1649,11 +1651,11 @@ var _ = Describe("Subscription", func() {
 				catsrcDepWrong, catsrcCleanup3 = createInternalCatalogSource(kubeClient, crClient, "catsrc2", generatedNamespace.GetName(),
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
 
-				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -1685,7 +1687,7 @@ var _ = Describe("Subscription", func() {
 					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subscriptionSpec)
 
 					var err error
-					subscription, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+					subscription, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 					Expect(err).ToNot(HaveOccurred())
 					Expect(subscription).ToNot(BeNil())
 
@@ -1741,9 +1743,9 @@ var _ = Describe("Subscription", func() {
 					csvsWrong, 100)
 
 				// waiting for catalogsources to be ready
-				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -1773,7 +1775,7 @@ var _ = Describe("Subscription", func() {
 					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subscriptionSpec)
 
 					var err error
-					subscription, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+					subscription, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 					Expect(err).ToNot(HaveOccurred())
 					Expect(subscription).ToNot(BeNil())
 
@@ -1831,11 +1833,11 @@ var _ = Describe("Subscription", func() {
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
 
 				// waiting for catalogsources to be ready
-				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -1867,7 +1869,7 @@ var _ = Describe("Subscription", func() {
 					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subscriptionSpec)
 
 					var err error
-					subscription, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+					subscription, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 					Expect(err).ToNot(HaveOccurred())
 					Expect(subscription).ToNot(BeNil())
 
@@ -1925,11 +1927,11 @@ var _ = Describe("Subscription", func() {
 					[]registry.PackageManifest{packageDepWrong}, []apiextensions.CustomResourceDefinition{crd}, csvsWrong)
 
 				// waiting for catalogsources to be ready
-				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err := fetchCatalogSourceOnStatus(crClient, catsrcMain.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepRight.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), operatorNamespace, catalogSourceRegistryPodSynced)
+				_, err = fetchCatalogSourceOnStatus(crClient, catsrcDepWrong.GetName(), operatorNamespace, catalogSourceRegistryPodSynced())
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -1961,7 +1963,7 @@ var _ = Describe("Subscription", func() {
 					cleanupSubscription = createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subscriptionSpec)
 
 					var err error
-					subscription, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker)
+					subscription, err = fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 					Expect(err).ToNot(HaveOccurred())
 					Expect(subscription).ToNot(BeNil())
 
@@ -2054,7 +2056,7 @@ var _ = Describe("Subscription", func() {
 		defer cleanup()
 
 		// Ensure that the catalog source is resolved before we create a subscription.
-		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crClient, catsrc.GetName(), generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		subscriptionSpec := &operatorsv1alpha1.SubscriptionSpec{
@@ -2071,7 +2073,7 @@ var _ = Describe("Subscription", func() {
 		cleanupSubscription := createSubscriptionForCatalogWithSpec(GinkgoT(), crClient, generatedNamespace.GetName(), subscriptionName, subscriptionSpec)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker)
+		subscription, err := fetchSubscription(crClient, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
@@ -2103,7 +2105,7 @@ var _ = Describe("Subscription", func() {
 		}
 		updateInternalCatalog(GinkgoT(), kubeClient, crClient, catalogSourceName, generatedNamespace.GetName(), []apiextensions.CustomResourceDefinition{crd, crd2}, []operatorsv1alpha1.ClusterServiceVersion{csvNewA, csvA, csvB}, manifests)
 		csvAsub := strings.Join([]string{packageName1, stableChannel, catalogSourceName, generatedNamespace.GetName()}, "-")
-		_, err = fetchSubscription(crClient, generatedNamespace.GetName(), csvAsub, subscriptionStateAtLatestChecker)
+		_, err = fetchSubscription(crClient, generatedNamespace.GetName(), csvAsub, subscriptionStateAtLatestChecker())
 		require.NoError(GinkgoT(), err)
 		// Ensure csvNewA is not installed
 		_, err = crClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(context.Background(), csvNewA.Name, metav1.GetOptions{})
@@ -2173,7 +2175,7 @@ var _ = Describe("Subscription", func() {
 			_, teardown = createInternalCatalogSource(c, ctx.Ctx().OperatorClient(), catSrcName, generatedNamespace.GetName(), packages, nil, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 
 			// Ensure that the catalog source is resolved before we create a subscription.
-			_, err := fetchCatalogSourceOnStatus(crc, catSrcName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, catSrcName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 			require.NoError(GinkgoT(), err)
 
 			cleanup = createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subName, catSrcName, "packageA", "alpha", "", operatorsv1alpha1.ApprovalAutomatic)
@@ -2367,7 +2369,7 @@ var _ = Describe("Subscription", func() {
 		}()
 
 		By("waiting for the CatalogSource to be ready")
-		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
+		catsrc, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		By("generating a Subscription")
@@ -2376,7 +2378,7 @@ var _ = Describe("Subscription", func() {
 		defer cleanUpSubscriptionFn()
 
 		By("waiting for the InstallPlan to get created for the subscription")
-		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
+		sub, err := fetchSubscription(crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 
 		By("waiting for the expected InstallPlan's execution to either fail or succeed")
@@ -2431,7 +2433,7 @@ var _ = Describe("Subscription", func() {
 			createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subName, catalogSourceName, "packageA", stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
 			By("waiting until the subscription has an IP reference")
-			subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasInstallPlanChecker)
+			subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasInstallPlanChecker())
 			Expect(err).Should(BeNil())
 
 			By("waiting for the v0.1.0 CSV to report a succeeded phase")
@@ -2775,7 +2777,7 @@ func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientIn
 		return err
 	}
 
-	fetched, err := fetchCatalogSourceOnStatus(crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceRegistryPodSynced)
+	fetched, err := fetchCatalogSourceOnStatus(crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceRegistryPodSynced())
 	require.NoError(t, err)
 	require.NotNil(t, fetched)
 
@@ -2784,38 +2786,70 @@ func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientIn
 
 type subscriptionStateChecker func(subscription *operatorsv1alpha1.Subscription) bool
 
-func subscriptionStateUpgradeAvailableChecker(subscription *operatorsv1alpha1.Subscription) bool {
-	return subscription.Status.State == operatorsv1alpha1.SubscriptionStateUpgradeAvailable
-}
-
-func subscriptionStateUpgradePendingChecker(subscription *operatorsv1alpha1.Subscription) bool {
-	return subscription.Status.State == operatorsv1alpha1.SubscriptionStateUpgradePending
-}
-
-func subscriptionStateAtLatestChecker(subscription *operatorsv1alpha1.Subscription) bool {
-	return subscription.Status.State == operatorsv1alpha1.SubscriptionStateAtLatest
-}
-
-func subscriptionHasInstallPlanChecker(subscription *operatorsv1alpha1.Subscription) bool {
-	ctx.Ctx().Logf("waiting for %s to have installplan ref", subscription.GetName())
-	return subscription.Status.InstallPlanRef != nil
-}
-
-func subscriptionHasInstallPlanDifferentChecker(currentInstallPlanName string) subscriptionStateChecker {
+func subscriptionStateUpgradeAvailableChecker() func(subscription *operatorsv1alpha1.Subscription) bool {
+	var lastState operatorsv1alpha1.SubscriptionState
+	lastTime := time.Now()
 	return func(subscription *operatorsv1alpha1.Subscription) bool {
-		return subscriptionHasInstallPlanChecker(subscription) && subscription.Status.InstallPlanRef.Name != currentInstallPlanName
+		if subscription.Status.State != lastState {
+			ctx.Ctx().Logf("waiting %s for subscription %s/%s to have state %s: has state %s", time.Since(lastTime), subscription.Namespace, subscription.Name, operatorsv1alpha1.SubscriptionStateUpgradeAvailable, subscription.Status.State)
+			lastState = subscription.Status.State
+			lastTime = time.Now()
+		}
+		return subscription.Status.State == operatorsv1alpha1.SubscriptionStateUpgradeAvailable
 	}
 }
 
-func subscriptionStateNoneChecker(subscription *operatorsv1alpha1.Subscription) bool {
-	return subscription.Status.State == operatorsv1alpha1.SubscriptionStateNone
+func subscriptionStateUpgradePendingChecker() func(subscription *operatorsv1alpha1.Subscription) bool {
+	var lastState operatorsv1alpha1.SubscriptionState
+	lastTime := time.Now()
+	return func(subscription *operatorsv1alpha1.Subscription) bool {
+		if subscription.Status.State != lastState {
+			ctx.Ctx().Logf("waiting %s for subscription %s/%s to have state %s: has state %s", time.Since(lastTime), subscription.Namespace, subscription.Name, operatorsv1alpha1.SubscriptionStateUpgradePending, subscription.Status.State)
+			lastState = subscription.Status.State
+			lastTime = time.Now()
+		}
+		return subscription.Status.State == operatorsv1alpha1.SubscriptionStateUpgradePending
+	}
 }
 
-func subscriptionStateAny(subscription *operatorsv1alpha1.Subscription) bool {
-	return subscriptionStateNoneChecker(subscription) ||
-		subscriptionStateAtLatestChecker(subscription) ||
-		subscriptionStateUpgradePendingChecker(subscription) ||
-		subscriptionStateUpgradeAvailableChecker(subscription)
+func subscriptionStateAtLatestChecker() func(subscription *operatorsv1alpha1.Subscription) bool {
+	var lastState operatorsv1alpha1.SubscriptionState
+	lastTime := time.Now()
+	return func(subscription *operatorsv1alpha1.Subscription) bool {
+		if subscription.Status.State != lastState {
+			ctx.Ctx().Logf("waiting %s for subscription %s/%s to have state %s: has state %s", time.Since(lastTime), subscription.Namespace, subscription.Name, operatorsv1alpha1.SubscriptionStateAtLatest, subscription.Status.State)
+			lastState = subscription.Status.State
+			lastTime = time.Now()
+		}
+		return subscription.Status.State == operatorsv1alpha1.SubscriptionStateAtLatest
+	}
+}
+
+func subscriptionHasInstallPlanChecker() func(subscription *operatorsv1alpha1.Subscription) bool {
+	var lastState operatorsv1alpha1.SubscriptionState
+	lastTime := time.Now()
+	return func(subscription *operatorsv1alpha1.Subscription) bool {
+		if subscription.Status.State != lastState {
+			ctx.Ctx().Logf("waiting %s for subscription %s/%s to have installplan ref: has ref %#v", time.Since(lastTime), subscription.Namespace, subscription.Name, subscription.Status.InstallPlanRef)
+			lastState = subscription.Status.State
+			lastTime = time.Now()
+		}
+		return subscription.Status.InstallPlanRef != nil
+	}
+}
+
+func subscriptionHasInstallPlanDifferentChecker(currentInstallPlanName string) subscriptionStateChecker {
+	checker := subscriptionHasInstallPlanChecker()
+	var lastState operatorsv1alpha1.SubscriptionState
+	lastTime := time.Now()
+	return func(subscription *operatorsv1alpha1.Subscription) bool {
+		if subscription.Status.State != lastState {
+			ctx.Ctx().Logf("waiting %s for subscription %s/%s to have installplan different from %s: has ref %#v", time.Since(lastTime), subscription.Namespace, subscription.Name, currentInstallPlanName, subscription.Status.InstallPlanRef)
+			lastState = subscription.Status.State
+			lastTime = time.Now()
+		}
+		return checker(subscription) && subscription.Status.InstallPlanRef.Name != currentInstallPlanName
+	}
 }
 
 func subscriptionHasCurrentCSV(currentCSV string) subscriptionStateChecker {
@@ -2845,12 +2879,20 @@ func fetchSubscription(crc versioned.Interface, namespace, name string, checker 
 		ctx.Ctx().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 	}
 
+	var lastState operatorsv1alpha1.SubscriptionState
+	var lastCSV string
+	var lastInstallPlanRef *corev1.ObjectReference
+
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(context.Background(), name, metav1.GetOptions{})
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
-		log(fmt.Sprintf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.InstallPlanRef))
+		thisState, thisCSV, thisInstallPlanRef := fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.InstallPlanRef
+		if thisState != lastState || thisCSV != lastCSV || equality.Semantic.DeepEqual(thisInstallPlanRef, lastInstallPlanRef) {
+			lastState, lastCSV, lastInstallPlanRef = thisState, thisCSV, thisInstallPlanRef
+			log(fmt.Sprintf("%s (%s): %s", thisState, thisCSV, thisInstallPlanRef))
+		}
 		return checker(fetchedSubscription), nil
 	})
 	if err != nil {
@@ -3093,7 +3135,7 @@ func checkDeploymentWithPodConfiguration(client operatorclient.ClientInterface, 
 }
 
 func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, catalogSourceName, namespace string, crds []apiextensions.CustomResourceDefinition, csvs []operatorsv1alpha1.ClusterServiceVersion, packages []registry.PackageManifest) {
-	fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, namespace, catalogSourceRegistryPodSynced)
+	fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, namespace, catalogSourceRegistryPodSynced())
 	require.NoError(t, err)
 
 	// Get initial configmap

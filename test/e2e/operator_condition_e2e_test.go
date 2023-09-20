@@ -72,7 +72,7 @@ var _ = Describe("Operator Condition", func() {
 		catalog := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 		defer cleanupCatalogSource()
-		_, err := fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		subName := genName("sub-")
 		cleanupSub := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subName, catalog, pkgA, stableChannel, pkgAStable, operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanupSub()
@@ -117,7 +117,7 @@ var _ = Describe("Operator Condition", func() {
 		updateInternalCatalog(GinkgoT(), c, crc, catalog, generatedNamespace.GetName(), []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, manifests)
 
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// csvB will be in Pending phase due to csvA reports Upgradeable=False condition
@@ -176,7 +176,7 @@ var _ = Describe("Operator Condition", func() {
 
 		updateInternalCatalog(GinkgoT(), c, crc, catalog, generatedNamespace.GetName(), []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvD}, manifests)
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced)
+		_, err = fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
 		// CSVD will be in Pending status due to overrides in csvB's condition

@@ -111,7 +111,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catsrcName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv, csvAlpha})
 
 			// Verify catalog source was created
-			_, err := fetchCatalogSourceOnStatus(crc, catsrcName, testNamespace, catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(crc, catsrcName, testNamespace, catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -238,7 +238,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			Expect(err).NotTo(HaveOccurred())
 
 			// Wait for the CatalogSource to be ready
-			_, err = fetchCatalogSourceOnStatus(crc, catalogSource.GetName(), catalogSource.GetNamespace(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(crc, catalogSource.GetName(), catalogSource.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 		})
 

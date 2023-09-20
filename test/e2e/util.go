@@ -337,19 +337,27 @@ func registryPodHealthy(address string) bool {
 	return true
 }
 
-func catalogSourceRegistryPodSynced(catalog *operatorsv1alpha1.CatalogSource) bool {
-	registry := catalog.Status.RegistryServiceStatus
-	connState := catalog.Status.GRPCConnectionState
-	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
-		fmt.Printf("probing catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
-		return registryPodHealthy(registry.Address())
+func catalogSourceRegistryPodSynced() func(catalog *operatorsv1alpha1.CatalogSource) bool {
+	var lastState string
+	lastTime := time.Now()
+	return func(catalog *operatorsv1alpha1.CatalogSource) bool {
+		registry := catalog.Status.RegistryServiceStatus
+		connState := catalog.Status.GRPCConnectionState
+		state := "NO_CONNECTION"
+		if connState != nil {
+			state = connState.LastObservedState
+		}
+		if state != lastState {
+			fmt.Printf("waiting %s for catalog pod %s/%s to be available (for sync) - %s\n", time.Since(lastTime), catalog.GetNamespace(), catalog.GetName(), state)
+			lastState = state
+			lastTime = time.Now()
+		}
+		if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
+			fmt.Printf("probing catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
+			return registryPodHealthy(registry.Address())
+		}
+		return false
 	}
-	state := "NO_CONNECTION"
-	if connState != nil {
-		state = connState.LastObservedState
-	}
-	fmt.Printf("waiting for catalog pod %s/%s to be available (for sync) - %s\n", catalog.GetNamespace(), catalog.GetName(), state)
-	return false
 }
 
 func catalogSourceInvalidSpec(catalog *operatorsv1alpha1.CatalogSource) bool {
@@ -363,7 +371,7 @@ func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string,
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetched, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Get(context.Background(), name, metav1.GetOptions{})
 		if err != nil || fetched == nil {
-			fmt.Println(err)
+			fmt.Printf("failed to fetch catalogSource %s/%s: %v\n", namespace, name, err)
 			return false, err
 		}
 		return check(fetched), nil

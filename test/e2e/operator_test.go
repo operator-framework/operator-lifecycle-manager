@@ -279,7 +279,7 @@ var _ = Describe("Operator API", func() {
 			}).Should(Succeed())
 
 			// Wait for the CatalogSource to be ready
-			_, err := fetchCatalogSourceOnStatus(newCRClient(), cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(newCRClient(), cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred())
 
 			sub = &operatorsv1alpha1.Subscription{

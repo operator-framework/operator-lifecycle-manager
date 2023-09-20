@@ -114,14 +114,14 @@ var _ = Describe("Installing bundles with new object types", func() {
 			}).Should(Succeed())
 
 			// Wait for the CatalogSource to be ready
-			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
 			// Create a Subscription for package
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker)
+			sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker())
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 			installPlanRef := sub.Status.InstallPlanRef

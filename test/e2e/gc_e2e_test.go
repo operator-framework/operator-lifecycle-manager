@@ -367,14 +367,14 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			}).Should(Succeed(), "could not create catalog source")
 
 			// Wait for the CatalogSource to be ready
-			_, err := fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
 			// Create a Subscription for package
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker)
+			sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker())
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 			installPlanRef = sub.Status.InstallPlanRef.Name
@@ -486,14 +486,14 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			}).Should(Succeed(), "could not create catalog source")
 
 			// Wait for the CatalogSource to be ready
-			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
 			// Create a Subscription for package
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker)
+			sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker())
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 			installPlanRef = sub.Status.InstallPlanRef.Name
@@ -530,7 +530,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				}).Should(Succeed(), "could not update subscription")
 
 				// Wait for the Subscription to succeed
-				sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker)
+				sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker())
 				Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 				installPlanRef = sub.Status.InstallPlanRef.Name
@@ -604,14 +604,14 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			}).Should(Succeed())
 
 			// Wait for the CatalogSource to be ready
-			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced)
+			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
 			// Create a Subscription for package
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
 			// Wait for the Subscription to succeed
-			sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker)
+			sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker())
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 			installPlanRef = sub.Status.InstallPlanRef.Name
@@ -649,7 +649,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				}).Should(Succeed(), "could not update subscription")
 
 				// Wait for the Subscription to succeed
-				sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker)
+				sub, err := fetchSubscription(operatorClient, ns.GetName(), subName, subscriptionStateAtLatestChecker())
 				Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 				installPlanRef = sub.Status.InstallPlanRef.Name
