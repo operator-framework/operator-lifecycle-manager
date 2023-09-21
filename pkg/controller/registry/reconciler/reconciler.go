@@ -66,6 +66,7 @@ type registryReconcilerFactory struct {
 	SSAClient            *controllerclient.ServerSideApplier
 	createPodAsUser      int64
 	opmImage             string
+	utilImage            string
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -89,6 +90,7 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 				SSAClient:       r.SSAClient,
 				createPodAsUser: r.createPodAsUser,
 				opmImage:        r.opmImage,
+				utilImage:       r.utilImage,
 			}
 		} else if source.Spec.Address != "" {
 			return &GrpcAddressRegistryReconciler{
@@ -100,7 +102,7 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *operatorsv1alpha
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier, createPodAsUser int64, opmImage string) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, ssaClient *controllerclient.ServerSideApplier, createPodAsUser int64, opmImage, utilImage string) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		now:                  now,
 		Lister:               lister,
@@ -109,10 +111,11 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 		SSAClient:            ssaClient,
 		createPodAsUser:      createPodAsUser,
 		opmImage:             opmImage,
+		utilImage:            utilImage,
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, img, saName string, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) *corev1.Pod {
+func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img, saName string, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) *corev1.Pod {
 	// make a copy of the labels and annotations to avoid mutating the input parameters
 	podLabels := make(map[string]string)
 	podAnnotations := make(map[string]string)
@@ -265,21 +268,21 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, img, saName stri
 				MountPath: catalogPath,
 			}
 			pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
-				Name:    "extract-utilities",
-				Image:   opmImg,
-				Command: []string{"sh", "-c"},
-				Args: []string{fmt.Sprintf("cp $( command -v sh ) %s/sh && cp $( command -v cp ) %s/cp",
-					utilitiesPath, utilitiesPath,
-				)},
+				Name:         "extract-utilities",
+				Image:        utilImage,
+				Command:      []string{"cp"},
+				Args:         []string{"/bin/copy-content", fmt.Sprintf("%s/copy-content", utilitiesPath)},
 				VolumeMounts: []corev1.VolumeMount{utilitiesVolumeMount},
 			}, corev1.Container{
 				Name:    "extract-content",
 				Image:   img,
-				Command: []string{utilitiesPath + "/sh", "-c"},
-				Args: []string{fmt.Sprintf("%s/cp -r %s %s/catalog && %s/cp -r %s %s/cache",
-					utilitiesPath, grpcPodConfig.ExtractContent.CatalogDir, catalogPath,
-					utilitiesPath, grpcPodConfig.ExtractContent.CacheDir, catalogPath,
-				)},
+				Command: []string{utilitiesPath + "/copy-content"},
+				Args: []string{
+					"--catalog.from=" + grpcPodConfig.ExtractContent.CatalogDir,
+					"--catalog.to=" + fmt.Sprintf("%s/catalog", catalogPath),
+					"--cache.from=" + grpcPodConfig.ExtractContent.CacheDir,
+					"--cache.to=" + fmt.Sprintf("%s/cache", catalogPath),
+				},
 				VolumeMounts: []corev1.VolumeMount{utilitiesVolumeMount, contentVolumeMount},
 			})
 
