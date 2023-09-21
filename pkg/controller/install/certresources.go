@@ -456,7 +456,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			Name:     "system:auth-delegator",
 		},
 	}
-	authDelegatorClusterRoleBinding.SetName(service.GetName() + "-system:auth-delegator")
+	authDelegatorClusterRoleBinding.SetName(AuthDelegatorClusterRoleBindingName(service.GetName()))
 	authDelegatorClusterRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
 	existingAuthDelegatorClusterRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
@@ -504,7 +504,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			Name:     "extension-apiserver-authentication-reader",
 		},
 	}
-	authReaderRoleBinding.SetName(service.GetName() + "-auth-reader")
+	authReaderRoleBinding.SetName(AuthReaderRolebindingName(service.GetName()))
 	authReaderRoleBinding.SetNamespace(KubeSystem)
 	authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
@@ -541,6 +541,14 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	// is used by the apiserver if not hot reloading.
 	SetCAAnnotation(&depSpec, caHash)
 	return &depSpec, caPEM, nil
+}
+
+func AuthDelegatorClusterRoleBindingName(serviceName string) string {
+	return serviceName + "-system:auth-delegator"
+}
+
+func AuthReaderRolebindingName(serviceName string) string {
+	return serviceName + "-auth-reader"
 }
 
 func SetCAAnnotation(depSpec *appsv1.DeploymentSpec, caHash string) {

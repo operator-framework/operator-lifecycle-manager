@@ -6,7 +6,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -47,7 +46,6 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 	})
 
 	errs := []error{}
-	ruleChecker := install.NewCSVRuleChecker(a.lister.RbacV1().RoleLister(), a.lister.RbacV1().RoleBindingLister(), a.lister.RbacV1().ClusterRoleLister(), a.lister.RbacV1().ClusterRoleBindingLister(), csv)
 	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
 		apiServiceName := desc.GetName()
 		logger := logger.WithFields(log.Fields{
@@ -164,60 +162,27 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		if serviceAccountName == "" {
 			serviceAccountName = "default"
 		}
-		serviceAccount, err := a.lister.CoreV1().ServiceAccountLister().ServiceAccounts(deployment.GetNamespace()).Get(serviceAccountName)
+		_, err = a.opClient.KubernetesInterface().CoreV1().ServiceAccounts(deployment.GetNamespace()).Get(context.TODO(), serviceAccountName, metav1.GetOptions{})
 		if err != nil {
-			logger.WithField("serviceaccount", serviceAccountName).Warnf("could not retrieve ServiceAccount")
+			logger.WithError(err).WithField("serviceaccount", serviceAccountName).Warnf("could not retrieve ServiceAccount")
 			errs = append(errs, err)
-			continue
 		}
 
-		// Ensure RBAC permissions for the APIService are correct
-		rulesMap := map[string][]rbacv1.PolicyRule{
-			// Serving cert Secret Rule
-			csv.GetNamespace(): {
-				{
-					Verbs:         []string{"get"},
-					APIGroups:     []string{""},
-					Resources:     []string{"secrets"},
-					ResourceNames: []string{secret.GetName()},
-				},
-			},
-			install.KubeSystem:  {},
-			metav1.NamespaceAll: {},
-		}
-
-		// extension-apiserver-authentication-reader
-		authReaderRole, err := a.lister.RbacV1().RoleLister().Roles(install.KubeSystem).Get("extension-apiserver-authentication-reader")
-		if err != nil {
-			logger.Warnf("could not retrieve Role extension-apiserver-authentication-reader")
+		if _, err := a.lister.RbacV1().RoleLister().Roles(secret.GetNamespace()).Get(secret.GetName()); err != nil {
+			logger.WithError(err).Warnf("could not retrieve role %s/%s", secret.GetNamespace(), secret.GetName())
 			errs = append(errs, err)
-			continue
 		}
-		rulesMap[install.KubeSystem] = append(rulesMap[install.KubeSystem], authReaderRole.Rules...)
-
-		// system:auth-delegator
-		authDelegatorClusterRole, err := a.lister.RbacV1().ClusterRoleLister().Get("system:auth-delegator")
-		if err != nil {
-			logger.Warnf("could not retrieve ClusterRole system:auth-delegator")
+		if _, err := a.lister.RbacV1().RoleBindingLister().RoleBindings(secret.GetNamespace()).Get(secret.GetName()); err != nil {
+			logger.WithError(err).Warnf("could not retrieve role binding %s/%s", secret.GetNamespace(), secret.GetName())
 			errs = append(errs, err)
-			continue
 		}
-		rulesMap[metav1.NamespaceAll] = append(rulesMap[metav1.NamespaceAll], authDelegatorClusterRole.Rules...)
-
-		for namespace, rules := range rulesMap {
-			for _, rule := range rules {
-				satisfied, err := ruleChecker.RuleSatisfied(serviceAccount, namespace, rule)
-				if err != nil {
-					logger.WithField("rule", fmt.Sprintf("%+v", rule)).Warnf("error checking Rule")
-					errs = append(errs, err)
-					continue
-				}
-				if !satisfied {
-					logger.WithField("rule", fmt.Sprintf("%+v", rule)).Warnf("Rule not satisfied")
-					errs = append(errs, fmt.Errorf("rule %+v not satisfied", rule))
-					continue
-				}
-			}
+		if _, err := a.lister.RbacV1().ClusterRoleBindingLister().Get(install.AuthDelegatorClusterRoleBindingName(service.GetName())); err != nil {
+			logger.WithError(err).Warnf("could not retrieve auth delegator cluster role binding %s", install.AuthDelegatorClusterRoleBindingName(service.GetName()))
+			errs = append(errs, err)
+		}
+		if _, err := a.lister.RbacV1().RoleBindingLister().RoleBindings(install.KubeSystem).Get(install.AuthReaderRolebindingName(service.GetName())); err != nil {
+			logger.WithError(err).Warnf("could not retrieve role binding %s/%s", install.KubeSystem, install.AuthReaderRolebindingName(service.GetName()))
+			errs = append(errs, err)
 		}
 	}
 
