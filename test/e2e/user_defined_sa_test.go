@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo/v2"
@@ -242,6 +243,10 @@ func newServiceAccount(client operatorclient.ClientInterface, namespace, name st
 	Expect(sa).ToNot(BeNil())
 
 	cleanup = func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of service account %s/%s...\n", sa.GetNamespace(), sa.GetName())
+			return
+		}
 		err := client.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Delete(context.TODO(), sa.GetName(), metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}
@@ -268,6 +273,10 @@ func newOperatorGroupWithServiceAccount(client versioned.Interface, namespace, n
 	Expect(og).ToNot(BeNil())
 
 	cleanup = func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of operator group %s/%s...\n", og.GetNamespace(), og.GetName())
+			return
+		}
 		err := client.OperatorsV1().OperatorGroups(og.GetNamespace()).Delete(context.TODO(), og.GetName(), metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}
@@ -538,6 +547,14 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 	require.NoError(t, err)
 
 	cleanup = func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of role %s/%s...\n", role.GetNamespace(), role.GetName())
+			fmt.Printf("Skipping cleanup of role binding %s/%s...\n", binding.GetNamespace(), binding.GetName())
+			fmt.Printf("Skipping cleanup of cluster role %s...\n", clusterrole.GetName())
+			fmt.Printf("Skipping cleanup of cluster role binding %s...\n", clusterbinding.GetName())
+			return
+		}
+
 		err := client.KubernetesInterface().RbacV1().Roles(role.GetNamespace()).Delete(context.TODO(), role.GetName(), metav1.DeleteOptions{})
 		require.NoError(t, err)
 
