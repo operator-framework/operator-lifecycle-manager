@@ -83,7 +83,7 @@ var _ = Describe("User defined service account", func() {
 
 		By("We expect the InstallPlan to be in status: Failed.")
 		ipName := subscription.Status.Install.Name
-		ipPhaseCheckerFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed)
+		ipPhaseCheckerFunc := buildInstallPlanMessageCheckFunc(`cannot create resource`)
 		ipGot, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ipName, generatedNamespace.GetName(), ipPhaseCheckerFunc)
 		require.NoError(GinkgoT(), err)
 
@@ -186,12 +186,11 @@ var _ = Describe("User defined service account", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		By("We expect the InstallPlan to be in status: Failed.")
+		By("We expect the InstallPlan to expose the permissions error.")
 		ipNameOld := subscription.Status.InstallPlanRef.Name
-		ipPhaseCheckerFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed)
-		ipGotOld, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ipNameOld, generatedNamespace.GetName(), ipPhaseCheckerFunc)
+		ipPhaseCheckerFunc := buildInstallPlanMessageCheckFunc(`cannot create resource "clusterserviceversions" in API group "operators.coreos.com" in the namespace`)
+		_, err = fetchInstallPlanWithNamespace(GinkgoT(), crc, ipNameOld, generatedNamespace.GetName(), ipPhaseCheckerFunc)
 		require.NoError(GinkgoT(), err)
-		require.Equal(GinkgoT(), v1alpha1.InstallPlanPhaseFailed, ipGotOld.Status.Phase)
 
 		By("Grant permission now and this should trigger an retry of InstallPlan.")
 		cleanupPerm := grantPermission(GinkgoT(), c, generatedNamespace.GetName(), saName)
