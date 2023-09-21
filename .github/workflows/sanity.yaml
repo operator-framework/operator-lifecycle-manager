@@ -5,6 +5,7 @@ on:
       - '**'
   pull_request:
   workflow_dispatch:
+  merge_group:
 jobs:
   vendor:
     runs-on: ubuntu-latest
