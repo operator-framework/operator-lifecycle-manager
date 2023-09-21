@@ -13,6 +13,7 @@ func main() {
 	catalogDestination := flag.String("catalog.to", "", "Path to where catalog contents should be copied.")
 	cacheSource := flag.String("cache.from", "", "Path to cache contents to copy.")
 	cacheDestination := flag.String("cache.to", "", "Path to where cache contents should be copied.")
+	flag.Parse()
 
 	for flagName, value := range map[string]*string{
 		"catalog.from": catalogSource,

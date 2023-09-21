@@ -1773,7 +1773,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 		}
 		applier := controllerclient.NewFakeApplier(s, "testowner")
 
-		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, 1001, "")
+		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, 1001, "", "")
 	}
 
 	op.RunInformers(ctx)
@@ -1929,7 +1929,7 @@ func toManifest(t *testing.T, obj runtime.Object) string {
 }
 
 func pod(s v1alpha1.CatalogSource) *corev1.Pod {
-	pod := reconciler.Pod(&s, "registry-server", "central-opm", s.Spec.Image, s.GetName(), s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
+	pod := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, s.GetName(), s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
 	ownerutil.AddOwner(pod, &s, false, true)
 	return pod
 }
