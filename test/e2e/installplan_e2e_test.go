@@ -3638,11 +3638,9 @@ var _ = Describe("Install Plan", func() {
 		}
 		Expect(ctx.Ctx().Client().Status().Update(context.Background(), newPlan)).To(Succeed())
 
-		newKey := client.ObjectKeyFromObject(newPlan)
-
-		Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
-			return newPlan, ctx.Ctx().Client().Get(context.Background(), newKey, newPlan)
-		}).Should(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed))
+		ipPhaseCheckerFunc := buildInstallPlanMessageCheckFunc(`cannot create resource "services" in API group`)
+		_, err = fetchInstallPlanWithNamespace(GinkgoT(), crc, newPlan.Name, newPlan.Namespace, ipPhaseCheckerFunc)
+		require.NoError(GinkgoT(), err)
 
 		Expect(client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &crd))).To(Succeed())
 		Eventually(func() error {
@@ -3926,6 +3924,19 @@ func validateCRDVersions(t GinkgoTInterface, c operatorclient.ClientInterface, n
 
 	// Should have removed every matching version
 	require.Equal(t, 0, len(expectedVersions), "Actual CRD versions do not match expected")
+}
+
+func buildInstallPlanMessageCheckFunc(substring string) checkInstallPlanFunc {
+	var lastMessage string
+	lastTime := time.Now()
+	return func(fip *operatorsv1alpha1.InstallPlan) bool {
+		if fip.Status.Message != lastMessage {
+			ctx.Ctx().Logf("waiting %s for installplan %s/%s to have message substring %s, have message %s", time.Since(lastTime), fip.Namespace, fip.Name, substring, fip.Status.Phase)
+			lastMessage = fip.Status.Message
+			lastTime = time.Now()
+		}
+		return strings.Contains(fip.Status.Message, substring)
+	}
 }
 
 func buildInstallPlanPhaseCheckFunc(phases ...operatorsv1alpha1.InstallPlanPhase) checkInstallPlanFunc {
