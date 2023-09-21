@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -3100,6 +3101,11 @@ func fetchSubscription(crc versioned.Interface, namespace, name string, checker 
 
 func buildSubscriptionCleanupFunc(crc versioned.Interface, subscription *operatorsv1alpha1.Subscription) cleanupFunc {
 	return func() {
+		if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+			fmt.Printf("Skipping cleanup of install plan for subscription %s/%s...\n", subscription.GetNamespace(), subscription.GetName())
+			return
+		}
+
 		if installPlanRef := subscription.Status.InstallPlanRef; installPlanRef != nil {
 			installPlan, err := crc.OperatorsV1alpha1().InstallPlans(subscription.GetNamespace()).Get(context.Background(), installPlanRef.Name, metav1.GetOptions{})
 			if err == nil {
