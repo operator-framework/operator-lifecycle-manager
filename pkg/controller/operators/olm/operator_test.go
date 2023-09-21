@@ -4587,6 +4587,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4597,6 +4598,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4607,6 +4609,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4648,6 +4651,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "operator-group-1-admin",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4658,6 +4662,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "operator-group-1-view",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4668,6 +4673,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "operator-group-1-edit",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4686,6 +4692,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4696,6 +4703,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4706,6 +4714,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4716,6 +4725,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "operator-group-1-admin",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4726,6 +4736,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "operator-group-1-view",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4736,6 +4747,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "operator-group-1-edit",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4777,6 +4789,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns-bob",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4788,6 +4801,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-5",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4800,6 +4814,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroupKind",
@@ -4818,6 +4833,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4829,6 +4845,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4839,6 +4856,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4882,6 +4900,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4892,6 +4911,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4902,6 +4922,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4919,6 +4940,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.admin-8rdAjL0E35JMMAkOqYmoorzjpIIihfnj3DcgDU",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4929,6 +4951,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.edit-9lBEUxqAYE7CX7wZfFEPYutTfQTo43WarB08od",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",
@@ -4939,6 +4962,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "olm.og.operator-group-1.view-1l6ymczPK5SceF4d0DCtAnWZuvmKn6s8oBUxHr",
 							Labels: map[string]string{
+								"olm.managed":         "true",
 								"olm.owner":           "operator-group-1",
 								"olm.owner.namespace": "operator-ns",
 								"olm.owner.kind":      "OperatorGroup",

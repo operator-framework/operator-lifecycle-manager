@@ -1052,6 +1052,7 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 	if err := ownerutil.AddOwnerLabels(clusterRole, op); err != nil {
 		return err
 	}
+	clusterRole.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 	a.logger.Infof("creating cluster role: %s owned by operator group: %s/%s", clusterRole.GetName(), op.GetNamespace(), op.GetName())
 	_, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
