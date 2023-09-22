@@ -49,7 +49,7 @@ const (
 
 var _ = Describe("Starting CatalogSource e2e tests", func() {
 	var (
-		ns                  corev1.Namespace
+		generatedNamespace  corev1.Namespace
 		c                   operatorclient.ClientInterface
 		crc                 versioned.Interface
 		packageserverClient *packageserverclientset.Clientset
@@ -67,14 +67,14 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				Namespace: namespaceName,
 			},
 		}
-		ns = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
+		generatedNamespace = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
 		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
 		packageserverClient = packageserverclientset.NewForConfigOrDie(ctx.Ctx().RESTConfig())
 	})
 
 	AfterEach(func() {
-		TeardownNamespace(ns.GetName())
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	It("loading between restarts", func() {
@@ -93,7 +93,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}
 
 		crd := newCRD(genName("ins-"))
-		csv := newCSV(packageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csv := newCSV(packageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 
 		defer func() {
 			Eventually(func() error {
@@ -105,11 +105,11 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}()
 
 		catalogSourceName := genName("mock-ocs-")
-		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		_, cleanupSource := createInternalCatalogSource(c, crc, catalogSourceName, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
 
 		// ensure the mock catalog exists and has been synced by the catalog operator
-		catalogSource, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
+		catalogSource, err := fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// get catalog operator deployment
@@ -125,7 +125,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		// check for last synced update to catalogsource
 		By("Checking for catalogsource lastSync updates")
-		_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, ns.GetName(), func(cs *v1alpha1.CatalogSource) bool {
+		_, err = fetchCatalogSourceOnStatus(crc, catalogSourceName, generatedNamespace.GetName(), func(cs *v1alpha1.CatalogSource) bool {
 			before := catalogSource.Status.GRPCConnectionState
 			after := cs.Status.GRPCConnectionState
 			if after != nil && after.LastConnectTime.After(before.LastConnectTime.Time) {
@@ -147,8 +147,8 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		stableChannel := "stable"
 
 		mainCRD := newCRD(genName("ins-"))
-		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
-		replacementCSV := newCSV(mainPackageReplacement, ns.GetName(), mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+		replacementCSV := newCSV(mainPackageReplacement, generatedNamespace.GetName(), mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
 
 		defer func() {
 			Eventually(func() error {
@@ -194,9 +194,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		createSubscriptionForCatalogWithSpec(GinkgoT(), crc, ns.GetName(), subscriptionName, subscriptionSpec)
+		createSubscriptionForCatalogWithSpec(GinkgoT(), crc, generatedNamespace.GetName(), subscriptionName, subscriptionSpec)
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
 
@@ -204,17 +204,17 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval)
 
 		Eventually(func() error {
-			fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), requiresApprovalChecker)
+			fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, generatedNamespace.GetName(), requiresApprovalChecker)
 			if err != nil {
 				return err
 			}
 
 			fetchedInstallPlan.Spec.Approved = true
-			_, err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
+			_, err = crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Update(context.Background(), fetchedInstallPlan, metav1.UpdateOptions{})
 			return err
 		}).Should(Succeed())
 
-		_, err = awaitCSV(crc, ns.GetName(), mainCSV.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update manifest
@@ -235,7 +235,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced())
 		Expect(err).ShouldNot(HaveOccurred())
 
-		subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionStateUpgradePendingChecker())
+		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateUpgradePendingChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -256,8 +256,8 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		stableChannel := "stable"
 
 		dependentCRD := newCRD(genName("ins-"))
-		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		defer func() {
 			Eventually(func() error {
@@ -295,25 +295,25 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}
 
 		// Create the initial catalogsource
-		createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+		createInternalCatalogSource(c, crc, mainCatalogName, generatedNamespace.GetName(), mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 
 		// Attempt to get the catalog source before creating install plan
-		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
+		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Get initial configmap
-		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(ns.GetName()).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Check pod created
-		initialPods, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+		initialPods, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(initialPods.Items).To(HaveLen(1))
 
 		// Update catalog configmap
-		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, ns.GetName(), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
+		updateInternalCatalog(GinkgoT(), c, crc, mainCatalogName, generatedNamespace.GetName(), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
 
-		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), func(catalog *v1alpha1.CatalogSource) bool {
+		fetchedUpdatedCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace.GetName(), func(catalog *v1alpha1.CatalogSource) bool {
 			before := fetchedInitialCatalog.Status.ConfigMapResource
 			after := catalog.Status.ConfigMapResource
 			if after != nil && before.LastUpdateTime.Before(&after.LastUpdateTime) &&
@@ -330,7 +330,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Eventually(func() (types.UID, error) {
 			var err error
 			// Get updated configmap
-			updatedConfigMap, err = c.KubernetesInterface().CoreV1().ConfigMaps(ns.GetName()).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+			updatedConfigMap, err = c.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 			if err != nil {
 				return "", err
 			}
@@ -347,27 +347,27 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		// Await 1 CatalogSource registry pod matching the updated labels
 		singlePod := podCount(1)
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName, "olm.configMapResourceVersion": updatedConfigMap.GetResourceVersion()})
-		podList, err := awaitPods(GinkgoT(), c, ns.GetName(), selector.String(), singlePod)
+		podList, err := awaitPods(GinkgoT(), c, generatedNamespace.GetName(), selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(podList.Items).To(HaveLen(1), "expected pod list not of length 1")
 
 		// Await 1 CatalogSource registry pod matching the updated labels
 		selector = labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName})
-		podList, err = awaitPods(GinkgoT(), c, ns.GetName(), selector.String(), singlePod)
+		podList, err = awaitPods(GinkgoT(), c, generatedNamespace.GetName(), selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(podList.Items).To(HaveLen(1), "expected pod list not of length 1")
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, fetchedUpdatedCatalog.GetName(), mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, fetchedUpdatedCatalog.GetName(), mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, ns.GetName(), buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		Expect(err).ShouldNot(HaveOccurred())
 
-		ipList, err := crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).List(context.Background(), metav1.ListOptions{})
+		ipList, err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).List(context.Background(), metav1.ListOptions{})
 		ipCount := 0
 		for _, ip := range ipList.Items {
 			if ownerutil.IsOwnedBy(&ip, subscription) {
@@ -389,8 +389,8 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		stableChannel := "stable"
 
 		dependentCRD := newCRD(genName("ins-"))
-		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		defer func() {
 			Eventually(func() error {
@@ -428,17 +428,17 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}
 
 		// Create the initial catalogsource
-		_, cleanupSource := createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+		_, cleanupSource := createInternalCatalogSource(c, crc, mainCatalogName, generatedNamespace.GetName(), mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 
 		// Attempt to get the catalog source before creating install plan
-		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, ns.GetName(), catalogSourceRegistryPodSynced())
+		fetchedInitialCatalog, err := fetchCatalogSourceOnStatus(crc, mainCatalogName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ShouldNot(HaveOccurred())
 		// Get initial configmap
-		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(ns.GetName()).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+		configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Get(context.Background(), fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Check pod created
-		initialPods, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+		initialPods, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(context.Background(), metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(initialPods.Items).To(HaveLen(1))
 
@@ -446,16 +446,16 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		cleanupSource()
 
 		// create a catalog with the same name
-		createInternalCatalogSource(c, crc, mainCatalogName, ns.GetName(), append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, mainCatalogName, generatedNamespace.GetName(), append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, ns.GetName(), buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -482,9 +482,9 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		stableChannel := "stable"
 
 		dependentCRD := newCRD(genName("ins-"))
-		mainCSV := newCSV(mainPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-		replacementCSV := newCSV(mainPackageReplacement, ns.GetName(), mainPackageStable, semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
-		dependentCSV := newCSV(dependentPackageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
+		mainCSV := newCSV(mainPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		replacementCSV := newCSV(mainPackageReplacement, generatedNamespace.GetName(), mainPackageStable, semver.MustParse("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, nil)
+		dependentCSV := newCSV(dependentPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, nil)
 
 		defer func() {
 			Eventually(func() error {
@@ -536,13 +536,13 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}
 
 		// Create ConfigMap CatalogSources
-		createInternalCatalogSource(c, crc, mainSourceName, ns.GetName(), append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
-		createInternalCatalogSource(c, crc, replacementSourceName, ns.GetName(), append(replacementManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{replacementCSV, mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, mainSourceName, generatedNamespace.GetName(), append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+		createInternalCatalogSource(c, crc, replacementSourceName, generatedNamespace.GetName(), append(replacementManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{replacementCSV, mainCSV, dependentCSV})
 
 		// Wait for ConfigMap CatalogSources to be ready
-		mainSource, err := fetchCatalogSourceOnStatus(crc, mainSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
+		mainSource, err := fetchCatalogSourceOnStatus(crc, mainSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ShouldNot(HaveOccurred())
-		replacementSource, err := fetchCatalogSourceOnStatus(crc, replacementSourceName, ns.GetName(), catalogSourceRegistryPodSynced())
+		replacementSource, err := fetchCatalogSourceOnStatus(crc, replacementSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Replicate catalog pods with no OwnerReferences
@@ -561,7 +561,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      addressSourceName,
-				Namespace: ns.GetName(),
+				Namespace: generatedNamespace.GetName(),
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
@@ -572,10 +572,10 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 		}
 
-		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Create(context.Background(), addressSource, metav1.CreateOptions{})
+		addressSource, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Create(context.Background(), addressSource, metav1.CreateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 		defer func() {
-			err := crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Delete(context.Background(), addressSourceName, metav1.DeleteOptions{})
+			err := crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Delete(context.Background(), addressSourceName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
@@ -584,36 +584,36 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
 		// Delete CatalogSources
-		err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Delete(context.Background(), mainSourceName, metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Delete(context.Background(), mainSourceName, metav1.DeleteOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
-		err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Delete(context.Background(), replacementSourceName, metav1.DeleteOptions{})
+		err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Delete(context.Background(), replacementSourceName, metav1.DeleteOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Create Subscription
 		subscriptionName := genName("sub-")
-		cleanupSubscription := createSubscriptionForCatalog(crc, ns.GetName(), subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		cleanupSubscription := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 		defer cleanupSubscription()
 
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, ns.GetName(), csvSucceededChecker)
+		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update the catalog's address to point at the other registry pod's cluster ip
 		Eventually(func() error {
-			addressSource, err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Get(context.Background(), addressSourceName, metav1.GetOptions{})
+			addressSource, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Get(context.Background(), addressSourceName, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 
 			addressSource.Spec.Address = net.JoinHostPort(replacementCopy.Status.PodIP, "50051")
-			_, err = crc.OperatorsV1alpha1().CatalogSources(ns.GetName()).Update(context.Background(), addressSource, metav1.UpdateOptions{})
+			_, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Update(context.Background(), addressSource, metav1.UpdateOptions{})
 			return err
 		}).Should(Succeed())
 
 		// Wait for the replacement CSV to be installed
-		_, err = awaitCSV(crc, ns.GetName(), replacementCSV.GetName(), csvSucceededChecker)
+		_, err = awaitCSV(crc, generatedNamespace.GetName(), replacementCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -630,7 +630,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		stableChannel := "stable"
 		sourceName := genName("catalog-")
 		crd := newCRD(genName("ins-"))
-		csv := newCSV(packageStable, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+		csv := newCSV(packageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: packageName,
@@ -650,13 +650,13 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			}).Should(Succeed())
 		}()
 
-		_, cleanupSource := createInternalCatalogSource(c, crc, sourceName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+		_, cleanupSource := createInternalCatalogSource(c, crc, sourceName, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 		defer cleanupSource()
 
 		// Wait for a new registry pod to be created
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": sourceName})
 		singlePod := podCount(1)
-		registryPods, err := awaitPods(GinkgoT(), c, ns.GetName(), selector.String(), singlePod)
+		registryPods, err := awaitPods(GinkgoT(), c, generatedNamespace.GetName(), selector.String(), singlePod)
 		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 		Expect(registryPods).ToNot(BeNil(), "nil registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
@@ -667,7 +667,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		// Delete the registry pod
 		Eventually(func() error {
 			backgroundDeletion := metav1.DeletePropagationBackground
-			return c.KubernetesInterface().CoreV1().Pods(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
+			return c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
 		}).Should(Succeed())
 
 		// Wait for a new registry pod to be created
@@ -683,7 +683,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			ctx.Ctx().Logf("waiting for %v to not be empty and not contain %s", uids, uid)
 			return len(pods.Items) > 0
 		}
-		registryPods, err = awaitPods(GinkgoT(), c, ns.GetName(), selector.String(), unionPodsCheck(singlePod, notUID))
+		registryPods, err = awaitPods(GinkgoT(), c, generatedNamespace.GetName(), selector.String(), unionPodsCheck(singlePod, notUID))
 		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
 		Expect(registryPods).ToNot(BeNil(), "nil replacement registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
@@ -704,7 +704,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("catalog-"),
-				Namespace: ns.GetName(),
+				Namespace: generatedNamespace.GetName(),
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
@@ -732,7 +732,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		// Delete the registry pod
 		Eventually(func() error {
 			backgroundDeletion := metav1.DeletePropagationBackground
-			return c.KubernetesInterface().CoreV1().Pods(ns.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
+			return c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{PropagationPolicy: &backgroundDeletion}, metav1.ListOptions{LabelSelector: selector.String()})
 		}).Should(Succeed())
 
 		// Wait for a new registry pod to be created
@@ -748,7 +748,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			ctx.Ctx().Logf("waiting for %v to not be empty and not contain %s", uids, uid)
 			return len(pods.Items) > 0
 		}
-		registryPods, err = awaitPods(GinkgoT(), c, ns.GetName(), selector.String(), unionPodsCheck(singlePod, notUID))
+		registryPods, err = awaitPods(GinkgoT(), c, generatedNamespace.GetName(), selector.String(), unionPodsCheck(singlePod, notUID))
 		Expect(err).ShouldNot(HaveOccurred(), "error waiting for replacement registry pod")
 		Expect(registryPods).ShouldNot(BeNil(), "nil replacement registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of replacement registry pods found")
@@ -764,7 +764,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("catalog-"),
-				Namespace: ns.GetName(),
+				Namespace: generatedNamespace.GetName(),
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
@@ -825,18 +825,18 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		var registryURL string
 		var registryAuth string
 		if local {
-			registryURL, err = createDockerRegistry(c, ns.GetName())
+			registryURL, err = createDockerRegistry(c, generatedNamespace.GetName())
 			Expect(err).NotTo(HaveOccurred(), "error creating container registry: %s", err)
-			defer deleteDockerRegistry(c, ns.GetName())
+			defer deleteDockerRegistry(c, generatedNamespace.GetName())
 
 			// ensure registry pod is ready before attempting port-forwarding
-			_ = awaitPod(GinkgoT(), c, ns.GetName(), registryName, podReady)
+			_ = awaitPod(GinkgoT(), c, generatedNamespace.GetName(), registryName, podReady)
 
-			err = registryPortForward(ns.GetName())
+			err = registryPortForward(generatedNamespace.GetName())
 			Expect(err).NotTo(HaveOccurred(), "port-forwarding local registry: %s", err)
 		} else {
-			registryURL = fmt.Sprintf("%s/%s", openshiftregistryFQDN, ns.GetName())
-			registryAuth, err = openshiftRegistryAuth(c, ns.GetName())
+			registryURL = fmt.Sprintf("%s/%s", openshiftregistryFQDN, generatedNamespace.GetName())
+			registryAuth, err = openshiftRegistryAuth(c, generatedNamespace.GetName())
 			Expect(err).NotTo(HaveOccurred(), "error getting openshift registry authentication: %s", err)
 		}
 
@@ -852,15 +852,15 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Expect(err).NotTo(HaveOccurred(), "error copying old registry file: %s", err)
 		} else {
 			skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "old", registryAuth)
-			err = createSkopeoPod(c, skopeoArgs, ns.GetName())
+			err = createSkopeoPod(c, skopeoArgs, generatedNamespace.GetName())
 			Expect(err).NotTo(HaveOccurred(), "error creating skopeo pod: %s", err)
 
 			// wait for skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, ns.GetName(), skopeo, func(pod *corev1.Pod) bool {
+			awaitPod(GinkgoT(), c, generatedNamespace.GetName(), skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
-			err = deleteSkopeoPod(c, ns.GetName())
+			err = deleteSkopeoPod(c, generatedNamespace.GetName())
 			Expect(err).NotTo(HaveOccurred(), "error deleting skopeo pod: %s", err)
 		}
 
@@ -882,7 +882,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      sourceName,
-				Namespace: ns.GetName(),
+				Namespace: generatedNamespace.GetName(),
 				Labels:    map[string]string{"olm.catalogSource": sourceName},
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
@@ -923,7 +923,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		defer cleanupSubscription()
 
 		// Wait for the Subscription to succeed
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -947,15 +947,15 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Expect(err).NotTo(HaveOccurred(), "error copying new registry file: %s", err)
 		} else {
 			skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "new", registryAuth)
-			err = createSkopeoPod(c, skopeoArgs, ns.GetName())
+			err = createSkopeoPod(c, skopeoArgs, generatedNamespace.GetName())
 			Expect(err).NotTo(HaveOccurred(), "error creating skopeo pod: %s", err)
 
 			// wait for skopeo pod to exit successfully
-			awaitPod(GinkgoT(), c, ns.GetName(), skopeo, func(pod *corev1.Pod) bool {
+			awaitPod(GinkgoT(), c, generatedNamespace.GetName(), skopeo, func(pod *corev1.Pod) bool {
 				return pod.Status.Phase == corev1.PodSucceeded
 			})
 
-			err = deleteSkopeoPod(c, ns.GetName())
+			err = deleteSkopeoPod(c, generatedNamespace.GetName())
 			Expect(err).NotTo(HaveOccurred(), "error deleting skopeo pod: %s", err)
 		}
 
@@ -1028,7 +1028,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			return sub.Status.InstalledCSV == "busybox.v2.0.0"
 		}
 		// Wait for the Subscription to succeed
-		subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionName, subChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -1070,7 +1070,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      sourceName,
-				Namespace: ns.GetName(),
+				Namespace: generatedNamespace.GetName(),
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
@@ -1097,7 +1097,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		defer cleanupSubscription()
 
 		By("waiting for the Subscription to succeed")
-		subscription, err := fetchSubscription(crc, ns.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 		Expect(subscription.Status.InstalledCSV).To(Equal("busybox.v1.0.0"))
@@ -1114,7 +1114,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(dependencySubscriptionName).ToNot(BeEmpty())
 
 		By("waiting for the Subscription to succeed")
-		subscription, err = fetchSubscription(crc, ns.GetName(), dependencySubscriptionName, subscriptionStateAtLatestChecker())
+		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), dependencySubscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 		Expect(subscription.Status.InstalledCSV).To(Equal("busybox-dependency.v1.0.0"))
@@ -1139,7 +1139,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		subChecker := func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox.v2.0.0"
 		}
-		subscription, err = fetchSubscription(crc, ns.GetName(), subscriptionName, subChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -1152,7 +1152,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		subChecker = func(sub *v1alpha1.Subscription) bool {
 			return sub.Status.InstalledCSV == "busybox-dependency.v2.0.0"
 		}
-		subscription, err = fetchSubscription(crc, ns.GetName(), dependencySubscriptionName, subChecker)
+		subscription, err = fetchSubscription(crc, generatedNamespace.GetName(), dependencySubscriptionName, subChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
 
@@ -1174,7 +1174,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      sourceName,
-					Namespace: testNamespace,
+					Namespace: generatedNamespace.GetName(),
 					Labels:    map[string]string{"olm.catalogSource": sourceName},
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
@@ -1255,7 +1255,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      sourceName,
-					Namespace: testNamespace,
+					Namespace: generatedNamespace.GetName(),
 					Labels:    map[string]string{"olm.catalogSource": sourceName},
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
@@ -1337,7 +1337,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      sourceName,
-				Namespace: ns.GetName(),
+				Namespace: generatedNamespace.GetName(),
 				Labels:    map[string]string{"olm.catalogSource": sourceName},
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
@@ -1427,13 +1427,13 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Expect(err).To(BeNil())
 
 			catalogSourceName = genName("cat-bad-csv")
-			magicCatalog = NewMagicCatalog(c, ns.GetName(), catalogSourceName, provider)
+			magicCatalog = NewMagicCatalog(c, generatedNamespace.GetName(), catalogSourceName, provider)
 			Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
 
 		})
 
 		AfterEach(func() {
-			TeardownNamespace(ns.GetName())
+			TeardownNamespace(generatedNamespace.GetName())
 		})
 
 		When("A Subscription is created catalogSource built with the malformed CSV", func() {
@@ -1442,11 +1442,11 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				subscription = &operatorsv1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("%s-sub", catalogSourceName),
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: &operatorsv1alpha1.SubscriptionSpec{
 						CatalogSource:          catalogSourceName,
-						CatalogSourceNamespace: ns.GetName(),
+						CatalogSourceNamespace: generatedNamespace.GetName(),
 						Channel:                "stable",
 						Package:                "packageA",
 					},
@@ -1456,7 +1456,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 			It("fails with a BundleUnpackFailed error condition, and a message that highlights the missing field in the CSV", func() {
 				Eventually(func(g Gomega) string {
-					fetchedSubscription, err := crc.OperatorsV1alpha1().Subscriptions(ns.GetName()).Get(context.Background(), subscription.GetName(), metav1.GetOptions{})
+					fetchedSubscription, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subscription.GetName(), metav1.GetOptions{})
 					g.Expect(err).NotTo(HaveOccurred())
 
 					// expect the message that API missing
@@ -1471,7 +1471,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			var err error
 			testNS := &corev1.Namespace{}
 			Eventually(func() error {
-				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), ns.GetName(), metav1.GetOptions{})
+				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), generatedNamespace.GetName(), metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -1502,7 +1502,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      sourceName,
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 						Labels:    map[string]string{"olm.catalogSource": sourceName},
 					},
 					Spec: v1alpha1.CatalogSourceSpec{
@@ -1521,7 +1521,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			})
 			It("The registry pod fails to become come up because of lack of permission", func() {
 				Eventually(func() (bool, error) {
-					podList, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.TODO(), metav1.ListOptions{})
+					podList, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(context.TODO(), metav1.ListOptions{})
 					if err != nil {
 						return false, err
 					}
@@ -1542,7 +1542,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			var err error
 			testNS := &corev1.Namespace{}
 			Eventually(func() error {
-				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), ns.GetName(), metav1.GetOptions{})
+				testNS, err = c.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), generatedNamespace.GetName(), metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -1573,7 +1573,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      sourceName,
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 						Labels:    map[string]string{"olm.catalogSource": sourceName},
 					},
 					Spec: v1alpha1.CatalogSourceSpec{
@@ -1592,7 +1592,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			})
 			It("The registry pod comes up successfully", func() {
 				Eventually(func() (bool, error) {
-					podList, err := c.KubernetesInterface().CoreV1().Pods(ns.GetName()).List(context.TODO(), metav1.ListOptions{})
+					podList, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(context.TODO(), metav1.ListOptions{})
 					if err != nil {
 						return false, err
 					}

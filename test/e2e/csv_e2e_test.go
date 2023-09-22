@@ -38,9 +38,9 @@ import (
 
 var _ = Describe("ClusterServiceVersion", func() {
 	var (
-		ns  corev1.Namespace
-		c   operatorclient.ClientInterface
-		crc versioned.Interface
+		generatedNamespace corev1.Namespace
+		c                  operatorclient.ClientInterface
+		crc                versioned.Interface
 	)
 
 	BeforeEach(func() {
@@ -49,14 +49,14 @@ var _ = Describe("ClusterServiceVersion", func() {
 	})
 
 	AfterEach(func() {
-		TeardownNamespace(ns.GetName())
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	Context("OwnNamespace OperatorGroup", func() {
 
 		BeforeEach(func() {
 			nsName := genName("csv-e2e-")
-			ns = SetupGeneratedTestNamespace(nsName, nsName)
+			generatedNamespace = SetupGeneratedTestNamespace(nsName, nsName)
 		})
 
 		When("a CustomResourceDefinition was installed alongside a ClusterServiceVersion", func() {
@@ -73,7 +73,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: apifullname,
 						Annotations: map[string]string{
-							"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/associated-csv", ns.GetName()),
+							"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/associated-csv", generatedNamespace.GetName()),
 						},
 					},
 					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
@@ -112,7 +112,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				associated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "associated-csv",
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
@@ -170,7 +170,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				unassociated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "unassociated-csv",
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
@@ -194,7 +194,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				associated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "associated-csv",
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
@@ -229,7 +229,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				unassociated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "unassociated-csv",
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
@@ -294,7 +294,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: apifullname,
 						Annotations: map[string]string{
-							"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/associated-csv", ns.GetName()),
+							"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/associated-csv", generatedNamespace.GetName()),
 						},
 					},
 					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
@@ -327,7 +327,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				associated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "associated-csv",
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
@@ -351,7 +351,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				unassociated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "unassociated-csv",
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
@@ -401,9 +401,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 	})
 
 	Context("AllNamespaces OperatorGroup", func() {
-
 		BeforeEach(func() {
-			ns = SetupGeneratedTestNamespace(genName("csv-e2e-"))
+			generatedNamespace = SetupGeneratedTestNamespace(genName("csv-e2e-"))
 		})
 
 		When("a csv exists specifying two replicas with one max unavailable", func() {
@@ -419,7 +418,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				csv = operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "test-csv",
-						Namespace:    ns.GetName(),
+						Namespace:    generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
@@ -508,7 +507,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			It("remains in phase Succeeded when only one pod is available", func() {
 				Eventually(func() int32 {
-					dep, err := c.GetDeployment(ns.GetName(), "deployment")
+					dep, err := c.GetDeployment(generatedNamespace.GetName(), "deployment")
 					if err != nil || dep == nil {
 						return 0
 					}
@@ -548,7 +547,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					},
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "csv-",
-						Namespace:    ns.GetName(),
+						Namespace:    generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						InstallStrategy: newNginxInstallStrategy(genName("csv-"), nil, nil),
@@ -613,7 +612,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				cm = corev1.ConfigMap{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "cm-",
-						Namespace:    ns.GetName(),
+						Namespace:    generatedNamespace.GetName(),
 					},
 				}
 				Expect(ctx.Ctx().Client().Create(context.Background(), &cm)).To(Succeed())
@@ -621,7 +620,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				sa = corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "sa-",
-						Namespace:    ns.GetName(),
+						Namespace:    generatedNamespace.GetName(),
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								Name:       cm.GetName(),
@@ -641,7 +640,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					},
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "csv-",
-						Namespace:    ns.GetName(),
+						Namespace:    generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						InstallStrategy: operatorsv1alpha1.NamedInstallStrategy{
@@ -744,16 +743,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvPendingChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Shouldn't create deployment
 			Consistently(func() bool {
-				_, err := c.GetDeployment(ns.GetName(), depName)
+				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
 			}).Should(BeTrue())
 		})
@@ -805,16 +804,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvPendingChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Shouldn't create deployment
 			Consistently(func() bool {
-				_, err := c.GetDeployment(ns.GetName(), depName)
+				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
 			}).Should(BeTrue())
 		})
@@ -924,16 +923,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCRD()
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), true, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvPendingChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Shouldn't create deployment
 			Consistently(func() bool {
-				_, err := c.GetDeployment(ns.GetName(), depName)
+				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
 			}).Should(BeTrue())
 		})
@@ -983,16 +982,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvPendingChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Shouldn't create deployment
 			Consistently(func() bool {
-				_, err := c.GetDeployment(ns.GetName(), depName)
+				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
 			}).Should(BeTrue())
 		})
@@ -1070,16 +1069,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvPendingChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Shouldn't create deployment
 			Consistently(func() bool {
-				_, err := c.GetDeployment(ns.GetName(), depName)
+				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
 			}).Should(BeTrue())
 		})
@@ -1119,16 +1118,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvPendingChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Shouldn't create deployment
 			Consistently(func() bool {
-				_, err := c.GetDeployment(ns.GetName(), depName)
+				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
 			}).Should(BeTrue())
 		})
@@ -1213,16 +1212,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// Create CSV first, knowing it will fail
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), true, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			fetchedCSV, err := fetchCSV(crc, csv.Name, ns.GetName(), csvPendingChecker)
+			fetchedCSV, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			sa := corev1.ServiceAccount{}
 			sa.SetName(saName)
-			sa.SetNamespace(ns.GetName())
+			sa.SetNamespace(generatedNamespace.GetName())
 			sa.SetOwnerReferences([]metav1.OwnerReference{{
 				Name:       fetchedCSV.GetName(),
 				APIVersion: operatorsv1alpha1.ClusterServiceVersionAPIVersion,
@@ -1281,7 +1280,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 			role.SetName(genName("dep-"))
-			role.SetNamespace(ns.GetName())
+			role.SetNamespace(generatedNamespace.GetName())
 			_, err = c.CreateRole(&role)
 			Expect(err).ShouldNot(HaveOccurred(), "could not create Role")
 
@@ -1301,7 +1300,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 			roleBinding.SetName(genName("dep-"))
-			roleBinding.SetNamespace(ns.GetName())
+			roleBinding.SetNamespace(generatedNamespace.GetName())
 			_, err = c.CreateRoleBinding(&roleBinding)
 			Expect(err).ShouldNot(HaveOccurred(), "could not create RoleBinding")
 
@@ -1371,7 +1370,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			ctx.Ctx().Logf("checking for deployment")
 			// Poll for deployment to be ready
 			Eventually(func() (bool, error) {
-				dep, err := c.GetDeployment(ns.GetName(), depName)
+				dep, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				if apierrors.IsNotFound(err) {
 					ctx.Ctx().Logf("deployment %s not found\n", depName)
 					return false, nil
@@ -1389,14 +1388,14 @@ var _ = Describe("ClusterServiceVersion", func() {
 				return false, nil
 			}).Should(BeTrue())
 
-			fetchedCSV, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Delete CRD
 			cleanupCRD()
 
 			// Wait for CSV failure
-			fetchedCSV, err = fetchCSV(crc, csv.Name, ns.GetName(), csvPendingChecker)
+			fetchedCSV, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Recreate the CRD
@@ -1405,14 +1404,14 @@ var _ = Describe("ClusterServiceVersion", func() {
 			defer cleanupCRD()
 
 			// Wait for CSV success again
-			fetchedCSV, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("create requirements met API service", func() {
 
 			sa := corev1.ServiceAccount{}
 			sa.SetName(genName("sa-"))
-			sa.SetNamespace(ns.GetName())
+			sa.SetNamespace(generatedNamespace.GetName())
 			_, err := c.CreateServiceAccount(&sa)
 			Expect(err).ShouldNot(HaveOccurred(), "could not create ServiceAccount")
 
@@ -1498,7 +1497,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 			role.SetName(genName("dep-"))
-			role.SetNamespace(ns.GetName())
+			role.SetNamespace(generatedNamespace.GetName())
 			_, err = c.CreateRole(&role)
 			Expect(err).ShouldNot(HaveOccurred(), "could not create Role")
 
@@ -1518,7 +1517,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 			roleBinding.SetName(genName("dep-"))
-			roleBinding.SetNamespace(ns.GetName())
+			roleBinding.SetNamespace(generatedNamespace.GetName())
 			_, err = c.CreateRoleBinding(&roleBinding)
 			Expect(err).ShouldNot(HaveOccurred(), "could not create RoleBinding")
 
@@ -1554,15 +1553,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
 			Expect(err).ShouldNot(HaveOccurred(), "could not create ClusterRoleBinding")
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			fetchedCSV, err := fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Fetch cluster service version again to check for unnecessary control loops
-			sameCSV, err := fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			sameCSV, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 		})
@@ -1633,7 +1632,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			csv.SetName(depName)
 
 			// Create the APIService CSV
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer func() {
 				watcher, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch(context.TODO(), metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
@@ -1660,11 +1659,11 @@ var _ = Describe("ClusterServiceVersion", func() {
 				<-deleted
 			}()
 
-			fetchedCSV, err := fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should create Deployment
-			dep, err := c.GetDeployment(ns.GetName(), depName)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Deployment")
 
 			// Should create APIService
@@ -1673,20 +1672,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			// Should create Service
 			serviceName := fmt.Sprintf("%s-service", depName)
-			_, err = c.GetService(ns.GetName(), serviceName)
+			_, err = c.GetService(generatedNamespace.GetName(), serviceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Service")
 
 			// Should create certificate Secret
 			secretName := fmt.Sprintf("%s-cert", serviceName)
-			_, err = c.GetSecret(ns.GetName(), secretName)
+			_, err = c.GetSecret(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret")
 
 			// Should create a Role for the Secret
-			_, err = c.GetRole(ns.GetName(), secretName)
+			_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret Role")
 
 			// Should create a RoleBinding for the Secret
-			_, err = c.GetRoleBinding(ns.GetName(), secretName)
+			_, err = c.GetRoleBinding(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting exptected Secret RoleBinding")
 
 			// Should create a system:auth-delegator Cluster RoleBinding
@@ -1709,9 +1708,9 @@ var _ = Describe("ClusterServiceVersion", func() {
 				return nil
 			})).Should(Succeed())
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 				// Should create deployment
-				dep, err = c.GetDeployment(ns.GetName(), depName)
+				dep, err = c.GetDeployment(generatedNamespace.GetName(), depName)
 				if err != nil {
 					return false
 				}
@@ -1740,7 +1739,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Wait for CSV success
-			fetchedCSV, err = fetchCSV(crc, csv.GetName(), ns.GetName(), func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
+			fetchedCSV, err = fetchCSV(crc, csv.GetName(), generatedNamespace.GetName(), func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 				// Should create an APIService
 				apiService, err := c.GetAPIService(apiServiceName)
 				if err != nil {
@@ -1821,14 +1820,14 @@ var _ = Describe("ClusterServiceVersion", func() {
 			csv.SetName("csv-hat-1")
 
 			// Create the APIService CSV
-			_, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			_, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should create Deployment
-			_, err = c.GetDeployment(ns.GetName(), depName)
+			_, err = c.GetDeployment(generatedNamespace.GetName(), depName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Deployment")
 
 			// Should create APIService
@@ -1837,20 +1836,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			// Should create Service
 			serviceName := fmt.Sprintf("%s-service", depName)
-			_, err = c.GetService(ns.GetName(), serviceName)
+			_, err = c.GetService(generatedNamespace.GetName(), serviceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Service")
 
 			// Should create certificate Secret
 			secretName := fmt.Sprintf("%s-cert", serviceName)
-			_, err = c.GetSecret(ns.GetName(), secretName)
+			_, err = c.GetSecret(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret")
 
 			// Should create a Role for the Secret
-			_, err = c.GetRole(ns.GetName(), secretName)
+			_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret Role")
 
 			// Should create a RoleBinding for the Secret
-			_, err = c.GetRoleBinding(ns.GetName(), secretName)
+			_, err = c.GetRoleBinding(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting exptected Secret RoleBinding")
 
 			// Should create a system:auth-delegator Cluster RoleBinding
@@ -1896,15 +1895,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 			csv2.SetName("csv-hat-2")
 
 			// Create CSV2 to replace CSV
-			cleanupCSV2, err := createCSV(c, crc, csv2, ns.GetName(), false, true)
+			cleanupCSV2, err := createCSV(c, crc, csv2, generatedNamespace.GetName(), false, true)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV2()
 
-			_, err = fetchCSV(crc, csv2.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv2.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should create Deployment
-			_, err = c.GetDeployment(ns.GetName(), depName)
+			_, err = c.GetDeployment(generatedNamespace.GetName(), depName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Deployment")
 
 			// Should create APIService
@@ -1913,27 +1912,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			// Should create Service
 			Eventually(func() error {
-				_, err := c.GetService(ns.GetName(), serviceName)
+				_, err := c.GetService(generatedNamespace.GetName(), serviceName)
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
 			// Should create certificate Secret
 			secretName = fmt.Sprintf("%s-cert", serviceName)
 			Eventually(func() error {
-				_, err = c.GetSecret(ns.GetName(), secretName)
+				_, err = c.GetSecret(generatedNamespace.GetName(), secretName)
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
 			// Should create a Role for the Secret
-			_, err = c.GetRole(ns.GetName(), secretName)
+			_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 			Eventually(func() error {
-				_, err = c.GetRole(ns.GetName(), secretName)
+				_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
 			// Should create a RoleBinding for the Secret
 			Eventually(func() error {
-				_, err = c.GetRoleBinding(ns.GetName(), secretName)
+				_, err = c.GetRoleBinding(generatedNamespace.GetName(), secretName)
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
@@ -1952,25 +1951,25 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			// Should eventually GC the CSV
 			Eventually(func() bool {
-				return csvExists(ns.GetName(), crc, csv.Name)
+				return csvExists(generatedNamespace.GetName(), crc, csv.Name)
 			}).Should(BeFalse())
 
 			// Rename the initial CSV
 			csv.SetName("csv-hat-3")
 
 			// Recreate the old CSV
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, true)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, true)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			fetched, err := fetchCSV(crc, csv.Name, ns.GetName(), buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOwnerConflict))
+			fetched, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOwnerConflict))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(fetched.Status.Phase).Should(Equal(operatorsv1alpha1.CSVPhaseFailed))
 		})
 		It("create same CSV with owned API service multi namespace", func() {
 
 			// Create new namespace in a new operator group
-			secondNamespaceName := genName(ns.GetName() + "-")
+			secondNamespaceName := genName(generatedNamespace.GetName() + "-")
 			matchingLabel := map[string]string{"inGroup": secondNamespaceName}
 
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
@@ -2078,15 +2077,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 			csv.SetName("csv-hat-1")
 
 			// Create the initial CSV
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should create Deployment
-			_, err = c.GetDeployment(ns.GetName(), depName)
+			_, err = c.GetDeployment(generatedNamespace.GetName(), depName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Deployment")
 
 			// Should create APIService
@@ -2095,20 +2094,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			// Should create Service
 			serviceName := fmt.Sprintf("%s-service", depName)
-			_, err = c.GetService(ns.GetName(), serviceName)
+			_, err = c.GetService(generatedNamespace.GetName(), serviceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Service")
 
 			// Should create certificate Secret
 			secretName := fmt.Sprintf("%s-cert", serviceName)
-			_, err = c.GetSecret(ns.GetName(), secretName)
+			_, err = c.GetSecret(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret")
 
 			// Should create a Role for the Secret
-			_, err = c.GetRole(ns.GetName(), secretName)
+			_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret Role")
 
 			// Should create a RoleBinding for the Secret
-			_, err = c.GetRoleBinding(ns.GetName(), secretName)
+			_, err = c.GetRoleBinding(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting exptected Secret RoleBinding")
 
 			// Should create a system:auth-delegator Cluster RoleBinding
@@ -2216,7 +2215,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			orphanedAPISvc, err = c.GetAPIService(apiServiceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected APIService")
 
-			newLabels = map[string]string{"olm.owner": "hat-serverfd4r5", "olm.owner.kind": "ClusterServiceVersion", "olm.owner.namespace": ns.GetName()}
+			newLabels = map[string]string{"olm.owner": "hat-serverfd4r5", "olm.owner.kind": "ClusterServiceVersion", "olm.owner.namespace": generatedNamespace.GetName()}
 			orphanedAPISvc.SetLabels(newLabels)
 			_, err = c.UpdateAPIService(orphanedAPISvc)
 			Expect(err).ShouldNot(HaveOccurred(), "error updating APIService")
@@ -2279,16 +2278,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// Create the CSV and make sure to clean it up
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
 			// Wait for current CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployment
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
@@ -2350,23 +2349,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// Create the CSV and make sure to clean it up
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
 			// Wait for current CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployment
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
 			// Make sure that the deployment labels are correct
 			labels := dep.GetLabels()
 			Expect(labels["olm.owner"]).Should(Equal(csv.GetName()))
-			Expect(labels["olm.owner.namespace"]).Should(Equal(ns.GetName()))
+			Expect(labels["olm.owner.namespace"]).Should(Equal(generatedNamespace.GetName()))
 			Expect(labels["application"]).Should(Equal("nginx"))
 			Expect(labels["application.type"]).Should(Equal("proxy"))
 		})
@@ -2466,15 +2465,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// Don't need to cleanup this CSV, it will be deleted by the upgrade process
-			_, err = createCSV(c, crc, csv, ns.GetName(), false, false)
+			_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Wait for current CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployment
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
@@ -2538,27 +2537,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupNewCSV, err := createCSV(c, crc, csvNew, ns.GetName(), true, false)
+			cleanupNewCSV, err := createCSV(c, crc, csvNew, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupNewCSV()
 
 			// Wait for updated CSV to succeed
-			fetchedCSV, err := fetchCSV(crc, csvNew.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csvNew.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have updated existing deployment
-			depUpdated, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[0].Name)
+			depUpdated, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depUpdated).ShouldNot(BeNil())
 			Expect(strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name).Should(Equal(depUpdated.Spec.Template.Spec.Containers[0].Name))
 
 			// Should eventually GC the CSV
 			Eventually(func() bool {
-				return csvExists(ns.GetName(), crc, csv.Name)
+				return csvExists(generatedNamespace.GetName(), crc, csv.Name)
 			}).Should(BeFalse())
 
 			// Fetch cluster service version again to check for unnecessary control loops
-			sameCSV, err := fetchCSV(crc, csvNew.Name, ns.GetName(), csvSucceededChecker)
+			sameCSV, err := fetchCSV(crc, csvNew.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 		})
@@ -2657,15 +2656,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// don't need to clean up this CSV, it will be deleted by the upgrade process
-			_, err = createCSV(c, crc, csv, ns.GetName(), false, false)
+			_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Wait for current CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployment
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
@@ -2727,29 +2726,29 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupNewCSV, err := createCSV(c, crc, csvNew, ns.GetName(), true, false)
+			cleanupNewCSV, err := createCSV(c, crc, csvNew, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupNewCSV()
 
 			// Wait for updated CSV to succeed
-			fetchedCSV, err := fetchCSV(crc, csvNew.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csvNew.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Fetch cluster service version again to check for unnecessary control loops
-			sameCSV, err := fetchCSV(crc, csvNew.Name, ns.GetName(), csvSucceededChecker)
+			sameCSV, err := fetchCSV(crc, csvNew.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
 			// Should have created new deployment and deleted old
-			depNew, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[0].Name)
+			depNew, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
-			err = waitForDeploymentToDelete(ns.GetName(), c, strategy.DeploymentSpecs[0].Name)
+			err = waitForDeploymentToDelete(generatedNamespace.GetName(), c, strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should eventually GC the CSV
 			Eventually(func() bool {
-				return csvExists(ns.GetName(), crc, csv.Name)
+				return csvExists(generatedNamespace.GetName(), crc, csv.Name)
 			}).Should(BeFalse())
 		})
 		It("update multiple intermediates", func() {
@@ -2847,15 +2846,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// don't need to clean up this CSV, it will be deleted by the upgrade process
-			_, err = createCSV(c, crc, csv, ns.GetName(), false, false)
+			_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Wait for current CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployment
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
@@ -2917,29 +2916,29 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupNewCSV, err := createCSV(c, crc, csvNew, ns.GetName(), true, false)
+			cleanupNewCSV, err := createCSV(c, crc, csvNew, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupNewCSV()
 
 			// Wait for updated CSV to succeed
-			fetchedCSV, err := fetchCSV(crc, csvNew.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csvNew.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Fetch cluster service version again to check for unnecessary control loops
-			sameCSV, err := fetchCSV(crc, csvNew.Name, ns.GetName(), csvSucceededChecker)
+			sameCSV, err := fetchCSV(crc, csvNew.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
 			// Should have created new deployment and deleted old
-			depNew, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[0].Name)
+			depNew, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
-			err = waitForDeploymentToDelete(ns.GetName(), c, strategy.DeploymentSpecs[0].Name)
+			err = waitForDeploymentToDelete(generatedNamespace.GetName(), c, strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should eventually GC the CSV
 			Eventually(func() bool {
-				return csvExists(ns.GetName(), crc, csv.Name)
+				return csvExists(generatedNamespace.GetName(), crc, csv.Name)
 			}).Should(BeFalse())
 		})
 		It("update in place", func() {
@@ -3037,16 +3036,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, true)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, true)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
 			// Wait for current CSV to succeed
-			fetchedCSV, err := fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployment
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
@@ -3074,12 +3073,12 @@ var _ = Describe("ClusterServiceVersion", func() {
 			fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
 
 			// Update CSV directly
-			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
+			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for deployment spec to be updated
 			Eventually(func() (string, error) {
-				fetched, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[0].Name)
+				fetched, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 				if err != nil {
 					return "", err
 				}
@@ -3088,10 +3087,10 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}).Should(Equal(strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name))
 
 			// Wait for updated CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			depUpdated, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[0].Name)
+			depUpdated, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depUpdated).ShouldNot(BeNil())
 
@@ -3209,15 +3208,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// CSV will be deleted by the upgrade process later
-			_, err = createCSV(c, crc, csv, ns.GetName(), false, false)
+			_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Wait for current CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployment
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
@@ -3288,23 +3287,23 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// Create newly updated CSV
-			_, err = createCSV(c, crc, csvNew, ns.GetName(), false, false)
+			_, err = createCSV(c, crc, csvNew, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Wait for updated CSV to succeed
-			fetchedCSV, err := fetchCSV(crc, csvNew.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csvNew.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Fetch cluster service version again to check for unnecessary control loops
-			sameCSV, err := fetchCSV(crc, csvNew.Name, ns.GetName(), csvSucceededChecker)
+			sameCSV, err := fetchCSV(crc, csvNew.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
 			// Should have created new deployment and deleted old one
-			depNew, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[0].Name)
+			depNew, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
-			err = waitForDeploymentToDelete(ns.GetName(), c, strategy.DeploymentSpecs[0].Name)
+			err = waitForDeploymentToDelete(generatedNamespace.GetName(), c, strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Create updated deployment strategy
@@ -3366,29 +3365,29 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// Create newly updated CSV
-			cleanupNewCSV, err := createCSV(c, crc, csvNew2, ns.GetName(), true, false)
+			cleanupNewCSV, err := createCSV(c, crc, csvNew2, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupNewCSV()
 
 			// Wait for updated CSV to succeed
-			fetchedCSV, err = fetchCSV(crc, csvNew2.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err = fetchCSV(crc, csvNew2.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Fetch cluster service version again to check for unnecessary control loops
-			sameCSV, err = fetchCSV(crc, csvNew2.Name, ns.GetName(), csvSucceededChecker)
+			sameCSV, err = fetchCSV(crc, csvNew2.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
 			// Should have created new deployment and deleted old one
-			depNew, err = c.GetDeployment(ns.GetName(), strategyNew2.DeploymentSpecs[0].Name)
+			depNew, err = c.GetDeployment(generatedNamespace.GetName(), strategyNew2.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
-			err = waitForDeploymentToDelete(ns.GetName(), c, strategyNew.DeploymentSpecs[0].Name)
+			err = waitForDeploymentToDelete(generatedNamespace.GetName(), c, strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should clean up the CSV
 			Eventually(func() bool {
-				return csvExists(ns.GetName(), crc, csvNew.Name)
+				return csvExists(generatedNamespace.GetName(), crc, csvNew.Name)
 			}).Should(BeFalse())
 		})
 
@@ -3489,19 +3488,19 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), true, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
 			// Wait for current CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployments
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
-			dep2, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[1].Name)
+			dep2, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[1].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep2).ShouldNot(BeNil())
 
@@ -3522,35 +3521,35 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Fetch the current csv
-			fetchedCSV, err := fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Update csv with same strategy with different deployment's name
 			fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
 
 			// Update the current csv with the new csv
-			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
+			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Wait for new deployment to exist
-			err = waitForDeployment(ns.GetName(), c, strategyNew.DeploymentSpecs[0].Name)
+			err = waitForDeployment(generatedNamespace.GetName(), c, strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Wait for updated CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created new deployment and deleted old
-			depNew, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[0].Name)
+			depNew, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
 
 			// Make sure the unchanged deployment still exists
-			depNew2, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[1].Name)
+			depNew2, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[1].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew2).ShouldNot(BeNil())
 
-			err = waitForDeploymentToDelete(ns.GetName(), c, strategy.DeploymentSpecs[0].Name)
+			err = waitForDeploymentToDelete(generatedNamespace.GetName(), c, strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("update deployment spec in an existing CSV for a hotfix", func() {
@@ -3649,16 +3648,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), true, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
 			// Wait for current CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have created deployment
-			dep, err := c.GetDeployment(ns.GetName(), strategy.DeploymentSpecs[0].Name)
+			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
@@ -3675,7 +3674,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// Fetch the current csv
-			fetchedCSV, err := fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Update csv with modified deployment spec
@@ -3683,15 +3682,15 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			Eventually(func() error {
 				// Update the current csv
-				_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
+				_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 				return err
 			}).Should(Succeed())
 
 			// Wait for updated CSV to succeed
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 
 				// Should have updated existing deployment
-				depUpdated, err := c.GetDeployment(ns.GetName(), strategyNew.DeploymentSpecs[0].Name)
+				depUpdated, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 				Expect(err).ShouldNot(HaveOccurred())
 				Expect(depUpdated).ShouldNot(BeNil())
 				// container name has been updated and differs from initial CSV spec and updated CSV spec
@@ -3739,7 +3738,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 					},
 				},
 			}
-			csv.SetNamespace(ns.GetName())
+			csv.SetNamespace(generatedNamespace.GetName())
 			csv.SetName(genName("csv-"))
 
 			clientCtx := context.Background()
@@ -3751,7 +3750,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			// Watch latest events from test namespace for CSV
 			listOpts.ResourceVersion = events.ResourceVersion
-			w, err := c.KubernetesInterface().CoreV1().Events(ns.GetName()).Watch(context.Background(), listOpts)
+			w, err := c.KubernetesInterface().CoreV1().Events(generatedNamespace.GetName()).Watch(context.Background(), listOpts)
 			Expect(err).ToNot(HaveOccurred())
 			defer w.Stop()
 
@@ -3871,7 +3870,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), true, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
@@ -3894,7 +3893,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				return false
 			}
 
-			fetchedCSV, err := fetchCSV(crc, csv.Name, ns.GetName(), csvCheckPhaseAndRequirementStatus)
+			fetchedCSV, err := fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvCheckPhaseAndRequirementStatus)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Expect(fetchedCSV.Status.RequirementStatus).Should(ContainElement(notServedStatus))
@@ -3965,19 +3964,19 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 			csv.SetName("csv-hat-1")
-			csv.SetNamespace(ns.GetName())
+			csv.SetNamespace(generatedNamespace.GetName())
 
-			createLegacyAPIResources(ns.GetName(), &csv, owned[0], c)
+			createLegacyAPIResources(generatedNamespace.GetName(), &csv, owned[0], c)
 
 			// Create the APIService CSV
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			checkLegacyAPIResources(ns.GetName(), owned[0], true, c)
+			checkLegacyAPIResources(generatedNamespace.GetName(), owned[0], true, c)
 		})
 
 		It("API service resource not migrated if not adoptable", func() {
@@ -4045,22 +4044,22 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 			csv.SetName("csv-hat-1")
-			csv.SetNamespace(ns.GetName())
+			csv.SetNamespace(generatedNamespace.GetName())
 
-			createLegacyAPIResources(ns.GetName(), nil, owned[0], c)
+			createLegacyAPIResources(generatedNamespace.GetName(), nil, owned[0], c)
 
 			// Create the APIService CSV
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			checkLegacyAPIResources(ns.GetName(), owned[0], false, c)
+			checkLegacyAPIResources(generatedNamespace.GetName(), owned[0], false, c)
 
 			// Cleanup the resources created for this test that were not cleaned up.
-			deleteLegacyAPIResources(ns.GetName(), owned[0], c)
+			deleteLegacyAPIResources(generatedNamespace.GetName(), owned[0], c)
 		})
 
 		It("multiple API services on a single pod", func() {
@@ -4162,14 +4161,14 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 			csv.SetName("csv-hat-1")
-			csv.SetNamespace(ns.GetName())
+			csv.SetNamespace(generatedNamespace.GetName())
 
 			// Create the APIService CSV
-			cleanupCSV, err := createCSV(c, crc, csv, ns.GetName(), false, false)
+			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			_, err = fetchCSV(crc, csv.Name, ns.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Check that the APIService caBundles are equal

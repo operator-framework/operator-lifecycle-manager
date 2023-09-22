@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -24,19 +25,22 @@ import (
 
 var _ = Describe("Package Manifest API lists available Operators from Catalog Sources", func() {
 	var (
-		crc versioned.Interface
-		pmc pmversioned.Interface
-		c   operatorclient.ClientInterface
+		crc                versioned.Interface
+		pmc                pmversioned.Interface
+		c                  operatorclient.ClientInterface
+		generatedNamespace corev1.Namespace
 	)
 
 	BeforeEach(func() {
 		crc = ctx.Ctx().OperatorClient()
 		pmc = newPMClient()
 		c = ctx.Ctx().KubeClient()
+
+		generatedNamespace = SetupGeneratedTestNamespace(genName("package-manifest-e2e"))
 	})
 
 	AfterEach(func() {
-		TearDown(testNamespace)
+		TearDown(generatedNamespace.GetName())
 	})
 
 	Context("Given a CatalogSource created using the ConfigMap as catalog source type", func() {
@@ -73,7 +77,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			crdPlural := genName("ins")
 			crd := newCRD(crdPlural)
 			catsrcName = genName("mock-ocs")
-			csv = newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+			csv = newCSV(packageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
 			csv.SetLabels(map[string]string{"projected": "label"})
 			csv.Spec.Keywords = []string{"foo", "bar"}
 			csv.Spec.Links = []v1alpha1.AppLink{
@@ -108,10 +112,10 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 				},
 			}
 
-			_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catsrcName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv, csvAlpha})
+			_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catsrcName, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv, csvAlpha})
 
 			// Verify catalog source was created
-			_, err := fetchCatalogSourceOnStatus(crc, catsrcName, testNamespace, catalogSourceRegistryPodSynced())
+			_, err := fetchCatalogSourceOnStatus(crc, catsrcName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -133,7 +137,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 			expectedStatus := packagev1.PackageManifestStatus{
 				CatalogSource:          catsrcName,
-				CatalogSourceNamespace: testNamespace,
+				CatalogSourceNamespace: generatedNamespace.GetName(),
 				PackageName:            packageName,
 				Channels: []packagev1.PackageChannel{
 					{
@@ -166,7 +170,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 				DefaultChannel: stableChannel,
 			}
 
-			pm, err := fetchPackageManifest(pmc, testNamespace, packageName, packageManifestHasStatus)
+			pm, err := fetchPackageManifest(pmc, generatedNamespace.GetName(), packageName, packageManifestHasStatus)
 			Expect(err).ToNot(HaveOccurred(), "error getting package manifest")
 			Expect(pm).ShouldNot(BeNil())
 			Expect(pm.GetName()).Should(Equal(packageName))
@@ -179,7 +183,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		It("lists PackageManifest and ensures it has valid PackageManifest item", func() {
 			// Get a PackageManifestList and ensure it has the correct items
 			Eventually(func() (bool, error) {
-				pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(context.TODO(), metav1.ListOptions{})
+				pmList, err := pmc.OperatorsV1().PackageManifests(generatedNamespace.GetName()).List(context.TODO(), metav1.ListOptions{})
 				return containsPackageManifest(pmList.Items, packageName), err
 			}).Should(BeTrue(), "required package name not found in the list")
 		})
@@ -187,7 +191,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		It("gets the icon from the default channel", func() {
 			var res rest.Result
 			Eventually(func() error {
-				res = pmc.OperatorsV1().RESTClient().Get().Resource("packagemanifests").SubResource("icon").Namespace(testNamespace).Name(packageName).Do(context.Background())
+				res = pmc.OperatorsV1().RESTClient().Get().Resource("packagemanifests").SubResource("icon").Namespace(generatedNamespace.GetName()).Name(packageName).Do(context.Background())
 				return res.Error()
 			}).Should(Succeed(), "error getting icon")
 
@@ -220,7 +224,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      sourceName,
-					Namespace: testNamespace,
+					Namespace: generatedNamespace.GetName(),
 					Labels:    map[string]string{"olm.catalogSource": sourceName},
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
@@ -249,7 +253,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 		It("lists the CatalogSource contents using the PackageManifest API", func() {
 
-			pm, err := fetchPackageManifest(pmc, testNamespace, packageName, packageManifestHasStatus)
+			pm, err := fetchPackageManifest(pmc, generatedNamespace.GetName(), packageName, packageManifestHasStatus)
 			Expect(err).NotTo(HaveOccurred(), "error getting package manifest")
 			Expect(pm).ShouldNot(BeNil())
 			Expect(pm.GetName()).Should(Equal(packageName))
@@ -267,18 +271,18 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		When("the display name for catalog source is updated", func() {
 
 			BeforeEach(func() {
-				pm, err := fetchPackageManifest(pmc, testNamespace, packageName, packageManifestHasStatus)
+				pm, err := fetchPackageManifest(pmc, generatedNamespace.GetName(), packageName, packageManifestHasStatus)
 				Expect(err).NotTo(HaveOccurred(), "error getting package manifest")
 				Expect(pm).ShouldNot(BeNil())
 				Expect(pm.GetName()).Should(Equal(packageName))
 				Expect(pm.Status.CatalogSourceDisplayName).Should(Equal(displayName))
 
-				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(context.TODO(), catalogSource.GetName(), metav1.GetOptions{})
+				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Get(context.TODO(), catalogSource.GetName(), metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred(), "error getting catalogSource")
 
 				displayName = "updated Name"
 				catalogSource.Spec.DisplayName = displayName
-				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(context.TODO(), catalogSource, metav1.UpdateOptions{})
+				catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(generatedNamespace.GetName()).Update(context.TODO(), catalogSource, metav1.UpdateOptions{})
 				Expect(err).NotTo(HaveOccurred(), "error updating catalogSource")
 				Expect(catalogSource.Spec.DisplayName).Should(Equal(displayName))
 			})
@@ -286,7 +290,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			It("should successfully update the CatalogSource field", func() {
 
 				Eventually(func() (string, error) {
-					pm, err := fetchPackageManifest(pmc, testNamespace, packageName,
+					pm, err := fetchPackageManifest(pmc, generatedNamespace.GetName(), packageName,
 						packageManifestHasStatus)
 					if err != nil {
 						return "", err

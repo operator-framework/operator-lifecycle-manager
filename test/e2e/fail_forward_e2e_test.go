@@ -25,10 +25,10 @@ const (
 var _ = Describe("Fail Forward Upgrades", func() {
 
 	var (
-		ns       corev1.Namespace
-		crclient versioned.Interface
-		c        client.Client
-		ogName   string
+		generatedNamespace corev1.Namespace
+		crclient           versioned.Interface
+		c                  client.Client
+		ogName             string
 	)
 
 	BeforeEach(func() {
@@ -36,7 +36,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 		c = ctx.Ctx().Client()
 
 		By("creating the testing namespace with an OG that enabled fail forward behavior")
-		namespaceName := genName("ff-e2e-")
+		namespaceName := genName("fail-forward-e2e-")
 		og := operatorsv1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s-operatorgroup", namespaceName),
@@ -46,13 +46,13 @@ var _ = Describe("Fail Forward Upgrades", func() {
 				UpgradeStrategy: operatorsv1.UpgradeStrategyUnsafeFailForward,
 			},
 		}
-		ns = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
+		generatedNamespace = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
 		ogName = og.GetName()
 	})
 
 	AfterEach(func() {
 		By("deleting the testing namespace")
-		TeardownNamespace(ns.GetName())
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	When("an InstallPlan is reporting a failed state", func() {
@@ -68,24 +68,24 @@ var _ = Describe("Fail Forward Upgrades", func() {
 		BeforeEach(func() {
 			By("creating a service account with no permission")
 			saNameWithNoPerms := genName("scoped-sa-")
-			newServiceAccount(ctx.Ctx().KubeClient(), ns.GetName(), saNameWithNoPerms)
+			newServiceAccount(ctx.Ctx().KubeClient(), generatedNamespace.GetName(), saNameWithNoPerms)
 
 			By("deploying the testing catalog")
 			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.1.0.yaml"))
 			Expect(err).To(BeNil())
 			catalogSourceName = genName("mc-ip-failed-")
-			magicCatalog = NewMagicCatalog(c, ns.GetName(), catalogSourceName, provider)
+			magicCatalog = NewMagicCatalog(c, generatedNamespace.GetName(), catalogSourceName, provider)
 			Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
 
 			By("creating the testing subscription")
 			subscription = &operatorsv1alpha1.Subscription{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("%s-sub", catalogSourceName),
-					Namespace: ns.GetName(),
+					Namespace: generatedNamespace.GetName(),
 				},
 				Spec: &operatorsv1alpha1.SubscriptionSpec{
 					CatalogSource:          catalogSourceName,
-					CatalogSourceNamespace: ns.GetName(),
+					CatalogSourceNamespace: generatedNamespace.GetName(),
 					Channel:                "stable",
 					Package:                "packageA",
 				},
@@ -99,11 +99,11 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			originalInstallPlanRef = subscription.Status.InstallPlanRef
 
 			By("waiting for the v0.1.0 CSV to report a succeeded phase")
-			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, ns.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("updating the operator group to use the service account without required permissions to simulate InstallPlan failure")
-			Eventually(operatorGroupServiceAccountNameSetter(crclient, ns.GetName(), ogName, saNameWithNoPerms)).Should(Succeed())
+			Eventually(operatorGroupServiceAccountNameSetter(crclient, generatedNamespace.GetName(), ogName, saNameWithNoPerms)).Should(Succeed())
 
 			By("updating the catalog with v0.2.0 bundle image")
 			brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0.yaml"))
@@ -121,7 +121,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).To(BeNil())
 
 			By("updating the operator group remove service account without permissions")
-			Eventually(operatorGroupServiceAccountNameSetter(crclient, ns.GetName(), ogName, "")).Should(Succeed())
+			Eventually(operatorGroupServiceAccountNameSetter(crclient, generatedNamespace.GetName(), ogName, "")).Should(Succeed())
 		})
 		AfterEach(func() {
 			By("removing the testing catalog resources")
@@ -129,7 +129,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 		})
 		It("eventually reports a successful state when multiple bad versions are rolled forward", func() {
 			By("patching the OperatorGroup to reduce the bundle unpacking timeout")
-			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "1s")
+			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: generatedNamespace.GetName()}, "1s")
 
 			By("patching the catalog with a bad bundle version")
 			badProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fail-forward/multiple-bad-versions", "example-operator.v0.2.1-non-existent-tag.yaml"))
@@ -141,7 +141,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Consistently(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.2.0"))
 
 			By("patching the OperatorGroup to increase the bundle unpacking timeout")
-			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: ns.GetName()}, "5m")
+			addBundleUnpackTimeoutOGAnnotation(context.Background(), c, types.NamespacedName{Name: ogName, Namespace: generatedNamespace.GetName()}, "5m")
 
 			By("patching the catalog with a fixed version")
 			fixedProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "fail-forward/multiple-bad-versions", "example-operator.v0.3.0.yaml"))
@@ -232,18 +232,18 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.1.0.yaml"))
 			Expect(err).To(BeNil())
 			catalogSourceName = genName("mc-csv-failed-")
-			magicCatalog = NewMagicCatalog(c, ns.GetName(), catalogSourceName, provider)
+			magicCatalog = NewMagicCatalog(c, generatedNamespace.GetName(), catalogSourceName, provider)
 			Expect(magicCatalog.DeployCatalog(context.Background())).To(BeNil())
 
 			By("creating the testing subscription")
 			subscription = &operatorsv1alpha1.Subscription{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("%s-sub", catalogSourceName),
-					Namespace: ns.GetName(),
+					Namespace: generatedNamespace.GetName(),
 				},
 				Spec: &operatorsv1alpha1.SubscriptionSpec{
 					CatalogSource:          catalogSourceName,
-					CatalogSourceNamespace: ns.GetName(),
+					CatalogSourceNamespace: generatedNamespace.GetName(),
 					Channel:                "stable",
 					Package:                "packageA",
 				},
@@ -255,7 +255,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).Should(BeNil())
 
 			By("waiting for the v0.1.0 CSV to report a succeeded phase")
-			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, ns.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("updating the catalog with a broken v0.2.0 csv")
@@ -271,7 +271,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).Should(BeNil())
 
 			By("waiting for the bad CSV to report a failed state")
-			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, ns.GetName(), csvFailedChecker)
+			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, generatedNamespace.GetName(), csvFailedChecker)
 			Expect(err).To(BeNil())
 
 		})
