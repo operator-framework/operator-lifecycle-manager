@@ -19,7 +19,7 @@ import (
 var missingAPI = `{"apiVersion":"verticalpodautoscalers.autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"name":"my.thing","namespace":"foo"}}`
 
 var _ = Describe("Not found APIs", func() {
-	var ns corev1.Namespace
+	var generatedNamespace corev1.Namespace
 
 	BeforeEach(func() {
 		namespaceName := genName("deprecated-e2e-")
@@ -29,14 +29,14 @@ var _ = Describe("Not found APIs", func() {
 				Namespace: namespaceName,
 			},
 		}
-		ns = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
+		generatedNamespace = SetupGeneratedTestNamespaceWithOperatorGroup(namespaceName, og)
 
-		csv := newCSV("test-csv", ns.GetName(), "", semver.Version{}, nil, nil, nil)
+		csv := newCSV("test-csv", generatedNamespace.GetName(), "", semver.Version{}, nil, nil, nil)
 		Expect(ctx.Ctx().Client().Create(context.TODO(), &csv)).To(Succeed())
 	})
 
 	AfterEach(func() {
-		TeardownNamespace(ns.GetName())
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	Context("objects with APIs that are not on-cluster are created in the installplan", func() {
@@ -45,7 +45,7 @@ var _ = Describe("Not found APIs", func() {
 				ip := &operatorsv1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-plan-api",
-						Namespace: ns.GetName(),
+						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.InstallPlanSpec{
 						Approval:                   operatorsv1alpha1.ApprovalAutomatic,

@@ -14,35 +14,33 @@ import (
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 	var (
-		c             operatorclient.ClientInterface
-		crc           versioned.Interface
-		dynamicClient dynamic.Interface
-		deleteOpts    *metav1.DeleteOptions
+		crc                versioned.Interface
+		generatedNamespace corev1.Namespace
+		dynamicClient      dynamic.Interface
+		deleteOpts         *metav1.DeleteOptions
 	)
 
 	BeforeEach(func() {
-		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
 		dynamicClient = ctx.Ctx().DynamicClient()
 
 		deleteOpts = &metav1.DeleteOptions{}
+		generatedNamespace = SetupGeneratedTestNamespace(genName("dynamic-resource-e2e-"))
 	})
 
 	AfterEach(func() {
-		TearDown(testNamespace)
+		TearDown(generatedNamespace.GetName())
 	})
 
 	Context("Given a Namespace", func() {
 		When("a CatalogSource is created with a bundle that contains prometheus objects", func() {
 			Context("creating a subscription using the CatalogSource", func() {
 				var (
-					ns         *corev1.Namespace
 					catsrc     *v1alpha1.CatalogSource
 					subName    string
 					cleanupSub cleanupFunc
@@ -50,20 +48,11 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 
 				BeforeEach(func() {
 
-					// Create Namespace
-					var err error
-					ns, err = c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: genName("ns-"),
-						},
-					}, metav1.CreateOptions{})
-					Expect(err).NotTo(HaveOccurred())
-
 					// Create CatalogSource
 					catsrc = &v1alpha1.CatalogSource{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      genName("dynamic-catalog-"),
-							Namespace: ns.GetName(),
+							Namespace: generatedNamespace.GetName(),
 						},
 						Spec: v1alpha1.CatalogSourceSpec{
 							Image:      "quay.io/olmtest/catsrc_dynamic_resources:e2e-test",
@@ -74,7 +63,7 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 						},
 					}
 
-					catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
+					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
 					Expect(err).NotTo(HaveOccurred())
 
 					// Wait for the CatalogSource to be ready
@@ -97,12 +86,6 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 					// Delete CatalogSource
 					if catsrc != nil {
 						err := crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(context.TODO(), catsrc.GetName(), *deleteOpts)
-						Expect(err).NotTo(HaveOccurred())
-					}
-
-					// Delete Namespace
-					if ns != nil {
-						err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), ns.GetName(), *deleteOpts)
 						Expect(err).NotTo(HaveOccurred())
 					}
 
@@ -150,11 +133,11 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 						Resource: "prometheusrules",
 					}
 
-					err = waitForGVR(dynamicClient, gvr, "my-prometheusrule", ns.GetName())
+					err = waitForGVR(dynamicClient, gvr, "my-prometheusrule", generatedNamespace.GetName())
 					Expect(err).NotTo(HaveOccurred())
 
 					gvr.Resource = "servicemonitors"
-					err = waitForGVR(dynamicClient, gvr, "my-servicemonitor", ns.GetName())
+					err = waitForGVR(dynamicClient, gvr, "my-servicemonitor", generatedNamespace.GetName())
 					Expect(err).NotTo(HaveOccurred())
 				})
 			})

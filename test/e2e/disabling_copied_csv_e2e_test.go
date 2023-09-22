@@ -28,21 +28,21 @@ const (
 
 var _ = Describe("Disabling copied CSVs", func() {
 	var (
-		ns                              corev1.Namespace
+		generatedNamespace              corev1.Namespace
 		csv                             operatorsv1alpha1.ClusterServiceVersion
 		nonTerminatingNamespaceSelector = fields.ParseSelectorOrDie("status.phase!=Terminating")
 		protectedCopiedCSVNamespaces    = map[string]struct{}{}
 	)
 
 	BeforeEach(func() {
-		nsname := genName("csv-toggle-test-")
+		nsname := genName("disabling-copied-csv-e2e-")
 		og := operatorsv1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s-operatorgroup", nsname),
 				Namespace: nsname,
 			},
 		}
-		ns = SetupGeneratedTestNamespaceWithOperatorGroup(nsname, og)
+		generatedNamespace = SetupGeneratedTestNamespaceWithOperatorGroup(nsname, og)
 
 		csv = operatorsv1alpha1.ClusterServiceVersion{
 			ObjectMeta: metav1.ObjectMeta{
@@ -67,7 +67,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 		Eventually(func() error {
 			return client.IgnoreNotFound(ctx.Ctx().Client().Delete(context.Background(), &csv))
 		}).Should(Succeed())
-		TeardownNamespace(ns.GetName())
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	When("an operator is installed in AllNamespace mode", func() {

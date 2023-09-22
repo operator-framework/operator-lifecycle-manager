@@ -21,7 +21,7 @@ const magicCatalogDir = "magiccatalog"
 
 var _ = Describe("Global Catalog Exclusion", func() {
 	var (
-		testNamespace       corev1.Namespace
+		generatedNamespace  corev1.Namespace
 		determinedE2eClient *util.DeterminedE2EClient
 		operatorGroup       operatorsv1.OperatorGroup
 		localCatalog        *MagicCatalog
@@ -42,7 +42,7 @@ var _ = Describe("Global Catalog Exclusion", func() {
 				TargetNamespaces: []string{e2eTestNamespace},
 			},
 		}
-		testNamespace = SetupGeneratedTestNamespaceWithOperatorGroup(e2eTestNamespace, operatorGroup)
+		generatedNamespace = SetupGeneratedTestNamespaceWithOperatorGroup(e2eTestNamespace, operatorGroup)
 
 		By("creating a broken catalog in the global namespace")
 		globalCatalog := &v1alpha1.CatalogSource{
@@ -66,7 +66,7 @@ var _ = Describe("Global Catalog Exclusion", func() {
 		var err error = nil
 
 		fbcPath := filepath.Join(testdataDir, magicCatalogDir, "fbc_initial.yaml")
-		localCatalog, err = NewMagicCatalogFromFile(determinedE2eClient, testNamespace.GetName(), localCatalogName, fbcPath)
+		localCatalog, err = NewMagicCatalogFromFile(determinedE2eClient, generatedNamespace.GetName(), localCatalogName, fbcPath)
 		Expect(err).To(Succeed())
 
 		// deploy catalog blocks until the catalog has reached a ready state or fails
@@ -79,7 +79,7 @@ var _ = Describe("Global Catalog Exclusion", func() {
 	})
 
 	AfterEach(func() {
-		TeardownNamespace(testNamespace.GetName())
+		TeardownNamespace(generatedNamespace.GetName())
 	})
 
 	When("a subscription referring to the local catalog is created", func() {
@@ -88,7 +88,7 @@ var _ = Describe("Global Catalog Exclusion", func() {
 		BeforeEach(func() {
 			subscription = &v1alpha1.Subscription{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: testNamespace.GetName(),
+					Namespace: generatedNamespace.GetName(),
 					Name:      genName("local-subscription-"),
 				},
 				Spec: &v1alpha1.SubscriptionSpec{
