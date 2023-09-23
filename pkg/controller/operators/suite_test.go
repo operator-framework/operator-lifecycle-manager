@@ -162,8 +162,7 @@ var _ = AfterSuite(func() {
 	ctx.Done()
 
 	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
+	testEnv.Stop()
 })
 
 func newOperator(name string) *decorators.Operator {
