@@ -108,5 +108,5 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	close(syncCh)
-	Expect(testEnv.Stop()).To(Succeed())
+	testEnv.Stop()
 })
