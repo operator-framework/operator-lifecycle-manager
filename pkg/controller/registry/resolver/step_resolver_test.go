@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
@@ -1280,7 +1282,20 @@ func TestResolver(t *testing.T) {
 				csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace),
 				subLister: lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace),
 				ogLister:  lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace),
-				logger:    log,
+				listSubscriptions: func(ctx context.Context) (*v1alpha1.SubscriptionList, error) {
+					items, err := lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace).List(labels.Everything())
+					if err != nil {
+						return nil, err
+					}
+					var out []v1alpha1.Subscription
+					for _, sub := range items {
+						out = append(out, *sub)
+					}
+					return &v1alpha1.SubscriptionList{
+						Items: out,
+					}, nil
+				},
+				logger: log,
 			}
 			satresolver := &Resolver{
 				cache: resolvercache.New(ssp),

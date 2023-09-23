@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -1449,6 +1450,17 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 						subLister: fakeSubscriptionLister(p.subs),
 						ogLister:  fakeOperatorGroupLister{og},
 						logger:    logger,
+						listSubscriptions: func(ctx context.Context) (*v1alpha1.SubscriptionList, error) {
+							return &v1alpha1.SubscriptionList{
+								Items: func(ptrs []*v1alpha1.Subscription) []v1alpha1.Subscription {
+									var out []v1alpha1.Subscription
+									for _, sub := range ptrs {
+										out = append(out, *sub)
+									}
+									return out
+								}(p.subs),
+							}, nil
+						},
 					},
 				}),
 				log: logger,
@@ -1460,7 +1472,13 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 					pkg = si.Package
 					channel = si.Channel
 				}
-				csvs = append(csvs, existingOperator(namespace, o.Name, pkg, channel, o.Replaces, o.ProvidedAPIs, o.RequiredAPIs, nil, nil))
+				csv := existingOperator(namespace, o.Name, pkg, channel, o.Replaces, o.ProvidedAPIs, o.RequiredAPIs, nil, nil)
+				csvs = append(csvs, csv)
+				if o.SourceInfo != nil && o.SourceInfo.Subscription != nil {
+					o.SourceInfo.Subscription.Status = v1alpha1.SubscriptionStatus{
+						InstalledCSV: csv.Name,
+					}
+				}
 			}
 
 			var err error

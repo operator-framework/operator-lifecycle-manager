@@ -477,14 +477,24 @@ func TestPropertiesAnnotationHonored(t *testing.T) {
 		csvLister: fakeCSVLister{
 			&v1alpha1.ClusterServiceVersion{
 				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "fake-ns",
+					Name:      "csv",
 					Annotations: map[string]string{
 						"operatorframework.io/properties": `{"properties":[{"type":"test-type","value":{"test":"value"}}]}`,
 					},
 				},
 			},
 		},
-		subLister: fakeSubscriptionLister{},
-		ogLister:  fakeOperatorGroupLister{og},
+		subLister: fakeSubscriptionLister{&v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "fake-ns",
+				Name:      "sub",
+			},
+			Status: v1alpha1.SubscriptionStatus{
+				InstalledCSV: "csv",
+			},
+		}},
+		ogLister: fakeOperatorGroupLister{og},
 	}
 	ss, err := src.Snapshot(context.Background())
 	require.NoError(t, err)

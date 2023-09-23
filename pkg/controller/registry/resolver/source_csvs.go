@@ -37,7 +37,9 @@ func (csp *csvSourceProvider) Sources(namespaces ...string) map[cache.SourceKey]
 			subLister: csp.subLister.Subscriptions(namespace),
 			ogLister:  csp.ogLister.OperatorGroups(namespace),
 			logger:    csp.logger,
-			client:    csp.client,
+			listSubscriptions: func(ctx context.Context) (*v1alpha1.SubscriptionList, error) {
+				return csp.client.OperatorsV1alpha1().Subscriptions(namespace).List(ctx, metav1.ListOptions{})
+			},
 		}
 		break // first ns is assumed to be the target ns, todo: make explicit
 	}
@@ -51,7 +53,7 @@ type csvSource struct {
 	ogLister  v1listers.OperatorGroupNamespaceLister
 	logger    logrus.StdLogger
 
-	client operatorv1clientset.Interface
+	listSubscriptions func(context.Context) (*v1alpha1.SubscriptionList, error)
 }
 
 func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
@@ -93,7 +95,7 @@ func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
 
 		if cachedSubscription, ok := csvSubscriptions[csv]; !ok || cachedSubscription == nil {
 			// we might be in an incoherent state, so let's check with live clients to make sure
-			realSubscriptions, err := s.client.OperatorsV1alpha1().Subscriptions(csv.Namespace).List(ctx, metav1.ListOptions{})
+			realSubscriptions, err := s.listSubscriptions(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to list subscriptions: %w", err)
 			}
