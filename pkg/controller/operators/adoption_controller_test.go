@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -350,6 +351,12 @@ var _ = Describe("Adoption Controller", func() {
 								),
 							}
 							for _, component := range components {
+								labels := component.GetLabels()
+								if labels == nil {
+									labels = map[string]string{}
+								}
+								labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
+								component.SetLabels(labels)
 								Eventually(func() error {
 									return k8sClient.Create(ctx, component)
 								}, timeout, interval).Should(Succeed())
