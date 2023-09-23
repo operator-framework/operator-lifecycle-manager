@@ -3,11 +3,15 @@ package main
 import (
 	"context"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -53,6 +57,36 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 		MetricsBindAddress: "0", // TODO(njhale): Enable metrics on non-conflicting port (not 8080)
 		Cache: cache.Options{
 			ByObject: map[client.Object]cache.ByObject{
+				&appsv1.Deployment{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&corev1.Service{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&apiextensionsv1.CustomResourceDefinition{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&apiregistrationv1.APIService{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&corev1.ConfigMap{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&corev1.ServiceAccount{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&rbacv1.Role{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&rbacv1.RoleBinding{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&rbacv1.ClusterRole{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&rbacv1.ClusterRoleBinding{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
 				&corev1.Secret{}: {
 					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
 				},
