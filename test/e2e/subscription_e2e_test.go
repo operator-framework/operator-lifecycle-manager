@@ -2890,9 +2890,9 @@ func fetchSubscription(crc versioned.Interface, namespace, name string, checker 
 			return false, err
 		}
 		thisState, thisCSV, thisInstallPlanRef := fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.InstallPlanRef
-		if thisState != lastState || thisCSV != lastCSV || equality.Semantic.DeepEqual(thisInstallPlanRef, lastInstallPlanRef) {
+		if thisState != lastState || thisCSV != lastCSV || !equality.Semantic.DeepEqual(thisInstallPlanRef, lastInstallPlanRef) {
 			lastState, lastCSV, lastInstallPlanRef = thisState, thisCSV, thisInstallPlanRef
-			log(fmt.Sprintf("%s (%s): %s", thisState, thisCSV, thisInstallPlanRef))
+			log(fmt.Sprintf("subscription %s/%s state: %s (csv %s): installPlanRef: %#v", namespace, name, thisState, thisCSV, thisInstallPlanRef))
 		}
 		return checker(fetchedSubscription), nil
 	})
