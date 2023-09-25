@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -1420,19 +1421,31 @@ var _ = Describe("Operator Group", func() {
 				Name: role.GetName(),
 			},
 		}
-		_, err = c.CreateServiceAccount(serviceAccount)
+		serviceAccount, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
 		defer func() {
+			if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+				fmt.Printf("Skipping cleanup of serviceaccount %s/%s...\n", serviceAccount.GetNamespace(), serviceAccount.GetName())
+				return
+			}
 			c.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0))
 		}()
 		createdRole, err := c.CreateRole(role)
 		require.NoError(GinkgoT(), err)
 		defer func() {
+			if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+				fmt.Printf("Skipping cleanup of role %s/%s...\n", role.GetNamespace(), role.GetName())
+				return
+			}
 			c.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0))
 		}()
 		createdRoleBinding, err := c.CreateRoleBinding(roleBinding)
 		require.NoError(GinkgoT(), err)
 		defer func() {
+			if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+				fmt.Printf("Skipping cleanup of role binding %s/%s...\n", roleBinding.GetNamespace(), roleBinding.GetName())
+				return
+			}
 			c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0))
 		}()
 		// Create a new NamedInstallStrategy
@@ -1448,11 +1461,13 @@ var _ = Describe("Operator Group", func() {
 
 		err = ownerutil.AddOwnerLabels(createdRole, createdCSV)
 		require.NoError(GinkgoT(), err)
+		createdRole.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 		_, err = c.UpdateRole(createdRole)
 		require.NoError(GinkgoT(), err)
 
 		err = ownerutil.AddOwnerLabels(createdRoleBinding, createdCSV)
 		require.NoError(GinkgoT(), err)
+		createdRoleBinding.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 		_, err = c.UpdateRoleBinding(createdRoleBinding)
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("wait for CSV to succeed")
@@ -1903,16 +1918,28 @@ var _ = Describe("Operator Group", func() {
 		_, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
 		defer func() {
+			if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+				fmt.Printf("Skipping cleanup of serviceaccount %s/%s...\n", serviceAccount.GetNamespace(), serviceAccount.GetName())
+				return
+			}
 			c.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0))
 		}()
 		createdRole, err := c.CreateRole(role)
 		require.NoError(GinkgoT(), err)
 		defer func() {
+			if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+				fmt.Printf("Skipping cleanup of role %s/%s...\n", role.GetNamespace(), role.GetName())
+				return
+			}
 			c.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0))
 		}()
 		createdRoleBinding, err := c.CreateRoleBinding(roleBinding)
 		require.NoError(GinkgoT(), err)
 		defer func() {
+			if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+				fmt.Printf("Skipping cleanup of role binding %s/%s...\n", roleBinding.GetNamespace(), roleBinding.GetName())
+				return
+			}
 			c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0))
 		}()
 		// Create a new NamedInstallStrategy
@@ -1928,11 +1955,13 @@ var _ = Describe("Operator Group", func() {
 
 		err = ownerutil.AddOwnerLabels(createdRole, createdCSV)
 		require.NoError(GinkgoT(), err)
+		createdRole.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 		_, err = c.UpdateRole(createdRole)
 		require.NoError(GinkgoT(), err)
 
 		err = ownerutil.AddOwnerLabels(createdRoleBinding, createdCSV)
 		require.NoError(GinkgoT(), err)
+		createdRoleBinding.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 		_, err = c.UpdateRoleBinding(createdRoleBinding)
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("wait for CSV to succeed")
