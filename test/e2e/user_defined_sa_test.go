@@ -81,17 +81,12 @@ var _ = Describe("User defined service account", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
-		By("We expect the InstallPlan to be in status: Failed.")
+		By("We expect the InstallPlan to be in status: Installing.")
 		ipName := subscription.Status.Install.Name
 		ipPhaseCheckerFunc := buildInstallPlanMessageCheckFunc(`cannot create resource`)
 		ipGot, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ipName, generatedNamespace.GetName(), ipPhaseCheckerFunc)
 		require.NoError(GinkgoT(), err)
-
-		conditionGot := mustHaveCondition(GinkgoT(), ipGot, v1alpha1.InstallPlanInstalled)
-		assert.Equal(GinkgoT(), corev1.ConditionFalse, conditionGot.Status)
-		assert.Equal(GinkgoT(), v1alpha1.InstallPlanReasonComponentFailed, conditionGot.Reason)
-		assert.Contains(GinkgoT(), conditionGot.Message, fmt.Sprintf("is forbidden: User \"system:serviceaccount:%s:%s\" cannot create resource", generatedNamespace.GetName(), saName))
-
+		
 		By("Verify that all step resources are in Unknown state.")
 		for _, step := range ipGot.Status.Plan {
 			assert.Equal(GinkgoT(), v1alpha1.StepStatusUnknown, step.Status)

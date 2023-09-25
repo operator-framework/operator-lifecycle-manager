@@ -3931,7 +3931,7 @@ func buildInstallPlanMessageCheckFunc(substring string) checkInstallPlanFunc {
 	lastTime := time.Now()
 	return func(fip *operatorsv1alpha1.InstallPlan) bool {
 		if fip.Status.Message != lastMessage {
-			ctx.Ctx().Logf("waiting %s for installplan %s/%s to have message substring %s, have message %s", time.Since(lastTime), fip.Namespace, fip.Name, substring, fip.Status.Phase)
+			ctx.Ctx().Logf("waiting %s for installplan %s/%s to have message substring %q, have message %q", time.Since(lastTime), fip.Namespace, fip.Name, substring, fip.Status.Message)
 			lastMessage = fip.Status.Message
 			lastTime = time.Now()
 		}
