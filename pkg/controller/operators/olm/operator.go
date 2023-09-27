@@ -504,6 +504,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if canFilter {
 			return nil
 		}
+
+		// for each GVR, we may have more than one labelling controller active; each of which detects
+		// when it is done; we allocate a space in complete[gvr][idx] to hold that outcome and track it
 		var idx int
 		if _, exists := complete[gvr]; exists {
 			idx = len(complete[gvr])
@@ -521,6 +524,11 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			queueinformer.WithLogger(op.logger),
 			queueinformer.WithInformer(informer),
 			queueinformer.WithSyncer(sync(func() bool {
+				// this function is called by the processor when it detects that it's work is done - so, for that
+				// particular labelling action on that particular GVR, all objects are in the correct state. when
+				// that action is done, we need to further know if that was the last action to be completed, as
+				// when every action we know about has been completed, we re-start the process to allow the future
+				// invocation of this process to filter informers (canFilter = true) and elide all this logic
 				completeLock.Lock()
 				complete[gvr][idx] = true
 				allDone := true
