@@ -424,12 +424,7 @@ func permissionsPreviouslyCreated[T, U metav1.Object](
 	}
 	roleSelectorMap := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
 	roleSelectorMap[resolver.ContentHashLabelKey] = ruleHash
-	roleSelectorSet := labels.Set{}
-	for key, value := range roleSelectorMap {
-		roleSelectorSet[key] = value
-	}
-	roleSelector := labels.SelectorFromSet(roleSelectorSet)
-	roles, err := listRoles(roleSelector)
+	roles, err := listRoles(labels.SelectorFromSet(roleSelectorMap))
 	if err != nil {
 		return false, err
 	}
