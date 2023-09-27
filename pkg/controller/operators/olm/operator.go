@@ -106,7 +106,7 @@ type Operator struct {
 	informersFiltered            bool
 
 	ruleChecker     func(*v1alpha1.ClusterServiceVersion) *install.CSVRuleChecker
-	ruleCheckerLock *sync.RWMutex
+	ruleCheckerLock sync.RWMutex
 	resyncPeriod    func() time.Duration
 	ctx             context.Context
 }
@@ -218,7 +218,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		clientFactory:                clients.NewFactory(config.restConfig),
 		protectedCopiedCSVNamespaces: config.protectedCopiedCSVNamespaces,
 		resyncPeriod:                 config.resyncPeriod,
-		ruleCheckerLock:              &sync.RWMutex{},
+		ruleCheckerLock:              sync.RWMutex{},
 		ctx:                          ctx,
 		informersFiltered:            canFilter,
 	}

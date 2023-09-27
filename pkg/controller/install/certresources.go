@@ -504,7 +504,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			Name:     "extension-apiserver-authentication-reader",
 		},
 	}
-	authReaderRoleBinding.SetName(AuthReaderRolebindingName(service.GetName()))
+	authReaderRoleBinding.SetName(AuthReaderRoleBindingName(service.GetName()))
 	authReaderRoleBinding.SetNamespace(KubeSystem)
 	authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
@@ -547,7 +547,7 @@ func AuthDelegatorClusterRoleBindingName(serviceName string) string {
 	return serviceName + "-system:auth-delegator"
 }
 
-func AuthReaderRolebindingName(serviceName string) string {
+func AuthReaderRoleBindingName(serviceName string) string {
 	return serviceName + "-auth-reader"
 }
 
