@@ -1,0 +1,6 @@
+apiVersion: cluster.com/v1alpha1
+kind: testcrd
+metadata:
+  name: my-cr-1
+spec:
+  scalar: 100

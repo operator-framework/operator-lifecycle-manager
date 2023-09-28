@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -1459,7 +1458,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 	}
 }
 
-func TestValidateExistingCRs(t *testing.T) {
+func TestValidateV1Beta1CRDCompatibility(t *testing.T) {
 	unstructuredForFile := func(file string) *unstructured.Unstructured {
 		data, err := os.ReadFile(file)
 		require.NoError(t, err)
@@ -1469,22 +1468,21 @@ func TestValidateExistingCRs(t *testing.T) {
 		return k8sFile
 	}
 
-	unversionedCRDForV1beta1File := func(file string) *apiextensions.CustomResourceDefinition {
+	unversionedCRDForV1beta1File := func(file string) *apiextensionsv1beta1.CustomResourceDefinition {
 		data, err := os.ReadFile(file)
 		require.NoError(t, err)
 		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
 		k8sFile := &apiextensionsv1beta1.CustomResourceDefinition{}
 		require.NoError(t, dec.Decode(k8sFile))
-		convertedCRD := &apiextensions.CustomResourceDefinition{}
-		require.NoError(t, apiextensionsv1beta1.Convert_v1beta1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(k8sFile, convertedCRD, nil))
-		return convertedCRD
+		return k8sFile
 	}
 
 	tests := []struct {
 		name            string
 		existingObjects []runtime.Object
 		gvr             schema.GroupVersionResource
-		newCRD          *apiextensions.CustomResourceDefinition
+		oldCRD          *apiextensionsv1beta1.CustomResourceDefinition
+		newCRD          *apiextensionsv1beta1.CustomResourceDefinition
 		want            error
 	}{
 		{
@@ -1497,6 +1495,7 @@ func TestValidateExistingCRs(t *testing.T) {
 				Version:  "v1",
 				Resource: "machinepools",
 			},
+			oldCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
 			newCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
 		},
 		{
@@ -1509,16 +1508,144 @@ func TestValidateExistingCRs(t *testing.T) {
 				Version:  "v1",
 				Resource: "machinepools",
 			},
+			oldCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
 			newCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
-			want:   fmt.Errorf("error validating custom resource against new schema for MachinePool /test: [[].spec.clusterDeploymentRef: Invalid value: \"null\": spec.clusterDeploymentRef in body must be of type object: \"null\", [].spec.name: Required value, [].spec.platform: Required value]"),
+			want:   fmt.Errorf("error validating hive.openshift.io/v1, Kind=MachinePool \"test\": updated validation is too restrictive: [[].spec.clusterDeploymentRef: Invalid value: \"null\": spec.clusterDeploymentRef in body must be of type object: \"null\", [].spec.name: Required value, [].spec.platform: Required value]"),
+		},
+		{
+			name: "backwards incompatible change",
+			existingObjects: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1beta1/cr.yaml"),
+			},
+			gvr: schema.GroupVersionResource{
+				Group:    "cluster.com",
+				Version:  "v1alpha1",
+				Resource: "testcrd",
+			},
+			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.old.yaml"),
+			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.yaml"),
+			want:   fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3"),
+		},
+		{
+			name: "unserved version",
+			existingObjects: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1beta1/cr.yaml"),
+				unstructuredForFile("testdata/apiextensionsv1beta1/cr.v2.yaml"),
+			},
+			gvr: schema.GroupVersionResource{
+				Group:    "cluster.com",
+				Version:  "v1alpha1",
+				Resource: "testcrd",
+			},
+			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.old.yaml"),
+			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.unserved.yaml"),
+		},
+		{
+			name: "cr not validated against currently unserved version",
+			existingObjects: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1beta1/cr.yaml"),
+				unstructuredForFile("testdata/apiextensionsv1beta1/cr.v2.yaml"),
+			},
+			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.unserved.yaml"),
+			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.yaml"),
+		},
+		{
+			name: "crd with no versions list",
+			existingObjects: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1beta1/cr.yaml"),
+				unstructuredForFile("testdata/apiextensionsv1beta1/cr.v2.yaml"),
+			},
+			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.no-versions-list.old.yaml"),
+			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.no-versions-list.yaml"),
+			want:   fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3"),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
-				tt.gvr: "UnstructuredList",
-			}, tt.existingObjects...)
-			require.Equal(t, tt.want, validateExistingCRs(client, tt.gvr, tt.newCRD))
+			client := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme(), tt.existingObjects...)
+			require.Equal(t, tt.want, validateV1Beta1CRDCompatibility(client, tt.oldCRD, tt.newCRD))
+		})
+	}
+}
+
+func TestValidateV1CRDCompatibility(t *testing.T) {
+	unstructuredForFile := func(file string) *unstructured.Unstructured {
+		data, err := os.ReadFile(file)
+		require.NoError(t, err)
+		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
+		k8sFile := &unstructured.Unstructured{}
+		require.NoError(t, dec.Decode(k8sFile))
+		return k8sFile
+	}
+
+	unversionedCRDForV1File := func(file string) *apiextensionsv1.CustomResourceDefinition {
+		data, err := os.ReadFile(file)
+		require.NoError(t, err)
+		dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(string(data)), 30)
+		k8sFile := &apiextensionsv1.CustomResourceDefinition{}
+		require.NoError(t, dec.Decode(k8sFile))
+		return k8sFile
+	}
+
+	tests := []struct {
+		name        string
+		existingCRs []runtime.Object
+		gvr         schema.GroupVersionResource
+		oldCRD      *apiextensionsv1.CustomResourceDefinition
+		newCRD      *apiextensionsv1.CustomResourceDefinition
+		want        error
+	}{
+		{
+			name: "valid",
+			existingCRs: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1/crontabs.cr.valid.v1.yaml"),
+				unstructuredForFile("testdata/apiextensionsv1/crontabs.cr.valid.v2.yaml"),
+			},
+			oldCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.old.yaml"),
+			newCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.yaml"),
+		},
+		{
+			name: "validation failure",
+			existingCRs: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1/crontabs.cr.valid.v1.yaml"),
+				unstructuredForFile("testdata/apiextensionsv1/crontabs.cr.fail.v2.yaml"),
+			},
+			oldCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.old.yaml"),
+			newCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.yaml"),
+			want:   fmt.Errorf("error validating stable.example.com/v2, Kind=CronTab \"my-crontab\": updated validation is too restrictive: [].spec.replicas: Invalid value: 10: spec.replicas in body should be less than or equal to 9"),
+		},
+		{
+			name: "cr not invalidated by unserved version",
+			existingCRs: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1/crontabs.cr.valid.v1.yaml"),
+				unstructuredForFile("testdata/apiextensionsv1/crontabs.cr.valid.v2.yaml"),
+			},
+			oldCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.old.yaml"),
+			newCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.unserved.yaml"),
+		},
+		{
+			name: "cr not validated against currently unserved version",
+			existingCRs: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1/crontabs.cr.valid.v1.yaml"),
+				unstructuredForFile("testdata/apiextensionsv1/crontabs.cr.valid.v2.yaml"),
+			},
+			oldCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.old.unserved.yaml"),
+			newCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.yaml"),
+		},
+		{
+			name: "validation failure with single CRD version",
+			existingCRs: []runtime.Object{
+				unstructuredForFile("testdata/apiextensionsv1/single-version-cr.yaml"),
+			},
+			oldCRD: unversionedCRDForV1File("testdata/apiextensionsv1/single-version-crd.old.yaml"),
+			newCRD: unversionedCRDForV1File("testdata/apiextensionsv1/single-version-crd.yaml"),
+			want:   fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 100: spec.scalar in body should be less than or equal to 50"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme(), tt.existingCRs...)
+			require.Equal(t, tt.want, validateV1CRDCompatibility(client, tt.oldCRD, tt.newCRD))
 		})
 	}
 }
