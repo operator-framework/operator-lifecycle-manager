@@ -123,7 +123,8 @@ func ObjectPatchLabeler(
 				if gvrFullyLabelled {
 					allObjectsLabelled := done()
 					if allObjectsLabelled {
-						logrus.Fatal("detected that every object is labelled, exiting...")
+						logrus.Info("detected that every object is labelled, exiting to re-start the process...")
+						os.Exit(0)
 					}
 				}
 				return nil

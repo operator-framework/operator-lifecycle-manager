@@ -100,8 +100,8 @@ func (s *UserDefinedServiceAccountSyncer) SyncOperatorGroup(in *v1.OperatorGroup
 		return
 	}
 
-	// A service account has been specified, but likely does not have the labels we expect it to have so it will
-	// show up in our listers, so let's add that and queue again later
+	// A service account has been specified, but likely does not have the labels we require it to have to ensure it
+	// shows up in our listers, so let's add that and queue again later
 	config := corev1applyconfigurations.ServiceAccount(serviceAccountName, namespace)
 	config.Labels = map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}
 	if _, err := s.client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Apply(context.TODO(), config, metav1.ApplyOptions{FieldManager: "operator-lifecycle-manager"}); err != nil {

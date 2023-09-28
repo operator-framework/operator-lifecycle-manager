@@ -136,13 +136,13 @@ func (a *Operator) getRuleChecker() func(*v1alpha1.ClusterServiceVersion) *insta
 	clusterRolesLister := sif.Rbac().V1().ClusterRoles().Lister()
 	clusterRoleBindingsLister := sif.Rbac().V1().ClusterRoleBindings().Lister()
 
-	done := make(chan struct{})
-	go func() {
-		<-a.ctx.Done()
-		done <- struct{}{}
-	}()
-	sif.Start(done)
-	sif.WaitForCacheSync(done)
+	sif.Start(a.ctx.Done())
+	sif.WaitForCacheSync(a.ctx.Done())
+
+	if a.ctx.Err() != nil {
+		a.ruleChecker = nil
+		return nil
+	}
 
 	a.ruleChecker = func(csv *v1alpha1.ClusterServiceVersion) *install.CSVRuleChecker {
 		return install.NewCSVRuleChecker(

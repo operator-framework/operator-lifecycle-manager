@@ -3,6 +3,7 @@ package olm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -349,6 +350,9 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.Strategy
 			// if we have not filtered our informers or if we were unable to detect the correct permissions, we have
 			// no choice but to page in the world and see if the user pre-created permissions for this CSV
 			ruleChecker := a.getRuleChecker()(csv)
+			if ruleChecker == nil {
+				return false, errors.New("could not create a rule checker (are we shutting down?)")
+			}
 			for _, rule := range perm.Rules {
 				dependent := v1alpha1.DependentStatus{
 					Group:   "rbac.authorization.k8s.io",
