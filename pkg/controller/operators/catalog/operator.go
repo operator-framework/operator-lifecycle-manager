@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	batchv1applyconfigurations "k8s.io/client-go/applyconfigurations/batch/v1"
@@ -2077,81 +2078,106 @@ func transitionInstallPlanState(log logrus.FieldLogger, transitioner installPlan
 func validateV1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiextensionsv1.CustomResourceDefinition, newCRD *apiextensionsv1.CustomResourceDefinition) error {
 	logrus.Debugf("Comparing %#v to %#v", oldCRD.Spec.Versions, newCRD.Spec.Versions)
 
-	// If validation schema is unchanged, return right away
-	newestSchema := newCRD.Spec.Versions[len(newCRD.Spec.Versions)-1].Schema
-	for i, oldVersion := range oldCRD.Spec.Versions {
-		if !reflect.DeepEqual(oldVersion.Schema, newestSchema) {
-			break
-		}
-		if i == len(oldCRD.Spec.Versions)-1 {
-			// we are on the last iteration
-			// schema has not changed between versions at this point.
-			return nil
+	oldVersionSet := sets.New[string]()
+	for _, oldVersion := range oldCRD.Spec.Versions {
+		if !oldVersionSet.Has(oldVersion.Name) && oldVersion.Served {
+			oldVersionSet.Insert(oldVersion.Name)
 		}
 	}
 
-	convertedCRD := &apiextensions.CustomResourceDefinition{}
-	if err := apiextensionsv1.Convert_v1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(newCRD, convertedCRD, nil); err != nil {
-		return err
-	}
-	for _, version := range oldCRD.Spec.Versions {
-		if version.Served {
-			gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: version.Name, Resource: oldCRD.Spec.Names.Plural}
-			err := validateExistingCRs(dynamicClient, gvr, convertedCRD)
-			if err != nil {
+	validationsMap := make(map[string]*apiextensions.CustomResourceValidation, 0)
+	for _, newVersion := range newCRD.Spec.Versions {
+		if oldVersionSet.Has(newVersion.Name) && newVersion.Served {
+			// If the new CRD's version is present in the cluster and still
+			// served then fill the map entry with the new validation
+			convertedValidation := &apiextensions.CustomResourceValidation{}
+			if err := apiextensionsv1.Convert_v1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newVersion.Schema, convertedValidation, nil); err != nil {
 				return err
 			}
+			validationsMap[newVersion.Name] = convertedValidation
 		}
 	}
-
-	logrus.Debugf("Successfully validated CRD %s\n", newCRD.Name)
-	return nil
+	return validateExistingCRs(dynamicClient, schema.GroupResource{Group: newCRD.Spec.Group, Resource: newCRD.Spec.Names.Plural}, validationsMap)
 }
 
 // Validate all existing served versions against new CRD's validation (if changed)
 func validateV1Beta1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *apiextensionsv1beta1.CustomResourceDefinition, newCRD *apiextensionsv1beta1.CustomResourceDefinition) error {
 	logrus.Debugf("Comparing %#v to %#v", oldCRD.Spec.Validation, newCRD.Spec.Validation)
-
-	// TODO return early of all versions are equal
-	convertedCRD := &apiextensions.CustomResourceDefinition{}
-	if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(newCRD, convertedCRD, nil); err != nil {
-		return err
+	oldVersionSet := sets.New[string]()
+	if len(oldCRD.Spec.Versions) == 0 {
+		// apiextensionsv1beta1 special case: if spec.Versions is empty, use the global version and validation
+		oldVersionSet.Insert(oldCRD.Spec.Version)
 	}
-	for _, version := range oldCRD.Spec.Versions {
-		if version.Served {
-			gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: version.Name, Resource: oldCRD.Spec.Names.Plural}
-			err := validateExistingCRs(dynamicClient, gvr, convertedCRD)
-			if err != nil {
+	for _, oldVersion := range oldCRD.Spec.Versions {
+		// collect served versions from spec.Versions if the list is present
+		if !oldVersionSet.Has(oldVersion.Name) && oldVersion.Served {
+			oldVersionSet.Insert(oldVersion.Name)
+		}
+	}
+
+	validationsMap := make(map[string]*apiextensions.CustomResourceValidation, 0)
+	gr := schema.GroupResource{Group: newCRD.Spec.Group, Resource: newCRD.Spec.Names.Plural}
+	if len(newCRD.Spec.Versions) == 0 {
+		// apiextensionsv1beta1 special case: if spec.Versions of newCRD is empty, use the global version and validation
+		if oldVersionSet.Has(newCRD.Spec.Version) {
+			convertedValidation := &apiextensions.CustomResourceValidation{}
+			if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newCRD.Spec.Validation, convertedValidation, nil); err != nil {
 				return err
 			}
+			validationsMap[newCRD.Spec.Version] = convertedValidation
 		}
 	}
-
-	if oldCRD.Spec.Version != "" {
-		gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: oldCRD.Spec.Version, Resource: oldCRD.Spec.Names.Plural}
-		err := validateExistingCRs(dynamicClient, gvr, convertedCRD)
-		if err != nil {
-			return err
+	for _, newVersion := range newCRD.Spec.Versions {
+		if oldVersionSet.Has(newVersion.Name) && newVersion.Served {
+			// If the new CRD's version is present in the cluster and still
+			// served then fill the map entry with the new validation
+			if newCRD.Spec.Validation != nil {
+				// apiextensionsv1beta1 special case: spec.Validation and spec.Versions[].Schema are mutually exclusive;
+				// if spec.Versions is non-empty and spec.Validation is set then we can validate once against any
+				// single existing version.
+				convertedValidation := &apiextensions.CustomResourceValidation{}
+				if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newCRD.Spec.Validation, convertedValidation, nil); err != nil {
+					return err
+				}
+				return validateExistingCRs(dynamicClient, gr, map[string]*apiextensions.CustomResourceValidation{newVersion.Name: convertedValidation})
+			}
+			convertedValidation := &apiextensions.CustomResourceValidation{}
+			if err := apiextensionsv1beta1.Convert_v1beta1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(newVersion.Schema, convertedValidation, nil); err != nil {
+				return err
+			}
+			validationsMap[newVersion.Name] = convertedValidation
 		}
 	}
-	logrus.Debugf("Successfully validated CRD %s\n", newCRD.Name)
-	return nil
+	return validateExistingCRs(dynamicClient, gr, validationsMap)
 }
 
-func validateExistingCRs(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, newCRD *apiextensions.CustomResourceDefinition) error {
-	// make dynamic client
-	crList, err := dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("error listing resources in GroupVersionResource %#v: %s", gvr, err)
-	}
-	for _, cr := range crList.Items {
-		validator, _, err := validation.NewSchemaValidator(newCRD.Spec.Validation)
+// validateExistingCRs lists all CRs for each version entry in validationsMap, then validates each using the paired validation.
+func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResource, validationsMap map[string]*apiextensions.CustomResourceValidation) error {
+	for version, schemaValidation := range validationsMap {
+		// create validator from given crdValidation
+		validator, _, err := validation.NewSchemaValidator(schemaValidation)
 		if err != nil {
-			return fmt.Errorf("error creating validator for schema %#v: %s", newCRD.Spec.Validation, err)
+			return fmt.Errorf("error creating validator for schema version %s: %s", version, err)
 		}
-		err = validation.ValidateCustomResource(field.NewPath(""), cr.UnstructuredContent(), validator).ToAggregate()
+
+		gvr := schema.GroupVersionResource{Group: gr.Group, Version: version, Resource: gr.Resource}
+		crList, err := dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			return fmt.Errorf("error validating custom resource against new schema for %s %s/%s: %v", newCRD.Spec.Names.Kind, cr.GetNamespace(), cr.GetName(), err)
+			return fmt.Errorf("error listing resources in GroupVersionResource %#v: %s", gvr, err)
+		}
+
+		// validate each CR against this version schema
+		for _, cr := range crList.Items {
+			err = validation.ValidateCustomResource(field.NewPath(""), cr.UnstructuredContent(), validator).ToAggregate()
+			if err != nil {
+				var namespacedName string
+				if cr.GetNamespace() == "" {
+					namespacedName = cr.GetName()
+				} else {
+					namespacedName = fmt.Sprintf("%s/%s", cr.GetNamespace(), cr.GetName())
+				}
+				return fmt.Errorf("error validating %s %q: updated validation is too restrictive: %v", cr.GroupVersionKind(), namespacedName, err)
+			}
 		}
 	}
 	return nil
