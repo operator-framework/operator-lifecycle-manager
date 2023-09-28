@@ -3,6 +3,7 @@ package labeller
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
@@ -52,7 +53,8 @@ func ContentHashLabeler[T metav1.Object, A ApplyConfig[A]](
 				if gvrFullyLabelled {
 					allObjectsLabelled := done()
 					if allObjectsLabelled {
-						logrus.Fatal("detected that every object is labelled, exiting...")
+						logrus.Info("detected that every object is labelled, exiting to re-start the process...")
+						os.Exit(0)
 					}
 				}
 				return nil
