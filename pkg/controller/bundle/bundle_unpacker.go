@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -660,47 +661,35 @@ func (c *ConfigMapUnpacker) ensureConfigmap(csRef *corev1.ObjectReference, name 
 
 func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath string, secrets []corev1.LocalObjectReference, timeout time.Duration, unpackRetryInterval time.Duration) (job *batchv1.Job, err error) {
 	fresh := c.job(cmRef, bundlePath, secrets, timeout)
-	job, err = c.jobLister.Jobs(fresh.GetNamespace()).Get(fresh.GetName())
+	var jobs, toDelete []*batchv1.Job
+	jobs, err = c.jobLister.Jobs(fresh.GetNamespace()).List(k8slabels.ValidatedSetSelector{bundleUnpackRefLabel: cmRef.Name})
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
-		}
-
+		return
+	}
+	if len(jobs) == 0 {
+		job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 		return
 	}
 
+	maxRetainedJobs := 5                                  // TODO: make this configurable
+	job, toDelete = sortUnpackJobs(jobs, maxRetainedJobs) // choose latest or on-failed job attempt
+
 	// only check for retries if an unpackRetryInterval is specified
 	if unpackRetryInterval > 0 {
-		if failedCond, isFailed := getCondition(job, batchv1.JobFailed); isFailed {
-			lastFailureTime := failedCond.LastTransitionTime.Time
+		if _, isFailed := getCondition(job, batchv1.JobFailed); isFailed {
 			// Look for other unpack jobs for the same bundle
-			var jobs []*batchv1.Job
-			jobs, err = c.jobLister.Jobs(fresh.GetNamespace()).List(k8slabels.ValidatedSetSelector{bundleUnpackRefLabel: cmRef.Name})
-			if err != nil {
-				return
-			}
-
-			var failed bool
-			var cond *batchv1.JobCondition
-			for _, j := range jobs {
-				cond, failed = getCondition(j, batchv1.JobFailed)
-				if !failed {
-					// found an in-progress unpack attempt
-					job = j
-					break
-				}
-				if cond != nil && lastFailureTime.Before(cond.LastTransitionTime.Time) {
-					lastFailureTime = cond.LastTransitionTime.Time
-				}
-			}
-
-			if failed {
-				if time.Now().After(lastFailureTime.Add(unpackRetryInterval)) {
+			if cond, failed := getCondition(job, batchv1.JobFailed); failed {
+				if time.Now().After(cond.LastTransitionTime.Time.Add(unpackRetryInterval)) {
 					fresh.SetName(names.SimpleNameGenerator.GenerateName(fresh.GetName()))
 					job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 				}
-				return
 			}
+
+			// cleanup old failed jobs, but don't clean up successful jobs to avoid repeat unpacking
+			for _, j := range toDelete {
+				_ = c.client.BatchV1().Jobs(j.GetNamespace()).Delete(context.TODO(), j.GetName(), metav1.DeleteOptions{})
+			}
+			return
 		}
 	}
 
@@ -842,6 +831,37 @@ func getCondition(job *batchv1.Job, conditionType batchv1.JobConditionType) (con
 			return
 		}
 	}
+	return
+}
+
+func sortUnpackJobs(jobs []*batchv1.Job, maxRetainedJobs int) (latest *batchv1.Job, toDelete []*batchv1.Job) {
+	if len(jobs) == 0 {
+		return
+	}
+	// sort jobs so that latest job is first
+	// with preference for non-failed jobs
+	sort.Slice(jobs, func(i, j int) bool {
+		condI, failedI := getCondition(jobs[i], batchv1.JobFailed)
+		condJ, failedJ := getCondition(jobs[j], batchv1.JobFailed)
+		if failedI != failedJ {
+			return !failedI // non-failed job goes first
+		}
+		return condI.LastTransitionTime.After(condJ.LastTransitionTime.Time)
+	})
+	latest = jobs[0]
+	if len(jobs) <= maxRetainedJobs {
+		return
+	}
+	if maxRetainedJobs == 0 {
+		toDelete = jobs[1:]
+		return
+	}
+
+	// cleanup old failed jobs, n-1 recent jobs and the oldest job
+	for i := 0; i < maxRetainedJobs && i+maxRetainedJobs < len(jobs); i++ {
+		toDelete = append(toDelete, jobs[maxRetainedJobs+i])
+	}
+
 	return
 }
 
