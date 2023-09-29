@@ -8,6 +8,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorv1clientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	v1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
@@ -15,6 +16,7 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -23,6 +25,7 @@ type csvSourceProvider struct {
 	subLister v1alpha1listers.SubscriptionLister
 	ogLister  v1listers.OperatorGroupLister
 	logger    logrus.StdLogger
+	client    operatorv1clientset.Interface
 }
 
 func (csp *csvSourceProvider) Sources(namespaces ...string) map[cache.SourceKey]cache.Source {
@@ -34,6 +37,7 @@ func (csp *csvSourceProvider) Sources(namespaces ...string) map[cache.SourceKey]
 			subLister: csp.subLister.Subscriptions(namespace),
 			ogLister:  csp.ogLister.OperatorGroups(namespace),
 			logger:    csp.logger,
+			client:    csp.client,
 		}
 		break // first ns is assumed to be the target ns, todo: make explicit
 	}
@@ -46,6 +50,8 @@ type csvSource struct {
 	subLister v1alpha1listers.SubscriptionNamespaceLister
 	ogLister  v1listers.OperatorGroupNamespaceLister
 	logger    logrus.StdLogger
+
+	client operatorv1clientset.Interface
 }
 
 func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
@@ -83,6 +89,20 @@ func (s *csvSource) Snapshot(ctx context.Context) (*cache.Snapshot, error) {
 	for _, csv := range csvs {
 		if csv.IsCopied() {
 			continue
+		}
+
+		if cachedSubscription, ok := csvSubscriptions[csv]; !ok || cachedSubscription == nil {
+			// we might be in an incoherent state, so let's check with live clients to make sure
+			realSubscriptions, err := s.client.OperatorsV1alpha1().Subscriptions(csv.Namespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("failed to list subscriptions: %w", err)
+			}
+			for _, realSubscription := range realSubscriptions.Items {
+				if realSubscription.Status.InstalledCSV == csv.Name {
+					// oops, live cluster state is coherent
+					return nil, fmt.Errorf("lister caches incoherent for CSV %s/%s - found owning Subscription %s/%s", csv.Namespace, csv.Name, realSubscription.Namespace, realSubscription.Name)
+				}
+			}
 		}
 
 		if failForwardEnabled {
