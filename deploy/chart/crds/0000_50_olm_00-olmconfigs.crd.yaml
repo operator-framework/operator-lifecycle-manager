@@ -43,6 +43,10 @@ spec:
                     disableCopiedCSVs:
                       description: DisableCopiedCSVs is used to disable OLM's "Copied CSV" feature for operators installed at the cluster scope, where a cluster scoped operator is one that has been installed in an OperatorGroup that targets all namespaces. When reenabled, OLM will recreate the "Copied CSVs" for each cluster scoped operator.
                       type: boolean
+                    packageServerSyncInterval:
+                      description: PackageServerSyncInterval is used to define the sync interval for packagerserver pods. Packageserver pods periodically check the status of CatalogSources; this specifies the period using duration format (e.g. "60m"). For this parameter, only hours ("h"), minutes ("m"), and seconds ("s") may be specified. When not specified, the period defaults to the value specified within the packageserver.
+                      type: string
+                      pattern: ^([0-9]+(\.[0-9]+)?(s|m|h))+$
             status:
               description: OLMConfigStatus is the status for an OLMConfig resource.
               type: object
