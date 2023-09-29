@@ -1669,7 +1669,7 @@ type UnpackedBundleReference struct {
 	Properties             string `json:"properties"`
 }
 
-func (o *Operator) unpackBundles(namespace string, installPlanSteps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup, unpackTimeout, minUnpackRetryInterval time.Duration) (bool, []*v1alpha1.Step, []v1alpha1.BundleLookup, error) {
+func (o *Operator) unpackBundles(namespace string, installPlanSteps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup, unpackTimeout, unpackRetryInterval time.Duration) (bool, []*v1alpha1.Step, []v1alpha1.BundleLookup, error) {
 	unpacked := true
 
 	outBundleLookups := make([]v1alpha1.BundleLookup, len(bundleLookups))
@@ -1684,7 +1684,7 @@ func (o *Operator) unpackBundles(namespace string, installPlanSteps []*v1alpha1.
 	var errs []error
 	for i := 0; i < len(outBundleLookups); i++ {
 		lookup := outBundleLookups[i]
-		res, err := o.bundleUnpacker.UnpackBundle(&lookup, unpackTimeout, minUnpackRetryInterval)
+		res, err := o.bundleUnpacker.UnpackBundle(&lookup, unpackTimeout, unpackRetryInterval)
 		if err != nil {
 			errs = append(errs, err)
 			continue

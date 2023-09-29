@@ -2526,6 +2526,11 @@ var _ = Describe("Subscription", func() {
 	})
 	When("bundle unpack retries are enabled", func() {
 		It("should retry failing unpack jobs", func() {
+			if ok, err := inKind(c); ok && err == nil {
+				Skip("This spec fails when run using KIND cluster. See https://github.com/operator-framework/operator-lifecycle-manager/issues/2420 for more details")
+			} else if err != nil {
+				Skip("Could not determine whether running in a kind cluster. Skipping.")
+			}
 			By("Ensuring a registry to host bundle images")
 			local, err := Local(c)
 			Expect(err).NotTo(HaveOccurred(), "cannot determine if test running locally or on CI: %s", err)
@@ -2581,20 +2586,14 @@ var _ = Describe("Subscription", func() {
 				}
 			}
 
-			// testImage is the name of the image used throughout the test - the image overwritten by skopeo
-			// the tag is generated randomly and appended to the end of the testImage
+			// The remote image to be copied onto the local registry
 			srcImage := "quay.io/olmtest/example-operator-bundle:"
 			srcTag := "0.1.0"
-			bundleImage := fmt.Sprint(registryURL, "/unpack-retry-bundle", ":")
+
+			// on-cluster image ref
+			bundleImage := registryURL + "/unpack-retry-bundle:"
 			bundleTag := genName("x")
-			//// hash hashes data with sha256 and returns the hex string.
-			//func hash(data string) string {
-			//	// A SHA256 hash is 64 characters, which is within the 253 character limit for kube resource names
-			//	h := fmt.Sprintf("%x", sha256.Sum256([]byte(data)))
-			//
-			//	// Make the hash 63 characters instead to comply with the 63 character limit for labels
-			//	return fmt.Sprintf(h[:len(h)-1])
-			//}
+
 			unpackRetryCatalog := fmt.Sprintf(`
 schema: olm.package
 name: unpack-retry-package
