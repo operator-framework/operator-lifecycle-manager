@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	genericserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
@@ -16,13 +18,24 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/workqueue"
 
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	olminformers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver"
 	genericpackageserver "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
 )
+
+const DefaultWakeupInterval = 5 * time.Minute
+
+type Operator struct {
+	queueinformer.Operator
+	olmConfigQueue workqueue.RateLimitingInterface
+	options        *PackageServerOptions
+}
 
 // NewCommandStartPackageServer provides a CLI handler for 'start master' command
 // with a default PackageServerOptions.
@@ -39,7 +52,7 @@ func NewCommandStartPackageServer(ctx context.Context, defaults *PackageServerOp
 	}
 
 	flags := cmd.Flags()
-	flags.DurationVar(&defaults.WakeupInterval, "interval", defaults.WakeupInterval, "interval at which to re-sync CatalogSources")
+	flags.DurationVar(&defaults.SyncInterval, "interval", defaults.SyncInterval, "interval at which to re-sync CatalogSources")
 	flags.StringVar(&defaults.GlobalNamespace, "global-namespace", defaults.GlobalNamespace, "Name of the namespace where the global CatalogSources are located")
 	flags.StringVar(&defaults.Kubeconfig, "kubeconfig", defaults.Kubeconfig, "path to the kubeconfig used to connect to the Kubernetes API server and the Kubelets (defaults to in-cluster config)")
 	flags.BoolVar(&defaults.Debug, "debug", defaults.Debug, "use debug log level")
@@ -59,7 +72,7 @@ type PackageServerOptions struct {
 	Features       *genericoptions.FeatureOptions
 
 	GlobalNamespace string
-	WakeupInterval  time.Duration
+	SyncInterval    time.Duration
 
 	Kubeconfig   string
 	RegistryAddr string
@@ -82,7 +95,7 @@ func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 		Authorization:  genericoptions.NewDelegatingAuthorizationOptions(),
 		Features:       genericoptions.NewFeatureOptions(),
 
-		WakeupInterval: 5 * time.Minute,
+		SyncInterval: DefaultWakeupInterval,
 
 		DisableAuthForTesting: false,
 		Debug:                 false,
@@ -215,7 +228,41 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	sourceProvider, err := provider.NewRegistryProvider(ctx, crClient, queueOperator, o.WakeupInterval, o.GlobalNamespace)
+	op := &Operator{
+		Operator:       queueOperator,
+		olmConfigQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "olmConfig"),
+		options:        o,
+	}
+
+	olmConfigInformer := olminformers.NewSharedInformerFactoryWithOptions(crClient, 0).Operators().V1().OLMConfigs()
+	olmConfigQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithInformer(olmConfigInformer.Informer()),
+		queueinformer.WithQueue(op.olmConfigQueue),
+		queueinformer.WithIndexer(olmConfigInformer.Informer().GetIndexer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncOLMConfig).ToSyncer()),
+	)
+	if err != nil {
+		return err
+	}
+	if err := op.RegisterQueueInformer(olmConfigQueueInformer); err != nil {
+		return err
+	}
+
+	// Grab the Sync config
+	cfg, err := crClient.OperatorsV1().OLMConfigs().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		log.Warnf("Error retrieving Interval from OLMConfig: '%v'", err)
+	} else {
+		if cfg.Spec.Features != nil && cfg.Spec.Features.PackageServerSyncInterval != nil {
+			o.SyncInterval = cfg.Spec.Features.PackageServerSyncInterval.Duration
+			log.Infof("Retrieved Interval from OLMConfig: '%v'", o.SyncInterval.String())
+		} else {
+			log.Infof("Defaulting Interval to '%v'", DefaultWakeupInterval)
+		}
+	}
+
+	sourceProvider, err := provider.NewRegistryProvider(ctx, crClient, queueOperator, o.SyncInterval, o.GlobalNamespace)
 	if err != nil {
 		return err
 	}
@@ -238,4 +285,25 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 	<-sourceProvider.Done()
 
 	return err
+}
+
+func (op *Operator) syncOLMConfig(obj interface{}) error {
+	olmConfig, ok := obj.(*operatorsv1.OLMConfig)
+	if !ok {
+		return fmt.Errorf("casting OLMConfig failed")
+	}
+	// restart the pod on change
+	if olmConfig.Spec.Features == nil || olmConfig.Spec.Features.PackageServerSyncInterval == nil {
+		if op.options.SyncInterval != DefaultWakeupInterval {
+			log.Warnf("Change to olmConfig: '%v' != default '%v'", op.options.SyncInterval, DefaultWakeupInterval)
+			os.Exit(0)
+		}
+	} else {
+		if op.options.SyncInterval != olmConfig.Spec.Features.PackageServerSyncInterval.Duration {
+			log.Warnf("Change to olmConfig: old '%v' != new '%v'", op.options.SyncInterval, olmConfig.Spec.Features.PackageServerSyncInterval.Duration)
+			os.Exit(0)
+		}
+	}
+
+	return nil
 }
