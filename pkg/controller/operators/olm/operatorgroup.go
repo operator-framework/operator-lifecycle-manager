@@ -79,8 +79,6 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		"namespace":     op.GetNamespace(),
 	})
 
-	logger.Infof("syncing OperatorGroup %s/%s", op.GetNamespace(), op.GetName())
-
 	// Query OG in this namespace
 	groups, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(op.GetNamespace()).List(labels.Everything())
 	if err != nil {
