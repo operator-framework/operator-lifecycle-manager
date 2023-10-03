@@ -11,6 +11,7 @@ import (
 	"github.com/onsi/gomega/format"
 	gomegatypes "github.com/onsi/gomega/types"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -266,20 +267,22 @@ var _ = Describe("Operator API", func() {
 		)
 
 		BeforeEach(func() {
-			// Subscribe to a package and await a successful install
+			By("Subscribe to a package and await a successful install")
 			ns = &corev1.Namespace{}
 			ns.SetName(genName("ns-"))
 			Eventually(func() error {
 				return client.Create(clientCtx, ns)
 			}).Should(Succeed())
+			By(fmt.Sprintf("created namespace %s", ns.Name))
 
-			// Default to AllNamespaces
+			By("Default to AllNamespaces")
 			og := &operatorsv1.OperatorGroup{}
 			og.SetNamespace(ns.GetName())
 			og.SetName(genName("og-"))
 			Eventually(func() error {
 				return client.Create(clientCtx, og)
 			}).Should(Succeed())
+			By(fmt.Sprintf("created operator group %s/%s", og.Namespace, og.Name))
 
 			cs := &operatorsv1alpha1.CatalogSource{
 				Spec: operatorsv1alpha1.CatalogSourceSpec{
@@ -295,8 +298,9 @@ var _ = Describe("Operator API", func() {
 			Eventually(func() error {
 				return client.Create(clientCtx, cs)
 			}).Should(Succeed())
+			By(fmt.Sprintf("created catalog source %s/%s", cs.Namespace, cs.Name))
 
-			// Wait for the CatalogSource to be ready
+			By("Wait for the CatalogSource to be ready")
 			_, err := fetchCatalogSourceOnStatus(newCRClient(), cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred())
 
@@ -314,38 +318,31 @@ var _ = Describe("Operator API", func() {
 			Eventually(func() error {
 				return client.Create(clientCtx, sub)
 			}).Should(Succeed())
+			By(fmt.Sprintf("created subscription %s/%s", sub.Namespace, sub.Name))
 
-			Eventually(func() (operatorsv1alpha1.SubscriptionState, error) {
-				s := sub.DeepCopy()
-				if err := client.Get(clientCtx, testobj.NamespacedName(s), s); err != nil {
-					return operatorsv1alpha1.SubscriptionStateNone, err
-				}
+			_, err = fetchSubscription(newCRClient(), sub.Namespace, sub.Name, subscriptionStateAtLatestChecker())
+			require.NoError(GinkgoT(), err)
 
-				return s.Status.State, nil
-			}).Should(BeEquivalentTo(operatorsv1alpha1.SubscriptionStateAtLatest))
+			subscriptionWithInstallPLan, err := fetchSubscription(newCRClient(), sub.Namespace, sub.Name, subscriptionHasInstallPlanChecker())
+			require.NoError(GinkgoT(), err)
+			require.NotNil(GinkgoT(), subscriptionWithInstallPLan)
+			ipRef := subscriptionWithInstallPLan.Status.InstallPlanRef
 
-			var ipRef *corev1.ObjectReference
-			Eventually(func() (*corev1.ObjectReference, error) {
-				if err := client.Get(clientCtx, testobj.NamespacedName(sub), sub); err != nil {
-					return nil, err
-				}
-				ipRef = sub.Status.InstallPlanRef
-
-				return ipRef, nil
-			}).ShouldNot(BeNil())
-
-			ip = &operatorsv1alpha1.InstallPlan{}
-			Eventually(func() error {
-				return client.Get(clientCtx, types.NamespacedName{Namespace: ipRef.Namespace, Name: ipRef.Name}, ip)
-			}).Should(Succeed())
+			ip, err = fetchInstallPlan(GinkgoT(), newCRClient(), ipRef.Name, ipRef.Namespace, buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseComplete))
+			Expect(err).To(BeNil())
 
 			operator, err := operatorFactory.NewPackageOperator(sub.Spec.Package, sub.GetNamespace())
 			Expect(err).ToNot(HaveOccurred())
 			operatorName = testobj.NamespacedName(operator)
+			By(fmt.Sprintf("waiting for operator %s/%s to exist", operator.Namespace, operator.Name))
 		})
 
 		AfterEach(func() {
 			Eventually(func() error {
+				if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+					fmt.Printf("Skipping cleanup of namespace %s...\n", ns.Name)
+					return nil
+				}
 				err := client.Delete(clientCtx, ns)
 				if apierrors.IsNotFound(err) {
 					return nil
@@ -386,7 +383,7 @@ var _ = Describe("Operator API", func() {
 			var newNs *corev1.Namespace
 
 			BeforeEach(func() {
-				// Subscribe to a package and await a successful install
+				By("Subscribe to a package and await a successful install")
 				newNs = &corev1.Namespace{}
 				newNs.SetName(genName("ns-"))
 				Eventually(func() error {
