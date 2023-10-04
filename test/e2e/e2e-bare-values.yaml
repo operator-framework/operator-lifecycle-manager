@@ -28,6 +28,7 @@ package:
   service:
     internalPort: 5443
   commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
+  interval: 1h
 
 e2e:
   image:

@@ -47,6 +47,10 @@ spec:
         {{- if .Values.debug }}
         - --debug
         {{- end }}
+        {{- if .Values.package.interval }}
+        - --interval
+        - {{ .Values.package.interval }}
+        {{- end }}
         {{- if .Values.package.commandArgs }}
         - {{ .Values.package.commandArgs }}
         {{- end }}

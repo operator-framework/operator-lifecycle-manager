@@ -52,7 +52,7 @@ func NewCommandStartPackageServer(ctx context.Context, defaults *PackageServerOp
 	}
 
 	flags := cmd.Flags()
-	flags.DurationVar(&defaults.SyncInterval, "interval", defaults.SyncInterval, "interval at which to re-sync CatalogSources")
+	flags.DurationVar(&defaults.DefaultSyncInterval, "interval", defaults.DefaultSyncInterval, "default interval at which to re-sync CatalogSources")
 	flags.StringVar(&defaults.GlobalNamespace, "global-namespace", defaults.GlobalNamespace, "Name of the namespace where the global CatalogSources are located")
 	flags.StringVar(&defaults.Kubeconfig, "kubeconfig", defaults.Kubeconfig, "path to the kubeconfig used to connect to the Kubernetes API server and the Kubelets (defaults to in-cluster config)")
 	flags.BoolVar(&defaults.Debug, "debug", defaults.Debug, "use debug log level")
@@ -71,8 +71,9 @@ type PackageServerOptions struct {
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
 	Features       *genericoptions.FeatureOptions
 
-	GlobalNamespace string
-	SyncInterval    time.Duration
+	GlobalNamespace     string
+	DefaultSyncInterval time.Duration
+	CurrentSyncInterval time.Duration
 
 	Kubeconfig   string
 	RegistryAddr string
@@ -95,7 +96,8 @@ func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 		Authorization:  genericoptions.NewDelegatingAuthorizationOptions(),
 		Features:       genericoptions.NewFeatureOptions(),
 
-		SyncInterval: DefaultWakeupInterval,
+		DefaultSyncInterval: DefaultWakeupInterval,
+		CurrentSyncInterval: DefaultWakeupInterval,
 
 		DisableAuthForTesting: false,
 		Debug:                 false,
@@ -249,20 +251,25 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	// Grab the Sync config
+	// Use the interval from the CLI as default
+	if o.CurrentSyncInterval != o.DefaultSyncInterval {
+		log.Infof("CLI argument changed default from '%v' to '%v'", o.CurrentSyncInterval, o.DefaultSyncInterval)
+		o.CurrentSyncInterval = o.DefaultSyncInterval
+	}
+	// Use the interval from the OLMConfig
 	cfg, err := crClient.OperatorsV1().OLMConfigs().Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
 		log.Warnf("Error retrieving Interval from OLMConfig: '%v'", err)
 	} else {
 		if cfg.Spec.Features != nil && cfg.Spec.Features.PackageServerSyncInterval != nil {
-			o.SyncInterval = cfg.Spec.Features.PackageServerSyncInterval.Duration
-			log.Infof("Retrieved Interval from OLMConfig: '%v'", o.SyncInterval.String())
+			o.CurrentSyncInterval = cfg.Spec.Features.PackageServerSyncInterval.Duration
+			log.Infof("Retrieved Interval from OLMConfig: '%v'", o.CurrentSyncInterval.String())
 		} else {
-			log.Infof("Defaulting Interval to '%v'", DefaultWakeupInterval)
+			log.Infof("Defaulting Interval to '%v'", o.DefaultSyncInterval)
 		}
 	}
 
-	sourceProvider, err := provider.NewRegistryProvider(ctx, crClient, queueOperator, o.SyncInterval, o.GlobalNamespace)
+	sourceProvider, err := provider.NewRegistryProvider(ctx, crClient, queueOperator, o.CurrentSyncInterval, o.GlobalNamespace)
 	if err != nil {
 		return err
 	}
@@ -294,13 +301,13 @@ func (op *Operator) syncOLMConfig(obj interface{}) error {
 	}
 	// restart the pod on change
 	if olmConfig.Spec.Features == nil || olmConfig.Spec.Features.PackageServerSyncInterval == nil {
-		if op.options.SyncInterval != DefaultWakeupInterval {
-			log.Warnf("Change to olmConfig: '%v' != default '%v'", op.options.SyncInterval, DefaultWakeupInterval)
+		if op.options.CurrentSyncInterval != op.options.DefaultSyncInterval {
+			log.Warnf("Change to olmConfig: '%v' != default '%v'", op.options.CurrentSyncInterval, op.options.DefaultSyncInterval)
 			os.Exit(0)
 		}
 	} else {
-		if op.options.SyncInterval != olmConfig.Spec.Features.PackageServerSyncInterval.Duration {
-			log.Warnf("Change to olmConfig: old '%v' != new '%v'", op.options.SyncInterval, olmConfig.Spec.Features.PackageServerSyncInterval.Duration)
+		if op.options.CurrentSyncInterval != olmConfig.Spec.Features.PackageServerSyncInterval.Duration {
+			log.Warnf("Change to olmConfig: old '%v' != new '%v'", op.options.CurrentSyncInterval, olmConfig.Spec.Features.PackageServerSyncInterval.Duration)
 			os.Exit(0)
 		}
 	}
