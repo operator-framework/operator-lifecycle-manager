@@ -1152,6 +1152,12 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
+	// If there are no subscriptions, don't attempt to sync the namespace.
+	if len(subs) == 0 {
+		logger.Debug(fmt.Sprintf("No subscriptions were found in namespace %v", namespace))
+		return nil
+	}
+
 	ogLister := o.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace)
 	failForwardEnabled, err := resolver.IsFailForwardEnabled(ogLister)
 	if err != nil {
