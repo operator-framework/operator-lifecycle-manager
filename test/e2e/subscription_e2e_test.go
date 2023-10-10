@@ -761,8 +761,10 @@ var _ = Describe("Subscription", func() {
 
 				// Update sub to target an existing CatalogSource
 				sub.Spec.CatalogSource = catalogSourceName
-				_, err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
-				Expect(err).NotTo(HaveOccurred())
+				Eventually(func() error {
+					_, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
+					return err
+				}).Should(Succeed())
 
 				// Wait for SubscriptionCatalogSourcesUnhealthy to be false
 				By("detecting a new existing target")
