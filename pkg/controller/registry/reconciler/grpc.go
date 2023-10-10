@@ -209,6 +209,12 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(source grpcC
 
 func correctImages(source grpcCatalogSourceDecorator, pod *corev1.Pod) bool {
 	if source.CatalogSource.Spec.GrpcPodConfig != nil && source.CatalogSource.Spec.GrpcPodConfig.ExtractContent != nil {
+		if len(pod.Spec.InitContainers) != 2 {
+			return false
+		}
+		if len(pod.Spec.Containers) != 1 {
+			return false
+		}
 		return pod.Spec.InitContainers[0].Image == source.utilImage &&
 			pod.Spec.InitContainers[1].Image == source.CatalogSource.Spec.Image &&
 			pod.Spec.Containers[0].Image == source.opmImage
