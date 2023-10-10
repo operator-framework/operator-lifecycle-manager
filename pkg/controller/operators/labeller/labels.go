@@ -100,9 +100,9 @@ func ObjectPatchLabeler(
 ) func(done func() bool) queueinformer.LegacySyncHandler {
 	return func(done func() bool) queueinformer.LegacySyncHandler {
 		return func(obj interface{}) error {
-			cast, ok := obj.(*apiextensionsv1.CustomResourceDefinition)
+			cast, ok := obj.(*metav1.PartialObjectMetadata)
 			if !ok {
-				err := fmt.Errorf("wrong type %T, expected %T: %#v", obj, new(*apiextensionsv1.CustomResourceDefinition), obj)
+				err := fmt.Errorf("wrong type %T, expected %T: %#v", obj, new(*metav1.PartialObjectMetadata), obj)
 				logger.WithError(err).Error("casting failed")
 				return fmt.Errorf("casting failed: %w", err)
 			}
