@@ -1,8 +1,6 @@
 
 # approval == this is a good idea /approve
 approvers:
-  - ecordell
-  - njhale
   - kevinrizza
   - benluddy
   - awgreene
@@ -13,14 +11,11 @@ approvers:
   - tmshort
 # review == this code is good /lgtm
 reviewers:
-  - ecordell
-  - njhale
   - kevinrizza
   - benluddy
   - dinhxuanvu
   - gallettilance
   - anik120
-  - exdx
   - awgreene
   - ankitathomas
   - joelanford
@@ -29,5 +24,4 @@ reviewers:
   - oceanc80
   - grokspawn
   - dtfranz
-  - asmacdo
   - tmshort
