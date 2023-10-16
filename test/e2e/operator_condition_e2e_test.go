@@ -8,9 +8,9 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	meta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -54,9 +54,9 @@ var _ = Describe("Operator Condition", func() {
 		strategyB := newNginxInstallStrategy(pkgBStable, nil, nil)
 		strategyD := newNginxInstallStrategy(pkgDStable, nil, nil)
 		crd := newCRD(genName(pkgA))
-		csvA := newCSV(pkgAStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &strategyA)
-		csvB := newCSV(pkgBStable, generatedNamespace.GetName(), pkgAStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &strategyB)
-		csvD := newCSV(pkgDStable, generatedNamespace.GetName(), pkgBStable, semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &strategyD)
+		csvA := newCSV(pkgAStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &strategyA)
+		csvB := newCSV(pkgBStable, generatedNamespace.GetName(), pkgAStable, semver.MustParse("0.2.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &strategyB)
+		csvD := newCSV(pkgDStable, generatedNamespace.GetName(), pkgBStable, semver.MustParse("0.3.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &strategyD)
 
 		// Create the initial catalogsources
 		manifests := []registry.PackageManifest{
@@ -70,7 +70,7 @@ var _ = Describe("Operator Condition", func() {
 		}
 
 		catalog := genName("catalog-")
-		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
+		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, generatedNamespace.GetName(), manifests, []apiextensionsv1.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA})
 		defer cleanupCatalogSource()
 		_, err := fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		subName := genName("sub-")
@@ -114,7 +114,7 @@ var _ = Describe("Operator Condition", func() {
 				DefaultChannelName: stableChannel,
 			},
 		}
-		updateInternalCatalog(GinkgoT(), c, crc, catalog, generatedNamespace.GetName(), []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, manifests)
+		updateInternalCatalog(GinkgoT(), c, crc, catalog, generatedNamespace.GetName(), []apiextensionsv1.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, manifests)
 
 		// Attempt to get the catalog source before creating install plan(s)
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
@@ -174,7 +174,7 @@ var _ = Describe("Operator Condition", func() {
 			},
 		}
 
-		updateInternalCatalog(GinkgoT(), c, crc, catalog, generatedNamespace.GetName(), []apiextensions.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvD}, manifests)
+		updateInternalCatalog(GinkgoT(), c, crc, catalog, generatedNamespace.GetName(), []apiextensionsv1.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvD}, manifests)
 		// Attempt to get the catalog source before creating install plan(s)
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)

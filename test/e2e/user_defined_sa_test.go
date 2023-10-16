@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -86,7 +86,7 @@ var _ = Describe("User defined service account", func() {
 		ipPhaseCheckerFunc := buildInstallPlanMessageCheckFunc(`cannot create resource`)
 		ipGot, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, ipName, generatedNamespace.GetName(), ipPhaseCheckerFunc)
 		require.NoError(GinkgoT(), err)
-		
+
 		By("Verify that all step resources are in Unknown state.")
 		for _, step := range ipGot.Status.Plan {
 			assert.Equal(GinkgoT(), v1alpha1.StepStatusUnknown, step.Status)
@@ -282,32 +282,32 @@ func newCatalogSource(t GinkgoTInterface, kubeclient operatorclient.ClientInterf
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
 
-	crd := apiextensions.CustomResourceDefinition{
+	crd := apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
-		Spec: apiextensions.CustomResourceDefinitionSpec{
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: "cluster.com",
-			Versions: []apiextensions.CustomResourceDefinitionVersion{
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 				{
 					Name:    "v1alpha1",
 					Served:  true,
 					Storage: true,
-					Schema: &apiextensions.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 							Type:        "object",
 							Description: "my crd schema",
 						},
 					},
 				},
 			},
-			Names: apiextensions.CustomResourceDefinitionNames{
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
 				Plural:   crdPlural,
 				Singular: crdPlural,
 				Kind:     crdPlural,
 				ListKind: "list" + crdPlural,
 			},
-			Scope: apiextensions.NamespaceScoped,
+			Scope: apiextensionsv1.NamespaceScoped,
 		},
 	}
 
@@ -320,8 +320,8 @@ func newCatalogSource(t GinkgoTInterface, kubeclient operatorclient.ClientInterf
 	stableChannel := "stable"
 
 	namedStrategy := newNginxInstallStrategy(genName(prefixFunc("dep")), permissions, nil)
-	csvA := newCSV("nginx-a", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
-	csvB := newCSV("nginx-b", namespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
+	csvA := newCSV("nginx-a", namespace, "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &namedStrategy)
+	csvB := newCSV("nginx-b", namespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &namedStrategy)
 
 	// Create PackageManifests
 	manifests := []registry.PackageManifest{
@@ -335,7 +335,7 @@ func newCatalogSource(t GinkgoTInterface, kubeclient operatorclient.ClientInterf
 	}
 
 	catalogSourceName := genName(prefixFunc("catsrc"))
-	catsrc, cleanup = createInternalCatalogSource(kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	catsrc, cleanup = createInternalCatalogSource(kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensionsv1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 	require.NotNil(t, catsrc)
 	require.NotNil(t, cleanup)
 
@@ -354,32 +354,32 @@ func newCatalogSourceWithDependencies(t GinkgoTInterface, kubeclient operatorcli
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
 
-	crd := apiextensions.CustomResourceDefinition{
+	crd := apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
-		Spec: apiextensions.CustomResourceDefinitionSpec{
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: "cluster.com",
-			Versions: []apiextensions.CustomResourceDefinitionVersion{
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 				{
 					Name:    "v1alpha1",
 					Served:  true,
 					Storage: true,
-					Schema: &apiextensions.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 							Type:        "object",
 							Description: "my crd schema",
 						},
 					},
 				},
 			},
-			Names: apiextensions.CustomResourceDefinitionNames{
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
 				Plural:   crdPlural,
 				Singular: crdPlural,
 				Kind:     crdPlural,
 				ListKind: "list" + crdPlural,
 			},
-			Scope: apiextensions.NamespaceScoped,
+			Scope: apiextensionsv1.NamespaceScoped,
 		},
 	}
 
@@ -393,8 +393,8 @@ func newCatalogSourceWithDependencies(t GinkgoTInterface, kubeclient operatorcli
 	stableChannel := "stable"
 
 	namedStrategy := newNginxInstallStrategy(genName(prefixFunc("dep")), permissions, nil)
-	csvA := newCSV("nginx-req-dep", namespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, &namedStrategy)
-	csvB := newCSV("nginx-dependency", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, &namedStrategy)
+	csvA := newCSV("nginx-req-dep", namespace, "", semver.MustParse("0.1.0"), nil, []apiextensionsv1.CustomResourceDefinition{crd}, &namedStrategy)
+	csvB := newCSV("nginx-dependency", namespace, "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &namedStrategy)
 
 	// Create PackageManifests
 	manifests := []registry.PackageManifest{
@@ -415,7 +415,7 @@ func newCatalogSourceWithDependencies(t GinkgoTInterface, kubeclient operatorcli
 	}
 
 	catalogSourceName := genName(prefixFunc("catsrc"))
-	catsrc, cleanup = createInternalCatalogSource(kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	catsrc, cleanup = createInternalCatalogSource(kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensionsv1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 	require.NotNil(t, catsrc)
 	require.NotNil(t, cleanup)
 

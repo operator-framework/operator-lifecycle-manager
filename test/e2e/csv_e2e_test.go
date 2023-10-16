@@ -18,13 +18,11 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -892,32 +890,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 
 			// Create dependency first (CRD)
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -1231,32 +1229,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = c.CreateServiceAccount(&sa)
 			Expect(err).ShouldNot(HaveOccurred(), "could not create ServiceAccount %#v", sa)
 
-			crd := apiextensions.CustomResourceDefinition{
+			crd := apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			}
 			crd.SetOwnerReferences([]metav1.OwnerReference{{
@@ -2374,32 +2372,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			// Create dependency first (CRD)
 			crdPlural := genName("ins")
 			crdName := crdPlural + ".cluster.com"
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 
@@ -2566,32 +2564,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			// Create dependency first (CRD)
 			crdPlural := genName("ins2")
 			crdName := crdPlural + ".cluster.com"
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -2756,32 +2754,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			// Create dependency first (CRD)
 			crdPlural := genName("ins3")
 			crdName := crdPlural + ".cluster.com"
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -2946,32 +2944,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			// Create dependency first (CRD)
 			crdPlural := genName("ins")
 			crdName := crdPlural + ".cluster.com"
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 
@@ -3106,19 +3104,19 @@ var _ = Describe("ClusterServiceVersion", func() {
 			// Create initial CRD which has 2 versions: v1alpha1 & v1alpha2
 			crdPlural := genName("ins4")
 			crdName := crdPlural + ".cluster.com"
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
@@ -3128,21 +3126,21 @@ var _ = Describe("ClusterServiceVersion", func() {
 							Name:    "v1alpha2",
 							Served:  true,
 							Storage: false,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -3396,32 +3394,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			// Create dependency first (CRD)
 			crdPlural := genName("ins2")
 			crdName := crdPlural + ".cluster.com"
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -3560,32 +3558,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			// Create dependency first (CRD)
 			crdPlural := genName("ins")
 			crdName := crdPlural + ".cluster.com"
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 			defer cleanupCRD()
@@ -3783,32 +3781,32 @@ var _ = Describe("ClusterServiceVersion", func() {
 			// Create CRD
 			crdPlural := genName("ins")
 			crdName := crdPlural + ".cluster.com"
-			cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
 				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 					Group: "cluster.com",
-					Versions: []apiextensions.CustomResourceDefinitionVersion{
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    "v1alpha1",
 							Served:  true,
 							Storage: true,
-							Schema: &apiextensions.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 									Type:        "object",
 									Description: "my crd schema",
 								},
 							},
 						},
 					},
-					Names: apiextensions.CustomResourceDefinitionNames{
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural:   crdPlural,
 						Singular: crdPlural,
 						Kind:     crdPlural,
 						ListKind: "list" + crdPlural,
 					},
-					Scope: apiextensions.NamespaceScoped,
+					Scope: apiextensionsv1.NamespaceScoped,
 				},
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -4289,39 +4287,8 @@ func buildAPIServiceCleanupFunc(c operatorclient.ClientInterface, apiServiceName
 	}
 }
 
-func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourceDefinition) (cleanupFunc, error) {
-	out := &apiextensionsv1.CustomResourceDefinition{}
-	scheme := runtime.NewScheme()
-	if err := apiextensions.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	if err := scheme.Convert(&crd, out, nil); err != nil {
-		return nil, err
-	}
-	_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	return buildCRDCleanupFunc(c, crd.GetName()), nil
-}
-
-func createV1CRD(c operatorclient.ClientInterface, crd apiextensionsv1.CustomResourceDefinition) (cleanupFunc, error) {
-	out := &apiextensionsv1.CustomResourceDefinition{}
-	scheme := runtime.NewScheme()
-	if err := apiextensions.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	if err := scheme.Convert(&crd, out, nil); err != nil {
-		return nil, err
-	}
-	_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), out, metav1.CreateOptions{})
+func createCRD(c operatorclient.ClientInterface, crd apiextensionsv1.CustomResourceDefinition) (cleanupFunc, error) {
+	_, err := c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), &crd, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
