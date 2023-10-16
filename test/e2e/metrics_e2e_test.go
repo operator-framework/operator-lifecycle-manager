@@ -19,7 +19,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
 
@@ -345,7 +345,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				stableChannel := "stable"
 
 				mainCRD := newCRD(genName("ins-"))
-				mainCSV := newCSV(mainPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, nil)
+				mainCSV := newCSV(mainPackageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{mainCRD}, nil, nil)
 
 				mainManifests := []registry.PackageManifest{
 					{
@@ -356,7 +356,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 						DefaultChannelName: stableChannel,
 					},
 				}
-				cs, cleanupAll := createInternalCatalogSource(c, crc, name, generatedNamespace.GetName(), mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+				cs, cleanupAll := createInternalCatalogSource(c, crc, name, generatedNamespace.GetName(), mainManifests, []apiextensionsv1.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
 				// Note(tflannag): Dependending on how ginkgo orders these test specs, and how bloated the cluster we're running
 				// this test case against, we risk creating and then immediately deleting the catalogsource before the catalog
 				// operator can generate all the requisite resources (e.g. the ServiceAccount), which can leave the underlying

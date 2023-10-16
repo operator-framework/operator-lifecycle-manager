@@ -8,7 +8,6 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/util"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -186,7 +185,7 @@ func setDerivedFields(ctx *TestContext) error {
 
 	ctx.scheme = runtime.NewScheme()
 	localSchemeBuilder := runtime.NewSchemeBuilder(
-		apiextensions.AddToScheme,
+		apiextensionsv1.AddToScheme,
 		kscheme.AddToScheme,
 		operatorsv1alpha1.AddToScheme,
 		operatorsv1.AddToScheme,

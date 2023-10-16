@@ -11,7 +11,7 @@ import (
 	opver "github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
@@ -77,7 +77,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			crdPlural := genName("ins")
 			crd := newCRD(crdPlural)
 			catsrcName = genName("mock-ocs")
-			csv = newCSV(packageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, nil)
+			csv = newCSV(packageStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, nil)
 			csv.SetLabels(map[string]string{"projected": "label"})
 			csv.Spec.Keywords = []string{"foo", "bar"}
 			csv.Spec.Links = []v1alpha1.AppLink{
@@ -112,7 +112,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 				},
 			}
 
-			_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catsrcName, generatedNamespace.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv, csvAlpha})
+			_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catsrcName, generatedNamespace.GetName(), manifests, []apiextensionsv1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv, csvAlpha})
 
 			// Verify catalog source was created
 			_, err := fetchCatalogSourceOnStatus(crc, catsrcName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
