@@ -53,6 +53,10 @@ const (
 	interval = time.Millisecond * 100
 )
 
+const (
+	subscriptionTestDataBaseDir = "subscription/"
+)
+
 var _ = Describe("Subscription", func() {
 	var (
 		generatedNamespace corev1.Namespace
@@ -2425,7 +2429,7 @@ var _ = Describe("Subscription", func() {
 
 		BeforeEach(func() {
 			By("deploying the testing catalog")
-			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.1.0.yaml"))
+			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, subscriptionTestDataBaseDir, "example-operator.v0.1.0.yaml"))
 			Expect(err).To(BeNil())
 			catalogSourceName = fmt.Sprintf("%s-catsrc", generatedNamespace.GetName())
 			magicCatalog = NewMagicCatalog(ctx.Ctx().Client(), generatedNamespace.GetName(), catalogSourceName, provider)
@@ -2481,7 +2485,7 @@ var _ = Describe("Subscription", func() {
 				addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
 
 				By("updating the catalog with a broken v0.2.0 bundle image")
-				brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0-non-existent-tag.yaml"))
+				brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, subscriptionTestDataBaseDir, "example-operator.v0.2.0-non-existent-tag.yaml"))
 				Expect(err).To(BeNil())
 				err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
 				Expect(err).To(BeNil())
@@ -2516,7 +2520,7 @@ var _ = Describe("Subscription", func() {
 				addBundleUnpackTimeoutOGAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "5m")
 
 				By("updating the catalog with a fixed v0.2.0 bundle image")
-				brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.2.0.yaml"))
+				brokenProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, subscriptionTestDataBaseDir, "example-operator.v0.2.0.yaml"))
 				Expect(err).To(BeNil())
 				err = magicCatalog.UpdateCatalog(context.Background(), brokenProvider)
 				Expect(err).To(BeNil())
@@ -2685,7 +2689,7 @@ properties:
 
 		It("should not retry successful unpack jobs", func() {
 			By("deploying the testing catalog")
-			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, failForwardTestDataBaseDir, "example-operator.v0.1.0.yaml"))
+			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, subscriptionTestDataBaseDir, "example-operator.v0.1.0.yaml"))
 			Expect(err).To(BeNil())
 			catalogSourceName := fmt.Sprintf("%s-catsrc", generatedNamespace.GetName())
 			magicCatalog := NewMagicCatalog(ctx.Ctx().Client(), generatedNamespace.GetName(), catalogSourceName, provider)

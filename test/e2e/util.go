@@ -382,12 +382,16 @@ func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string,
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetched, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Get(context.Background(), name, metav1.GetOptions{})
 		if err != nil || fetched == nil {
-			fmt.Printf("failed to fetch catalogSource %s/%s: %v\n", namespace, name, err)
+			err = fmt.Errorf("failed to fetch catalogSource %s/%s: %v\n", namespace, name, err)
+			fmt.Println(err.Error())
 			return false, err
 		}
 		return check(fetched), nil
 	})
 
+	if err != nil {
+		err = fmt.Errorf("failed to wati for catalog source to reach intended state: %w", err)
+	}
 	return fetched, err
 }
 
@@ -562,7 +566,9 @@ func buildCatalogSourceCleanupFunc(c operatorclient.ClientInterface, crc version
 		}
 		ctx.Ctx().Logf("Deleting catalog source %s...", catalogSource.GetName())
 		err := crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(context.Background(), catalogSource.GetName(), metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		if err != nil && !apierrors.IsNotFound(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
 
 		Eventually(func() (bool, error) {
 			listOpts := metav1.ListOptions{
@@ -590,7 +596,9 @@ func buildConfigMapCleanupFunc(c operatorclient.ClientInterface, namespace strin
 		}
 		ctx.Ctx().Logf("Deleting config map %s...", configMap.GetName())
 		err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(context.Background(), configMap.GetName(), metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		if err != nil && !apierrors.IsNotFound(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
 	}
 }
 
