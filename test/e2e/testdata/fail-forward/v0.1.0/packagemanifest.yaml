@@ -1,0 +1,5 @@
+packageName: packageA
+channels:
+  - name: stable
+    currentCSV: example-operator.v0.1.0
+defaultChannel: stable
