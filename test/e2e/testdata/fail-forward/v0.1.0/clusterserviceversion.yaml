@@ -1,0 +1,37 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: example-operator.v0.1.0
+  namespace: placeholder
+spec:
+  displayName: Example Operator
+  install:
+    spec:
+      deployments:
+        - name: example-operator-controller-manager
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                control-plane: controller-manager
+            strategy: {}
+            template:
+              metadata:
+                labels:
+                  control-plane: controller-manager
+              spec:
+                containers:
+                  - image: quay.io/openshift-scale/nginx:latest
+                    name: manager
+    strategy: deployment
+  installModes:
+    - supported: false
+      type: OwnNamespace
+    - supported: false
+      type: SingleNamespace
+    - supported: false
+      type: MultiNamespace
+    - supported: true
+      type: AllNamespaces
+  maturity: alpha
+  version: 0.1.0
