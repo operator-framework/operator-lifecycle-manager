@@ -24,7 +24,7 @@ package:
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443
-  interval: 1h
+  interval: 5m
 
 e2e:
   image:
