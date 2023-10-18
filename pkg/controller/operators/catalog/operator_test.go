@@ -77,6 +77,70 @@ func (m *mockTransitioner) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	return m.err
 }
 
+func TestCreateInstallPlanHasExpectedClusterServiceVersionNames(t *testing.T) {
+	namespace := "foo"
+	tests := []struct {
+		testName                           string
+		steps                              []*v1alpha1.Step
+		bundleLookups                      []v1alpha1.BundleLookup
+		expectedClusterServiceVersionNames []string
+	}{
+		/******************************************************************************
+		Historically, when creating an installPlan it's spec.ClusterServiceVersionNames
+		was derived from two sources:
+		   1. The names of CSVs found in "steps" of the installPlan's status.plan
+		   2. The metadata associated with the bundle image
+
+		These sources couldn't result in duplicate entries as the unpacking job would
+		finish after the installPlan was created and the steps weren't populated until
+		the unpacking job finished.
+
+		OLM was later updated to complete the unpacking jobs prior to creating
+		the installPlan, which caused CSVs to be listed twice as the createInstallPlan
+		function was called with steps and a bundle.
+		*****************************************************************************/
+		{
+			testName: "Check that CSVs are not listed twice if steps and bundles are provided",
+			steps: []*v1alpha1.Step{{
+				Resolving: "csv",
+				Resource: v1alpha1.StepResource{
+					CatalogSource:          "catalog",
+					CatalogSourceNamespace: namespace,
+					Group:                  "operators.coreos.com",
+					Version:                "v1alpha1",
+					Kind:                   "ClusterServiceVersion",
+					Name:                   "csvA",
+					Manifest:               toManifest(t, csv("csvA", namespace, nil, nil)),
+				},
+				Status: v1alpha1.StepStatusUnknown,
+			}},
+			bundleLookups: []v1alpha1.BundleLookup{
+				{
+					Identifier: "csvA",
+				},
+			},
+			expectedClusterServiceVersionNames: []string{"csvA"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace})
+			require.NoError(t, err)
+
+			_, err = op.createInstallPlan(namespace, 0, nil, v1alpha1.ApprovalAutomatic, tt.steps, tt.bundleLookups)
+			require.NoError(t, err)
+
+			ipList, err := op.client.OperatorsV1alpha1().InstallPlans(namespace).List(ctx, metav1.ListOptions{})
+			require.NoError(t, err)
+			require.Len(t, ipList.Items, 1)
+			require.Equal(t, tt.expectedClusterServiceVersionNames, ipList.Items[0].Spec.ClusterServiceVersionNames)
+		})
+	}
+}
+
 func TestTransitionInstallPlan(t *testing.T) {
 	errMsg := "transition test error"
 	err := errors.New(errMsg)
