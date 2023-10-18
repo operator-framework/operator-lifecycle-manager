@@ -3076,22 +3076,6 @@ var _ = Describe("Install Plan", func() {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
 		}
 
-		ns := &corev1.Namespace{}
-		ns.SetName(genName("ns-"))
-
-		// Create a namespace an OperatorGroup
-		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-		deleteOpts := &metav1.DeleteOptions{}
-		defer func() {
-			require.NoError(GinkgoT(), c.KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), generatedNamespace.GetName(), *deleteOpts))
-		}()
-
-		og := &operatorsv1.OperatorGroup{}
-		og.SetName("og")
-		_, err = crc.OperatorsV1().OperatorGroups(generatedNamespace.GetName()).Create(context.Background(), og, metav1.CreateOptions{})
-		require.NoError(GinkgoT(), err)
-
 		mainPackageName := genName("nginx-")
 		dependentPackageName := genName("nginxdep-")
 
@@ -3210,6 +3194,7 @@ var _ = Describe("Install Plan", func() {
 		require.NoError(GinkgoT(), err)
 
 		// Make sure to clean up the installed CRD
+		deleteOpts := &metav1.DeleteOptions{}
 		defer func() {
 			require.NoError(GinkgoT(), c.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), dependentCRD.GetName(), *deleteOpts))
 		}()
@@ -3223,17 +3208,11 @@ var _ = Describe("Install Plan", func() {
 	When("an InstallPlan is created with no valid OperatorGroup present", func() {
 		var (
 			installPlanName string
-			ns              *corev1.Namespace
 		)
 
 		BeforeEach(func() {
-			ns = &corev1.Namespace{}
-			ns.SetName(genName("ns-"))
-
-			// Create a namespace
-			Eventually(func() error {
-				return ctx.Ctx().Client().Create(context.Background(), ns)
-			}, timeout, interval).Should(Succeed(), "could not create Namespace")
+			// Make sure there are no OGs in the namespace already
+			require.NoError(GinkgoT(), crc.OperatorsV1().OperatorGroups(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 
 			// Create InstallPlan
 			installPlanName = "ip"
@@ -3252,8 +3231,6 @@ var _ = Describe("Install Plan", func() {
 		AfterEach(func() {
 			err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Delete(context.Background(), installPlanName, metav1.DeleteOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			err = c.KubernetesInterface().CoreV1().Namespaces().Delete(context.Background(), generatedNamespace.GetName(), metav1.DeleteOptions{})
-			Expect(err).ToNot(HaveOccurred())
 		})
 
 		// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2636
