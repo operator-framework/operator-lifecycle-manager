@@ -1592,9 +1592,7 @@ func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1
 		}
 		catalogSourceMap[s.Resource.CatalogSource] = struct{}{}
 	}
-	for _, b := range bundleLookups {
-		csvNames = append(csvNames, b.Identifier)
-	}
+
 	catalogSources := []string{}
 	for s := range catalogSourceMap {
 		catalogSources = append(catalogSources, s)
