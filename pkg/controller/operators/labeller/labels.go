@@ -78,6 +78,7 @@ func ObjectLabeler[T metav1.Object, A ApplyConfig[A]](
 				return nil
 			}
 
+			logger.WithFields(logrus.Fields{"namespace": cast.GetNamespace(), "name": cast.GetName()}).Info("applying ownership label")
 			cfg := applyConfigFor(cast.GetName(), cast.GetNamespace())
 			cfg.WithLabels(map[string]string{
 				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
@@ -159,6 +160,7 @@ func ObjectPatchLabeler(
 				return fmt.Errorf("failed to Marshal old data for %s/%s: %w", updated.GetNamespace(), updated.GetName(), err)
 			}
 
+			logger.WithFields(logrus.Fields{"namespace": cast.GetNamespace(), "name": cast.GetName()}).Info("patching ownership label")
 			patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
 			if err != nil {
 				return fmt.Errorf("failed to create patch for %s/%s: %w", cast.GetNamespace(), cast.GetName(), err)
