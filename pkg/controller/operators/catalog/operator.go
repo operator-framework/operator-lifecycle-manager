@@ -399,6 +399,8 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 			idx = 0
 			complete[gvr] = []bool{false}
 		}
+		logger := op.logger.WithFields(logrus.Fields{"gvr": gvr.String(), "index": idx})
+		logger.Info("registering labeller")
 
 		queue := workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
 			Name: gvr.String(),
@@ -415,6 +417,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 				// when every action we know about has been completed, we re-start the process to allow the future
 				// invocation of this process to filter informers (canFilter = true) and elide all this logic
 				completeLock.Lock()
+				logger.Info("labeller complete")
 				complete[gvr][idx] = true
 				allDone := true
 				for _, items := range complete {

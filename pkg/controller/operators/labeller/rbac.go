@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,7 +35,7 @@ func ContentHashLabeler[T metav1.Object, A ApplyConfig[A]](
 				return fmt.Errorf("casting failed: %w", err)
 			}
 
-			if _, _, ok := ownerutil.GetOwnerByKindLabel(cast, v1alpha1.ClusterServiceVersionKind); !ok {
+			if !check(cast) || hasHashLabel(cast) {
 				// if the object we're processing does not need us to label it, it's possible that every object that requires
 				// the label already has it; in which case we should exit the process, so the Pod that succeeds us can filter
 				// the informers used to drive the controller and stop having to track extraneous objects
@@ -60,15 +58,12 @@ func ContentHashLabeler[T metav1.Object, A ApplyConfig[A]](
 				return nil
 			}
 
-			if !check(cast) || hasHashLabel(cast) {
-				return nil
-			}
-
 			hash, err := hasher(cast)
 			if err != nil {
 				return fmt.Errorf("failed to calculate hash: %w", err)
 			}
 
+			logger.WithFields(logrus.Fields{"namespace": cast.GetNamespace(), "name": cast.GetName()}).Info("applying content hash label")
 			cfg := applyConfigFor(cast.GetName(), cast.GetNamespace())
 			cfg.WithLabels(map[string]string{
 				resolver.ContentHashLabelKey: hash,
