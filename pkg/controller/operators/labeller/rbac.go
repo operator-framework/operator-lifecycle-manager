@@ -68,7 +68,7 @@ func ContentHashLabeler[T metav1.Object, A ApplyConfig[A]](
 			cfg.WithLabels(map[string]string{
 				resolver.ContentHashLabelKey: hash,
 			})
-			_, err = apply(cast.GetNamespace(), ctx, cfg, metav1.ApplyOptions{})
+			_, err = apply(cast.GetNamespace(), ctx, cfg, metav1.ApplyOptions{FieldManager: "olm"})
 			return err
 		}
 	}

@@ -84,7 +84,7 @@ func ObjectLabeler[T metav1.Object, A ApplyConfig[A]](
 				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
 			})
 
-			_, err := apply(cast.GetNamespace(), ctx, cfg, metav1.ApplyOptions{})
+			_, err := apply(cast.GetNamespace(), ctx, cfg, metav1.ApplyOptions{FieldManager: "olm"})
 			return err
 		}
 	}
@@ -166,7 +166,7 @@ func ObjectPatchLabeler(
 				return fmt.Errorf("failed to create patch for %s/%s: %w", cast.GetNamespace(), cast.GetName(), err)
 			}
 
-			_, err = patch(ctx, cast.GetName(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
+			_, err = patch(ctx, cast.GetName(), types.MergePatchType, patchBytes, metav1.PatchOptions{FieldManager: "olm"})
 			return err
 		}
 	}
