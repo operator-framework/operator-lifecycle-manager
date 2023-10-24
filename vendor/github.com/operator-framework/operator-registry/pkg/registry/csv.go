@@ -2,10 +2,12 @@ package registry
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
+
+	prettyunmarshaler "github.com/operator-framework/operator-registry/pkg/prettyunmarshaler"
 
 	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -82,7 +84,7 @@ type ClusterServiceVersion struct {
 // ReadCSVFromBundleDirectory tries to parse every YAML file in the directory without inspecting sub-directories and
 // returns a CSV. According to the strict one CSV per bundle rule, func returns an error if more than one CSV is found.
 func ReadCSVFromBundleDirectory(bundleDir string) (*ClusterServiceVersion, error) {
-	dirContent, err := ioutil.ReadDir(bundleDir)
+	dirContent, err := os.ReadDir(bundleDir)
 	if err != nil {
 		return nil, fmt.Errorf("error reading bundle directory %s, %v", bundleDir, err)
 	}
@@ -411,4 +413,57 @@ func (csv *ClusterServiceVersion) GetSubstitutesFor() string {
 		return ""
 	}
 	return substitutesFor
+}
+
+func (csv *ClusterServiceVersion) UnmarshalJSON(data []byte) error {
+
+	if err := csv.UnmarshalSpec(data); err != nil {
+		return err
+	}
+	if err := csv.UnmarshalTypeMeta(data); err != nil {
+		return err
+	}
+	if err := csv.UnmarshalObjectMeta(data); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (csv *ClusterServiceVersion) UnmarshalSpec(data []byte) error {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return errors.New(prettyunmarshaler.NewJSONUnmarshalError(data, err).Pretty())
+	}
+
+	spec, ok := m["spec"]
+	if !ok {
+		return nil
+	}
+	csv.Spec = spec
+
+	return nil
+}
+
+func (csv *ClusterServiceVersion) UnmarshalTypeMeta(data []byte) error {
+	var t metav1.TypeMeta
+	if err := json.Unmarshal(data, &t); err != nil {
+		return errors.New(prettyunmarshaler.NewJSONUnmarshalError(data, err).Pretty())
+	}
+	csv.TypeMeta = t
+
+	return nil
+}
+
+func (csv *ClusterServiceVersion) UnmarshalObjectMeta(data []byte) error {
+	var o struct {
+		Metadata metav1.ObjectMeta `json:"metadata"`
+	}
+	if err := json.Unmarshal(data, &o); err != nil {
+		return errors.New(prettyunmarshaler.NewJSONUnmarshalError(data, err).Pretty())
+	}
+
+	csv.ObjectMeta = o.Metadata
+
+	return nil
 }
