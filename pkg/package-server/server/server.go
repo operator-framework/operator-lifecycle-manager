@@ -12,8 +12,10 @@ import (
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -193,6 +195,11 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 	if o.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
+
+	// Enables http2 DOS mitigations for unauthenticated clients.
+	utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+		string(genericfeatures.UnauthenticatedHTTP2DOSMitigation): true,
+	})
 
 	// Grab the config for the API server
 	config, err := o.Config(ctx)
