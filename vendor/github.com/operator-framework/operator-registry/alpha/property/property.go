@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-	"io/ioutil"
-	"path/filepath"
 	"reflect"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -70,7 +67,7 @@ type GVKRequired struct {
 }
 
 type BundleObject struct {
-	File `json:",inline"`
+	Data []byte `json:"data"`
 }
 
 type CSVMetadata struct {
@@ -88,58 +85,6 @@ type CSVMetadata struct {
 	MinKubeVersion            string                             `json:"minKubeVersion,omitempty"`
 	NativeAPIs                []metav1.GroupVersionKind          `json:"nativeAPIs,omitempty"`
 	Provider                  v1alpha1.AppLink                   `json:"provider,omitempty"`
-}
-
-type File struct {
-	ref  string
-	data []byte
-}
-
-type fileJSON struct {
-	Ref  string `json:"ref,omitempty"`
-	Data []byte `json:"data,omitempty"`
-}
-
-func (f *File) UnmarshalJSON(data []byte) error {
-	var t fileJSON
-	if err := json.Unmarshal(data, &t); err != nil {
-		return err
-	}
-	if len(t.Ref) > 0 && len(t.Data) > 0 {
-		return errors.New("fields 'ref' and 'data' are mutually exclusive")
-	}
-	f.ref = t.Ref
-	f.data = t.Data
-	return nil
-}
-
-func (f File) MarshalJSON() ([]byte, error) {
-	return json.Marshal(fileJSON{
-		Ref:  f.ref,
-		Data: f.data,
-	})
-}
-
-func (f File) IsRef() bool {
-	return len(f.ref) > 0
-}
-
-func (f File) GetRef() string {
-	return f.ref
-}
-
-func (f File) GetData(root fs.FS, cwd string) ([]byte, error) {
-	if !f.IsRef() {
-		return f.data, nil
-	}
-	if filepath.IsAbs(f.ref) {
-		return nil, fmt.Errorf("reference must be a relative path")
-	}
-	file, err := root.Open(filepath.Join(cwd, f.ref))
-	if err != nil {
-		return nil, err
-	}
-	return ioutil.ReadAll(file)
 }
 
 type Properties struct {
@@ -308,11 +253,8 @@ func MustBuildGVK(group, version, kind string) Property {
 func MustBuildGVKRequired(group, version, kind string) Property {
 	return MustBuild(&GVKRequired{group, kind, version})
 }
-func MustBuildBundleObjectRef(ref string) Property {
-	return MustBuild(&BundleObject{File: File{ref: ref}})
-}
-func MustBuildBundleObjectData(data []byte) Property {
-	return MustBuild(&BundleObject{File: File{data: data}})
+func MustBuildBundleObject(data []byte) Property {
+	return MustBuild(&BundleObject{Data: data})
 }
 
 func MustBuildCSVMetadata(csv v1alpha1.ClusterServiceVersion) Property {

@@ -117,7 +117,7 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 		out = append(out, property.MustBuildCSVMetadata(csv))
 	} else {
 		for _, obj := range b.Object {
-			out = append(out, property.MustBuildBundleObjectData([]byte(obj)))
+			out = append(out, property.MustBuildBundleObject([]byte(obj)))
 		}
 	}
 
