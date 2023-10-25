@@ -763,10 +763,17 @@ var _ = Describe("Subscription", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(sub).ToNot(BeNil())
 
-				// Update sub to target an existing CatalogSource
-				sub.Spec.CatalogSource = catalogSourceName
+				By("updating the subscription to target an existing catsrc")
 				Eventually(func() error {
-					_, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
+					sub, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), testSubscriptionName, metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+					if sub == nil {
+						return fmt.Errorf("subscription is nil")
+					}
+					sub.Spec.CatalogSource = catalogSourceName
+					_, err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
 					return err
 				}).Should(Succeed())
 
