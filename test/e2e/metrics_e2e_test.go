@@ -80,7 +80,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				cleanupCSV, err = createCSV(c, crc, failingCSV, generatedNamespace.GetName(), false, false)
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = fetchCSV(crc, failingCSV.Name, generatedNamespace.GetName(), csvFailedChecker)
+				_, err = fetchCSV(crc, generatedNamespace.GetName(), failingCSV.Name, csvFailedChecker)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -136,7 +136,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				var err error
 				_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 				Expect(err).ToNot(HaveOccurred())
-				_, err = fetchCSV(crc, csv.Name, generatedNamespace.GetName(), csvSucceededChecker)
+				_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 				Expect(err).ToNot(HaveOccurred())
 			})
 

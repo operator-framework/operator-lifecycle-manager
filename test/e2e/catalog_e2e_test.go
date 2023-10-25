@@ -214,7 +214,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			return err
 		}).Should(Succeed())
 
-		_, err = awaitCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update manifest
@@ -364,7 +364,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), subscription.Status.CurrentCSV, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		Expect(err).ShouldNot(HaveOccurred())
 
 		ipList, err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).List(context.Background(), metav1.ListOptions{})
@@ -455,7 +455,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ToNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), subscription.Status.CurrentCSV, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -597,7 +597,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionStateAtLatestChecker())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(subscription).ShouldNot(BeNil())
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, generatedNamespace.GetName(), csvSucceededChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), subscription.Status.CurrentCSV, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Update the catalog's address to point at the other registry pod's cluster ip
@@ -613,7 +613,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		}).Should(Succeed())
 
 		// Wait for the replacement CSV to be installed
-		_, err = awaitCSV(crc, generatedNamespace.GetName(), replacementCSV.GetName(), csvSucceededChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), replacementCSV.GetName(), csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -928,7 +928,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(subscription).ShouldNot(BeNil())
 
 		// Wait for csv to succeed
-		_, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		_, err = fetchCSV(crc, subscription.GetNamespace(), subscription.Status.CurrentCSV, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		registryCheckFunc := func(podList *corev1.PodList) bool {
@@ -1033,7 +1033,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(subscription).ShouldNot(BeNil())
 
 		// Wait for csv to succeed
-		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		csv, err := fetchCSV(crc, subscription.GetNamespace(), subscription.Status.CurrentCSV, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// check version of running csv to ensure the latest version (0.9.2) was installed onto the cluster
@@ -1144,7 +1144,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(subscription).ShouldNot(BeNil())
 
 		By("waiting for busybox v2 csv to succeed and check the replaces field")
-		csv, err := fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		csv, err := fetchCSV(crc, subscription.GetNamespace(), subscription.Status.CurrentCSV, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(csv.Spec.Replaces).To(Equal("busybox.v1.0.0"))
 
@@ -1157,7 +1157,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(subscription).ShouldNot(BeNil())
 
 		By("waiting for busybox-dependency v2 csv to succeed and check the replaces field")
-		csv, err = fetchCSV(crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+		csv, err = fetchCSV(crc, subscription.GetNamespace(), subscription.Status.CurrentCSV, csvSucceededChecker)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(csv.Spec.Replaces).To(Equal("busybox-dependency.v1.0.0"))
 	})

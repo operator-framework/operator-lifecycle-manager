@@ -812,7 +812,7 @@ var _ = Describe("Install Plan", func() {
 		require.Equal(GinkgoT(), dependentCSV.GetName(), dependentSubscription.Status.CurrentCSV)
 
 		// Verify CSV is created
-		_, err = awaitCSV(crc, generatedNamespace.GetName(), dependentCSV.GetName(), csvAnyChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), dependentCSV.GetName(), csvAnyChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Update dependent subscription in catalog and wait for csv to update
@@ -840,7 +840,7 @@ var _ = Describe("Install Plan", func() {
 		require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), fetchedUpdatedDepInstallPlan.GetName())
 
 		// Wait for csv to update
-		_, err = awaitCSV(crc, generatedNamespace.GetName(), updatedDependentCSV.GetName(), csvAnyChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), updatedDependentCSV.GetName(), csvAnyChecker)
 		require.NoError(GinkgoT(), err)
 	})
 
@@ -1414,7 +1414,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
-			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), generatedNamespace.GetName(), csvAnyChecker)
+			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), mainBetaCSV.GetName(), csvAnyChecker)
 			require.NoError(GinkgoT(), err)
 
 			GinkgoT().Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
@@ -1638,7 +1638,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
-			fetchedCSV, err := fetchCSV(crc, mainBetaCSV.GetName(), generatedNamespace.GetName(), csvSucceededChecker)
+			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), mainBetaCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Ensure CRD versions are accurate
@@ -1678,7 +1678,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)
 
 			// Ensure correct in-cluster resource(s)
-			fetchedCSV, err = fetchCSV(crc, mainDeltaCSV.GetName(), generatedNamespace.GetName(), csvSucceededChecker)
+			fetchedCSV, err = fetchCSV(crc, generatedNamespace.GetName(), mainDeltaCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Ensure CRD versions are accurate
@@ -1818,7 +1818,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Verify CSV is created
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Update CatalogSource with a new CSV with more permissions
@@ -1884,7 +1884,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
 
 			// Wait for csv to update
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), updatedCSV.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), updatedCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// If the CSV is succeeded, we successfully rolled out the RBAC changes
@@ -2016,7 +2016,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Verify CSV is created
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Update CatalogSource with a new CSV with more permissions
@@ -2076,7 +2076,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
 
 			// Wait for csv to update
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), updatedCSV.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), updatedCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			newSecrets, err := c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).List(context.Background(), metav1.ListOptions{})
@@ -2232,7 +2232,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 			// Verify CSV is created
-			csv, err := awaitCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
+			csv, err := fetchCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			addedEnvVar := corev1.EnvVar{Name: "EXAMPLE", Value: "value"}
@@ -2273,7 +2273,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Wait for csv to update
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), csv.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Should have the updated env var
@@ -2321,7 +2321,7 @@ var _ = Describe("Install Plan", func() {
 			require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
 
 			// Wait for csv to update
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), updatedCSV.GetName(), csvSucceededChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), updatedCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Should have created deployment and stomped on the env changes
@@ -2478,7 +2478,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Verify CSV is created
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvAnyChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvAnyChecker)
 			require.NoError(GinkgoT(), err)
 
 			mainManifests = []registry.PackageManifest{
@@ -2502,7 +2502,7 @@ var _ = Describe("Install Plan", func() {
 			require.NotEqual(GinkgoT(), fetchedInstallPlan.GetName(), fetchedUpdatedInstallPlan.GetName())
 
 			// Wait for csv to update
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), betaCSV.GetName(), csvAnyChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), betaCSV.GetName(), csvAnyChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
@@ -2678,7 +2678,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 
 			// Verify CSV is created
-			_, err = awaitCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvAnyChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvAnyChecker)
 			require.NoError(GinkgoT(), err)
 
 			// Get the CRD to see if it is updated
@@ -3190,7 +3190,7 @@ var _ = Describe("Install Plan", func() {
 		require.Equal(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 		// Verify CSV is created
-		_, err = awaitCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Make sure to clean up the installed CRD

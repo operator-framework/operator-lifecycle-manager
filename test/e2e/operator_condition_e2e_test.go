@@ -78,7 +78,7 @@ var _ = Describe("Operator Condition", func() {
 		defer cleanupSub()
 
 		// Await csvA's success
-		_, err = awaitCSV(crc, generatedNamespace.GetName(), csvA.GetName(), csvSucceededChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Get the OperatorCondition for csvA and report that it is not upgradeable
@@ -121,7 +121,7 @@ var _ = Describe("Operator Condition", func() {
 		require.NoError(GinkgoT(), err)
 
 		// csvB will be in Pending phase due to csvA reports Upgradeable=False condition
-		fetchedCSV, err := fetchCSV(crc, csvB.GetName(), generatedNamespace.GetName(), buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOperatorConditionNotUpgradeable))
+		fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvB.GetName(), buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOperatorConditionNotUpgradeable))
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), fetchedCSV.Status.Phase, operatorsv1alpha1.CSVPhasePending)
 
@@ -146,7 +146,7 @@ var _ = Describe("Operator Condition", func() {
 		}, pollInterval, pollDuration).Should(Succeed())
 
 		// Await csvB's success
-		_, err = awaitCSV(crc, generatedNamespace.GetName(), csvB.GetName(), csvSucceededChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
 		// Get the OperatorCondition for csvB and purposedly change ObservedGeneration
@@ -180,7 +180,7 @@ var _ = Describe("Operator Condition", func() {
 		require.NoError(GinkgoT(), err)
 
 		// CSVD will be in Pending status due to overrides in csvB's condition
-		fetchedCSV, err = fetchCSV(crc, csvD.GetName(), generatedNamespace.GetName(), buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOperatorConditionNotUpgradeable))
+		fetchedCSV, err = fetchCSV(crc, generatedNamespace.GetName(), csvD.GetName(), buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOperatorConditionNotUpgradeable))
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), fetchedCSV.Status.Phase, operatorsv1alpha1.CSVPhasePending)
 
@@ -198,7 +198,7 @@ var _ = Describe("Operator Condition", func() {
 		require.NoError(GinkgoT(), err)
 
 		require.NoError(GinkgoT(), err)
-		_, err = awaitCSV(crc, generatedNamespace.GetName(), csvD.GetName(), csvSucceededChecker)
+		_, err = fetchCSV(crc, generatedNamespace.GetName(), csvD.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
 })

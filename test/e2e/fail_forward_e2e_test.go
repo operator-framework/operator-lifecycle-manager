@@ -195,7 +195,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			originalInstallPlanRef = subscription.Status.InstallPlanRef
 
 			By("waiting for the v0.1.0 CSV to report a succeeded phase")
-			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+			_, err = fetchCSV(crclient, generatedNamespace.GetName(), subscription.Status.CurrentCSV, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("updating the catalog with a v0.2.0 bundle that has an invalid CSV")
@@ -358,7 +358,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).Should(BeNil())
 
 			By("waiting for the v0.1.0 CSV to report a succeeded phase")
-			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, generatedNamespace.GetName(), buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
+			_, err = fetchCSV(crclient, generatedNamespace.GetName(), subscription.Status.CurrentCSV, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("updating the catalog with a broken v0.2.0 csv")
@@ -374,7 +374,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).Should(BeNil())
 
 			By("waiting for the bad CSV to report a failed state")
-			_, err = fetchCSV(crclient, subscription.Status.CurrentCSV, generatedNamespace.GetName(), csvFailedChecker)
+			_, err = fetchCSV(crclient, generatedNamespace.GetName(), subscription.Status.CurrentCSV, csvFailedChecker)
 			Expect(err).To(BeNil())
 
 		})
