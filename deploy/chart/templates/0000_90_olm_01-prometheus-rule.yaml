@@ -12,7 +12,7 @@ spec:
   - name: olm.csv_abnormal.rules
     rules:
       - alert: CsvAbnormalFailedOver2Min
-        expr: last_over_time(csv_abnormal{phase="Failed"}[5m]}
+        expr: last_over_time(csv_abnormal{phase="Failed"}[5m])
         for: 2m
         labels:
           severity: warning
