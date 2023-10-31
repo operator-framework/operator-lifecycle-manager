@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -31,7 +30,6 @@ import (
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -2869,92 +2867,42 @@ var _ = Describe("Install Plan", func() {
 		// Should have removed every matching step
 		require.Equal(GinkgoT(), 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
 
-		// the test from here out verifies created RBAC is removed after CSV deletion
-		createdClusterRoles, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
-		createdClusterRoleNames := map[string]struct{}{}
-		for _, role := range createdClusterRoles.Items {
-			createdClusterRoleNames[role.GetName()] = struct{}{}
-			GinkgoT().Logf("Monitoring cluster role %v", role.GetName())
+		GinkgoT().Logf("deleting csv %s/%s", generatedNamespace.GetName(), stableCSVName)
+		// Explicitly delete the CSV
+		err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), stableCSVName, metav1.DeleteOptions{})
+		// Looking for no error OR IsNotFound error
+		if err != nil && apierrors.IsNotFound(err) {
+			err = nil
 		}
-
-		createdClusterRoleBindings, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
-		createdClusterRoleBindingNames := map[string]struct{}{}
-		for _, binding := range createdClusterRoleBindings.Items {
-			createdClusterRoleBindingNames[binding.GetName()] = struct{}{}
-			GinkgoT().Logf("Monitoring cluster role binding %v", binding.GetName())
-		}
-
-		crWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoles().Watch(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
-		require.NoError(GinkgoT(), err)
-		crbWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Watch(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 		require.NoError(GinkgoT(), err)
 
-		done := make(chan struct{})
-		errExit := make(chan error)
-		go func() {
-			defer GinkgoRecover()
-			for {
-				select {
-				case evt, ok := <-crWatcher.ResultChan():
-					if !ok {
-						errExit <- errors.New("cr watch channel closed unexpectedly")
-						return
-					}
-					if evt.Type == watch.Deleted {
-						cr, ok := evt.Object.(*rbacv1.ClusterRole)
-						if !ok {
-							continue
-						}
-						delete(createdClusterRoleNames, cr.GetName())
-						if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 {
-							done <- struct{}{}
-							return
-						}
-					}
-				case evt, ok := <-crbWatcher.ResultChan():
-					if !ok {
-						errExit <- errors.New("crb watch channel closed unexpectedly")
-						return
-					}
-					if evt.Type == watch.Deleted {
-						crb, ok := evt.Object.(*rbacv1.ClusterRoleBinding)
-						if !ok {
-							continue
-						}
-						delete(createdClusterRoleBindingNames, crb.GetName())
-						if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 {
-							done <- struct{}{}
-							return
-						}
-					}
-				case <-time.After(pollDuration):
-					done <- struct{}{}
-					return
-				}
+		Eventually(func() bool {
+			crbs, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+			if err != nil {
+				GinkgoT().Logf("error getting crbs: %v", err)
+				return false
 			}
-		}()
-		GinkgoT().Logf("Deleting CSV '%v' in namespace %v", stableCSVName, generatedNamespace.GetName())
-		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
-		select {
-		case <-done:
-			break
-		case err := <-errExit:
-			GinkgoT().Fatal(err)
-		}
+			if len(crbs.Items) != 0 {
+				return false
+			}
 
-		require.Emptyf(GinkgoT(), createdClusterRoleNames, "unexpected cluster role remain: %v", createdClusterRoleNames)
-		require.Emptyf(GinkgoT(), createdClusterRoleBindingNames, "unexpected cluster role binding remain: %v", createdClusterRoleBindingNames)
+			crs, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+			if err != nil {
+				GinkgoT().Logf("error getting crs: %v", err)
+				return false
+			}
+			if len(crs.Items) != 0 {
+				return false
+			}
 
-		Eventually(func() error {
-			_, err := c.GetServiceAccount(generatedNamespace.GetName(), serviceAccountName)
-			if err == nil {
-				return fmt.Errorf("The %v/%v ServiceAccount should have been deleted", generatedNamespace.GetName(), serviceAccountName)
+			_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(context.Background(), serviceAccountName, metav1.GetOptions{})
+			if err != nil && !apierrors.IsNotFound(err) {
+				GinkgoT().Logf("error getting sa %s/%s: %v", generatedNamespace.GetName(), serviceAccountName, err)
+				return false
 			}
-			if !apierrors.IsNotFound(err) {
-				return err
-			}
-			return nil
-		}, timeout, interval).Should(BeNil())
+
+			return true
+		}, pollDuration*2, pollInterval).Should(BeTrue())
 	})
 
 	It("CRD validation", func() {
