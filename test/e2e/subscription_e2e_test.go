@@ -3081,7 +3081,6 @@ func subscriptionHasCondition(condType operatorsv1alpha1.SubscriptionConditionTy
 
 func fetchSubscription(crc versioned.Interface, namespace, name string, checker subscriptionStateChecker) (*operatorsv1alpha1.Subscription, error) {
 	var fetchedSubscription *operatorsv1alpha1.Subscription
-	var err error
 
 	log := func(s string) {
 		ctx.Ctx().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
@@ -3091,10 +3090,12 @@ func fetchSubscription(crc versioned.Interface, namespace, name string, checker 
 	var lastCSV string
 	var lastInstallPlanRef *corev1.ObjectReference
 
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		var err error
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(context.Background(), name, metav1.GetOptions{})
 		if err != nil || fetchedSubscription == nil {
-			return false, err
+			log(fmt.Sprintf("error getting subscription %s/%s: %v", namespace, name, err))
+			return false, nil
 		}
 		thisState, thisCSV, thisInstallPlanRef := fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.InstallPlanRef
 		if thisState != lastState || thisCSV != lastCSV || !equality.Semantic.DeepEqual(thisInstallPlanRef, lastInstallPlanRef) {
@@ -3104,10 +3105,11 @@ func fetchSubscription(crc versioned.Interface, namespace, name string, checker 
 		return checker(fetchedSubscription), nil
 	})
 	if err != nil {
-		log(fmt.Sprintf("never got correct status: %#v", fetchedSubscription.Status))
-		log(fmt.Sprintf("subscription spec: %#v", fetchedSubscription.Spec))
+		log(fmt.Sprintf("subscription %s/%s never got correct status: %#v", namespace, name, fetchedSubscription.Status))
+		log(fmt.Sprintf("subscription %s/%s spec: %#v", namespace, name, fetchedSubscription.Spec))
+		return nil, err
 	}
-	return fetchedSubscription, err
+	return fetchedSubscription, nil
 }
 
 func buildSubscriptionCleanupFunc(crc versioned.Interface, subscription *operatorsv1alpha1.Subscription) cleanupFunc {

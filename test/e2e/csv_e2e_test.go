@@ -4444,7 +4444,7 @@ func fetchCSV(c versioned.Interface, namespace, name string, checker csvConditio
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		var err error
 		csv, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-		if err != nil {
+		if err != nil || csv == nil {
 			ctx.Ctx().Logf("error getting csv %s/%s: %v", namespace, name, err)
 			return false, nil
 		}
