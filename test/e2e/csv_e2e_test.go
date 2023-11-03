@@ -3550,7 +3550,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			c := newKubeClient()
 			crc := newCRClient()
 
-			// Create dependency first (CRD)
+			By("Creating dependency first (CRD)")
 			crdPlural := genName("ins")
 			crdName := crdPlural + ".cluster.com"
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
@@ -3584,7 +3584,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			defer cleanupCRD()
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Create "current" CSV
+			By("Creating 'current' CSV")
 			nginxName := genName("nginx-")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
@@ -3645,16 +3645,18 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			// Wait for current CSV to succeed
+			By("Waiting for current CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployment
-			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
+			By("Waiting for deployment to be created")
+			dep, err := waitForDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name, c)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
-			// Create "updated" CSV
+			GinkgoT().Logf("Deployment container name: %v", dep.Spec.Template.Spec.Containers[0].Name)
+
+			By("Creating 'updated' CSV")
 			strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -3666,40 +3668,46 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Fetch the current csv
+			By("Fetching the current csv")
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Update csv with modified deployment spec
+			By("Updating the CSV")
 			fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
-
 			Eventually(func() error {
-				// Update the current csv
 				_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 				return err
 			}).Should(Succeed())
 
-			// Wait for updated CSV to succeed
-			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
+			By(fmt.Sprintf("Waiting for the updated CSV to succeed with deplpoyment container name: %s", strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name))
+			nameMatchesPrinted := false
+			Eventually(func() error {
+				_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 
-				// Should have updated existing deployment
-				depUpdated, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
-				if err != nil {
-					return false
-				}
-				if depUpdated == nil {
-					return false
-				}
-				// container name has been updated and differs from initial CSV spec and updated CSV spec
-				if depUpdated.Spec.Template.Spec.Containers[0].Name == strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name {
-					return false
-				}
+					// Should have updated existing deployment
+					depUpdated, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
+					if err != nil {
+						GinkgoT().Logf("error getting deployment %s/%s: %v", generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name, err)
+						return false
+					}
+					if depUpdated == nil {
+						return false
+					}
 
-				// Check for success
-				return csvSucceededChecker(csv)
-			})
-			Expect(err).ShouldNot(HaveOccurred())
+					// container name has been updated and differs from initial CSV spec and updated CSV spec
+					if depUpdated.Spec.Template.Spec.Containers[0].Name != strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name {
+						return false
+					}
+					if !nameMatchesPrinted {
+						GinkgoT().Logf("deployments: dep container name matches: %v", strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name)
+						nameMatchesPrinted = true
+					}
 
+					// Check for success
+					return csvSucceededChecker(csv)
+				})
+				return err
+			}, pollDuration, pollInterval).Should(Succeed())
 		})
 		It("emits CSV requirement events", func() {
 
