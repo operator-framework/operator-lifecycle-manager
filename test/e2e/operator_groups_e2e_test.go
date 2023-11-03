@@ -127,21 +127,30 @@ var _ = Describe("Operator Group", func() {
 		}
 		_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Create(context.TODO(), &operatorGroup, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
-		expectedOperatorGroupStatus := v1.OperatorGroupStatus{
-			Namespaces: []string{opGroupNamespace, createdOtherNamespace.GetName()},
-		}
+
+		// fetched namespaces might be in any order
+		namespaces := map[string]bool{}
+		namespaces[opGroupNamespace] = true
+		namespaces[createdOtherNamespace.GetName()] = true
 
 		log("Waiting on operator group to have correct status")
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
 			if fetchErr != nil {
-				return false, fetchErr
+				log(fmt.Sprintf("error getting operatorgroup %s/%s: %v", opGroupNamespace, operatorGroup.Name, err))
+				return false, nil
 			}
-			if len(fetched.Status.Namespaces) > 0 {
-				require.ElementsMatch(GinkgoT(), expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces, "have %#v", fetched.Status.Namespaces)
-				return true, nil
+			if len(namespaces) != len(fetched.Status.Namespaces) {
+				log(fmt.Sprintf("element length mismatch: %v vs %v", namespaces, fetched.Status.Namespaces))
+				return false, nil
 			}
-			return false, nil
+			for _, v := range fetched.Status.Namespaces {
+				if !namespaces[v] {
+					log(fmt.Sprintf("element values mismatch: %v vs %v", namespaces, fetched.Status.Namespaces))
+					return false, nil
+				}
+			}
+			return true, nil
 		})
 		require.NoError(GinkgoT(), err)
 
