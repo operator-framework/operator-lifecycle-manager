@@ -2876,29 +2876,45 @@ var _ = Describe("Install Plan", func() {
 		}
 		require.NoError(GinkgoT(), err)
 
+		GinkgoT().Logf("waiting on crb/cr/sa deletion")
+		crbsDeleted := false
+		crsDeleted := false
+		saDeleted := false
 		Eventually(func() bool {
-			crbs, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
-			if err != nil {
-				GinkgoT().Logf("error getting crbs: %v", err)
-				return false
-			}
-			if len(crbs.Items) != 0 {
-				return false
-			}
-
-			crs, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
-			if err != nil {
-				GinkgoT().Logf("error getting crs: %v", err)
-				return false
-			}
-			if len(crs.Items) != 0 {
-				return false
+			if !crbsDeleted {
+				crbs, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+				if err != nil {
+					GinkgoT().Logf("error getting crbs: %v", err)
+					return false
+				}
+				if len(crbs.Items) != 0 {
+					return false
+				}
+				crbsDeleted = true
+				GinkgoT().Logf("all crbs deleted")
 			}
 
-			_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(context.Background(), serviceAccountName, metav1.GetOptions{})
-			if err != nil && !apierrors.IsNotFound(err) {
-				GinkgoT().Logf("error getting sa %s/%s: %v", generatedNamespace.GetName(), serviceAccountName, err)
-				return false
+			if !crsDeleted {
+				crs, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+				if err != nil {
+					GinkgoT().Logf("error getting crs: %v", err)
+					return false
+				}
+				if len(crs.Items) != 0 {
+					return false
+				}
+				crsDeleted = true
+				GinkgoT().Logf("all crs deleted")
+			}
+
+			if !saDeleted {
+				_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(context.Background(), serviceAccountName, metav1.GetOptions{})
+				if err != nil && !apierrors.IsNotFound(err) {
+					GinkgoT().Logf("error getting sa %s/%s: %v", generatedNamespace.GetName(), serviceAccountName, err)
+					return false
+				}
+				saDeleted = true
+				GinkgoT().Logf("all sas deleted")
 			}
 
 			return true
