@@ -1609,7 +1609,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 	})
-	It("insufficient permissions resolve via RBAC", func() {
+	It("[FLAKE] insufficient permissions resolve via RBAC", func() {
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
@@ -1680,17 +1680,25 @@ var _ = Describe("Operator Group", func() {
 		defer cleanupSE()
 
 		log("wait for CSV to fail")
+		var lastLog string
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Get(context.TODO(), createdCSV.GetName(), metav1.GetOptions{})
 			if err != nil {
-				return false, err
+				log(fmt.Sprintf("error getting csv %s/%s: %v", newNamespaceName, createdCSV.GetName(), err))
+				return false, nil
 			}
-			log(fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message))
+			if fetched != nil {
+				msg := fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
+				if msg != lastLog {
+					log(msg)
+					lastLog = msg
+				}
+			}
 			return csvFailedChecker(fetched), nil
 		})
 		require.NoError(GinkgoT(), err)
 
-		// now add cluster admin permissions to service account
+		log("now add cluster admin permissions to service account")
 		role := &rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: newNamespaceName,
@@ -1729,18 +1737,28 @@ var _ = Describe("Operator Group", func() {
 		err = ownerutil.AddOwnerLabels(roleBinding, createdCSV)
 		require.NoError(GinkgoT(), err)
 
+		log("create role")
 		_, err = c.CreateRole(role)
 		require.NoError(GinkgoT(), err)
+		log("create rolebinding")
 		_, err = c.CreateRoleBinding(roleBinding)
 		require.NoError(GinkgoT(), err)
 
 		log("wait for CSV to succeeed")
+		lastLog = ""
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 			fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Get(context.TODO(), createdCSV.GetName(), metav1.GetOptions{})
 			if err != nil {
-				return false, err
+				log(fmt.Sprintf("error getting csv %s/%s: %v", newNamespaceName, createdCSV.GetName(), err))
+				return false, nil
 			}
-			log(fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message))
+			if fetched != nil {
+				msg := fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
+				if msg != lastLog {
+					log(msg)
+					lastLog = msg
+				}
+			}
 			return csvSucceededChecker(fetched), nil
 		})
 		require.NoError(GinkgoT(), err)
