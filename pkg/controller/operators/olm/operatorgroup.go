@@ -151,6 +151,8 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 				logger.Debug("Requeuing CSV due to detected service account change")
 			}
 		}
+	} else {
+		logger.Debug("*** SERVICE ACCOUNT REF DID NOT CHANGE")
 	}
 
 	targetNamespaces, err := a.updateNamespaceList(op)

@@ -1097,12 +1097,14 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 	var errs []error
 	related, _ := scoped.IsObjectRBACRelated(metaObj)
 	if related {
+		logger.Debug("*** RBAC CHANGE!")
 		csvList := a.csvSet(metaObj.GetNamespace(), v1alpha1.CSVPhaseFailed)
 		for _, csv := range csvList {
 			csv = csv.DeepCopy()
 			if csv.Status.Reason != v1alpha1.CSVReasonComponentFailedNoRetry {
 				continue
 			}
+			logger.Debugf("*** FOUND CSV %s/%s with ReasonComponentFailedNoRetry!", csv.GetNamespace(), csv.GetName())
 			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonDetectedClusterChange, "Cluster resources changed state", a.now())
 			_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(context.TODO(), csv, metav1.UpdateOptions{})
 			if err != nil {
