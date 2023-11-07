@@ -25,7 +25,6 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -915,40 +914,51 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		}()
 
-		// wait for new catalog source pod to be created
-		By("Wait for a new registry pod to be created")
+		// wait for new registry pod to reach a running state.
+		By("Wait for the registry pod reach a running state")
 		selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
-		singlePod := podCount(1)
-		registryPods, err := awaitPods(GinkgoT(), c, source.GetNamespace(), selector.String(), singlePod)
-		Expect(err).ToNot(HaveOccurred(), "error awaiting registry pod")
-		Expect(registryPods).ShouldNot(BeNil(), "nil registry pods")
-		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
+		Eventually(func() error {
+			fetchedPodList, err := c.KubernetesInterface().CoreV1().Pods(generatedNamespace.GetName()).List(context.Background(), metav1.ListOptions{
+				LabelSelector: selector.String(),
+			})
+			if err != nil {
+				return err
+			}
 
-		By("Granting the ServiceAccount used by the registry pod permissions to pull from the internal registry")
-		roleBinding := &rbacv1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:    generatedNamespace.GetName(),
-				GenerateName: "registry-v1-viewer-",
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:     "ServiceAccount",
-					Name:     registryPods.Items[0].Spec.ServiceAccountName,
-					APIGroup: "",
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				Kind:     "ClusterRole",
-				Name:     "registry-viewer",
-				APIGroup: "rbac.authorization.k8s.io",
-			},
-		}
-		_, err = c.CreateRoleBinding(roleBinding)
-		Expect(err).ToNot(HaveOccurred(), "error granting registry-viewer permissions")
-		defer func() {
-			err := c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), &metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-		}()
+			if len(fetchedPodList.Items) != 1 {
+				return fmt.Errorf("Expected 1 registry pod, found %v", len(fetchedPodList.Items))
+			}
+
+			// This should not be necessary, but the service account is occasionally not created with
+			// permissions to pull from the internal registry.
+			catalogSourcePod := fetchedPodList.Items[0]
+			containerStatuses := catalogSourcePod.Status.ContainerStatuses
+			if len(containerStatuses) != 1 {
+				return fmt.Errorf("expected registry pod's status.containerStatus array to contain 1 entry, found %v", len(containerStatuses))
+			}
+
+			// Check if the container is not ready.
+			if catalogSourcePod.Status.ContainerStatuses[0].Ready != true {
+				// Check if we can infer why the container is not ready
+				containerWating := containerStatuses[0].State.Waiting
+				if containerWating == nil {
+					return fmt.Errorf("unable to check why container is not ready")
+				}
+
+				if containerWating.Reason == "ErrImagePull" || containerWating.Reason == "ImagePullBackOff" {
+					err := c.KubernetesInterface().CoreV1().Pods(catalogSourcePod.GetNamespace()).Delete(context.Background(), catalogSourcePod.GetName(), metav1.DeleteOptions{})
+					if err != nil {
+						return fmt.Errorf("error deleting registry pod: %v", err)
+					}
+					return fmt.Errorf("registry pod unable to pull image from internal registry")
+				}
+
+				return fmt.Errorf("registry pod not ready")
+			}
+
+			// Container is ready, proceed
+			return nil
+		}).Should(Succeed())
 
 		By("Create a Subscription for package")
 		subscriptionName := genName("sub-")
@@ -1039,7 +1049,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			return false
 		}
 		By("await new catalog source and ensure old one was deleted")
-		registryPods, err = awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
+		registryPods, err := awaitPodsWithInterval(GinkgoT(), c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
 		Expect(err).ShouldNot(HaveOccurred(), "error awaiting registry pod")
 		Expect(registryPods).ShouldNot(BeNil(), "nil registry pods")
 		Expect(registryPods.Items).To(HaveLen(1), "unexpected number of registry pods found")
