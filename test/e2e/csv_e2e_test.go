@@ -106,7 +106,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				}).Should(Succeed())
 			})
 
-			It("[FLAKE] can satisfy an associated ClusterServiceVersion's ownership requirement", func() {
+			It("[NOFLAKE] can satisfy an associated ClusterServiceVersion's ownership requirement", func() {
 				associated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "associated-csv",

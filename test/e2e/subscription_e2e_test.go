@@ -522,7 +522,7 @@ var _ = Describe("Subscription", func() {
 	})
 
 	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2635
-	It("[FLAKE] updates multiple intermediates", func() {
+	It("[NOFLAKE] updates multiple intermediates", func() {
 
 		crd := newCRD("ins")
 
