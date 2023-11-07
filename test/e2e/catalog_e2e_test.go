@@ -943,7 +943,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 				APIGroup: "rbac.authorization.k8s.io",
 			},
 		}
-		_, err = c.CreateRoleBinding(roleBinding)
+		roleBinding, err = c.CreateRoleBinding(roleBinding)
 		Expect(err).ToNot(HaveOccurred(), "error granting registry-viewer permissions")
 		defer func() {
 			err := c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), &metav1.DeleteOptions{})
