@@ -1230,6 +1230,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
 	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace)
 	if err != nil {
+		logger.Debugf("*** error from ResolveSteps(): %v", err)
 		go o.recorder.Event(ns, corev1.EventTypeWarning, "ResolutionFailed", err.Error())
 		// If the error is constraints not satisfiable, then simply project the
 		// resolution failure event and move on without returning the error.
@@ -1250,6 +1251,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")
 				return updateErr
 			}
+			logger.Debug("*** return after updaed ConstraintsNotSatisfiable")
 			return nil
 		}
 
@@ -1264,8 +1266,10 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			logger.WithError(updateErr).Debug("failed to update subs conditions")
 			return updateErr
 		}
+		logger.Debugf("*** returning error: %v", err)
 		return err
 	}
+	logger.Debug("*** no error from ResolveSteps()")
 
 	// Attempt to unpack bundles before installing
 	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
@@ -1288,9 +1292,11 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 					logger.WithError(updateErr).Debug("failed to update subs conditions")
 					return updateErr
 				}
+				logger.Debug("*** return after updated ErrorPreventedUnpacking")
 				return nil
 			}
 			// Retry sync if non-fatal error
+			logger.Debug("*** retry sync if non-fatal error")
 			return fmt.Errorf("bundle unpacking failed with an error: %w", err)
 		}
 
@@ -1318,6 +1324,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			// periodic resync which will help to automatically resolve
 			// some issues such as unreachable bundle images caused by
 			// bad catalog updates.
+			logger.Debug("*** return after updated BundleUnpackFailed")
 			return nil
 		}
 
@@ -1347,6 +1354,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// Finish calculating max generation by checking the existing installplans
 		installPlans, err := o.listInstallPlans(namespace)
 		if err != nil {
+			logger.Debugf("*** error listing install plans: %v", err)
 			return err
 		}
 		for _, ip := range installPlans {
@@ -1410,6 +1418,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return updateErr
 	}
 
+	logger.Debug("*** return no error at end of syncResolvingNamespaces")
 	return nil
 }
 
