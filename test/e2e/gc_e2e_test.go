@@ -666,7 +666,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			})
 
 			// flake issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2626
-			It("[FLAKE] should have removed the old configmap and put the new configmap in place", func() {
+			It("[NOFLAKE] should have removed the old configmap and put the new configmap in place", func() {
 				Eventually(func() bool {
 					_, err := kubeClient.GetConfigMap(generatedNamespace.GetName(), configmapName)
 					return apierrors.IsNotFound(err)

@@ -3011,7 +3011,7 @@ var _ = Describe("Install Plan", func() {
 	// This It spec verifies that, in cases where there are multiple options to fulfil a dependency
 	// across multiple catalogs, we only generate one installplan with one set of resolved resources.
 	//issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2633
-	It("[FLAKE] consistent generation", func() {
+	It("[NOFLAKE] consistent generation", func() {
 
 		// Configure catalogs:
 		//  - one catalog with a package that has a dependency
@@ -3182,7 +3182,7 @@ var _ = Describe("Install Plan", func() {
 		})
 
 		// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2636
-		It("[FLAKE] should clear up the condition in the InstallPlan status that contains an error message when a valid OperatorGroup is created", func() {
+		It("[NOFLAKE] should clear up the condition in the InstallPlan status that contains an error message when a valid OperatorGroup is created", func() {
 
 			// first wait for a condition with a message exists
 			cond := operatorsv1alpha1.InstallPlanCondition{Type: operatorsv1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: operatorsv1alpha1.InstallPlanReasonInstallCheckFailed,
