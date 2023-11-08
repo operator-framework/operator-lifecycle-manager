@@ -184,6 +184,65 @@ func validConfigMapCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogS
 	}
 }
 
+type objectOption func(runtime.Object)
+
+func withOwnerReference(catsrc *v1alpha1.CatalogSource) objectOption {
+	return func(o runtime.Object) {
+		blockOwnerDeletion := false
+		isController := false
+
+		mo := o.(metav1.Object)
+		mo.SetOwnerReferences([]metav1.OwnerReference{{
+			APIVersion:         "operators.coreos.com/v1alpha1",
+			Kind:               "CatalogSource",
+			Name:               catsrc.GetName(),
+			UID:                catsrc.GetUID(),
+			BlockOwnerDeletion: &blockOwnerDeletion,
+			Controller:         &isController,
+		}})
+	}
+}
+
+func withServiceAccountImagePullSecrets() objectOption {
+	return func(o runtime.Object) {
+		sa, ok := o.(*corev1.ServiceAccount)
+		if !ok {
+			return
+		}
+		sa.ImagePullSecrets = []corev1.LocalObjectReference{
+			{
+				Name: "foo",
+			},
+		}
+	}
+}
+
+func withoutServiceAccountImagePullSecrets() objectOption {
+	return func(o runtime.Object) {
+		sao, ok := o.(*corev1.ServiceAccount)
+		if !ok {
+			return
+		}
+		sao.ImagePullSecrets = []corev1.LocalObjectReference{}
+	}
+}
+
+func serviceAccountForCatalogSource(catsrc *v1alpha1.CatalogSource, options ...objectOption) []runtime.Object {
+	objs := objectsForCatalogSource(catsrc)
+	serviceAccounts := []runtime.Object{}
+	for _, o := range objs {
+		sa, ok := o.(*corev1.ServiceAccount)
+		if !ok {
+			continue
+		}
+		for _, option := range options {
+			option(sa)
+		}
+		serviceAccounts = append(serviceAccounts, sa)
+	}
+	return serviceAccounts
+}
+
 func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 	var objs []runtime.Object
 	switch catsrc.Spec.SourceType {
@@ -207,18 +266,11 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 		}
 	}
 
-	blockOwnerDeletion := false
-	isController := false
+	options := []objectOption{withOwnerReference(catsrc), withServiceAccountImagePullSecrets()}
 	for _, o := range objs {
-		mo := o.(metav1.Object)
-		mo.SetOwnerReferences([]metav1.OwnerReference{{
-			APIVersion:         "operators.coreos.com/v1alpha1",
-			Kind:               "CatalogSource",
-			Name:               catsrc.GetName(),
-			UID:                catsrc.GetUID(),
-			BlockOwnerDeletion: &blockOwnerDeletion,
-			Controller:         &isController,
-		}})
+		for _, opt := range options {
+			opt(o)
+		}
 	}
 	return objs
 }

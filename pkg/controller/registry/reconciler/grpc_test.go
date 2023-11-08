@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -98,9 +99,34 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 		out      out
 	}{
 		{
-			testName: "Grpc/NoExistingRegistry/CreateSuccessful",
+			testName: "Grpc/NoExistingRegistry/NoExistingServiceAccount/CreateError",
+			in: in{
+				catsrc:  validGrpcCatalogSource("test-img", ""),
+				cluster: cluster{},
+			},
+			out: out{
+				err: errors.Wrapf(fmt.Errorf("serviceAccount testns/img-catalog has not been issued a pull secret"), "error ensuring service account pull secret: %s", "img-catalog"),
+			},
+		},
+		{
+			testName: "Grpc/NoExistingRegistry/ExistingServiceAccountWithoutPullSecret/CreateError",
 			in: in{
 				catsrc: validGrpcCatalogSource("test-img", ""),
+				cluster: cluster{
+					k8sObjs: serviceAccountForCatalogSource(validGrpcCatalogSource("test-img", ""), withoutServiceAccountImagePullSecrets()),
+				},
+			},
+			out: out{
+				err: errors.Wrapf(fmt.Errorf("serviceAccount testns/img-catalog has not been issued a pull secret"), "error ensuring service account pull secret: %s", "img-catalog"),
+			},
+		},
+		{
+			testName: "Grpc/NoExistingRegistry/ExistingServiceAccountWithPullSecret/CreateSuccessful",
+			in: in{
+				catsrc: validGrpcCatalogSource("test-img", ""),
+				cluster: cluster{
+					k8sObjs: serviceAccountForCatalogSource(validGrpcCatalogSource("test-img", "")),
+				},
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
@@ -113,9 +139,12 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 		},
 		{
-			testName: "Grpc/NoExistingRegistry/CreateSuccessful/CatalogSourceWithPeriodInNameCreatesValidServiceName",
+			testName: "Grpc/NoExistingRegistry/ExistingServiceAccountWithPullSecret/CreateSuccessful/CatalogSourceWithPeriodInNameCreatesValidServiceName",
 			in: in{
 				catsrc: grpcCatalogSourceWithName("img.catalog"),
+				cluster: cluster{
+					k8sObjs: serviceAccountForCatalogSource(grpcCatalogSourceWithName("img.catalog")),
+				},
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
@@ -159,10 +188,12 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 		},
 		{
-			testName: "Grpc/AddressAndImage/CreateSuccessful",
+			testName: "Grpc/AddressAndImage/ExistingServiceAccountWithPullSecret/CreateSuccessful",
 			in: in{
-				cluster: cluster{},
-				catsrc:  validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
+				cluster: cluster{
+					k8sObjs: serviceAccountForCatalogSource(grpcCatalogSourceWithName("img-catalog")),
+				},
+				catsrc: validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
@@ -298,12 +329,18 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 		},
 		{
-			testName: "Grpc/NoExistingRegistry/CreateWithAnnotations",
+			testName: "Grpc/NoExistingRegistry/ExistingServiceAccountWithPullSecret/CreateWithAnnotations",
 			in: in{
 				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
 					"annotation1": "value1",
 					"annotation2": "value2",
 				}),
+				cluster: cluster{
+					k8sObjs: serviceAccountForCatalogSource(grpcCatalogSourceWithAnnotations(map[string]string{
+						"annotation1": "value1",
+						"annotation2": "value2",
+					})),
+				},
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
@@ -349,7 +386,11 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 
 			err := rec.EnsureRegistryServer(tt.in.catsrc)
 
-			require.Equal(t, tt.out.err, err)
+			if tt.out.err == nil {
+				require.Equal(t, tt.out.err, err)
+			} else {
+				require.Equal(t, tt.out.err.Error(), err.Error())
+			}
 			require.Equal(t, tt.out.status, tt.in.catsrc.Status.RegistryServiceStatus)
 
 			if tt.out.err != nil {
@@ -411,29 +452,44 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 		priorityclass string
 	}{
 		{
-			testName: "Grpc/WithValidPriorityClassAnnotation",
+			testName: "Grpc/NoExistingRegistry/ExistingServiceAccountWithPullSecret/WithValidPriorityClassAnnotation",
 			in: in{
 				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
 					"operatorframework.io/priorityclass": "system-cluster-critical",
 				}),
+				cluster: cluster{
+					k8sObjs: serviceAccountForCatalogSource(grpcCatalogSourceWithAnnotations(map[string]string{
+						"operatorframework.io/priorityclass": "system-cluster-critical",
+					})),
+				},
 			},
 			priorityclass: "system-cluster-critical",
 		},
 		{
-			testName: "Grpc/WithInvalidPriorityClassAnnotation",
+			testName: "Grpc/NoExistingRegistry/ExistingServiceAccountWithPullSecret/WithInvalidPriorityClassAnnotation",
 			in: in{
 				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
 					"operatorframework.io/priorityclass": "",
 				}),
+				cluster: cluster{
+					k8sObjs: serviceAccountForCatalogSource(grpcCatalogSourceWithAnnotations(map[string]string{
+						"operatorframework.io/priorityclass": "",
+					})),
+				},
 			},
 			priorityclass: "",
 		},
 		{
-			testName: "Grpc/WithNoPriorityClassAnnotation",
+			testName: "Grpc/NoExistingRegistry/ExistingServiceAccountWithPullSecret/WithNoPriorityClassAnnotation",
 			in: in{
 				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
 					"annotationkey": "annotationvalue",
 				}),
+				cluster: cluster{
+					k8sObjs: serviceAccountForCatalogSource(grpcCatalogSourceWithAnnotations(map[string]string{
+						"annotationkey": "annotationvalue",
+					})),
+				},
 			},
 			priorityclass: "",
 		},

@@ -231,12 +231,19 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	sa, err := c.ensureSA(source)
-	// recreate the pod if no existing pod is serving the latest image or correct spec
-	overwritePod := overwrite || len(c.currentPodsWithCorrectImageAndSpec(source, sa.GetName())) == 0
-
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "error ensuring service account: %s", source.GetName())
 	}
+
+	// The serviceAccount should have a imagePullSecret before creating the pod
+	sa, err = c.ensureSAImagePullSecretIsPresent(source)
+	if err != nil {
+		return errors.Wrapf(err, "error ensuring service account pull secret: %s", source.GetName())
+	}
+
+	// recreate the pod if no existing pod is serving the latest image or correct spec
+	overwritePod := overwrite || len(c.currentPodsWithCorrectImageAndSpec(source, sa.GetName())) == 0
+
 	if err := c.ensurePod(source, sa.GetName(), overwritePod); err != nil {
 		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(sa.Name).GetName())
 	}
@@ -383,6 +390,21 @@ func (c *GrpcRegistryReconciler) ensureSA(source grpcCatalogSourceDecorator) (*c
 		return sa, err
 	}
 	return sa, nil
+}
+
+func (c *GrpcRegistryReconciler) ensureSAImagePullSecretIsPresent(source grpcCatalogSourceDecorator) (*corev1.ServiceAccount, error) {
+	sa := source.ServiceAccount()
+
+	existingServiceAccount, err := c.OpClient.GetServiceAccount(sa.GetNamespace(), sa.GetName())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(existingServiceAccount.ImagePullSecrets) == 0 {
+		return existingServiceAccount, fmt.Errorf("serviceAccount %v/%v has not been issued a pull secret", sa.GetNamespace(), sa.GetName())
+	}
+
+	return existingServiceAccount, nil
 }
 
 // ServiceHashMatch will check the hash info in existing Service to ensure its
