@@ -1704,9 +1704,12 @@ func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]
 		wg.Add(1)
 		go func(sub *v1alpha1.Subscription) {
 			defer wg.Done()
+			attempts := 0
 
 			update := func() error {
 				// Update the status of the latest revision
+				o.logger.Debugf("*** Updating subscription %s/%s attempt %v", sub.GetNamespace(), sub.GetName(), attempts)
+				attempts++
 				latest, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(context.TODO(), sub.GetName(), getOpts)
 				if err != nil {
 					return err
@@ -1724,7 +1727,9 @@ func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]
 		}(sub)
 	}
 	wg.Wait()
-	return subs, utilerrors.NewAggregate(errs)
+	retErr := utilerrors.NewAggregate(errs)
+	o.logger.Debugf("*** errors updating subscription: %v", retErr)
+	return subs, retErr
 }
 
 type UnpackedBundleReference struct {
