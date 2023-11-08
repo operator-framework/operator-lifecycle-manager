@@ -74,6 +74,20 @@ func skopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
 	return cmd
 }
 
+func skopeoInspectCmd(image, tag, auth string) []string {
+	imageName := fmt.Sprint(image, tag)
+	var creds string
+	if auth == "" {
+		creds = skipCreds
+	} else {
+		creds = fmt.Sprint(destCreds, auth)
+	}
+
+	cmd := []string{debug, insecure, "inspect", skipTLS, creds, imageName}
+
+	return cmd
+}
+
 func createSkopeoPod(client operatorclient.ClientInterface, args []string, namespace string) error {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
