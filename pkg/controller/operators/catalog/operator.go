@@ -1229,6 +1229,9 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
 	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace)
+	if len(updatedSubs) > 0 {
+		logger.Debugf("*** updatedSubs from ResolveSteps(): %v", len(updatedSubs))
+	}
 	if err != nil {
 		logger.Debugf("*** error from ResolveSteps(): %v", err)
 		go o.recorder.Event(ns, corev1.EventTypeWarning, "ResolutionFailed", err.Error())
@@ -1251,7 +1254,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 				logger.WithError(updateErr).Debug("failed to update subs conditions")
 				return updateErr
 			}
-			logger.Debug("*** return after updaed ConstraintsNotSatisfiable")
+			logger.Debug("*** return after updated ConstraintsNotSatisfiable")
 			return nil
 		}
 

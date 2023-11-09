@@ -196,9 +196,11 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 		// add steps for subscriptions for bundles that were added through resolution
 		for sub := range existingSubscriptions {
 			if sub.Status.CurrentCSV == op.Name {
+				r.log.Debugf("not updating %s/%s CurrentCSV: %s", sub.GetNamespace(), sub.GetName(), sub.Status.CurrentCSV)
 				continue
 			}
 			// update existing subscription status
+			r.log.Debugf("updating %s/%s CurrentCSV: %s -> %s", sub.GetNamespace(), sub.GetName(), sub.Status.CurrentCSV, op.Name)
 			sub.Status.CurrentCSV = op.Name
 			updatedSubs = append(updatedSubs, sub)
 		}
