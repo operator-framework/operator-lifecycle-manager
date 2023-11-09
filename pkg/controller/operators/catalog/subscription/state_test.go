@@ -31,7 +31,7 @@ func TestUpdateHealth(t *testing.T) {
 	type want struct {
 		transitioned CatalogHealthState
 		terminal     bool
-		err          error
+		updated      bool
 	}
 
 	tests := []struct {
@@ -73,6 +73,7 @@ func TestUpdateHealth(t *testing.T) {
 				now: &now,
 			},
 			want: want{
+				updated: true,
 				transitioned: newCatalogUnhealthyState(&v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
@@ -132,6 +133,7 @@ func TestUpdateHealth(t *testing.T) {
 				},
 			},
 			want: want{
+				updated: true,
 				transitioned: newCatalogUnhealthyState(&v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
@@ -210,6 +212,7 @@ func TestUpdateHealth(t *testing.T) {
 				},
 			},
 			want: want{
+				updated: false,
 				transitioned: newCatalogUnhealthyState(&v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
@@ -289,6 +292,7 @@ func TestUpdateHealth(t *testing.T) {
 				},
 			},
 			want: want{
+				updated: true,
 				transitioned: newCatalogHealthyState(&v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
@@ -368,6 +372,7 @@ func TestUpdateHealth(t *testing.T) {
 				},
 			},
 			want: want{
+				updated: true,
 				transitioned: newCatalogUnhealthyState(&v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
@@ -447,6 +452,7 @@ func TestUpdateHealth(t *testing.T) {
 				},
 			},
 			want: want{
+				updated: false,
 				transitioned: newCatalogHealthyState(&v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
@@ -473,19 +479,11 @@ func TestUpdateHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			fakeClient := tt.fields.existingObjs.fakeClientset(t).OperatorsV1alpha1().Subscriptions(tt.fields.namespace)
-			transitioned, err := tt.fields.state.UpdateHealth(tt.args.now, fakeClient, tt.args.catalogHealth...)
-			require.Equal(t, tt.want.err, err)
+			transitioned, updated := tt.fields.state.UpdateHealth(tt.args.now, tt.args.catalogHealth...)
 			require.Equal(t, tt.want.transitioned, transitioned)
-
+			require.Equal(t, tt.want.updated, updated)
 			if tt.want.transitioned != nil {
 				require.Equal(t, tt.want.terminal, transitioned.Terminal())
-
-				// Ensure the client's view of the subscription matches the typestate's
-				sub := transitioned.(SubscriptionState).Subscription()
-				clusterSub, err := fakeClient.Get(context.TODO(), sub.GetName(), metav1.GetOptions{})
-				require.NoError(t, err)
-				require.Equal(t, sub, clusterSub)
 			}
 		})
 	}

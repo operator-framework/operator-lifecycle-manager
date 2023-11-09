@@ -109,7 +109,7 @@ func (s *registrySource) Snapshot(ctx context.Context) (*cache.Snapshot, error) 
 	// Fetching default channels this way makes many round trips
 	// -- may need to either add a new API to fetch all at once,
 	// or embed the information into Bundle.
-	defaultChannels := make(map[string]string)
+	packages := make(map[string]*api.Package)
 
 	it, err := s.client.ListBundles(ctx)
 	if err != nil {
@@ -118,21 +118,39 @@ func (s *registrySource) Snapshot(ctx context.Context) (*cache.Snapshot, error) 
 
 	var operators []*cache.Entry
 	for b := it.Next(); b != nil; b = it.Next() {
-		defaultChannel, ok := defaultChannels[b.PackageName]
+		p, ok := packages[b.PackageName]
 		if !ok {
-			if p, err := s.client.GetPackage(ctx, b.PackageName); err != nil {
+			if p, err = s.client.GetPackage(ctx, b.PackageName); err != nil {
 				s.logger.Printf("failed to retrieve default channel for bundle, continuing: %v", err)
 				continue
 			} else {
-				defaultChannels[b.PackageName] = p.DefaultChannelName
-				defaultChannel = p.DefaultChannelName
+				packages[b.PackageName] = p
 			}
 		}
-		o, err := newOperatorFromBundle(b, "", s.key, defaultChannel)
+		o, err := newOperatorFromBundle(b, "", s.key, p.DefaultChannelName)
 		if err != nil {
 			s.logger.Printf("failed to construct operator from bundle, continuing: %v", err)
 			continue
 		}
+		var deprecations *cache.Deprecations
+		if p.Deprecation != nil {
+			deprecations = &cache.Deprecations{Package: &api.Deprecation{Message: fmt.Sprintf("olm.package/%s: %s", p.Name, p.Deprecation.GetMessage())}}
+		}
+		for _, c := range p.Channels {
+			if c.Name == b.ChannelName && c.Deprecation != nil {
+				if deprecations == nil {
+					deprecations = &cache.Deprecations{}
+				}
+				deprecations.Channel = &api.Deprecation{Message: fmt.Sprintf("olm.channel/%s: %s", c.Name, c.Deprecation.GetMessage())}
+			}
+		}
+		if b.Deprecation != nil {
+			if deprecations == nil {
+				deprecations = &cache.Deprecations{}
+			}
+			deprecations.Bundle = &api.Deprecation{Message: fmt.Sprintf("olm.bundle/%s: %s", b.CsvName, b.Deprecation.GetMessage())}
+		}
+		o.SourceInfo.Deprecations = deprecations
 		o.ProvidedAPIs = o.ProvidedAPIs.StripPlural()
 		o.RequiredAPIs = o.RequiredAPIs.StripPlural()
 		o.Replaces = b.Replaces

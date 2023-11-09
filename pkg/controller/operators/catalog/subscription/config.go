@@ -10,6 +10,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
+	resolverCache "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
@@ -26,6 +27,7 @@ type syncerConfig struct {
 	reconcilers               kubestate.ReconcilerChain
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
+	sourceProvider            resolverCache.SourceProvider
 }
 
 // SyncerOption is a configuration option for a subscription syncer.
@@ -125,6 +127,12 @@ func WithRegistryReconcilerFactory(r reconciler.RegistryReconcilerFactory) Synce
 func WithGlobalCatalogNamespace(namespace string) SyncerOption {
 	return func(config *syncerConfig) {
 		config.globalCatalogNamespace = namespace
+	}
+}
+
+func WithSourceProvider(provider resolverCache.SourceProvider) SyncerOption {
+	return func(config *syncerConfig) {
+		config.sourceProvider = provider
 	}
 }
 

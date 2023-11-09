@@ -63,8 +63,9 @@ type CatalogHealthState interface {
 	isCatalogHealthState()
 
 	// UpdateHealth transitions the CatalogHealthState to another CatalogHealthState based on the given subscription catalog health.
-	// The state's underlying subscription may be updated on the cluster. If the subscription is updated, the resulting state will contain the updated version.
-	UpdateHealth(now *metav1.Time, client clientv1alpha1.SubscriptionInterface, health ...v1alpha1.SubscriptionCatalogHealth) (CatalogHealthState, error)
+	// The state's underlying subscription may be updated. If the subscription is updated, a boolean value of 'true' will be
+	// returned and the resulting state will contain the updated version.
+	UpdateHealth(now *metav1.Time, health ...v1alpha1.SubscriptionCatalogHealth) (CatalogHealthState, bool)
 }
 
 // CatalogHealthKnownState describes subscription states in which all relevant catalog health is known.
@@ -218,7 +219,7 @@ type catalogHealthState struct {
 
 func (c *catalogHealthState) isCatalogHealthState() {}
 
-func (c *catalogHealthState) UpdateHealth(now *metav1.Time, client clientv1alpha1.SubscriptionInterface, catalogHealth ...v1alpha1.SubscriptionCatalogHealth) (CatalogHealthState, error) {
+func (c *catalogHealthState) UpdateHealth(now *metav1.Time, catalogHealth ...v1alpha1.SubscriptionCatalogHealth) (CatalogHealthState, bool) {
 	in := c.Subscription()
 	out := in.DeepCopy()
 
@@ -291,7 +292,7 @@ func (c *catalogHealthState) UpdateHealth(now *metav1.Time, client clientv1alpha
 
 	if !update && cond.Equals(in.Status.GetCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy)) {
 		// Nothing to do, transition to self
-		return known, nil
+		return known, false
 	}
 
 	cond.LastTransitionTime = now
@@ -299,16 +300,10 @@ func (c *catalogHealthState) UpdateHealth(now *metav1.Time, client clientv1alpha
 	out.Status.SetCondition(cond)
 	out.Status.CatalogHealth = catalogHealth
 
-	updated, err := client.UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
-	if err != nil {
-		// Error occurred, transition to self
-		return c, err
-	}
-
 	// Inject updated subscription into the state
-	known.setSubscription(updated)
+	known.setSubscription(out)
 
-	return known, nil
+	return known, true
 }
 
 func NewCatalogHealthState(s SubscriptionExistsState) CatalogHealthState {
