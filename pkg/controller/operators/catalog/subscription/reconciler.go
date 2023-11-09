@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -18,8 +20,10 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 // ReconcilerFromLegacySyncHandler returns a reconciler that invokes the given legacy sync handler and on delete funcs.
@@ -57,6 +61,7 @@ type catalogHealthReconciler struct {
 	catalogLister             listers.CatalogSourceLister
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
 	globalCatalogNamespace    string
+	sourceProvider            cache.SourceProvider
 }
 
 // Reconcile reconciles subscription catalog health conditions.
@@ -84,7 +89,15 @@ func (c *catalogHealthReconciler) Reconcile(ctx context.Context, in kubestate.St
 					break
 				}
 
-				next, err = s.UpdateHealth(c.now(), c.client.OperatorsV1alpha1().Subscriptions(ns), catalogHealth...)
+				var healthUpdated, deprecationUpdated bool
+				next, healthUpdated = s.UpdateHealth(c.now(), catalogHealth...)
+				deprecationUpdated, err = c.updateDeprecatedStatus(ctx, s.Subscription())
+				if err != nil {
+					return next, err
+				}
+				if healthUpdated || deprecationUpdated {
+					_, err = c.client.OperatorsV1alpha1().Subscriptions(ns).UpdateStatus(ctx, s.Subscription(), metav1.UpdateOptions{})
+				}
 			case SubscriptionExistsState:
 				if s == nil {
 					err = errors.New("nil state")
@@ -107,6 +120,119 @@ func (c *catalogHealthReconciler) Reconcile(ctx context.Context, in kubestate.St
 	out = next
 
 	return
+}
+
+// updateDeprecatedStatus adds deprecation status conditions to the subscription when present in the cache entry then
+// returns a bool value of true if any changes to the existing subscription have occurred.
+func (c *catalogHealthReconciler) updateDeprecatedStatus(ctx context.Context, sub *v1alpha1.Subscription) (bool, error) {
+	if c.sourceProvider == nil {
+		return false, nil
+	}
+
+	source, ok := c.sourceProvider.Sources(sub.Namespace)[cache.SourceKey{
+		Name:      sub.Spec.CatalogSource,
+		Namespace: sub.Namespace,
+	}]
+	if !ok {
+		return false, nil
+	}
+	snapshot, err := source.Snapshot(ctx)
+	if err != nil {
+		return false, err
+	}
+	if len(snapshot.Entries) == 0 {
+		return false, nil
+	}
+
+	changed := false
+	rollupMessages := []string{}
+	var deprecations *cache.Deprecations
+
+	found := false
+	for _, entry := range snapshot.Entries {
+		// Find the cache entry that matches this subscription
+		if entry.SourceInfo == nil || entry.Package() != sub.Spec.Package {
+			continue
+		}
+		if sub.Spec.Channel != "" && entry.Channel() != sub.Spec.Channel {
+			continue
+		}
+		if sub.Status.InstalledCSV != entry.Name {
+			continue
+		}
+		deprecations = entry.SourceInfo.Deprecations
+		found = true
+		break
+	}
+	if !found {
+		// No matching entry found
+		return false, nil
+	}
+	conditionTypes := []v1alpha1.SubscriptionConditionType{
+		v1alpha1.SubscriptionPackageDeprecated,
+		v1alpha1.SubscriptionChannelDeprecated,
+		v1alpha1.SubscriptionBundleDeprecated,
+	}
+	for _, conditionType := range conditionTypes {
+		oldCondition := sub.Status.GetCondition(conditionType)
+		var deprecation *api.Deprecation
+		if deprecations != nil {
+			switch conditionType {
+			case v1alpha1.SubscriptionPackageDeprecated:
+				deprecation = deprecations.Package
+			case v1alpha1.SubscriptionChannelDeprecated:
+				deprecation = deprecations.Channel
+			case v1alpha1.SubscriptionBundleDeprecated:
+				deprecation = deprecations.Bundle
+			}
+		}
+		if deprecation != nil {
+			if conditionType == v1alpha1.SubscriptionChannelDeprecated && sub.Spec.Channel == "" {
+				// Special case: If optional field sub.Spec.Channel is unset do not apply a channel
+				// deprecation message and remove them if any exist.
+				sub.Status.RemoveConditions(conditionType)
+				if oldCondition.Status == corev1.ConditionTrue {
+					changed = true
+				}
+				continue
+			}
+			newCondition := v1alpha1.SubscriptionCondition{
+				Type:               conditionType,
+				Message:            deprecation.Message,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: c.now(),
+			}
+			rollupMessages = append(rollupMessages, deprecation.Message)
+			if oldCondition.Message != newCondition.Message {
+				// oldCondition's message was empty or has changed; add or update the condition
+				sub.Status.SetCondition(newCondition)
+				changed = true
+			}
+		} else if oldCondition.Status == corev1.ConditionTrue {
+			// No longer deprecated at this level; remove the condition
+			sub.Status.RemoveConditions(conditionType)
+			changed = true
+		}
+	}
+
+	if !changed {
+		// No need to update rollup condition if no other conditions have changed
+		return false, nil
+	}
+	if len(rollupMessages) > 0 {
+		rollupCondition := v1alpha1.SubscriptionCondition{
+			Type:               v1alpha1.SubscriptionDeprecated,
+			Message:            strings.Join(rollupMessages, "; "),
+			Status:             corev1.ConditionTrue,
+			LastTransitionTime: c.now(),
+		}
+		sub.Status.SetCondition(rollupCondition)
+	} else {
+		// No rollup message means no deprecation conditions were set; remove the rollup if it exists
+		sub.Status.RemoveConditions(v1alpha1.SubscriptionDeprecated)
+	}
+
+	return true, nil
 }
 
 // catalogHealth gets the health of catalogs that can affect Susbcriptions in the given namespace.

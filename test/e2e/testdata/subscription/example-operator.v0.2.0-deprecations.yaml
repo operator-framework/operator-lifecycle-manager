@@ -1,0 +1,41 @@
+---
+schema: olm.package
+name: packageA
+defaultChannel: stable
+---
+schema: olm.channel
+package: packageA
+name: stable
+entries:
+  - name: example-operator.v0.2.0
+    replaces: example-operator.v0.1.0
+---
+schema: olm.bundle
+name: example-operator.v0.2.0
+package: packageA
+image: quay.io/olmtest/example-operator-bundle:0.2.0
+properties:
+  - type: olm.gvk
+    value:
+      group: example.com
+      kind: TestA
+      version: v1alpha1
+  - type: olm.package
+    value:
+      packageName: packageA
+      version: 1.0.1
+---
+schema: olm.deprecations
+package: packageA
+entries:
+  - reference:
+      schema: olm.package
+    message: packageA has been deprecated. Please switch to packageB.
+  - reference:
+      schema: olm.channel
+      name: stable
+    message: channel "stable" has been deprecated. Please switch to a different one.
+  - reference:
+      schema: olm.bundle
+      name: example-operator.v0.2.0
+    message: bundle "example-operator.v0.2.0" has been deprecated. Please switch to a different one.

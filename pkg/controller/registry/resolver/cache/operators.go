@@ -140,11 +140,18 @@ type OperatorSourceInfo struct {
 	StartingCSV    string
 	Catalog        SourceKey
 	DefaultChannel bool
+	Deprecations   *Deprecations
 	Subscription   *v1alpha1.Subscription
 }
 
 func (i *OperatorSourceInfo) String() string {
 	return fmt.Sprintf("%s/%s in %s/%s", i.Package, i.Channel, i.Catalog.Name, i.Catalog.Namespace)
+}
+
+type Deprecations struct {
+	Package *api.Deprecation
+	Channel *api.Deprecation
+	Bundle  *api.Deprecation
 }
 
 type Entry struct {
