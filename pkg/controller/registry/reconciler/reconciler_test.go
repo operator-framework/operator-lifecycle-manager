@@ -167,10 +167,19 @@ func TestPodMemoryTarget(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod := Pod(testCase.input, "name", "opmImage", "utilImage", "image", "service-account", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		pod := Pod(testCase.input, "name", "opmImage", "utilImage", "image", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
 		if diff := cmp.Diff(pod, testCase.expected); diff != "" {
 			t.Errorf("got incorrect pod: %v", diff)
 		}
+	}
+}
+
+func serviceAccount(namespace, name string) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
 	}
 }
 
@@ -362,8 +371,58 @@ func TestPodExtractContent(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod := Pod(testCase.input, "name", "opmImage", "utilImage", "image", "service-account", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		pod := Pod(testCase.input, "name", "opmImage", "utilImage", "image", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
 		if diff := cmp.Diff(pod, testCase.expected); diff != "" {
+			t.Errorf("got incorrect pod: %v", diff)
+		}
+	}
+}
+
+func TestPodServiceAccountImagePullSecrets(t *testing.T) {
+	var testCases = []struct {
+		name           string
+		catalogSource  *v1alpha1.CatalogSource
+		serviceAccount *corev1.ServiceAccount
+	}{
+		{
+			name: "ServiceAccount has no imagePullSecret",
+			serviceAccount: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "",
+					Name:      "service-account",
+				},
+			},
+		},
+		{
+			name: "ServiceAccount has one imagePullSecret",
+			serviceAccount: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "",
+					Name:      "service-account",
+				},
+				ImagePullSecrets: []corev1.LocalObjectReference{{Name: "foo"}},
+			},
+		},
+	}
+
+	catalogSource := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "testns",
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+				ExtractContent: &v1alpha1.ExtractContentConfig{
+					CacheDir:   "/tmp/cache",
+					CatalogDir: "/catalog",
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		pod := Pod(catalogSource, "name", "opmImage", "utilImage", "image", testCase.serviceAccount, map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		if diff := cmp.Diff(testCase.serviceAccount.ImagePullSecrets, pod.Spec.ImagePullSecrets); diff != "" {
 			t.Errorf("got incorrect pod: %v", diff)
 		}
 	}
@@ -380,7 +439,7 @@ func TestPodNodeSelector(t *testing.T) {
 	key := "kubernetes.io/os"
 	value := "linux"
 
-	gotCatSrcPod := Pod(catsrc, "hello", "utilImage", "opmImage", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+	gotCatSrcPod := Pod(catsrc, "hello", "utilImage", "opmImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
 	gotCatSrcPodSelector := gotCatSrcPod.Spec.NodeSelector
 
 	if gotCatSrcPodSelector[key] != value {
@@ -428,7 +487,7 @@ func TestPullPolicy(t *testing.T) {
 	}
 
 	for _, tt := range table {
-		p := Pod(source, "catalog", "opmImage", "utilImage", tt.image, "", nil, nil, int32(0), int32(0), int64(workloadUserID))
+		p := Pod(source, "catalog", "opmImage", "utilImage", tt.image, serviceAccount("", "service-account"), nil, nil, int32(0), int32(0), int64(workloadUserID))
 		policy := p.Spec.Containers[0].ImagePullPolicy
 		if policy != tt.policy {
 			t.Fatalf("expected pull policy %s for image  %s", tt.policy, tt.image)
@@ -540,7 +599,7 @@ func TestPodContainerSecurityContext(t *testing.T) {
 		},
 	}
 	for _, testcase := range testcases {
-		outputPod := Pod(testcase.inputCatsrc, "hello", "utilImage", "opmImage", "busybox", "", map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		outputPod := Pod(testcase.inputCatsrc, "hello", "utilImage", "opmImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
 		if testcase.expectedSecurityContext != nil {
 			require.Equal(t, testcase.expectedSecurityContext, outputPod.Spec.SecurityContext)
 		}
@@ -570,7 +629,7 @@ func TestPodAvoidsConcurrentWrite(t *testing.T) {
 		"annotation": "somethingelse",
 	}
 
-	gotPod := Pod(catsrc, "hello", "opmImage", "utilImage", "busybox", "", labels, annotations, int32(0), int32(0), int64(workloadUserID))
+	gotPod := Pod(catsrc, "hello", "opmImage", "utilImage", "busybox", serviceAccount("", "service-account"), labels, annotations, int32(0), int32(0), int64(workloadUserID))
 
 	// check labels and annotations point to different addresses between parameters and what's in the pod
 	require.NotEqual(t, &labels, &gotPod.Labels)
@@ -799,7 +858,7 @@ func TestPodSchedulingOverrides(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod := Pod(testCase.catalogSource, "hello", "opmImage", "utilImage", "busybox", "", map[string]string{}, testCase.annotations, int32(0), int32(0), int64(workloadUserID))
+		pod := Pod(testCase.catalogSource, "hello", "opmImage", "utilImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, testCase.annotations, int32(0), int32(0), int64(workloadUserID))
 		require.Equal(t, testCase.expectedNodeSelectors, pod.Spec.NodeSelector)
 		require.Equal(t, testCase.expectedPriorityClassName, pod.Spec.PriorityClassName)
 		require.Equal(t, testCase.expectedTolerations, pod.Spec.Tolerations)

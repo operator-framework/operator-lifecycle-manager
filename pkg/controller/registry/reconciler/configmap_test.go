@@ -199,10 +199,11 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 	case v1alpha1.SourceTypeGrpc:
 		if catsrc.Spec.Image != "" {
 			decorated := grpcCatalogSourceDecorator{CatalogSource: catsrc, createPodAsUser: runAsUser, opmImage: ""}
+			serviceAccount := decorated.ServiceAccount()
 			objs = clientfake.AddSimpleGeneratedNames(
-				decorated.Pod(catsrc.GetName()),
+				decorated.Pod(serviceAccount),
 				decorated.Service(),
-				decorated.ServiceAccount(),
+				serviceAccount,
 			)
 		}
 	}

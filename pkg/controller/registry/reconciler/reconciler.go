@@ -115,7 +115,7 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img, saName string, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) *corev1.Pod {
+func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) *corev1.Pod {
 	// make a copy of the labels and annotations to avoid mutating the input parameters
 	podLabels := make(map[string]string)
 	podAnnotations := make(map[string]string)
@@ -127,6 +127,15 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img, 
 
 	for key, value := range annotations {
 		podAnnotations[key] = value
+	}
+
+	// Default case for nil serviceAccount
+	var saName string
+	var saImagePullSecrets []corev1.LocalObjectReference
+	// If the serviceAccount is not nil, set the fields that should appear on the pod
+	if serviceAccount != nil {
+		saName = serviceAccount.GetName()
+		saImagePullSecrets = serviceAccount.ImagePullSecrets
 	}
 
 	pod := &corev1.Pod{
@@ -192,6 +201,9 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img, 
 				"kubernetes.io/os": "linux",
 			},
 			ServiceAccountName: saName,
+			// If this field is not set, there that the is a chance that pod will be created without the imagePullSecret
+			// defined by the serviceAccount
+			ImagePullSecrets: saImagePullSecrets,
 		},
 	}
 
