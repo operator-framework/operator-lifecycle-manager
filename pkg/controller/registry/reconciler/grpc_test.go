@@ -358,9 +358,9 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{CatalogSource: tt.in.catsrc, createPodAsUser: runAsUser}
-			pod := decorated.Pod(tt.in.catsrc.GetName())
-			service := decorated.Service()
 			sa := decorated.ServiceAccount()
+			pod := decorated.Pod(sa)
+			service := decorated.Service()
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
 			outService, serviceErr := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(context.TODO(), service.GetName(), metav1.GetOptions{})
@@ -451,7 +451,7 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{CatalogSource: tt.in.catsrc, createPodAsUser: runAsUser}
-			pod := decorated.Pod(tt.in.catsrc.GetName())
+			pod := decorated.Pod(serviceAccount(tt.in.catsrc.Namespace, tt.in.catsrc.Name))
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
 			require.NoError(t, podErr)

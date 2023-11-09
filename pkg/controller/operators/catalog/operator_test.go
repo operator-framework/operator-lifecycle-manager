@@ -2120,7 +2120,13 @@ func toManifest(t *testing.T, obj runtime.Object) string {
 }
 
 func pod(s v1alpha1.CatalogSource) *corev1.Pod {
-	pod := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, s.GetName(), s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: s.GetNamespace(),
+			Name:      s.GetName(),
+		},
+	}
+	pod := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
 	ownerutil.AddOwner(pod, &s, false, true)
 	return pod
 }

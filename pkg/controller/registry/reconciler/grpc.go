@@ -129,8 +129,8 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 	}
 }
 
-func (s *grpcCatalogSourceDecorator) Pod(saName string) *corev1.Pod {
-	pod := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, saName, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser)
+func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount) *corev1.Pod {
+	pod := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser)
 	ownerutil.AddOwner(pod, s.CatalogSource, false, true)
 	return pod
 }
@@ -191,14 +191,14 @@ func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecor
 	return pods
 }
 
-func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(source grpcCatalogSourceDecorator, saName string) []*corev1.Pod {
+func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount) []*corev1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
 		logrus.WithError(err).Warn("couldn't find pod in cache")
 		return nil
 	}
 	found := []*corev1.Pod{}
-	newPod := source.Pod(saName)
+	newPod := source.Pod(serviceAccount)
 	for _, p := range pods {
 		if correctImages(source, p) && podHashMatch(p, newPod) {
 			found = append(found, p)
@@ -231,20 +231,26 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	sa, err := c.ensureSA(source)
-	// recreate the pod if no existing pod is serving the latest image or correct spec
-	overwritePod := overwrite || len(c.currentPodsWithCorrectImageAndSpec(source, sa.GetName())) == 0
-
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "error ensuring service account: %s", source.GetName())
 	}
-	if err := c.ensurePod(source, sa.GetName(), overwritePod); err != nil {
-		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(sa.Name).GetName())
+
+	sa, err = c.OpClient.GetServiceAccount(sa.GetNamespace(), sa.GetName())
+	if err != nil {
+		return err
 	}
-	if err := c.ensureUpdatePod(source, sa.Name); err != nil {
+
+	// recreate the pod if no existing pod is serving the latest image or correct spec
+	overwritePod := overwrite || len(c.currentPodsWithCorrectImageAndSpec(source, sa)) == 0
+
+	if err := c.ensurePod(source, sa, overwritePod); err != nil {
+		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(sa).GetName())
+	}
+	if err := c.ensureUpdatePod(source, sa); err != nil {
 		if _, ok := err.(UpdateNotReadyErr); ok {
 			return err
 		}
-		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod(sa.Name).GetName())
+		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod(sa).GetName())
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
@@ -279,7 +285,7 @@ func isRegistryServiceStatusValid(source *grpcCatalogSourceDecorator) bool {
 	return true
 }
 
-func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, saName string, overwrite bool) error {
+func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount, overwrite bool) error {
 	// currentLivePods refers to the currently live instances of the catalog source
 	currentLivePods := c.currentPods(source)
 	if len(currentLivePods) > 0 {
@@ -292,16 +298,17 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, sa
 			}
 		}
 	}
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), source.Pod(saName), metav1.CreateOptions{})
+	desiredPod := source.Pod(serviceAccount)
+	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), desiredPod, metav1.CreateOptions{})
 	if err != nil {
-		return errors.Wrapf(err, "error creating new pod: %s", source.Pod(saName).GetGenerateName())
+		return errors.Wrapf(err, "error creating new pod: %s", desiredPod.GetGenerateName())
 	}
 
 	return nil
 }
 
 // ensureUpdatePod checks that for the same catalog source version the same container imageID is running
-func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorator, saName string) error {
+func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount) error {
 	if !source.Poll() {
 		return nil
 	}
@@ -311,7 +318,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 
 	if source.Update() && len(currentUpdatePods) == 0 {
 		logrus.WithField("CatalogSource", source.GetName()).Debugf("catalog update required at %s", time.Now().String())
-		pod, err := c.createUpdatePod(source, saName)
+		pod, err := c.createUpdatePod(source, serviceAccount)
 		if err != nil {
 			return errors.Wrapf(err, "creating update catalog source pod")
 		}
@@ -419,14 +426,14 @@ func HashServiceSpec(spec corev1.ServiceSpec) string {
 }
 
 // createUpdatePod is an internal method that creates a pod using the latest catalog source.
-func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator, saName string) (*corev1.Pod, error) {
+func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount) (*corev1.Pod, error) {
 	// remove label from pod to ensure service does not accidentally route traffic to the pod
-	p := source.Pod(saName)
+	p := source.Pod(serviceAccount)
 	p = swapLabels(p, "", source.Name)
 
 	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), p, metav1.CreateOptions{})
 	if err != nil {
-		logrus.WithField("pod", source.Pod(saName).GetName()).Warn("couldn't create new catalogsource pod")
+		logrus.WithField("pod", source.Pod(serviceAccount).GetName()).Warn("couldn't create new catalogsource pod")
 		return nil, err
 	}
 
@@ -476,18 +483,29 @@ func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string
 }
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
-func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
+func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (bool, error) {
 	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage, utilImage: c.utilImage}
-	// Check on registry resources
-	// TODO: add gRPC health check
-	if len(c.currentPodsWithCorrectImageAndSpec(source, source.ServiceAccount().GetName())) < 1 ||
-		c.currentService(source) == nil || c.currentServiceAccount(source) == nil {
-		healthy = false
-		return
+
+	// The CheckRegistryServer function is called by the CatalogSoruce controller before the registry resources are created,
+	// returning a IsNotFound error will cause the controller to exit and never create the resources, so we should
+	// only return an error if it is something other than a NotFound error.
+	serviceAccount := source.ServiceAccount()
+	serviceAccount, err := c.OpClient.GetServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName())
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		return false, nil
 	}
 
-	healthy = true
-	return
+	// Check on registry resources
+	// TODO: add gRPC health check
+	if len(c.currentPodsWithCorrectImageAndSpec(source, serviceAccount)) < 1 ||
+		c.currentService(source) == nil || c.currentServiceAccount(source) == nil {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // promoteCatalog swaps the labels on the update pod so that the update pod is now reachable by the catalog service.
