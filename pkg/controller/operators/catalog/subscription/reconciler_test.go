@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1676,7 +1677,7 @@ func fakeRegistryReconcilerFactory(healthy bool, err error) *olmfakes.FakeRegist
 	return &olmfakes.FakeRegistryReconcilerFactory{
 		ReconcilerForSourceStub: func(*v1alpha1.CatalogSource) registryreconciler.RegistryReconciler {
 			return &olmfakes.FakeRegistryReconciler{
-				CheckRegistryServerStub: func(*v1alpha1.CatalogSource) (bool, error) {
+				CheckRegistryServerStub: func(*logrus.Entry, *v1alpha1.CatalogSource) (bool, error) {
 					return healthy, err
 				},
 			}

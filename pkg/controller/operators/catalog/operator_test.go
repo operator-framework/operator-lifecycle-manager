@@ -1412,7 +1412,7 @@ func TestSyncResolvingNamespace(t *testing.T) {
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
 				ReconcilerForSourceStub: func(source *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
 					return &fakes.FakeRegistryReconciler{
-						EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
+						EnsureRegistryServerStub: func(logger *logrus.Entry, source *v1alpha1.CatalogSource) error {
 							return nil
 						},
 					}
@@ -1748,7 +1748,7 @@ func TestSyncRegistryServer(t *testing.T) {
 			op.reconciler = &fakes.FakeRegistryReconcilerFactory{
 				ReconcilerForSourceStub: func(source *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
 					return &fakes.FakeRegistryReconciler{
-						EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
+						EnsureRegistryServerStub: func(logger *logrus.Entry, source *v1alpha1.CatalogSource) error {
 							return nil
 						},
 					}

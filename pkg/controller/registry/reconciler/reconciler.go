@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,13 +38,13 @@ const (
 // RegistryEnsurer describes methods for ensuring a registry exists.
 type RegistryEnsurer interface {
 	// EnsureRegistryServer ensures a registry server exists for the given CatalogSource.
-	EnsureRegistryServer(catalogSource *operatorsv1alpha1.CatalogSource) error
+	EnsureRegistryServer(logger *logrus.Entry, catalogSource *operatorsv1alpha1.CatalogSource) error
 }
 
 // RegistryChecker describes methods for checking a registry.
 type RegistryChecker interface {
 	// CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
-	CheckRegistryServer(catalogSource *operatorsv1alpha1.CatalogSource) (healthy bool, err error)
+	CheckRegistryServer(logger *logrus.Entry, catalogSource *operatorsv1alpha1.CatalogSource) (healthy bool, err error)
 }
 
 // RegistryReconciler knows how to reconcile a registry.
