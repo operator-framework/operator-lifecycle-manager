@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -193,7 +194,7 @@ func (c *catalogHealthReconciler) healthy(catalog *v1alpha1.CatalogSource) (bool
 		return false, fmt.Errorf("could not get reconciler for catalog: %#v", catalog)
 	}
 
-	return rec.CheckRegistryServer(catalog)
+	return rec.CheckRegistryServer(logrus.NewEntry(logrus.New()), catalog)
 }
 
 // installPlanReconciler reconciles InstallPlan status for Subscriptions.

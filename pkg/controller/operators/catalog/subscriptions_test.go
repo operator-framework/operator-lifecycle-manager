@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1182,7 +1183,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
 				ReconcilerForSourceStub: func(source *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
 					return &fakes.FakeRegistryReconciler{
-						EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
+						EnsureRegistryServerStub: func(*logrus.Entry, *v1alpha1.CatalogSource) error {
 							return nil
 						},
 					}
@@ -1320,7 +1321,7 @@ func BenchmarkSyncResolvingNamespace(b *testing.B) {
 			reconciler: &fakes.FakeRegistryReconcilerFactory{
 				ReconcilerForSourceStub: func(*v1alpha1.CatalogSource) reconciler.RegistryReconciler {
 					return &fakes.FakeRegistryReconciler{
-						CheckRegistryServerStub: func(*v1alpha1.CatalogSource) (bool, error) {
+						CheckRegistryServerStub: func(*logrus.Entry, *v1alpha1.CatalogSource) (bool, error) {
 							return true, nil
 						},
 					}

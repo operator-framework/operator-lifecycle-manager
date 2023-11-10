@@ -9,6 +9,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	k8slabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -444,7 +445,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
-			err := rec.EnsureRegistryServer(tt.in.catsrc)
+			err := rec.EnsureRegistryServer(logrus.NewEntry(logrus.New()), tt.in.catsrc)
 
 			require.Equal(t, tt.out.err, err)
 			require.Equal(t, tt.out.status, tt.in.catsrc.Status.RegistryServiceStatus)

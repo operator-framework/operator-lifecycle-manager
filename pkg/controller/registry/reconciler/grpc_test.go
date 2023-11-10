@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -347,7 +348,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
-			err := rec.EnsureRegistryServer(tt.in.catsrc)
+			err := rec.EnsureRegistryServer(logrus.NewEntry(logrus.New()), tt.in.catsrc)
 
 			require.Equal(t, tt.out.err, err)
 			require.Equal(t, tt.out.status, tt.in.catsrc.Status.RegistryServiceStatus)
@@ -446,7 +447,7 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
-			err := rec.EnsureRegistryServer(tt.in.catsrc)
+			err := rec.EnsureRegistryServer(logrus.NewEntry(logrus.New()), tt.in.catsrc)
 			require.NoError(t, err)
 
 			// Check for resource existence
@@ -613,7 +614,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			factory, _ := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
-			healthy, err := rec.CheckRegistryServer(tt.in.catsrc)
+			healthy, err := rec.CheckRegistryServer(logrus.NewEntry(logrus.New()), tt.in.catsrc)
 
 			require.Equal(t, tt.out.err, err)
 			if tt.out.err != nil {
@@ -678,6 +679,6 @@ func TestUpdatePodByDigest(t *testing.T) {
 	}
 
 	for i, tt := range table {
-		require.Equal(t, tt.result, imageChanged(tt.updatePod, tt.servingPods), table[i].description)
+		require.Equal(t, tt.result, imageChanged(logrus.NewEntry(logrus.New()), tt.updatePod, tt.servingPods), table[i].description)
 	}
 }

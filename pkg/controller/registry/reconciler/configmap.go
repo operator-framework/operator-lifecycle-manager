@@ -254,7 +254,7 @@ func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(sour
 }
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
-func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.CatalogSource) error {
+func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) error {
 	source := configMapCatalogSourceDecorator{catalogSource, c.createPodAsUser}
 
 	image := c.Image
@@ -403,7 +403,7 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 }
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
-func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
+func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
 	source := configMapCatalogSourceDecorator{catalogSource, c.createPodAsUser}
 
 	image := c.Image
