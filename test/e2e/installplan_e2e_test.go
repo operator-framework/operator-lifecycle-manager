@@ -2713,7 +2713,7 @@ var _ = Describe("Install Plan", func() {
 		stableChannel := "stable"
 		stableCSVName := packageName + "-stable"
 
-		// Create manifests
+		By("Create manifests")
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: packageName,
@@ -2727,18 +2727,18 @@ var _ = Describe("Install Plan", func() {
 			},
 		}
 
-		// Create new CRDs
+		By("Create new CRDs")
 		crdPlural := genName("ins")
 		crd := newCRD(crdPlural)
 
-		// Defer CRD clean up
+		By("Defer CRD clean up")
 		defer func() {
 			Eventually(func() error {
 				return client.IgnoreNotFound(ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{}))
 			}).Should(Succeed())
 		}()
 
-		// Generate permissions
+		By("Generate permissions")
 		serviceAccountName := genName("nginx-sa")
 		permissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
@@ -2759,7 +2759,7 @@ var _ = Describe("Install Plan", func() {
 			},
 		}
 
-		// Generate permissions
+		By("Generate permissions")
 		clusterPermissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
@@ -2773,22 +2773,22 @@ var _ = Describe("Install Plan", func() {
 			},
 		}
 
-		// Create a new NamedInstallStrategy
+		By("Create a new NamedInstallStrategy")
 		namedStrategy := newNginxInstallStrategy(genName("dep-"), permissions, clusterPermissions)
 
-		// Create new CSVs
+		By("Create new CSVs")
 		stableCSV := newCSV(stableCSVName, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &namedStrategy)
 
 		defer func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
 
-		// Create CatalogSource
+		By("Create CatalogSource")
 		mainCatalogSourceName := genName("nginx-catalog")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, mainCatalogSourceName, generatedNamespace.GetName(), manifests, []apiextensionsv1.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{stableCSV})
 		defer cleanupCatalogSource()
 
-		// Attempt to get CatalogSource
+		By("Attempt to get CatalogSource")
 		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
@@ -2802,12 +2802,12 @@ var _ = Describe("Install Plan", func() {
 
 		installPlanName := subscription.Status.InstallPlanRef.Name
 
-		// Attempt to get InstallPlan
+		By("Attempt to get InstallPlan")
 		fetchedInstallPlan, err := fetchInstallPlan(GinkgoT(), crc, installPlanName, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed, operatorsv1alpha1.InstallPlanPhaseComplete))
 		require.NoError(GinkgoT(), err)
 		require.NotEqual(GinkgoT(), operatorsv1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase, "InstallPlan failed")
 
-		// Expect correct RBAC resources to be resolved and created
+		By("Expect correct RBAC resources to be resolved and created")
 		expectedSteps := map[registry.ResourceKey]struct{}{
 			{Name: crd.Name, Kind: "CustomResourceDefinition"}:   {},
 			{Name: stableCSVName, Kind: "ClusterServiceVersion"}: {},
@@ -2831,11 +2831,11 @@ var _ = Describe("Install Plan", func() {
 				} else if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
 					delete(expectedSteps, expected)
 				} else {
-					GinkgoT().Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
+					GinkgoT().Logf("Found unexpected step %#v, expected %#v: name has prefix: %v kinds match %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
 				}
 			}
 
-			// This operator was installed into a global operator group, so the roles should have been lifted to clusterroles
+			By("This operator was installed into a global operator group, so the roles should have been lifted to clusterroles")
 			if step.Resource.Kind == "Role" {
 				err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 					_, err = c.GetClusterRole(step.Resource.Name)
@@ -2864,13 +2864,13 @@ var _ = Describe("Install Plan", func() {
 			}
 		}
 
-		// Should have removed every matching step
+		By("Should have removed every matching step")
 		require.Equal(GinkgoT(), 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
 
 		GinkgoT().Logf("deleting csv %s/%s", generatedNamespace.GetName(), stableCSVName)
-		// Explicitly delete the CSV
+		By("Explicitly delete the CSV")
 		err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), stableCSVName, metav1.DeleteOptions{})
-		// Looking for no error OR IsNotFound error
+		By("Looking for no error OR IsNotFound error")
 		if err != nil && apierrors.IsNotFound(err) {
 			err = nil
 		}
