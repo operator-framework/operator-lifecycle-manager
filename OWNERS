@@ -9,6 +9,7 @@ approvers:
   - grokspawn
   - joelanford
   - tmshort
+  - ncdc
 # review == this code is good /lgtm
 reviewers:
   - kevinrizza
@@ -26,3 +27,4 @@ reviewers:
   - dtfranz
   - tmshort
   - stevekuznetsov
+  - ncdc
