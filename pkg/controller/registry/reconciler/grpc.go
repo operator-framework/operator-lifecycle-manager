@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -202,10 +203,14 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logr
 	newPod := source.Pod(serviceAccount)
 	for _, p := range pods {
 		images, hash := correctImages(source, p), podHashMatch(p, newPod)
-		logger.WithFields(logrus.Fields{
+		logger = logger.WithFields(logrus.Fields{
 			"current-pod.namespace": p.Namespace, "current-pod.name": p.Name,
 			"correctImages": images, "correctHash": hash,
-		}).Info("evaluating current pod")
+		})
+		logger.Info("evaluating current pod")
+		if !hash {
+			logger.Infof("pod spec diff: %s", cmp.Diff(p.Spec, newPod.Spec))
+		}
 		if correctImages(source, p) && podHashMatch(p, newPod) {
 			found = append(found, p)
 		}
