@@ -63,6 +63,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink":               schema_package_server_apis_operators_v1_AppLink(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription":        schema_package_server_apis_operators_v1_CSVDescription(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.ChannelEntry":          schema_package_server_apis_operators_v1_ChannelEntry(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Deprecation":           schema_package_server_apis_operators_v1_Deprecation(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon":                  schema_package_server_apis_operators_v1_Icon(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Maintainer":            schema_package_server_apis_operators_v1_Maintainer(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageChannel":        schema_package_server_apis_operators_v1_PackageChannel(ref),
@@ -1960,8 +1961,38 @@ func schema_package_server_apis_operators_v1_ChannelEntry(ref common.ReferenceCa
 							Format:      "",
 						},
 					},
+					"deprecation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Deprecation is an optional field which contains information if the channel entry is deprecated.",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Deprecation"),
+						},
+					},
 				},
 				Required: []string{"name"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Deprecation"},
+	}
+}
+
+func schema_package_server_apis_operators_v1_Deprecation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Deprecation conveys information regarding a deprecated resource.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Message is a human readable message describing the deprecation.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"message"},
 			},
 		},
 	}
@@ -2047,6 +2078,12 @@ func schema_package_server_apis_operators_v1_PackageChannel(ref common.Reference
 							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription"),
 						},
 					},
+					"deprecation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Deprecation is an optional field which contains information if the channel is deprecated.",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Deprecation"),
+						},
+					},
 					"entries": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Entries lists all CSVs in the channel, with their upgrade edges.",
@@ -2066,7 +2103,7 @@ func schema_package_server_apis_operators_v1_PackageChannel(ref common.Reference
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.ChannelEntry"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.ChannelEntry", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Deprecation"},
 	}
 }
 
@@ -2234,6 +2271,12 @@ func schema_package_server_apis_operators_v1_PackageManifestStatus(ref common.Re
 							Format:      "",
 						},
 					},
+					"deprecation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Deprecation is an optional field which contains information if the package is deprecated.",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Deprecation"),
+						},
+					},
 					"channels": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -2266,7 +2309,7 @@ func schema_package_server_apis_operators_v1_PackageManifestStatus(ref common.Re
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageChannel"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Deprecation", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageChannel"},
 	}
 }
 

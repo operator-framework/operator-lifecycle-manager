@@ -46,6 +46,9 @@ type PackageManifestStatus struct {
 	// PackageName is the name of the overall package, ala `etcd`.
 	PackageName string `json:"packageName"`
 
+	// Deprecation is an optional field which contains information if the package is deprecated.
+	Deprecation *Deprecation `json:"deprecation,omitempty"`
+
 	// Channels are the declared channels for the package, ala `stable` or `alpha`.
 	// +listType=set
 	Channels []PackageChannel `json:"channels"`
@@ -54,6 +57,12 @@ type PackageManifestStatus struct {
 	// default channel will be installed if no other channel is explicitly given. If the package
 	// has a single channel, then that channel is implicitly the default.
 	DefaultChannel string `json:"defaultChannel"`
+}
+
+// Deprecation conveys information regarding a deprecated resource.
+type Deprecation struct {
+	// Message is a human readable message describing the deprecation.
+	Message string `json:"message"`
 }
 
 // GetDefaultChannel gets the default channel or returns the only one if there's only one. returns empty string if it
@@ -81,6 +90,9 @@ type PackageChannel struct {
 	// CurrentCSVSpec holds the spec of the current CSV
 	CurrentCSVDesc CSVDescription `json:"currentCSVDesc,omitempty"`
 
+	// Deprecation is an optional field which contains information if the channel is deprecated.
+	Deprecation *Deprecation `json:"deprecation,omitempty"`
+
 	// Entries lists all CSVs in the channel, with their upgrade edges.
 	Entries []ChannelEntry `json:"entries"`
 }
@@ -92,6 +104,9 @@ type ChannelEntry struct {
 
 	// Version is the version of the bundle for this entry.
 	Version string `json:"version,omitempty"`
+
+	// Deprecation is an optional field which contains information if the channel entry is deprecated.
+	Deprecation *Deprecation `json:"deprecation,omitempty"`
 }
 
 // CSVDescription defines a description of a CSV
