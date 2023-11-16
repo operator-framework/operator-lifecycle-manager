@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -352,7 +353,11 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			dep := testDeployment("olm-dep-1", namespace, &mockOwner)
 			dep.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
 			dep.Spec.RevisionHistoryLimit = &revisionHistoryLimit
-			dep.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, HashDeploymentSpec(dep.Spec)))
+			hash, err := hashutil.DeepHashObject(&dep.Spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dep.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, hash))
 			dep.Labels[OLMManagedLabelKey] = OLMManagedLabelValue
 			dep.Status.Conditions = append(dep.Status.Conditions, appsv1.DeploymentCondition{
 				Type:   appsv1.DeploymentAvailable,
@@ -374,7 +379,11 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			deployment := testDeployment("olm-dep-1", namespace, &mockOwner)
 			deployment.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
 			deployment.Spec.RevisionHistoryLimit = &revisionHistoryLimit
-			deployment.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, HashDeploymentSpec(deployment.Spec)))
+			hash, err = hashutil.DeepHashObject(&deployment.Spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			deployment.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, hash))
 			fakeClient.CreateOrUpdateDeploymentReturns(&deployment, tt.createDeploymentErr)
 			defer func() {
 				require.Equal(t, &deployment, fakeClient.CreateOrUpdateDeploymentArgsForCall(0))

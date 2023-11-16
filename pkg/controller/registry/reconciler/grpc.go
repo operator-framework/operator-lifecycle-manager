@@ -3,12 +3,17 @@ package reconciler
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -16,14 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/rand"
-
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
-	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
@@ -73,7 +70,7 @@ func (s *grpcCatalogSourceDecorator) Annotations() map[string]string {
 	return s.GetAnnotations()
 }
 
-func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
+func (s *grpcCatalogSourceDecorator) Service() (*corev1.Service, error) {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      strings.ReplaceAll(s.GetName(), ".", "-"),
@@ -92,12 +89,15 @@ func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
 	}
 
 	labels := map[string]string{}
-	hash := HashServiceSpec(svc.Spec)
+	hash, err := hashutil.DeepHashObject(&svc.Spec)
+	if err != nil {
+		return nil, err
+	}
 	labels[ServiceHashLabelKey] = hash
 	labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 	svc.SetLabels(labels)
 	ownerutil.AddOwner(svc, s.CatalogSource, false, false)
-	return svc
+	return svc, nil
 }
 
 func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
@@ -130,10 +130,13 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 	}
 }
 
-func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount) *corev1.Pod {
-	pod := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser)
+func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount) (*corev1.Pod, error) {
+	pod, err := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser)
+	if err != nil {
+		return nil, err
+	}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, true)
-	return pod
+	return pod, nil
 }
 
 type GrpcRegistryReconciler struct {
@@ -148,14 +151,18 @@ type GrpcRegistryReconciler struct {
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
 
-func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorator) *corev1.Service {
-	serviceName := source.Service().GetName()
+func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorator) (*corev1.Service, error) {
+	protoService, err := source.Service()
+	if err != nil {
+		return nil, err
+	}
+	serviceName := protoService.GetName()
 	service, err := c.Lister.CoreV1().ServiceLister().Services(source.GetNamespace()).Get(serviceName)
 	if err != nil {
 		logrus.WithField("service", serviceName).Debug("couldn't find service in cache")
-		return nil
+		return nil, nil
 	}
-	return service
+	return service, nil
 }
 
 func (c *GrpcRegistryReconciler) currentServiceAccount(source grpcCatalogSourceDecorator) *corev1.ServiceAccount {
@@ -192,15 +199,18 @@ func (c *GrpcRegistryReconciler) currentUpdatePods(logger *logrus.Entry, source 
 	return pods
 }
 
-func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount) []*corev1.Pod {
+func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount) ([]*corev1.Pod, error) {
 	logger.Info("searching for current pods")
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
 		logger.WithError(err).Warn("couldn't find pod in cache")
-		return nil
+		return nil, nil
 	}
 	found := []*corev1.Pod{}
-	newPod := source.Pod(serviceAccount)
+	newPod, err := source.Pod(serviceAccount)
+	if err != nil {
+		return nil, err
+	}
 	for _, p := range pods {
 		images, hash := correctImages(source, p), podHashMatch(p, newPod)
 		logger = logger.WithFields(logrus.Fields{
@@ -216,7 +226,7 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logr
 		}
 	}
 	logger.Infof("of %d pods matching label selector, %d have the correct images and matching hash", len(pods), len(found))
-	return found
+	return found, nil
 }
 
 func correctImages(source grpcCatalogSourceDecorator, pod *corev1.Pod) bool {
@@ -239,7 +249,11 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage, utilImage: c.utilImage}
 
 	// if service status is nil, we force create every object to ensure they're created the first time
-	overwrite := source.Status.RegistryServiceStatus == nil || !isRegistryServiceStatusValid(&source)
+	valid, err := isRegistryServiceStatusValid(&source)
+	if err != nil {
+		return err
+	}
+	overwrite := !valid
 	if overwrite {
 		logger.Info("registry service status invalid, need to overwrite")
 	}
@@ -256,27 +270,42 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 	}
 
 	// recreate the pod if no existing pod is serving the latest image or correct spec
-	overwritePod := overwrite || len(c.currentPodsWithCorrectImageAndSpec(logger, source, sa)) == 0
+	current, err := c.currentPodsWithCorrectImageAndSpec(logger, source, sa)
+	if err != nil {
+		return err
+	}
+	overwritePod := overwrite || len(current) == 0
 	if overwritePod {
 		logger.Info("registry pods invalid, need to overwrite")
 	}
 
+	pod, err := source.Pod(sa)
+	if err != nil {
+		return err
+	}
 	if err := c.ensurePod(logger, source, sa, overwritePod); err != nil {
-		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(sa).GetName())
+		return errors.Wrapf(err, "error ensuring pod: %s", pod.GetName())
 	}
 	if err := c.ensureUpdatePod(logger, sa, source); err != nil {
 		if _, ok := err.(UpdateNotReadyErr); ok {
 			return err
 		}
-		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod(sa).GetName())
+		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", pod.GetName())
+	}
+	service, err := source.Service()
+	if err != nil {
+		return err
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
-		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
+		return errors.Wrapf(err, "error ensuring service: %s", service.GetName())
 	}
 
 	if overwritePod {
 		now := c.now()
-		service := source.Service()
+		service, err := source.Service()
+		if err != nil {
+			return err
+		}
 		catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
 			CreatedAt:        now,
 			Protocol:         "grpc",
@@ -292,15 +321,19 @@ func getPort(service *corev1.Service) string {
 	return fmt.Sprintf("%d", service.Spec.Ports[0].Port)
 }
 
-func isRegistryServiceStatusValid(source *grpcCatalogSourceDecorator) bool {
-	service := source.Service()
-	if source.Status.RegistryServiceStatus.ServiceName != service.GetName() ||
+func isRegistryServiceStatusValid(source *grpcCatalogSourceDecorator) (bool, error) {
+	service, err := source.Service()
+	if err != nil {
+		return false, err
+	}
+	if source.Status.RegistryServiceStatus == nil ||
+		source.Status.RegistryServiceStatus.ServiceName != service.GetName() ||
 		source.Status.RegistryServiceStatus.ServiceNamespace != service.GetNamespace() ||
 		source.Status.RegistryServiceStatus.Port != getPort(service) ||
 		source.Status.RegistryServiceStatus.Protocol != "grpc" {
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
 func (c *GrpcRegistryReconciler) ensurePod(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount, overwrite bool) error {
@@ -317,9 +350,12 @@ func (c *GrpcRegistryReconciler) ensurePod(logger *logrus.Entry, source grpcCata
 			}
 		}
 	}
-	desiredPod := source.Pod(serviceAccount)
+	desiredPod, err := source.Pod(serviceAccount)
+	if err != nil {
+		return err
+	}
 	logger.WithFields(logrus.Fields{"pod.namespace": source.GetNamespace(), "pod.name": desiredPod.Namespace}).Info("deleting current pod")
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), desiredPod, metav1.CreateOptions{})
+	_, err = c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), desiredPod, metav1.CreateOptions{})
 	if err != nil {
 		return errors.Wrapf(err, "error creating new pod: %s", desiredPod.GetGenerateName())
 	}
@@ -391,8 +427,14 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(logger *logrus.Entry, serviceAc
 }
 
 func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator, overwrite bool) error {
-	service := source.Service()
-	svc := c.currentService(source)
+	service, err := source.Service()
+	if err != nil {
+		return err
+	}
+	svc, err := c.currentService(source)
+	if err != nil {
+		return err
+	}
 	if svc != nil {
 		if !overwrite && ServiceHashMatch(svc, service) {
 			return nil
@@ -402,7 +444,7 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 			return err
 		}
 	}
-	_, err := c.OpClient.CreateService(service)
+	_, err = c.OpClient.CreateService(service)
 	return err
 }
 
@@ -440,22 +482,18 @@ func ServiceHashMatch(existing, new *corev1.Service) bool {
 	return true
 }
 
-// HashServiceSpec calculates a hash given a copy of the service spec
-func HashServiceSpec(spec corev1.ServiceSpec) string {
-	hasher := fnv.New32a()
-	hashutil.DeepHashObject(hasher, &spec)
-	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
-}
-
 // createUpdatePod is an internal method that creates a pod using the latest catalog source.
 func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount) (*corev1.Pod, error) {
 	// remove label from pod to ensure service does not accidentally route traffic to the pod
-	p := source.Pod(serviceAccount)
+	p, err := source.Pod(serviceAccount)
+	if err != nil {
+		return nil, err
+	}
 	p = swapLabels(p, "", source.Name)
 
 	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), p, metav1.CreateOptions{})
 	if err != nil {
-		logrus.WithField("pod", source.Pod(serviceAccount).GetName()).Warn("couldn't create new catalogsource pod")
+		logrus.WithField("pod", p.GetName()).Warn("couldn't create new catalogsource pod")
 		return nil, err
 	}
 
@@ -522,8 +560,16 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catal
 
 	// Check on registry resources
 	// TODO: add gRPC health check
-	if len(c.currentPodsWithCorrectImageAndSpec(logger, source, serviceAccount)) < 1 ||
-		c.currentService(source) == nil || c.currentServiceAccount(source) == nil {
+	service, err := c.currentService(source)
+	if err != nil {
+		return false, err
+	}
+	current, err := c.currentPodsWithCorrectImageAndSpec(logger, source, serviceAccount)
+	if err != nil {
+		return false, err
+	}
+	if len(current) < 1 ||
+		service == nil || c.currentServiceAccount(source) == nil {
 		return false, nil
 	}
 

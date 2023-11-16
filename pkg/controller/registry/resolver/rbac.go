@@ -4,31 +4,29 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"math/big"
-
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const maxNameLength = 63
 
-func generateName(base string, o interface{}) string {
-	hasher := fnv.New32a()
-	hashutil.DeepHashObject(hasher, o)
-	hash := utilrand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
+func generateName(base string, o interface{}) (string, error) {
+	hash, err := hashutil.DeepHashObject(o)
+	if err != nil {
+		return "", err
+	}
 	if len(base)+len(hash) > maxNameLength {
 		base = base[:maxNameLength-len(hash)-1]
 	}
 
-	return fmt.Sprintf("%s-%s", base, hash)
+	return fmt.Sprintf("%s-%s", base, hash), nil
 }
 
 type OperatorPermissions struct {
@@ -125,9 +123,16 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 		}
 
 		// Create Role
+		name, err := generateName(fmt.Sprintf("%s-%s", csv.GetName(), permission.ServiceAccountName), struct {
+			Name       string                                 `json:"name,omitempty"`
+			Permission v1alpha1.StrategyDeploymentPermissions `json:"permission"`
+		}{Name: csv.GetName(), Permission: permission})
+		if err != nil {
+			return nil, err
+		}
 		role := &rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:            generateName(fmt.Sprintf("%s-%s", csv.GetName(), permission.ServiceAccountName), []interface{}{csv.GetName(), permission}),
+				Name:            name,
 				Namespace:       csv.GetNamespace(),
 				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(csv)},
 				Labels:          ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind),
@@ -179,9 +184,17 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 		}
 
 		// Create ClusterRole
+		name, err := generateName(csv.GetName(), struct {
+			Name       string                                 `json:"name,omitempty"`
+			Namespace  string                                 `json:"namespace,omitempty"`
+			Permission v1alpha1.StrategyDeploymentPermissions `json:"permission"`
+		}{Name: csv.GetName(), Namespace: csv.GetNamespace(), Permission: permission})
+		if err != nil {
+			return nil, err
+		}
 		role := &rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   generateName(csv.GetName(), []interface{}{csv.GetName(), csv.GetNamespace(), permission}),
+				Name:   name,
 				Labels: ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind),
 			},
 			Rules: permission.Rules,

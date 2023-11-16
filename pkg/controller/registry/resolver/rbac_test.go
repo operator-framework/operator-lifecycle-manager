@@ -31,7 +31,7 @@ func TestGenerateName(t *testing.T) {
 				base: "myname",
 				o:    []string{"something"},
 			},
-			want: "myname-9c895f74f",
+			want: "myname-5L9sNXi3Y6mcOevFzYY3WOLIukKOeZwz1pfUlT",
 		},
 		{
 			name: "truncated",
@@ -39,12 +39,13 @@ func TestGenerateName(t *testing.T) {
 				base: strings.Repeat("name", 100),
 				o:    []string{"something", "else"},
 			},
-			want: "namenamenamenamenamenamenamenamenamenamenamenamename-78fd8b4d6b",
+			want: "namenamenamenamenamename-6XtefCelEzfYlFOD1fARIK5vhWVfWfGHja7H3q",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := generateName(tt.args.base, tt.args.o)
+			got, err := generateName(tt.args.base, tt.args.o)
+			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 			require.LessOrEqual(t, len(got), maxNameLength)
 		})
@@ -65,7 +66,8 @@ func (validKubeName) Generate(rand *rand.Rand, size int) reflect.Value {
 
 func TestGeneratesWithinRange(t *testing.T) {
 	f := func(base validKubeName, o string) bool {
-		return len(generateName(string(base), o)) <= maxNameLength
+		out, err := generateName(string(base), o)
+		return len(out) <= maxNameLength || err == nil
 	}
 	require.NoError(t, quick.Check(f, nil))
 }
