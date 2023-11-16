@@ -102,6 +102,7 @@ const (
 	ErrorInvalidPackageManifest   ErrorType = "PackageManifestNotValid"
 	ErrorObjectFailedValidation   ErrorType = "ObjectFailedValidation"
 	ErrorPropertiesAnnotationUsed ErrorType = "PropertiesAnnotationUsed"
+	ErrorDeprecatedValidator      ErrorType = "DeprecatedValidator"
 )
 
 func NewError(t ErrorType, detail, field string, v interface{}) Error {
@@ -247,4 +248,8 @@ func WarnInvalidObject(detail string, value interface{}) Error {
 
 func WarnPropertiesAnnotationUsed(detail string) Error {
 	return Error{ErrorPropertiesAnnotationUsed, LevelWarn, "", "", detail}
+}
+
+func WarnDeprecatedValidator(detail string) Error {
+	return Error{ErrorDeprecatedValidator, LevelWarn, "", "", detail}
 }

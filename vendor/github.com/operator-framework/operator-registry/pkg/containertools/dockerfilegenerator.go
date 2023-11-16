@@ -50,8 +50,8 @@ func (g *IndexDockerfileGenerator) GenerateIndexDockerfile(binarySourceImage, da
 
 	// Content
 	dockerfile += fmt.Sprintf("ADD %s %s\n", databasePath, DefaultDbLocation)
-	dockerfile += fmt.Sprintf("EXPOSE 50051\n")
-	dockerfile += fmt.Sprintf("ENTRYPOINT [\"/bin/opm\"]\n")
+	dockerfile += "EXPOSE 50051\n"
+	dockerfile += "ENTRYPOINT [\"/bin/opm\"]\n"
 	dockerfile += fmt.Sprintf("CMD [\"registry\", \"serve\", \"--database\", \"%s\"]\n", DefaultDbLocation)
 
 	return dockerfile

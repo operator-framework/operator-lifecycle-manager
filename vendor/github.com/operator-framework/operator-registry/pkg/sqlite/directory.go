@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -181,7 +180,7 @@ func (d *DirectoryLoader) LoadPackagesWalkFunc(path string, f os.FileInfo, err e
 // are part of the bundle.
 func loadBundle(csvName string, dir string) (*registry.Bundle, error) {
 	log := logrus.WithFields(logrus.Fields{"dir": dir, "load": "bundle", "name": csvName})
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}

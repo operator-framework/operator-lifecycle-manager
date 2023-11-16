@@ -29,7 +29,22 @@ var BundleValidator = internal.BundleValidator
 
 // OperatorHubValidator implements Validator to validate bundle objects
 // for OperatorHub.io requirements.
+//
+// Deprecated: Use OperatorHubV2Validator, StandardCapabilitiesValidator
+// and StandardCategoriesValidator for equivalent functionality.
 var OperatorHubValidator = internal.OperatorHubValidator
+
+// OperatorHubV2Validator implements Validator to validate bundle objects
+// for OperatorHub.io requirements.
+var OperatorHubV2Validator = internal.OperatorHubV2Validator
+
+// StandardCapabilitiesValidator implements Validator to validate bundle objects
+// for OperatorHub.io requirements around UI capability metadata
+var StandardCapabilitiesValidator = internal.StandardCapabilitiesValidator
+
+// StandardCategoriesValidator implements Validator to validate bundle objects
+// for OperatorHub.io requirements around UI category metadata
+var StandardCategoriesValidator = internal.StandardCategoriesValidator
 
 // Object Validator validates various custom objects in the bundle like PDBs and SCCs.
 // Object validation is optional and not a default-level validation.
@@ -69,7 +84,9 @@ var AllValidators = interfaces.Validators{
 	ClusterServiceVersionValidator,
 	CustomResourceDefinitionValidator,
 	BundleValidator,
-	OperatorHubValidator,
+	OperatorHubV2Validator,
+	StandardCategoriesValidator,
+	StandardCapabilitiesValidator,
 	ObjectValidator,
 	OperatorGroupValidator,
 	CommunityOperatorValidator,
