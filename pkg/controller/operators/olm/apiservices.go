@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -414,7 +415,11 @@ func (a *Operator) areWebhooksAvailable(csv *v1alpha1.ClusterServiceVersion) (bo
 		// Create Webhook Label Selector
 		webhookLabels := ownerutil.OwnerLabel(csv, v1alpha1.ClusterServiceVersionKind)
 		webhookLabels[install.WebhookDescKey] = desc.GenerateName
-		webhookLabels[install.WebhookHashKey] = install.HashWebhookDesc(desc)
+		hash, err := hashutil.DeepHashObject(&desc)
+		if err != nil {
+			return false, err
+		}
+		webhookLabels[install.WebhookHashKey] = hash
 		webhookSelector := labels.SelectorFromSet(webhookLabels).String()
 
 		webhookCount := 0

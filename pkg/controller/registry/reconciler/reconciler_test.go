@@ -35,7 +35,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "68d7885bb7", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "8SbHWyYfjbRT8lLcfdZ5ofXNdC1GE6ayztILTF", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -107,7 +107,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "5c6bb6945f", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "3DSBhZZIiOl5YIjTsZy9aRyFIXeDR8mZCGAcYA", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -167,7 +167,8 @@ func TestPodMemoryTarget(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod := Pod(testCase.input, "name", "opmImage", "utilImage", "image", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		pod, err := Pod(testCase.input, "name", "opmImage", "utilImage", "image", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		require.NoError(t, err)
 		if diff := cmp.Diff(pod, testCase.expected); diff != "" {
 			t.Errorf("got incorrect pod: %v", diff)
 		}
@@ -201,7 +202,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "68d7885bb7", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "8SbHWyYfjbRT8lLcfdZ5ofXNdC1GE6ayztILTF", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -276,7 +277,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "667f4b9769", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "6AsUxiAHW383luxWxmVVATFBeHXKNIX0HXrP5g", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -371,7 +372,8 @@ func TestPodExtractContent(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod := Pod(testCase.input, "name", "opmImage", "utilImage", "image", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		pod, err := Pod(testCase.input, "name", "opmImage", "utilImage", "image", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		require.NoError(t, err)
 		if diff := cmp.Diff(pod, testCase.expected); diff != "" {
 			t.Errorf("got incorrect pod: %v", diff)
 		}
@@ -421,7 +423,8 @@ func TestPodServiceAccountImagePullSecrets(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod := Pod(catalogSource, "name", "opmImage", "utilImage", "image", testCase.serviceAccount, map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		pod, err := Pod(catalogSource, "name", "opmImage", "utilImage", "image", testCase.serviceAccount, map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		require.NoError(t, err)
 		if diff := cmp.Diff(testCase.serviceAccount.ImagePullSecrets, pod.Spec.ImagePullSecrets); diff != "" {
 			t.Errorf("got incorrect pod: %v", diff)
 		}
@@ -439,7 +442,8 @@ func TestPodNodeSelector(t *testing.T) {
 	key := "kubernetes.io/os"
 	value := "linux"
 
-	gotCatSrcPod := Pod(catsrc, "hello", "utilImage", "opmImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+	gotCatSrcPod, err := Pod(catsrc, "hello", "utilImage", "opmImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+	require.NoError(t, err)
 	gotCatSrcPodSelector := gotCatSrcPod.Spec.NodeSelector
 
 	if gotCatSrcPodSelector[key] != value {
@@ -487,7 +491,8 @@ func TestPullPolicy(t *testing.T) {
 	}
 
 	for _, tt := range table {
-		p := Pod(source, "catalog", "opmImage", "utilImage", tt.image, serviceAccount("", "service-account"), nil, nil, int32(0), int32(0), int64(workloadUserID))
+		p, err := Pod(source, "catalog", "opmImage", "utilImage", tt.image, serviceAccount("", "service-account"), nil, nil, int32(0), int32(0), int64(workloadUserID))
+		require.NoError(t, err)
 		policy := p.Spec.Containers[0].ImagePullPolicy
 		if policy != tt.policy {
 			t.Fatalf("expected pull policy %s for image  %s", tt.policy, tt.image)
@@ -599,7 +604,8 @@ func TestPodContainerSecurityContext(t *testing.T) {
 		},
 	}
 	for _, testcase := range testcases {
-		outputPod := Pod(testcase.inputCatsrc, "hello", "utilImage", "opmImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		outputPod, err := Pod(testcase.inputCatsrc, "hello", "utilImage", "opmImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+		require.NoError(t, err)
 		if testcase.expectedSecurityContext != nil {
 			require.Equal(t, testcase.expectedSecurityContext, outputPod.Spec.SecurityContext)
 		}
@@ -629,7 +635,8 @@ func TestPodAvoidsConcurrentWrite(t *testing.T) {
 		"annotation": "somethingelse",
 	}
 
-	gotPod := Pod(catsrc, "hello", "opmImage", "utilImage", "busybox", serviceAccount("", "service-account"), labels, annotations, int32(0), int32(0), int64(workloadUserID))
+	gotPod, err := Pod(catsrc, "hello", "opmImage", "utilImage", "busybox", serviceAccount("", "service-account"), labels, annotations, int32(0), int32(0), int64(workloadUserID))
+	require.NoError(t, err)
 
 	// check labels and annotations point to different addresses between parameters and what's in the pod
 	require.NotEqual(t, &labels, &gotPod.Labels)
@@ -858,7 +865,8 @@ func TestPodSchedulingOverrides(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod := Pod(testCase.catalogSource, "hello", "opmImage", "utilImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, testCase.annotations, int32(0), int32(0), int64(workloadUserID))
+		pod, err := Pod(testCase.catalogSource, "hello", "opmImage", "utilImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, testCase.annotations, int32(0), int32(0), int64(workloadUserID))
+		require.NoError(t, err)
 		require.Equal(t, testCase.expectedNodeSelectors, pod.Spec.NodeSelector)
 		require.Equal(t, testCase.expectedPriorityClassName, pod.Spec.PriorityClassName)
 		require.Equal(t, testCase.expectedTolerations, pod.Spec.Tolerations)

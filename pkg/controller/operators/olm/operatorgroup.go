@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"hash/fnv"
 	"math/big"
 	"reflect"
 	"strings"
@@ -718,7 +717,10 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 
 	var copyPrototype v1alpha1.ClusterServiceVersion
 	csvCopyPrototype(csv, &copyPrototype)
-	nonstatus, status := copyableCSVHash(&copyPrototype)
+	nonstatus, status, err := copyableCSVHash(&copyPrototype)
+	if err != nil {
+		return err
+	}
 
 	for _, ns := range namespaces {
 		if ns.GetName() == operatorGroup.Namespace {
@@ -780,7 +782,7 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 
 // copyableCSVHash returns a hash of the parts of the given CSV that
 // are relevant to copied CSV projection.
-func copyableCSVHash(original *v1alpha1.ClusterServiceVersion) (string, string) {
+func copyableCSVHash(original *v1alpha1.ClusterServiceVersion) (string, string, error) {
 	shallow := v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        original.Name,
@@ -790,15 +792,16 @@ func copyableCSVHash(original *v1alpha1.ClusterServiceVersion) (string, string) 
 		Spec: original.Spec,
 	}
 
-	hash := fnv.New64a()
-	hashutil.DeepHashObject(hash, &shallow)
-	nonstatus := string(hash.Sum(nil))
+	newHash, err := hashutil.DeepHashObject(&shallow)
+	if err != nil {
+		return "", "", err
+	}
+	originalHash, err := hashutil.DeepHashObject(&original.Status)
+	if err != nil {
+		return "", "", err
+	}
 
-	hash.Reset()
-	hashutil.DeepHashObject(hash, &original.Status)
-	status := string(hash.Sum(nil))
-
-	return nonstatus, status
+	return newHash, originalHash, nil
 }
 
 // If returned error is not nil, the returned ClusterServiceVersion

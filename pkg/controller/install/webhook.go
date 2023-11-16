@@ -3,14 +3,12 @@ package install
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 
 	log "github.com/sirupsen/logrus"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/util/retry"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -285,17 +283,14 @@ func addWebhookLabels(object metav1.Object, webhookDesc v1alpha1.WebhookDescript
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	hash, err := hashutil.DeepHashObject(&webhookDesc)
+	if err != nil {
+		return err
+	}
 	labels[WebhookDescKey] = webhookDesc.GenerateName
-	labels[WebhookHashKey] = HashWebhookDesc(webhookDesc)
+	labels[WebhookHashKey] = hash
 	labels[OLMManagedLabelKey] = OLMManagedLabelValue
 	object.SetLabels(labels)
 
 	return nil
-}
-
-// HashWebhookDesc calculates a hash given a webhookDescription
-func HashWebhookDesc(webhookDesc v1alpha1.WebhookDescription) string {
-	hasher := fnv.New32a()
-	hashutil.DeepHashObject(hasher, &webhookDesc)
-	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
 }

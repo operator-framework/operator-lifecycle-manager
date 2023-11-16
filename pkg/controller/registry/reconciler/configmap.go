@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -77,7 +78,7 @@ func (s *configMapCatalogSourceDecorator) ConfigMapChanges(configMap *corev1.Con
 	return true
 }
 
-func (s *configMapCatalogSourceDecorator) Service() *corev1.Service {
+func (s *configMapCatalogSourceDecorator) Service() (*corev1.Service, error) {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.GetName(),
@@ -98,19 +99,25 @@ func (s *configMapCatalogSourceDecorator) Service() *corev1.Service {
 	labels := map[string]string{
 		install.OLMManagedLabelKey: install.OLMManagedLabelValue,
 	}
-	hash := HashServiceSpec(svc.Spec)
+	hash, err := hashutil.DeepHashObject(&svc.Spec)
+	if err != nil {
+		return nil, err
+	}
 	labels[ServiceHashLabelKey] = hash
 	svc.SetLabels(labels)
 	ownerutil.AddOwner(svc, s.CatalogSource, false, false)
-	return svc
+	return svc, nil
 }
 
-func (s *configMapCatalogSourceDecorator) Pod(image string) *corev1.Pod {
-	pod := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser)
+func (s *configMapCatalogSourceDecorator) Pod(image string) (*corev1.Pod, error) {
+	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser)
+	if err != nil {
+		return nil, err
+	}
 	pod.Spec.ServiceAccountName = s.GetName() + ConfigMapServerPostfix
 	pod.Spec.Containers[0].Command = []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, true)
-	return pod
+	return pod, nil
 }
 
 func (s *configMapCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
@@ -187,14 +194,18 @@ var _ RegistryEnsurer = &ConfigMapRegistryReconciler{}
 var _ RegistryChecker = &ConfigMapRegistryReconciler{}
 var _ RegistryReconciler = &ConfigMapRegistryReconciler{}
 
-func (c *ConfigMapRegistryReconciler) currentService(source configMapCatalogSourceDecorator) *corev1.Service {
-	serviceName := source.Service().GetName()
+func (c *ConfigMapRegistryReconciler) currentService(source configMapCatalogSourceDecorator) (*corev1.Service, error) {
+	protoService, err := source.Service()
+	if err != nil {
+		return nil, err
+	}
+	serviceName := protoService.GetName()
 	service, err := c.Lister.CoreV1().ServiceLister().Services(source.GetNamespace()).Get(serviceName)
 	if err != nil {
 		logrus.WithField("service", serviceName).Debug("couldn't find service in cache")
-		return nil
+		return nil, nil
 	}
-	return service
+	return service, nil
 }
 
 func (c *ConfigMapRegistryReconciler) currentServiceAccount(source configMapCatalogSourceDecorator) *corev1.ServiceAccount {
@@ -227,30 +238,38 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source configMapCatalog
 	return roleBinding
 }
 
-func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) []*corev1.Pod {
-	podName := source.Pod(image).GetName()
+func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) ([]*corev1.Pod, error) {
+	protoPod, err := source.Pod(image)
+	if err != nil {
+		return nil, err
+	}
+	podName := protoPod.GetName()
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromSet(source.Selector()))
 	if err != nil {
 		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
-		return nil
+		return nil, nil
 	}
 	if len(pods) > 1 {
 		logrus.WithField("selector", source.Selector()).Debug("multiple pods found for selector")
 	}
-	return pods
+	return pods, nil
 }
 
-func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string) []*corev1.Pod {
-	podName := source.Pod(image).GetName()
+func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string) ([]*corev1.Pod, error) {
+	protoPod, err := source.Pod(image)
+	if err != nil {
+		return nil, err
+	}
+	podName := protoPod.GetName()
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
 		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
-		return nil
+		return nil, nil
 	}
 	if len(pods) > 1 {
 		logrus.WithField("selector", source.Labels()).Debug("multiple pods found for selector")
 	}
-	return pods
+	return pods, nil
 }
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
@@ -290,7 +309,11 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 		}
 
 		// recreate the pod if no existing pod is serving the latest image
-		if len(c.currentPodsWithCorrectResourceVersion(source, image)) == 0 {
+		current, err := c.currentPodsWithCorrectResourceVersion(source, image)
+		if err != nil {
+			return err
+		}
+		if len(current) == 0 {
 			overwritePod = true
 		}
 	}
@@ -305,11 +328,19 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 	if err := c.ensureRoleBinding(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring rolebinding: %s", source.RoleBinding().GetName())
 	}
+	pod, err := source.Pod(image)
+	if err != nil {
+		return err
+	}
 	if err := c.ensurePod(source, overwritePod); err != nil {
-		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(image).GetName())
+		return errors.Wrapf(err, "error ensuring pod: %s", pod.GetName())
+	}
+	service, err := source.Service()
+	if err != nil {
+		return err
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
-		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
+		return errors.Wrapf(err, "error ensuring service: %s", service.GetName())
 	}
 
 	if overwritePod {
@@ -317,9 +348,9 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 		catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
 			CreatedAt:        now,
 			Protocol:         "grpc",
-			ServiceName:      source.Service().GetName(),
+			ServiceName:      service.GetName(),
 			ServiceNamespace: source.GetNamespace(),
-			Port:             fmt.Sprintf("%d", source.Service().Spec.Ports[0].Port),
+			Port:             fmt.Sprintf("%d", service.Spec.Ports[0].Port),
 		}
 	}
 	return nil
@@ -368,8 +399,14 @@ func (c *ConfigMapRegistryReconciler) ensureRoleBinding(source configMapCatalogS
 }
 
 func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDecorator, overwrite bool) error {
-	pod := source.Pod(c.Image)
-	currentPods := c.currentPods(source, c.Image)
+	pod, err := source.Pod(c.Image)
+	if err != nil {
+		return err
+	}
+	currentPods, err := c.currentPods(source, c.Image)
+	if err != nil {
+		return err
+	}
 	if len(currentPods) > 0 {
 		if !overwrite {
 			return nil
@@ -380,7 +417,7 @@ func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDec
 			}
 		}
 	}
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Create(context.TODO(), pod, metav1.CreateOptions{})
+	_, err = c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Create(context.TODO(), pod, metav1.CreateOptions{})
 	if err == nil {
 		return nil
 	}
@@ -388,8 +425,14 @@ func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDec
 }
 
 func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourceDecorator, overwrite bool) error {
-	service := source.Service()
-	svc := c.currentService(source)
+	service, err := source.Service()
+	if err != nil {
+		return err
+	}
+	svc, err := c.currentService(source)
+	if err != nil {
+		return err
+	}
 	if svc != nil {
 		if !overwrite && ServiceHashMatch(svc, service) {
 			return nil
@@ -398,7 +441,7 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 			return err
 		}
 	}
-	_, err := c.OpClient.CreateService(service)
+	_, err = c.OpClient.CreateService(service)
 	return err
 }
 
@@ -426,7 +469,11 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, 
 		}
 
 		// recreate the pod if no existing pod is serving the latest image
-		if len(c.currentPodsWithCorrectResourceVersion(source, image)) == 0 {
+		current, err := c.currentPodsWithCorrectResourceVersion(source, image)
+		if err != nil {
+			return false, err
+		}
+		if len(current) == 0 {
 			return false, nil
 		}
 	}
@@ -434,11 +481,19 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, 
 	// Check on registry resources
 	// TODO: more complex checks for resources
 	// TODO: add gRPC health check
+	service, err := c.currentService(source)
+	if err != nil {
+		return false, err
+	}
+	pods, err := c.currentPods(source, c.Image)
+	if err != nil {
+		return false, err
+	}
 	if c.currentServiceAccount(source) == nil ||
 		c.currentRole(source) == nil ||
 		c.currentRoleBinding(source) == nil ||
-		c.currentService(source) == nil ||
-		len(c.currentPods(source, c.Image)) < 1 {
+		service == nil ||
+		len(pods) < 1 {
 		healthy = false
 		return
 	}

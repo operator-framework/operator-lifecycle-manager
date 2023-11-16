@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/coreos/go-semver v0.3.0
-	github.com/davecgh/go-spew v1.1.1
 	github.com/distribution/distribution v2.7.1+incompatible
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fsnotify/fsnotify v1.6.0
@@ -89,6 +88,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/cli v23.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker v23.0.3+incompatible // indirect

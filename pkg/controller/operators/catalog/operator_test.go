@@ -999,7 +999,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			},
 			expectedError: nil,
 			expectedObjs: []runtime.Object{
-				pod(*grpcCatalog),
+				pod(t, *grpcCatalog),
 			},
 		},
 		{
@@ -1007,7 +1007,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			namespace:     "cool-namespace",
 			catalogSource: grpcCatalog,
 			k8sObjs: []runtime.Object{
-				pod(v1alpha1.CatalogSource{
+				pod(t, v1alpha1.CatalogSource{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cool-catalog",
 						Namespace: "cool-namespace",
@@ -1031,7 +1031,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			},
 			expectedError: nil,
 			expectedObjs: []runtime.Object{
-				pod(*grpcCatalog),
+				pod(t, *grpcCatalog),
 			},
 		},
 		{
@@ -1110,7 +1110,7 @@ func TestSyncCatalogSources(t *testing.T) {
 				},
 			}),
 			k8sObjs: []runtime.Object{
-				pod(*grpcCatalog),
+				pod(t, *grpcCatalog),
 				service(grpcCatalog.GetName(), grpcCatalog.GetNamespace()),
 				serviceAccount(grpcCatalog.GetName(), grpcCatalog.GetNamespace(), "", objectReference("init secret")),
 			},
@@ -2119,14 +2119,17 @@ func toManifest(t *testing.T, obj runtime.Object) string {
 	return string(raw)
 }
 
-func pod(s v1alpha1.CatalogSource) *corev1.Pod {
+func pod(t *testing.T, s v1alpha1.CatalogSource) *corev1.Pod {
 	serviceAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: s.GetNamespace(),
 			Name:      s.GetName(),
 		},
 	}
-	pod := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
+	pod, err := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ownerutil.AddOwner(pod, &s, false, true)
 	return pod
 }

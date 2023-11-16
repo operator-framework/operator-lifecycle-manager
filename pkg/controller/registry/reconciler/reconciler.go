@@ -3,7 +3,6 @@ package reconciler
 
 import (
 	"fmt"
-	"hash/fnv"
 	"path/filepath"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -11,7 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/pointer"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -116,7 +114,7 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) *corev1.Pod {
+func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) (*corev1.Pod, error) {
 	// make a copy of the labels and annotations to avoid mutating the input parameters
 	podLabels := make(map[string]string)
 	podAnnotations := make(map[string]string)
@@ -317,20 +315,17 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 
 	// Add PodSpec hash
 	// This hash info will be used to detect PodSpec changes
-	podLabels[PodHashLabelKey] = hashPodSpec(pod.Spec)
+	hash, err := hashutil.DeepHashObject(&pod.Spec)
+	if err != nil {
+		return nil, err
+	}
+	podLabels[PodHashLabelKey] = hash
 
 	// add eviction annotation to enable the cluster autoscaler to evict the pod in order to drain the node
 	// since catalog pods are not backed by a controller, they cannot be evicted by default
 	podAnnotations[ClusterAutoscalingAnnotationKey] = "true"
 
-	return pod
-}
-
-// hashPodSpec calculates a hash given a copy of the pod spec
-func hashPodSpec(spec corev1.PodSpec) string {
-	hasher := fnv.New32a()
-	hashutil.DeepHashObject(hasher, &spec)
-	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
+	return pod, nil
 }
 
 func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
