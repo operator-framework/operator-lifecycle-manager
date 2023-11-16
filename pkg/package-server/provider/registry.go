@@ -268,6 +268,15 @@ func (p *RegistryProvider) registryClient(key registry.CatalogKey) (client *regi
 	return
 }
 
+func getOperatorDeprecation(in *api.Deprecation) *operators.Deprecation {
+	if in == nil {
+		return nil
+	}
+	return &operators.Deprecation{
+		Message: in.Message,
+	}
+}
+
 func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryClient) error {
 	key, err := client.key()
 	if err != nil {
@@ -302,9 +311,11 @@ func (p *RegistryProvider) refreshCache(ctx context.Context, client *registryCli
 		if _, ok := bundles[bundle.PackageName]; !ok {
 			bundles[bundle.PackageName] = map[string][]operators.ChannelEntry{}
 		}
+
 		bundles[bundle.PackageName][bundle.ChannelName] = append(bundles[bundle.PackageName][bundle.ChannelName], operators.ChannelEntry{
-			Name:    bundle.CsvName,
-			Version: bundle.Version,
+			Name:        bundle.CsvName,
+			Version:     bundle.Version,
+			Deprecation: getOperatorDeprecation(bundle.Deprecation),
 		})
 	}
 
@@ -532,6 +543,7 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 			CatalogSourceNamespace:   catsrc.GetNamespace(),
 			PackageName:              pkg.Name,
 			DefaultChannel:           pkg.GetDefaultChannelName(),
+			Deprecation:              getOperatorDeprecation(pkg.Deprecation),
 		},
 	}
 
@@ -565,6 +577,7 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 			CurrentCSV:     csv.GetName(),
 			CurrentCSVDesc: operators.CreateCSVDescription(&csv, bundle.GetCsvJson()),
 			Entries:        entriesByChannel[pkgChannel.GetName()],
+			Deprecation:    getOperatorDeprecation(pkgChannel.Deprecation),
 		})
 
 		if manifest.Status.DefaultChannel != "" && pkgChannel.GetName() == manifest.Status.DefaultChannel || !providerSet {
