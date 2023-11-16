@@ -173,12 +173,13 @@ var (
 
 func TestToPackageManifest(t *testing.T) {
 	tests := []struct {
-		name          string
-		apiPkg        *api.Package
-		catalogSource *operatorsv1alpha1.CatalogSource
-		bundle        *api.Bundle
-		expectedErr   string
-		expected      *operators.PackageManifest
+		name           string
+		apiPkg         *api.Package
+		channelEntries map[string][]operators.ChannelEntry
+		catalogSource  *operatorsv1alpha1.CatalogSource
+		bundle         *api.Bundle
+		expectedErr    string
+		expected       *operators.PackageManifest
 	}{
 		{
 			name: "GoodBundle",
@@ -453,6 +454,364 @@ func TestToPackageManifest(t *testing.T) {
 			},
 			expectedErr: "packagemanifest has no valid channels",
 		},
+		{
+			name: "DeprecatedPackage",
+			apiPkg: &api.Package{
+				Name: "etcd",
+				Channels: []*api.Channel{
+					{
+						Name:    "alpha",
+						CsvName: "etcdoperator.v0.9.2",
+					},
+				},
+				DefaultChannelName: "alpha",
+				Deprecation: &api.Deprecation{
+					Message: "This package is deprecated",
+				},
+			},
+			catalogSource: catalogSource("cool-operators", "ns"),
+			bundle: &api.Bundle{
+				CsvName:     "etcdoperator.v0.9.2",
+				PackageName: "etcd",
+				ChannelName: "alpha",
+				CsvJson:     etcdCSVJSON,
+				Object: []string{
+					etcdCSVJSON,
+					etcdBackupsCRDJSON,
+					etcdUpgradesCRDJSON,
+					etcdRestoresCRDJSON,
+				},
+			},
+			expectedErr: "",
+			expected: &operators.PackageManifest{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "etcd",
+					Namespace: "ns",
+					Labels: labels.Set{
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
+					},
+				},
+				Status: operators.PackageManifestStatus{
+					CatalogSource:          "cool-operators",
+					CatalogSourceNamespace: "ns",
+					PackageName:            "etcd",
+					Provider: operators.AppLink{
+						Name: "CoreOS, Inc",
+					},
+					Deprecation: &operators.Deprecation{
+						Message: "This package is deprecated",
+					},
+					DefaultChannel: "alpha",
+					Channels: []operators.PackageChannel{
+						{
+							Name:       "alpha",
+							CurrentCSV: "etcdoperator.v0.9.2",
+							CurrentCSVDesc: func() operators.CSVDescription {
+								csv := operatorsv1alpha1.ClusterServiceVersion{}
+								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
+							}(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "DeprecatedChannel",
+			apiPkg: &api.Package{
+				Name: "etcd",
+				Channels: []*api.Channel{
+					{
+						Name:    "alpha",
+						CsvName: "etcdoperator.v0.9.2",
+						Deprecation: &api.Deprecation{
+							Message: "This channel of the package is deprecated",
+						},
+					},
+				},
+				DefaultChannelName: "alpha",
+			},
+			catalogSource: catalogSource("cool-operators", "ns"),
+			bundle: &api.Bundle{
+				CsvName:     "etcdoperator.v0.9.2",
+				PackageName: "etcd",
+				ChannelName: "alpha",
+				CsvJson:     etcdCSVJSON,
+				Object: []string{
+					etcdCSVJSON,
+					etcdBackupsCRDJSON,
+					etcdUpgradesCRDJSON,
+					etcdRestoresCRDJSON,
+				},
+			},
+			expectedErr: "",
+			expected: &operators.PackageManifest{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "etcd",
+					Namespace: "ns",
+					Labels: labels.Set{
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
+					},
+				},
+				Status: operators.PackageManifestStatus{
+					CatalogSource:          "cool-operators",
+					CatalogSourceNamespace: "ns",
+					PackageName:            "etcd",
+					Provider: operators.AppLink{
+						Name: "CoreOS, Inc",
+					},
+					DefaultChannel: "alpha",
+					Channels: []operators.PackageChannel{
+						{
+							Name: "alpha",
+							Deprecation: &operators.Deprecation{
+								Message: "This channel of the package is deprecated",
+							},
+							CurrentCSV: "etcdoperator.v0.9.2",
+							CurrentCSVDesc: func() operators.CSVDescription {
+								csv := operatorsv1alpha1.ClusterServiceVersion{}
+								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
+							}(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "DeprecatedEntries",
+			apiPkg: &api.Package{
+				Name: "etcd",
+				Channels: []*api.Channel{
+					{
+						Name:    "alpha",
+						CsvName: "etcdoperator.v0.9.2",
+						Deprecation: &api.Deprecation{
+							Message: "This channel of the package is deprecated",
+						},
+					},
+				},
+				DefaultChannelName: "alpha",
+			},
+			channelEntries: map[string][]operators.ChannelEntry{
+				"alpha": {
+					{
+						Name:    "etcdoperator.v0.9.2",
+						Version: "0.9.2",
+					},
+					{
+						Name:    "etcdoperator.v0.9.0",
+						Version: "0.9.0",
+						Deprecation: &operators.Deprecation{
+							Message: "This bundle of the package is deprecated",
+						},
+					},
+					{
+						Name:    "etcdoperator.v0.6.1",
+						Version: "0.6.1",
+						Deprecation: &operators.Deprecation{
+							Message: "This bundle of the package is also deprecated and has a unique message",
+						},
+					},
+				},
+			},
+			catalogSource: catalogSource("cool-operators", "ns"),
+			bundle: &api.Bundle{
+				CsvName:     "etcdoperator.v0.9.2",
+				PackageName: "etcd",
+				ChannelName: "alpha",
+				CsvJson:     etcdCSVJSON,
+				Object: []string{
+					etcdCSVJSON,
+					etcdBackupsCRDJSON,
+					etcdUpgradesCRDJSON,
+					etcdRestoresCRDJSON,
+				},
+			},
+			expectedErr: "",
+			expected: &operators.PackageManifest{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "etcd",
+					Namespace: "ns",
+					Labels: labels.Set{
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
+					},
+				},
+				Status: operators.PackageManifestStatus{
+					CatalogSource:          "cool-operators",
+					CatalogSourceNamespace: "ns",
+					PackageName:            "etcd",
+					Provider: operators.AppLink{
+						Name: "CoreOS, Inc",
+					},
+					DefaultChannel: "alpha",
+					Channels: []operators.PackageChannel{
+						{
+							Name: "alpha",
+							Deprecation: &operators.Deprecation{
+								Message: "This channel of the package is deprecated",
+							},
+							CurrentCSV: "etcdoperator.v0.9.2",
+							CurrentCSVDesc: func() operators.CSVDescription {
+								csv := operatorsv1alpha1.ClusterServiceVersion{}
+								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
+							}(),
+							Entries: []operators.ChannelEntry{
+								{
+									Name:    "etcdoperator.v0.9.2",
+									Version: "0.9.2",
+								},
+								{
+									Name:    "etcdoperator.v0.9.0",
+									Version: "0.9.0",
+									Deprecation: &operators.Deprecation{
+										Message: "This bundle of the package is deprecated",
+									},
+								},
+								{
+									Name:    "etcdoperator.v0.6.1",
+									Version: "0.6.1",
+									Deprecation: &operators.Deprecation{
+										Message: "This bundle of the package is also deprecated and has a unique message",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "DeprecatedPackageChannelAndEntries",
+			apiPkg: &api.Package{
+				Name: "etcd",
+				Channels: []*api.Channel{
+					{
+						Name:    "alpha",
+						CsvName: "etcdoperator.v0.9.2",
+						Deprecation: &api.Deprecation{
+							Message: "This channel of the package is deprecated",
+						},
+					},
+				},
+				DefaultChannelName: "alpha",
+				Deprecation: &api.Deprecation{
+					Message: "This package is deprecated",
+				},
+			},
+			channelEntries: map[string][]operators.ChannelEntry{
+				"alpha": {
+					{
+						Name:    "etcdoperator.v0.9.2",
+						Version: "0.9.2",
+					},
+					{
+						Name:    "etcdoperator.v0.9.0",
+						Version: "0.9.0",
+						Deprecation: &operators.Deprecation{
+							Message: "This bundle of the package is deprecated",
+						},
+					},
+					{
+						Name:    "etcdoperator.v0.6.1",
+						Version: "0.6.1",
+						Deprecation: &operators.Deprecation{
+							Message: "This bundle of the package is also deprecated and has a unique message",
+						},
+					},
+				},
+			},
+			catalogSource: catalogSource("cool-operators", "ns"),
+			bundle: &api.Bundle{
+				CsvName:     "etcdoperator.v0.9.2",
+				PackageName: "etcd",
+				ChannelName: "alpha",
+				CsvJson:     etcdCSVJSON,
+				Object: []string{
+					etcdCSVJSON,
+					etcdBackupsCRDJSON,
+					etcdUpgradesCRDJSON,
+					etcdRestoresCRDJSON,
+				},
+			},
+			expectedErr: "",
+			expected: &operators.PackageManifest{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "etcd",
+					Namespace: "ns",
+					Labels: labels.Set{
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
+					},
+				},
+				Status: operators.PackageManifestStatus{
+					CatalogSource:          "cool-operators",
+					CatalogSourceNamespace: "ns",
+					PackageName:            "etcd",
+					Provider: operators.AppLink{
+						Name: "CoreOS, Inc",
+					},
+					Deprecation: &operators.Deprecation{
+						Message: "This package is deprecated",
+					},
+					DefaultChannel: "alpha",
+					Channels: []operators.PackageChannel{
+						{
+							Name: "alpha",
+							Deprecation: &operators.Deprecation{
+								Message: "This channel of the package is deprecated",
+							},
+							CurrentCSV: "etcdoperator.v0.9.2",
+							CurrentCSVDesc: func() operators.CSVDescription {
+								csv := operatorsv1alpha1.ClusterServiceVersion{}
+								require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+								return operators.CreateCSVDescription(&csv, etcdCSVJSON)
+							}(),
+							Entries: []operators.ChannelEntry{
+								{
+									Name:    "etcdoperator.v0.9.2",
+									Version: "0.9.2",
+								},
+								{
+									Name:    "etcdoperator.v0.9.0",
+									Version: "0.9.0",
+									Deprecation: &operators.Deprecation{
+										Message: "This bundle of the package is deprecated",
+									},
+								},
+								{
+									Name:    "etcdoperator.v0.6.1",
+									Version: "0.6.1",
+									Deprecation: &operators.Deprecation{
+										Message: "This bundle of the package is also deprecated and has a unique message",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -465,7 +824,7 @@ func TestToPackageManifest(t *testing.T) {
 				catsrc:         test.catalogSource,
 			}
 
-			packageManifest, err := newPackageManifest(context.Background(), logrus.NewEntry(logrus.New()), test.apiPkg, client, nil)
+			packageManifest, err := newPackageManifest(context.Background(), logrus.NewEntry(logrus.New()), test.apiPkg, client, test.channelEntries)
 			if test.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, test.expectedErr, err.Error())
@@ -1204,6 +1563,160 @@ func TestRegistryProviderList(t *testing.T) {
 										Version: "0.9.2",
 									},
 								},
+							},
+						},
+					},
+				},
+			}},
+		},
+		{
+			name:     "OneCatalog/DeprecatedPackage/DeprecatedChannel/DeprecatedBundle",
+			globalNS: "ns",
+			registryClients: []*registryClient{
+				func() *registryClient {
+					catsrc := catalogSource("cool-operators", "ns")
+
+					listBundlesFake := &fakes.FakeRegistry_ListBundlesClient{}
+					listBundlesFake.RecvReturnsOnCall(0, &api.Bundle{
+						PackageName: "etcd",
+						ChannelName: "alpha",
+						CsvName:     "etcdoperator.v0.9.2",
+						Version:     "0.9.2",
+					}, nil)
+
+					listBundlesFake.RecvReturnsOnCall(1, &api.Bundle{
+						PackageName: "etcd",
+						ChannelName: "deprecated",
+						CsvName:     "etcdoperator.v0.9.2",
+						Version:     "0.9.2",
+						Deprecation: &api.Deprecation{
+							Message: "This version of the package is deprecated",
+						},
+					}, nil)
+					listBundlesFake.RecvReturnsOnCall(2, nil, io.EOF)
+
+					listFake := &fakes.FakeRegistry_ListPackagesClient{}
+					listFake.RecvReturnsOnCall(0, &api.PackageName{Name: "etcd"}, nil)
+					listFake.RecvReturnsOnCall(1, nil, io.EOF)
+
+					clientFake := &fakes.FakeRegistryClient{}
+					clientFake.ListBundlesReturns(listBundlesFake, nil)
+					clientFake.ListPackagesReturns(listFake, nil)
+					clientFake.GetPackageReturnsOnCall(0, &api.Package{
+						Name: "etcd",
+						Deprecation: &api.Deprecation{
+							Message: "This package is deprecated",
+						},
+						Channels: []*api.Channel{
+							{
+								Name:    "alpha",
+								CsvName: "etcdperator.v0.9.2",
+							},
+							{
+								Name:    "deprecated",
+								CsvName: "etcdoperator.v0.9.2",
+								Deprecation: &api.Deprecation{
+									Message: "This channel is deprecated",
+								},
+							},
+						},
+						DefaultChannelName: "alpha",
+					}, nil)
+					clientFake.GetBundleForChannelReturnsOnCall(0, &api.Bundle{
+						CsvName:     "etcdoperator.v0.9.2",
+						PackageName: "etcd",
+						ChannelName: "alpha",
+						CsvJson:     etcdCSVJSON,
+						Object: []string{
+							etcdCSVJSON,
+							etcdBackupsCRDJSON,
+							etcdUpgradesCRDJSON,
+							etcdRestoresCRDJSON,
+						},
+					}, nil)
+
+					clientFake.GetBundleForChannelReturnsOnCall(1, &api.Bundle{
+						CsvName:     "etcdoperator.v0.9.2",
+						PackageName: "etcd",
+						ChannelName: "alpha",
+						CsvJson:     etcdCSVJSON,
+						Object: []string{
+							etcdCSVJSON,
+							etcdBackupsCRDJSON,
+							etcdUpgradesCRDJSON,
+							etcdRestoresCRDJSON,
+						},
+						Deprecation: &api.Deprecation{
+							Message: "This channel is deprecated",
+						},
+					}, nil)
+
+					return &registryClient{clientFake, catsrc, nil}
+				}(),
+			},
+			requestNamespace: "ns",
+			expectedErr:      "",
+			expected: &operators.PackageManifestList{Items: []operators.PackageManifest{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "etcd",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "etcd",
+						Provider: operators.AppLink{
+							Name: "CoreOS, Inc",
+						},
+						Deprecation: &operators.Deprecation{
+							Message: "This package is deprecated",
+						},
+						DefaultChannel: "alpha",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "alpha",
+								CurrentCSV: "etcdoperator.v0.9.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
+								}(),
+								Entries: []operators.ChannelEntry{
+									{
+										Name:    "etcdoperator.v0.9.2",
+										Version: "0.9.2",
+									},
+								},
+							},
+							{
+								Name: "deprecated",
+								Entries: []operators.ChannelEntry{
+									{
+										Name:    "etcdoperator.v0.9.2",
+										Version: "0.9.2",
+										Deprecation: &operators.Deprecation{
+											Message: "This version of the package is deprecated",
+										},
+									},
+								},
+								Deprecation: &operators.Deprecation{
+									Message: "This channel is deprecated",
+								},
+								CurrentCSV: "etcdoperator.v0.9.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv, etcdCSVJSON)
+								}(),
 							},
 						},
 					},
