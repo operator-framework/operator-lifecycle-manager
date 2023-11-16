@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -34,7 +33,7 @@ func (i *BundleExporter) Export(skipTLSVerify, plainHTTP bool) error {
 
 	log := logrus.WithField("img", i.image)
 
-	tmpDir, err := ioutil.TempDir("./", "bundle_tmp")
+	tmpDir, err := os.MkdirTemp("./", "bundle_tmp")
 	if err != nil {
 		return err
 	}

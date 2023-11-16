@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -79,7 +79,7 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 	var metadataDir, manifestsDir string
 	var validationErrors []error
 
-	items, err := ioutil.ReadDir(directory)
+	items, err := os.ReadDir(directory)
 	if err != nil {
 		validationErrors = append(validationErrors, err)
 	}
@@ -118,7 +118,7 @@ func (i imageValidator) ValidateBundleFormat(directory string) error {
 	}
 
 	// Validate annotations file
-	files, err := ioutil.ReadDir(metadataDir)
+	files, err := os.ReadDir(metadataDir)
 	if err != nil {
 		validationErrors = append(validationErrors, err)
 	}
@@ -282,14 +282,14 @@ func (i imageValidator) ValidateBundleContent(manifestDir string) error {
 	crdValidator := v.CustomResourceDefinitionValidator
 
 	// Read all files in manifests directory
-	items, err := ioutil.ReadDir(manifestDir)
+	items, err := os.ReadDir(manifestDir)
 	if err != nil {
 		validationErrors = append(validationErrors, err)
 	}
 
 	for _, item := range items {
 		fileWithPath := filepath.Join(manifestDir, item.Name())
-		data, err := ioutil.ReadFile(fileWithPath)
+		data, err := os.ReadFile(fileWithPath)
 		if err != nil {
 			validationErrors = append(validationErrors, fmt.Errorf("Unable to read file %s in supported types", fileWithPath))
 			continue

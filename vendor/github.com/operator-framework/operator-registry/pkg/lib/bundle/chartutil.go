@@ -19,7 +19,6 @@ limitations under the License.
 package bundle
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -125,7 +124,7 @@ func IsChartDir(dirName string) (bool, error) {
 		return false, errors.Errorf("no %s exists in directory %q", ChartfileName, dirName)
 	}
 
-	chartYamlContent, err := ioutil.ReadFile(chartYaml)
+	chartYamlContent, err := os.ReadFile(chartYaml)
 	if err != nil {
 		return false, errors.Errorf("cannot read %s in directory %q", ChartfileName, dirName)
 	}

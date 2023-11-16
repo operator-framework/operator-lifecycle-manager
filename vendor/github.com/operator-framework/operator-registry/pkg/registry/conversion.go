@@ -16,17 +16,31 @@ func PackageManifestToAPIPackage(manifest *PackageManifest) *api.Package {
 	for _, c := range manifest.Channels {
 		channels = append(channels, PackageChannelToAPIChannel(&c))
 	}
+	var deprecation *api.Deprecation
+	if manifest.Deprecation != nil {
+		deprecation = &api.Deprecation{
+			Message: manifest.Deprecation.Message,
+		}
+	}
 	return &api.Package{
 		Name:               manifest.PackageName,
 		DefaultChannelName: manifest.DefaultChannelName,
 		Channels:           channels,
+		Deprecation:        deprecation,
 	}
 }
 
 func PackageChannelToAPIChannel(channel *PackageChannel) *api.Channel {
+	var deprecation *api.Deprecation
+	if channel.Deprecation != nil {
+		deprecation = &api.Deprecation{
+			Message: channel.Deprecation.Message,
+		}
+	}
 	return &api.Channel{
-		Name:    channel.Name,
-		CsvName: channel.CurrentCSVName,
+		Name:        channel.Name,
+		CsvName:     channel.CurrentCSVName,
+		Deprecation: deprecation,
 	}
 }
 

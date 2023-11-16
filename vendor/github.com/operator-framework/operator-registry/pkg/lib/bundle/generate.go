@@ -3,7 +3,6 @@ package bundle
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -180,7 +179,7 @@ func CopyYamlOutput(annotationsContent []byte, manifestDir, outputDir, workingDi
 	}
 
 	// Now, generate the `metadata/` dir and write the annotations
-	file, err := ioutil.ReadFile(filepath.Join(copyDir, MetadataDir, AnnotationsFile))
+	file, err := os.ReadFile(filepath.Join(copyDir, MetadataDir, AnnotationsFile))
 	if os.IsNotExist(err) || overwrite {
 		writeDir := filepath.Join(copyDir, MetadataDir)
 		err = WriteFile(AnnotationsFile, writeDir, annotationsContent)
@@ -209,7 +208,7 @@ func GetMediaType(directory string) (string, error) {
 	k8sFiles := make(map[string]*unstructured.Unstructured)
 
 	// Read all file names in directory
-	items, _ := ioutil.ReadDir(directory)
+	items, _ := os.ReadDir(directory)
 	for _, item := range items {
 		if item.IsDir() {
 			continue
@@ -218,7 +217,7 @@ func GetMediaType(directory string) (string, error) {
 		files = append(files, item.Name())
 
 		fileWithPath := filepath.Join(directory, item.Name())
-		fileBlob, err := ioutil.ReadFile(fileWithPath)
+		fileBlob, err := os.ReadFile(fileWithPath)
 		if err != nil {
 			return "", fmt.Errorf("Unable to read file %s in bundle", fileWithPath)
 		}
@@ -367,7 +366,7 @@ func WriteFile(fileName, directory string, content []byte) error {
 		}
 	}
 	log.Infof("Writing %s in %s", fileName, directory)
-	err := ioutil.WriteFile(filepath.Join(directory, fileName), content, DefaultPermission)
+	err := os.WriteFile(filepath.Join(directory, fileName), content, DefaultPermission)
 	if err != nil {
 		return err
 	}
@@ -376,7 +375,7 @@ func WriteFile(fileName, directory string, content []byte) error {
 
 // copy the contents of a potentially nested manifest dir into an output dir.
 func copyManifestDir(from, to string, overwrite bool) error {
-	fromFiles, err := ioutil.ReadDir(from)
+	fromFiles, err := os.ReadDir(from)
 	if err != nil {
 		return err
 	}
@@ -431,7 +430,11 @@ func copyManifestDir(from, to string, overwrite bool) error {
 			return err
 		}
 
-		err = os.Chmod(toFilePath, fromFile.Mode())
+		info, err := fromFile.Info()
+		if err != nil {
+			return err
+		}
+		err = os.Chmod(toFilePath, info.Mode())
 		if err != nil {
 			return err
 		}

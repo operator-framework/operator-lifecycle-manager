@@ -3,7 +3,6 @@ package configmap
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"regexp"
 
@@ -85,7 +84,7 @@ func (c *ConfigMapWriter) Populate(maxDataSizeLimit uint64) error {
 	var totalSize uint64
 	for _, dir := range subDirs {
 		completePath := c.manifestsDir + dir
-		files, err := ioutil.ReadDir(completePath)
+		files, err := os.ReadDir(completePath)
 		if err != nil {
 			logrus.Errorf("read dir failed: %v", err)
 			return err
@@ -95,7 +94,7 @@ func (c *ConfigMapWriter) Populate(maxDataSizeLimit uint64) error {
 			log := logrus.WithField("file", completePath+file.Name())
 			log.Info("Reading file")
 
-			content, err := ioutil.ReadFile(completePath + file.Name())
+			content, err := os.ReadFile(completePath + file.Name())
 			if err != nil {
 				log.Errorf("read failed: %v", err)
 				return err
