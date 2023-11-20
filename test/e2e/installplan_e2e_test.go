@@ -3315,6 +3315,7 @@ var _ = Describe("Install Plan", func() {
 	})
 
 	It("limits installed resources if the scoped serviceaccount has no permissions", func() {
+		By("creating a scoped serviceaccount specified in the operatorgroup")
 		// create SA
 		sa := &corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
