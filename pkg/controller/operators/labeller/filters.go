@@ -59,7 +59,8 @@ func ServiceAccountFilter(isServiceAccountReferenced func(namespace, name string
 }
 
 var filters = map[schema.GroupVersionResource]func(metav1.Object) bool{
-	corev1.SchemeGroupVersion.WithResource("services"): HasOLMOwnerRef,
+	corev1.SchemeGroupVersion.WithResource("configmaps"): HasOLMOwnerRef,
+	corev1.SchemeGroupVersion.WithResource("services"):   HasOLMOwnerRef,
 	corev1.SchemeGroupVersion.WithResource("pods"): func(object metav1.Object) bool {
 		_, ok := object.GetLabels()[reconciler.CatalogSourceLabelKey]
 		return ok
