@@ -580,11 +580,20 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	sharedIndexInformers = append(sharedIndexInformers, buPodInformer.Informer())
 
 	// Wire ConfigMaps
-	configMapInformer := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), resyncPeriod(), informers.WithTweakListOptions(func(options *metav1.ListOptions) {
-		options.LabelSelector = install.OLMManagedLabelKey
-	})).Core().V1().ConfigMaps()
+	configMapInformer := k8sInformerFactory.Core().V1().ConfigMaps()
 	op.lister.CoreV1().RegisterConfigMapLister(metav1.NamespaceAll, configMapInformer.Lister())
 	sharedIndexInformers = append(sharedIndexInformers, configMapInformer.Informer())
+	configmapsgvk := corev1.SchemeGroupVersion.WithResource("configmaps")
+	if err := labelObjects(configmapsgvk, configMapInformer.Informer(), labeller.ObjectLabeler[*corev1.ConfigMap, *corev1applyconfigurations.ConfigMapApplyConfiguration](
+		ctx, op.logger, labeller.Filter(configmapsgvk),
+		configMapInformer.Lister().List,
+		corev1applyconfigurations.ConfigMap,
+		func(namespace string, ctx context.Context, cfg *corev1applyconfigurations.ConfigMapApplyConfiguration, opts metav1.ApplyOptions) (*corev1.ConfigMap, error) {
+			return op.opClient.KubernetesInterface().CoreV1().ConfigMaps(namespace).Apply(ctx, cfg, opts)
+		},
+	)); err != nil {
+		return nil, err
+	}
 
 	// Wire Jobs
 	jobInformer := k8sInformerFactory.Batch().V1().Jobs()
