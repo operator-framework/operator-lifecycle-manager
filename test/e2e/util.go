@@ -45,7 +45,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
-	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
