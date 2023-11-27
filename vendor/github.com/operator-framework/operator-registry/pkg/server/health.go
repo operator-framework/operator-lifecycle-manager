@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	health "github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
+	health "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type HealthServer struct {

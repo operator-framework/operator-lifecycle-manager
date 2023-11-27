@@ -1,10 +1,14 @@
 package containerdregistry
 
 import (
+	"crypto/tls"
 	"crypto/x509"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	contentlocal "github.com/containerd/containerd/content/local"
 	"github.com/containerd/containerd/metadata"
@@ -90,17 +94,14 @@ func NewRegistry(options ...RegistryOption) (registry *Registry, err error) {
 		return
 	}
 
-	var resolver remotes.Resolver
-	resolver, err = NewResolver(config.ResolverConfigDir, config.SkipTLSVerify, config.PlainHTTP, config.Roots)
-	if err != nil {
-		return
-	}
-
+	httpClient := newClient(config.SkipTLSVerify, config.Roots)
 	registry = &Registry{
-		Store:    newStore(metadata.NewDB(bdb, cs, nil)),
-		destroy:  destroy,
-		log:      config.Log,
-		resolver: resolver,
+		Store:   newStore(metadata.NewDB(bdb, cs, nil)),
+		destroy: destroy,
+		log:     config.Log,
+		resolverFunc: func(repo string) (remotes.Resolver, error) {
+			return NewResolver(httpClient, config.ResolverConfigDir, config.PlainHTTP, repo)
+		},
 		platform: platforms.Ordered(platforms.DefaultSpec(), specs.Platform{
 			OS:           "linux",
 			Architecture: "amd64",
@@ -151,4 +152,32 @@ func WithPlainHTTP(insecure bool) RegistryOption {
 	return func(config *RegistryConfig) {
 		config.PlainHTTP = insecure
 	}
+}
+
+func newClient(skipTlSVerify bool, roots *x509.CertPool) *http.Client {
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          10,
+		IdleConnTimeout:       30 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 5 * time.Second,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: false,
+			RootCAs:            roots,
+		},
+	}
+
+	if skipTlSVerify {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+	headers := http.Header{}
+	headers.Set("User-Agent", "opm/alpha")
+
+	return &http.Client{Transport: transport}
 }

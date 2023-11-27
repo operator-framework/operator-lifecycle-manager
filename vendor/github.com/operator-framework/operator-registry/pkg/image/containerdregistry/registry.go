@@ -19,6 +19,7 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/remotes"
+	"github.com/containers/image/v5/docker/reference"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -30,10 +31,10 @@ import (
 // Registry enables manipulation of images via containerd modules.
 type Registry struct {
 	Store
-	destroy  func() error
-	log      *logrus.Entry
-	resolver remotes.Resolver
-	platform platforms.MatchComparer
+	destroy      func() error
+	log          *logrus.Entry
+	resolverFunc func(repo string) (remotes.Resolver, error)
+	platform     platforms.MatchComparer
 }
 
 var _ image.Registry = &Registry{}
@@ -45,13 +46,23 @@ func (r *Registry) Pull(ctx context.Context, ref image.Reference) error {
 	// Set the default namespace if unset
 	ctx = ensureNamespace(ctx)
 
-	name, root, err := r.resolver.Resolve(ctx, ref.String())
+	namedRef, err := reference.ParseNamed(ref.String())
+	if err != nil {
+		return err
+	}
+
+	resolver, err := r.resolverFunc(namedRef.Name())
+	if err != nil {
+		return err
+	}
+
+	name, root, err := resolver.Resolve(ctx, ref.String())
 	if err != nil {
 		return fmt.Errorf("error resolving name for image ref %s: %v", ref.String(), err)
 	}
 	r.log.Debugf("resolved name: %s", name)
 
-	fetcher, err := r.resolver.Fetcher(ctx, name)
+	fetcher, err := resolver.Fetcher(ctx, name)
 	if err != nil {
 		return err
 	}
