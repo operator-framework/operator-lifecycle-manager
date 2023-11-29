@@ -2936,9 +2936,6 @@ var (
 	dummyCatalogConfigMap = &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: catalogConfigMapName,
-			Labels: map[string]string{
-				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
-			},
 		},
 		Data: map[string]string{},
 	}
