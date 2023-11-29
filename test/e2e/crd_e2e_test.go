@@ -38,7 +38,7 @@ var _ = Describe("CRD Versions", func() {
 	})
 
 	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2640
-	It("[FLAKE] creates v1 CRDs with a v1 schema successfully", func() {
+	It("[NOFLAKE] creates v1 CRDs with a v1 schema successfully", func() {
 		By("v1 crds with a valid openapiv3 schema should be created successfully by OLM")
 
 		mainPackageName := genName("nginx-update2-")
@@ -115,7 +115,7 @@ var _ = Describe("CRD Versions", func() {
 	})
 
 	// issue:https://github.com/operator-framework/operator-lifecycle-manager/issues/2638
-	It("[FLAKE] blocks a CRD upgrade that could cause data loss", func() {
+	It("[NOFLAKE] blocks a CRD upgrade that could cause data loss", func() {
 		By("checking the storage versions in the existing CRD status and the spec of the new CRD")
 
 		mainPackageName := genName("nginx-update2-")

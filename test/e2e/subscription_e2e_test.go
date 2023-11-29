@@ -522,7 +522,7 @@ var _ = Describe("Subscription", func() {
 	})
 
 	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2635
-	It("[FLAKE] updates multiple intermediates", func() {
+	It("[NOFLAKE] updates multiple intermediates", func() {
 
 		crd := newCRD("ins")
 
@@ -2496,7 +2496,7 @@ var _ = Describe("Subscription", func() {
 				Expect(err).To(BeNil())
 			})
 
-			It("should expose a condition indicating failure to unpack", func() {
+			It("[FLAKE] should expose a condition indicating failure to unpack", func() {
 				By("verifying that the subscription is reporting bundle unpack failure condition")
 				var lastcond string
 				Eventually(

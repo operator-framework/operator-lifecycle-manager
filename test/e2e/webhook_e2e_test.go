@@ -438,7 +438,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			}).Should(BeTrue())
 		})
 		// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2629
-		It("[FLAKE] Is updated when the CAs expire", func() {
+		It("[NOFLAKE] Is updated when the CAs expire", func() {
 			sideEffect := admissionregistrationv1.SideEffectClassNone
 			webhook := operatorsv1alpha1.WebhookDescription{
 				GenerateName:            webhookName,

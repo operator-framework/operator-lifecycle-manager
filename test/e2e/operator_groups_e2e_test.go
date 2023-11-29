@@ -2354,7 +2354,7 @@ var _ = Describe("Operator Group", func() {
 				})
 
 				// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2637
-				It("[FLAKE] OLM applies labels to Namespaces that are associated with an OperatorGroup", func() {
+				It("[NOFLAKE] OLM applies labels to Namespaces that are associated with an OperatorGroup", func() {
 					ogLabel, err := getOGLabelKey(operatorGroup)
 					Expect(err).ToNot(HaveOccurred())
 
