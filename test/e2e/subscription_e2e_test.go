@@ -2498,6 +2498,7 @@ var _ = Describe("Subscription", func() {
 
 			It("should expose a condition indicating failure to unpack", func() {
 				By("verifying that the subscription is reporting bundle unpack failure condition")
+				var lastcond string
 				Eventually(
 					func() (string, error) {
 						fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
@@ -2509,6 +2510,12 @@ var _ = Describe("Subscription", func() {
 							return "", fmt.Errorf("%s condition not found", v1alpha1.SubscriptionBundleUnpackFailed)
 						}
 
+						if !strings.Contains(cond.Message, "DeadlineExceeded") {
+							if cond.Message != lastcond {
+								By(fmt.Sprintf("%v condition: %s", time.Now(), cond.Message))
+								lastcond = cond.Message
+							}
+						}
 						return cond.Message, nil
 					},
 					5*time.Minute,
