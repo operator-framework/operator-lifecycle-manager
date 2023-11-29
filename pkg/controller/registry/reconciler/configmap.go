@@ -290,9 +290,11 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 
 	if source.Spec.SourceType == v1alpha1.SourceTypeConfigmap || source.Spec.SourceType == v1alpha1.SourceTypeInternal {
 		// fetch configmap first, exit early if we can't find it
-		configMap, err := c.Lister.CoreV1().ConfigMapLister().ConfigMaps(source.GetNamespace()).Get(source.Spec.ConfigMap)
+		// we use the live client here instead of a lister since our listers are scoped to objects with the olm.managed label,
+		// and this configmap is a user-provided input to the catalog source and will not have that label
+		configMap, err := c.OpClient.KubernetesInterface().CoreV1().ConfigMaps(source.GetNamespace()).Get(context.TODO(), source.Spec.ConfigMap, metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("unable to get configmap %s/%s from cache", source.GetNamespace(), source.Spec.ConfigMap)
+			return fmt.Errorf("unable to find configmap %s/%s: %w", source.GetNamespace(), source.Spec.ConfigMap, err)
 		}
 
 		if source.ConfigMapChanges(configMap) {
