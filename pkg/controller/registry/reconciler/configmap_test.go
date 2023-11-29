@@ -299,13 +299,17 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			in: in{
 				cluster: cluster{},
 				catsrc: &v1alpha1.CatalogSource{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "test-ns",
+					},
 					Spec: v1alpha1.CatalogSourceSpec{
 						SourceType: v1alpha1.SourceTypeConfigmap,
+						ConfigMap:  "test-cm",
 					},
 				},
 			},
 			out: out{
-				err: fmt.Errorf("unable to get configmap / from cache"),
+				err: fmt.Errorf(`unable to find configmap test-ns/test-cm: configmaps "test-cm" not found`),
 			},
 		},
 		{
@@ -463,7 +467,11 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 
 			err := rec.EnsureRegistryServer(logrus.NewEntry(logrus.New()), tt.in.catsrc)
 
-			require.Equal(t, tt.out.err, err)
+			if tt.out.err != nil {
+				require.EqualError(t, err, tt.out.err.Error())
+			} else {
+				require.NoError(t, err)
+			}
 			require.Equal(t, tt.out.status, tt.in.catsrc.Status.RegistryServiceStatus)
 
 			if tt.out.err != nil {
