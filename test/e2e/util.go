@@ -1073,11 +1073,13 @@ func SetupGeneratedTestNamespaceWithOperatorGroup(name string, og operatorsv1.Op
 		return ctx.Ctx().E2EClient().Create(context.Background(), &ns)
 	}).Should(Succeed())
 
+	ctx.Ctx().Logf("created the %s testing namespace", ns.GetName())
+
 	Eventually(func() error {
 		return ctx.Ctx().E2EClient().Create(context.Background(), &og)
 	}).Should(Succeed())
 
-	ctx.Ctx().Logf("created the %s testing namespace", ns.GetName())
+	ctx.Ctx().Logf("created the %s/%s operator group", og.Namespace, og.Name)
 
 	return ns
 }

@@ -159,13 +159,21 @@ var _ = Describe("Subscription", func() {
 	It("creation if not installed", func() {
 
 		defer func() {
+			if env := os.Getenv("SKIP_CLEANUP"); env != "" {
+				fmt.Printf("Skipping cleanup of subscriptions in namespace %s\n", generatedNamespace.GetName())
+				return
+			}
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{}))
 		}()
+
+		By("creating a catalog")
 		require.NoError(GinkgoT(), initCatalog(GinkgoT(), generatedNamespace.GetName(), c, crc))
 
+		By(fmt.Sprintf("creating a subscription: %s/%s", generatedNamespace.GetName(), testSubscriptionName))
 		cleanup, _ := createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), testSubscriptionName, testPackageName, betaChannel, operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanup()
 
+		By("waiting for the subscription to have a current CSV and be at latest")
 		var currentCSV string
 		Eventually(func() bool {
 			fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), testSubscriptionName, metav1.GetOptions{})
@@ -3073,6 +3081,9 @@ var (
 	dummyCatalogConfigMap = &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: catalogConfigMapName,
+			Labels: map[string]string{
+				install.OLMManagedLabelKey: install.OLMManagedLabelValue,
+			},
 		},
 		Data: map[string]string{},
 	}
@@ -3121,6 +3132,7 @@ func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientIn
 		}
 		return err
 	}
+	t.Logf("created configmap %s/%s", dummyCatalogConfigMap.Namespace, dummyCatalogConfigMap.Name)
 
 	dummyCatalogSource.SetNamespace(namespace)
 	if _, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(context.Background(), &dummyCatalogSource, metav1.CreateOptions{}); err != nil {
@@ -3129,6 +3141,7 @@ func initCatalog(t GinkgoTInterface, namespace string, c operatorclient.ClientIn
 		}
 		return err
 	}
+	t.Logf("created catalog source %s/%s", dummyCatalogSource.Namespace, dummyCatalogSource.Name)
 
 	fetched, err := fetchCatalogSourceOnStatus(crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceRegistryPodSynced())
 	require.NoError(t, err)
@@ -3312,6 +3325,7 @@ func createSubscription(t GinkgoTInterface, crc versioned.Interface, namespace, 
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(context.Background(), subscription, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred())
+	t.Logf("created subscription %s/%s", subscription.Namespace, subscription.Name)
 	return buildSubscriptionCleanupFunc(crc, subscription), subscription
 }
 
