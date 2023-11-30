@@ -1609,7 +1609,8 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 	})
-	It("insufficient permissions resolve via RBAC", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3091
+	It("[FLAKE] insufficient permissions resolve via RBAC", func() {
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)

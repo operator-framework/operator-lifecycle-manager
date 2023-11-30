@@ -2707,7 +2707,8 @@ var _ = Describe("Install Plan", func() {
 	})
 
 	// This It spec creates an InstallPlan with a CSV containing a set of permissions to be resolved.
-	It("creation with permissions", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3108
+	It("[FLAKE] creation with permissions", func() {
 
 		packageName := genName("nginx")
 		stableChannel := "stable"

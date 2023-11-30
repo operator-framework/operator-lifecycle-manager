@@ -386,7 +386,8 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			}
 		})
 
-		It("eventually reports a successful state when using skip ranges", func() {
+		// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3090
+		It("[FLAKE] eventually reports a successful state when using skip ranges", func() {
 			By("patching the catalog with a fixed version")
 			cleanup, deployError := updateCatalogSource(generatedNamespace.GetName(), catalogSourceName, "v0.1.0", "v0.2.0-invalid-deployment", "v0.3.0-skip-range")
 			Expect(deployError).To(BeNil())
@@ -399,7 +400,8 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).Should(BeNil())
 		})
 
-		It("eventually reports a successful state when using skips", func() {
+		// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3126
+		It("[FLAKE] eventually reports a successful state when using skips", func() {
 			By("patching the catalog with a fixed version")
 			cleanup, deployError := updateCatalogSource(generatedNamespace.GetName(), catalogSourceName, "v0.1.0", "v0.2.0-invalid-deployment", "v0.3.0-skips")
 			Expect(deployError).To(BeNil())

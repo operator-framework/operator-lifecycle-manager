@@ -2496,7 +2496,8 @@ var _ = Describe("Subscription", func() {
 				Expect(err).To(BeNil())
 			})
 
-			It("should expose a condition indicating failure to unpack", func() {
+			// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3088
+			It("[FLAKE] should expose a condition indicating failure to unpack", func() {
 				By("verifying that the subscription is reporting bundle unpack failure condition")
 				Eventually(
 					func() (string, error) {

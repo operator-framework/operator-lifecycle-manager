@@ -1166,7 +1166,8 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(csv.Spec.Replaces).To(Equal("busybox-dependency.v1.0.0"))
 	})
-	When("A catalogSource is created with correct polling interval", func() {
+	// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3127
+	When("[FLAKE] A catalogSource is created with correct polling interval", func() {
 		var source *v1alpha1.CatalogSource
 		singlePod := podCount(1)
 		sourceName := genName("catalog-")
