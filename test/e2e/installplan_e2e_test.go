@@ -2876,6 +2876,7 @@ var _ = Describe("Install Plan", func() {
 		}
 		require.NoError(GinkgoT(), err)
 
+		By("eventually seeing all ClusterRoles, ClusterRoleBindings, and ServiceAccounts deleted")
 		Eventually(func() bool {
 			crbs, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 			if err != nil {
@@ -2883,7 +2884,14 @@ var _ = Describe("Install Plan", func() {
 				return false
 			}
 			if len(crbs.Items) != 0 {
+				var bindings []string
+				for _, item := range crbs.Items {
+					bindings = append(bindings, item.Name)
+				}
+				GinkgoT().Logf("found %d ClusterRoleBindings: %v", len(bindings), strings.Join(bindings, ", "))
 				return false
+			} else {
+				GinkgoT().Log("found no ClusterRoleBindings")
 			}
 
 			crs, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
@@ -2892,13 +2900,26 @@ var _ = Describe("Install Plan", func() {
 				return false
 			}
 			if len(crs.Items) != 0 {
+				var roles []string
+				for _, item := range crs.Items {
+					roles = append(roles, item.Name)
+				}
+				GinkgoT().Logf("found %d ClusterRoles: %v", len(roles), strings.Join(roles, ", "))
 				return false
+			} else {
+				GinkgoT().Log("found no ClusterRoles")
 			}
 
 			_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(context.Background(), serviceAccountName, metav1.GetOptions{})
 			if err != nil && !apierrors.IsNotFound(err) {
 				GinkgoT().Logf("error getting sa %s/%s: %v", generatedNamespace.GetName(), serviceAccountName, err)
 				return false
+			}
+			if !apierrors.IsNotFound(err) {
+				GinkgoT().Logf("found ServiceAccount: %v", generatedNamespace.Name, serviceAccountName)
+				return false
+			} else {
+				GinkgoT().Log("found no ServiceAccount")
 			}
 
 			return true
