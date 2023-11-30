@@ -126,7 +126,17 @@ var _ = BeforeSuite(func() {
 		ContainElement(Not(BeZero())),
 	))
 
+	// Why is this failing a lot?
 	_, err := fetchCatalogSourceOnStatus(ctx.Ctx().OperatorClient(), "operatorhubio-catalog", operatorNamespace, catalogSourceRegistryPodSynced())
+	if err != nil {
+		name := "operatorhubio-catalog"
+		fetched, err2 := ctx.Ctx().OperatorClient().OperatorsV1alpha1().CatalogSources(operatorNamespace).Get(context.Background(), name, metav1.GetOptions{})
+		if err2 != nil || fetched == nil {
+			fmt.Printf("failed to fetch catalogSource %s/%s: %v\n", operatorNamespace, name, err2)
+		} else {
+			fmt.Printf("catalogSource %s/%s:\n%v", operatorNamespace, name, fetched)
+		}
+	}
 	Expect(err).NotTo(HaveOccurred())
 
 })

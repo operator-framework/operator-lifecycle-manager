@@ -390,7 +390,7 @@ func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string,
 	})
 
 	if err != nil {
-		err = fmt.Errorf("failed to wati for catalog source to reach intended state: %w", err)
+		err = fmt.Errorf("failed to wait for catalog source to reach intended state: %w", err)
 	}
 	return fetched, err
 }
