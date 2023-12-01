@@ -32,7 +32,6 @@ import (
 
 	"github.com/operator-framework/api/pkg/lib/version"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -2469,7 +2468,7 @@ var _ = Describe("Subscription", func() {
 					if err != nil {
 						return "", err
 					}
-					cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpacking)
+					cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpacking)
 					return cond.Status, nil
 				},
 				5*time.Minute,
@@ -2483,7 +2482,7 @@ var _ = Describe("Subscription", func() {
 					if err != nil {
 						return "", err
 					}
-					cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed)
+					cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpackFailed)
 					return cond.Status, nil
 				},
 				5*time.Minute,
@@ -2512,9 +2511,9 @@ var _ = Describe("Subscription", func() {
 						if err != nil {
 							return "", err
 						}
-						cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed)
+						cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpackFailed)
 						if cond.Status != corev1.ConditionTrue || cond.Reason != "BundleUnpackFailed" {
-							return "", fmt.Errorf("%s condition not found", v1alpha1.SubscriptionBundleUnpackFailed)
+							return "", fmt.Errorf("%s condition not found", operatorsv1alpha1.SubscriptionBundleUnpackFailed)
 						}
 
 						return cond.Message, nil
@@ -2556,7 +2555,7 @@ var _ = Describe("Subscription", func() {
 
 				By("waiting for the subscription to have v0.2.0 installed with a Bundle Deprecated condition")
 				sub, err := fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasCondition(
-					v1alpha1.SubscriptionBundleDeprecated,
+					operatorsv1alpha1.SubscriptionBundleDeprecated,
 					corev1.ConditionTrue,
 					"",
 					"olm.bundle/example-operator.v0.2.0: bundle \"example-operator.v0.2.0\" has been deprecated. Please switch to a different one."))
@@ -2586,7 +2585,7 @@ var _ = Describe("Subscription", func() {
 				Expect(err).To(BeNil())
 
 				By("waiting for the subscription to have v0.3.0 installed with no deprecation message present")
-				_, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionDoesNotHaveCondition(v1alpha1.SubscriptionDeprecated))
+				_, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionDoesNotHaveCondition(operatorsv1alpha1.SubscriptionDeprecated))
 				Expect(err).Should(BeNil())
 			})
 
@@ -2603,7 +2602,7 @@ var _ = Describe("Subscription", func() {
 
 				By("waiting for the subscription to have v0.2.0 installed with a Bundle Deprecated condition")
 				sub, err := fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasCondition(
-					v1alpha1.SubscriptionBundleDeprecated,
+					operatorsv1alpha1.SubscriptionBundleDeprecated,
 					corev1.ConditionTrue,
 					"",
 					"olm.bundle/example-operator.v0.2.0: bundle \"example-operator.v0.2.0\" has been deprecated. Please switch to a different one."))
@@ -2621,10 +2620,10 @@ var _ = Describe("Subscription", func() {
 				Expect(err).To(BeNil())
 
 				By("waiting for the subscription to have v0.3.0 installed with a Package deprecated condition")
-				_, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionDoesNotHaveCondition(v1alpha1.SubscriptionBundleDeprecated))
+				_, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionDoesNotHaveCondition(operatorsv1alpha1.SubscriptionBundleDeprecated))
 				Expect(err).Should(BeNil())
 				sub, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasCondition(
-					v1alpha1.SubscriptionPackageDeprecated,
+					operatorsv1alpha1.SubscriptionPackageDeprecated,
 					corev1.ConditionTrue,
 					"",
 					"olm.package/packageA: packageA has been deprecated. Please switch to packageB."))
@@ -2679,9 +2678,9 @@ var _ = Describe("Subscription", func() {
 					if err != nil {
 						return false, err
 					}
-					cond := sub.Status.GetCondition(v1alpha1.SubscriptionDeprecated)
+					cond := sub.Status.GetCondition(operatorsv1alpha1.SubscriptionDeprecated)
 					if cond.Status != corev1.ConditionTrue {
-						return false, fmt.Errorf("%s condition not found", v1alpha1.SubscriptionDeprecated)
+						return false, fmt.Errorf("%s condition not found", operatorsv1alpha1.SubscriptionDeprecated)
 					}
 
 					return true, nil
@@ -2803,8 +2802,8 @@ properties:
 					if err != nil {
 						return err
 					}
-					if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed); cond.Status != corev1.ConditionTrue || cond.Reason != "BundleUnpackFailed" {
-						return fmt.Errorf("%s condition not found", v1alpha1.SubscriptionBundleUnpackFailed)
+					if cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpackFailed); cond.Status != corev1.ConditionTrue || cond.Reason != "BundleUnpackFailed" {
+						return fmt.Errorf("%s condition not found", operatorsv1alpha1.SubscriptionBundleUnpackFailed)
 					}
 					return nil
 				},
@@ -2835,11 +2834,11 @@ properties:
 				if err != nil {
 					return err
 				}
-				if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpacking); cond.Status != corev1.ConditionFalse {
-					return fmt.Errorf("subscription condition %s has unexpected value %s, expected %s", v1alpha1.SubscriptionBundleUnpacking, cond.Status, corev1.ConditionFalse)
+				if cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpacking); cond.Status != corev1.ConditionFalse {
+					return fmt.Errorf("subscription condition %s has unexpected value %s, expected %s", operatorsv1alpha1.SubscriptionBundleUnpacking, cond.Status, corev1.ConditionFalse)
 				}
-				if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed); cond.Status != corev1.ConditionUnknown {
-					return fmt.Errorf("unexpected condition %s on subscription", v1alpha1.SubscriptionBundleUnpackFailed)
+				if cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpackFailed); cond.Status != corev1.ConditionUnknown {
+					return fmt.Errorf("unexpected condition %s on subscription", operatorsv1alpha1.SubscriptionBundleUnpackFailed)
 				}
 				return nil
 			}).Should(Succeed())
@@ -2875,11 +2874,11 @@ properties:
 				if err != nil {
 					return err
 				}
-				if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpacking); cond.Status == corev1.ConditionTrue {
-					return fmt.Errorf("unexpected condition status for %s on subscription %s", v1alpha1.SubscriptionBundleUnpacking, subName)
+				if cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpacking); cond.Status == corev1.ConditionTrue {
+					return fmt.Errorf("unexpected condition status for %s on subscription %s", operatorsv1alpha1.SubscriptionBundleUnpacking, subName)
 				}
-				if cond := fetched.Status.GetCondition(v1alpha1.SubscriptionBundleUnpackFailed); cond.Status == corev1.ConditionTrue {
-					return fmt.Errorf("unexpected condition status for %s on subscription %s", v1alpha1.SubscriptionBundleUnpackFailed, subName)
+				if cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpackFailed); cond.Status == corev1.ConditionTrue {
+					return fmt.Errorf("unexpected condition status for %s on subscription %s", operatorsv1alpha1.SubscriptionBundleUnpackFailed, subName)
 				}
 				return nil
 			}).Should(Succeed())
