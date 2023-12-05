@@ -128,10 +128,9 @@ func (c *catalogHealthReconciler) updateDeprecatedStatus(ctx context.Context, su
 	if c.sourceProvider == nil {
 		return false, nil
 	}
-
-	source, ok := c.sourceProvider.Sources(sub.Namespace)[cache.SourceKey{
+	source, ok := c.sourceProvider.Sources(sub.Spec.CatalogSourceNamespace)[cache.SourceKey{
 		Name:      sub.Spec.CatalogSource,
-		Namespace: sub.Namespace,
+		Namespace: sub.Spec.CatalogSourceNamespace,
 	}]
 	if !ok {
 		return false, nil
