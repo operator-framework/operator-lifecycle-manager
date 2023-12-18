@@ -7,7 +7,7 @@ metadata:
     app: catalog-operator
 spec:
   strategy:
-    type: RollingUpdate
+    type: Recreate
   replicas: {{ .Values.catalog.replicaCount }}
   selector:
     matchLabels:
