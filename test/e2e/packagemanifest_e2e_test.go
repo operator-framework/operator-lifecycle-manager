@@ -57,7 +57,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		)
 
 		BeforeEach(func() {
-			// create a simple catalogsource
+			By(`create a simple catalogsource`)
 			packageName = genName("nginx")
 			alphaChannel = "alpha"
 			packageAlpha = packageName + "-alpha"
@@ -114,7 +114,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 
 			_, cleanupCatalogSource = createInternalCatalogSource(c, crc, catsrcName, generatedNamespace.GetName(), manifests, []apiextensionsv1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv, csvAlpha})
 
-			// Verify catalog source was created
+			By(`Verify catalog source was created`)
 			_, err := fetchCatalogSourceOnStatus(crc, catsrcName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -126,7 +126,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		})
 
 		It("retrieves the PackageManifest by package name and validates its fields", func() {
-			// Drop icons to account for pruning
+			By(`Drop icons to account for pruning`)
 			csvAlpha.Spec.Icon = nil
 			csv.Spec.Icon = nil
 
@@ -181,7 +181,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 		})
 
 		It("lists PackageManifest and ensures it has valid PackageManifest item", func() {
-			// Get a PackageManifestList and ensure it has the correct items
+			By(`Get a PackageManifestList and ensure it has the correct items`)
 			Eventually(func() (bool, error) {
 				pmList, err := pmc.OperatorsV1().PackageManifests(generatedNamespace.GetName()).List(context.TODO(), metav1.ListOptions{})
 				return containsPackageManifest(pmList.Items, packageName), err
@@ -198,7 +198,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			data, err := res.Raw()
 			Expect(err).ToNot(HaveOccurred())
 
-			// Match against icon from the default
+			By(`Match against icon from the default`)
 			expected, err := base64.StdEncoding.DecodeString(csv.Spec.Icon[0].Data)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(data).To(Equal(expected))
@@ -241,7 +241,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(catalogSource.GetNamespace()).Create(context.TODO(), catalogSource, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			// Wait for the CatalogSource to be ready
+			By(`Wait for the CatalogSource to be ready`)
 			_, err = fetchCatalogSourceOnStatus(crc, catalogSource.GetName(), catalogSource.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 		})
@@ -258,7 +258,7 @@ var _ = Describe("Package Manifest API lists available Operators from Catalog So
 			Expect(pm).ShouldNot(BeNil())
 			Expect(pm.GetName()).Should(Equal(packageName))
 
-			// Verify related images from the package manifest
+			By(`Verify related images from the package manifest`)
 			relatedImages := pm.Status.Channels[0].CurrentCSVDesc.RelatedImages
 
 			Expect(relatedImages).To(ConsistOf([]string{

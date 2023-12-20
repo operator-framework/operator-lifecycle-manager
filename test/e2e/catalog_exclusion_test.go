@@ -69,12 +69,12 @@ var _ = Describe("Global Catalog Exclusion", func() {
 		localCatalog, err = NewMagicCatalogFromFile(determinedE2eClient, generatedNamespace.GetName(), localCatalogName, fbcPath)
 		Expect(err).To(Succeed())
 
-		// deploy catalog blocks until the catalog has reached a ready state or fails
+		By("deploy catalog blocks until the catalog has reached a ready state or fails")
 		Expect(localCatalog.DeployCatalog(context.Background())).To(Succeed())
 
 		By("checking that the global catalog is broken")
-		// Adding this check here to speed up the test
-		// the global catalog can fail while we wait for the local catalog to get to a ready state
+		By("Adding this check here to speed up the test")
+		By("the global catalog can fail while we wait for the local catalog to get to a ready state")
 		EventuallyResource(globalCatalog).Should(HaveGrpcConnectionWithLastConnectionState(connectivity.TransientFailure))
 	})
 

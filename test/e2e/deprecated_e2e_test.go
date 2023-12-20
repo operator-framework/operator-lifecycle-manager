@@ -77,12 +77,12 @@ var _ = Describe("Not found APIs", func() {
 
 				errMessage := "api-server resource not found installing VerticalPodAutoscaler my.thing: GroupVersionKind " +
 					"verticalpodautoscalers.autoscaling.k8s.io/v1, Kind=VerticalPodAutoscaler not found on the cluster"
-				// The IP sits in the Installing phase with the GVK missing error
+				By("The IP sits in the Installing phase with the GVK missing error")
 				Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 					return ip, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
 				}).Should(And(HavePhase(operatorsv1alpha1.InstallPlanPhaseInstalling), HaveMessage(errMessage)))
 
-				// Eventually the IP fails with the GVK missing error, after installplan retries, which is by default 1 minute.
+				By("Eventually the IP fails with the GVK missing error, after installplan retries, which is by default 1 minute.")
 				Eventually(func() (*operatorsv1alpha1.InstallPlan, error) {
 					return ip, ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(ip), ip)
 				}, 2*time.Minute).Should(And(HavePhase(operatorsv1alpha1.InstallPlanPhaseFailed), HaveMessage(errMessage)))

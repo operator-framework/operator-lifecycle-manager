@@ -62,7 +62,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 				imageName  = "quay.io/olmtest/single-bundle-index:pdb-v1"
 			)
 
-			// create VPA CRD on cluster
+			By("create VPA CRD on cluster")
 			Expect(vpaCRDRaw).ToNot(BeEmpty(), "could not read vpa bindata")
 			data, err := yaml.YAMLToJSON(vpaCRDRaw)
 			Expect(err).ToNot(HaveOccurred(), "could not convert vpa crd to json")
@@ -80,7 +80,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 				return nil
 			}).Should(Succeed())
 
-			// ensure vpa crd is established and accepted on the cluster before continuing
+			By("ensure vpa crd is established and accepted on the cluster before continuing")
 			Eventually(func() (bool, error) {
 				crd, err := kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Get(context.Background(), vpaCRD.GetName(), metav1.GetOptions{})
 				if err != nil {
@@ -113,20 +113,20 @@ var _ = Describe("Installing bundles with new object types", func() {
 				return err
 			}).Should(Succeed())
 
-			// Wait for the CatalogSource to be ready
+			By("Wait for the CatalogSource to be ready")
 			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
-			// Create a Subscription for package
+			By("Create a Subscription for package")
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
-			// Wait for the Subscription to succeed
+			By("Wait for the Subscription to succeed")
 			sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker())
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 			installPlanRef := sub.Status.InstallPlanRef
 
-			// Wait for the installplan to complete (5 minute timeout)
+			By("Wait for the installplan to complete (5 minute timeout)")
 			_, err = fetchInstallPlanWithNamespace(GinkgoT(), operatorClient, installPlanRef.Name, installPlanRef.Namespace, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
@@ -149,7 +149,7 @@ var _ = Describe("Installing bundles with new object types", func() {
 				Resource: vpaResource,
 			}
 
-			// confirm extra bundle objects are installed
+			By("confirm extra bundle objects are installed")
 			Eventually(func() error {
 				_, err := kubeClient.KubernetesInterface().SchedulingV1().PriorityClasses().Get(context.Background(), priorityClassName, metav1.GetOptions{})
 				return err

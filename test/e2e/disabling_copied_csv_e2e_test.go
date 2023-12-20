@@ -111,7 +111,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 					return err
 				}
 
-				// Exit early if copied CSVs are disabled.
+				By(`Exit early if copied CSVs are disabled.`)
 				if !olmConfig.CopiedCSVsAreEnabled() {
 					return nil
 				}
@@ -201,7 +201,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 					return err
 				}
 
-				// Exit early if copied CSVs are enabled.
+				By(`Exit early if copied CSVs are enabled.`)
 				if olmConfig.CopiedCSVsAreEnabled() {
 					return nil
 				}
@@ -222,7 +222,7 @@ var _ = Describe("Disabling copied CSVs", func() {
 
 		It("should have copied CSVs in all other Namespaces", func() {
 			Eventually(func() error {
-				// find copied csvs...
+				By(`find copied csvs...`)
 				requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
 				if err != nil {
 					return err

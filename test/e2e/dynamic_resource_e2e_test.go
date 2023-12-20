@@ -48,7 +48,7 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 
 				BeforeEach(func() {
 
-					// Create CatalogSource
+					By("Create CatalogSource")
 					catsrc = &v1alpha1.CatalogSource{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      genName("dynamic-catalog-"),
@@ -66,11 +66,11 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 					catsrc, err := crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(context.TODO(), catsrc, metav1.CreateOptions{})
 					Expect(err).NotTo(HaveOccurred())
 
-					// Wait for the CatalogSource to be ready
+					By("Wait for the CatalogSource to be ready")
 					_, err = fetchCatalogSourceOnStatus(crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced())
 					Expect(err).NotTo(HaveOccurred())
 
-					// Generate a Subscription
+					By("Generate a Subscription")
 					subName = genName("dynamic-resources")
 					cleanupSub = createSubscriptionForCatalog(crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "etcd", "singlenamespace-alpha", "", v1alpha1.ApprovalAutomatic)
 
@@ -78,12 +78,12 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 
 				AfterEach(func() {
 
-					// clean up subscription
+					By("clean up subscription")
 					if cleanupSub != nil {
 						cleanupSub()
 					}
 
-					// Delete CatalogSource
+					By("Delete CatalogSource")
 					if catsrc != nil {
 						err := crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(context.TODO(), catsrc.GetName(), *deleteOpts)
 						Expect(err).NotTo(HaveOccurred())
@@ -106,13 +106,13 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 					ip, err := waitForInstallPlan(crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
 					Expect(err).NotTo(HaveOccurred())
 
-					// Ensure the InstallPlan contains the steps resolved from the bundle image
+					By("Ensure the InstallPlan contains the steps resolved from the bundle image")
 					expectedSteps := map[registry.ResourceKey]struct{}{
 						{Name: "my-prometheusrule", Kind: "PrometheusRule"}: {},
 						{Name: "my-servicemonitor", Kind: "ServiceMonitor"}: {},
 					}
 
-					// Verify Resource steps match expected steps
+					By("Verify Resource steps match expected steps")
 					for _, step := range ip.Status.Plan {
 						key := registry.ResourceKey{
 							Name: step.Resource.Name,
@@ -126,7 +126,7 @@ var _ = Describe("Subscriptions create required objects from Catalogs", func() {
 					}
 					Expect(len(expectedSteps)).To(BeZero(), "Resource steps do not match expected: %#v", expectedSteps)
 
-					// Confirm that the expected types exist
+					By("Confirm that the expected types exist")
 					gvr := schema.GroupVersionResource{
 						Group:    "monitoring.coreos.com",
 						Version:  "v1",
