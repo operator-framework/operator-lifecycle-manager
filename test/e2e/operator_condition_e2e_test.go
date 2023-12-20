@@ -42,7 +42,7 @@ var _ = Describe("Operator Condition", func() {
 		c := ctx.Ctx().KubeClient()
 		crc := ctx.Ctx().OperatorClient()
 
-		// Create a catalog for csvA, csvB, and csvD
+		By(`Create a catalog for csvA, csvB, and csvD`)
 		pkgA := genName("a-")
 		pkgB := genName("b-")
 		pkgD := genName("d-")
@@ -58,7 +58,7 @@ var _ = Describe("Operator Condition", func() {
 		csvB := newCSV(pkgBStable, generatedNamespace.GetName(), pkgAStable, semver.MustParse("0.2.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &strategyB)
 		csvD := newCSV(pkgDStable, generatedNamespace.GetName(), pkgBStable, semver.MustParse("0.3.0"), []apiextensionsv1.CustomResourceDefinition{crd}, nil, &strategyD)
 
-		// Create the initial catalogsources
+		By(`Create the initial catalogsources`)
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: pkgA,
@@ -77,11 +77,11 @@ var _ = Describe("Operator Condition", func() {
 		cleanupSub := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subName, catalog, pkgA, stableChannel, pkgAStable, operatorsv1alpha1.ApprovalAutomatic)
 		defer cleanupSub()
 
-		// Await csvA's success
+		By(`Await csvA's success`)
 		_, err = fetchCSV(crc, generatedNamespace.GetName(), csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Get the OperatorCondition for csvA and report that it is not upgradeable
+		By(`Get the OperatorCondition for csvA and report that it is not upgradeable`)
 		var cond *operatorsv2.OperatorCondition
 		upgradeableFalseCondition := metav1.Condition{
 			Type:               operatorsv2.Upgradeable,
@@ -104,7 +104,7 @@ var _ = Describe("Operator Condition", func() {
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
 
-		// Update the catalogsources
+		By(`Update the catalogsources`)
 		manifests = []registry.PackageManifest{
 			{
 				PackageName: pkgA,
@@ -116,16 +116,16 @@ var _ = Describe("Operator Condition", func() {
 		}
 		updateInternalCatalog(GinkgoT(), c, crc, catalog, generatedNamespace.GetName(), []apiextensionsv1.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB}, manifests)
 
-		// Attempt to get the catalog source before creating install plan(s)
+		By(`Attempt to get the catalog source before creating install plan(s)`)
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
-		// csvB will be in Pending phase due to csvA reports Upgradeable=False condition
+		By(`csvB will be in Pending phase due to csvA reports Upgradeable=False condition`)
 		fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvB.GetName(), buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOperatorConditionNotUpgradeable))
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), fetchedCSV.Status.Phase, operatorsv1alpha1.CSVPhasePending)
 
-		// Get the OperatorCondition for csvA and report that it is upgradeable, unblocking csvB
+		By(`Get the OperatorCondition for csvA and report that it is upgradeable, unblocking csvB`)
 		upgradeableTrueCondition := metav1.Condition{
 			Type:               operatorsv2.Upgradeable,
 			Status:             metav1.ConditionTrue,
@@ -145,12 +145,12 @@ var _ = Describe("Operator Condition", func() {
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
 
-		// Await csvB's success
+		By(`Await csvB's success`)
 		_, err = fetchCSV(crc, generatedNamespace.GetName(), csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Get the OperatorCondition for csvB and purposedly change ObservedGeneration
-		// to cause mismatch generation situation
+		By(`Get the OperatorCondition for csvB and purposedly change ObservedGeneration`)
+		By(`to cause mismatch generation situation`)
 		Eventually(func() error {
 			cond, err = crc.OperatorsV2().OperatorConditions(generatedNamespace.GetName()).Get(context.TODO(), csvB.GetName(), metav1.GetOptions{})
 			if err != nil || currentGen == cond.ObjectMeta.GetGeneration() {
@@ -163,7 +163,7 @@ var _ = Describe("Operator Condition", func() {
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())
 
-		// Update the catalogsources
+		By(`Update the catalogsources`)
 		manifests = []registry.PackageManifest{
 			{
 				PackageName: pkgA,
@@ -175,23 +175,23 @@ var _ = Describe("Operator Condition", func() {
 		}
 
 		updateInternalCatalog(GinkgoT(), c, crc, catalog, generatedNamespace.GetName(), []apiextensionsv1.CustomResourceDefinition{crd}, []operatorsv1alpha1.ClusterServiceVersion{csvA, csvB, csvD}, manifests)
-		// Attempt to get the catalog source before creating install plan(s)
+		By(`Attempt to get the catalog source before creating install plan(s)`)
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
-		// CSVD will be in Pending status due to overrides in csvB's condition
+		By(`CSVD will be in Pending status due to overrides in csvB's condition`)
 		fetchedCSV, err = fetchCSV(crc, generatedNamespace.GetName(), csvD.GetName(), buildCSVReasonChecker(operatorsv1alpha1.CSVReasonOperatorConditionNotUpgradeable))
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), fetchedCSV.Status.Phase, operatorsv1alpha1.CSVPhasePending)
 
-		// Get the OperatorCondition for csvB and override the upgradeable false condition
+		By(`Get the OperatorCondition for csvB and override the upgradeable false condition`)
 		Eventually(func() error {
 			cond, err = crc.OperatorsV2().OperatorConditions(generatedNamespace.GetName()).Get(context.TODO(), csvB.GetName(), metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 			meta.SetStatusCondition(&cond.Spec.Overrides, upgradeableTrueCondition)
-			// Update the condition
+			By(`Update the condition`)
 			_, err = crc.OperatorsV2().OperatorConditions(generatedNamespace.GetName()).Update(context.TODO(), cond, metav1.UpdateOptions{})
 			return err
 		}, pollInterval, pollDuration).Should(Succeed())

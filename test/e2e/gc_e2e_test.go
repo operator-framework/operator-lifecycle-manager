@@ -77,7 +77,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				},
 			}
 
-			// Create a CustomResourceDefinition
+			By(`Create a CustomResourceDefinition`)
 			var err error
 			Eventually(func() error {
 				crd, err = kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
@@ -91,7 +91,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				},
 			}
 
-			// Create a ClusterRole for the crd
+			By(`Create a ClusterRole for the crd`)
 			Eventually(func() error {
 				cr, err = kubeClient.CreateClusterRole(cr)
 				return err
@@ -100,17 +100,17 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 		AfterEach(func() {
 
-			// Clean up cluster role
+			By(`Clean up cluster role`)
 			IgnoreError(kubeClient.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
 
-			// Clean up CRD
+			By(`Clean up CRD`)
 			IgnoreError(kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{}))
 		})
 
 		When("CustomResourceDefinition is deleted", func() {
 
 			BeforeEach(func() {
-				// Delete CRD
+				By(`Delete CRD`)
 				Eventually(func() bool {
 					err := kubeClient.ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{})
 					return apierrors.IsNotFound(err)
@@ -147,7 +147,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 					VersionPriority:      1,
 				},
 			}
-			// Create an API Service
+			By(`Create an API Service`)
 			var err error
 			Eventually(func() error {
 				apiService, err = kubeClient.CreateAPIService(apiService)
@@ -162,7 +162,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			}
 
 			Eventually(func() error {
-				// Create a ClusterRole
+				By(`Create a ClusterRole`)
 				cr, err = kubeClient.CreateClusterRole(cr)
 				return err
 			}).Should(Succeed())
@@ -179,7 +179,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		When("APIService is deleted", func() {
 
 			BeforeEach(func() {
-				// Delete API service
+				By(`Delete API service`)
 				Eventually(func() bool {
 					err := kubeClient.DeleteAPIService(apiService.GetName(), &metav1.DeleteOptions{})
 					return apierrors.IsNotFound(err)
@@ -221,7 +221,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			ownerA = newCSV("ownera", generatedNamespace.GetName(), "", semver.MustParse("0.0.0"), nil, nil, nil)
 			ownerB = newCSV("ownerb", generatedNamespace.GetName(), "", semver.MustParse("0.0.0"), nil, nil, nil)
 
-			// create all owners
+			By(`create all owners`)
 			var err error
 			Eventually(func() error {
 				fetchedA, err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Create(context.Background(), &ownerA, metav1.CreateOptions{})
@@ -240,11 +240,11 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				Data: map[string]string{},
 			}
 
-			// add owners
+			By(`add owners`)
 			ownerutil.AddOwner(dependent, fetchedA, true, false)
 			ownerutil.AddOwner(dependent, fetchedB, true, false)
 
-			// create ConfigMap dependent
+			By(`create ConfigMap dependent`)
 			Eventually(func() error {
 				_, err = kubeClient.KubernetesInterface().CoreV1().ConfigMaps(generatedNamespace.GetName()).Create(context.Background(), dependent, metav1.CreateOptions{})
 				return err
@@ -257,13 +257,13 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		When("removing one of the owner using 'Foreground' deletion policy", func() {
 
 			BeforeEach(func() {
-				// delete ownerA in the foreground (to ensure any "blocking" dependents are deleted before ownerA)
+				By(`delete ownerA in the foreground (to ensure any "blocking" dependents are deleted before ownerA)`)
 				Eventually(func() bool {
 					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), fetchedA.GetName(), options)
 					return apierrors.IsNotFound(err)
 				}).Should(BeTrue())
 
-				// wait for deletion of ownerA
+				By(`wait for deletion of ownerA`)
 				Eventually(func() bool {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(context.Background(), ownerA.GetName(), metav1.GetOptions{})
 					return apierrors.IsNotFound(err)
@@ -282,25 +282,25 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		When("removing both the owners using 'Foreground' deletion policy", func() {
 
 			BeforeEach(func() {
-				// delete ownerA in the foreground (to ensure any "blocking" dependents are deleted before ownerA)
+				By(`delete ownerA in the foreground (to ensure any "blocking" dependents are deleted before ownerA)`)
 				Eventually(func() bool {
 					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), fetchedA.GetName(), options)
 					return apierrors.IsNotFound(err)
 				}).Should(BeTrue())
 
-				// wait for deletion of ownerA
+				By(`wait for deletion of ownerA`)
 				Eventually(func() bool {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(context.Background(), ownerA.GetName(), metav1.GetOptions{})
 					return apierrors.IsNotFound(err)
 				}).Should(BeTrue())
 
-				// delete ownerB in the foreground (to ensure any "blocking" dependents are deleted before ownerB)
+				By(`delete ownerB in the foreground (to ensure any "blocking" dependents are deleted before ownerB)`)
 				Eventually(func() bool {
 					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), fetchedB.GetName(), options)
 					return apierrors.IsNotFound(err)
 				}).Should(BeTrue())
 
-				// wait for deletion of ownerB
+				By(`wait for deletion of ownerB`)
 				Eventually(func() bool {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(context.Background(), ownerB.GetName(), metav1.GetOptions{})
 					return apierrors.IsNotFound(err)
@@ -336,7 +336,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			)
 			var installPlanRef string
 
-			// create catalog source
+			By(`create catalog source`)
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       v1alpha1.CatalogSourceKind,
@@ -366,26 +366,26 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				return nil
 			}).Should(Succeed(), "could not create catalog source")
 
-			// Wait for the CatalogSource to be ready
+			By(`Wait for the CatalogSource to be ready`)
 			_, err := fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
-			// Create a Subscription for package
+			By(`Create a Subscription for package`)
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
-			// Wait for the Subscription to succeed
+			By(`Wait for the Subscription to succeed`)
 			sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker())
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 			installPlanRef = sub.Status.InstallPlanRef.Name
 
-			// Wait for the installplan to complete (5 minute timeout)
+			By(`Wait for the installplan to complete (5 minute timeout)`)
 			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
 			ctx.Ctx().Logf("install plan %s completed", installPlanRef)
 
-			// confirm extra bundle objects (secret and configmap) are installed
+			By(`confirm extra bundle objects (secret and configmap) are installed`)
 			Eventually(func() error {
 				_, err := kubeClient.GetSecret(generatedNamespace.GetName(), secretName)
 				return err
@@ -402,25 +402,25 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			const csvName = "busybox.v2.0.0"
 
 			BeforeEach(func() {
-				// Delete subscription first
+				By(`Delete subscription first`)
 				Eventually(func() bool {
 					err := operatorClient.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Delete(context.Background(), subName, metav1.DeleteOptions{})
 					return apierrors.IsNotFound(err)
 				}).Should(BeTrue())
 
-				// wait for deletion
+				By(`wait for deletion`)
 				Eventually(func() bool {
 					_, err := operatorClient.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
 					return apierrors.IsNotFound(err)
 				}).Should(BeTrue())
 
-				// Delete CSV
+				By(`Delete CSV`)
 				Eventually(func() bool {
 					err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), csvName, metav1.DeleteOptions{})
 					return apierrors.IsNotFound(err)
 				}).Should(BeTrue())
 
-				// wait for deletion
+				By(`wait for deletion`)
 				Eventually(func() bool {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(context.Background(), csvName, metav1.GetOptions{})
 					return apierrors.IsNotFound(err)
@@ -428,7 +428,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			})
 
 			It("OLM should delete the associated configmap and secret", func() {
-				// confirm extra bundle objects (secret and configmap) are no longer installed on the cluster
+				By(`confirm extra bundle objects (secret and configmap) are no longer installed on the cluster`)
 				Eventually(func() bool {
 					_, err := kubeClient.GetSecret(generatedNamespace.GetName(), secretName)
 					return apierrors.IsNotFound(err)
@@ -459,7 +459,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			)
 
 			var installPlanRef string
-			// create catalog source
+			By(`create catalog source`)
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       v1alpha1.CatalogSourceKind,
@@ -485,20 +485,20 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				return err
 			}).Should(Succeed(), "could not create catalog source")
 
-			// Wait for the CatalogSource to be ready
+			By(`Wait for the CatalogSource to be ready`)
 			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
-			// Create a Subscription for package
+			By(`Create a Subscription for package`)
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
-			// Wait for the Subscription to succeed
+			By(`Wait for the Subscription to succeed`)
 			sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker())
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 			installPlanRef = sub.Status.InstallPlanRef.Name
 
-			// Wait for the installplan to complete (5 minute timeout)
+			By(`Wait for the installplan to complete (5 minute timeout)`)
 			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
@@ -518,28 +518,28 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 			BeforeEach(func() {
 				Eventually(func() error {
-					// update subscription first
+					By(`update subscription first`)
 					sub, err := operatorClient.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
 					if err != nil {
 						return fmt.Errorf("could not get subscription")
 					}
-					// update channel on sub
+					By(`update channel on sub`)
 					sub.Spec.Channel = upgradeChannelName
 					_, err = operatorClient.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
 					return err
 				}).Should(Succeed(), "could not update subscription")
 
-				// Wait for the Subscription to succeed
+				By(`Wait for the Subscription to succeed`)
 				sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker())
 				Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 				installPlanRef = sub.Status.InstallPlanRef.Name
 
-				// Wait for the installplan to complete (5 minute timeout)
+				By(`Wait for the installplan to complete (5 minute timeout)`)
 				_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 				Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
-				// Ensure the new csv is installed
+				By(`Ensure the new csv is installed`)
 				Eventually(func() error {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(context.Background(), newCSVname, metav1.GetOptions{})
 					return err
@@ -552,8 +552,8 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 					if err != nil {
 						return "", err
 					}
-					// check data in configmap to ensure it is the new data (configmap was updated in the newer bundle)
-					// new value in the configmap is "updated-very-much"
+					By(`check data in configmap to ensure it is the new data (configmap was updated in the newer bundle)`)
+					By(`new value in the configmap is "updated-very-much"`)
 					return cfg.Data["special.how"], nil
 				}).Should(Equal("updated-very-much"))
 				ctx.Ctx().Logf("dependent successfully updated after csv owner was updated")
@@ -577,7 +577,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 			)
 
 			var installPlanRef string
-			// create catalog source
+			By(`create catalog source`)
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       v1alpha1.CatalogSourceKind,
@@ -603,20 +603,20 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 				return err
 			}).Should(Succeed())
 
-			// Wait for the CatalogSource to be ready
+			By(`Wait for the CatalogSource to be ready`)
 			_, err = fetchCatalogSourceOnStatus(operatorClient, source.GetName(), source.GetNamespace(), catalogSourceRegistryPodSynced())
 			Expect(err).ToNot(HaveOccurred(), "catalog source did not become ready")
 
-			// Create a Subscription for package
+			By(`Create a Subscription for package`)
 			_ = createSubscriptionForCatalog(operatorClient, source.GetNamespace(), subName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
 
-			// Wait for the Subscription to succeed
+			By(`Wait for the Subscription to succeed`)
 			sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker())
 			Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 			installPlanRef = sub.Status.InstallPlanRef.Name
 
-			// Wait for the installplan to complete (5 minute timeout)
+			By(`Wait for the installplan to complete (5 minute timeout)`)
 			_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 			Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
@@ -637,36 +637,36 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 
 			BeforeEach(func() {
 				Eventually(func() error {
-					// update subscription first
+					By(`update subscription first`)
 					sub, err := operatorClient.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
 					if err != nil {
 						return fmt.Errorf("could not get subscription")
 					}
-					// update channel on sub
+					By(`update channel on sub`)
 					sub.Spec.Channel = upgradeChannelName
 					_, err = operatorClient.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Update(context.Background(), sub, metav1.UpdateOptions{})
 					return err
 				}).Should(Succeed(), "could not update subscription")
 
-				// Wait for the Subscription to succeed
+				By(`Wait for the Subscription to succeed`)
 				sub, err := fetchSubscription(operatorClient, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker())
 				Expect(err).ToNot(HaveOccurred(), "could not get subscription at latest status")
 
 				installPlanRef = sub.Status.InstallPlanRef.Name
 
-				// Wait for the installplan to complete (5 minute timeout)
+				By(`Wait for the installplan to complete (5 minute timeout)`)
 				_, err = fetchInstallPlan(GinkgoT(), operatorClient, installPlanRef, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 				Expect(err).ToNot(HaveOccurred(), "could not get installplan at complete phase")
 
-				// Ensure the new csv is installed
+				By(`Ensure the new csv is installed`)
 				Eventually(func() error {
 					_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(context.Background(), newCSVname, metav1.GetOptions{})
 					return err
 				}).Should(BeNil())
 			})
 
-			// flake issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2626
 			It("[FLAKE] should have removed the old configmap and put the new configmap in place", func() {
+				By(`flake issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2626`)
 				Eventually(func() bool {
 					_, err := kubeClient.GetConfigMap(generatedNamespace.GetName(), configmapName)
 					return apierrors.IsNotFound(err)

@@ -47,7 +47,7 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 		BeforeEach(func() {
 			client = ctx.Ctx().Client()
 
-			// must be a grpc source type with spec.image defined
+			By("must be a grpc source type with spec.image defined")
 			catalogSource = &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      catalogSourceName,
@@ -64,10 +64,10 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 		})
 
 		AfterEach(func() {
-			// assume the catalog source was created and just delete it
+			By("assume the catalog source was created and just delete it")
 			_ = client.Delete(context.TODO(), catalogSource)
 
-			// wait for it to go away
+			By("wait for it to go away")
 			Expect(waitForDelete(func() error {
 				return client.Get(context.TODO(), k8scontrollerclient.ObjectKey{
 					Name:      catalogSource.GetName(),
@@ -79,14 +79,14 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 		It("should override the pod's spec.priorityClassName", func() {
 			var overridenPriorityClassName = "system-node-critical"
 
-			// create catalog source
+			By("create catalog source")
 			catalogSource.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{
 				PriorityClassName:     &overridenPriorityClassName,
 				SecurityContextConfig: v1alpha1.Restricted,
 			}
 			mustCreateCatalogSource(client, catalogSource)
 
-			// Check overrides are present in the spec
+			By("Check overrides are present in the spec")
 			catalogSourcePod := mustGetCatalogSourcePod(client, catalogSource)
 			Expect(catalogSourcePod).ToNot(BeNil())
 			Expect(catalogSourcePod.Spec.NodeSelector).To(BeEquivalentTo(defaultNodeSelector))
@@ -97,14 +97,14 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 		It("should override the pod's spec.priorityClassName when it is empty", func() {
 			var overridenPriorityClassName = ""
 
-			// create catalog source
+			By("create catalog source")
 			catalogSource.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{
 				PriorityClassName:     &overridenPriorityClassName,
 				SecurityContextConfig: v1alpha1.Restricted,
 			}
 			mustCreateCatalogSource(client, catalogSource)
 
-			// Check overrides are present in the spec
+			By("Check overrides are present in the spec")
 			catalogSourcePod := mustGetCatalogSourcePod(client, catalogSource)
 			Expect(catalogSourcePod).ToNot(BeNil())
 			Expect(catalogSourcePod.Spec.NodeSelector).To(BeEquivalentTo(defaultNodeSelector))
@@ -118,14 +118,14 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 				"some":             "tag",
 			}
 
-			// create catalog source
+			By("create catalog source")
 			catalogSource.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{
 				NodeSelector:          overridenNodeSelector,
 				SecurityContextConfig: v1alpha1.Restricted,
 			}
 			mustCreateCatalogSource(client, catalogSource)
 
-			// Check overrides are present in the spec
+			By("Check overrides are present in the spec")
 			catalogSourcePod := mustGetCatalogSourcePod(client, catalogSource)
 			Expect(catalogSourcePod).ToNot(BeNil())
 			Expect(catalogSourcePod.Spec.NodeSelector).To(BeEquivalentTo(overridenNodeSelector))
@@ -149,14 +149,14 @@ var _ = Describe("CatalogSource Grpc Pod Config", func() {
 				},
 			}
 
-			// create catalog source
+			By("create catalog source")
 			catalogSource.Spec.GrpcPodConfig = &v1alpha1.GrpcPodConfig{
 				Tolerations:           overriddenTolerations,
 				SecurityContextConfig: v1alpha1.Restricted,
 			}
 			mustCreateCatalogSource(client, catalogSource)
 
-			// Check overrides are present in the spec
+			By("Check overrides are present in the spec")
 			catalogSourcePod := mustGetCatalogSourcePod(client, catalogSource)
 			Expect(catalogSourcePod).ToNot(BeNil())
 			Expect(catalogSourcePod.Spec.NodeSelector).To(BeEquivalentTo(defaultNodeSelector))

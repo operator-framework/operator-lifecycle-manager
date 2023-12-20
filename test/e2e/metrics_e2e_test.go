@@ -113,7 +113,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 				})
 
 				It("deletes its associated CSV metrics", func() {
-					// Verify that when the csv has been deleted, it deletes the corresponding CSV metrics
+					By(`Verify that when the csv has been deleted, it deletes the corresponding CSV metrics`)
 					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).ToNot(And(
 						ContainElement(LikeMetric(WithFamily("csv_abnormal"), WithName(failingCSV.Name))),
 						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(failingCSV.Name))),
@@ -191,7 +191,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 			It("generates subscription_sync_total metric", func() {
 
-				// Verify metrics have been emitted for subscription
+				By(`Verify metrics have been emitted for subscription`)
 				Eventually(func() []Metric {
 					return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
 				}).Should(ContainElement(LikeMetric(
@@ -205,7 +205,7 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 			It("generates dependency_resolution metric", func() {
 
-				// Verify metrics have been emitted for dependency resolution
+				By(`Verify metrics have been emitted for dependency resolution`)
 				Eventually(func() bool {
 					return Eventually(func() []Metric {
 						return getMetricsFromPod(c, getPodWithLabel(c, "app=catalog-operator"))
@@ -357,11 +357,11 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 					},
 				}
 				cs, cleanupAll := createInternalCatalogSource(c, crc, name, generatedNamespace.GetName(), mainManifests, []apiextensionsv1.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
-				// Note(tflannag): Dependending on how ginkgo orders these test specs, and how bloated the cluster we're running
-				// this test case against, we risk creating and then immediately deleting the catalogsource before the catalog
-				// operator can generate all the requisite resources (e.g. the ServiceAccount), which can leave the underlying
-				// registry Pod in a terminating state until kubelet times out waiting for the generated ServiceAccount
-				// resource to be present so it can mount it in the registry container.
+				By(`Note(tflannag): Dependending on how ginkgo orders these test specs, and how bloated the cluster we're running`)
+				By(`this test case against, we risk creating and then immediately deleting the catalogsource before the catalog`)
+				By(`operator can generate all the requisite resources (e.g. the ServiceAccount), which can leave the underlying`)
+				By(`registry Pod in a terminating state until kubelet times out waiting for the generated ServiceAccount`)
+				By(`resource to be present so it can mount it in the registry container.`)
 				_, err := fetchCatalogSourceOnStatus(crc, cs.GetName(), cs.GetNamespace(), catalogSourceRegistryPodSynced())
 				Expect(err).ShouldNot(HaveOccurred())
 
@@ -524,7 +524,7 @@ func extractMetricPortFromPod(pod *corev1.Pod) string {
 func getMetricsFromPod(client operatorclient.ClientInterface, pod *corev1.Pod) []Metric {
 	ctx.Ctx().Logf("querying pod %s/%s\n", pod.GetNamespace(), pod.GetName())
 
-	// assuming -tls-cert and -tls-key aren't used anywhere else as a parameter value
+	By(`assuming -tls-cert and -tls-key aren't used anywhere else as a parameter value`)
 	var foundCert, foundKey bool
 	for _, arg := range pod.Spec.Containers[0].Args {
 		matched, err := regexp.MatchString(`^-?-tls-cert`, arg)

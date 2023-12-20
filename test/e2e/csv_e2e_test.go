@@ -748,7 +748,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Shouldn't create deployment
+			By("Shouldn't create deployment")
 			Consistently(func() bool {
 				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
@@ -809,7 +809,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Shouldn't create deployment
+			By("Shouldn't create deployment")
 			Consistently(func() bool {
 				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
@@ -889,7 +889,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Create dependency first (CRD)
+			By("Create dependency first (CRD)")
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: crdName,
@@ -928,7 +928,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Shouldn't create deployment
+			By("Shouldn't create deployment")
 			Consistently(func() bool {
 				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
@@ -987,7 +987,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Shouldn't create deployment
+			By("Shouldn't create deployment")
 			Consistently(func() bool {
 				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
@@ -1052,7 +1052,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 						},
 					},
 					InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
-					// Cheating a little; this is an APIservice that will exist for the e2e tests
+					// "Cheating a little; this is an APIservice that will exist for the e2e tests"
 					APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 						Required: []operatorsv1alpha1.APIServiceDescription{
 							{
@@ -1074,7 +1074,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Shouldn't create deployment
+			By("Shouldn't create deployment")
 			Consistently(func() bool {
 				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
@@ -1123,7 +1123,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Shouldn't create deployment
+			By("Shouldn't create deployment")
 			Consistently(func() bool {
 				_, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				return apierrors.IsNotFound(err)
@@ -1209,7 +1209,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Create CSV first, knowing it will fail
+			By("Create CSV first, knowing it will fail")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
@@ -1267,7 +1267,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			defer cleanupCRD()
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Create Role/Cluster Roles and RoleBindings
+			By("Create Role/Cluster Roles and RoleBindings")
 			role := rbacv1.Role{
 				Rules: []rbacv1.PolicyRule{
 					{
@@ -1366,7 +1366,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred(), "could not create ClusterRoleBinding")
 
 			ctx.Ctx().Logf("checking for deployment")
-			// Poll for deployment to be ready
+			By("Poll for deployment to be ready")
 			Eventually(func() (bool, error) {
 				dep, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 				if apierrors.IsNotFound(err) {
@@ -1389,19 +1389,19 @@ var _ = Describe("ClusterServiceVersion", func() {
 			fetchedCSV, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Delete CRD
+			By("Delete CRD")
 			cleanupCRD()
 
-			// Wait for CSV failure
+			By("Wait for CSV failure")
 			fetchedCSV, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvPendingChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Recreate the CRD
+			By("Recreate the CRD")
 			cleanupCRD, err = createCRD(c, crd)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCRD()
 
-			// Wait for CSV success again
+			By("Wait for CSV success again")
 			fetchedCSV, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -1469,7 +1469,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 						},
 					},
 					InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
-					// Cheating a little; this is an APIservice that will exist for the e2e tests
+					// "Cheating a little; this is an APIservice that will exist for the e2e tests"
 					APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
 						Required: []operatorsv1alpha1.APIServiceDescription{
 							{
@@ -1484,7 +1484,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Create Role/Cluster Roles and RoleBindings
+			By("Create Role/Cluster Roles and RoleBindings")
 			role := rbacv1.Role{
 				Rules: []rbacv1.PolicyRule{
 					{
@@ -1558,7 +1558,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Fetch cluster service version again to check for unnecessary control loops
+			By("Fetch cluster service version again to check for unnecessary control loops")
 			sameCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
@@ -1573,7 +1573,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 			apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
-			// Create CSV for the package-server
+			By("Create CSV for the package-server")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -1629,7 +1629,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			csv.SetName(depName)
 
-			// Create the APIService CSV
+			By("Create the APIService CSV")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer func() {
@@ -1660,45 +1660,45 @@ var _ = Describe("ClusterServiceVersion", func() {
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should create Deployment
+			By("Should create Deployment")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), depName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Deployment")
 
-			// Should create APIService
+			By("Should create APIService")
 			apiService, err := c.GetAPIService(apiServiceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected APIService")
 
-			// Should create Service
+			By("Should create Service")
 			serviceName := fmt.Sprintf("%s-service", depName)
 			_, err = c.GetService(generatedNamespace.GetName(), serviceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Service")
 
-			// Should create certificate Secret
+			By("Should create certificate Secret")
 			secretName := fmt.Sprintf("%s-cert", serviceName)
 			_, err = c.GetSecret(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret")
 
-			// Should create a Role for the Secret
+			By("Should create a Role for the Secret")
 			_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret Role")
 
-			// Should create a RoleBinding for the Secret
+			By("Should create a RoleBinding for the Secret")
 			_, err = c.GetRoleBinding(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting exptected Secret RoleBinding")
 
-			// Should create a system:auth-delegator Cluster RoleBinding
+			By("Should create a system:auth-delegator Cluster RoleBinding")
 			_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", serviceName))
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected system:auth-delegator ClusterRoleBinding")
 
-			// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
+			By("Should create an extension-apiserver-authentication-reader RoleBinding in kube-system")
 			_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", serviceName))
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
-			// Store the ca sha annotation
+			By("Store the ca sha annotation")
 			oldCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey]
 			Expect(ok).Should(BeTrue(), "expected olm sha annotation not present on existing pod template")
 
-			// Induce a cert rotation
+			By("Induce a cert rotation")
 			Eventually(Apply(fetchedCSV, func(csv *operatorsv1alpha1.ClusterServiceVersion) error {
 				now := metav1.Now()
 				csv.Status.CertsLastUpdated = &now
@@ -1707,13 +1707,13 @@ var _ = Describe("ClusterServiceVersion", func() {
 			})).Should(Succeed())
 
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
-				// Should create deployment
+				By("Should create deployment")
 				dep, err = c.GetDeployment(generatedNamespace.GetName(), depName)
 				if err != nil {
 					return false
 				}
 
-				// Should have a new ca hash annotation
+				By("Should have a new ca hash annotation")
 				newCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey]
 				if !ok {
 					ctx.Ctx().Logf("expected olm sha annotation not present in new pod template")
@@ -1721,7 +1721,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				}
 
 				if newCAAnnotation != oldCAAnnotation {
-					// Check for success
+					By("Check for success")
 					return csvSucceededChecker(csv)
 				}
 
@@ -1729,16 +1729,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 			})
 			Expect(err).ShouldNot(HaveOccurred(), "failed to rotate cert")
 
-			// Get the APIService UID
+			By("Get the APIService UID")
 			oldAPIServiceUID := apiService.GetUID()
 
-			// Delete the APIService
+			By("Delete the APIService")
 			err = c.DeleteAPIService(apiServiceName, &metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Wait for CSV success
+			By("Wait for CSV success")
 			fetchedCSV, err = fetchCSV(crc, generatedNamespace.GetName(), csv.GetName(), func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
-				// Should create an APIService
+				By("Should create an APIService")
 				apiService, err := c.GetAPIService(apiServiceName)
 				if err != nil {
 					return false
@@ -1761,7 +1761,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 			apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
-			// Create CSVs for the hat-server
+			By("Create CSVs for the hat-server")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -1817,48 +1817,48 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			csv.SetName("csv-hat-1")
 
-			// Create the APIService CSV
+			By("Create the APIService CSV")
 			_, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should create Deployment
+			By("Should create Deployment")
 			_, err = c.GetDeployment(generatedNamespace.GetName(), depName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Deployment")
 
-			// Should create APIService
+			By("Should create APIService")
 			_, err = c.GetAPIService(apiServiceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected APIService")
 
-			// Should create Service
+			By("Should create Service")
 			serviceName := fmt.Sprintf("%s-service", depName)
 			_, err = c.GetService(generatedNamespace.GetName(), serviceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Service")
 
-			// Should create certificate Secret
+			By("Should create certificate Secret")
 			secretName := fmt.Sprintf("%s-cert", serviceName)
 			_, err = c.GetSecret(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret")
 
-			// Should create a Role for the Secret
+			By("Should create a Role for the Secret")
 			_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret Role")
 
-			// Should create a RoleBinding for the Secret
+			By("Should create a RoleBinding for the Secret")
 			_, err = c.GetRoleBinding(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting exptected Secret RoleBinding")
 
-			// Should create a system:auth-delegator Cluster RoleBinding
+			By("Should create a system:auth-delegator Cluster RoleBinding")
 			_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", serviceName))
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected system:auth-delegator ClusterRoleBinding")
 
-			// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
+			By("Should create an extension-apiserver-authentication-reader RoleBinding in kube-system")
 			_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", serviceName))
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
-			// Create a new CSV that owns the same API Service and replace the old CSV
+			By("Create a new CSV that owns the same API Service and replace the old CSV")
 			csv2 := operatorsv1alpha1.ClusterServiceVersion{
 				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					Replaces:       csv.Name,
@@ -1892,7 +1892,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			csv2.SetName("csv-hat-2")
 
-			// Create CSV2 to replace CSV
+			By("Create CSV2 to replace CSV")
 			cleanupCSV2, err := createCSV(c, crc, csv2, generatedNamespace.GetName(), false, true)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV2()
@@ -1900,61 +1900,61 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv2.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should create Deployment
+			By("Should create Deployment")
 			_, err = c.GetDeployment(generatedNamespace.GetName(), depName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Deployment")
 
-			// Should create APIService
+			By("Should create APIService")
 			_, err = c.GetAPIService(apiServiceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected APIService")
 
-			// Should create Service
+			By("Should create Service")
 			Eventually(func() error {
 				_, err := c.GetService(generatedNamespace.GetName(), serviceName)
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
-			// Should create certificate Secret
+			By("Should create certificate Secret")
 			secretName = fmt.Sprintf("%s-cert", serviceName)
 			Eventually(func() error {
 				_, err = c.GetSecret(generatedNamespace.GetName(), secretName)
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
-			// Should create a Role for the Secret
+			By("Should create a Role for the Secret")
 			_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 			Eventually(func() error {
 				_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
-			// Should create a RoleBinding for the Secret
+			By("Should create a RoleBinding for the Secret")
 			Eventually(func() error {
 				_, err = c.GetRoleBinding(generatedNamespace.GetName(), secretName)
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
-			// Should create a system:auth-delegator Cluster RoleBinding
+			By("Should create a system:auth-delegator Cluster RoleBinding")
 			Eventually(func() error {
 				_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", serviceName))
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 
-			// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
+			By("Should create an extension-apiserver-authentication-reader RoleBinding in kube-system")
 			Eventually(func() error {
 				_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", serviceName))
 				return err
 			}, timeout, interval).ShouldNot(HaveOccurred())
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
-			// Should eventually GC the CSV
+			By("Should eventually GC the CSV")
 			err = waitForCsvToDelete(generatedNamespace.GetName(), csv.Name, crc)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Rename the initial CSV
+			By("Rename the initial CSV")
 			csv.SetName("csv-hat-3")
 
-			// Recreate the old CSV
+			By("Recreate the old CSV")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, true)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
@@ -1965,7 +1965,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 		It("create same CSV with owned API service multi namespace", func() {
 
-			// Create new namespace in a new operator group
+			By("Create new namespace in a new operator group")
 			secondNamespaceName := genName(generatedNamespace.GetName() + "-")
 			matchingLabel := map[string]string{"inGroup": secondNamespaceName}
 
@@ -1981,7 +1981,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 			}()
 
-			// Create a new operator group for the new namespace
+			By("Create a new operator group for the new namespace")
 			operatorGroup := operatorsv1.OperatorGroup{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      genName("e2e-operator-group-"),
@@ -2017,7 +2017,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 			apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
-			// Create CSVs for the hat-server
+			By("Create CSVs for the hat-server")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -2073,7 +2073,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			csv.SetName("csv-hat-1")
 
-			// Create the initial CSV
+			By("Create the initial CSV")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
@@ -2081,41 +2081,41 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should create Deployment
+			By("Should create Deployment")
 			_, err = c.GetDeployment(generatedNamespace.GetName(), depName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Deployment")
 
-			// Should create APIService
+			By("Should create APIService")
 			_, err = c.GetAPIService(apiServiceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected APIService")
 
-			// Should create Service
+			By("Should create Service")
 			serviceName := fmt.Sprintf("%s-service", depName)
 			_, err = c.GetService(generatedNamespace.GetName(), serviceName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Service")
 
-			// Should create certificate Secret
+			By("Should create certificate Secret")
 			secretName := fmt.Sprintf("%s-cert", serviceName)
 			_, err = c.GetSecret(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret")
 
-			// Should create a Role for the Secret
+			By("Should create a Role for the Secret")
 			_, err = c.GetRole(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected Secret Role")
 
-			// Should create a RoleBinding for the Secret
+			By("Should create a RoleBinding for the Secret")
 			_, err = c.GetRoleBinding(generatedNamespace.GetName(), secretName)
 			Expect(err).ShouldNot(HaveOccurred(), "error getting exptected Secret RoleBinding")
 
-			// Should create a system:auth-delegator Cluster RoleBinding
+			By("Should create a system:auth-delegator Cluster RoleBinding")
 			_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", serviceName))
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected system:auth-delegator ClusterRoleBinding")
 
-			// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
+			By("Should create an extension-apiserver-authentication-reader RoleBinding in kube-system")
 			_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", serviceName))
 			Expect(err).ShouldNot(HaveOccurred(), "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
-			// Create a new CSV that owns the same API Service but in a different namespace
+			By("Create a new CSV that owns the same API Service but in a different namespace")
 			csv2 := operatorsv1alpha1.ClusterServiceVersion{
 				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					MinKubeVersion: "0.0.0",
@@ -2148,7 +2148,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			csv2.SetName("csv-hat-2")
 
-			// Create CSV2 to replace CSV
+			By("Create CSV2 to replace CSV")
 			_, err = createCSV(c, crc, csv2, secondNamespaceName, false, true)
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -2219,7 +2219,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			<-deleted
 		})
 		It("CSV annotations overwrite pod template annotations defined in a StrategyDetailsDeployment", func() {
-			// Create a StrategyDetailsDeployment that defines the `foo1` and `foo2` annotations on a pod template
+			By("Create a StrategyDetailsDeployment that defines the `foo1` and `foo2` annotations on a pod template")
 			nginxName := genName("nginx-")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
@@ -2234,7 +2234,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				"foo2": "bar2",
 			}
 
-			// Create a CSV that defines the `foo1` and `foo3` annotations
+			By("Create a CSV that defines the `foo1` and `foo3` annotations")
 			csv := operatorsv1alpha1.ClusterServiceVersion{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
@@ -2274,28 +2274,28 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Create the CSV and make sure to clean it up
+			By("Create the CSV and make sure to clean it up")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			// Wait for current CSV to succeed
+			By("Wait for current CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployment
+			By("Should have created deployment")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
-			// Make sure that the pods annotations are correct
+			By("Make sure that the pods annotations are correct")
 			annotations := dep.Spec.Template.Annotations
 			Expect(annotations["foo1"]).Should(Equal("bar1"))
 			Expect(annotations["foo2"]).Should(Equal("bar2"))
 			Expect(annotations["foo3"]).Should(Equal("bar3"))
 		})
 		It("Set labels for the Deployment created via the ClusterServiceVersion", func() {
-			// Create a StrategyDetailsDeployment that defines labels for Deployment inside
+			By("Create a StrategyDetailsDeployment that defines labels for Deployment inside")
 			nginxName := genName("nginx-")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
@@ -2345,21 +2345,21 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Create the CSV and make sure to clean it up
+			By("Create the CSV and make sure to clean it up")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			// Wait for current CSV to succeed
+			By("Wait for current CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployment
+			By("Should have created deployment")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
-			// Make sure that the deployment labels are correct
+			By("Make sure that the deployment labels are correct")
 			labels := dep.GetLabels()
 			Expect(labels["olm.owner"]).Should(Equal(csv.GetName()))
 			Expect(labels["olm.owner.namespace"]).Should(Equal(generatedNamespace.GetName()))
@@ -2368,7 +2368,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 		It("update same deployment name", func() {
 
-			// Create dependency first (CRD)
+			By("Create dependency first (CRD)")
 			crdPlural := genName("ins")
 			crdName := crdPlural + ".cluster.com"
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
@@ -2400,7 +2400,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			})
 
-			// Create "current" CSV
+			By("Create current CSV")
 			nginxName := genName("nginx-")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
@@ -2461,26 +2461,24 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Don't need to cleanup this CSV, it will be deleted by the upgrade process
+			By("Don't need to cleanup this CSV, it will be deleted by the upgrade process")
 			_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Wait for current CSV to succeed
+			By("Wait for current CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployment
+			By("Should have created deployment")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
-			// Create "updated" CSV
+			By("Create updated CSV with the same name but a different spec")
 			strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
-						// Same name
 						Name: strategy.DeploymentSpecs[0].Name,
-						// Different spec
 						Spec: newNginxDeployment(nginxName),
 					},
 				},
@@ -2538,28 +2536,28 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupNewCSV()
 
-			// Wait for updated CSV to succeed
+			By("Wait for updated CSV to succeed")
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvNew.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have updated existing deployment
+			By("Should have updated existing deployment")
 			depUpdated, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depUpdated).ShouldNot(BeNil())
 			Expect(strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name).Should(Equal(depUpdated.Spec.Template.Spec.Containers[0].Name))
 
-			// Should eventually GC the CSV
+			By("Should eventually GC the CSV")
 			err = waitForCsvToDelete(generatedNamespace.GetName(), csv.Name, crc)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Fetch cluster service version again to check for unnecessary control loops
+			By("Fetch cluster service version again to check for unnecessary control loops")
 			sameCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvNew.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 		})
 		It("update different deployment name", func() {
 
-			// Create dependency first (CRD)
+			By("Create dependency first (CRD)")
 			crdPlural := genName("ins2")
 			crdName := crdPlural + ".cluster.com"
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
@@ -2593,7 +2591,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCRD()
 
-			// create "current" CSV
+			By("create current CSV")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -2651,20 +2649,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// don't need to clean up this CSV, it will be deleted by the upgrade process
+			By("don't need to clean up this CSV, it will be deleted by the upgrade process")
 			_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Wait for current CSV to succeed
+			By("Wait for current CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployment
+			By("Should have created deployment")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
-			// Create "updated" CSV
+			By("Create updated CSV")
 			strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -2726,29 +2724,29 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupNewCSV()
 
-			// Wait for updated CSV to succeed
+			By("Wait for updated CSV to succeed")
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvNew.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Fetch cluster service version again to check for unnecessary control loops
+			By("Fetch cluster service version again to check for unnecessary control loops")
 			sameCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvNew.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
-			// Should have created new deployment and deleted old
+			By("Should have created new deployment and deleted old")
 			depNew, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
 			err = waitForDeploymentToDelete(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name, c)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should eventually GC the CSV
+			By("Should eventually GC the CSV")
 			err = waitForCsvToDelete(generatedNamespace.GetName(), csv.Name, crc)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("update multiple intermediates", func() {
 
-			// Create dependency first (CRD)
+			By("Create dependency first (CRD)")
 			crdPlural := genName("ins3")
 			crdName := crdPlural + ".cluster.com"
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
@@ -2782,7 +2780,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCRD()
 
-			// create "current" CSV
+			By("create current CSV")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -2840,20 +2838,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// don't need to clean up this CSV, it will be deleted by the upgrade process
+			By("don't need to clean up this CSV, it will be deleted by the upgrade process")
 			_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Wait for current CSV to succeed
+			By("Wait for current CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployment
+			By("Should have created deployment")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
-			// Create "updated" CSV
+			By("Create updated CSV")
 			strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -2915,29 +2913,29 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupNewCSV()
 
-			// Wait for updated CSV to succeed
+			By("Wait for updated CSV to succeed")
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvNew.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Fetch cluster service version again to check for unnecessary control loops
+			By("Fetch cluster service version again to check for unnecessary control loops")
 			sameCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvNew.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
-			// Should have created new deployment and deleted old
+			By("Should have created new deployment and deleted old")
 			depNew, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
 			err = waitForDeploymentToDelete(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name, c)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should eventually GC the CSV
+			By("Should eventually GC the CSV")
 			err = waitForCsvToDelete(generatedNamespace.GetName(), csv.Name, crc)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("update in place", func() {
 
-			// Create dependency first (CRD)
+			By("Create dependency first (CRD)")
 			crdPlural := genName("ins")
 			crdName := crdPlural + ".cluster.com"
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
@@ -2969,7 +2967,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			})
 
-			// Create "current" CSV
+			By("Create current CSV")
 			nginxName := genName("nginx-")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
@@ -3034,16 +3032,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			// Wait for current CSV to succeed
+			By("Wait for current CSV to succeed")
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployment
+			By("Should have created deployment")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
-			// Create "updated" CSV
+			By("Create updated CSV")
 			strategyNew := strategy
 			strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers = []corev1.Container{
 				{
@@ -3058,7 +3056,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Also set something outside the spec template - this should be ignored
+			By("Also set something outside the spec template - this should be ignored")
 			var five int32 = 5
 			strategyNew.DeploymentSpecs[0].Spec.Replicas = &five
 
@@ -3066,11 +3064,11 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
 
-			// Update CSV directly
+			By("Update CSV directly")
 			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// wait for deployment spec to be updated
+			By("wait for deployment spec to be updated")
 			Eventually(func() (string, error) {
 				fetched, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 				if err != nil {
@@ -3080,7 +3078,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				return fetched.Spec.Template.Spec.Containers[0].Name, nil
 			}).Should(Equal(strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name))
 
-			// Wait for updated CSV to succeed
+			By("Wait for updated CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -3088,16 +3086,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depUpdated).ShouldNot(BeNil())
 
-			// Deployment should have changed even though the CSV is otherwise the same
+			By("Deployment should have changed even though the CSV is otherwise the same")
 			Expect(strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name).Should(Equal(depUpdated.Spec.Template.Spec.Containers[0].Name))
 			Expect(strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Image).Should(Equal(depUpdated.Spec.Template.Spec.Containers[0].Image))
 
-			// Field updated even though template spec didn't change, because it was part of a template spec change as well
+			By("Field updated even though template spec didn't change, because it was part of a template spec change as well")
 			Expect(*strategyNew.DeploymentSpecs[0].Spec.Replicas).Should(Equal(*depUpdated.Spec.Replicas))
 		})
 		It("update multiple version CRD", func() {
 
-			// Create initial CRD which has 2 versions: v1alpha1 & v1alpha2
+			By("Create initial CRD which has 2 versions: v1alpha1 & v1alpha2")
 			crdPlural := genName("ins4")
 			crdName := crdPlural + ".cluster.com"
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
@@ -3142,7 +3140,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCRD()
 
-			// create initial deployment strategy
+			By("create initial deployment strategy")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -3154,7 +3152,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// First CSV with owning CRD v1alpha1
+			By("First CSV with owning CRD v1alpha1")
 			csv := operatorsv1alpha1.ClusterServiceVersion{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
@@ -3201,20 +3199,20 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// CSV will be deleted by the upgrade process later
+			By("CSV will be deleted by the upgrade process later")
 			_, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Wait for current CSV to succeed
+			By("Wait for current CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployment
+			By("Should have created deployment")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
 
-			// Create updated deployment strategy
+			By("Create updated deployment strategy")
 			strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -3226,7 +3224,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Second CSV with owning CRD v1alpha1 and v1alpha2
+			By("Second CSV with owning CRD v1alpha1 and v1alpha2")
 			csvNew := operatorsv1alpha1.ClusterServiceVersion{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
@@ -3280,27 +3278,27 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Create newly updated CSV
+			By("Create newly updated CSV")
 			_, err = createCSV(c, crc, csvNew, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Wait for updated CSV to succeed
+			By("Wait for updated CSV to succeed")
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvNew.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Fetch cluster service version again to check for unnecessary control loops
+			By("Fetch cluster service version again to check for unnecessary control loops")
 			sameCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csvNew.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
-			// Should have created new deployment and deleted old one
+			By("Should have created new deployment and deleted old one")
 			depNew, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
 			err = waitForDeploymentToDelete(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name, c)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Create updated deployment strategy
+			By("Create updated deployment strategy")
 			strategyNew2 := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -3311,7 +3309,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Third CSV with owning CRD v1alpha2
+			By("Third CSV with owning CRD v1alpha2")
 			csvNew2 := operatorsv1alpha1.ClusterServiceVersion{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       operatorsv1alpha1.ClusterServiceVersionKind,
@@ -3358,35 +3356,35 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Create newly updated CSV
+			By("Create newly updated CSV")
 			cleanupNewCSV, err := createCSV(c, crc, csvNew2, generatedNamespace.GetName(), true, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupNewCSV()
 
-			// Wait for updated CSV to succeed
+			By("Wait for updated CSV to succeed")
 			fetchedCSV, err = fetchCSV(crc, generatedNamespace.GetName(), csvNew2.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Fetch cluster service version again to check for unnecessary control loops
+			By("Fetch cluster service version again to check for unnecessary control loops")
 			sameCSV, err = fetchCSV(crc, generatedNamespace.GetName(), csvNew2.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(equality.Semantic.DeepEqual(fetchedCSV, sameCSV)).Should(BeTrue(), diff.ObjectDiff(fetchedCSV, sameCSV))
 
-			// Should have created new deployment and deleted old one
+			By("Should have created new deployment and deleted old one")
 			depNew, err = c.GetDeployment(generatedNamespace.GetName(), strategyNew2.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
 			err = waitForDeploymentToDelete(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name, c)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should clean up the CSV
+			By("Should clean up the CSV")
 			err = waitForCsvToDelete(generatedNamespace.GetName(), csvNew.Name, crc)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("update modify deployment name", func() {
 
-			// Create dependency first (CRD)
+			By("Create dependency first (CRD)")
 			crdPlural := genName("ins2")
 			crdName := crdPlural + ".cluster.com"
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
@@ -3420,7 +3418,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCRD()
 
-			// create "current" CSV
+			By("create current CSV")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -3485,11 +3483,11 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
 
-			// Wait for current CSV to succeed
+			By("Wait for current CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created deployments
+			By("Should have created deployments")
 			dep, err := c.GetDeployment(generatedNamespace.GetName(), strategy.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep).ShouldNot(BeNil())
@@ -3497,7 +3495,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(dep2).ShouldNot(BeNil())
 
-			// Create "updated" CSV
+			By("Create updated CSV")
 			strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -3513,31 +3511,31 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Fetch the current csv
+			By("Fetch the current csv")
 			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Update csv with same strategy with different deployment's name
+			By("Update csv with same strategy with different deployment's name")
 			fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
 
-			// Update the current csv with the new csv
+			By("Update the current csv with the new csv")
 			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Wait for new deployment to exist
+			By("Wait for new deployment to exist")
 			_, err = waitForDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name, c)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Wait for updated CSV to succeed
+			By("Wait for updated CSV to succeed")
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Should have created new deployment and deleted old
+			By("Should have created new deployment and deleted old")
 			depNew, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew).ShouldNot(BeNil())
 
-			// Make sure the unchanged deployment still exists
+			By("Make sure the unchanged deployment still exists")
 			depNew2, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[1].Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(depNew2).ShouldNot(BeNil())
@@ -3656,13 +3654,11 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			GinkgoT().Logf("Deployment container name: %v", dep.Spec.Template.Spec.Containers[0].Name)
 
-			By("Creating 'updated' CSV")
+			By("Creating 'updated' CSV with the same name but a different spec")
 			strategyNew := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
-						// Same name
 						Name: strategy.DeploymentSpecs[0].Name,
-						// Different spec
 						Spec: newNginxDeployment(nginxName),
 					},
 				},
@@ -3684,7 +3680,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Eventually(func() error {
 				_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, func(csv *operatorsv1alpha1.ClusterServiceVersion) bool {
 
-					// Should have updated existing deployment
+					By("Should have updated existing deployment")
 					depUpdated, err := c.GetDeployment(generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name)
 					if err != nil {
 						GinkgoT().Logf("error getting deployment %s/%s: %v", generatedNamespace.GetName(), strategyNew.DeploymentSpecs[0].Name, err)
@@ -3694,7 +3690,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 						return false
 					}
 
-					// container name has been updated and differs from initial CSV spec and updated CSV spec
+					By("container name has been updated and differs from initial CSV spec and updated CSV spec")
 					if depUpdated.Spec.Template.Spec.Containers[0].Name != strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name {
 						return false
 					}
@@ -3703,7 +3699,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 						nameMatchesPrinted = true
 					}
 
-					// Check for success
+					By("Check for success")
 					return csvSucceededChecker(csv)
 				})
 				return err
@@ -3711,6 +3707,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		})
 		It("emits CSV requirement events", func() {
 
+			By("Require an API that we know won't exist under our domain")
 			csv := &operatorsv1alpha1.ClusterServiceVersion{
 				Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 					MinKubeVersion: "0.0.0",
@@ -3734,7 +3731,6 @@ var _ = Describe("ClusterServiceVersion", func() {
 					},
 					InstallStrategy: newNginxInstallStrategy(genName("dep-"), nil, nil),
 					APIServiceDefinitions: operatorsv1alpha1.APIServiceDefinitions{
-						// Require an API that we know won't exist under our domain
 						Required: []operatorsv1alpha1.APIServiceDescription{
 							{
 								Group:   "bad.packages.operators.coreos.com",
@@ -3755,7 +3751,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			events, err := c.KubernetesInterface().CoreV1().Events(csv.GetNamespace()).List(clientCtx, listOpts)
 			Expect(err).ToNot(HaveOccurred())
 
-			// Watch latest events from test namespace for CSV
+			By("Watch latest events from test namespace for CSV")
 			listOpts.ResourceVersion = events.ResourceVersion
 			w, err := c.KubernetesInterface().CoreV1().Events(generatedNamespace.GetName()).Watch(context.Background(), listOpts)
 			Expect(err).ToNot(HaveOccurred())
@@ -3774,7 +3770,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			Eventually(nextReason).Should(Equal("RequirementsNotMet"))
 
-			// Patch the CSV to require an API that we know exists
+			By("Patch the CSV to require an API that we know exists")
 			Eventually(ctx.Ctx().SSAClient().Apply(clientCtx, csv, func(c *operatorsv1alpha1.ClusterServiceVersion) error {
 				c.Spec.APIServiceDefinitions.Required[0].Group = "packages.operators.coreos.com"
 				return nil
@@ -3787,7 +3783,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 		// TODO: test behavior when replaces field doesn't point to existing CSV
 		It("status invalid CSV", func() {
 
-			// Create CRD
+			By("Create CRD")
 			crdPlural := genName("ins")
 			crdName := crdPlural + ".cluster.com"
 			cleanupCRD, err := createCRD(c, apiextensionsv1.CustomResourceDefinition{
@@ -3821,7 +3817,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCRD()
 
-			// create CSV
+			By("create CSV")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -3916,7 +3912,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 			apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
-			// Create CSVs for the hat-server
+			By("Create CSVs for the hat-server")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -3975,7 +3971,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			createLegacyAPIResources(generatedNamespace.GetName(), &csv, owned[0], c)
 
-			// Create the APIService CSV
+			By("Create the APIService CSV")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
@@ -3996,7 +3992,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{{depName, mockGroupVersion, mockKinds, 5443}})
 			apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
-			// Create CSVs for the hat-server
+			By("Create CSVs for the hat-server")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -4055,7 +4051,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			createLegacyAPIResources(generatedNamespace.GetName(), nil, owned[0], c)
 
-			// Create the APIService CSV
+			By("Create the APIService CSV")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
@@ -4065,16 +4061,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 			checkLegacyAPIResources(generatedNamespace.GetName(), owned[0], false, c)
 
-			// Cleanup the resources created for this test that were not cleaned up.
+			By("Cleanup the resources created for this test that were not cleaned up.")
 			deleteLegacyAPIResources(generatedNamespace.GetName(), owned[0], c)
 		})
 
 		It("multiple API services on a single pod", func() {
 
-			// Create the deployment that both APIServices will be deployed to.
+			By("Create the deployment that both APIServices will be deployed to.")
 			depName := genName("hat-server")
 
-			// Define the expected mock APIService settings.
+			By("Define the expected mock APIService settings.")
 			version := "v1alpha1"
 			apiService1Group := fmt.Sprintf("hats.%s.redhat.com", genName(""))
 			apiService1GroupVersion := strings.Join([]string{apiService1Group, version}, "/")
@@ -4086,7 +4082,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			apiService2Kinds := []string{"fez"}
 			apiService2Name := strings.Join([]string{version, apiService2Group}, ".")
 
-			// Create the deployment spec with the two APIServices.
+			By("Create the deployment spec with the two APIServices.")
 			mockGroupVersionKinds := []mockGroupVersionKind{
 				{
 					depName,
@@ -4103,7 +4099,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			}
 			depSpec := newMockExtServerDeployment(depName, mockGroupVersionKinds)
 
-			// Create the CSV.
+			By("Create the CSV.")
 			strategy := operatorsv1alpha1.StrategyDetailsDeployment{
 				DeploymentSpecs: []operatorsv1alpha1.StrategyDeploymentSpec{
 					{
@@ -4113,7 +4109,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 				},
 			}
 
-			// Update the owned APIServices two include the two APIServices.
+			By("Update the owned APIServices two include the two APIServices.")
 			owned := []operatorsv1alpha1.APIServiceDescription{
 				{
 					Name:           apiService1Name,
@@ -4170,7 +4166,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			csv.SetName("csv-hat-1")
 			csv.SetNamespace(generatedNamespace.GetName())
 
-			// Create the APIService CSV
+			By("Create the APIService CSV")
 			cleanupCSV, err := createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer cleanupCSV()
@@ -4178,7 +4174,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// Check that the APIService caBundles are equal
+			By("Check that the APIService caBundles are equal")
 			apiService1, err := c.GetAPIService(apiService1Name)
 			Expect(err).ShouldNot(HaveOccurred())
 

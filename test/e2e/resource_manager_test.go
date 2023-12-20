@@ -28,7 +28,7 @@ var _ = Describe("ResourceManager", func() {
 	})
 
 	It("should tag resources created with it", func() {
-		// Create a namespace
+		By(`Create a namespace`)
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("test-"),
@@ -36,14 +36,14 @@ var _ = Describe("ResourceManager", func() {
 		}
 		Expect(ctx.Ctx().E2EClient().Create(context.TODO(), ns)).To(Succeed())
 
-		// Get namespace
+		By(`Get namespace`)
 		Expect(ctx.Ctx().E2EClient().Get(context.TODO(), client.ObjectKeyFromObject(ns), ns)).To(Succeed())
 		Expect(ns.GetAnnotations()).NotTo(BeEmpty())
 		Expect(ns.GetAnnotations()[util.E2ETestNameTag]).To(Equal("ResourceManager should tag resources created with it"))
 	})
 
 	It("should delete resources on reset", func() {
-		// Create a namespace
+		By(`Create a namespace`)
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: genName("test-"),
@@ -51,22 +51,20 @@ var _ = Describe("ResourceManager", func() {
 		}
 		Expect(ctx.Ctx().E2EClient().Create(context.TODO(), ns)).To(Succeed())
 
-		// Add a config map
+		By(`Add a config map`)
+		By(`creating the configmap in the generated (spec) namespace so if the namespace (ns, above) gets deleted on reset it won't take the config map with it`)
 		configMap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: genName("configmap-"),
-
-				// creating the configmap in the generated (spec) namespace
-				// so if the namespace (ns, above) gets deleted on reset it won't take the config map with it
+				Name:      genName("configmap-"),
 				Namespace: generatedNamespace.GetName(),
 			},
 		}
 		Expect(ctx.Ctx().E2EClient().Create(context.TODO(), configMap))
 
-		// Reset the client
+		By(`Reset the client`)
 		Expect(ctx.Ctx().E2EClient().Reset()).To(Succeed())
 
-		// And just like that resources should be gone
+		By(`And just like that resources should be gone`)
 		Eventually(func() error {
 			return ctx.Ctx().E2EClient().Get(context.TODO(), client.ObjectKeyFromObject(configMap), configMap)
 		}).Should(WithTransform(k8serror.IsNotFound, BeTrue()))

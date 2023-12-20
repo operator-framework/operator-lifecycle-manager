@@ -71,21 +71,16 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 	}
 
 	DescribeTable("API call using scoped client", func(tc testParameter) {
-		// Steps:
-		// 1. Create a new namespace
-		// 2. Create a service account.
-		// 3. Grant permission(s) to the service account if specified.
-		// 4. Get scoped client instance(s)
-		// 5. Invoke Get API call on non existent object(s) to check if
-		//    the call can be made successfully.
+		By(`Create a new namespace`)
 		namespace := genName("a")
 		_, cleanupNS := newNamespace(kubeclient, namespace)
 		defer cleanupNS()
 
+		By(`Create a service account.`)
 		saName := genName("user-defined-")
 		sa, cleanupSA := newServiceAccount(kubeclient, namespace, saName)
 		defer cleanupSA()
-		// Create token secret for the serviceaccount
+		By(`Create token secret for the serviceaccount`)
 		secret, cleanupSE := newTokenSecret(kubeclient, namespace, saName)
 		defer cleanupSE()
 
@@ -97,6 +92,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 			return string(v.Data[corev1.ServiceAccountTokenKey])
 		}, BeEmpty()))
 
+		By(`Grant permission(s) to the service account if specified.`)
 		strategy := scoped.NewClientAttenuator(logger, config, kubeclient)
 		getter := func() (reference *corev1.ObjectReference, err error) {
 			reference = &corev1.ObjectReference{
@@ -126,6 +122,7 @@ var _ = Describe("Scoped Client bound to a service account can be used to make A
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dynamicClientGot).ToNot(BeNil())
 
+		By(`Invoke Get API call on non existent object(s) to check if the call can be made successfully.`)
 		_, err = kubeclientGot.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(context.TODO(), genName("does-not-exist-"), metav1.GetOptions{})
 		Expect(err).To(HaveOccurred())
 		tc.assertFunc(err)

@@ -56,19 +56,19 @@ var _ = Describe("Operator Group", func() {
 
 	It("e2e functionality", func() {
 
-		// Create namespace with specific label
-		// Create CRD
-		// Create CSV in operator namespace
-		// Create operator group that watches namespace and uses specific label
-		// Verify operator group status contains correct status
-		// Verify csv in target namespace exists, has copied status, has annotations
-		// Verify deployments have correct namespace annotation
-		// (Verify that the operator can operate in the target namespace)
-		// Update CSV to support no InstallModes
-		// Verify the CSV transitions to FAILED
-		// Verify the copied CSV transitions to FAILED
-		// Delete CSV
-		// Verify copied CVS is deleted
+		By(`Create namespace with specific label`)
+		By(`Create CRD`)
+		By(`Create CSV in operator namespace`)
+		By(`Create operator group that watches namespace and uses specific label`)
+		By(`Verify operator group status contains correct status`)
+		By(`Verify csv in target namespace exists, has copied status, has annotations`)
+		By(`Verify deployments have correct namespace annotation`)
+		By(`(Verify that the operator can operate in the target namespace)`)
+		By(`Update CSV to support no InstallModes`)
+		By(`Verify the CSV transitions to FAILED`)
+		By(`Verify the copied CSV transitions to FAILED`)
+		By(`Delete CSV`)
+		By(`Verify copied CVS is deleted`)
 
 		log := func(s string) {
 			GinkgoT().Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
@@ -128,7 +128,7 @@ var _ = Describe("Operator Group", func() {
 		_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Create(context.TODO(), &operatorGroup, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// fetched namespaces might be in any order
+		By(`fetched namespaces might be in any order`)
 		namespaces := map[string]bool{}
 		namespaces[opGroupNamespace] = true
 		namespaces[createdOtherNamespace.GetName()] = true
@@ -156,7 +156,7 @@ var _ = Describe("Operator Group", func() {
 
 		log("Creating CSV")
 
-		// Generate permissions
+		By(`Generate permissions`)
 		serviceAccountName := genName("nginx-sa")
 		permissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
@@ -171,7 +171,7 @@ var _ = Describe("Operator Group", func() {
 			},
 		}
 
-		// Create a new NamedInstallStrategy
+		By(`Create a new NamedInstallStrategy`)
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
@@ -306,14 +306,14 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		// check rbac in target namespace
+		By(`check rbac in target namespace`)
 		informerFactory := informers.NewSharedInformerFactory(c.KubernetesInterface(), 1*time.Second)
 		roleInformer := informerFactory.Rbac().V1().Roles()
 		roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
 		clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
 		clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
 
-		// kick off informers
+		By(`kick off informers`)
 		stopCh := make(chan struct{})
 		defer func() {
 			stopCh <- struct{}{}
@@ -329,7 +329,7 @@ var _ = Describe("Operator Group", func() {
 				return informer.HasSynced(), nil
 			}
 
-			// wait until the informer has synced to continue
+			By(`wait until the informer has synced to continue`)
 			err := wait.PollUntil(500*time.Millisecond, synced, stopCh)
 			require.NoError(GinkgoT(), err)
 		}
@@ -355,7 +355,7 @@ var _ = Describe("Operator Group", func() {
 			return true, nil
 		})
 
-		// validate provided API clusterroles for the operatorgroup
+		By(`validate provided API clusterroles for the operatorgroup`)
 		existingClusterRoleList, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.SelectorFromSet(ownerutil.OwnerLabel(&operatorGroup, "OperatorGroup")).String(),
 		})
@@ -392,7 +392,7 @@ var _ = Describe("Operator Group", func() {
 			}
 		}
 
-		// Unsupport all InstallModes
+		By(`Unsupport all InstallModes`)
 		log("unsupporting all csv installmodes")
 		fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(context.TODO(), csvName, metav1.GetOptions{})
 		require.NoError(GinkgoT(), err, "could not fetch csv")
@@ -400,11 +400,11 @@ var _ = Describe("Operator Group", func() {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(fetchedCSV.GetNamespace()).Update(context.TODO(), fetchedCSV, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err, "could not update csv installmodes")
 
-		// Ensure CSV fails
+		By(`Ensure CSV fails`)
 		_, err = fetchCSV(crc, opGroupNamespace, csvName, csvFailedChecker)
 		require.NoError(GinkgoT(), err, "csv did not transition to failed as expected")
 
-		// ensure deletion cleans up copied CSV
+		By(`ensure deletion cleans up copied CSV`)
 		log("deleting parent csv")
 		err = crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Delete(context.TODO(), csvName, metav1.DeleteOptions{})
 		require.NoError(GinkgoT(), err)
@@ -448,13 +448,13 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("role aggregation", func() {
 
-		// kubectl -n a8v4sw  auth can-i create alp999.cluster.com --as system:serviceaccount:a8v4sw:padmin-xqdfz
+		By(`kubectl -n a8v4sw  auth can-i create alp999.cluster.com --as system:serviceaccount:a8v4sw:padmin-xqdfz`)
 
-		// Generate namespaceA
-		// Generate operatorGroupA - OwnNamespace
-		// Generate csvA in namespaceA with all installmodes supported
-		// Create crd so csv succeeds
-		// Ensure clusterroles created and aggregated for access provided APIs
+		By(`Generate namespaceA`)
+		By(`Generate operatorGroupA - OwnNamespace`)
+		By(`Generate csvA in namespaceA with all installmodes supported`)
+		By(`Create crd so csv succeeds`)
+		By(`Ensure clusterroles created and aggregated for access provided APIs`)
 
 		nsA := genName("a")
 		GinkgoT().Logf("generating namespaceA: %s", nsA)
@@ -630,27 +630,27 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("install mode support", func() {
 
-		// Generate namespaceA
-		// Generate namespaceB
-		// Create operatorGroupA in namespaceA that selects namespaceA
-		// Generate csvA with an unfulfilled required CRD and no supported InstallModes in namespaceA
-		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
-		// Update csvA to have OwnNamespace supported=true
-		// Ensure csvA transitions to Succeeded
-		// Update operatorGroupA's target namespaces to select namespaceB
-		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
-		// Update csvA to have SingleNamespace supported=true
-		// Ensure csvA transitions to Pending
-		// Update operatorGroupA's target namespaces to select namespaceA and namespaceB
-		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
-		// Update csvA to have MultiNamespace supported=true
-		// Ensure csvA transitions to Pending
-		// Update operatorGroupA to select all namespaces
-		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
-		// Update csvA to have AllNamespaces supported=true
-		// Ensure csvA transitions to Pending
+		By(`Generate namespaceA`)
+		By(`Generate namespaceB`)
+		By(`Create operatorGroupA in namespaceA that selects namespaceA`)
+		By(`Generate csvA with an unfulfilled required CRD and no supported InstallModes in namespaceA`)
+		By(`Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"`)
+		By(`Update csvA to have OwnNamespace supported=true`)
+		By(`Ensure csvA transitions to Succeeded`)
+		By(`Update operatorGroupA's target namespaces to select namespaceB`)
+		By(`Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"`)
+		By(`Update csvA to have SingleNamespace supported=true`)
+		By(`Ensure csvA transitions to Pending`)
+		By(`Update operatorGroupA's target namespaces to select namespaceA and namespaceB`)
+		By(`Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"`)
+		By(`Update csvA to have MultiNamespace supported=true`)
+		By(`Ensure csvA transitions to Pending`)
+		By(`Update operatorGroupA to select all namespaces`)
+		By(`Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"`)
+		By(`Update csvA to have AllNamespaces supported=true`)
+		By(`Ensure csvA transitions to Pending`)
 
-		// Generate namespaceA and namespaceB
+		By(`Generate namespaceA and namespaceB`)
 		nsA := genName("a")
 		nsB := genName("b")
 
@@ -668,7 +668,7 @@ var _ = Describe("Operator Group", func() {
 			}(ns)
 		}
 
-		// Generate operatorGroupA
+		By(`Generate operatorGroupA`)
 		groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 		_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(context.TODO(), groupA, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -676,7 +676,7 @@ var _ = Describe("Operator Group", func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1().OperatorGroups(nsA).Delete(context.TODO(), groupA.GetName(), metav1.DeleteOptions{}))
 		}()
 
-		// Generate csvA in namespaceA with no supported InstallModes
+		By(`Generate csvA in namespaceA with no supported InstallModes`)
 		crd := newCRD(genName("b"))
 		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 		csv := newCSV("nginx-a", nsA, "", semver.MustParse("0.1.0"), nil, []apiextensionsv1.CustomResourceDefinition{crd}, &namedStrategy)
@@ -705,14 +705,14 @@ var _ = Describe("Operator Group", func() {
 			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(context.TODO(), csvA.GetName(), metav1.DeleteOptions{}))
 		}()
 
-		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+		By(`Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"`)
 		failedWithUnsupportedOperatorGroup := func(csv *v1alpha1.ClusterServiceVersion) bool {
 			return csvFailedChecker(csv) && csv.Status.Reason == v1alpha1.CSVReasonUnsupportedOperatorGroup
 		}
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), failedWithUnsupportedOperatorGroup)
 		require.NoError(GinkgoT(), err)
 
-		// Update csvA to have OwnNamespace supported=true
+		By(`Update csvA to have OwnNamespace supported=true`)
 		csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 			{
 				Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -734,27 +734,27 @@ var _ = Describe("Operator Group", func() {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(context.TODO(), csvA, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Create crd so csv succeeds
+		By(`Create crd so csv succeeds`)
 		cleanupCRD, err := createCRD(c, crd)
 		require.NoError(GinkgoT(), err)
 		defer cleanupCRD()
 
-		// Ensure csvA transitions to Succeeded
+		By(`Ensure csvA transitions to Succeeded`)
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Update operatorGroupA's target namespaces to select namespaceB
+		By(`Update operatorGroupA's target namespaces to select namespaceB`)
 		groupA, err = crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 		groupA.Spec.TargetNamespaces = []string{nsB}
 		_, err = crc.OperatorsV1().OperatorGroups(nsA).Update(context.TODO(), groupA, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+		By(`Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"`)
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), failedWithUnsupportedOperatorGroup)
 		require.NoError(GinkgoT(), err)
 
-		// Update csvA to have SingleNamespace supported=true
+		By(`Update csvA to have SingleNamespace supported=true`)
 		csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 			{
 				Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -776,22 +776,22 @@ var _ = Describe("Operator Group", func() {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(context.TODO(), csvA, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Ensure csvA transitions to Succeeded
+		By(`Ensure csvA transitions to Succeeded`)
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Update operatorGroupA's target namespaces to select namespaceA and namespaceB
+		By(`Update operatorGroupA's target namespaces to select namespaceA and namespaceB`)
 		groupA, err = crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 		groupA.Spec.TargetNamespaces = []string{nsA, nsB}
 		_, err = crc.OperatorsV1().OperatorGroups(nsA).Update(context.TODO(), groupA, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+		By(`Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"`)
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), failedWithUnsupportedOperatorGroup)
 		require.NoError(GinkgoT(), err)
 
-		// Update csvA to have MultiNamespace supported=true
+		By(`Update csvA to have MultiNamespace supported=true`)
 		csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 			{
 				Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -813,22 +813,22 @@ var _ = Describe("Operator Group", func() {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(context.TODO(), csvA, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Ensure csvA transitions to Succeeded
+		By(`Ensure csvA transitions to Succeeded`)
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Update operatorGroupA's target namespaces to select all namespaces
+		By(`Update operatorGroupA's target namespaces to select all namespaces`)
 		groupA, err = crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 		groupA.Spec.TargetNamespaces = []string{}
 		_, err = crc.OperatorsV1().OperatorGroups(nsA).Update(context.TODO(), groupA, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+		By(`Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"`)
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), failedWithUnsupportedOperatorGroup)
 		require.NoError(GinkgoT(), err)
 
-		// Update csvA to have AllNamespaces supported=true
+		By(`Update csvA to have AllNamespaces supported=true`)
 		csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 			{
 				Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -850,45 +850,45 @@ var _ = Describe("Operator Group", func() {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(context.TODO(), csvA, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Ensure csvA transitions to Pending
+		By(`Ensure csvA transitions to Pending`)
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
 	It("intersection", func() {
 
-		// Generate namespaceA
-		// Generate namespaceB
-		// Generate namespaceC
-		// Generate namespaceD
-		// Generate namespaceE
-		// Generate operatorGroupD in namespaceD that selects namespace D and E
-		// Generate csvD in namespaceD
-		// Wait for csvD to be successful
-		// Wait for csvD to have a CSV with copied status in namespace E
-		// Wait for operatorGroupD to have providedAPI annotation with crdD's Kind.version.group
-		// Generate operatorGroupA in namespaceA that selects AllNamespaces
-		// Generate csvD in namespaceA
-		// Wait for csvD to fail with status "InterOperatorGroupOwnerConflict"
-		// Ensure operatorGroupA's providedAPIs are empty
-		// Ensure csvD in namespaceD is still successful
-		// Generate csvA in namespaceA that owns crdA
-		// Wait for csvA to be successful
-		// Ensure clusterroles created and aggregated for accessing provided APIs
-		// Wait for operatorGroupA to have providedAPI annotation with crdA's Kind.version.group in its providedAPIs annotation
-		// Wait for csvA to have a CSV with copied status in namespace D
-		// Ensure csvA retains the operatorgroup annotations for operatorgroupA
-		// Wait for csvA to have a CSV with copied status in namespace C
-		// Generate operatorGroupB in namespaceB that selects namespace C
-		// Generate csvB in namespaceB that owns crdA
-		// Wait for csvB to fail with status "InterOperatorGroupOwnerConflict"
-		// Delete csvA
-		// Wait for crdA's Kind.version.group to be removed from operatorGroupA's providedAPIs annotation
-		// Ensure csvA's deployments are deleted
-		// Wait for csvB to be successful
-		// Wait for operatorGroupB to have providedAPI annotation with crdB's Kind.version.group
-		// Wait for csvB to have a CSV with a copied status in namespace C
+		By(`Generate namespaceA`)
+		By(`Generate namespaceB`)
+		By(`Generate namespaceC`)
+		By(`Generate namespaceD`)
+		By(`Generate namespaceE`)
+		By(`Generate operatorGroupD in namespaceD that selects namespace D and E`)
+		By(`Generate csvD in namespaceD`)
+		By(`Wait for csvD to be successful`)
+		By(`Wait for csvD to have a CSV with copied status in namespace E`)
+		By(`Wait for operatorGroupD to have providedAPI annotation with crdD's Kind.version.group`)
+		By(`Generate operatorGroupA in namespaceA that selects AllNamespaces`)
+		By(`Generate csvD in namespaceA`)
+		By(`Wait for csvD to fail with status "InterOperatorGroupOwnerConflict"`)
+		By(`Ensure operatorGroupA's providedAPIs are empty`)
+		By(`Ensure csvD in namespaceD is still successful`)
+		By(`Generate csvA in namespaceA that owns crdA`)
+		By(`Wait for csvA to be successful`)
+		By(`Ensure clusterroles created and aggregated for accessing provided APIs`)
+		By(`Wait for operatorGroupA to have providedAPI annotation with crdA's Kind.version.group in its providedAPIs annotation`)
+		By(`Wait for csvA to have a CSV with copied status in namespace D`)
+		By(`Ensure csvA retains the operatorgroup annotations for operatorgroupA`)
+		By(`Wait for csvA to have a CSV with copied status in namespace C`)
+		By(`Generate operatorGroupB in namespaceB that selects namespace C`)
+		By(`Generate csvB in namespaceB that owns crdA`)
+		By(`Wait for csvB to fail with status "InterOperatorGroupOwnerConflict"`)
+		By(`Delete csvA`)
+		By(`Wait for crdA's Kind.version.group to be removed from operatorGroupA's providedAPIs annotation`)
+		By(`Ensure csvA's deployments are deleted`)
+		By(`Wait for csvB to be successful`)
+		By(`Wait for operatorGroupB to have providedAPI annotation with crdB's Kind.version.group`)
+		By(`Wait for csvB to have a CSV with a copied status in namespace C`)
 
-		// Create a catalog for csvA, csvB, and csvD
+		By(`Create a catalog for csvA, csvB, and csvD`)
 		pkgA := genName("a-")
 		pkgB := genName("b-")
 		pkgD := genName("d-")
@@ -909,7 +909,7 @@ var _ = Describe("Operator Group", func() {
 		csvB := newCSV(pkgBStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crdA, crdB}, nil, &strategyB)
 		csvD := newCSV(pkgDStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crdD}, nil, &strategyD)
 
-		// Create namespaces
+		By(`Create namespaces`)
 		nsA, nsB, nsC, nsD, nsE := genName("a-"), genName("b-"), genName("c-"), genName("d-"), genName("e-")
 		for _, ns := range []string{nsA, nsB, nsC, nsD, nsE} {
 			namespace := &corev1.Namespace{
@@ -924,7 +924,7 @@ var _ = Describe("Operator Group", func() {
 			}(ns)
 		}
 
-		// Create the initial catalogsources
+		By(`Create the initial catalogsources`)
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: pkgA,
@@ -963,7 +963,7 @@ var _ = Describe("Operator Group", func() {
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsD, catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
-		// Create operatorgroups
+		By(`Create operatorgroups`)
 		groupA := newOperatorGroup(nsA, genName("a-"), nil, nil, nil, false)
 		groupB := newOperatorGroup(nsB, genName("b-"), nil, nil, []string{nsC}, false)
 		groupD := newOperatorGroup(nsD, genName("d-"), nil, nil, []string{nsD, nsE}, false)
@@ -975,7 +975,7 @@ var _ = Describe("Operator Group", func() {
 			}(group.GetNamespace(), group.GetName())
 		}
 
-		// Create subscription for csvD in namespaceD
+		By(`Create subscription for csvD in namespaceD`)
 		subDName := genName("d-")
 		cleanupSubD := createSubscriptionForCatalog(crc, nsD, subDName, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubD()
@@ -983,22 +983,22 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subD)
 
-		// Await csvD's success
+		By(`Await csvD's success`)
 		_, err = fetchCSV(crc, nsD, csvD.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Await csvD's copy in namespaceE
+		By(`Await csvD's copy in namespaceE`)
 		_, err = fetchCSV(crc, nsE, csvD.GetName(), csvCopiedChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Await annotation on groupD
+		By(`Await annotation on groupD`)
 		q := func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsD).Get(context.TODO(), groupD.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgD}))
 
-		// Create subscription for csvD2 in namespaceA
+		By(`Create subscription for csvD2 in namespaceA`)
 		subD2Name := genName("d2-")
 		cleanupSubD2 := createSubscriptionForCatalog(crc, nsA, subD2Name, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubD2()
@@ -1006,23 +1006,23 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subD2)
 
-		// Await csvD2's failure
+		By(`Await csvD2's failure`)
 		csvD2, err := fetchCSV(crc, nsA, csvD.GetName(), csvFailedChecker)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, csvD2.Status.Reason)
 
-		// Ensure groupA's annotations are blank
+		By(`Ensure groupA's annotations are blank`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{}))
 
-		// Ensure csvD is still successful
+		By(`Ensure csvD is still successful`)
 		_, err = fetchCSV(crc, nsD, csvD.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Create subscription for csvA in namespaceA
+		By(`Create subscription for csvA in namespaceA`)
 		subAName := genName("a-")
 		cleanupSubA := createSubscriptionForCatalog(crc, nsA, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubA()
@@ -1030,11 +1030,11 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subA)
 
-		// Await csvA's success
+		By(`Await csvA's success`)
 		_, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Ensure clusterroles created and aggregated for access provided APIs
+		By(`Ensure clusterroles created and aggregated for access provided APIs`)
 		padmin, cleanupPadmin := createProjectAdmin(GinkgoT(), c, nsA)
 		defer cleanupPadmin()
 
@@ -1062,18 +1062,18 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		// Await annotation on groupA
+		By(`Await annotation on groupA`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
-		// Wait for csvA to have a CSV with copied status in namespace D
+		By(`Wait for csvA to have a CSV with copied status in namespace D`)
 		csvAinNsD, err := fetchCSV(crc, nsD, csvA.GetName(), csvCopiedChecker)
 		require.NoError(GinkgoT(), err)
 
-		// trigger a resync of operatorgropuD
+		By(`trigger a resync of operatorgropuD`)
 		fetchedGroupD, err := crc.OperatorsV1().OperatorGroups(nsD).Get(context.TODO(), groupD.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 
@@ -1081,7 +1081,7 @@ var _ = Describe("Operator Group", func() {
 		_, err = crc.OperatorsV1().OperatorGroups(nsD).Update(context.TODO(), fetchedGroupD, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Ensure csvA retains the operatorgroup annotations for operatorgroupA
+		By(`Ensure csvA retains the operatorgroup annotations for operatorgroupA`)
 		csvAinNsD, err = fetchCSV(crc, nsD, csvA.GetName(), csvCopiedChecker)
 		require.NoError(GinkgoT(), err)
 
@@ -1089,11 +1089,11 @@ var _ = Describe("Operator Group", func() {
 		require.Equal(GinkgoT(), nsA, csvAinNsD.Annotations[v1.OperatorGroupNamespaceAnnotationKey])
 		require.Equal(GinkgoT(), nsA, csvAinNsD.Labels[v1alpha1.CopiedLabelKey])
 
-		// Await csvA's copy in namespaceC
+		By(`Await csvA's copy in namespaceC`)
 		_, err = fetchCSV(crc, nsC, csvA.GetName(), csvCopiedChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Create subscription for csvB in namespaceB
+		By(`Create subscription for csvB in namespaceB`)
 		subBName := genName("b-")
 		cleanupSubB := createSubscriptionForCatalog(crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubB()
@@ -1101,40 +1101,40 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subB)
 
-		// Await csvB's failure
+		By(`Await csvB's failure`)
 		fetchedB, err := fetchCSV(crc, nsB, csvB.GetName(), csvFailedChecker)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedB.Status.Reason)
 
-		// Ensure no annotation on groupB
+		By(`Ensure no annotation on groupB`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(context.TODO(), groupB.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{}))
 
-		// Delete csvA
+		By(`Delete csvA`)
 		require.NoError(GinkgoT(), crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(context.TODO(), csvA.GetName(), metav1.DeleteOptions{}))
 
-		// Ensure annotations are removed from groupA
+		By(`Ensure annotations are removed from groupA`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""}))
 
-		// Ensure csvA's deployment is deleted
+		By(`Ensure csvA's deployment is deleted`)
 		require.NoError(GinkgoT(), waitForDeploymentToDelete(generatedNamespace.GetName(), pkgAStable, c))
 
-		// Await csvB's success
+		By(`Await csvB's success`)
 		_, err = fetchCSV(crc, nsB, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Await csvB's copy in namespace C
+		By(`Await csvB's copy in namespace C`)
 		_, err = fetchCSV(crc, nsC, csvB.GetName(), csvCopiedChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Ensure annotations exist on group B
+		By(`Ensure annotations exist on group B`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(context.TODO(), groupB.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
@@ -1143,30 +1143,30 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("static provider", func() {
 
-		// Generate namespaceA
-		// Generate namespaceB
-		// Generate namespaceC
-		// Generate namespaceD
-		// Create static operatorGroupA in namespaceA that targets namespaceD with providedAPIs annotation containing KindA.version.group
-		// Create operatorGroupB in namespaceB that targets all namespaces
-		// Create operatorGroupC in namespaceC that targets namespaceC
-		// Create csvA in namespaceB that provides KindA.version.group
-		// Wait for csvA in namespaceB to fail
-		// Ensure no providedAPI annotations on operatorGroupB
-		// Ensure providedAPI annotations are unchanged on operatorGroupA
-		// Create csvA in namespaceC
-		// Wait for csvA in namespaceC to succeed
-		// Ensure KindA.version.group providedAPI annotation on operatorGroupC
-		// Create csvB in namespaceB that provides KindB.version.group
-		// Wait for csvB to succeed
-		// Wait for csvB to be copied to namespaceA, namespaceC, and namespaceD
-		// Wait for KindB.version.group to exist in operatorGroupB's providedAPIs annotation
-		// Add namespaceD to operatorGroupC's targetNamespaces
-		// Wait for csvA in namespaceC to FAIL with status "InterOperatorGroupOwnerConflict"
-		// Wait for KindA.version.group providedAPI annotation to be removed from operatorGroupC's providedAPIs annotation
-		// Ensure KindA.version.group providedAPI annotation on operatorGroupA
+		By(`Generate namespaceA`)
+		By(`Generate namespaceB`)
+		By(`Generate namespaceC`)
+		By(`Generate namespaceD`)
+		By(`Create static operatorGroupA in namespaceA that targets namespaceD with providedAPIs annotation containing KindA.version.group`)
+		By(`Create operatorGroupB in namespaceB that targets all namespaces`)
+		By(`Create operatorGroupC in namespaceC that targets namespaceC`)
+		By(`Create csvA in namespaceB that provides KindA.version.group`)
+		By(`Wait for csvA in namespaceB to fail`)
+		By(`Ensure no providedAPI annotations on operatorGroupB`)
+		By(`Ensure providedAPI annotations are unchanged on operatorGroupA`)
+		By(`Create csvA in namespaceC`)
+		By(`Wait for csvA in namespaceC to succeed`)
+		By(`Ensure KindA.version.group providedAPI annotation on operatorGroupC`)
+		By(`Create csvB in namespaceB that provides KindB.version.group`)
+		By(`Wait for csvB to succeed`)
+		By(`Wait for csvB to be copied to namespaceA, namespaceC, and namespaceD`)
+		By(`Wait for KindB.version.group to exist in operatorGroupB's providedAPIs annotation`)
+		By(`Add namespaceD to operatorGroupC's targetNamespaces`)
+		By(`Wait for csvA in namespaceC to FAIL with status "InterOperatorGroupOwnerConflict"`)
+		By(`Wait for KindA.version.group providedAPI annotation to be removed from operatorGroupC's providedAPIs annotation`)
+		By(`Ensure KindA.version.group providedAPI annotation on operatorGroupA`)
 
-		// Create a catalog for csvA, csvB
+		By(`Create a catalog for csvA, csvB`)
 		pkgA := genName("a-")
 		pkgB := genName("b-")
 		pkgAStable := pkgA + "-stable"
@@ -1181,7 +1181,7 @@ var _ = Describe("Operator Group", func() {
 		csvA := newCSV(pkgAStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crdA}, nil, &strategyA)
 		csvB := newCSV(pkgBStable, generatedNamespace.GetName(), "", semver.MustParse("0.1.0"), []apiextensionsv1.CustomResourceDefinition{crdB}, nil, &strategyB)
 
-		// Create namespaces
+		By(`Create namespaces`)
 		nsA, nsB, nsC, nsD := genName("a-"), genName("b-"), genName("c-"), genName("d-")
 
 		for _, ns := range []string{nsA, nsB, nsC, nsD} {
@@ -1197,7 +1197,7 @@ var _ = Describe("Operator Group", func() {
 			}(ns)
 		}
 
-		// Create the initial catalogsources
+		By(`Create the initial catalogsources`)
 		manifests := []registry.PackageManifest{
 			{
 				PackageName: pkgA,
@@ -1215,7 +1215,7 @@ var _ = Describe("Operator Group", func() {
 			},
 		}
 
-		// Create catalog in namespaceB and namespaceC
+		By(`Create catalog in namespaceB and namespaceC`)
 		catalog := genName("catalog-")
 		_, cleanupCatalogSource := createInternalCatalogSource(c, crc, catalog, nsB, manifests, []apiextensionsv1.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 		defer cleanupCatalogSource()
@@ -1226,7 +1226,7 @@ var _ = Describe("Operator Group", func() {
 		_, err = fetchCatalogSourceOnStatus(crc, catalog, nsC, catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
-		// Create OperatorGroups
+		By(`Create OperatorGroups`)
 		groupA := newOperatorGroup(nsA, genName("a-"), map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}, nil, []string{nsD}, true)
 		groupB := newOperatorGroup(nsB, genName("b-"), nil, nil, nil, false)
 		groupC := newOperatorGroup(nsC, genName("d-"), nil, nil, []string{nsC}, false)
@@ -1238,7 +1238,7 @@ var _ = Describe("Operator Group", func() {
 			}(group.GetNamespace(), group.GetName())
 		}
 
-		// Create subscription for csvA in namespaceB
+		By(`Create subscription for csvA in namespaceB`)
 		subAName := genName("a-")
 		cleanupSubA := createSubscriptionForCatalog(crc, nsB, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubA()
@@ -1246,51 +1246,51 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subA)
 
-		// Await csvA's failure
+		By(`Await csvA's failure`)
 		fetchedCSVA, err := fetchCSV(crc, nsB, csvA.GetName(), csvFailedChecker)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedCSVA.Status.Reason)
 
-		// Ensure operatorGroupB doesn't have providedAPI annotation
+		By(`Ensure operatorGroupB doesn't have providedAPI annotation`)
 		q := func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(context.TODO(), groupB.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{}))
 
-		// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
+		By(`Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
-		// Create subscription for csvA in namespaceC
+		By(`Create subscription for csvA in namespaceC`)
 		cleanupSubAC := createSubscriptionForCatalog(crc, nsC, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubAC()
 		subAC, err := fetchSubscription(crc, nsC, subAName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subAC)
 
-		// Await csvA's success
+		By(`Await csvA's success`)
 		_, err = fetchCSV(crc, nsC, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Ensure operatorGroupC has KindA.version.group in its providedAPIs annotation
+		By(`Ensure operatorGroupC has KindA.version.group in its providedAPIs annotation`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsC).Get(context.TODO(), groupC.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
-		// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
+		By(`Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
-		// Create subscription for csvB in namespaceB
+		By(`Create subscription for csvB in namespaceB`)
 		subBName := genName("b-")
 		cleanupSubB := createSubscriptionForCatalog(crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
 		defer cleanupSubB()
@@ -1298,11 +1298,11 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subB)
 
-		// Await csvB's success
+		By(`Await csvB's success`)
 		_, err = fetchCSV(crc, nsB, csvB.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Await copied csvBs
+		By(`Await copied csvBs`)
 		_, err = fetchCSV(crc, nsA, csvB.GetName(), csvCopiedChecker)
 		require.NoError(GinkgoT(), err)
 		_, err = fetchCSV(crc, nsC, csvB.GetName(), csvCopiedChecker)
@@ -1310,40 +1310,40 @@ var _ = Describe("Operator Group", func() {
 		_, err = fetchCSV(crc, nsD, csvB.GetName(), csvCopiedChecker)
 		require.NoError(GinkgoT(), err)
 
-		// Ensure operatorGroupB has KindB.version.group in its providedAPIs annotation
+		By(`Ensure operatorGroupB has KindB.version.group in its providedAPIs annotation`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(context.TODO(), groupB.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgB}))
 
-		// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
+		By(`Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
-		// Add namespaceD to operatorGroupC's targetNamespaces
+		By(`Add namespaceD to operatorGroupC's targetNamespaces`)
 		groupC, err = crc.OperatorsV1().OperatorGroups(groupC.GetNamespace()).Get(context.TODO(), groupC.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 		groupC.Spec.TargetNamespaces = []string{nsC, nsD}
 		_, err = crc.OperatorsV1().OperatorGroups(groupC.GetNamespace()).Update(context.TODO(), groupC, metav1.UpdateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Wait for csvA in namespaceC to fail with status "InterOperatorGroupOwnerConflict"
+		By(`Wait for csvA in namespaceC to fail with status "InterOperatorGroupOwnerConflict"`)
 		fetchedCSVA, err = fetchCSV(crc, nsC, csvA.GetName(), csvFailedChecker)
 		require.NoError(GinkgoT(), err)
 		require.Equal(GinkgoT(), v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedCSVA.Status.Reason)
 
-		// Wait for crdA's providedAPIs to be removed from operatorGroupC's providedAPIs annotation
+		By(`Wait for crdA's providedAPIs to be removed from operatorGroupC's providedAPIs annotation`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsC).Get(context.TODO(), groupC.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
 		}
 		require.NoError(GinkgoT(), awaitAnnotations(GinkgoT(), q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""}))
 
-		// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
+		By(`Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation`)
 		q = func() (metav1.ObjectMeta, error) {
 			g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(context.TODO(), groupA.GetName(), metav1.GetOptions{})
 			return g.ObjectMeta, err
@@ -1388,7 +1388,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("Creating CSV")
-		// Generate permissions
+		By(`Generate permissions`)
 		serviceAccountName := genName("nginx-sa")
 		permissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
@@ -1460,13 +1460,13 @@ var _ = Describe("Operator Group", func() {
 			}
 			c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0))
 		}()
-		// Create a new NamedInstallStrategy
+		By(`Create a new NamedInstallStrategy`)
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
 		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensionsv1.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
-		// Use the It spec name as label after stripping whitespaces
+		By(`Use the It spec name as label after stripping whitespaces`)
 		aCSV.Labels = map[string]string{"label": K8sSafeCurrentTestDescription()}
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -1639,7 +1639,7 @@ var _ = Describe("Operator Group", func() {
 
 		log("Creating operator group")
 		serviceAccountName := genName("nginx-sa")
-		// intentionally creating an operator group without a service account already existing
+		By(`intentionally creating an operator group without a service account already existing`)
 		operatorGroup := v1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("e2e-operator-group-"),
@@ -1655,7 +1655,7 @@ var _ = Describe("Operator Group", func() {
 
 		log("Creating CSV")
 
-		// Create a new NamedInstallStrategy
+		By(`Create a new NamedInstallStrategy`)
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, nil, nil)
 
@@ -1675,7 +1675,7 @@ var _ = Describe("Operator Group", func() {
 
 		_, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
-		// Create token secret for the serviceaccount
+		By(`Create token secret for the serviceaccount`)
 		_, cleanupSE := newTokenSecret(c, newNamespaceName, serviceAccount.GetName())
 		defer cleanupSE()
 
@@ -1690,7 +1690,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		// now add cluster admin permissions to service account
+		By(`now add cluster admin permissions to service account`)
 		role := &rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: newNamespaceName,
@@ -1775,7 +1775,7 @@ var _ = Describe("Operator Group", func() {
 
 		log("Creating operator group")
 		serviceAccountName := genName("nginx-sa")
-		// intentionally creating an operator group without a service account already existing
+		By(`intentionally creating an operator group without a service account already existing`)
 		operatorGroup := v1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("e2e-operator-group-"),
@@ -1791,7 +1791,7 @@ var _ = Describe("Operator Group", func() {
 
 		log("Creating CSV")
 
-		// Create a new NamedInstallStrategy
+		By(`Create a new NamedInstallStrategy`)
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, nil, nil)
 
@@ -1811,7 +1811,7 @@ var _ = Describe("Operator Group", func() {
 
 		_, err = c.CreateServiceAccount(serviceAccount)
 		require.NoError(GinkgoT(), err)
-		// Create token secret for the serviceaccount
+		By(`Create token secret for the serviceaccount`)
 		_, cleanupSE := newTokenSecret(c, newNamespaceName, serviceAccount.GetName())
 		defer cleanupSE()
 
@@ -1826,7 +1826,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 
-		// now remove operator group specified service account
+		By(`now remove operator group specified service account`)
 		createdOpGroup, err := crc.OperatorsV1().OperatorGroups(newNamespaceName).Get(context.TODO(), operatorGroup.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err)
 		createdOpGroup.Spec.ServiceAccountName = ""
@@ -1845,9 +1845,9 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 	})
 
-	// Versions of OLM at 0.14.1 and older had a bug that would place the wrong namespace annotation on copied CSVs,
-	// preventing them from being GCd. This ensures that any leftover CSVs in that state are properly cleared up.
 	It("cleanup csvs with bad namespace annotation", func() {
+		By(`Versions of OLM at 0.14.1 and older had a bug that would place the wrong namespace annotation on copied CSVs,`)
+		By(`preventing them from being GCd. This ensures that any leftover CSVs in that state are properly cleared up.`)
 
 		csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
 
@@ -1881,7 +1881,7 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 		GinkgoT().Log("Creating CSV")
-		// Generate permissions
+		By(`Generate permissions`)
 		serviceAccountName := genName("nginx-sa")
 		permissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
@@ -1953,13 +1953,13 @@ var _ = Describe("Operator Group", func() {
 			}
 			c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0))
 		}()
-		// Create a new NamedInstallStrategy
+		By(`Create a new NamedInstallStrategy`)
 		deploymentName := genName("operator-deployment")
 		namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
 		aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensionsv1.CustomResourceDefinition{mainCRD}, nil, &namedStrategy)
 
-		// Use the It spec name as label after stripping whitespaces
+		By(`Use the It spec name as label after stripping whitespaces`)
 		aCSV.Labels = map[string]string{"label": K8sSafeCurrentTestDescription()}
 		createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(context.TODO(), &aCSV, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
@@ -2100,9 +2100,9 @@ var _ = Describe("Operator Group", func() {
 				GinkgoT().Logf("Error (in %v): %v", opGroupNamespace, fetchErr.Error())
 				return false, fetchErr
 			}
-			// The CSV with the wrong annotation could have been replaced with a new copied CSV by this time
-			// If we find a CSV in the namespace, and it contains the correct annotation, it means the CSV
-			// with the wrong annotation was GCed
+			By(`The CSV with the wrong annotation could have been replaced with a new copied CSV by this time`)
+			By(`If we find a CSV in the namespace, and it contains the correct annotation, it means the CSV`)
+			By(`with the wrong annotation was GCed`)
 			if csv.Annotations[v1.OperatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
 				return true, nil
 			}
@@ -2112,7 +2112,7 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("OperatorGroupLabels", func() {
 
-		// Create the namespaces that will have an OperatorGroup Label applied.
+		By(`Create the namespaces that will have an OperatorGroup Label applied.`)
 		testNamespaceA := genName("namespace-a-")
 		testNamespaceB := genName("namespace-b-")
 		testNamespaceC := genName("namespace-c-")
@@ -2120,7 +2120,7 @@ var _ = Describe("Operator Group", func() {
 			testNamespaceA, testNamespaceB, testNamespaceC,
 		}
 
-		// Create the namespaces
+		By(`Create the namespaces`)
 		for _, namespace := range testNamespaces {
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -2130,7 +2130,7 @@ var _ = Describe("Operator Group", func() {
 			require.NoError(GinkgoT(), err)
 		}
 
-		// Cleanup namespaces
+		By(`Cleanup namespaces`)
 		defer func() {
 			for _, namespace := range testNamespaces {
 				err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
@@ -2138,7 +2138,7 @@ var _ = Describe("Operator Group", func() {
 			}
 		}()
 
-		// Create an OperatorGroup
+		By(`Create an OperatorGroup`)
 		operatorGroup := &v1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("e2e-operator-group-"),
@@ -2151,17 +2151,17 @@ var _ = Describe("Operator Group", func() {
 		operatorGroup, err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Create(context.TODO(), operatorGroup, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Cleanup OperatorGroup
+		By(`Cleanup OperatorGroup`)
 		defer func() {
 			err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Delete(context.TODO(), operatorGroup.GetName(), metav1.DeleteOptions{})
 			require.NoError(GinkgoT(), err)
 		}()
 
-		// Create the OperatorGroup Label
+		By(`Create the OperatorGroup Label`)
 		ogLabel, err := getOGLabelKey(operatorGroup)
 		require.NoError(GinkgoT(), err)
 
-		// Create list options
+		By(`Create list options`)
 		listOptions := metav1.ListOptions{
 			LabelSelector: labels.Set(map[string]string{ogLabel: ""}).String(),
 		}
@@ -2169,7 +2169,7 @@ var _ = Describe("Operator Group", func() {
 		namespaceList, err := pollForNamespaceListCount(c, listOptions, 0)
 		require.NoError(GinkgoT(), err)
 
-		// Update the OperatorGroup to include a single namespace
+		By(`Update the OperatorGroup to include a single namespace`)
 		operatorGroup.Spec.TargetNamespaces = []string{testNamespaceA}
 		updateOGSpecFunc := updateOperatorGroupSpecFunc(GinkgoT(), crc, testNamespaceA, operatorGroup.GetName())
 		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
@@ -2178,7 +2178,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
 
-		// Update the OperatorGroup to include two namespaces
+		By(`Update the OperatorGroup to include two namespaces`)
 		operatorGroup.Spec.TargetNamespaces = []string{testNamespaceA, testNamespaceC}
 		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
 
@@ -2186,7 +2186,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
 
-		// Update the OperatorGroup to include three namespaces
+		By(`Update the OperatorGroup to include three namespaces`)
 		operatorGroup.Spec.TargetNamespaces = []string{testNamespaceA, testNamespaceB, testNamespaceC}
 		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
 
@@ -2194,7 +2194,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
 
-		// Update the OperatorGroup to include two namespaces
+		By(`Update the OperatorGroup to include two namespaces`)
 		operatorGroup.Spec.TargetNamespaces = []string{testNamespaceA, testNamespaceC}
 		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
 
@@ -2202,7 +2202,7 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
 
-		// Make the OperatorGroup a Cluster OperatorGroup.
+		By(`Make the OperatorGroup a Cluster OperatorGroup.`)
 		operatorGroup.Spec.TargetNamespaces = []string{}
 		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
 
@@ -2211,7 +2211,7 @@ var _ = Describe("Operator Group", func() {
 	})
 	It("CleanupDeletedOperatorGroupLabels", func() {
 
-		// Create the namespaces that will have an OperatorGroup Label applied.
+		By(`Create the namespaces that will have an OperatorGroup Label applied.`)
 		testNamespaceA := genName("namespace-a-")
 		testNamespaceB := genName("namespace-b-")
 		testNamespaceC := genName("namespace-c-")
@@ -2219,7 +2219,7 @@ var _ = Describe("Operator Group", func() {
 			testNamespaceA, testNamespaceB, testNamespaceC,
 		}
 
-		// Create the namespaces
+		By(`Create the namespaces`)
 		for _, namespace := range testNamespaces {
 			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -2229,7 +2229,7 @@ var _ = Describe("Operator Group", func() {
 			require.NoError(GinkgoT(), err)
 		}
 
-		// Cleanup namespaces
+		By(`Cleanup namespaces`)
 		defer func() {
 			for _, namespace := range testNamespaces {
 				err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
@@ -2237,7 +2237,7 @@ var _ = Describe("Operator Group", func() {
 			}
 		}()
 
-		// Create an OperatorGroup with three target namespaces.
+		By(`Create an OperatorGroup with three target namespaces.`)
 		operatorGroup := &v1.OperatorGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      genName("e2e-operator-group-"),
@@ -2250,11 +2250,11 @@ var _ = Describe("Operator Group", func() {
 		operatorGroup, err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Create(context.TODO(), operatorGroup, metav1.CreateOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Create the OperatorGroup Label
+		By(`Create the OperatorGroup Label`)
 		ogLabel, err := getOGLabelKey(operatorGroup)
 		require.NoError(GinkgoT(), err)
 
-		// Create list options
+		By(`Create list options`)
 		listOptions := metav1.ListOptions{
 			LabelSelector: labels.Set(map[string]string{ogLabel: ""}).String(),
 		}
@@ -2263,11 +2263,11 @@ var _ = Describe("Operator Group", func() {
 		require.NoError(GinkgoT(), err)
 		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
 
-		// Delete the operatorGroup.
+		By(`Delete the operatorGroup.`)
 		err = crc.OperatorsV1().OperatorGroups(testNamespaceA).Delete(context.TODO(), operatorGroup.GetName(), metav1.DeleteOptions{})
 		require.NoError(GinkgoT(), err)
 
-		// Check that no namespaces have the OperatorGroup.
+		By(`Check that no namespaces have the OperatorGroup.`)
 		namespaceList, err = pollForNamespaceListCount(c, listOptions, 0)
 		require.NoError(GinkgoT(), err)
 	})
@@ -2284,7 +2284,7 @@ var _ = Describe("Operator Group", func() {
 			c = newKubeClient()
 			crc = newCRClient()
 
-			// Create the namespaces that will have an OperatorGroup Label applied.
+			By(`Create the namespaces that will have an OperatorGroup Label applied.`)
 			testNamespaceA = genName("namespace-a-")
 			testNamespaceB := genName("namespace-b-")
 			testNamespaceC := genName("namespace-c-")
@@ -2292,7 +2292,7 @@ var _ = Describe("Operator Group", func() {
 				testNamespaceA, testNamespaceB, testNamespaceC,
 			}
 
-			// Create the namespaces
+			By(`Create the namespaces`)
 			for _, namespace := range testNamespaces {
 				_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
@@ -2304,7 +2304,7 @@ var _ = Describe("Operator Group", func() {
 		})
 
 		AfterEach(func() {
-			// Cleanup namespaces
+			By(`Cleanup namespaces`)
 			for _, namespace := range testNamespaces {
 				err := c.KubernetesInterface().CoreV1().Namespaces().Delete(context.TODO(), namespace, metav1.DeleteOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -2319,7 +2319,7 @@ var _ = Describe("Operator Group", func() {
 			BeforeEach(func() {
 				matchingLabel = map[string]string{"foo": "bar"}
 
-				// Updating Namespace with labels
+				By(`Updating Namespace with labels`)
 				for _, namespace := range testNamespaces {
 					_, err := c.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), &corev1.Namespace{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2336,7 +2336,7 @@ var _ = Describe("Operator Group", func() {
 				var operatorGroup *v1.OperatorGroup
 
 				BeforeEach(func() {
-					// Creating operator group
+					By(`Creating operator group`)
 					operatorGroup = &v1.OperatorGroup{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      genName("e2e-operator-group-"),
@@ -2353,17 +2353,17 @@ var _ = Describe("Operator Group", func() {
 					Expect(err).ToNot(HaveOccurred())
 				})
 
-				// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2637
 				It("[FLAKE] OLM applies labels to Namespaces that are associated with an OperatorGroup", func() {
+					By(`issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2637`)
 					ogLabel, err := getOGLabelKey(operatorGroup)
 					Expect(err).ToNot(HaveOccurred())
 
-					// Create list options
+					By(`Create list options`)
 					listOptions := metav1.ListOptions{
 						LabelSelector: labels.Set(map[string]string{ogLabel: ""}).String(),
 					}
 
-					// Verify that all the namespaces listed in targetNamespaces field of OperatorGroup have labels applied on them
+					By(`Verify that all the namespaces listed in targetNamespaces field of OperatorGroup have labels applied on them`)
 					namespaceList, err := pollForNamespaceListCount(c, listOptions, 3)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(checkForOperatorGroupLabels(operatorGroup, namespaceList.Items)).Should(BeTrue())
@@ -2375,7 +2375,7 @@ var _ = Describe("Operator Group", func() {
 			var operatorGroup *v1.OperatorGroup
 
 			BeforeEach(func() {
-				// Create an OperatorGroup with three target namespaces.
+				By(`Create an OperatorGroup with three target namespaces.`)
 				operatorGroup = &v1.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      genName("e2e-operator-group-"),
@@ -2395,12 +2395,12 @@ var _ = Describe("Operator Group", func() {
 				ogLabel, err := getOGLabelKey(operatorGroup)
 				Expect(err).ToNot(HaveOccurred())
 
-				// Create list options
+				By(`Create list options`)
 				listOptions := metav1.ListOptions{
 					LabelSelector: labels.Set(map[string]string{ogLabel: ""}).String(),
 				}
 
-				// Verify that all the namespaces listed in targetNamespaces field of OperatorGroup have labels applied on them
+				By(`Verify that all the namespaces listed in targetNamespaces field of OperatorGroup have labels applied on them`)
 				namespaceList, err := pollForNamespaceListCount(c, listOptions, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(checkForOperatorGroupLabels(operatorGroup, namespaceList.Items)).Should(BeTrue())
