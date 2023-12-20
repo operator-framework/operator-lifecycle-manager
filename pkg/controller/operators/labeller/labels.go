@@ -18,6 +18,7 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	operatorsv1alpha2 "github.com/operator-framework/api/pkg/operators/v1alpha2"
+	operatorsv2 "github.com/operator-framework/api/pkg/operators/v2"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/decorators"
@@ -181,6 +182,7 @@ func HasOLMOwnerRef(object metav1.Object) bool {
 			operatorsv1.GroupVersion,
 			operatorsv1alpha1.SchemeGroupVersion,
 			operatorsv1alpha2.GroupVersion,
+			operatorsv2.GroupVersion,
 		} {
 			if ref.APIVersion == gv.String() {
 				return true
