@@ -1,6 +1,8 @@
 package event
 
 import (
+	"fmt"
+
 	v1 "k8s.io/api/core/v1"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -23,7 +25,18 @@ func init() {
 // NewRecorder returns an EventRecorder type that can be
 // used to post Events to different object's lifecycles.
 func NewRecorder(event typedcorev1.EventInterface) (record.EventRecorder, error) {
-	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster := record.NewBroadcasterWithCorrelatorOptions(record.CorrelatorOptions{
+		BurstSize: 10,
+		SpamKeyFunc: func(event *v1.Event) string {
+			return fmt.Sprintf(
+				"%s/%s/%s/%s",
+				event.InvolvedObject.Kind,
+				event.InvolvedObject.Namespace,
+				event.InvolvedObject.Name,
+				event.Reason,
+			)
+		},
+	})
 	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: event})
 	recorder := eventBroadcaster.NewRecorder(s, v1.EventSource{Component: component})
