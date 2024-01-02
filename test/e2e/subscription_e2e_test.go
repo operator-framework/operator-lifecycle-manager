@@ -3365,6 +3365,35 @@ func createSubscriptionForCatalogWithSpec(t GinkgoTInterface, crc versioned.Inte
 	return buildSubscriptionCleanupFunc(crc, subscription)
 }
 
+func waitForSubscriptionToDelete(namespace, name string, c versioned.Interface) error {
+	var lastState operatorsv1alpha1.SubscriptionState
+	var lastReason operatorsv1alpha1.ConditionReason
+	lastTime := time.Now()
+
+	ctx.Ctx().Logf("waiting for subscription %s/%s to delete", namespace, name)
+	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		sub, err := c.OperatorsV1alpha1().Subscriptions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			ctx.Ctx().Logf("subscription %s/%s deleted", namespace, name)
+			return true, nil
+		}
+		if err != nil {
+			ctx.Ctx().Logf("error getting subscription %s/%s: %v", namespace, name, err)
+		}
+		if sub != nil {
+			state, reason := sub.Status.State, sub.Status.Reason
+			if state != lastState || reason != lastReason {
+				ctx.Ctx().Logf("waited %s for subscription %s/%s status: %s (%s)", time.Since(lastTime), namespace, name, state, reason)
+				lastState, lastReason = state, reason
+				lastTime = time.Now()
+			}
+		}
+		return false, nil
+	})
+
+	return err
+}
+
 func checkDeploymentHasPodConfigNodeSelector(t GinkgoTInterface, client operatorclient.ClientInterface, csv *operatorsv1alpha1.ClusterServiceVersion, nodeSelector map[string]string) error {
 	resolver := install.StrategyResolver{}
 

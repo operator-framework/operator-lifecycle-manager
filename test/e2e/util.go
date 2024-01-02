@@ -677,8 +677,10 @@ func createInternalCatalogSource(
 	ctx.Ctx().Logf("Catalog source %s created", name)
 
 	cleanupInternalCatalogSource := func() {
+		ctx.Ctx().Logf("Cleaning catalog source %s", name)
 		configMapCleanup()
 		buildCatalogSourceCleanupFunc(c, crc, namespace, catalogSource)()
+		ctx.Ctx().Logf("Done cleaning catalog source %s", name)
 	}
 	return catalogSource, cleanupInternalCatalogSource
 }
