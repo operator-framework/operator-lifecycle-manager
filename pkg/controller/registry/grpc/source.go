@@ -15,6 +15,7 @@ import (
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -147,7 +148,7 @@ func getEnvAny(names ...string) string {
 }
 
 func grpcConnection(address string) (*grpc.ClientConn, error) {
-	dialOptions := []grpc.DialOption{grpc.WithInsecure()}
+	dialOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	proxyURL, err := grpcProxyURL(address)
 	if err != nil {
 		return nil, err
