@@ -2792,10 +2792,13 @@ var _ = Describe("Install Plan", func() {
 		_, err := fetchCatalogSourceOnStatus(crc, mainCatalogSourceName, generatedNamespace.GetName(), catalogSourceRegistryPodSynced())
 		require.NoError(GinkgoT(), err)
 
+		By("Creating a Subscription")
 		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, mainCatalogSourceName, packageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
-		defer subscriptionCleanup()
+		// Subscription is explitly deleted as part of the test to avoid CSV being recreated,
+		// so ignore cleanup function
+		_ = createSubscriptionForCatalog(crc, generatedNamespace.GetName(), subscriptionName, mainCatalogSourceName, packageName, stableChannel, "", operatorsv1alpha1.ApprovalAutomatic)
 
+		By("Attempt to get Subscription")
 		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), subscriptionName, subscriptionHasInstallPlanChecker())
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
@@ -2867,22 +2870,38 @@ var _ = Describe("Install Plan", func() {
 		By("Should have removed every matching step")
 		require.Equal(GinkgoT(), 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
 
-		GinkgoT().Logf("deleting csv %s/%s", generatedNamespace.GetName(), stableCSVName)
-		By("Explicitly delete the CSV")
+		By(fmt.Sprintf("Explicitly deleting subscription %s/%s", generatedNamespace.GetName(), subscriptionName))
+		err = crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Delete(context.Background(), subscriptionName, metav1.DeleteOptions{})
+		By("Looking for no error OR IsNotFound error")
+		require.NoError(GinkgoT(), client.IgnoreNotFound(err))
+
+		By("Waiting for the Subscription to delete")
+		err = waitForSubscriptionToDelete(generatedNamespace.GetName(), subscriptionName, crc)
+		require.NoError(GinkgoT(), client.IgnoreNotFound(err))
+
+		By(fmt.Sprintf("Explicitly deleting csv %s/%s", generatedNamespace.GetName(), stableCSVName))
 		err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Delete(context.Background(), stableCSVName, metav1.DeleteOptions{})
 		By("Looking for no error OR IsNotFound error")
-		if err != nil && apierrors.IsNotFound(err) {
-			err = nil
-		}
-		require.NoError(GinkgoT(), err)
+		require.NoError(GinkgoT(), client.IgnoreNotFound(err))
+		By("Waiting for the CSV to delete")
+		err = waitForCsvToDelete(generatedNamespace.GetName(), stableCSVName, crc)
+		require.NoError(GinkgoT(), client.IgnoreNotFound(err))
 
+		nCrs := 0
+		nCrbs := 0
+		By("Waiting for CRBs and CRs and SAs to delete")
 		Eventually(func() bool {
+
 			crbs, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
 			if err != nil {
 				GinkgoT().Logf("error getting crbs: %v", err)
 				return false
 			}
-			if len(crbs.Items) != 0 {
+			if n := len(crbs.Items); n != 0 {
+				if n != nCrbs {
+					GinkgoT().Logf("CRBs remaining:  %v", n)
+					nCrbs = n
+				}
 				return false
 			}
 
@@ -2891,18 +2910,23 @@ var _ = Describe("Install Plan", func() {
 				GinkgoT().Logf("error getting crs: %v", err)
 				return false
 			}
-			if len(crs.Items) != 0 {
+			if n := len(crs.Items); n != 0 {
+				if n != nCrs {
+					GinkgoT().Logf("CRs remaining: %v", n)
+					nCrs = n
+				}
 				return false
 			}
 
 			_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(generatedNamespace.GetName()).Get(context.Background(), serviceAccountName, metav1.GetOptions{})
-			if err != nil && !apierrors.IsNotFound(err) {
+			if client.IgnoreNotFound(err) != nil {
 				GinkgoT().Logf("error getting sa %s/%s: %v", generatedNamespace.GetName(), serviceAccountName, err)
 				return false
 			}
 
 			return true
 		}, pollDuration*2, pollInterval).Should(BeTrue())
+		By("Cleaning up the test")
 	})
 
 	It("CRD validation", func() {

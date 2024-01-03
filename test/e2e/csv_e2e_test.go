@@ -4441,6 +4441,7 @@ func fetchCSV(c versioned.Interface, namespace, name string, checker csvConditio
 	var lastPhase operatorsv1alpha1.ClusterServiceVersionPhase
 	var lastReason operatorsv1alpha1.ConditionReason
 	var lastMessage string
+	var lastError string
 	lastTime := time.Now()
 	var csv *operatorsv1alpha1.ClusterServiceVersion
 
@@ -4449,7 +4450,10 @@ func fetchCSV(c versioned.Interface, namespace, name string, checker csvConditio
 		var err error
 		csv, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil || csv == nil {
-			ctx.Ctx().Logf("error getting csv %s/%s: %v", namespace, name, err)
+			if lastError != err.Error() {
+				ctx.Ctx().Logf("error getting csv %s/%s: %v", namespace, name, err)
+				lastError = err.Error()
+			}
 			return false, nil
 		}
 		phase, reason, message := csv.Status.Phase, csv.Status.Reason, csv.Status.Message
