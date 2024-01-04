@@ -328,7 +328,7 @@ var _ = Describe("Subscription", func() {
 		subscriptionCleanup, _ := createSubscription(GinkgoT(), crc, generatedNamespace.GetName(), "manual-subscription", testPackageName, stableChannel, operatorsv1alpha1.ApprovalManual)
 		defer subscriptionCleanup()
 
-		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), "manual-subscription", subscriptionStateUpgradePendingChecker())
+		subscription, err := fetchSubscription(crc, generatedNamespace.GetName(), "manual-subscription", subscriptionHasCondition(operatorsv1alpha1.SubscriptionInstallPlanPending, corev1.ConditionTrue, string(operatorsv1alpha1.InstallPlanPhaseRequiresApproval), ""))
 		require.NoError(GinkgoT(), err)
 		require.NotNil(GinkgoT(), subscription)
 
