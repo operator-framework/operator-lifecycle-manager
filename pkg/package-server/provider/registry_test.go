@@ -22,6 +22,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -2066,7 +2067,7 @@ func TestRegistryProviderListLabels(t *testing.T) {
 }
 
 func newTestRegistryClient(t *testing.T, catsrc *operatorsv1alpha1.CatalogSource) *registryClient {
-	conn, err := grpc.Dial(address+catsrc.Status.RegistryServiceStatus.Port, grpc.WithInsecure())
+	conn, err := grpc.Dial(address+catsrc.Status.RegistryServiceStatus.Port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err, "could not set up test grpc connection")
 	return newRegistryClient(catsrc, conn)
 }

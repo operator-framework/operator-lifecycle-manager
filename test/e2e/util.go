@@ -12,8 +12,13 @@ import (
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	gtypes "github.com/onsi/gomega/types"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	grpcinsecure "google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -34,9 +39,6 @@ import (
 	"k8s.io/client-go/rest"
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	gtypes "github.com/onsi/gomega/types"
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -45,7 +47,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
-	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
@@ -330,7 +331,7 @@ func registryPodHealthy(address string) bool {
 		return true
 	}
 
-	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(grpcinsecure.NewCredentials()))
 	if err != nil {
 		fmt.Printf("error connecting: %s\n", err.Error())
 		return false
