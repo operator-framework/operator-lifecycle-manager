@@ -229,6 +229,9 @@ func (s *SourceStore) watch(ctx context.Context, key registry.CatalogKey, source
 					s.sources[key] = *src
 					s.sourcesLock.Unlock()
 
+					// Will attempt to reconnect if in the Idle state, does not block
+					source.Conn.Connect()
+
 					// notify subscriber
 					s.notify <- SourceState{Key: key, State: newState}
 				}
