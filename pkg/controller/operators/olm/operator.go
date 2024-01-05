@@ -11,7 +11,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/labeller"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/plugins"
 	"github.com/sirupsen/logrus"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -50,7 +49,6 @@ import (
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -86,7 +84,6 @@ type Operator struct {
 	olmConfigQueue               workqueue.RateLimitingInterface
 	csvCopyQueueSet              *queueinformer.ResourceQueueSet
 	copiedCSVGCQueueSet          *queueinformer.ResourceQueueSet
-	objGCQueueSet                *queueinformer.ResourceQueueSet
 	nsQueueSet                   workqueue.RateLimitingInterface
 	apiServiceQueue              workqueue.RateLimitingInterface
 	csvIndexers                  map[string]cache.Indexer
@@ -202,7 +199,6 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		olmConfigQueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "olmConfig"),
 		csvCopyQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
 		copiedCSVGCQueueSet:          queueinformer.NewEmptyResourceQueueSet(),
-		objGCQueueSet:                queueinformer.NewEmptyResourceQueueSet(),
 		apiServiceQueue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
 		resolver:                     config.strategyResolver,
 		apiReconciler:                config.apiReconciler,
@@ -480,21 +476,6 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err := op.RegisterQueueInformer(serviceAccountQueueInformer); err != nil {
 			return nil, err
 		}
-
-		objGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/obj-gc", namespace))
-		op.objGCQueueSet.Set(namespace, objGCQueue)
-		objGCQueueInformer, err := queueinformer.NewQueue(
-			ctx,
-			queueinformer.WithLogger(op.logger),
-			queueinformer.WithQueue(objGCQueue),
-			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncGCObject).ToSyncer()),
-		)
-		if err != nil {
-			return nil, err
-		}
-		if err := op.RegisterQueueInformer(objGCQueueInformer); err != nil {
-			return nil, err
-		}
 	}
 
 	complete := map[schema.GroupVersionResource][]bool{}
@@ -565,22 +546,6 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			return op.opClient.KubernetesInterface().AppsV1().Deployments(namespace).Apply(ctx, cfg, opts)
 		},
 	)); err != nil {
-		return nil, err
-	}
-
-	// add queue for all namespaces as well
-	objGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/obj-gc", ""))
-	op.objGCQueueSet.Set("", objGCQueue)
-	objGCQueueInformer, err := queueinformer.NewQueue(
-		ctx,
-		queueinformer.WithLogger(op.logger),
-		queueinformer.WithQueue(objGCQueue),
-		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncGCObject).ToSyncer()),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if err := op.RegisterQueueInformer(objGCQueueInformer); err != nil {
 		return nil, err
 	}
 
@@ -948,98 +913,6 @@ func (a *Operator) EnsureCSVMetric() error {
 	return nil
 }
 
-func (a *Operator) syncGCObject(obj interface{}) (syncError error) {
-	metaObj, ok := obj.(metav1.Object)
-	if !ok {
-		a.logger.Warn("object sync: casting to metav1.Object failed")
-		return
-	}
-	logger := a.logger.WithFields(logrus.Fields{
-		"name":      metaObj.GetName(),
-		"namespace": metaObj.GetNamespace(),
-		"self":      metaObj.GetSelfLink(),
-	})
-
-	switch metaObj.(type) {
-	case *rbacv1.ClusterRole:
-		if name, ns, ok := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind); ok {
-			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
-			if err == nil {
-				logger.Debugf("CSV still present, must wait until it is deleted (owners=%v/%v)", ns, name)
-				syncError = fmt.Errorf("cleanup must wait")
-				return
-			} else if !apierrors.IsNotFound(err) {
-				syncError = err
-				return
-			}
-		}
-
-		if err := a.opClient.DeleteClusterRole(metaObj.GetName(), &metav1.DeleteOptions{}); err != nil {
-			logger.WithError(err).Warn("cannot delete cluster role")
-			break
-		}
-		logger.Debugf("Deleted cluster role %v due to no owning CSV", metaObj.GetName())
-	case *rbacv1.ClusterRoleBinding:
-		if name, ns, ok := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind); ok {
-			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
-			if err == nil {
-				logger.Debugf("CSV still present, must wait until it is deleted (owners=%v)", name)
-				syncError = fmt.Errorf("cleanup must wait")
-				return
-			} else if !apierrors.IsNotFound(err) {
-				syncError = err
-				return
-			}
-		}
-
-		if err := a.opClient.DeleteClusterRoleBinding(metaObj.GetName(), &metav1.DeleteOptions{}); err != nil {
-			logger.WithError(err).Warn("cannot delete cluster role binding")
-			break
-		}
-		logger.Debugf("Deleted cluster role binding %v due to no owning CSV", metaObj.GetName())
-	case *admissionregistrationv1.MutatingWebhookConfiguration:
-		if name, ns, ok := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind); ok {
-			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
-			if err == nil {
-				logger.Debugf("CSV still present, must wait until it is deleted (owners=%v)", name)
-				syncError = fmt.Errorf("cleanup must wait")
-				return
-			} else if !apierrors.IsNotFound(err) {
-				logger.Infof("error CSV retrieval error")
-				syncError = err
-				return
-			}
-		}
-
-		if err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().Delete(context.TODO(), metaObj.GetName(), metav1.DeleteOptions{}); err != nil {
-			logger.WithError(err).Warn("cannot delete MutatingWebhookConfiguration")
-			break
-		}
-		logger.Debugf("Deleted MutatingWebhookConfiguration %v due to no owning CSV", metaObj.GetName())
-	case *admissionregistrationv1.ValidatingWebhookConfiguration:
-		if name, ns, ok := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind); ok {
-			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
-			if err == nil {
-				logger.Debugf("CSV still present, must wait until it is deleted (owners=%v)", name)
-				syncError = fmt.Errorf("cleanup must wait")
-				return
-			} else if !apierrors.IsNotFound(err) {
-				logger.Infof("Error CSV retrieval error")
-				syncError = err
-				return
-			}
-		}
-
-		if err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(context.TODO(), metaObj.GetName(), metav1.DeleteOptions{}); err != nil {
-			logger.WithError(err).Warn("cannot delete ValidatingWebhookConfiguration")
-			break
-		}
-		logger.Debugf("Deleted ValidatingWebhookConfiguration %v due to no owning CSV", metaObj.GetName())
-	}
-
-	return
-}
-
 func (a *Operator) syncObject(obj interface{}) (syncError error) {
 	// Assert as metav1.Object
 	metaObj, ok := obj.(metav1.Object)
@@ -1054,30 +927,8 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 		"self":      metaObj.GetSelfLink(),
 	})
 
-	// Requeues objects that can't have ownerrefs (cluster -> namespace, cross-namespace)
-	if ownerutil.IsOwnedByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind) {
-		name, ns, ok := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind)
-		if !ok {
-			logger.Error("unexpected owner label retrieval failure")
-		}
-		_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
-		if !apierrors.IsNotFound(err) {
-			logger.Debug("requeueing owner csvs from owner label")
-			a.requeueOwnerCSVs(metaObj)
-		} else {
-			switch metaObj.(type) {
-			case *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding, *admissionregistrationv1.MutatingWebhookConfiguration, *admissionregistrationv1.ValidatingWebhookConfiguration:
-				resourceEvent := kubestate.NewResourceEvent(
-					kubestate.ResourceUpdated,
-					metaObj,
-				)
-				if syncError = a.objGCQueueSet.RequeueEvent("", resourceEvent); syncError != nil {
-					logger.WithError(syncError).Warnf("failed to requeue gc event: %v", resourceEvent)
-				}
-				return
-			}
-		}
-	}
+	// Objects that can't have ownerrefs (cluster -> namespace, cross-namespace)
+	// are handled by finalizer
 
 	// Requeue all owner CSVs
 	if ownerutil.IsOwnedByKind(metaObj, v1alpha1.ClusterServiceVersionKind) {
@@ -1329,50 +1180,6 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 			if err != nil {
 				logger.WithError(err).Warn("cannot delete orphaned api service")
 			}
-		}
-	}
-
-	ownerSelector := ownerutil.CSVOwnerSelector(clusterServiceVersion)
-	crbs, err := a.lister.RbacV1().ClusterRoleBindingLister().List(ownerSelector)
-	if err != nil {
-		logger.WithError(err).Warn("cannot list cluster role bindings")
-	}
-	for _, crb := range crbs {
-		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, crb)); err != nil {
-			logger.WithError(err).Warnf("failed to requeue gc event: %v", crb)
-		}
-	}
-
-	crs, err := a.lister.RbacV1().ClusterRoleLister().List(ownerSelector)
-	if err != nil {
-		logger.WithError(err).Warn("cannot list cluster roles")
-	}
-	for _, cr := range crs {
-		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, cr)); err != nil {
-			logger.WithError(err).Warnf("failed to requeue gc event: %v", cr)
-		}
-	}
-
-	webhookSelector := labels.SelectorFromSet(ownerutil.OwnerLabel(clusterServiceVersion, v1alpha1.ClusterServiceVersionKind)).String()
-	mWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
-	if err != nil {
-		logger.WithError(err).Warn("cannot list MutatingWebhookConfigurations")
-	}
-	for _, webhook := range mWebhooks.Items {
-		w := webhook
-		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, &w)); err != nil {
-			logger.WithError(err).Warnf("failed to requeue gc event: %v", webhook)
-		}
-	}
-
-	vWebhooks, err := a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{LabelSelector: webhookSelector})
-	if err != nil {
-		logger.WithError(err).Warn("cannot list ValidatingWebhookConfigurations")
-	}
-	for _, webhook := range vWebhooks.Items {
-		w := webhook
-		if err := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, &w)); err != nil {
-			logger.WithError(err).Warnf("failed to requeue gc event: %v", webhook)
 		}
 	}
 
