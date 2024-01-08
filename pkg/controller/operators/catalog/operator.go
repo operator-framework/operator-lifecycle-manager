@@ -346,7 +346,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		subscription.WithAppendedReconcilers(subscription.ReconcilerFromLegacySyncHandler(op.syncSubscriptions, nil)),
 		subscription.WithRegistryReconcilerFactory(op.reconciler),
 		subscription.WithGlobalCatalogNamespace(op.namespace),
-		subscription.WithSourceProvider(resolverSourceProvider),
+		subscription.WithSourceProvider(op.sourceInvalidator),
 	)
 	if err != nil {
 		return nil, err
