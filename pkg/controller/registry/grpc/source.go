@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/operator-framework/operator-registry/pkg/client"
-
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type SourceMeta struct {
@@ -147,7 +147,7 @@ func getEnvAny(names ...string) string {
 }
 
 func grpcConnection(address string) (*grpc.ClientConn, error) {
-	dialOptions := []grpc.DialOption{grpc.WithInsecure()}
+	dialOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	proxyURL, err := grpcProxyURL(address)
 	if err != nil {
 		return nil, err
@@ -227,6 +227,12 @@ func (s *SourceStore) watch(ctx context.Context, key registry.CatalogKey, source
 					s.sourcesLock.Lock()
 					s.sources[key] = *src
 					s.sourcesLock.Unlock()
+
+					// Always try to reconnect. If the connection is already connected, this is a no-op.
+					//
+					// This function is non-blocking. Therefore, when it returns we'll still return IDLE
+					// as the state (we'll see further state changes in subsequent iterations of the loop).
+					source.Conn.Connect()
 
 					// notify subscriber
 					s.notify <- SourceState{Key: key, State: newState}
