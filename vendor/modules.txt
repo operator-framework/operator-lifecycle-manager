@@ -98,7 +98,7 @@ github.com/chai2010/gettext-go/po
 # github.com/containerd/cgroups/v3 v3.0.2
 ## explicit; go 1.18
 github.com/containerd/cgroups/v3/cgroup1/stats
-# github.com/containerd/containerd v1.7.6
+# github.com/containerd/containerd v1.7.11
 ## explicit; go 1.19
 github.com/containerd/containerd/api/events
 github.com/containerd/containerd/api/runtime/sandbox/v1
@@ -146,6 +146,9 @@ github.com/containerd/containerd/version
 ## explicit; go 1.19
 github.com/containerd/continuity/fs
 github.com/containerd/continuity/sysx
+# github.com/containerd/log v0.1.0
+## explicit; go 1.20
+github.com/containerd/log
 # github.com/containerd/ttrpc v1.2.2
 ## explicit; go 1.13
 github.com/containerd/ttrpc
@@ -893,7 +896,7 @@ go.opencensus.io/trace/tracestate
 ## explicit; go 1.20
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal
-# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.44.0
+# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.45.0
 ## explicit; go 1.19
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil
@@ -909,10 +912,8 @@ go.opentelemetry.io/otel/internal/baggage
 go.opentelemetry.io/otel/internal/global
 go.opentelemetry.io/otel/propagation
 go.opentelemetry.io/otel/semconv/internal
-go.opentelemetry.io/otel/semconv/internal/v2
 go.opentelemetry.io/otel/semconv/v1.12.0
 go.opentelemetry.io/otel/semconv/v1.17.0
-go.opentelemetry.io/otel/semconv/v1.17.0/httpconv
 go.opentelemetry.io/otel/semconv/v1.21.0
 # go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.20.0
 ## explicit; go 1.20
