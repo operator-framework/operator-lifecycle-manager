@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -85,6 +86,12 @@ func Manager(ctx context.Context, debug bool) (ctrl.Manager, error) {
 					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
 				},
 				&rbacv1.ClusterRoleBinding{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&admissionregistrationv1.MutatingWebhookConfiguration{}: {
+					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
+				},
+				&admissionregistrationv1.ValidatingWebhookConfiguration{}: {
 					Label: labels.SelectorFromValidatedSet(map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue}),
 				},
 				&operatorsv1alpha1.ClusterServiceVersion{}: {
