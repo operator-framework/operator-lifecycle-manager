@@ -23,7 +23,10 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-
 
 # create a temporary directory to generate code in and ensure we clean it up on exit
 OUTPUT_BASE=$(mktemp -d)
-trap 'rm -rf "${OUTPUT_BASE}"' ERR EXIT
+# Hack the script to make it executable from within generate-groups.sh
+# Because vendored sources do not include permission bits
+chmod u+x "${CODEGEN_PKG}/generate-internal-groups.sh"
+trap 'rm -rf "${OUTPUT_BASE}"; chmod u-x "${CODEGEN_PKG}/generate-internal-groups.sh"' ERR EXIT
 
 ORG="github.com/operator-framework"
 API_MODULE="${ORG}/api"
