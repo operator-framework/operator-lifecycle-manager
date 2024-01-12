@@ -296,7 +296,7 @@ func checkSpecMaintainers(checks CSVChecks) CSVChecks {
 
 // checkSpecProviderName will validate the values informed via csv.Spec.Provider.Name
 func checkSpecProviderName(checks CSVChecks) CSVChecks {
-	if checks.csv.Spec.Provider.Name == "" {
+	if strings.TrimSpace(checks.csv.Spec.Provider.Name) == "" {
 		checks.errs = append(checks.errs, fmt.Errorf("csv.Spec.Provider.Name not specified"))
 	}
 	return checks
