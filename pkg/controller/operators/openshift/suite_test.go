@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 func TestControllers(t *testing.T) {
@@ -68,7 +69,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		MetricsBindAddress: "0", // Prevents conflicts with other test suites that might bind metrics
+		Metrics: metricsserver.Options{BindAddress: "0"},
 	})
 	Expect(err).ToNot(HaveOccurred())
 

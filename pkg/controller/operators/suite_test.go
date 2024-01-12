@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	// +kubebuilder:scaffold:imports
 
@@ -103,8 +104,8 @@ var _ = BeforeSuite(func() {
 	Expect(metav1.AddMetaToScheme(scheme)).To(Succeed())
 	Expect(AddToScheme(scheme)).To(Succeed())
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		MetricsBindAddress: "0", // Prevents conflicts with other test suites that might bind metrics
-		Scheme:             scheme,
+		Metrics: metricsserver.Options{BindAddress: "0"},
+		Scheme:  scheme,
 	})
 	Expect(err).ToNot(HaveOccurred())
 
