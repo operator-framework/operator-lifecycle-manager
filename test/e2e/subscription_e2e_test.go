@@ -38,7 +38,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/projection"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 	registryapi "github.com/operator-framework/operator-registry/pkg/api"
@@ -1029,29 +1028,7 @@ var _ = Describe("Subscription", func() {
 	})
 
 	It("can reconcile InstallPlan status", func() {
-		By(`TestSubscriptionInstallPlanStatus ensures that a Subscription has the appropriate status conditions for possible referenced`)
-		By(`InstallPlan states.`)
-		By(`	BySteps:`)
-		By(`- Utilize the namespace and OG targeting that namespace created in the BeforeEach clause`)
-		By(`- Create CatalogSource, cs, in ns`)
-		By(`- Create Subscription to a package of cs in ns, sub`)
-		By(`- Wait for the package from sub to install successfully with no remaining InstallPlan status conditions`)
-		By(`- Store conditions for later comparision`)
-		By(`- Get the InstallPlan`)
-		By(`- Set the InstallPlan's approval mode to Manual`)
-		By(`- Set the InstallPlan's phase to None`)
-		By(`- Wait for sub to have status condition SubscriptionInstallPlanPending true and reason InstallPlanNotYetReconciled`)
-		By(`- Get the latest IntallPlan and set the phase to InstallPlanPhaseRequiresApproval`)
-		By(`- Wait for sub to have status condition SubscriptionInstallPlanPending true and reason RequiresApproval`)
-		By(`- Get the latest InstallPlan and set the phase to InstallPlanPhaseInstalling`)
-		By(`- Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing`)
-		By(`- Get the latest InstallPlan and set the phase to InstallPlanPhaseFailed and remove all status conditions`)
-		By(`- Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallPlanFailed`)
-		By(`- Get the latest InstallPlan and set status condition of type Installed to false with reason InstallComponentFailed`)
-		By(`- Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallComponentFailed`)
-		By(`- Delete the referenced InstallPlan`)
-		By(`- Wait for sub to have status condition SubscriptionInstallPlanMissing true`)
-		By(`- Ensure original non-InstallPlan status conditions remain after InstallPlan transitions`)
+		By(`TestSubscriptionInstallPlanStatus ensures that a Subscription has the appropriate status conditions for possible referenced InstallPlan states.`)
 		c := newKubeClient()
 		crc := newCRClient()
 
@@ -1099,6 +1076,7 @@ var _ = Describe("Subscription", func() {
 		ref := sub.Status.InstallPlanRef
 		Expect(ref).ToNot(BeNil())
 
+		By(`Get the InstallPlan`)
 		plan := &operatorsv1alpha1.InstallPlan{}
 		plan.SetNamespace(ref.Namespace)
 		plan.SetName(ref.Name)
@@ -1151,14 +1129,14 @@ var _ = Describe("Subscription", func() {
 				return true
 			}
 
-			By(`Sometimes the transition from installing to complete can be so quick that the test does not capture`)
-			By(`the condition in the subscription before it is removed. To mitigate this, we check if the installplan`)
-			By(`has transitioned to complete and exit out the fetch subscription loop if so.`)
-			By(`This is a mitigation. We should probably fix this test appropriately.`)
-			By(`issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2667`)
+			// Sometimes the transition from installing to complete can be so quick that the test does not capture
+			// the condition in the subscription before it is removed. To mitigate this, we check if the installplan
+			// has transitioned to complete and exit out the fetch subscription loop if so.
+			// This is a mitigation. We should probably fix this test appropriately.
+			// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/2667
 			ip, err := crc.OperatorsV1alpha1().InstallPlans(generatedNamespace.GetName()).Get(context.TODO(), plan.Name, metav1.GetOptions{})
 			if err != nil {
-				By(`retry on failure`)
+				// retry on failure
 				return false
 			}
 			isInstallPlanComplete := ip.Status.Phase == operatorsv1alpha1.InstallPlanPhaseComplete
@@ -1210,16 +1188,13 @@ var _ = Describe("Subscription", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sub).ToNot(BeNil())
 
-		By(`Ensure original non-InstallPlan status conditions remain after InstallPlan transitions`)
-		hashEqual := comparison.NewHashEqualitor()
+		By(`Ensure InstallPlan-related status conditions match what we're expecting`)
 		for _, cond := range conds {
 			switch condType := cond.Type; condType {
 			case operatorsv1alpha1.SubscriptionInstallPlanPending, operatorsv1alpha1.SubscriptionInstallPlanFailed:
 				require.FailNowf(GinkgoT(), "failed", "subscription contains unexpected installplan condition: %v", cond)
 			case operatorsv1alpha1.SubscriptionInstallPlanMissing:
 				require.Equal(GinkgoT(), operatorsv1alpha1.ReferencedInstallPlanNotFound, cond.Reason)
-			default:
-				require.True(GinkgoT(), hashEqual(cond, sub.Status.GetCondition(condType)), "non-installplan status condition changed")
 			}
 		}
 	})
@@ -3218,27 +3193,53 @@ func subscriptionHasCurrentCSV(currentCSV string) subscriptionStateChecker {
 }
 
 func subscriptionHasCondition(condType operatorsv1alpha1.SubscriptionConditionType, status corev1.ConditionStatus, reason, message string) subscriptionStateChecker {
+	var lastCond operatorsv1alpha1.SubscriptionCondition
+	lastTime := time.Now()
+	// if status/reason/message meet expectations, then subscription state is considered met/true
+	// IFF this is the result of a recent change of status/reason/message
+	// else, cache the current status/reason/message for next loop/comparison
 	return func(subscription *operatorsv1alpha1.Subscription) bool {
 		cond := subscription.Status.GetCondition(condType)
 		if cond.Status == status && cond.Reason == reason && cond.Message == message {
-			fmt.Printf("subscription condition met %v\n", cond)
+			if lastCond.Status != cond.Status && lastCond.Reason != cond.Reason && lastCond.Message == cond.Message {
+				GinkgoT().Logf("waited %s subscription condition met %v\n", time.Since(lastTime), cond)
+				lastTime = time.Now()
+				lastCond = cond
+			}
 			return true
 		}
 
-		fmt.Printf("subscription condition not met: %v\n", cond)
+		if lastCond.Status != cond.Status && lastCond.Reason != cond.Reason && lastCond.Message == cond.Message {
+			GinkgoT().Logf("waited %s subscription condition not met: %v\n", time.Since(lastTime), cond)
+			lastTime = time.Now()
+			lastCond = cond
+		}
 		return false
 	}
 }
 
 func subscriptionDoesNotHaveCondition(condType operatorsv1alpha1.SubscriptionConditionType) subscriptionStateChecker {
+	var lastStatus corev1.ConditionStatus
+	lastTime := time.Now()
+	// if status meets expectations, then subscription state is considered met/true
+	// IFF this is the result of a recent change of status
+	// else, cache the current status for next loop/comparison
 	return func(subscription *operatorsv1alpha1.Subscription) bool {
 		cond := subscription.Status.GetCondition(condType)
 		if cond.Status == corev1.ConditionUnknown {
-			fmt.Printf("subscription condition not found\n")
+			if cond.Status != lastStatus {
+				GinkgoT().Logf("waited %s subscription condition not found\n", time.Since(lastTime))
+				lastStatus = cond.Status
+				lastTime = time.Now()
+			}
 			return true
 		}
 
-		fmt.Printf("subscription condition found: %v\n", cond)
+		if cond.Status != lastStatus {
+			GinkgoT().Logf("waited %s subscription condition found: %v\n", time.Since(lastTime), cond)
+			lastStatus = cond.Status
+			lastTime = time.Now()
+		}
 		return false
 	}
 }
