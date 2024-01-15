@@ -462,12 +462,12 @@ func (e *Env) ResidualAst(a *Ast, details *EvalDetails) (*Ast, error) {
 
 // EstimateCost estimates the cost of a type checked CEL expression using the length estimates of input data and
 // extension functions provided by estimator.
-func (e *Env) EstimateCost(ast *Ast, estimator checker.CostEstimator) (checker.CostEstimate, error) {
+func (e *Env) EstimateCost(ast *Ast, estimator checker.CostEstimator, opts ...checker.CostOption) (checker.CostEstimate, error) {
 	checked, err := AstToCheckedExpr(ast)
 	if err != nil {
 		return checker.CostEstimate{}, fmt.Errorf("EsimateCost could not inspect Ast: %v", err)
 	}
-	return checker.Cost(checked, estimator), nil
+	return checker.Cost(checked, estimator, opts...)
 }
 
 // configure applies a series of EnvOptions to the current environment.

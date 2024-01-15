@@ -162,9 +162,6 @@ func (q *testOnlyQualifier) Qualify(vars Activation, obj any) (any, error) {
 }
 
 // QualifyIfPresent returns whether the target field in the test-only expression is present.
-//
-// This method should never be called as the has() macro and optional syntax are incompatible
-// when used on the same field.
 func (q *testOnlyQualifier) QualifyIfPresent(vars Activation, obj any, presenceOnly bool) (any, bool, error) {
 	// Only ever test for presence.
 	return q.ConstantQualifier.QualifyIfPresent(vars, obj, true)
@@ -922,7 +919,7 @@ func (e *evalWatchConstQual) QualifyIfPresent(vars Activation, obj any, presence
 		val = types.WrapErr(err)
 	} else if out != nil {
 		val = e.adapter.NativeToValue(out)
-	} else if out == nil && presenceOnly {
+	} else if presenceOnly {
 		val = types.Bool(present)
 	}
 	if present || presenceOnly {
@@ -965,7 +962,7 @@ func (e *evalWatchQual) QualifyIfPresent(vars Activation, obj any, presenceOnly 
 		val = types.WrapErr(err)
 	} else if out != nil {
 		val = e.adapter.NativeToValue(out)
-	} else if out == nil && presenceOnly {
+	} else if presenceOnly {
 		val = types.Bool(present)
 	}
 	if present || presenceOnly {

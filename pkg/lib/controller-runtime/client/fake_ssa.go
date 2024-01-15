@@ -12,7 +12,7 @@ import (
 // FakeApplier provides a wrapper around the fake k8s controller client to convert the unsupported apply-type patches to merge patches.
 func NewFakeApplier(scheme *runtime.Scheme, owner string, objs ...runtime.Object) *ServerSideApplier {
 	return &ServerSideApplier{
-		client: &fakeApplier{fakecontrollerclient.NewFakeClientWithScheme(scheme, objs...)},
+		client: &fakeApplier{fakecontrollerclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()},
 		Scheme: scheme,
 		Owner:  k8scontrollerclient.FieldOwner(owner),
 	}

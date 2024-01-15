@@ -2173,7 +2173,7 @@ func validateV1Beta1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *ap
 func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResource, validationsMap map[string]*apiextensions.CustomResourceValidation) error {
 	for version, schemaValidation := range validationsMap {
 		// create validator from given crdValidation
-		validator, _, err := validation.NewSchemaValidator(schemaValidation)
+		validator, _, err := validation.NewSchemaValidator(schemaValidation.OpenAPIV3Schema)
 		if err != nil {
 			return fmt.Errorf("error creating validator for schema version %s: %s", version, err)
 		}
