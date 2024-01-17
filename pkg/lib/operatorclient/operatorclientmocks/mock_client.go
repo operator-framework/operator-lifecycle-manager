@@ -16,8 +16,10 @@ import (
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	unstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	labels "k8s.io/apimachinery/pkg/labels"
+	v13 "k8s.io/client-go/applyconfigurations/core/v1"
+	v14 "k8s.io/client-go/applyconfigurations/rbac/v1"
 	kubernetes "k8s.io/client-go/kubernetes"
-	v13 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	v15 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	clientset0 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 )
 
@@ -72,6 +74,36 @@ func (mr *MockClientInterfaceMockRecorder) ApiregistrationV1Interface() *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApiregistrationV1Interface", reflect.TypeOf((*MockClientInterface)(nil).ApiregistrationV1Interface))
 }
 
+// ApplyClusterRoleBinding mocks base method.
+func (m *MockClientInterface) ApplyClusterRoleBinding(applyConfig *v14.ClusterRoleBindingApplyConfiguration, applyOptions v12.ApplyOptions) (*v11.ClusterRoleBinding, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyClusterRoleBinding", applyConfig, applyOptions)
+	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyClusterRoleBinding indicates an expected call of ApplyClusterRoleBinding.
+func (mr *MockClientInterfaceMockRecorder) ApplyClusterRoleBinding(applyConfig, applyOptions interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyClusterRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).ApplyClusterRoleBinding), applyConfig, applyOptions)
+}
+
+// ApplyService mocks base method.
+func (m *MockClientInterface) ApplyService(arg0 *v13.ServiceApplyConfiguration, arg1 v12.ApplyOptions) (*v10.Service, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyService", arg0, arg1)
+	ret0, _ := ret[0].(*v10.Service)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyService indicates an expected call of ApplyService.
+func (mr *MockClientInterfaceMockRecorder) ApplyService(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyService", reflect.TypeOf((*MockClientInterface)(nil).ApplyService), arg0, arg1)
+}
+
 // AtomicModifyCustomResource mocks base method.
 func (m *MockClientInterface) AtomicModifyCustomResource(apiGroup, version, namespace, resourceKind, resourceName string, f operatorclient.CustomResourceModifier, data interface{}) error {
 	m.ctrl.T.Helper()
@@ -87,10 +119,10 @@ func (mr *MockClientInterfaceMockRecorder) AtomicModifyCustomResource(apiGroup, 
 }
 
 // CreateAPIService mocks base method.
-func (m *MockClientInterface) CreateAPIService(arg0 *v13.APIService) (*v13.APIService, error) {
+func (m *MockClientInterface) CreateAPIService(arg0 *v15.APIService) (*v15.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAPIService", arg0)
-	ret0, _ := ret[0].(*v13.APIService)
+	ret0, _ := ret[0].(*v15.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -464,10 +496,10 @@ func (mr *MockClientInterfaceMockRecorder) DeleteServiceAccount(namespace, name,
 }
 
 // GetAPIService mocks base method.
-func (m *MockClientInterface) GetAPIService(name string) (*v13.APIService, error) {
+func (m *MockClientInterface) GetAPIService(name string) (*v15.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAPIService", name)
-	ret0, _ := ret[0].(*v13.APIService)
+	ret0, _ := ret[0].(*v15.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -768,10 +800,10 @@ func (mr *MockClientInterfaceMockRecorder) RollingUpdateDeploymentMigrations(nam
 }
 
 // UpdateAPIService mocks base method.
-func (m *MockClientInterface) UpdateAPIService(modified *v13.APIService) (*v13.APIService, error) {
+func (m *MockClientInterface) UpdateAPIService(modified *v15.APIService) (*v15.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAPIService", modified)
-	ret0, _ := ret[0].(*v13.APIService)
+	ret0, _ := ret[0].(*v15.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1151,10 +1183,10 @@ func (m *MockAPIServiceClient) EXPECT() *MockAPIServiceClientMockRecorder {
 }
 
 // CreateAPIService mocks base method.
-func (m *MockAPIServiceClient) CreateAPIService(arg0 *v13.APIService) (*v13.APIService, error) {
+func (m *MockAPIServiceClient) CreateAPIService(arg0 *v15.APIService) (*v15.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAPIService", arg0)
-	ret0, _ := ret[0].(*v13.APIService)
+	ret0, _ := ret[0].(*v15.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1180,10 +1212,10 @@ func (mr *MockAPIServiceClientMockRecorder) DeleteAPIService(name, options inter
 }
 
 // GetAPIService mocks base method.
-func (m *MockAPIServiceClient) GetAPIService(name string) (*v13.APIService, error) {
+func (m *MockAPIServiceClient) GetAPIService(name string) (*v15.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAPIService", name)
-	ret0, _ := ret[0].(*v13.APIService)
+	ret0, _ := ret[0].(*v15.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1195,10 +1227,10 @@ func (mr *MockAPIServiceClientMockRecorder) GetAPIService(name interface{}) *gom
 }
 
 // UpdateAPIService mocks base method.
-func (m *MockAPIServiceClient) UpdateAPIService(modified *v13.APIService) (*v13.APIService, error) {
+func (m *MockAPIServiceClient) UpdateAPIService(modified *v15.APIService) (*v15.APIService, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAPIService", modified)
-	ret0, _ := ret[0].(*v13.APIService)
+	ret0, _ := ret[0].(*v15.APIService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1312,6 +1344,21 @@ func NewMockServiceClient(ctrl *gomock.Controller) *MockServiceClient {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockServiceClient) EXPECT() *MockServiceClientMockRecorder {
 	return m.recorder
+}
+
+// ApplyService mocks base method.
+func (m *MockServiceClient) ApplyService(arg0 *v13.ServiceApplyConfiguration, arg1 v12.ApplyOptions) (*v10.Service, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyService", arg0, arg1)
+	ret0, _ := ret[0].(*v10.Service)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyService indicates an expected call of ApplyService.
+func (mr *MockServiceClientMockRecorder) ApplyService(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyService", reflect.TypeOf((*MockServiceClient)(nil).ApplyService), arg0, arg1)
 }
 
 // CreateService mocks base method.
@@ -1722,6 +1769,21 @@ func NewMockClusterRoleBindingClient(ctrl *gomock.Controller) *MockClusterRoleBi
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockClusterRoleBindingClient) EXPECT() *MockClusterRoleBindingClientMockRecorder {
 	return m.recorder
+}
+
+// ApplyClusterRoleBinding mocks base method.
+func (m *MockClusterRoleBindingClient) ApplyClusterRoleBinding(applyConfig *v14.ClusterRoleBindingApplyConfiguration, applyOptions v12.ApplyOptions) (*v11.ClusterRoleBinding, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyClusterRoleBinding", applyConfig, applyOptions)
+	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyClusterRoleBinding indicates an expected call of ApplyClusterRoleBinding.
+func (mr *MockClusterRoleBindingClientMockRecorder) ApplyClusterRoleBinding(applyConfig, applyOptions interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyClusterRoleBinding", reflect.TypeOf((*MockClusterRoleBindingClient)(nil).ApplyClusterRoleBinding), applyConfig, applyOptions)
 }
 
 // CreateClusterRoleBinding mocks base method.

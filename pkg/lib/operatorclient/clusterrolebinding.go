@@ -7,8 +7,14 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	acv1 "k8s.io/client-go/applyconfigurations/rbac/v1"
 	"k8s.io/klog"
 )
+
+// ApplyClusterRoleBinding applies the roleBinding.
+func (c *Client) ApplyClusterRoleBinding(applyConfig *acv1.ClusterRoleBindingApplyConfiguration, applyOptions metav1.ApplyOptions) (*rbacv1.ClusterRoleBinding, error) {
+	return c.RbacV1().ClusterRoleBindings().Apply(context.TODO(), applyConfig, applyOptions)
+}
 
 // CreateRoleBinding creates the roleBinding.
 func (c *Client) CreateClusterRoleBinding(ig *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error) {
