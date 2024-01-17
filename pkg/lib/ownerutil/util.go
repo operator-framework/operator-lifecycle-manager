@@ -223,6 +223,18 @@ func AddOwnerLabels(object metav1.Object, owner Owner) error {
 	return nil
 }
 
+// RemoveOwnerLabels removes ownerref-like labels from an object
+func RemoveOwnerLabels(object metav1.Object) {
+	labels := object.GetLabels()
+	if labels == nil {
+		return
+	}
+	for _, key := range []string{OwnerKey, OwnerNamespaceKey, OwnerKind} {
+		delete(labels, key)
+	}
+	object.SetLabels(labels)
+}
+
 // AddOwnerLabels adds ownerref-like labels to an object, with no inference
 func AddOwnerLabelsForKind(object metav1.Object, owner Owner, kind string) {
 	labels := object.GetLabels()

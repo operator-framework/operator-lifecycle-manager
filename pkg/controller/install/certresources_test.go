@@ -153,7 +153,6 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 		{
 			name: "adds certs to deployment spec",
 			mockExternal: func(mockOpClient *operatorclientmocks.MockClientInterface, fakeLister *operatorlisterfakes.FakeOperatorLister, namespace string, args args) {
-				mockOpClient.EXPECT().DeleteService(namespace, "test-service", &metav1.DeleteOptions{}).Return(nil)
 				service := corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "test-service",
@@ -167,6 +166,11 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Selector: selector(t, "test=label").MatchLabels,
 					},
 				}
+				// Service already exists - expect first create attempt to fail
+				alreadyExistsErr := errors.NewAlreadyExists(schema.GroupResource{}, "already exists")
+				mockOpClient.EXPECT().CreateService(&service).Return(&service, alreadyExistsErr)
+				// Service will be deleted then recreated
+				mockOpClient.EXPECT().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{}).Return(nil)
 				mockOpClient.EXPECT().CreateService(&service).Return(&service, nil)
 
 				hosts := []string{
@@ -254,7 +258,14 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Name:     "system:auth-delegator",
 					},
 				}
+				ownedAuthDelegatorClusterRoleBinding := authDelegatorClusterRoleBinding.DeepCopy()
 
+				// We will initially attempt to create the CRB with CSV owner labels set
+				err = ownerutil.AddOwnerLabels(ownedAuthDelegatorClusterRoleBinding, &v1alpha1.ClusterServiceVersion{})
+				require.NoError(t, err)
+				mockOpClient.EXPECT().CreateClusterRoleBinding(ownedAuthDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, alreadyExistsErr)
+
+				// The CRB will already exist without labels, making it non-adobtable, so the labels will be removed
 				mockOpClient.EXPECT().UpdateClusterRoleBinding(authDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, nil)
 
 				authReaderRoleBinding := &rbacv1.RoleBinding{
@@ -381,7 +392,6 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 		{
 			name: "doesn't add duplicate service ownerrefs",
 			mockExternal: func(mockOpClient *operatorclientmocks.MockClientInterface, fakeLister *operatorlisterfakes.FakeOperatorLister, namespace string, args args) {
-				mockOpClient.EXPECT().DeleteService(namespace, "test-service", &metav1.DeleteOptions{}).Return(nil)
 				service := corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-service",
@@ -396,6 +406,12 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Selector: selector(t, "test=label").MatchLabels,
 					},
 				}
+
+				// Service already exists - expect first create attempt to fail
+				alreadyExistsErr := errors.NewAlreadyExists(schema.GroupResource{}, "already exists")
+				mockOpClient.EXPECT().CreateService(&service).Return(&service, alreadyExistsErr)
+				// Service will be deleted then recreated
+				mockOpClient.EXPECT().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{}).Return(nil)
 				mockOpClient.EXPECT().CreateService(&service).Return(&service, nil)
 
 				hosts := []string{
@@ -483,7 +499,14 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Name:     "system:auth-delegator",
 					},
 				}
+				ownedAuthDelegatorClusterRoleBinding := authDelegatorClusterRoleBinding.DeepCopy()
 
+				// We will initially attempt to create the CRB with CSV owner labels set
+				err = ownerutil.AddOwnerLabels(ownedAuthDelegatorClusterRoleBinding, owner)
+				require.NoError(t, err)
+				mockOpClient.EXPECT().CreateClusterRoleBinding(ownedAuthDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, alreadyExistsErr)
+
+				// The CRB will already exist without labels, making it non-adobtable, so the labels will be removed
 				mockOpClient.EXPECT().UpdateClusterRoleBinding(authDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, nil)
 
 				authReaderRoleBinding := &rbacv1.RoleBinding{
@@ -602,9 +625,8 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 			},
 		},
 		{
-			name: "labels an unlabelled secret if present",
+			name: "labels an unlabelled secret if present; creates Service and ClusterRoleBinding if not existing",
 			mockExternal: func(mockOpClient *operatorclientmocks.MockClientInterface, fakeLister *operatorlisterfakes.FakeOperatorLister, namespace string, args args) {
-				mockOpClient.EXPECT().DeleteService(namespace, "test-service", &metav1.DeleteOptions{}).Return(nil)
 				service := corev1.Service{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "test-service",
@@ -715,8 +737,9 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 						Name:     "system:auth-delegator",
 					},
 				}
-
-				mockOpClient.EXPECT().UpdateClusterRoleBinding(authDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, nil)
+				err = ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, &v1alpha1.ClusterServiceVersion{})
+				require.NoError(t, err)
+				mockOpClient.EXPECT().CreateClusterRoleBinding(authDelegatorClusterRoleBinding).Return(authDelegatorClusterRoleBinding, nil)
 
 				authReaderRoleBinding := &rbacv1.RoleBinding{
 					Subjects: []rbacv1.Subject{
@@ -740,13 +763,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				mockOpClient.EXPECT().UpdateRoleBinding(authReaderRoleBinding).Return(authReaderRoleBinding, nil)
 			},
 			state: fakeState{
-				existingService: &corev1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						OwnerReferences: []metav1.OwnerReference{
-							ownerutil.NonBlockingOwner(&v1alpha1.ClusterServiceVersion{}),
-						},
-					},
-				},
+				existingService: nil,
 				// unlabelled secret won't be in cache
 				getSecretError: errors.NewNotFound(schema.GroupResource{
 					Group:    "",
@@ -758,9 +775,7 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				existingRoleBinding: &rbacv1.RoleBinding{
 					ObjectMeta: metav1.ObjectMeta{},
 				},
-				existingClusterRoleBinding: &rbacv1.ClusterRoleBinding{
-					ObjectMeta: metav1.ObjectMeta{},
-				},
+				existingClusterRoleBinding: nil,
 			},
 			fields: fields{
 				owner:                  &v1alpha1.ClusterServiceVersion{},

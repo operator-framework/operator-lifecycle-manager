@@ -253,8 +253,15 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	ownerutil.AddNonBlockingOwner(service, i.owner)
 	service.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
-	existingService, err := i.strategyClient.GetOpLister().CoreV1().ServiceLister().Services(i.owner.GetNamespace()).Get(service.GetName())
-	if err == nil {
+	// Optimistically create the Service
+	_, err := i.strategyClient.GetOpClient().CreateService(service)
+	if apierrors.IsAlreadyExists(err) {
+		// If the Service already exists, attempt to replace it if safe to do so.
+		existingService, err := i.strategyClient.GetOpLister().CoreV1().ServiceLister().Services(i.owner.GetNamespace()).Get(service.GetName())
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not retrieve existing service %s: %s", service.GetName(), err.Error())
+		}
+
 		if !ownerutil.Adoptable(i.owner, existingService.GetOwnerReferences()) {
 			return nil, nil, fmt.Errorf("service %s not safe to replace: extraneous ownerreferences found", service.GetName())
 		}
@@ -263,14 +270,13 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		// Delete the Service to replace
 		deleteErr := i.strategyClient.GetOpClient().DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
 		if deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
-			return nil, nil, fmt.Errorf("could not delete existing service %s", service.GetName())
+			return nil, nil, fmt.Errorf("could not delete existing service %s: %s", service.GetName(), err.Error())
 		}
-	}
-
-	// Attempt to create the Service
-	_, err = i.strategyClient.GetOpClient().CreateService(service)
-	if err != nil {
-		logger.Warnf("could not create service %s", service.GetName())
+		if _, err = i.strategyClient.GetOpClient().CreateService(service); err != nil {
+			return nil, nil, fmt.Errorf("could not re-create service %s: %s", service.GetName(), err.Error())
+		}
+	} else if err != nil {
+		logger.Errorf("could not create service %s", service.GetName())
 		return nil, nil, fmt.Errorf("could not create service %s: %s", service.GetName(), err.Error())
 	}
 
@@ -459,14 +465,24 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	authDelegatorClusterRoleBinding.SetName(AuthDelegatorClusterRoleBindingName(service.GetName()))
 	authDelegatorClusterRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
-	existingAuthDelegatorClusterRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
-	if err == nil {
+	// Optimistically create the ClusterRoleBinding with CSV as the labelled owner
+	if err := ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, i.owner); err != nil {
+		return nil, nil, err
+	}
+	_, err = i.strategyClient.GetOpClient().CreateClusterRoleBinding(authDelegatorClusterRoleBinding)
+	if apierrors.IsAlreadyExists(err) {
+		// ClusterRoleBinding already exists; update if safe to do so.
+		existingAuthDelegatorClusterRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not retrieve existing clusterrolebinding %s: %s", authDelegatorClusterRoleBinding.GetName(), err.Error())
+		}
 		// Check if the only owners are this CSV or in this CSV's replacement chain.
-		if ownerutil.AdoptableLabels(existingAuthDelegatorClusterRoleBinding.GetLabels(), true, i.owner) {
+		if !ownerutil.AdoptableLabels(existingAuthDelegatorClusterRoleBinding.GetLabels(), true, i.owner) {
+			// We cannot adopt the existing CRB; remove the owner labels we added before attempting to create
+			ownerutil.RemoveOwnerLabels(authDelegatorClusterRoleBinding)
+		} else {
+			// Keep the labels we added before creation was attempted
 			logger.WithFields(log.Fields{"obj": "authDelegatorCRB", "labels": existingAuthDelegatorClusterRoleBinding.GetLabels()}).Debug("adopting")
-			if err := ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, i.owner); err != nil {
-				return nil, nil, err
-			}
 		}
 
 		// Attempt an update.
@@ -474,17 +490,8 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 			logger.Warnf("could not update auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
 			return nil, nil, err
 		}
-	} else if apierrors.IsNotFound(err) {
-		// Create the role.
-		if err := ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, i.owner); err != nil {
-			return nil, nil, err
-		}
-		_, err = i.strategyClient.GetOpClient().CreateClusterRoleBinding(authDelegatorClusterRoleBinding)
-		if err != nil {
-			log.Warnf("could not create auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
-			return nil, nil, err
-		}
-	} else {
+	} else if err != nil {
+		log.Warnf("could not create auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
 		return nil, nil, err
 	}
 
