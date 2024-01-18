@@ -9,7 +9,6 @@ run:
 
 linters:
   enable:
-  - depguard
   - gofmt
   - goimports
   - importas
