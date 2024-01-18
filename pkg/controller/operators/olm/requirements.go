@@ -312,7 +312,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.Strategy
 				} else {
 					permissionMet, err = permissionsPreviouslyCreated[*rbacv1.Role, *rbacv1.RoleBinding](
 						perm, csv,
-						a.lister.RbacV1().RoleLister().List, a.lister.RbacV1().RoleBindingLister().List,
+						a.lister.RbacV1().RoleLister().Roles(namespace).List, a.lister.RbacV1().RoleBindingLister().RoleBindings(namespace).List,
 					)
 				}
 				if err != nil {
