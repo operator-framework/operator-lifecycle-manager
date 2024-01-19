@@ -524,6 +524,11 @@ spec:
                                   topologyKey:
                                     description: This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.
                                     type: string
+                    annotations:
+                      description: Annotations is an unstructured key value map stored with each Deployment, Pod, APIService in the Operator. Typically, annotations may be set by external tools to store and retrieve arbitrary metadata. Use this field to pre-define annotations that OLM should add to each of the Subscription's deployments, pods, and apiservices.
+                      type: object
+                      additionalProperties:
+                        type: string
                     env:
                       description: Env is a list of environment variables to set in the container. Cannot be updated.
                       type: array
