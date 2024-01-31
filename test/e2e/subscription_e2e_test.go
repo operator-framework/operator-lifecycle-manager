@@ -2445,7 +2445,7 @@ var _ = Describe("Subscription", func() {
 				},
 				5*time.Minute,
 				interval,
-			).Should(Equal(corev1.ConditionFalse))
+			).Should(Equal(corev1.ConditionUnknown))
 
 			By("verifying that the subscription is not reporting unpacking errors")
 			Eventually(

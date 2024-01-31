@@ -1261,13 +1261,6 @@ func TestSyncResolvingNamespace(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "",
 						State:      "",
-						Conditions: []v1alpha1.SubscriptionCondition{
-							{
-								Type:   v1alpha1.SubscriptionBundleUnpacking,
-								Status: corev1.ConditionFalse,
-							},
-						},
-						LastUpdated: now,
 					},
 				},
 			},
@@ -1398,6 +1391,62 @@ func TestSyncResolvingNamespace(t *testing.T) {
 				},
 			},
 			wantErr: fmt.Errorf("some error"),
+		},
+		{
+			name: "HadErrorShouldClearError",
+			fields: fields{
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
+				existingOLMObjs: []runtime.Object{
+					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: testNamespace,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: testNamespace,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							InstalledCSV: "sub-csv",
+							State:        "AtLatestKnown",
+							Conditions: []v1alpha1.SubscriptionCondition{
+								{
+									Type:    v1alpha1.SubscriptionResolutionFailed,
+									Reason:  "ConstraintsNotSatisfiable",
+									Message: "constraints not satisfiable: no operators found from catalog src in namespace testNamespace referenced by subscrition sub, subscription sub exists",
+									Status:  corev1.ConditionTrue,
+								},
+							},
+						},
+					},
+				},
+				resolveErr: nil,
+			},
+			wantSubscriptions: []*v1alpha1.Subscription{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: testNamespace,
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:          "src",
+						CatalogSourceNamespace: testNamespace,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstalledCSV: "sub-csv",
+						State:        "AtLatestKnown",
+						LastUpdated:  now,
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
