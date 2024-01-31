@@ -167,20 +167,13 @@ func AddNonBlockingOwner(object metav1.Object, owner Owner) {
 		ownerRefs = []metav1.OwnerReference{}
 	}
 
-	// Infer TypeMeta for the target
-	if err := InferGroupVersionKind(owner); err != nil {
-		log.Warn(err.Error())
-	}
-	gvk := owner.GetObjectKind().GroupVersionKind()
-
+	nonBlockingOwner := NonBlockingOwner(owner)
 	for _, item := range ownerRefs {
-		if item.Kind == gvk.Kind {
-			if item.Name == owner.GetName() && item.UID == owner.GetUID() {
-				return
-			}
+		if item.Kind == nonBlockingOwner.Kind && item.Name == nonBlockingOwner.Name && item.UID == nonBlockingOwner.UID {
+			return
 		}
 	}
-	ownerRefs = append(ownerRefs, NonBlockingOwner(owner))
+	ownerRefs = append(ownerRefs, nonBlockingOwner)
 	object.SetOwnerReferences(ownerRefs)
 }
 
@@ -284,14 +277,20 @@ func AddOwner(object metav1.Object, owner Owner, blockOwnerDeletion, isControlle
 	}
 	gvk := owner.GetObjectKind().GroupVersionKind()
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
-	ownerRefs = append(ownerRefs, metav1.OwnerReference{
+	ownerRef := metav1.OwnerReference{
 		APIVersion:         apiVersion,
 		Kind:               kind,
 		Name:               owner.GetName(),
 		UID:                owner.GetUID(),
 		BlockOwnerDeletion: &blockOwnerDeletion,
 		Controller:         &isController,
-	})
+	}
+	for _, ref := range ownerRefs {
+		if ref.Kind == ownerRef.Kind && ref.Name == ownerRef.Name && ref.UID == ownerRef.UID {
+			return
+		}
+	}
+	ownerRefs = append(ownerRefs, ownerRef)
 	object.SetOwnerReferences(ownerRefs)
 }
 
