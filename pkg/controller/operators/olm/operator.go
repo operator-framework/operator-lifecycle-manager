@@ -183,7 +183,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	canFilter, err := labeller.Validate(ctx, config.logger, config.metadataClient, config.externalClient)
+	canFilter, err := labeller.Validate(ctx, config.logger, config.metadataClient, config.externalClient, labeller.IdentityOLMOperator)
 	if err != nil {
 		return nil, err
 	}

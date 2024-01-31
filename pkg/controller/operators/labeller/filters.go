@@ -80,7 +80,39 @@ var filters = map[schema.GroupVersionResource]func(metav1.Object) bool{
 	},
 }
 
-func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadata.Interface, operatorClient operators.Interface) (bool, error) {
+type Identity string
+
+const (
+	IdentityCatalogOperator = "catalog-operator"
+	IdentityOLMOperator     = "olm-operator"
+)
+
+func gvrRelevant(identity Identity) func(schema.GroupVersionResource) bool {
+	switch identity {
+	case IdentityCatalogOperator:
+		return sets.New(
+			rbacv1.SchemeGroupVersion.WithResource("roles"),
+			rbacv1.SchemeGroupVersion.WithResource("rolebindings"),
+			corev1.SchemeGroupVersion.WithResource("serviceaccounts"),
+			corev1.SchemeGroupVersion.WithResource("services"),
+			corev1.SchemeGroupVersion.WithResource("pods"),
+			corev1.SchemeGroupVersion.WithResource("configmaps"),
+			batchv1.SchemeGroupVersion.WithResource("jobs"),
+			apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions"),
+		).Has
+	case IdentityOLMOperator:
+		return sets.New(
+			appsv1.SchemeGroupVersion.WithResource("deployments"),
+			rbacv1.SchemeGroupVersion.WithResource("clusterroles"),
+			rbacv1.SchemeGroupVersion.WithResource("clusterrolebindings"),
+			apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions"),
+		).Has
+	default:
+		panic("programmer error: invalid identity")
+	}
+}
+
+func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadata.Interface, operatorClient operators.Interface, identity Identity) (bool, error) {
 	okLock := sync.Mutex{}
 	ok := true
 	g, ctx := errgroup.WithContext(ctx)
@@ -125,6 +157,10 @@ func Validate(ctx context.Context, logger *logrus.Logger, metadataClient metadat
 	})
 
 	for gvr, filter := range allFilters {
+		if !gvrRelevant(identity)(gvr) {
+			logger.WithField("gvr", gvr.String()).Info("skipping irrelevant gvr")
+			continue
+		}
 		gvr, filter := gvr, filter
 		g.Go(func() error {
 			list, err := metadataClient.Resource(gvr).List(ctx, metav1.ListOptions{})

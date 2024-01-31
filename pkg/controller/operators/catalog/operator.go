@@ -186,7 +186,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
-	canFilter, err := labeller.Validate(ctx, logger, metadataClient, crClient)
+	canFilter, err := labeller.Validate(ctx, logger, metadataClient, crClient, labeller.IdentityCatalogOperator)
 	if err != nil {
 		return nil, err
 	}
