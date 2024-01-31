@@ -541,6 +541,49 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
+	{
+		gvr := servicesgvk
+		informer := serviceInformer.Informer()
+
+		logger := op.logger.WithFields(logrus.Fields{"gvr": gvr.String()})
+		logger.Info("registering owner reference fixer")
+
+		queue := workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
+			Name: gvr.String(),
+		})
+		queueInformer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithQueue(queue),
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithInformer(informer),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(func(obj interface{}) error {
+				service, ok := obj.(*corev1.Service)
+				if !ok {
+					err := fmt.Errorf("wrong type %T, expected %T: %#v", obj, new(*corev1.Service), obj)
+					logger.WithError(err).Error("casting failed")
+					return fmt.Errorf("casting failed: %w", err)
+				}
+
+				deduped := deduplicateOwnerReferences(service.OwnerReferences)
+				if len(deduped) != len(service.OwnerReferences) {
+					localCopy := service.DeepCopy()
+					localCopy.OwnerReferences = deduped
+					if _, err := op.opClient.KubernetesInterface().CoreV1().Services(service.Namespace).Update(ctx, localCopy, metav1.UpdateOptions{}); err != nil {
+						return err
+					}
+				}
+				return nil
+			}).ToSyncer()),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := op.RegisterQueueInformer(queueInformer); err != nil {
+			return nil, err
+		}
+	}
+
 	// Wire Pods for CatalogSource
 	catsrcReq, err := labels.NewRequirement(reconciler.CatalogSourceLabelKey, selection.Exists, nil)
 	if err != nil {
@@ -2859,4 +2902,8 @@ func (o *Operator) apiresourceFromGVK(gvk schema.GroupVersionKind) (metav1.APIRe
 	}
 	logger.Info("couldn't find GVK in api discovery")
 	return metav1.APIResource{}, olmerrors.GroupVersionKindNotFoundError{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind}
+}
+
+func deduplicateOwnerReferences(refs []metav1.OwnerReference) []metav1.OwnerReference {
+	return sets.New(refs...).UnsortedList()
 }
