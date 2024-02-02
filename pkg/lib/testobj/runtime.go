@@ -135,14 +135,21 @@ func WithOwner(owner, obj RuntimeMetaObject) RuntimeMetaObject {
 	out := obj.DeepCopyObject().(RuntimeMetaObject)
 	gvk := owner.GetObjectKind().GroupVersionKind()
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
-	refs := append(out.GetOwnerReferences(), metav1.OwnerReference{
+
+	nonBlockingOwner := metav1.OwnerReference{
 		APIVersion:         apiVersion,
 		Kind:               kind,
 		Name:               owner.GetName(),
 		UID:                owner.GetUID(),
 		BlockOwnerDeletion: &dontBlockOwnerDeletion,
 		Controller:         &notController,
-	})
+	}
+	for _, item := range out.GetOwnerReferences() {
+		if item.Kind == nonBlockingOwner.Kind && item.Name == nonBlockingOwner.Name && item.UID == nonBlockingOwner.UID {
+			return out
+		}
+	}
+	refs := append(out.GetOwnerReferences(), nonBlockingOwner)
 	out.SetOwnerReferences(refs)
 
 	return out
