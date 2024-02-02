@@ -1436,16 +1436,14 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	}
 
 	// Make sure that we no longer indicate unpacking progress
-	subs = o.setSubsCond(subs, v1alpha1.SubscriptionCondition{
-		Type:   v1alpha1.SubscriptionBundleUnpacking,
-		Status: corev1.ConditionFalse,
-	})
+	o.removeSubsCond(subs, v1alpha1.SubscriptionBundleUnpacking)
 
 	// Remove BundleUnpackFailed condition from subscriptions
 	o.removeSubsCond(subs, v1alpha1.SubscriptionBundleUnpackFailed)
 
 	// Remove resolutionfailed condition from subscriptions
 	o.removeSubsCond(subs, v1alpha1.SubscriptionResolutionFailed)
+
 	newSub := true
 	for _, updatedSub := range updatedSubs {
 		updatedSub.Status.RemoveConditions(v1alpha1.SubscriptionResolutionFailed)
@@ -1722,13 +1720,9 @@ func (o *Operator) setSubsCond(subs []*v1alpha1.Subscription, cond v1alpha1.Subs
 	return subList
 }
 
-// removeSubsCond will remove the condition to the subscription if it exists
-// Only return the list of updated subscriptions
-func (o *Operator) removeSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType) []*v1alpha1.Subscription {
-	var (
-		lastUpdated = o.now()
-	)
-	var subList []*v1alpha1.Subscription
+// removeSubsCond removes the given condition from all of the subscriptions in the input
+func (o *Operator) removeSubsCond(subs []*v1alpha1.Subscription, condType v1alpha1.SubscriptionConditionType) {
+	lastUpdated := o.now()
 	for _, sub := range subs {
 		cond := sub.Status.GetCondition(condType)
 		// if status is ConditionUnknown, the condition doesn't exist. Just skip
@@ -1737,9 +1731,7 @@ func (o *Operator) removeSubsCond(subs []*v1alpha1.Subscription, condType v1alph
 		}
 		sub.Status.LastUpdated = lastUpdated
 		sub.Status.RemoveConditions(condType)
-		subList = append(subList, sub)
 	}
-	return subList
 }
 
 func (o *Operator) updateSubscriptionStatuses(subs []*v1alpha1.Subscription) ([]*v1alpha1.Subscription, error) {
