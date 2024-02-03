@@ -144,7 +144,7 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 	for k, v := range dep.Spec.Template.GetAnnotations() {
 		annotations[k] = v
 	}
-	for k, v := range i.templateAnnotations {
+	for k, v := range i.templateAnnotations { // templateAnnotations comes from CSV.Annotations
 		annotations[k] = v
 	}
 	dep.Spec.Template.SetAnnotations(annotations)
@@ -159,6 +159,7 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 	ownerutil.AddNonBlockingOwner(dep, i.owner)
 	ownerutil.AddOwnerLabelsForKind(dep, i.owner, v1alpha1.ClusterServiceVersionKind)
 
+	// Any admin-provided config (Subscription.Spec.Config) gets injected here.
 	if applyErr := i.initializers.Apply(dep); applyErr != nil {
 		err = applyErr
 		return

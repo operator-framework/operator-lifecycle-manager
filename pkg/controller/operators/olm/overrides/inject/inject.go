@@ -310,13 +310,21 @@ func InjectAnnotationsIntoDeployment(deployment *appsv1.Deployment, newAnnotatio
 		return errors.New("no deployment provided")
 	}
 
+	// do not override existing annotations
 	if newAnnotations != nil {
-		mergedAnnotations := newAnnotations
-		// do not override existing annotations
+		// Inject Into Deployment
+		mergedDeploymentAnnotations := newAnnotations
 		for k, v := range deployment.Annotations {
-			mergedAnnotations[k] = v
+			mergedDeploymentAnnotations[k] = v
 		}
-		deployment.Annotations = mergedAnnotations
+		deployment.SetAnnotations(mergedDeploymentAnnotations)
+
+		// Inject Into Pod Spec
+		mergedPodAnnotations := newAnnotations
+		for k, v := range deployment.Spec.Template.GetAnnotations() {
+			mergedPodAnnotations[k] = v
+		}
+		deployment.Spec.Template.SetAnnotations(mergedPodAnnotations)
 	}
 
 	return nil
