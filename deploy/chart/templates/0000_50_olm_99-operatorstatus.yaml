@@ -7,6 +7,11 @@ status:
   versions:
     - name: operator
       version: "0.0.1-snapshot"
+  relatedObjects:
+    - group: operators.coreos.com
+      name: packageserver
+      namespace: openshift-operator-lifecycle-manager
+      resource: clusterserviceversions
 ---
 apiVersion: config.openshift.io/v1
 kind: ClusterOperator
@@ -16,6 +21,10 @@ status:
   versions:
     - name: operator
       version: "0.0.1-snapshot"
+  relatedObjects:
+    - group: ""
+      name: openshift-operator-lifecycle-manager
+      resource: namespaces
 {{- if .Values.writePackageServerStatusName }}
 ---
 apiVersion: config.openshift.io/v1
@@ -26,5 +35,13 @@ status:
   versions:
     - name: operator
       version: "0.0.1-snapshot"
+  relatedObjects:
+    - group: ""
+      name: openshift-operator-lifecycle-manager
+      resource: namespaces
+    - group: operators.coreos.com
+      name: packageserver
+      namespace: openshift-operator-lifecycle-manager
+      resource: clusterserviceversions
 {{- end }}      
 {{- end }}
