@@ -312,18 +312,26 @@ func InjectAnnotationsIntoDeployment(deployment *appsv1.Deployment, newAnnotatio
 
 	// do not override existing annotations
 	if newAnnotations != nil {
-		// Inject Into Deployment
-		mergedDeploymentAnnotations := newAnnotations
+		mergedDeploymentAnnotations := map[string]string{}
+		mergedPodAnnotations := map[string]string{}
+
+		// add newAnnotations first to prevent them from overwriting the defaults
+		for k, v := range newAnnotations {
+			mergedDeploymentAnnotations[k] = v
+			mergedPodAnnotations[k] = v
+		}
+
+		// then replace any duplicate annotations with the default annotation
 		for k, v := range deployment.Annotations {
 			mergedDeploymentAnnotations[k] = v
 		}
-		deployment.SetAnnotations(mergedDeploymentAnnotations)
-
-		// Inject Into Pod Spec
-		mergedPodAnnotations := newAnnotations
 		for k, v := range deployment.Spec.Template.GetAnnotations() {
 			mergedPodAnnotations[k] = v
 		}
+
+		// Inject Into Deployment
+		deployment.SetAnnotations(mergedDeploymentAnnotations)
+		// Inject Into Pod Spec
 		deployment.Spec.Template.SetAnnotations(mergedPodAnnotations)
 	}
 

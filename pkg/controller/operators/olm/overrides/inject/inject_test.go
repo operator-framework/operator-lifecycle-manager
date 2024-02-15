@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides/inject"
 )
@@ -1287,4 +1289,185 @@ func TestOverrideDeploymentAffinity(t *testing.T) {
 func TestAffinityAPIChanges(t *testing.T) {
 	value := reflect.ValueOf(corev1.Affinity{})
 	assert.Equal(t, 3, value.NumField(), "It seems the corev1.Affinity API has changed. Please revisit the inject.OverrideDeploymentAffinity implementation")
+}
+
+func TestInjectAnnotationsIntoDeployment(t *testing.T) {
+	tests := []struct {
+		name        string
+		deployment  *appsv1.Deployment
+		annotations map[string]string
+		expected    *appsv1.Deployment
+	}{
+		{
+			// Nil Deployment is injected with annotations
+			// Expected: Deployment is nil
+			name:        "WithNilDeployment",
+			deployment:  nil,
+			annotations: map[string]string{"foo": "bar"},
+			expected:    nil, // raises an error
+		},
+		{
+			// Deployment with no Annotations is injected with annotations
+			// Expected: Annotations is empty
+			name:        "WithEmptyAnnotations",
+			deployment:  &appsv1.Deployment{},
+			annotations: map[string]string{"foo": "bar"},
+			expected: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{"foo": "bar"},
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"foo": "bar",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Deployment with existing Annotations is injected with annotations
+			// Expected: Existing Annotations are not overwritten
+			name: "WithExistingAnnotations",
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"common": "default-deploy-annotation",
+						"deploy": "default-deploy-annotation",
+					},
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"common": "default-pod-annotation",
+								"pod":    "default-pod-annotation",
+							},
+						},
+					},
+				},
+			},
+			annotations: map[string]string{
+				"common": "override-annotation",
+				"deploy": "override-annotation",
+				"pod":    "override-annotation",
+				"foo":    "bar",
+			},
+			expected: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						// no overrides
+						"common": "default-deploy-annotation",
+						"deploy": "default-deploy-annotation",
+						// there was no default for "pod" on the deployment
+						"pod": "override-annotation",
+						"foo": "bar",
+					},
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								// no overrides
+								"common": "default-pod-annotation",
+								"pod":    "default-pod-annotation",
+								// there was no default for "deploy" on the pod
+								"deploy": "override-annotation",
+								"foo":    "bar",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Existing Deployment is left alone if annotations is nil
+			// Expected: Deployment is not changed
+			name: "WithNilAnnotations",
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"deploy": "default-annotation",
+					},
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod": "default-annotation",
+							},
+						},
+					},
+				},
+			},
+			annotations: nil,
+			expected: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"deploy": "default-annotation",
+					},
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod": "default-annotation",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// Existing Deployment retains its annotations if the annotations is an empty map
+			// Expected: Deployment annotations are not changed
+			name: "WithEmptyAnnotations",
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"deploy": "default-annotation",
+					},
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod": "default-annotation",
+							},
+						},
+					},
+				},
+			},
+			annotations: map[string]string{},
+			expected: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"deploy": "default-annotation",
+					},
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod": "default-annotation",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inject.InjectAnnotationsIntoDeployment(tt.deployment, tt.annotations)
+
+			podSpecWant := tt.expected
+			podSpecGot := tt.deployment
+
+			assert.Equal(t, podSpecWant, podSpecGot)
+		})
+	}
 }
