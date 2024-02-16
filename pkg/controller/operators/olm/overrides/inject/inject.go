@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -11,7 +12,7 @@ import (
 // proxyEnvVar into the container(s) of the given PodSpec.
 //
 // If any Container in PodSpec already defines an env variable of the same name
-// as any of the proxy env variables then it
+// as any of the proxy env variables then it will be overwritten.
 func InjectEnvIntoDeployment(podSpec *corev1.PodSpec, envVars []corev1.EnvVar) error {
 	if podSpec == nil {
 		return errors.New("no pod spec provided")
@@ -217,8 +218,7 @@ func InjectResourcesIntoDeployment(podSpec *corev1.PodSpec, resources *corev1.Re
 // InjectNodeSelectorIntoDeployment injects the provided NodeSelector
 // into the container(s) of the given PodSpec.
 //
-// If any Container in PodSpec already defines a NodeSelector it will
-// be overwritten.
+// If the PodSpec already defines a NodeSelector it will be overwritten.
 func InjectNodeSelectorIntoDeployment(podSpec *corev1.PodSpec, nodeSelector map[string]string) error {
 	if podSpec == nil {
 		return errors.New("no pod spec provided")
@@ -296,6 +296,43 @@ func OverrideDeploymentAffinity(podSpec *corev1.PodSpec, affinity *corev1.Affini
 	// special case: if after being overridden, podSpec is the same as default/empty then nil it out
 	if reflect.DeepEqual(&corev1.Affinity{}, podSpec.Affinity) {
 		podSpec.Affinity = nil
+	}
+
+	return nil
+}
+
+// InjectAnnotationsIntoDeployment injects the provided Annotations
+// into the container(s) of the given PodSpec.
+//
+// If the Deployment already defines any Annotations they will NOT be overwritten.
+func InjectAnnotationsIntoDeployment(deployment *appsv1.Deployment, newAnnotations map[string]string) error {
+	if deployment == nil {
+		return errors.New("no deployment provided")
+	}
+
+	// do not override existing annotations
+	if newAnnotations != nil {
+		mergedDeploymentAnnotations := map[string]string{}
+		mergedPodAnnotations := map[string]string{}
+
+		// add newAnnotations first to prevent them from overwriting the defaults
+		for k, v := range newAnnotations {
+			mergedDeploymentAnnotations[k] = v
+			mergedPodAnnotations[k] = v
+		}
+
+		// then replace any duplicate annotations with the default annotation
+		for k, v := range deployment.Annotations {
+			mergedDeploymentAnnotations[k] = v
+		}
+		for k, v := range deployment.Spec.Template.GetAnnotations() {
+			mergedPodAnnotations[k] = v
+		}
+
+		// Inject Into Deployment
+		deployment.SetAnnotations(mergedDeploymentAnnotations)
+		// Inject Into Pod Spec
+		deployment.Spec.Template.SetAnnotations(mergedPodAnnotations)
 	}
 
 	return nil

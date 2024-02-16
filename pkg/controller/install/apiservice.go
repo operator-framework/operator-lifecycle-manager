@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -40,6 +41,16 @@ func (i *StrategyDeploymentInstaller) createOrUpdateAPIService(caPEM []byte, des
 			},
 		}
 		apiService.SetName(apiServiceName)
+
+		ownerSubscription, err := i.findOwnerSubscription()
+		if err != nil {
+			return err
+		} else if ownerSubscription == nil {
+			// This is not an error. For example, the PackageServer CSV in OLM is created without a Subscription.
+			logger.Debugf("failed to get the owner subscription csv=%s", i.owner.GetName())
+		} else if ownerSubscription.Spec.Config != nil {
+			apiService.SetAnnotations(ownerSubscription.Spec.Config.Annotations)
+		}
 	} else {
 		apiService = apiService.DeepCopy()
 		csv, ok := i.owner.(*v1alpha1.ClusterServiceVersion)
@@ -101,10 +112,10 @@ func IsAPIServiceAdoptable(opLister operatorlister.OperatorLister, target *v1alp
 		return
 	}
 
-	labels := apiService.GetLabels()
-	ownerKind := labels[ownerutil.OwnerKind]
-	ownerName := labels[ownerutil.OwnerKey]
-	ownerNamespace := labels[ownerutil.OwnerNamespaceKey]
+	apiServiceLabels := apiService.GetLabels()
+	ownerKind := apiServiceLabels[ownerutil.OwnerKind]
+	ownerName := apiServiceLabels[ownerutil.OwnerKey]
+	ownerNamespace := apiServiceLabels[ownerutil.OwnerNamespaceKey]
 
 	if ownerKind == "" || ownerNamespace == "" || ownerName == "" {
 		return
@@ -284,4 +295,21 @@ func (i *StrategyDeploymentInstaller) deleteLegacyAPIServiceResources(desc apiSe
 func legacyAPIServiceNameToServiceName(apiServiceName string) string {
 	// Replace all '.'s with "-"s to convert to a DNS-1035 label
 	return strings.Replace(apiServiceName, ".", "-", -1)
+}
+
+func (i *StrategyDeploymentInstaller) findOwnerSubscription() (*v1alpha1.Subscription, error) {
+	list, listErr := i.strategyClient.GetOpLister().OperatorsV1alpha1().SubscriptionLister().Subscriptions(i.owner.GetNamespace()).List(labels.Everything())
+	if listErr != nil {
+		err := fmt.Errorf("failed to list subscription namespace=%s - %v", i.owner.GetNamespace(), listErr)
+		return nil, err
+	}
+
+	for idx := range list {
+		sub := list[idx]
+		if sub.Status.InstalledCSV == i.owner.GetName() {
+			return sub, nil
+		}
+	}
+
+	return nil, nil
 }
