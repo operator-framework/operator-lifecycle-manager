@@ -354,7 +354,7 @@ func (c *GrpcRegistryReconciler) ensurePod(logger *logrus.Entry, source grpcCata
 	if err != nil {
 		return err
 	}
-	logger.WithFields(logrus.Fields{"pod.namespace": source.GetNamespace(), "pod.name": desiredPod.Namespace}).Info("deleting current pod")
+	logger.WithFields(logrus.Fields{"pod.namespace": desiredPod.GetNamespace(), "pod.name": desiredPod.GetName()}).Info("creating desired pod")
 	_, err = c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(context.TODO(), desiredPod, metav1.CreateOptions{})
 	if err != nil {
 		return errors.Wrapf(err, "error creating new pod: %s", desiredPod.GetGenerateName())
