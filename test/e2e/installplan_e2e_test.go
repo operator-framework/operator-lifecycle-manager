@@ -2925,7 +2925,7 @@ var _ = Describe("Install Plan", func() {
 			}
 
 			return true
-		}, pollDuration*2, pollInterval).Should(BeTrue())
+		}, pollDuration, pollInterval).Should(BeTrue())
 		By("Cleaning up the test")
 	})
 

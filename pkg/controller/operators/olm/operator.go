@@ -36,6 +36,8 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 	utilclock "k8s.io/utils/clock"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -1093,6 +1095,9 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
 
+	logger.Debug("start deleting CSV")
+	defer logger.Debug("end deleting CSV")
+
 	metrics.DeleteCSVMetric(clusterServiceVersion)
 
 	if clusterServiceVersion.IsCopied() {
@@ -1277,6 +1282,96 @@ func (a *Operator) deleteChild(csv *metav1.PartialObjectMetadata, logger *logrus
 	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(context.TODO(), csv.GetName(), metav1.DeleteOptions{})
 }
 
+// Return values, err, ok; ok == true: continue Reconcile, ok == false: exit Reconcile
+func (a *Operator) processFinalizer(csv *v1alpha1.ClusterServiceVersion, log *logrus.Entry) (error, bool) {
+	myFinalizerName := "operators.coreos.com/csv-cleanup"
+
+	if csv.ObjectMeta.DeletionTimestamp.IsZero() {
+		// CSV is not being deleted, add finalizer if not present
+		if !controllerutil.ContainsFinalizer(csv, myFinalizerName) {
+			controllerutil.AddFinalizer(csv, myFinalizerName)
+			_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(a.ctx, csv, metav1.UpdateOptions{})
+			if err != nil {
+				log.WithError(err).Error("Adding finalizer")
+				return err, false
+			}
+		}
+		return nil, true
+	}
+
+	if !controllerutil.ContainsFinalizer(csv, myFinalizerName) {
+		// Finalizer has been removed; stop reconciliation as the CSV is being deleted
+		return nil, false
+	}
+
+	log.Info("started finalizer")
+	defer log.Info("completed finalizer")
+
+	// CSV is being deleted and the finalizer still present; do any clean up
+	ownerSelector := ownerutil.CSVOwnerSelector(csv)
+	listOptions := metav1.ListOptions{
+		LabelSelector: ownerSelector.String(),
+	}
+	deleteOptions := metav1.DeleteOptions{}
+	// Look for resources owned by this CSV, and delete them.
+	log.WithFields(logrus.Fields{"selector": ownerSelector}).Info("Cleaning up resources after CSV deletion")
+	var errs []error
+
+	err := a.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().DeleteCollection(a.ctx, deleteOptions, listOptions)
+	if client.IgnoreNotFound(err) != nil {
+		log.WithError(err).Error("Deleting ClusterRoleBindings on CSV delete")
+		errs = append(errs, err)
+	}
+
+	err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().DeleteCollection(a.ctx, deleteOptions, listOptions)
+	if client.IgnoreNotFound(err) != nil {
+		log.WithError(err).Error("Deleting ClusterRoles on CSV delete")
+		errs = append(errs, err)
+	}
+	err = a.opClient.KubernetesInterface().AdmissionregistrationV1().MutatingWebhookConfigurations().DeleteCollection(a.ctx, deleteOptions, listOptions)
+	if client.IgnoreNotFound(err) != nil {
+		log.WithError(err).Error("Deleting MutatingWebhookConfigurations on CSV delete")
+		errs = append(errs, err)
+	}
+
+	err = a.opClient.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().DeleteCollection(a.ctx, deleteOptions, listOptions)
+	if client.IgnoreNotFound(err) != nil {
+		log.WithError(err).Error("Deleting ValidatingWebhookConfigurations on CSV delete")
+		errs = append(errs, err)
+	}
+
+	// Make sure things are deleted
+	crbList, err := a.lister.RbacV1().ClusterRoleBindingLister().List(ownerSelector)
+	if err != nil {
+		errs = append(errs, err)
+	} else if len(crbList) != 0 {
+		errs = append(errs, fmt.Errorf("waiting for ClusterRoleBindings to delete"))
+	}
+
+	crList, err := a.lister.RbacV1().ClusterRoleLister().List(ownerSelector)
+	if err != nil {
+		errs = append(errs, err)
+	} else if len(crList) != 0 {
+		errs = append(errs, fmt.Errorf("waiting for ClusterRoles to delete"))
+	}
+
+	// Return any errors
+	if err := utilerrors.NewAggregate(errs); err != nil {
+		return err, false
+	}
+
+	// If no errors, remove our finalizer from the CSV and update
+	controllerutil.RemoveFinalizer(csv, myFinalizerName)
+	_, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(a.ctx, csv, metav1.UpdateOptions{})
+	if err != nil {
+		log.WithError(err).Error("Removing finalizer")
+		return err, false
+	}
+
+	// Stop reconciliation as the csv is being deleted
+	return nil, false
+}
+
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
 func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) {
 	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
@@ -1291,7 +1386,22 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		"namespace": clusterServiceVersion.GetNamespace(),
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
-	logger.Debug("syncing CSV")
+	logger.Debug("start syncing CSV")
+	defer logger.Debug("end syncing CSV")
+
+	// get an up-to-date clusterServiceVersion from the cache
+	clusterServiceVersion, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).Get(clusterServiceVersion.GetName())
+	if apierrors.IsNotFound(err) {
+		logger.Info("CSV has beeen deleted")
+		return nil
+	} else if err != nil {
+		logger.Info("Error getting latest version of CSV")
+		return err
+	}
+
+	if err, ok := a.processFinalizer(clusterServiceVersion, logger); !ok {
+		return err
+	}
 
 	if a.csvNotification != nil {
 		a.csvNotification.OnAddOrUpdate(clusterServiceVersion)
