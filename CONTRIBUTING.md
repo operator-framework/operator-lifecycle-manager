@@ -31,8 +31,6 @@ This is a rough outline of what a contributor's workflow looks like:
 - Identify or create an issue.
 - Create a topic branch from where to base the contribution. This is usually the master branch.
 - Make commits of logical units.
-- Make sure commit messages are in the proper format ([see below][commit-messages]).
-- Ensure all relevant commit messages contain a valid sign-off message ([see below][commit-messages]).
 - Push changes in a topic branch to a personal fork of the repository.
 - Submit a pull request to the operator-framework/operator-lifecycle-manager repository.
 - Wait and respond to feedback from the maintainers listed in the OWNERS file.
@@ -62,11 +60,9 @@ In addition to the linked style documentation, OLM formats Golang packages using
 
 Please follow this style to make the OLM project easier to review, maintain and develop.
 
-### Commit Messages and Sign-off ([DCO][DCO])
+### Developer Certificate of Origin ([DCO][DCO])
 
-A [sign-off][sign-off] is a line towards the end of a commit message that certifies the commit author(s).
-
-For more information on the structuring of commit messages, read the information in the [DCO][dco] application that the OLM projects uses.
+By contributing to this project you agree to the Developer Certificate of Origin (DCO).  This document was created by the Linux Kernl community and is a simple statement that you, as a contributor, have the legal right to make the contribution.  See the [DCO][dco] file for details.
 
 ## Documentation
 
@@ -84,4 +80,3 @@ The OLM documentation mainly lives in the [operator-framework/olm-docs][olm-docs
 [sign-off]: <https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---signoff>
 [goimports]: <https://pkg.go.dev/golang.org/x/tools/cmd/goimports>
 [gofmt]: <https://pkg.go.dev/cmd/gofmt>
-[commit-messages]: <https://github.com/operator-framework/operator-lifecycle-manager/blob/master/CONTRIBUTING.md#commit-messages-and-sign-off-dco>
