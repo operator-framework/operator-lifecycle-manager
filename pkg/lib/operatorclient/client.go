@@ -10,6 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
+	rbacv1ac "k8s.io/client-go/applyconfigurations/rbac/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -67,6 +69,7 @@ type SecretClient interface {
 
 // ServiceClient contains methods for manipulating Services
 type ServiceClient interface {
+	ApplyService(*corev1ac.ServiceApplyConfiguration, metav1.ApplyOptions) (*v1.Service, error)
 	CreateService(*v1.Service) (*v1.Service, error)
 	GetService(namespace, name string) (*v1.Service, error)
 	UpdateService(modified *v1.Service) (*v1.Service, error)
@@ -107,6 +110,7 @@ type ClusterRoleClient interface {
 
 // ClusterRoleBindingClient contains methods for manipulating ClusterRoleBindings.
 type ClusterRoleBindingClient interface {
+	ApplyClusterRoleBinding(applyConfig *rbacv1ac.ClusterRoleBindingApplyConfiguration, applyOptions metav1.ApplyOptions) (*rbacv1.ClusterRoleBinding, error)
 	CreateClusterRoleBinding(*rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error)
 	GetClusterRoleBinding(name string) (*rbacv1.ClusterRoleBinding, error)
 	UpdateClusterRoleBinding(modified *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error)

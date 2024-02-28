@@ -1507,6 +1507,13 @@ func TestTransitionCSV(t *testing.T) {
 						v1alpha1.CSVPhaseInstallReady,
 					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil),
 				},
+				objs: []runtime.Object{
+					// Note: Ideally we would not pre-create these objects, but fake client does not support
+					// creation through SSA, see issue here: https://github.com/kubernetes/kubernetes/issues/115598
+					// Once resolved, these objects and others in this file may be removed.
+					service("a1-service", namespace, "a1", 80),
+					clusterRoleBinding("a1-service-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
 				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, operatorsv1.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1,a1Kind.v1.a1")},
 				crds: []runtime.Object{
 					crd("c1", "v1", "g1"),
@@ -5983,6 +5990,11 @@ func TestCARotation(t *testing.T) {
 					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil),
 				},
 				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, operatorsv1.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1,a1Kind.v1.a1")},
+				// The service and clusterRoleBinding have been added here as a workaround to fake client not supporting SSA
+				objs: []runtime.Object{
+					service("a1-service", namespace, "a1", 80, ownerReference),
+					clusterRoleBinding("a1-service-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
 				crds: []runtime.Object{
 					crd("c1", "v1", "g1"),
 				},
@@ -6050,6 +6062,8 @@ func TestCARotation(t *testing.T) {
 							Resources: []string{"subjectaccessreviews"},
 						},
 					}),
+					// The clusterRoleBinding has been added here as a workaround to fake client not supporting SSA
+					clusterRoleBinding("a1-service-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 			},
 		}, {
@@ -6110,6 +6124,8 @@ func TestCARotation(t *testing.T) {
 							Resources: []string{"subjectaccessreviews"},
 						},
 					}),
+					// The clusterRoleBinding has been added here as a workaround to fake client not supporting SSA
+					clusterRoleBinding("a1-service-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 			},
 		},

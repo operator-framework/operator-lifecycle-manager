@@ -7,8 +7,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	acv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/klog"
 )
+
+// ApplyService applies the Service.
+func (c *Client) ApplyService(applyConfig *acv1.ServiceApplyConfiguration, applyOptions metav1.ApplyOptions) (*v1.Service, error) {
+	return c.CoreV1().Services(*applyConfig.Namespace).Apply(context.TODO(), applyConfig, applyOptions)
+}
 
 // CreateService creates the Service.
 func (c *Client) CreateService(ig *v1.Service) (*v1.Service, error) {

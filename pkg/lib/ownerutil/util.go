@@ -9,6 +9,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1ac "k8s.io/client-go/applyconfigurations/meta/v1"
+
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -195,6 +197,21 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 		BlockOwnerDeletion: &DontBlockOwnerDeletion,
 		Controller:         &NotController,
 	}
+}
+
+// NonBlockingOwnerApplyConfiguration returns an ownerrefence to be added to an ownerref list used in an SSA Configuration
+func NonBlockingOwnerApplyConfiguration(owner Owner) *metav1ac.OwnerReferenceApplyConfiguration {
+	ownerRef := NonBlockingOwner(owner)
+
+	ownerRefAC := metav1ac.OwnerReference().
+		WithAPIVersion(ownerRef.APIVersion).
+		WithKind(ownerRef.Kind).
+		WithUID(ownerRef.UID).
+		WithName(ownerRef.Name).
+		WithBlockOwnerDeletion(*ownerRef.BlockOwnerDeletion).
+		WithController(*ownerRef.Controller)
+
+	return ownerRefAC
 }
 
 // OwnerLabel returns a label added to generated objects for later querying
