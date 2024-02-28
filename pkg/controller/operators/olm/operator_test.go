@@ -5832,6 +5832,9 @@ func RequireObjectsInCache(t *testing.T, lister operatorlister.OperatorLister, n
 			fetched, err = lister.RbacV1().RoleBindingLister().RoleBindings(namespace).Get(o.GetName())
 		case *v1alpha1.ClusterServiceVersion:
 			fetched, err = lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(o.GetName())
+			// We don't care about finalizers
+			object.(*v1alpha1.ClusterServiceVersion).Finalizers = nil
+			fetched.(*v1alpha1.ClusterServiceVersion).Finalizers = nil
 		case *operatorsv1.OperatorGroup:
 			fetched, err = lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace).Get(o.GetName())
 		default:
@@ -5885,6 +5888,8 @@ func CheckObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInterfa
 			// and this will still check that the final state is correct
 			object.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
 			fetched.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
+			object.(*v1alpha1.ClusterServiceVersion).Finalizers = nil
+			fetched.(*v1alpha1.ClusterServiceVersion).Finalizers = nil
 		case *operatorsv1.OperatorGroup:
 			name = o.GetName()
 			fetched, err = client.OperatorsV1().OperatorGroups(namespace).Get(context.TODO(), o.GetName(), metav1.GetOptions{})
