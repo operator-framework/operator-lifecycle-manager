@@ -602,6 +602,55 @@ func TestPodContainerSecurityContext(t *testing.T) {
 			expectedContainerSecurityContext: nil,
 			expectedSecurityContext:          nil,
 		},
+		{
+			title: "NoSpecDefined/PodContainsDefaultSecurityConfigForPSARestricted",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "default-restricted",
+					Namespace: "testns",
+				},
+			},
+			expectedContainerSecurityContext: &corev1.SecurityContext{
+				ReadOnlyRootFilesystem:   pointer.Bool(false),
+				AllowPrivilegeEscalation: pointer.Bool(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			expectedSecurityContext: &corev1.PodSecurityContext{
+				RunAsUser:    pointer.Int64(workloadUserID),
+				RunAsNonRoot: pointer.Bool(true),
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
+		},
+		{
+			title: "SpecDefined/GRPCPodConfigDefined/NoSecurityContextConfig/PodContainsDefaultSecurityConfigForPSARestricted",
+			inputCatsrc: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "grpc-no-security",
+					Namespace: "testns",
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{},
+				},
+			},
+			expectedContainerSecurityContext: &corev1.SecurityContext{
+				ReadOnlyRootFilesystem:   pointer.Bool(false),
+				AllowPrivilegeEscalation: pointer.Bool(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+			expectedSecurityContext: &corev1.PodSecurityContext{
+				RunAsUser:    pointer.Int64(workloadUserID),
+				RunAsNonRoot: pointer.Bool(true),
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
+		},
 	}
 	for _, testcase := range testcases {
 		outputPod, err := Pod(testcase.inputCatsrc, "hello", "utilImage", "opmImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))

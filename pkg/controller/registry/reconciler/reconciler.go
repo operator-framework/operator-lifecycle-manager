@@ -206,9 +206,13 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 		},
 	}
 
-	if source.Spec.GrpcPodConfig != nil && source.Spec.GrpcPodConfig.SecurityContextConfig == operatorsv1alpha1.Restricted {
-		addSecurityContext(pod, runAsUser)
+	// Ensure a security context exists by creating it if not specified
+	if source.Spec.GrpcPodConfig == nil {
+		source.Spec.GrpcPodConfig = &operatorsv1alpha1.GrpcPodConfig{}
 	}
+
+	// Enforce 'restricted' defaults, even if not explicitly set by the user
+	addSecurityContext(pod, runAsUser)
 
 	// Override scheduling options if specified
 	if source.Spec.GrpcPodConfig != nil {
