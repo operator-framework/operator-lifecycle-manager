@@ -306,9 +306,10 @@ func TestPodExtractContent(t *testing.T) {
 							VolumeMounts: []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
 						},
 						{
-							Name:    "extract-content",
-							Image:   "image",
-							Command: []string{"/utilities/copy-content"},
+							Name:            "extract-content",
+							Image:           "image",
+							ImagePullPolicy: image.InferImagePullPolicy("image"),
+							Command:         []string{"/utilities/copy-content"},
 							Args: []string{
 								"--catalog.from=/catalog",
 								"--catalog.to=/extracted-catalog/catalog",
