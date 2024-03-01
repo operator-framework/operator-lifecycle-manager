@@ -277,7 +277,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "6AsUxiAHW383luxWxmVVATFBeHXKNIX0HXrP5g", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "2AHzz8IDqQLwPsDyu4UjUmnROr4E59PMKm9OCm", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -300,9 +300,10 @@ func TestPodExtractContent(t *testing.T) {
 							VolumeMounts: []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
 						},
 						{
-							Name:    "extract-content",
-							Image:   "image",
-							Command: []string{"/utilities/copy-content"},
+							Name:            "extract-content",
+							Image:           "image",
+							ImagePullPolicy: image.InferImagePullPolicy("image"),
+							Command:         []string{"/utilities/copy-content"},
 							Args: []string{
 								"--catalog.from=/catalog",
 								"--catalog.to=/extracted-catalog/catalog",

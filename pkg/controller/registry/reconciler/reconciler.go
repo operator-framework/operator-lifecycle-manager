@@ -285,9 +285,10 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				Args:         []string{"/bin/copy-content", fmt.Sprintf("%s/copy-content", utilitiesPath)},
 				VolumeMounts: []corev1.VolumeMount{utilitiesVolumeMount},
 			}, corev1.Container{
-				Name:    "extract-content",
-				Image:   img,
-				Command: []string{utilitiesPath + "/copy-content"},
+				Name:            "extract-content",
+				Image:           img,
+				ImagePullPolicy: image.InferImagePullPolicy(img),
+				Command:         []string{utilitiesPath + "/copy-content"},
 				Args: []string{
 					"--catalog.from=" + grpcPodConfig.ExtractContent.CatalogDir,
 					"--catalog.to=" + fmt.Sprintf("%s/catalog", catalogPath),
