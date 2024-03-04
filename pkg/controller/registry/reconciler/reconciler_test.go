@@ -30,12 +30,17 @@ func TestPodMemoryTarget(t *testing.T) {
 					Name:      "test",
 					Namespace: "testns",
 				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Legacy, // explicitly Legacy context here
+					},
+				},
 			},
 			expected: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "8SbHWyYfjbRT8lLcfdZ5ofXNdC1GE6ayztILTF", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "6YQsU6V4rkdxtIy1vfooVAmxQE0j8Jw51XXOLR", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -78,9 +83,6 @@ func TestPodMemoryTarget(t *testing.T) {
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
 							},
-							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.Bool(false),
-							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
 						},
@@ -99,7 +101,8 @@ func TestPodMemoryTarget(t *testing.T) {
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
-						MemoryTarget: &q,
+						MemoryTarget:          &q,
+						SecurityContextConfig: v1alpha1.Legacy, // explicitly Legacy context here
 					},
 				},
 			},
@@ -107,7 +110,7 @@ func TestPodMemoryTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "3DSBhZZIiOl5YIjTsZy9aRyFIXeDR8mZCGAcYA", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "aIvr5zhIeva0r3l3JWvQql0ip62QWZZFaim7me", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -152,9 +155,6 @@ func TestPodMemoryTarget(t *testing.T) {
 								},
 								Limits: corev1.ResourceList{},
 							},
-							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.Bool(false),
-							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
 						},
@@ -167,11 +167,13 @@ func TestPodMemoryTarget(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		pod, err := Pod(testCase.input, "name", "opmImage", "utilImage", "image", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
-		require.NoError(t, err)
-		if diff := cmp.Diff(pod, testCase.expected); diff != "" {
-			t.Errorf("got incorrect pod: %v", diff)
-		}
+		t.Run(testCase.name, func(t *testing.T) {
+			pod, err := Pod(testCase.input, "name", "opmImage", "utilImage", "image", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
+			require.NoError(t, err)
+			if diff := cmp.Diff(pod, testCase.expected); diff != "" {
+				t.Errorf("got incorrect pod: %v", diff)
+			}
+		})
 	}
 }
 
@@ -197,12 +199,17 @@ func TestPodExtractContent(t *testing.T) {
 					Name:      "test",
 					Namespace: "testns",
 				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Legacy, // explicitly set Legacy context here
+					},
+				},
 			},
 			expected: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "8SbHWyYfjbRT8lLcfdZ5ofXNdC1GE6ayztILTF", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "6YQsU6V4rkdxtIy1vfooVAmxQE0j8Jw51XXOLR", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -245,9 +252,7 @@ func TestPodExtractContent(t *testing.T) {
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
 							},
-							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.Bool(false),
-							},
+							SecurityContext:          nil,
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
 						},
@@ -270,6 +275,7 @@ func TestPodExtractContent(t *testing.T) {
 							CacheDir:   "/tmp/cache",
 							CatalogDir: "/catalog",
 						},
+						SecurityContextConfig: v1alpha1.Legacy, // explicitly set Legacy context here
 					},
 				},
 			},
@@ -277,7 +283,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "2AHzz8IDqQLwPsDyu4UjUmnROr4E59PMKm9OCm", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "ar06mYzBueg55jI52Qya40owpe9ai0HXUZ0nKk", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -357,9 +363,7 @@ func TestPodExtractContent(t *testing.T) {
 									corev1.ResourceMemory: resource.MustParse("50Mi"),
 								},
 							},
-							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.Bool(false),
-							},
+							SecurityContext:          nil,
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
 							VolumeMounts:             []corev1.VolumeMount{{Name: "catalog-content", MountPath: "/extracted-catalog"}},
@@ -509,30 +513,50 @@ func TestPodContainerSecurityContext(t *testing.T) {
 		expectedContainerSecurityContext *corev1.SecurityContext
 	}{
 		{
-			title: "NoSpecDefined/PodContainsSecurityConfigForPSALegacy",
+			title: "NoSpecDefined/DefaultsToRestricted",
 			inputCatsrc: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: "testns",
 				},
 			},
-			expectedContainerSecurityContext: nil,
-			expectedSecurityContext:          nil,
+			expectedContainerSecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: pointer.Bool(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+				ReadOnlyRootFilesystem: pointer.Bool(false), // Reflecting expected 'restricted' settings
+			},
+			expectedSecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+				RunAsNonRoot:   pointer.Bool(true),
+				RunAsUser:      pointer.Int64(workloadUserID),
+			},
 		},
 		{
-			title: "SpecDefined/NoGRPCPodConfig/PodContainsSecurityConfigForPSALegacy",
+			title: "SpecDefined/NoGRPCPodConfig/DefaultsToRestricted",
 			inputCatsrc: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: "testns",
 				},
-				Spec: v1alpha1.CatalogSourceSpec{},
+				Spec: v1alpha1.CatalogSourceSpec{}, // No GrpcPodConfig is defined, defaults to Restricted
 			},
-			expectedContainerSecurityContext: nil,
-			expectedSecurityContext:          nil,
+			expectedContainerSecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: pointer.Bool(false), // Aligns with 'restricted' policy right?
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+				ReadOnlyRootFilesystem: pointer.Bool(false), // Aligns with 'restricted' policy right?
+			},
+			expectedSecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+				RunAsNonRoot:   pointer.Bool(true),
+				RunAsUser:      pointer.Int64(workloadUserID),
+			},
 		},
 		{
-			title: "SpecDefined/GRPCPodConfigDefined/PodContainsSecurityConfigForPSALegacy",
+			title: "SpecDefined/GRPCPodConfigDefined/DefaultsToRestricted",
 			inputCatsrc: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
@@ -542,11 +566,21 @@ func TestPodContainerSecurityContext(t *testing.T) {
 					GrpcPodConfig: &v1alpha1.GrpcPodConfig{},
 				},
 			},
-			expectedContainerSecurityContext: nil,
-			expectedSecurityContext:          nil,
+			expectedContainerSecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: pointer.Bool(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+				ReadOnlyRootFilesystem: pointer.Bool(false), // Aligns with 'restricted' policy right?
+			},
+			expectedSecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+				RunAsNonRoot:   pointer.Bool(true),
+				RunAsUser:      pointer.Int64(workloadUserID),
+			},
 		},
 		{
-			title: "SpecDefined/SecurityContextConfig:Legacy/PodContainsSecurityConfigForPSALegacy",
+			title: "SpecDefined/SecurityContextConfig:Legacy/NoChangeExpected",
 			inputCatsrc: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
@@ -562,7 +596,7 @@ func TestPodContainerSecurityContext(t *testing.T) {
 			expectedSecurityContext:          nil,
 		},
 		{
-			title: "SpecDefined/SecurityContextConfig:Restricted/PodContainsSecurityConfigForPSARestricted",
+			title: "SpecDefined/SecurityContextConfig:Restricted/RestrictedSecurityConfigApplied",
 			inputCatsrc: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
@@ -575,44 +609,43 @@ func TestPodContainerSecurityContext(t *testing.T) {
 				},
 			},
 			expectedContainerSecurityContext: &corev1.SecurityContext{
-				ReadOnlyRootFilesystem:   pointer.Bool(false),
 				AllowPrivilegeEscalation: pointer.Bool(false),
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
 				},
+				ReadOnlyRootFilesystem: pointer.Bool(false), // Ensure this aligns with your restricted settings
 			},
 			expectedSecurityContext: &corev1.PodSecurityContext{
 				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-				RunAsUser:      pointer.Int64(workloadUserID),
 				RunAsNonRoot:   pointer.Bool(true),
+				RunAsUser:      pointer.Int64(workloadUserID),
 			},
-		},
-		{
-			title: "SpecDefined/SecurityContextConfig:Legacy/PodDoesNotContainsSecurityConfig",
-			inputCatsrc: &v1alpha1.CatalogSource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "testns",
-				},
-				Spec: v1alpha1.CatalogSourceSpec{
-					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
-						SecurityContextConfig: v1alpha1.Legacy,
-					},
-				},
-			},
-			expectedContainerSecurityContext: nil,
-			expectedSecurityContext:          nil,
 		},
 	}
+
 	for _, testcase := range testcases {
-		outputPod, err := Pod(testcase.inputCatsrc, "hello", "utilImage", "opmImage", "busybox", serviceAccount("", "service-account"), map[string]string{}, map[string]string{}, int32(0), int32(0), int64(workloadUserID))
-		require.NoError(t, err)
-		if testcase.expectedSecurityContext != nil {
+		t.Run(testcase.title, func(t *testing.T) {
+			outputPod, err := Pod(
+				testcase.inputCatsrc,
+				"hello",
+				"utilImage",
+				"opmImage",
+				"busybox",
+				serviceAccount("", "service-account"),
+				map[string]string{},
+				map[string]string{},
+				int32(0),
+				int32(0),
+				workloadUserID,
+			)
+			require.NoError(t, err)
+
+			// Assert PodSecurityContext
 			require.Equal(t, testcase.expectedSecurityContext, outputPod.Spec.SecurityContext)
-		}
-		if testcase.expectedContainerSecurityContext != nil {
+
+			// Assert ContainerSecurityContext
 			require.Equal(t, testcase.expectedContainerSecurityContext, outputPod.Spec.Containers[0].SecurityContext)
-		}
+		})
 	}
 }
 

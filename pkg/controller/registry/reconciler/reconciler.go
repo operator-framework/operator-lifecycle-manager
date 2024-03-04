@@ -206,8 +206,21 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 		},
 	}
 
-	if source.Spec.GrpcPodConfig != nil && source.Spec.GrpcPodConfig.SecurityContextConfig == operatorsv1alpha1.Restricted {
-		addSecurityContext(pod, runAsUser)
+	// Check if GrpcPodConfig is defined
+	if source.Spec.GrpcPodConfig != nil {
+		// Determine the security context configuration
+		securityContextConfig := source.Spec.GrpcPodConfig.SecurityContextConfig
+
+		// Apply 'restricted' security settings if SecurityContextConfig is 'Restricted' or not set
+		if securityContextConfig == operatorsv1alpha1.Restricted || securityContextConfig == "" {
+			addSecurityContext(pod, runAsUser) // Apply restricted settings
+		} else {
+			// For 'Legacy' or any unspecified value, clear all security contexts
+			clearAllSecurityContexts(pod)
+		}
+	} else {
+		// If GrpcPodConfig is nil, apply 'restricted' security settings by default
+		addSecurityContext(pod, runAsUser) // Default to restricted settings
 	}
 
 	// Override scheduling options if specified
@@ -327,6 +340,14 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 	podAnnotations[ClusterAutoscalingAnnotationKey] = "true"
 
 	return pod, nil
+}
+
+func clearAllSecurityContexts(pod *corev1.Pod) {
+	// Helper function to clear all security contexts
+	pod.Spec.SecurityContext = nil // Clear pod-level security context
+	for i := range pod.Spec.Containers {
+		pod.Spec.Containers[i].SecurityContext = nil // Clear each container's security context
+	}
 }
 
 func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
