@@ -283,7 +283,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "ar06mYzBueg55jI52Qya40owpe9ai0HXUZ0nKk", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "bpWEyFu63Sje2dPZHHHq1akmLw7VcxNPj09WnG", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
