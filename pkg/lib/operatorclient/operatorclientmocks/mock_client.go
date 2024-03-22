@@ -89,6 +89,21 @@ func (mr *MockClientInterfaceMockRecorder) ApplyClusterRoleBinding(applyConfig, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyClusterRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).ApplyClusterRoleBinding), applyConfig, applyOptions)
 }
 
+// ApplyRoleBinding mocks base method.
+func (m *MockClientInterface) ApplyRoleBinding(applyConfig *v14.RoleBindingApplyConfiguration, applyOptions v12.ApplyOptions) (*v11.RoleBinding, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyRoleBinding", applyConfig, applyOptions)
+	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyRoleBinding indicates an expected call of ApplyRoleBinding.
+func (mr *MockClientInterfaceMockRecorder) ApplyRoleBinding(applyConfig, applyOptions interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).ApplyRoleBinding), applyConfig, applyOptions)
+}
+
 // ApplyService mocks base method.
 func (m *MockClientInterface) ApplyService(arg0 *v13.ServiceApplyConfiguration, arg1 v12.ApplyOptions) (*v10.Service, error) {
 	m.ctrl.T.Helper()
@@ -1605,6 +1620,21 @@ func NewMockRoleBindingClient(ctrl *gomock.Controller) *MockRoleBindingClient {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRoleBindingClient) EXPECT() *MockRoleBindingClientMockRecorder {
 	return m.recorder
+}
+
+// ApplyRoleBinding mocks base method.
+func (m *MockRoleBindingClient) ApplyRoleBinding(applyConfig *v14.RoleBindingApplyConfiguration, applyOptions v12.ApplyOptions) (*v11.RoleBinding, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyRoleBinding", applyConfig, applyOptions)
+	ret0, _ := ret[0].(*v11.RoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyRoleBinding indicates an expected call of ApplyRoleBinding.
+func (mr *MockRoleBindingClientMockRecorder) ApplyRoleBinding(applyConfig, applyOptions interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyRoleBinding", reflect.TypeOf((*MockRoleBindingClient)(nil).ApplyRoleBinding), applyConfig, applyOptions)
 }
 
 // CreateRoleBinding mocks base method.
