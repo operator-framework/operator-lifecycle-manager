@@ -309,7 +309,19 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				authReaderRoleBinding.SetNamespace(KubeSystem)
 				authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
-				mockOpClient.EXPECT().UpdateRoleBinding(authReaderRoleBinding).Return(authReaderRoleBinding, nil)
+				authReaderRoleBindingApplyConfig := rbacv1ac.RoleBinding(AuthReaderRoleBindingName(service.GetName()), KubeSystem).
+					WithLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue}).
+					WithSubjects(rbacv1ac.Subject().
+						WithKind("ServiceAccount").
+						WithAPIGroup("").
+						WithName(args.depSpec.Template.Spec.ServiceAccountName).
+						WithNamespace(namespace)).
+					WithRoleRef(rbacv1ac.RoleRef().
+						WithAPIGroup("rbac.authorization.k8s.io").
+						WithKind("Role").
+						WithName("extension-apiserver-authentication-reader"))
+
+				mockOpClient.EXPECT().ApplyRoleBinding(authReaderRoleBindingApplyConfig, metav1.ApplyOptions{Force: true, FieldManager: "olm.install"}).Return(authReaderRoleBinding, nil)
 			},
 			state: fakeState{
 				existingService: &corev1.Service{
@@ -569,7 +581,19 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				authReaderRoleBinding.SetNamespace(KubeSystem)
 				authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
-				mockOpClient.EXPECT().UpdateRoleBinding(authReaderRoleBinding).Return(authReaderRoleBinding, nil)
+				authReaderRoleBindingApplyConfig := rbacv1ac.RoleBinding(AuthReaderRoleBindingName(service.GetName()), KubeSystem).
+					WithLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue}).
+					WithSubjects(rbacv1ac.Subject().
+						WithKind("ServiceAccount").
+						WithAPIGroup("").
+						WithName(args.depSpec.Template.Spec.ServiceAccountName).
+						WithNamespace(namespace)).
+					WithRoleRef(rbacv1ac.RoleRef().
+						WithAPIGroup("rbac.authorization.k8s.io").
+						WithKind("Role").
+						WithName("extension-apiserver-authentication-reader"))
+
+				mockOpClient.EXPECT().ApplyRoleBinding(authReaderRoleBindingApplyConfig, metav1.ApplyOptions{Force: true, FieldManager: "olm.install"}).Return(authReaderRoleBinding, nil)
 			},
 			state: fakeState{
 				existingService: &corev1.Service{
@@ -831,7 +855,19 @@ func TestInstallCertRequirementsForDeployment(t *testing.T) {
 				authReaderRoleBinding.SetNamespace(KubeSystem)
 				authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
 
-				mockOpClient.EXPECT().UpdateRoleBinding(authReaderRoleBinding).Return(authReaderRoleBinding, nil)
+				authReaderRoleBindingApplyConfig := rbacv1ac.RoleBinding(AuthReaderRoleBindingName(service.GetName()), KubeSystem).
+					WithLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue}).
+					WithSubjects(rbacv1ac.Subject().
+						WithKind("ServiceAccount").
+						WithAPIGroup("").
+						WithName(args.depSpec.Template.Spec.ServiceAccountName).
+						WithNamespace(namespace)).
+					WithRoleRef(rbacv1ac.RoleRef().
+						WithAPIGroup("rbac.authorization.k8s.io").
+						WithKind("Role").
+						WithName("extension-apiserver-authentication-reader"))
+
+				mockOpClient.EXPECT().ApplyRoleBinding(authReaderRoleBindingApplyConfig, metav1.ApplyOptions{Force: true, FieldManager: "olm.install"}).Return(authReaderRoleBinding, nil)
 			},
 			state: fakeState{
 				existingService: nil,

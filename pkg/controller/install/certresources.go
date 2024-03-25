@@ -454,53 +454,24 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 		return nil, nil, err
 	}
 
-	// Create RoleBinding to extension-apiserver-authentication-reader Role in the kube-system namespace.
-	authReaderRoleBinding := &rbacv1.RoleBinding{
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				APIGroup:  "",
-				Name:      depSpec.Template.Spec.ServiceAccountName,
-				Namespace: i.owner.GetNamespace(),
-			},
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "Role",
-			Name:     "extension-apiserver-authentication-reader",
-		},
-	}
-	authReaderRoleBinding.SetName(AuthReaderRoleBindingName(serviceName))
-	authReaderRoleBinding.SetNamespace(KubeSystem)
-	authReaderRoleBinding.SetLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue})
+	// Apply RoleBinding to extension-apiserver-authentication-reader Role in the kube-system namespace.
+	authReaderRoleBindingApplyConfig := rbacv1ac.RoleBinding(AuthReaderRoleBindingName(serviceName), KubeSystem).
+		WithLabels(map[string]string{OLMManagedLabelKey: OLMManagedLabelValue}).
+		WithSubjects(rbacv1ac.Subject().
+			WithKind("ServiceAccount").
+			WithAPIGroup("").
+			WithName(depSpec.Template.Spec.ServiceAccountName).
+			WithNamespace(i.owner.GetNamespace())).
+		WithRoleRef(rbacv1ac.RoleRef().
+			WithAPIGroup("rbac.authorization.k8s.io").
+			WithKind("Role").
+			WithName("extension-apiserver-authentication-reader"))
 
-	existingAuthReaderRoleBinding, err := i.strategyClient.GetOpLister().RbacV1().RoleBindingLister().RoleBindings(KubeSystem).Get(authReaderRoleBinding.GetName())
-	if err == nil {
-		// Check if the only owners are this CSV or in this CSV's replacement chain.
-		if ownerutil.AdoptableLabels(existingAuthReaderRoleBinding.GetLabels(), true, i.owner) {
-			logger.WithFields(log.Fields{"obj": "existingAuthReaderRB", "labels": existingAuthReaderRoleBinding.GetLabels()}).Debug("adopting")
-			if err := ownerutil.AddOwnerLabels(authReaderRoleBinding, i.owner); err != nil {
-				return nil, nil, err
-			}
-		}
-		// Attempt an update.
-		if _, err := i.strategyClient.GetOpClient().UpdateRoleBinding(authReaderRoleBinding); err != nil {
-			logger.Warnf("could not update auth reader role binding %s", authReaderRoleBinding.GetName())
-			return nil, nil, err
-		}
-	} else if apierrors.IsNotFound(err) {
-		// Create the role.
-		if err := ownerutil.AddOwnerLabels(authReaderRoleBinding, i.owner); err != nil {
-			return nil, nil, err
-		}
-		_, err = i.strategyClient.GetOpClient().CreateRoleBinding(authReaderRoleBinding)
-		if err != nil {
-			log.Warnf("could not create auth reader role binding %s", authReaderRoleBinding.GetName())
-			return nil, nil, err
-		}
-	} else {
+	if _, err = i.strategyClient.GetOpClient().ApplyRoleBinding(authReaderRoleBindingApplyConfig, metav1.ApplyOptions{Force: true, FieldManager: "olm.install"}); err != nil {
+		log.Errorf("could not apply auth reader rolebinding %s: %s", *authReaderRoleBindingApplyConfig.Name, err.Error())
 		return nil, nil, err
 	}
+
 	AddDefaultCertVolumeAndVolumeMounts(&depSpec, secret.GetName())
 
 	// Setting the olm hash label forces a rollout and ensures that the new secret

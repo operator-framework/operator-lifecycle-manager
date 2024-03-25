@@ -94,6 +94,7 @@ type RoleClient interface {
 
 // RoleBindingClient contains methods for manipulating RoleBindings.
 type RoleBindingClient interface {
+	ApplyRoleBinding(applyConfig *rbacv1ac.RoleBindingApplyConfiguration, applyOptions metav1.ApplyOptions) (*rbacv1.RoleBinding, error)
 	CreateRoleBinding(*rbacv1.RoleBinding) (*rbacv1.RoleBinding, error)
 	GetRoleBinding(namespace, name string) (*rbacv1.RoleBinding, error)
 	UpdateRoleBinding(modified *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error)
