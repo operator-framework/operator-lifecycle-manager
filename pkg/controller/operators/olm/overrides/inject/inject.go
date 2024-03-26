@@ -107,7 +107,6 @@ func findEnvFromVar(EnvFromVar []corev1.EnvFromSource, newEnvFromVar corev1.EnvF
 }
 
 func compareEnvFromVar(envFromVar corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) (found bool) {
-
 	compareprefix := newEnvFromVar.Prefix == envFromVar.Prefix
 	var compareConfigMap, compareSecret bool
 
@@ -122,7 +121,6 @@ func compareEnvFromVar(envFromVar corev1.EnvFromSource, newEnvFromVar corev1.Env
 		} else {
 			compareConfigMap = false
 		}
-
 	}
 	// Compare SecretRef
 	if newEnvFromVar.SecretRef == nil && envFromVar.SecretRef == nil {

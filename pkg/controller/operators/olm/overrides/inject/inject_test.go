@@ -31,17 +31,17 @@ var (
 	}
 
 	defaultEnvFromVars = []corev1.EnvFromSource{
-		corev1.EnvFromSource{
+		{
 			Prefix: "test",
 		},
-		corev1.EnvFromSource{
+		{
 			ConfigMapRef: &corev1.ConfigMapEnvSource{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: "configmapForTest",
 				},
 			},
 		},
-		corev1.EnvFromSource{
+		{
 			SecretRef: &corev1.SecretEnvSource{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: "secretForTest",
@@ -559,13 +559,13 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 			name: "WithContainerHasNoEnvFromVar",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{},
+					{},
 				},
 			},
 			envFromVar: defaultEnvFromVars,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						EnvFrom: defaultEnvFromVars,
 					},
 				},
@@ -577,19 +577,19 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 			name: "WithContainerHasOverlappingEnvFromVar",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						EnvFrom: []corev1.EnvFromSource{
-							corev1.EnvFromSource{
+							{
 								Prefix: "test",
 							},
-							corev1.EnvFromSource{
+							{
 								ConfigMapRef: &corev1.ConfigMapEnvSource{
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: "configmapForTest",
 									},
 								},
 							},
-							corev1.EnvFromSource{
+							{
 								SecretRef: &corev1.SecretEnvSource{
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: "secretForTest",
@@ -603,26 +603,26 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 			envFromVar: defaultEnvFromVars,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
-						EnvFrom: append([]corev1.EnvFromSource{
-							corev1.EnvFromSource{
+					{
+						EnvFrom: []corev1.EnvFromSource{
+							{
 								Prefix: "test",
 							},
-							corev1.EnvFromSource{
+							{
 								ConfigMapRef: &corev1.ConfigMapEnvSource{
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: "configmapForTest",
 									},
 								},
 							},
-							corev1.EnvFromSource{
+							{
 								SecretRef: &corev1.SecretEnvSource{
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: "secretForTest",
 									},
 								},
 							},
-						}),
+						},
 					},
 				},
 			},
@@ -633,9 +633,9 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 			name: "WithContainerHasNonOverlappingEnvFromVar",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						EnvFrom: []corev1.EnvFromSource{
-							corev1.EnvFromSource{
+							{
 								Prefix: "foo",
 							},
 						},
@@ -645,9 +645,9 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 			envFromVar: defaultEnvFromVars,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						EnvFrom: append([]corev1.EnvFromSource{
-							corev1.EnvFromSource{
+							{
 								Prefix: "foo",
 							},
 						}, defaultEnvFromVars...),
@@ -661,17 +661,17 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 			name: "WithMultipleContainers",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{},
-					corev1.Container{
+					{},
+					{
 						EnvFrom: []corev1.EnvFromSource{
-							corev1.EnvFromSource{
+							{
 								Prefix: "foo",
 							},
 						},
 					},
-					corev1.Container{
+					{
 						EnvFrom: []corev1.EnvFromSource{
-							corev1.EnvFromSource{
+							{
 								Prefix: "bar",
 							},
 						},
@@ -681,19 +681,19 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 			envFromVar: defaultEnvFromVars,
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						EnvFrom: defaultEnvFromVars,
 					},
-					corev1.Container{
+					{
 						EnvFrom: append([]corev1.EnvFromSource{
-							corev1.EnvFromSource{
+							{
 								Prefix: "foo",
 							},
 						}, defaultEnvFromVars...),
 					},
-					corev1.Container{
+					{
 						EnvFrom: append([]corev1.EnvFromSource{
-							corev1.EnvFromSource{
+							{
 								Prefix: "bar",
 							},
 						}, defaultEnvFromVars...),
