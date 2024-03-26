@@ -30,15 +30,16 @@ func (fake *FakeRegistryReconcilerFactory) ReconcilerForSource(arg1 *v1alpha1.Ca
 	fake.reconcilerForSourceArgsForCall = append(fake.reconcilerForSourceArgsForCall, struct {
 		arg1 *v1alpha1.CatalogSource
 	}{arg1})
+	stub := fake.ReconcilerForSourceStub
+	fakeReturns := fake.reconcilerForSourceReturns
 	fake.recordInvocation("ReconcilerForSource", []interface{}{arg1})
 	fake.reconcilerForSourceMutex.Unlock()
-	if fake.ReconcilerForSourceStub != nil {
-		return fake.ReconcilerForSourceStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.reconcilerForSourceReturns
 	return fakeReturns.result1
 }
 

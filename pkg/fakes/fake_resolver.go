@@ -36,15 +36,16 @@ func (fake *FakeStepResolver) ResolveSteps(arg1 string) ([]*v1alpha1.Step, []v1a
 	fake.resolveStepsArgsForCall = append(fake.resolveStepsArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.ResolveStepsStub
+	fakeReturns := fake.resolveStepsReturns
 	fake.recordInvocation("ResolveSteps", []interface{}{arg1})
 	fake.resolveStepsMutex.Unlock()
-	if fake.ResolveStepsStub != nil {
-		return fake.ResolveStepsStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3, ret.result4
 	}
-	fakeReturns := fake.resolveStepsReturns
 	return fakeReturns.result1, fakeReturns.result2, fakeReturns.result3, fakeReturns.result4
 }
 

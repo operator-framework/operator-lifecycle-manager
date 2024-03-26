@@ -161,15 +161,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateDeployment(arg1 *v1.De
 	fake.createDeploymentArgsForCall = append(fake.createDeploymentArgsForCall, struct {
 		arg1 *v1.Deployment
 	}{arg1})
+	stub := fake.CreateDeploymentStub
+	fakeReturns := fake.createDeploymentReturns
 	fake.recordInvocation("CreateDeployment", []interface{}{arg1})
 	fake.createDeploymentMutex.Unlock()
-	if fake.CreateDeploymentStub != nil {
-		return fake.CreateDeploymentStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.createDeploymentReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -224,15 +225,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeployment(arg
 	fake.createOrUpdateDeploymentArgsForCall = append(fake.createOrUpdateDeploymentArgsForCall, struct {
 		arg1 *v1.Deployment
 	}{arg1})
+	stub := fake.CreateOrUpdateDeploymentStub
+	fakeReturns := fake.createOrUpdateDeploymentReturns
 	fake.recordInvocation("CreateOrUpdateDeployment", []interface{}{arg1})
 	fake.createOrUpdateDeploymentMutex.Unlock()
-	if fake.CreateOrUpdateDeploymentStub != nil {
-		return fake.CreateOrUpdateDeploymentStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.createOrUpdateDeploymentReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -287,15 +289,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateRole(arg1 *v1a.Role) (
 	fake.createRoleArgsForCall = append(fake.createRoleArgsForCall, struct {
 		arg1 *v1a.Role
 	}{arg1})
+	stub := fake.CreateRoleStub
+	fakeReturns := fake.createRoleReturns
 	fake.recordInvocation("CreateRole", []interface{}{arg1})
 	fake.createRoleMutex.Unlock()
-	if fake.CreateRoleStub != nil {
-		return fake.CreateRoleStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.createRoleReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -350,15 +353,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBinding(arg1 *v1a.
 	fake.createRoleBindingArgsForCall = append(fake.createRoleBindingArgsForCall, struct {
 		arg1 *v1a.RoleBinding
 	}{arg1})
+	stub := fake.CreateRoleBindingStub
+	fakeReturns := fake.createRoleBindingReturns
 	fake.recordInvocation("CreateRoleBinding", []interface{}{arg1})
 	fake.createRoleBindingMutex.Unlock()
-	if fake.CreateRoleBindingStub != nil {
-		return fake.CreateRoleBindingStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.createRoleBindingReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -413,15 +417,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) DeleteDeployment(arg1 string
 	fake.deleteDeploymentArgsForCall = append(fake.deleteDeploymentArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.DeleteDeploymentStub
+	fakeReturns := fake.deleteDeploymentReturns
 	fake.recordInvocation("DeleteDeployment", []interface{}{arg1})
 	fake.deleteDeploymentMutex.Unlock()
-	if fake.DeleteDeploymentStub != nil {
-		return fake.DeleteDeploymentStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.deleteDeploymentReturns
 	return fakeReturns.result1
 }
 
@@ -474,15 +479,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccount(arg1 *v
 		arg1 *v1b.ServiceAccount
 		arg2 ownerutil.Owner
 	}{arg1, arg2})
+	stub := fake.EnsureServiceAccountStub
+	fakeReturns := fake.ensureServiceAccountReturns
 	fake.recordInvocation("EnsureServiceAccount", []interface{}{arg1, arg2})
 	fake.ensureServiceAccountMutex.Unlock()
-	if fake.EnsureServiceAccountStub != nil {
-		return fake.EnsureServiceAccountStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.ensureServiceAccountReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -537,15 +543,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingLa
 	fake.findAnyDeploymentsMatchingLabelsArgsForCall = append(fake.findAnyDeploymentsMatchingLabelsArgsForCall, struct {
 		arg1 labels.Selector
 	}{arg1})
+	stub := fake.FindAnyDeploymentsMatchingLabelsStub
+	fakeReturns := fake.findAnyDeploymentsMatchingLabelsReturns
 	fake.recordInvocation("FindAnyDeploymentsMatchingLabels", []interface{}{arg1})
 	fake.findAnyDeploymentsMatchingLabelsMutex.Unlock()
-	if fake.FindAnyDeploymentsMatchingLabelsStub != nil {
-		return fake.FindAnyDeploymentsMatchingLabelsStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.findAnyDeploymentsMatchingLabelsReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -605,15 +612,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNa
 	fake.findAnyDeploymentsMatchingNamesArgsForCall = append(fake.findAnyDeploymentsMatchingNamesArgsForCall, struct {
 		arg1 []string
 	}{arg1Copy})
+	stub := fake.FindAnyDeploymentsMatchingNamesStub
+	fakeReturns := fake.findAnyDeploymentsMatchingNamesReturns
 	fake.recordInvocation("FindAnyDeploymentsMatchingNames", []interface{}{arg1Copy})
 	fake.findAnyDeploymentsMatchingNamesMutex.Unlock()
-	if fake.FindAnyDeploymentsMatchingNamesStub != nil {
-		return fake.FindAnyDeploymentsMatchingNamesStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.findAnyDeploymentsMatchingNamesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -667,15 +675,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) GetOpClient() operatorclient
 	ret, specificReturn := fake.getOpClientReturnsOnCall[len(fake.getOpClientArgsForCall)]
 	fake.getOpClientArgsForCall = append(fake.getOpClientArgsForCall, struct {
 	}{})
+	stub := fake.GetOpClientStub
+	fakeReturns := fake.getOpClientReturns
 	fake.recordInvocation("GetOpClient", []interface{}{})
 	fake.getOpClientMutex.Unlock()
-	if fake.GetOpClientStub != nil {
-		return fake.GetOpClientStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.getOpClientReturns
 	return fakeReturns.result1
 }
 
@@ -719,15 +728,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) GetOpLister() operatorlister
 	ret, specificReturn := fake.getOpListerReturnsOnCall[len(fake.getOpListerArgsForCall)]
 	fake.getOpListerArgsForCall = append(fake.getOpListerArgsForCall, struct {
 	}{})
+	stub := fake.GetOpListerStub
+	fakeReturns := fake.getOpListerReturns
 	fake.recordInvocation("GetOpLister", []interface{}{})
 	fake.getOpListerMutex.Unlock()
-	if fake.GetOpListerStub != nil {
-		return fake.GetOpListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.getOpListerReturns
 	return fakeReturns.result1
 }
 
@@ -772,15 +782,16 @@ func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByName(arg1
 	fake.getServiceAccountByNameArgsForCall = append(fake.getServiceAccountByNameArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.GetServiceAccountByNameStub
+	fakeReturns := fake.getServiceAccountByNameReturns
 	fake.recordInvocation("GetServiceAccountByName", []interface{}{arg1})
 	fake.getServiceAccountByNameMutex.Unlock()
-	if fake.GetServiceAccountByNameStub != nil {
-		return fake.GetServiceAccountByNameStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getServiceAccountByNameReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 

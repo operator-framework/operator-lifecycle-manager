@@ -33,15 +33,16 @@ func (fake *FakeAPIRegistrationV1Lister) APIServiceLister() v1.APIServiceLister 
 	ret, specificReturn := fake.aPIServiceListerReturnsOnCall[len(fake.aPIServiceListerArgsForCall)]
 	fake.aPIServiceListerArgsForCall = append(fake.aPIServiceListerArgsForCall, struct {
 	}{})
+	stub := fake.APIServiceListerStub
+	fakeReturns := fake.aPIServiceListerReturns
 	fake.recordInvocation("APIServiceLister", []interface{}{})
 	fake.aPIServiceListerMutex.Unlock()
-	if fake.APIServiceListerStub != nil {
-		return fake.APIServiceListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.aPIServiceListerReturns
 	return fakeReturns.result1
 }
 
@@ -85,9 +86,10 @@ func (fake *FakeAPIRegistrationV1Lister) RegisterAPIServiceLister(arg1 v1.APISer
 	fake.registerAPIServiceListerArgsForCall = append(fake.registerAPIServiceListerArgsForCall, struct {
 		arg1 v1.APIServiceLister
 	}{arg1})
+	stub := fake.RegisterAPIServiceListerStub
 	fake.recordInvocation("RegisterAPIServiceLister", []interface{}{arg1})
 	fake.registerAPIServiceListerMutex.Unlock()
-	if fake.RegisterAPIServiceListerStub != nil {
+	if stub != nil {
 		fake.RegisterAPIServiceListerStub(arg1)
 	}
 }

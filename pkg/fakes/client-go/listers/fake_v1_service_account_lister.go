@@ -44,15 +44,16 @@ func (fake *FakeServiceAccountLister) List(arg1 labels.Selector) ([]*v1a.Service
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
 		arg1 labels.Selector
 	}{arg1})
+	stub := fake.ListStub
+	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
 	fake.listMutex.Unlock()
-	if fake.ListStub != nil {
-		return fake.ListStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -107,15 +108,16 @@ func (fake *FakeServiceAccountLister) ServiceAccounts(arg1 string) v1.ServiceAcc
 	fake.serviceAccountsArgsForCall = append(fake.serviceAccountsArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.ServiceAccountsStub
+	fakeReturns := fake.serviceAccountsReturns
 	fake.recordInvocation("ServiceAccounts", []interface{}{arg1})
 	fake.serviceAccountsMutex.Unlock()
-	if fake.ServiceAccountsStub != nil {
-		return fake.ServiceAccountsStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.serviceAccountsReturns
 	return fakeReturns.result1
 }
 

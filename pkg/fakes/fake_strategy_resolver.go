@@ -70,15 +70,16 @@ func (fake *FakeStrategyResolverInterface) InstallerForStrategy(arg1 string, arg
 		arg7 []v1alpha1.WebhookDescription
 		arg8 install.Strategy
 	}{arg1, arg2, arg3, arg4, arg5, arg6Copy, arg7Copy, arg8})
+	stub := fake.InstallerForStrategyStub
+	fakeReturns := fake.installerForStrategyReturns
 	fake.recordInvocation("InstallerForStrategy", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6Copy, arg7Copy, arg8})
 	fake.installerForStrategyMutex.Unlock()
-	if fake.InstallerForStrategyStub != nil {
-		return fake.InstallerForStrategyStub(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.installerForStrategyReturns
 	return fakeReturns.result1
 }
 
@@ -130,15 +131,16 @@ func (fake *FakeStrategyResolverInterface) UnmarshalStrategy(arg1 v1alpha1.Named
 	fake.unmarshalStrategyArgsForCall = append(fake.unmarshalStrategyArgsForCall, struct {
 		arg1 v1alpha1.NamedInstallStrategy
 	}{arg1})
+	stub := fake.UnmarshalStrategyStub
+	fakeReturns := fake.unmarshalStrategyReturns
 	fake.recordInvocation("UnmarshalStrategy", []interface{}{arg1})
 	fake.unmarshalStrategyMutex.Unlock()
-	if fake.UnmarshalStrategyStub != nil {
-		return fake.UnmarshalStrategyStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.unmarshalStrategyReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 

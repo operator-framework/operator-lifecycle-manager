@@ -80,15 +80,16 @@ func (fake *FakeRbacV1Lister) ClusterRoleBindingLister() v1.ClusterRoleBindingLi
 	ret, specificReturn := fake.clusterRoleBindingListerReturnsOnCall[len(fake.clusterRoleBindingListerArgsForCall)]
 	fake.clusterRoleBindingListerArgsForCall = append(fake.clusterRoleBindingListerArgsForCall, struct {
 	}{})
+	stub := fake.ClusterRoleBindingListerStub
+	fakeReturns := fake.clusterRoleBindingListerReturns
 	fake.recordInvocation("ClusterRoleBindingLister", []interface{}{})
 	fake.clusterRoleBindingListerMutex.Unlock()
-	if fake.ClusterRoleBindingListerStub != nil {
-		return fake.ClusterRoleBindingListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.clusterRoleBindingListerReturns
 	return fakeReturns.result1
 }
 
@@ -132,15 +133,16 @@ func (fake *FakeRbacV1Lister) ClusterRoleLister() v1.ClusterRoleLister {
 	ret, specificReturn := fake.clusterRoleListerReturnsOnCall[len(fake.clusterRoleListerArgsForCall)]
 	fake.clusterRoleListerArgsForCall = append(fake.clusterRoleListerArgsForCall, struct {
 	}{})
+	stub := fake.ClusterRoleListerStub
+	fakeReturns := fake.clusterRoleListerReturns
 	fake.recordInvocation("ClusterRoleLister", []interface{}{})
 	fake.clusterRoleListerMutex.Unlock()
-	if fake.ClusterRoleListerStub != nil {
-		return fake.ClusterRoleListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.clusterRoleListerReturns
 	return fakeReturns.result1
 }
 
@@ -184,9 +186,10 @@ func (fake *FakeRbacV1Lister) RegisterClusterRoleBindingLister(arg1 v1.ClusterRo
 	fake.registerClusterRoleBindingListerArgsForCall = append(fake.registerClusterRoleBindingListerArgsForCall, struct {
 		arg1 v1.ClusterRoleBindingLister
 	}{arg1})
+	stub := fake.RegisterClusterRoleBindingListerStub
 	fake.recordInvocation("RegisterClusterRoleBindingLister", []interface{}{arg1})
 	fake.registerClusterRoleBindingListerMutex.Unlock()
-	if fake.RegisterClusterRoleBindingListerStub != nil {
+	if stub != nil {
 		fake.RegisterClusterRoleBindingListerStub(arg1)
 	}
 }
@@ -215,9 +218,10 @@ func (fake *FakeRbacV1Lister) RegisterClusterRoleLister(arg1 v1.ClusterRoleListe
 	fake.registerClusterRoleListerArgsForCall = append(fake.registerClusterRoleListerArgsForCall, struct {
 		arg1 v1.ClusterRoleLister
 	}{arg1})
+	stub := fake.RegisterClusterRoleListerStub
 	fake.recordInvocation("RegisterClusterRoleLister", []interface{}{arg1})
 	fake.registerClusterRoleListerMutex.Unlock()
-	if fake.RegisterClusterRoleListerStub != nil {
+	if stub != nil {
 		fake.RegisterClusterRoleListerStub(arg1)
 	}
 }
@@ -247,9 +251,10 @@ func (fake *FakeRbacV1Lister) RegisterRoleBindingLister(arg1 string, arg2 v1.Rol
 		arg1 string
 		arg2 v1.RoleBindingLister
 	}{arg1, arg2})
+	stub := fake.RegisterRoleBindingListerStub
 	fake.recordInvocation("RegisterRoleBindingLister", []interface{}{arg1, arg2})
 	fake.registerRoleBindingListerMutex.Unlock()
-	if fake.RegisterRoleBindingListerStub != nil {
+	if stub != nil {
 		fake.RegisterRoleBindingListerStub(arg1, arg2)
 	}
 }
@@ -279,9 +284,10 @@ func (fake *FakeRbacV1Lister) RegisterRoleLister(arg1 string, arg2 v1.RoleLister
 		arg1 string
 		arg2 v1.RoleLister
 	}{arg1, arg2})
+	stub := fake.RegisterRoleListerStub
 	fake.recordInvocation("RegisterRoleLister", []interface{}{arg1, arg2})
 	fake.registerRoleListerMutex.Unlock()
-	if fake.RegisterRoleListerStub != nil {
+	if stub != nil {
 		fake.RegisterRoleListerStub(arg1, arg2)
 	}
 }
@@ -310,15 +316,16 @@ func (fake *FakeRbacV1Lister) RoleBindingLister() v1.RoleBindingLister {
 	ret, specificReturn := fake.roleBindingListerReturnsOnCall[len(fake.roleBindingListerArgsForCall)]
 	fake.roleBindingListerArgsForCall = append(fake.roleBindingListerArgsForCall, struct {
 	}{})
+	stub := fake.RoleBindingListerStub
+	fakeReturns := fake.roleBindingListerReturns
 	fake.recordInvocation("RoleBindingLister", []interface{}{})
 	fake.roleBindingListerMutex.Unlock()
-	if fake.RoleBindingListerStub != nil {
-		return fake.RoleBindingListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.roleBindingListerReturns
 	return fakeReturns.result1
 }
 
@@ -362,15 +369,16 @@ func (fake *FakeRbacV1Lister) RoleLister() v1.RoleLister {
 	ret, specificReturn := fake.roleListerReturnsOnCall[len(fake.roleListerArgsForCall)]
 	fake.roleListerArgsForCall = append(fake.roleListerArgsForCall, struct {
 	}{})
+	stub := fake.RoleListerStub
+	fakeReturns := fake.roleListerReturns
 	fake.recordInvocation("RoleLister", []interface{}{})
 	fake.roleListerMutex.Unlock()
-	if fake.RoleListerStub != nil {
-		return fake.RoleListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.roleListerReturns
 	return fakeReturns.result1
 }
 

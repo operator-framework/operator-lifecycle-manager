@@ -33,15 +33,16 @@ func (fake *FakeAPIExtensionsV1Lister) CustomResourceDefinitionLister() metadata
 	ret, specificReturn := fake.customResourceDefinitionListerReturnsOnCall[len(fake.customResourceDefinitionListerArgsForCall)]
 	fake.customResourceDefinitionListerArgsForCall = append(fake.customResourceDefinitionListerArgsForCall, struct {
 	}{})
+	stub := fake.CustomResourceDefinitionListerStub
+	fakeReturns := fake.customResourceDefinitionListerReturns
 	fake.recordInvocation("CustomResourceDefinitionLister", []interface{}{})
 	fake.customResourceDefinitionListerMutex.Unlock()
-	if fake.CustomResourceDefinitionListerStub != nil {
-		return fake.CustomResourceDefinitionListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.customResourceDefinitionListerReturns
 	return fakeReturns.result1
 }
 
@@ -85,9 +86,10 @@ func (fake *FakeAPIExtensionsV1Lister) RegisterCustomResourceDefinitionLister(ar
 	fake.registerCustomResourceDefinitionListerArgsForCall = append(fake.registerCustomResourceDefinitionListerArgsForCall, struct {
 		arg1 metadatalister.Lister
 	}{arg1})
+	stub := fake.RegisterCustomResourceDefinitionListerStub
 	fake.recordInvocation("RegisterCustomResourceDefinitionLister", []interface{}{arg1})
 	fake.registerCustomResourceDefinitionListerMutex.Unlock()
-	if fake.RegisterCustomResourceDefinitionListerStub != nil {
+	if stub != nil {
 		fake.RegisterCustomResourceDefinitionListerStub(arg1)
 	}
 }

@@ -44,15 +44,16 @@ func (fake *FakeClusterServiceVersionLister) ClusterServiceVersions(arg1 string)
 	fake.clusterServiceVersionsArgsForCall = append(fake.clusterServiceVersionsArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.ClusterServiceVersionsStub
+	fakeReturns := fake.clusterServiceVersionsReturns
 	fake.recordInvocation("ClusterServiceVersions", []interface{}{arg1})
 	fake.clusterServiceVersionsMutex.Unlock()
-	if fake.ClusterServiceVersionsStub != nil {
-		return fake.ClusterServiceVersionsStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.clusterServiceVersionsReturns
 	return fakeReturns.result1
 }
 
@@ -104,15 +105,16 @@ func (fake *FakeClusterServiceVersionLister) List(arg1 labels.Selector) ([]*v1al
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
 		arg1 labels.Selector
 	}{arg1})
+	stub := fake.ListStub
+	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
 	fake.listMutex.Unlock()
-	if fake.ListStub != nil {
-		return fake.ListStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
