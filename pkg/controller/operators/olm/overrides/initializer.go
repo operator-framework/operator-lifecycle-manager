@@ -45,7 +45,7 @@ func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment 
 	var envVarOverrides, proxyEnvVar, merged []corev1.EnvVar
 	var err error
 
-	envVarOverrides, volumeOverrides, volumeMountOverrides, tolerationOverrides, resourcesOverride, nodeSelectorOverride, affinity, annotations, err := d.config.GetConfigOverrides(ownerCSV)
+	envVarOverrides, envFromOverrides, volumeOverrides, volumeMountOverrides, tolerationOverrides, resourcesOverride, nodeSelectorOverride, affinity, annotations, err := d.config.GetConfigOverrides(ownerCSV)
 	if err != nil {
 		err = fmt.Errorf("failed to get subscription pod configuration - %v", err)
 		return err
@@ -70,6 +70,10 @@ func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment 
 	podSpec := &deployment.Spec.Template.Spec
 	if err := inject.InjectEnvIntoDeployment(podSpec, merged); err != nil {
 		return fmt.Errorf("failed to inject proxy env variable(s) into deployment spec name=%s - %v", deployment.Name, err)
+	}
+
+	if err := inject.InjectEnvFromIntoDeployment(podSpec, envFromOverrides); err != nil {
+		return fmt.Errorf("failed to inject envFrom variable(s) into deployment spec name=%s - %v", deployment.Name, err)
 	}
 
 	if err = inject.InjectVolumesIntoDeployment(podSpec, volumeOverrides); err != nil {
