@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 )
 
@@ -640,17 +640,30 @@ func TestGetPodImageID(t *testing.T) {
 		result      string
 	}{
 		{
-			description: "pod has status: return status",
+			description: "default pod has status: return status",
 			pod:         &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{ImageID: "xyz123"}}}},
 			result:      "xyz123",
 		},
 		{
-			description: "pod has two containers: return first",
+			description: "extractConfig pod has status: return status",
+			pod: &corev1.Pod{Status: corev1.PodStatus{
+				InitContainerStatuses: []corev1.ContainerStatus{
+					{ImageID: "xyz123"},
+					{ImageID: "abc456"},
+				},
+				ContainerStatuses: []corev1.ContainerStatus{
+					{ImageID: "xyz123"},
+				},
+			}},
+			result: "abc456",
+		},
+		{
+			description: "pod has unexpected container config",
 			pod: &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{
 				{ImageID: "xyz123"},
 				{ImageID: "abc456"},
 			}}},
-			result: "xyz123",
+			result: "",
 		},
 		{
 			description: "pod has no status",
