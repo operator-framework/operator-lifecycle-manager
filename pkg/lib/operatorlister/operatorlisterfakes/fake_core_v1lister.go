@@ -113,15 +113,16 @@ func (fake *FakeCoreV1Lister) ConfigMapLister() v1.ConfigMapLister {
 	ret, specificReturn := fake.configMapListerReturnsOnCall[len(fake.configMapListerArgsForCall)]
 	fake.configMapListerArgsForCall = append(fake.configMapListerArgsForCall, struct {
 	}{})
+	stub := fake.ConfigMapListerStub
+	fakeReturns := fake.configMapListerReturns
 	fake.recordInvocation("ConfigMapLister", []interface{}{})
 	fake.configMapListerMutex.Unlock()
-	if fake.ConfigMapListerStub != nil {
-		return fake.ConfigMapListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.configMapListerReturns
 	return fakeReturns.result1
 }
 
@@ -165,15 +166,16 @@ func (fake *FakeCoreV1Lister) NamespaceLister() v1.NamespaceLister {
 	ret, specificReturn := fake.namespaceListerReturnsOnCall[len(fake.namespaceListerArgsForCall)]
 	fake.namespaceListerArgsForCall = append(fake.namespaceListerArgsForCall, struct {
 	}{})
+	stub := fake.NamespaceListerStub
+	fakeReturns := fake.namespaceListerReturns
 	fake.recordInvocation("NamespaceLister", []interface{}{})
 	fake.namespaceListerMutex.Unlock()
-	if fake.NamespaceListerStub != nil {
-		return fake.NamespaceListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.namespaceListerReturns
 	return fakeReturns.result1
 }
 
@@ -217,15 +219,16 @@ func (fake *FakeCoreV1Lister) PodLister() v1.PodLister {
 	ret, specificReturn := fake.podListerReturnsOnCall[len(fake.podListerArgsForCall)]
 	fake.podListerArgsForCall = append(fake.podListerArgsForCall, struct {
 	}{})
+	stub := fake.PodListerStub
+	fakeReturns := fake.podListerReturns
 	fake.recordInvocation("PodLister", []interface{}{})
 	fake.podListerMutex.Unlock()
-	if fake.PodListerStub != nil {
-		return fake.PodListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.podListerReturns
 	return fakeReturns.result1
 }
 
@@ -270,9 +273,10 @@ func (fake *FakeCoreV1Lister) RegisterConfigMapLister(arg1 string, arg2 v1.Confi
 		arg1 string
 		arg2 v1.ConfigMapLister
 	}{arg1, arg2})
+	stub := fake.RegisterConfigMapListerStub
 	fake.recordInvocation("RegisterConfigMapLister", []interface{}{arg1, arg2})
 	fake.registerConfigMapListerMutex.Unlock()
-	if fake.RegisterConfigMapListerStub != nil {
+	if stub != nil {
 		fake.RegisterConfigMapListerStub(arg1, arg2)
 	}
 }
@@ -301,9 +305,10 @@ func (fake *FakeCoreV1Lister) RegisterNamespaceLister(arg1 v1.NamespaceLister) {
 	fake.registerNamespaceListerArgsForCall = append(fake.registerNamespaceListerArgsForCall, struct {
 		arg1 v1.NamespaceLister
 	}{arg1})
+	stub := fake.RegisterNamespaceListerStub
 	fake.recordInvocation("RegisterNamespaceLister", []interface{}{arg1})
 	fake.registerNamespaceListerMutex.Unlock()
-	if fake.RegisterNamespaceListerStub != nil {
+	if stub != nil {
 		fake.RegisterNamespaceListerStub(arg1)
 	}
 }
@@ -333,9 +338,10 @@ func (fake *FakeCoreV1Lister) RegisterPodLister(arg1 string, arg2 v1.PodLister) 
 		arg1 string
 		arg2 v1.PodLister
 	}{arg1, arg2})
+	stub := fake.RegisterPodListerStub
 	fake.recordInvocation("RegisterPodLister", []interface{}{arg1, arg2})
 	fake.registerPodListerMutex.Unlock()
-	if fake.RegisterPodListerStub != nil {
+	if stub != nil {
 		fake.RegisterPodListerStub(arg1, arg2)
 	}
 }
@@ -365,9 +371,10 @@ func (fake *FakeCoreV1Lister) RegisterSecretLister(arg1 string, arg2 v1.SecretLi
 		arg1 string
 		arg2 v1.SecretLister
 	}{arg1, arg2})
+	stub := fake.RegisterSecretListerStub
 	fake.recordInvocation("RegisterSecretLister", []interface{}{arg1, arg2})
 	fake.registerSecretListerMutex.Unlock()
-	if fake.RegisterSecretListerStub != nil {
+	if stub != nil {
 		fake.RegisterSecretListerStub(arg1, arg2)
 	}
 }
@@ -397,9 +404,10 @@ func (fake *FakeCoreV1Lister) RegisterServiceAccountLister(arg1 string, arg2 v1.
 		arg1 string
 		arg2 v1.ServiceAccountLister
 	}{arg1, arg2})
+	stub := fake.RegisterServiceAccountListerStub
 	fake.recordInvocation("RegisterServiceAccountLister", []interface{}{arg1, arg2})
 	fake.registerServiceAccountListerMutex.Unlock()
-	if fake.RegisterServiceAccountListerStub != nil {
+	if stub != nil {
 		fake.RegisterServiceAccountListerStub(arg1, arg2)
 	}
 }
@@ -429,9 +437,10 @@ func (fake *FakeCoreV1Lister) RegisterServiceLister(arg1 string, arg2 v1.Service
 		arg1 string
 		arg2 v1.ServiceLister
 	}{arg1, arg2})
+	stub := fake.RegisterServiceListerStub
 	fake.recordInvocation("RegisterServiceLister", []interface{}{arg1, arg2})
 	fake.registerServiceListerMutex.Unlock()
-	if fake.RegisterServiceListerStub != nil {
+	if stub != nil {
 		fake.RegisterServiceListerStub(arg1, arg2)
 	}
 }
@@ -460,15 +469,16 @@ func (fake *FakeCoreV1Lister) SecretLister() v1.SecretLister {
 	ret, specificReturn := fake.secretListerReturnsOnCall[len(fake.secretListerArgsForCall)]
 	fake.secretListerArgsForCall = append(fake.secretListerArgsForCall, struct {
 	}{})
+	stub := fake.SecretListerStub
+	fakeReturns := fake.secretListerReturns
 	fake.recordInvocation("SecretLister", []interface{}{})
 	fake.secretListerMutex.Unlock()
-	if fake.SecretListerStub != nil {
-		return fake.SecretListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.secretListerReturns
 	return fakeReturns.result1
 }
 
@@ -512,15 +522,16 @@ func (fake *FakeCoreV1Lister) ServiceAccountLister() v1.ServiceAccountLister {
 	ret, specificReturn := fake.serviceAccountListerReturnsOnCall[len(fake.serviceAccountListerArgsForCall)]
 	fake.serviceAccountListerArgsForCall = append(fake.serviceAccountListerArgsForCall, struct {
 	}{})
+	stub := fake.ServiceAccountListerStub
+	fakeReturns := fake.serviceAccountListerReturns
 	fake.recordInvocation("ServiceAccountLister", []interface{}{})
 	fake.serviceAccountListerMutex.Unlock()
-	if fake.ServiceAccountListerStub != nil {
-		return fake.ServiceAccountListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.serviceAccountListerReturns
 	return fakeReturns.result1
 }
 
@@ -564,15 +575,16 @@ func (fake *FakeCoreV1Lister) ServiceLister() v1.ServiceLister {
 	ret, specificReturn := fake.serviceListerReturnsOnCall[len(fake.serviceListerArgsForCall)]
 	fake.serviceListerArgsForCall = append(fake.serviceListerArgsForCall, struct {
 	}{})
+	stub := fake.ServiceListerStub
+	fakeReturns := fake.serviceListerReturns
 	fake.recordInvocation("ServiceLister", []interface{}{})
 	fake.serviceListerMutex.Unlock()
-	if fake.ServiceListerStub != nil {
-		return fake.ServiceListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.serviceListerReturns
 	return fakeReturns.result1
 }
 

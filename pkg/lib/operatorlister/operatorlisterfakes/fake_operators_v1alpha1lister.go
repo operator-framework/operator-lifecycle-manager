@@ -82,15 +82,16 @@ func (fake *FakeOperatorsV1alpha1Lister) CatalogSourceLister() v1alpha1.CatalogS
 	ret, specificReturn := fake.catalogSourceListerReturnsOnCall[len(fake.catalogSourceListerArgsForCall)]
 	fake.catalogSourceListerArgsForCall = append(fake.catalogSourceListerArgsForCall, struct {
 	}{})
+	stub := fake.CatalogSourceListerStub
+	fakeReturns := fake.catalogSourceListerReturns
 	fake.recordInvocation("CatalogSourceLister", []interface{}{})
 	fake.catalogSourceListerMutex.Unlock()
-	if fake.CatalogSourceListerStub != nil {
-		return fake.CatalogSourceListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.catalogSourceListerReturns
 	return fakeReturns.result1
 }
 
@@ -134,15 +135,16 @@ func (fake *FakeOperatorsV1alpha1Lister) ClusterServiceVersionLister() v1alpha1.
 	ret, specificReturn := fake.clusterServiceVersionListerReturnsOnCall[len(fake.clusterServiceVersionListerArgsForCall)]
 	fake.clusterServiceVersionListerArgsForCall = append(fake.clusterServiceVersionListerArgsForCall, struct {
 	}{})
+	stub := fake.ClusterServiceVersionListerStub
+	fakeReturns := fake.clusterServiceVersionListerReturns
 	fake.recordInvocation("ClusterServiceVersionLister", []interface{}{})
 	fake.clusterServiceVersionListerMutex.Unlock()
-	if fake.ClusterServiceVersionListerStub != nil {
-		return fake.ClusterServiceVersionListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.clusterServiceVersionListerReturns
 	return fakeReturns.result1
 }
 
@@ -186,15 +188,16 @@ func (fake *FakeOperatorsV1alpha1Lister) InstallPlanLister() v1alpha1.InstallPla
 	ret, specificReturn := fake.installPlanListerReturnsOnCall[len(fake.installPlanListerArgsForCall)]
 	fake.installPlanListerArgsForCall = append(fake.installPlanListerArgsForCall, struct {
 	}{})
+	stub := fake.InstallPlanListerStub
+	fakeReturns := fake.installPlanListerReturns
 	fake.recordInvocation("InstallPlanLister", []interface{}{})
 	fake.installPlanListerMutex.Unlock()
-	if fake.InstallPlanListerStub != nil {
-		return fake.InstallPlanListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.installPlanListerReturns
 	return fakeReturns.result1
 }
 
@@ -239,9 +242,10 @@ func (fake *FakeOperatorsV1alpha1Lister) RegisterCatalogSourceLister(arg1 string
 		arg1 string
 		arg2 v1alpha1.CatalogSourceLister
 	}{arg1, arg2})
+	stub := fake.RegisterCatalogSourceListerStub
 	fake.recordInvocation("RegisterCatalogSourceLister", []interface{}{arg1, arg2})
 	fake.registerCatalogSourceListerMutex.Unlock()
-	if fake.RegisterCatalogSourceListerStub != nil {
+	if stub != nil {
 		fake.RegisterCatalogSourceListerStub(arg1, arg2)
 	}
 }
@@ -271,9 +275,10 @@ func (fake *FakeOperatorsV1alpha1Lister) RegisterClusterServiceVersionLister(arg
 		arg1 string
 		arg2 v1alpha1.ClusterServiceVersionLister
 	}{arg1, arg2})
+	stub := fake.RegisterClusterServiceVersionListerStub
 	fake.recordInvocation("RegisterClusterServiceVersionLister", []interface{}{arg1, arg2})
 	fake.registerClusterServiceVersionListerMutex.Unlock()
-	if fake.RegisterClusterServiceVersionListerStub != nil {
+	if stub != nil {
 		fake.RegisterClusterServiceVersionListerStub(arg1, arg2)
 	}
 }
@@ -303,9 +308,10 @@ func (fake *FakeOperatorsV1alpha1Lister) RegisterInstallPlanLister(arg1 string, 
 		arg1 string
 		arg2 v1alpha1.InstallPlanLister
 	}{arg1, arg2})
+	stub := fake.RegisterInstallPlanListerStub
 	fake.recordInvocation("RegisterInstallPlanLister", []interface{}{arg1, arg2})
 	fake.registerInstallPlanListerMutex.Unlock()
-	if fake.RegisterInstallPlanListerStub != nil {
+	if stub != nil {
 		fake.RegisterInstallPlanListerStub(arg1, arg2)
 	}
 }
@@ -335,9 +341,10 @@ func (fake *FakeOperatorsV1alpha1Lister) RegisterSubscriptionLister(arg1 string,
 		arg1 string
 		arg2 v1alpha1.SubscriptionLister
 	}{arg1, arg2})
+	stub := fake.RegisterSubscriptionListerStub
 	fake.recordInvocation("RegisterSubscriptionLister", []interface{}{arg1, arg2})
 	fake.registerSubscriptionListerMutex.Unlock()
-	if fake.RegisterSubscriptionListerStub != nil {
+	if stub != nil {
 		fake.RegisterSubscriptionListerStub(arg1, arg2)
 	}
 }
@@ -366,15 +373,16 @@ func (fake *FakeOperatorsV1alpha1Lister) SubscriptionLister() v1alpha1.Subscript
 	ret, specificReturn := fake.subscriptionListerReturnsOnCall[len(fake.subscriptionListerArgsForCall)]
 	fake.subscriptionListerArgsForCall = append(fake.subscriptionListerArgsForCall, struct {
 	}{})
+	stub := fake.SubscriptionListerStub
+	fakeReturns := fake.subscriptionListerReturns
 	fake.recordInvocation("SubscriptionLister", []interface{}{})
 	fake.subscriptionListerMutex.Unlock()
-	if fake.SubscriptionListerStub != nil {
-		return fake.SubscriptionListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.subscriptionListerReturns
 	return fakeReturns.result1
 }
 

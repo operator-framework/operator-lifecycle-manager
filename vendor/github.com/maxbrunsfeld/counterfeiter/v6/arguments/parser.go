@@ -40,6 +40,16 @@ func New(args []string, workingDir string, evaler Evaler, stater Stater) (*Parse
 		false,
 		"Identify all //counterfeiter:generate directives in the current working directory and generate fakes for them",
 	)
+	headerFlag := fs.String(
+		"header",
+		"",
+		"A path to a file that should be used as a header for the generated fake",
+	)
+	quietFlag := fs.Bool(
+		"q",
+		false,
+		"Suppress status statements",
+	)
 	helpFlag := fs.Bool(
 		"help",
 		false,
@@ -62,6 +72,8 @@ func New(args []string, workingDir string, evaler Evaler, stater Stater) (*Parse
 		PrintToStdOut: any(args, "-"),
 		GenerateInterfaceAndShimFromPackageDirectory: packageMode,
 		GenerateMode: *generateFlag,
+		HeaderFile:   *headerFlag,
+		Quiet:        *quietFlag,
 	}
 	if *generateFlag {
 		return result, nil
@@ -125,26 +137,29 @@ func (a *ParsedArguments) parseFakeName(packageMode bool, fakeName string, args 
 }
 
 func (a *ParsedArguments) parseOutputPath(packageMode bool, workingDir string, outputPath string, args []string) {
-	if outputPath != "" && packageMode {
-		a.OutputPath = outputPath
-		return
+	outputPathIsFilename := false
+	if strings.HasSuffix(outputPath, ".go") {
+		outputPathIsFilename = true
 	}
+	snakeCaseName := strings.ToLower(camelRegexp.ReplaceAllString(a.FakeImplName, "${1}_${2}"))
 
 	if outputPath != "" {
 		if !filepath.IsAbs(outputPath) {
 			outputPath = filepath.Join(workingDir, outputPath)
 		}
 		a.OutputPath = outputPath
+		if !outputPathIsFilename {
+			a.OutputPath = filepath.Join(a.OutputPath, snakeCaseName+".go")
+		}
 		return
 	}
 
 	if packageMode {
 		a.parseDestinationPackageName(packageMode, args)
-		a.OutputPath = path.Join(workingDir, a.DestinationPackageName)
+		a.OutputPath = path.Join(workingDir, a.DestinationPackageName, snakeCaseName+".go")
 		return
 	}
 
-	snakeCaseName := strings.ToLower(camelRegexp.ReplaceAllString(a.FakeImplName, "${1}_${2}"))
 	d := workingDir
 	if len(args) > 1 {
 		d = a.SourcePackageDir
@@ -193,6 +208,9 @@ type ParsedArguments struct {
 
 	PrintToStdOut bool
 	GenerateMode  bool
+	Quiet         bool
+
+	HeaderFile string
 }
 
 func fixupUnexportedNames(interfaceName string) string {

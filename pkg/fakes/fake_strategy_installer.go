@@ -62,15 +62,16 @@ func (fake *FakeStrategyInstaller) CertsRotateAt() time.Time {
 	ret, specificReturn := fake.certsRotateAtReturnsOnCall[len(fake.certsRotateAtArgsForCall)]
 	fake.certsRotateAtArgsForCall = append(fake.certsRotateAtArgsForCall, struct {
 	}{})
+	stub := fake.CertsRotateAtStub
+	fakeReturns := fake.certsRotateAtReturns
 	fake.recordInvocation("CertsRotateAt", []interface{}{})
 	fake.certsRotateAtMutex.Unlock()
-	if fake.CertsRotateAtStub != nil {
-		return fake.CertsRotateAtStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.certsRotateAtReturns
 	return fakeReturns.result1
 }
 
@@ -114,15 +115,16 @@ func (fake *FakeStrategyInstaller) CertsRotated() bool {
 	ret, specificReturn := fake.certsRotatedReturnsOnCall[len(fake.certsRotatedArgsForCall)]
 	fake.certsRotatedArgsForCall = append(fake.certsRotatedArgsForCall, struct {
 	}{})
+	stub := fake.CertsRotatedStub
+	fakeReturns := fake.certsRotatedReturns
 	fake.recordInvocation("CertsRotated", []interface{}{})
 	fake.certsRotatedMutex.Unlock()
-	if fake.CertsRotatedStub != nil {
-		return fake.CertsRotatedStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.certsRotatedReturns
 	return fakeReturns.result1
 }
 
@@ -167,15 +169,16 @@ func (fake *FakeStrategyInstaller) CheckInstalled(arg1 install.Strategy) (bool, 
 	fake.checkInstalledArgsForCall = append(fake.checkInstalledArgsForCall, struct {
 		arg1 install.Strategy
 	}{arg1})
+	stub := fake.CheckInstalledStub
+	fakeReturns := fake.checkInstalledReturns
 	fake.recordInvocation("CheckInstalled", []interface{}{arg1})
 	fake.checkInstalledMutex.Unlock()
-	if fake.CheckInstalledStub != nil {
-		return fake.CheckInstalledStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.checkInstalledReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -230,15 +233,16 @@ func (fake *FakeStrategyInstaller) Install(arg1 install.Strategy) error {
 	fake.installArgsForCall = append(fake.installArgsForCall, struct {
 		arg1 install.Strategy
 	}{arg1})
+	stub := fake.InstallStub
+	fakeReturns := fake.installReturns
 	fake.recordInvocation("Install", []interface{}{arg1})
 	fake.installMutex.Unlock()
-	if fake.InstallStub != nil {
-		return fake.InstallStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.installReturns
 	return fakeReturns.result1
 }
 

@@ -37,15 +37,16 @@ func (fake *FakeUnpacker) UnpackBundle(arg1 *v1alpha1.BundleLookup, arg2 time.Du
 		arg2 time.Duration
 		arg3 time.Duration
 	}{arg1, arg2, arg3})
+	stub := fake.UnpackBundleStub
+	fakeReturns := fake.unpackBundleReturns
 	fake.recordInvocation("UnpackBundle", []interface{}{arg1, arg2, arg3})
 	fake.unpackBundleMutex.Unlock()
-	if fake.UnpackBundleStub != nil {
-		return fake.UnpackBundleStub(arg1, arg2, arg3)
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.unpackBundleReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 

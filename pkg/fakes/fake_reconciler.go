@@ -47,15 +47,16 @@ func (fake *FakeRegistryReconciler) CheckRegistryServer(arg1 *logrus.Entry, arg2
 		arg1 *logrus.Entry
 		arg2 *v1alpha1.CatalogSource
 	}{arg1, arg2})
+	stub := fake.CheckRegistryServerStub
+	fakeReturns := fake.checkRegistryServerReturns
 	fake.recordInvocation("CheckRegistryServer", []interface{}{arg1, arg2})
 	fake.checkRegistryServerMutex.Unlock()
-	if fake.CheckRegistryServerStub != nil {
-		return fake.CheckRegistryServerStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.checkRegistryServerReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -111,15 +112,16 @@ func (fake *FakeRegistryReconciler) EnsureRegistryServer(arg1 *logrus.Entry, arg
 		arg1 *logrus.Entry
 		arg2 *v1alpha1.CatalogSource
 	}{arg1, arg2})
+	stub := fake.EnsureRegistryServerStub
+	fakeReturns := fake.ensureRegistryServerReturns
 	fake.recordInvocation("EnsureRegistryServer", []interface{}{arg1, arg2})
 	fake.ensureRegistryServerMutex.Unlock()
-	if fake.EnsureRegistryServerStub != nil {
-		return fake.EnsureRegistryServerStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.ensureRegistryServerReturns
 	return fakeReturns.result1
 }
 

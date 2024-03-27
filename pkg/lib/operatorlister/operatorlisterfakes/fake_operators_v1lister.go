@@ -34,15 +34,16 @@ func (fake *FakeOperatorsV1Lister) OperatorGroupLister() v1.OperatorGroupLister 
 	ret, specificReturn := fake.operatorGroupListerReturnsOnCall[len(fake.operatorGroupListerArgsForCall)]
 	fake.operatorGroupListerArgsForCall = append(fake.operatorGroupListerArgsForCall, struct {
 	}{})
+	stub := fake.OperatorGroupListerStub
+	fakeReturns := fake.operatorGroupListerReturns
 	fake.recordInvocation("OperatorGroupLister", []interface{}{})
 	fake.operatorGroupListerMutex.Unlock()
-	if fake.OperatorGroupListerStub != nil {
-		return fake.OperatorGroupListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.operatorGroupListerReturns
 	return fakeReturns.result1
 }
 
@@ -87,9 +88,10 @@ func (fake *FakeOperatorsV1Lister) RegisterOperatorGroupLister(arg1 string, arg2
 		arg1 string
 		arg2 v1.OperatorGroupLister
 	}{arg1, arg2})
+	stub := fake.RegisterOperatorGroupListerStub
 	fake.recordInvocation("RegisterOperatorGroupLister", []interface{}{arg1, arg2})
 	fake.registerOperatorGroupListerMutex.Unlock()
-	if fake.RegisterOperatorGroupListerStub != nil {
+	if stub != nil {
 		fake.RegisterOperatorGroupListerStub(arg1, arg2)
 	}
 }

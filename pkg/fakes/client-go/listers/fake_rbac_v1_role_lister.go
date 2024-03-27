@@ -44,15 +44,16 @@ func (fake *FakeRoleLister) List(arg1 labels.Selector) ([]*v1a.Role, error) {
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
 		arg1 labels.Selector
 	}{arg1})
+	stub := fake.ListStub
+	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
 	fake.listMutex.Unlock()
-	if fake.ListStub != nil {
-		return fake.ListStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -107,15 +108,16 @@ func (fake *FakeRoleLister) Roles(arg1 string) v1.RoleNamespaceLister {
 	fake.rolesArgsForCall = append(fake.rolesArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.RolesStub
+	fakeReturns := fake.rolesReturns
 	fake.recordInvocation("Roles", []interface{}{arg1})
 	fake.rolesMutex.Unlock()
-	if fake.RolesStub != nil {
-		return fake.RolesStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.rolesReturns
 	return fakeReturns.result1
 }
 

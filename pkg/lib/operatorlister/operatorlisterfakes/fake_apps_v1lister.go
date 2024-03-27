@@ -34,15 +34,16 @@ func (fake *FakeAppsV1Lister) DeploymentLister() v1.DeploymentLister {
 	ret, specificReturn := fake.deploymentListerReturnsOnCall[len(fake.deploymentListerArgsForCall)]
 	fake.deploymentListerArgsForCall = append(fake.deploymentListerArgsForCall, struct {
 	}{})
+	stub := fake.DeploymentListerStub
+	fakeReturns := fake.deploymentListerReturns
 	fake.recordInvocation("DeploymentLister", []interface{}{})
 	fake.deploymentListerMutex.Unlock()
-	if fake.DeploymentListerStub != nil {
-		return fake.DeploymentListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.deploymentListerReturns
 	return fakeReturns.result1
 }
 
@@ -87,9 +88,10 @@ func (fake *FakeAppsV1Lister) RegisterDeploymentLister(arg1 string, arg2 v1.Depl
 		arg1 string
 		arg2 v1.DeploymentLister
 	}{arg1, arg2})
+	stub := fake.RegisterDeploymentListerStub
 	fake.recordInvocation("RegisterDeploymentLister", []interface{}{arg1, arg2})
 	fake.registerDeploymentListerMutex.Unlock()
-	if fake.RegisterDeploymentListerStub != nil {
+	if stub != nil {
 		fake.RegisterDeploymentListerStub(arg1, arg2)
 	}
 }

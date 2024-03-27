@@ -37,6 +37,7 @@ type Fake struct {
 	Imports            Imports
 	Methods            []Method
 	Function           Method
+	Header             string
 }
 
 // Method is a method of the interface.
@@ -48,7 +49,7 @@ type Method struct {
 
 // NewFake returns a Fake that loads the package and finds the interface or the
 // function.
-func NewFake(fakeMode FakeMode, targetName string, packagePath string, fakeName string, destinationPackage string, workingDir string, cache Cacher) (*Fake, error) {
+func NewFake(fakeMode FakeMode, targetName string, packagePath string, fakeName string, destinationPackage string, headerContent string, workingDir string, cache Cacher) (*Fake, error) {
 	f := &Fake{
 		TargetName:         targetName,
 		TargetPackage:      packagePath,
@@ -56,6 +57,7 @@ func NewFake(fakeMode FakeMode, targetName string, packagePath string, fakeName 
 		Mode:               fakeMode,
 		DestinationPackage: destinationPackage,
 		Imports:            newImports(),
+		Header:             headerContent,
 	}
 
 	f.Imports.Add("sync", "sync")
@@ -134,7 +136,10 @@ func (f *Fake) Generate(runImports bool) ([]byte, error) {
 	}
 
 	b := &bytes.Buffer{}
-	tmpl.Execute(b, f)
+	err := tmpl.Execute(b, f)
+	if err != nil {
+		return nil, err
+	}
 	if runImports {
 		return imports.Process("counterfeiter_temp_process_file", b.Bytes(), nil)
 	}

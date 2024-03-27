@@ -44,15 +44,16 @@ func (fake *FakeRoleBindingLister) List(arg1 labels.Selector) ([]*v1a.RoleBindin
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
 		arg1 labels.Selector
 	}{arg1})
+	stub := fake.ListStub
+	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
 	fake.listMutex.Unlock()
-	if fake.ListStub != nil {
-		return fake.ListStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -107,15 +108,16 @@ func (fake *FakeRoleBindingLister) RoleBindings(arg1 string) v1.RoleBindingNames
 	fake.roleBindingsArgsForCall = append(fake.roleBindingsArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.RoleBindingsStub
+	fakeReturns := fake.roleBindingsReturns
 	fake.recordInvocation("RoleBindings", []interface{}{arg1})
 	fake.roleBindingsMutex.Unlock()
-	if fake.RoleBindingsStub != nil {
-		return fake.RoleBindingsStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.roleBindingsReturns
 	return fakeReturns.result1
 }
 

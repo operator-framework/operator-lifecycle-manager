@@ -4,6 +4,7 @@ const usage = `
 USAGE
 	counterfeiter
 		[-generate>] [-o <output-path>] [-p] [--fake-name <fake-name>]
+		[-header <header-file>]
 		[<source-path>] <interface> [-]
 
 ARGUMENTS
@@ -62,10 +63,13 @@ OPTIONS
 		# writes "FakeMyInterface" to ./mySpecialFakesDir/specialFake.go
 		counterfeiter -o ./mySpecialFakesDir/specialFake.go ./mypackage MyInterface
 
+		# writes "FakeMyInterface" to ./mySpecialFakesDir/fake_my_interface.go
+		counterfeiter -o ./mySpecialFakesDir ./mypackage MyInterface
+
 	-p
 		Package mode:  When invoked in package mode, counterfeiter
 		will generate an interface and shim implementation from a
-		package in your GOPATH.  Counterfeiter finds the public methods
+		package in your module.  Counterfeiter finds the public methods
 		in the package <source-path> and adds those method signatures
 		to the generated interface <interface-name>.
 
@@ -74,6 +78,28 @@ OPTIONS
 		counterfeiter -p os
 		# now generate fake in ${PWD}/osshim/os_fake (fake_os.go)
 		go generate osshim/...
+
+	-header
+		Path to the file which should be used as a header for all generated fakes.
+		By default, no special header is used.
+		This is useful to e.g. add a licence header to every fake.
+
+		If the generate mode is used and both the "go:generate" and the
+		"counterfeiter:generate" specify a header file, the header file from the
+		"counterfeiter:generate" line takes precedence.
+
+	example:
+		# having the following code in a package ...
+		//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -header ./generic.go.txt -generate
+		//counterfeiter:generate -header ./specific.go.txt . MyInterface
+		//counterfeiter:generate . MyOtherInterface
+		//counterfeiter:generate . MyThirdInterface
+
+		# ... generating the fakes ...
+		go generate .
+
+		# writes "FakeMyInterface" with ./specific.go.txt as a header
+		# writes "FakeMyOtherInterface" & "FakeMyThirdInterface" with ./generic.go.txt as a header
 
 	--fake-name
 		Name of the fake struct to generate. By default, 'Fake' will

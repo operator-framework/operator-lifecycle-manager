@@ -394,15 +394,16 @@ func (fake *FakeQuery) GetApisForEntry(arg1 context.Context, arg2 int64) ([]*api
 		arg1 context.Context
 		arg2 int64
 	}{arg1, arg2})
+	stub := fake.GetApisForEntryStub
+	fakeReturns := fake.getApisForEntryReturns
 	fake.recordInvocation("GetApisForEntry", []interface{}{arg1, arg2})
 	fake.getApisForEntryMutex.Unlock()
-	if fake.GetApisForEntryStub != nil {
-		return fake.GetApisForEntryStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2, ret.result3
 	}
-	fakeReturns := fake.getApisForEntryReturns
 	return fakeReturns.result1, fakeReturns.result2, fakeReturns.result3
 }
 
@@ -463,15 +464,16 @@ func (fake *FakeQuery) GetBundle(arg1 context.Context, arg2 string, arg3 string,
 		arg3 string
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
+	stub := fake.GetBundleStub
+	fakeReturns := fake.getBundleReturns
 	fake.recordInvocation("GetBundle", []interface{}{arg1, arg2, arg3, arg4})
 	fake.getBundleMutex.Unlock()
-	if fake.GetBundleStub != nil {
-		return fake.GetBundleStub(arg1, arg2, arg3, arg4)
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundleReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -528,15 +530,16 @@ func (fake *FakeQuery) GetBundleForChannel(arg1 context.Context, arg2 string, ar
 		arg2 string
 		arg3 string
 	}{arg1, arg2, arg3})
+	stub := fake.GetBundleForChannelStub
+	fakeReturns := fake.getBundleForChannelReturns
 	fake.recordInvocation("GetBundleForChannel", []interface{}{arg1, arg2, arg3})
 	fake.getBundleForChannelMutex.Unlock()
-	if fake.GetBundleForChannelStub != nil {
-		return fake.GetBundleForChannelStub(arg1, arg2, arg3)
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundleForChannelReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -592,15 +595,16 @@ func (fake *FakeQuery) GetBundlePathIfExists(arg1 context.Context, arg2 string) 
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetBundlePathIfExistsStub
+	fakeReturns := fake.getBundlePathIfExistsReturns
 	fake.recordInvocation("GetBundlePathIfExists", []interface{}{arg1, arg2})
 	fake.getBundlePathIfExistsMutex.Unlock()
-	if fake.GetBundlePathIfExistsStub != nil {
-		return fake.GetBundlePathIfExistsStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundlePathIfExistsReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -656,15 +660,16 @@ func (fake *FakeQuery) GetBundlePathsForPackage(arg1 context.Context, arg2 strin
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetBundlePathsForPackageStub
+	fakeReturns := fake.getBundlePathsForPackageReturns
 	fake.recordInvocation("GetBundlePathsForPackage", []interface{}{arg1, arg2})
 	fake.getBundlePathsForPackageMutex.Unlock()
-	if fake.GetBundlePathsForPackageStub != nil {
-		return fake.GetBundlePathsForPackageStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundlePathsForPackageReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -722,15 +727,16 @@ func (fake *FakeQuery) GetBundleThatProvides(arg1 context.Context, arg2 string, 
 		arg3 string
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
+	stub := fake.GetBundleThatProvidesStub
+	fakeReturns := fake.getBundleThatProvidesReturns
 	fake.recordInvocation("GetBundleThatProvides", []interface{}{arg1, arg2, arg3, arg4})
 	fake.getBundleThatProvidesMutex.Unlock()
-	if fake.GetBundleThatProvidesStub != nil {
-		return fake.GetBundleThatProvidesStub(arg1, arg2, arg3, arg4)
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundleThatProvidesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -788,15 +794,16 @@ func (fake *FakeQuery) GetBundleThatReplaces(arg1 context.Context, arg2 string, 
 		arg3 string
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
+	stub := fake.GetBundleThatReplacesStub
+	fakeReturns := fake.getBundleThatReplacesReturns
 	fake.recordInvocation("GetBundleThatReplaces", []interface{}{arg1, arg2, arg3, arg4})
 	fake.getBundleThatReplacesMutex.Unlock()
-	if fake.GetBundleThatReplacesStub != nil {
-		return fake.GetBundleThatReplacesStub(arg1, arg2, arg3, arg4)
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundleThatReplacesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -852,15 +859,16 @@ func (fake *FakeQuery) GetBundleVersion(arg1 context.Context, arg2 string) (stri
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetBundleVersionStub
+	fakeReturns := fake.getBundleVersionReturns
 	fake.recordInvocation("GetBundleVersion", []interface{}{arg1, arg2})
 	fake.getBundleVersionMutex.Unlock()
-	if fake.GetBundleVersionStub != nil {
-		return fake.GetBundleVersionStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundleVersionReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -916,15 +924,16 @@ func (fake *FakeQuery) GetBundlesForPackage(arg1 context.Context, arg2 string) (
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetBundlesForPackageStub
+	fakeReturns := fake.getBundlesForPackageReturns
 	fake.recordInvocation("GetBundlesForPackage", []interface{}{arg1, arg2})
 	fake.getBundlesForPackageMutex.Unlock()
-	if fake.GetBundlesForPackageStub != nil {
-		return fake.GetBundlesForPackageStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getBundlesForPackageReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -980,15 +989,16 @@ func (fake *FakeQuery) GetChannelEntriesFromPackage(arg1 context.Context, arg2 s
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetChannelEntriesFromPackageStub
+	fakeReturns := fake.getChannelEntriesFromPackageReturns
 	fake.recordInvocation("GetChannelEntriesFromPackage", []interface{}{arg1, arg2})
 	fake.getChannelEntriesFromPackageMutex.Unlock()
-	if fake.GetChannelEntriesFromPackageStub != nil {
-		return fake.GetChannelEntriesFromPackageStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getChannelEntriesFromPackageReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1046,15 +1056,16 @@ func (fake *FakeQuery) GetChannelEntriesThatProvide(arg1 context.Context, arg2 s
 		arg3 string
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
+	stub := fake.GetChannelEntriesThatProvideStub
+	fakeReturns := fake.getChannelEntriesThatProvideReturns
 	fake.recordInvocation("GetChannelEntriesThatProvide", []interface{}{arg1, arg2, arg3, arg4})
 	fake.getChannelEntriesThatProvideMutex.Unlock()
-	if fake.GetChannelEntriesThatProvideStub != nil {
-		return fake.GetChannelEntriesThatProvideStub(arg1, arg2, arg3, arg4)
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getChannelEntriesThatProvideReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1110,15 +1121,16 @@ func (fake *FakeQuery) GetChannelEntriesThatReplace(arg1 context.Context, arg2 s
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetChannelEntriesThatReplaceStub
+	fakeReturns := fake.getChannelEntriesThatReplaceReturns
 	fake.recordInvocation("GetChannelEntriesThatReplace", []interface{}{arg1, arg2})
 	fake.getChannelEntriesThatReplaceMutex.Unlock()
-	if fake.GetChannelEntriesThatReplaceStub != nil {
-		return fake.GetChannelEntriesThatReplaceStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getChannelEntriesThatReplaceReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1175,15 +1187,16 @@ func (fake *FakeQuery) GetCurrentCSVNameForChannel(arg1 context.Context, arg2 st
 		arg2 string
 		arg3 string
 	}{arg1, arg2, arg3})
+	stub := fake.GetCurrentCSVNameForChannelStub
+	fakeReturns := fake.getCurrentCSVNameForChannelReturns
 	fake.recordInvocation("GetCurrentCSVNameForChannel", []interface{}{arg1, arg2, arg3})
 	fake.getCurrentCSVNameForChannelMutex.Unlock()
-	if fake.GetCurrentCSVNameForChannelStub != nil {
-		return fake.GetCurrentCSVNameForChannelStub(arg1, arg2, arg3)
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getCurrentCSVNameForChannelReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1239,15 +1252,16 @@ func (fake *FakeQuery) GetDefaultChannelForPackage(arg1 context.Context, arg2 st
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetDefaultChannelForPackageStub
+	fakeReturns := fake.getDefaultChannelForPackageReturns
 	fake.recordInvocation("GetDefaultChannelForPackage", []interface{}{arg1, arg2})
 	fake.getDefaultChannelForPackageMutex.Unlock()
-	if fake.GetDefaultChannelForPackageStub != nil {
-		return fake.GetDefaultChannelForPackageStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getDefaultChannelForPackageReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1303,15 +1317,16 @@ func (fake *FakeQuery) GetDefaultPackage(arg1 context.Context, arg2 string) (str
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetDefaultPackageStub
+	fakeReturns := fake.getDefaultPackageReturns
 	fake.recordInvocation("GetDefaultPackage", []interface{}{arg1, arg2})
 	fake.getDefaultPackageMutex.Unlock()
-	if fake.GetDefaultPackageStub != nil {
-		return fake.GetDefaultPackageStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getDefaultPackageReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1369,15 +1384,16 @@ func (fake *FakeQuery) GetDependenciesForBundle(arg1 context.Context, arg2 strin
 		arg3 string
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
+	stub := fake.GetDependenciesForBundleStub
+	fakeReturns := fake.getDependenciesForBundleReturns
 	fake.recordInvocation("GetDependenciesForBundle", []interface{}{arg1, arg2, arg3, arg4})
 	fake.getDependenciesForBundleMutex.Unlock()
-	if fake.GetDependenciesForBundleStub != nil {
-		return fake.GetDependenciesForBundleStub(arg1, arg2, arg3, arg4)
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getDependenciesForBundleReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1433,15 +1449,16 @@ func (fake *FakeQuery) GetImagesForBundle(arg1 context.Context, arg2 string) ([]
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetImagesForBundleStub
+	fakeReturns := fake.getImagesForBundleReturns
 	fake.recordInvocation("GetImagesForBundle", []interface{}{arg1, arg2})
 	fake.getImagesForBundleMutex.Unlock()
-	if fake.GetImagesForBundleStub != nil {
-		return fake.GetImagesForBundleStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getImagesForBundleReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1499,15 +1516,16 @@ func (fake *FakeQuery) GetLatestChannelEntriesThatProvide(arg1 context.Context, 
 		arg3 string
 		arg4 string
 	}{arg1, arg2, arg3, arg4})
+	stub := fake.GetLatestChannelEntriesThatProvideStub
+	fakeReturns := fake.getLatestChannelEntriesThatProvideReturns
 	fake.recordInvocation("GetLatestChannelEntriesThatProvide", []interface{}{arg1, arg2, arg3, arg4})
 	fake.getLatestChannelEntriesThatProvideMutex.Unlock()
-	if fake.GetLatestChannelEntriesThatProvideStub != nil {
-		return fake.GetLatestChannelEntriesThatProvideStub(arg1, arg2, arg3, arg4)
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getLatestChannelEntriesThatProvideReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1563,15 +1581,16 @@ func (fake *FakeQuery) GetPackage(arg1 context.Context, arg2 string) (*registry.
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.GetPackageStub
+	fakeReturns := fake.getPackageReturns
 	fake.recordInvocation("GetPackage", []interface{}{arg1, arg2})
 	fake.getPackageMutex.Unlock()
-	if fake.GetPackageStub != nil {
-		return fake.GetPackageStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getPackageReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1626,15 +1645,16 @@ func (fake *FakeQuery) ListBundles(arg1 context.Context) ([]*api.Bundle, error) 
 	fake.listBundlesArgsForCall = append(fake.listBundlesArgsForCall, struct {
 		arg1 context.Context
 	}{arg1})
+	stub := fake.ListBundlesStub
+	fakeReturns := fake.listBundlesReturns
 	fake.recordInvocation("ListBundles", []interface{}{arg1})
 	fake.listBundlesMutex.Unlock()
-	if fake.ListBundlesStub != nil {
-		return fake.ListBundlesStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listBundlesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1690,15 +1710,16 @@ func (fake *FakeQuery) ListChannels(arg1 context.Context, arg2 string) ([]string
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
+	stub := fake.ListChannelsStub
+	fakeReturns := fake.listChannelsReturns
 	fake.recordInvocation("ListChannels", []interface{}{arg1, arg2})
 	fake.listChannelsMutex.Unlock()
-	if fake.ListChannelsStub != nil {
-		return fake.ListChannelsStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listChannelsReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1753,15 +1774,16 @@ func (fake *FakeQuery) ListImages(arg1 context.Context) ([]string, error) {
 	fake.listImagesArgsForCall = append(fake.listImagesArgsForCall, struct {
 		arg1 context.Context
 	}{arg1})
+	stub := fake.ListImagesStub
+	fakeReturns := fake.listImagesReturns
 	fake.recordInvocation("ListImages", []interface{}{arg1})
 	fake.listImagesMutex.Unlock()
-	if fake.ListImagesStub != nil {
-		return fake.ListImagesStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listImagesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1816,15 +1838,16 @@ func (fake *FakeQuery) ListPackages(arg1 context.Context) ([]string, error) {
 	fake.listPackagesArgsForCall = append(fake.listPackagesArgsForCall, struct {
 		arg1 context.Context
 	}{arg1})
+	stub := fake.ListPackagesStub
+	fakeReturns := fake.listPackagesReturns
 	fake.recordInvocation("ListPackages", []interface{}{arg1})
 	fake.listPackagesMutex.Unlock()
-	if fake.ListPackagesStub != nil {
-		return fake.ListPackagesStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listPackagesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1879,15 +1902,16 @@ func (fake *FakeQuery) ListRegistryBundles(arg1 context.Context) ([]*registry.Bu
 	fake.listRegistryBundlesArgsForCall = append(fake.listRegistryBundlesArgsForCall, struct {
 		arg1 context.Context
 	}{arg1})
+	stub := fake.ListRegistryBundlesStub
+	fakeReturns := fake.listRegistryBundlesReturns
 	fake.recordInvocation("ListRegistryBundles", []interface{}{arg1})
 	fake.listRegistryBundlesMutex.Unlock()
-	if fake.ListRegistryBundlesStub != nil {
-		return fake.ListRegistryBundlesStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listRegistryBundlesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -1942,15 +1966,16 @@ func (fake *FakeQuery) ListTables(arg1 context.Context) ([]string, error) {
 	fake.listTablesArgsForCall = append(fake.listTablesArgsForCall, struct {
 		arg1 context.Context
 	}{arg1})
+	stub := fake.ListTablesStub
+	fakeReturns := fake.listTablesReturns
 	fake.recordInvocation("ListTables", []interface{}{arg1})
 	fake.listTablesMutex.Unlock()
-	if fake.ListTablesStub != nil {
-		return fake.ListTablesStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listTablesReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -2006,15 +2031,16 @@ func (fake *FakeQuery) SendBundles(arg1 context.Context, arg2 registry.BundleSen
 		arg1 context.Context
 		arg2 registry.BundleSender
 	}{arg1, arg2})
+	stub := fake.SendBundlesStub
+	fakeReturns := fake.sendBundlesReturns
 	fake.recordInvocation("SendBundles", []interface{}{arg1, arg2})
 	fake.sendBundlesMutex.Unlock()
-	if fake.SendBundlesStub != nil {
-		return fake.SendBundlesStub(arg1, arg2)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.sendBundlesReturns
 	return fakeReturns.result1
 }
 

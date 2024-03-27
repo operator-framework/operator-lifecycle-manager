@@ -44,15 +44,16 @@ func (fake *FakeSecretLister) List(arg1 labels.Selector) ([]*v1a.Secret, error) 
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
 		arg1 labels.Selector
 	}{arg1})
+	stub := fake.ListStub
+	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
 	fake.listMutex.Unlock()
-	if fake.ListStub != nil {
-		return fake.ListStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -107,15 +108,16 @@ func (fake *FakeSecretLister) Secrets(arg1 string) v1.SecretNamespaceLister {
 	fake.secretsArgsForCall = append(fake.secretsArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.SecretsStub
+	fakeReturns := fake.secretsReturns
 	fake.recordInvocation("Secrets", []interface{}{arg1})
 	fake.secretsMutex.Unlock()
-	if fake.SecretsStub != nil {
-		return fake.SecretsStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.secretsReturns
 	return fakeReturns.result1
 }
 

@@ -34,15 +34,16 @@ func (fake *FakeOperatorsV2Lister) OperatorConditionLister() v2.OperatorConditio
 	ret, specificReturn := fake.operatorConditionListerReturnsOnCall[len(fake.operatorConditionListerArgsForCall)]
 	fake.operatorConditionListerArgsForCall = append(fake.operatorConditionListerArgsForCall, struct {
 	}{})
+	stub := fake.OperatorConditionListerStub
+	fakeReturns := fake.operatorConditionListerReturns
 	fake.recordInvocation("OperatorConditionLister", []interface{}{})
 	fake.operatorConditionListerMutex.Unlock()
-	if fake.OperatorConditionListerStub != nil {
-		return fake.OperatorConditionListerStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.operatorConditionListerReturns
 	return fakeReturns.result1
 }
 
@@ -87,9 +88,10 @@ func (fake *FakeOperatorsV2Lister) RegisterOperatorConditionLister(arg1 string, 
 		arg1 string
 		arg2 v2.OperatorConditionLister
 	}{arg1, arg2})
+	stub := fake.RegisterOperatorConditionListerStub
 	fake.recordInvocation("RegisterOperatorConditionLister", []interface{}{arg1, arg2})
 	fake.registerOperatorConditionListerMutex.Unlock()
-	if fake.RegisterOperatorConditionListerStub != nil {
+	if stub != nil {
 		fake.RegisterOperatorConditionListerStub(arg1, arg2)
 	}
 }

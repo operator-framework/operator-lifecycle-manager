@@ -97,15 +97,16 @@ func (fake *FakeOperatorLister) APIExtensionsV1() operatorlister.APIExtensionsV1
 	ret, specificReturn := fake.aPIExtensionsV1ReturnsOnCall[len(fake.aPIExtensionsV1ArgsForCall)]
 	fake.aPIExtensionsV1ArgsForCall = append(fake.aPIExtensionsV1ArgsForCall, struct {
 	}{})
+	stub := fake.APIExtensionsV1Stub
+	fakeReturns := fake.aPIExtensionsV1Returns
 	fake.recordInvocation("APIExtensionsV1", []interface{}{})
 	fake.aPIExtensionsV1Mutex.Unlock()
-	if fake.APIExtensionsV1Stub != nil {
-		return fake.APIExtensionsV1Stub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.aPIExtensionsV1Returns
 	return fakeReturns.result1
 }
 
@@ -149,15 +150,16 @@ func (fake *FakeOperatorLister) APIRegistrationV1() operatorlister.APIRegistrati
 	ret, specificReturn := fake.aPIRegistrationV1ReturnsOnCall[len(fake.aPIRegistrationV1ArgsForCall)]
 	fake.aPIRegistrationV1ArgsForCall = append(fake.aPIRegistrationV1ArgsForCall, struct {
 	}{})
+	stub := fake.APIRegistrationV1Stub
+	fakeReturns := fake.aPIRegistrationV1Returns
 	fake.recordInvocation("APIRegistrationV1", []interface{}{})
 	fake.aPIRegistrationV1Mutex.Unlock()
-	if fake.APIRegistrationV1Stub != nil {
-		return fake.APIRegistrationV1Stub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.aPIRegistrationV1Returns
 	return fakeReturns.result1
 }
 
@@ -201,15 +203,16 @@ func (fake *FakeOperatorLister) AppsV1() operatorlister.AppsV1Lister {
 	ret, specificReturn := fake.appsV1ReturnsOnCall[len(fake.appsV1ArgsForCall)]
 	fake.appsV1ArgsForCall = append(fake.appsV1ArgsForCall, struct {
 	}{})
+	stub := fake.AppsV1Stub
+	fakeReturns := fake.appsV1Returns
 	fake.recordInvocation("AppsV1", []interface{}{})
 	fake.appsV1Mutex.Unlock()
-	if fake.AppsV1Stub != nil {
-		return fake.AppsV1Stub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.appsV1Returns
 	return fakeReturns.result1
 }
 
@@ -253,15 +256,16 @@ func (fake *FakeOperatorLister) CoreV1() operatorlister.CoreV1Lister {
 	ret, specificReturn := fake.coreV1ReturnsOnCall[len(fake.coreV1ArgsForCall)]
 	fake.coreV1ArgsForCall = append(fake.coreV1ArgsForCall, struct {
 	}{})
+	stub := fake.CoreV1Stub
+	fakeReturns := fake.coreV1Returns
 	fake.recordInvocation("CoreV1", []interface{}{})
 	fake.coreV1Mutex.Unlock()
-	if fake.CoreV1Stub != nil {
-		return fake.CoreV1Stub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.coreV1Returns
 	return fakeReturns.result1
 }
 
@@ -305,15 +309,16 @@ func (fake *FakeOperatorLister) OperatorsV1() operatorlister.OperatorsV1Lister {
 	ret, specificReturn := fake.operatorsV1ReturnsOnCall[len(fake.operatorsV1ArgsForCall)]
 	fake.operatorsV1ArgsForCall = append(fake.operatorsV1ArgsForCall, struct {
 	}{})
+	stub := fake.OperatorsV1Stub
+	fakeReturns := fake.operatorsV1Returns
 	fake.recordInvocation("OperatorsV1", []interface{}{})
 	fake.operatorsV1Mutex.Unlock()
-	if fake.OperatorsV1Stub != nil {
-		return fake.OperatorsV1Stub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.operatorsV1Returns
 	return fakeReturns.result1
 }
 
@@ -357,15 +362,16 @@ func (fake *FakeOperatorLister) OperatorsV1alpha1() operatorlister.OperatorsV1al
 	ret, specificReturn := fake.operatorsV1alpha1ReturnsOnCall[len(fake.operatorsV1alpha1ArgsForCall)]
 	fake.operatorsV1alpha1ArgsForCall = append(fake.operatorsV1alpha1ArgsForCall, struct {
 	}{})
+	stub := fake.OperatorsV1alpha1Stub
+	fakeReturns := fake.operatorsV1alpha1Returns
 	fake.recordInvocation("OperatorsV1alpha1", []interface{}{})
 	fake.operatorsV1alpha1Mutex.Unlock()
-	if fake.OperatorsV1alpha1Stub != nil {
-		return fake.OperatorsV1alpha1Stub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.operatorsV1alpha1Returns
 	return fakeReturns.result1
 }
 
@@ -409,15 +415,16 @@ func (fake *FakeOperatorLister) OperatorsV2() operatorlister.OperatorsV2Lister {
 	ret, specificReturn := fake.operatorsV2ReturnsOnCall[len(fake.operatorsV2ArgsForCall)]
 	fake.operatorsV2ArgsForCall = append(fake.operatorsV2ArgsForCall, struct {
 	}{})
+	stub := fake.OperatorsV2Stub
+	fakeReturns := fake.operatorsV2Returns
 	fake.recordInvocation("OperatorsV2", []interface{}{})
 	fake.operatorsV2Mutex.Unlock()
-	if fake.OperatorsV2Stub != nil {
-		return fake.OperatorsV2Stub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.operatorsV2Returns
 	return fakeReturns.result1
 }
 
@@ -461,15 +468,16 @@ func (fake *FakeOperatorLister) RbacV1() operatorlister.RbacV1Lister {
 	ret, specificReturn := fake.rbacV1ReturnsOnCall[len(fake.rbacV1ArgsForCall)]
 	fake.rbacV1ArgsForCall = append(fake.rbacV1ArgsForCall, struct {
 	}{})
+	stub := fake.RbacV1Stub
+	fakeReturns := fake.rbacV1Returns
 	fake.recordInvocation("RbacV1", []interface{}{})
 	fake.rbacV1Mutex.Unlock()
-	if fake.RbacV1Stub != nil {
-		return fake.RbacV1Stub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.rbacV1Returns
 	return fakeReturns.result1
 }
 

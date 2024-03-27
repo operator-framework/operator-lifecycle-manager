@@ -27,15 +27,16 @@ func (fake *FakeStrategy) GetStrategyName() string {
 	ret, specificReturn := fake.getStrategyNameReturnsOnCall[len(fake.getStrategyNameArgsForCall)]
 	fake.getStrategyNameArgsForCall = append(fake.getStrategyNameArgsForCall, struct {
 	}{})
+	stub := fake.GetStrategyNameStub
+	fakeReturns := fake.getStrategyNameReturns
 	fake.recordInvocation("GetStrategyName", []interface{}{})
 	fake.getStrategyNameMutex.Unlock()
-	if fake.GetStrategyNameStub != nil {
-		return fake.GetStrategyNameStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.getStrategyNameReturns
 	return fakeReturns.result1
 }
 
