@@ -62,6 +62,81 @@ func mergeEnvVars(containerEnvVars []corev1.EnvVar, newEnvVars []corev1.EnvVar) 
 	return merged
 }
 
+// InjectEnvFromIntoDeployment injects the envFrom variables
+// into the container(s) of the given PodSpec.
+//
+// If any Container in PodSpec already defines an envFrom variable
+// as any of the provided envFrom then it will be overwritten.
+func InjectEnvFromIntoDeployment(podSpec *corev1.PodSpec, envFromVars []corev1.EnvFromSource) error {
+	if podSpec == nil {
+		return errors.New("no pod spec provided")
+	}
+
+	for i := range podSpec.Containers {
+		container := &podSpec.Containers[i]
+		container.EnvFrom = mergeEnvFromVars(container.EnvFrom, envFromVars)
+	}
+
+	return nil
+}
+
+func mergeEnvFromVars(containerEnvFromVars []corev1.EnvFromSource, newEnvFromVars []corev1.EnvFromSource) (merged []corev1.EnvFromSource) {
+	merged = containerEnvFromVars
+
+	for _, newEnvFromVar := range newEnvFromVars {
+		found := findEnvFromVar(containerEnvFromVars, newEnvFromVar)
+		if found {
+			continue
+		}
+
+		merged = append(merged, newEnvFromVar)
+	}
+
+	return
+}
+
+func findEnvFromVar(EnvFromVar []corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) (found bool) {
+	for i := range EnvFromVar {
+		if compareEnvFromVar(EnvFromVar[i], newEnvFromVar) {
+			found = true
+			break
+		}
+	}
+
+	return
+}
+
+func compareEnvFromVar(envFromVar corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) (found bool) {
+	compareprefix := newEnvFromVar.Prefix == envFromVar.Prefix
+	var compareConfigMap, compareSecret bool
+
+	// Compare ConfigMapRef
+	if newEnvFromVar.ConfigMapRef == nil && envFromVar.ConfigMapRef == nil {
+		compareConfigMap = true
+	} else if newEnvFromVar.ConfigMapRef != nil && envFromVar.ConfigMapRef != nil {
+		if newEnvFromVar.ConfigMapRef.Optional == nil && envFromVar.ConfigMapRef.Optional == nil {
+			compareConfigMap = newEnvFromVar.ConfigMapRef.LocalObjectReference == envFromVar.ConfigMapRef.LocalObjectReference
+		} else if newEnvFromVar.ConfigMapRef.Optional != nil && envFromVar.ConfigMapRef.Optional != nil {
+			compareConfigMap = newEnvFromVar.ConfigMapRef.LocalObjectReference == envFromVar.ConfigMapRef.LocalObjectReference && *newEnvFromVar.ConfigMapRef.Optional == *envFromVar.ConfigMapRef.Optional
+		} else {
+			compareConfigMap = false
+		}
+	}
+	// Compare SecretRef
+	if newEnvFromVar.SecretRef == nil && envFromVar.SecretRef == nil {
+		compareSecret = true
+	} else if newEnvFromVar.SecretRef != nil && envFromVar.SecretRef != nil {
+		if newEnvFromVar.SecretRef.Optional == nil && envFromVar.SecretRef.Optional == nil {
+			compareSecret = newEnvFromVar.SecretRef.LocalObjectReference == envFromVar.SecretRef.LocalObjectReference
+		} else if newEnvFromVar.SecretRef.Optional != nil && envFromVar.SecretRef.Optional != nil {
+			compareSecret = newEnvFromVar.SecretRef.LocalObjectReference == envFromVar.SecretRef.LocalObjectReference && *newEnvFromVar.SecretRef.Optional == *envFromVar.ConfigMapRef.Optional
+		} else {
+			compareSecret = false
+		}
+	}
+	return compareprefix && compareConfigMap && compareSecret
+}
+
 // InjectVolumesIntoDeployment injects the provided Volumes
 // into the container(s) of the given PodSpec.
 //
