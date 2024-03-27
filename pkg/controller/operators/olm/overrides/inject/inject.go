@@ -94,62 +94,11 @@ func mergeEnvFromVars(containerEnvFromVars []corev1.EnvFromSource, newEnvFromVar
 
 func findEnvFromVar(envFromVar []corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) bool {
 	for i := range envFromVar {
-		if compareEnvFromVar(envFromVar[i], newEnvFromVar) {
+		if reflect.DeepEqual(envFromVar[i], newEnvFromVar) {
 			return true
 		}
 	}
 	return false
-}
-
-func compareConfigMap(a, b *corev1.ConfigMapEnvSource) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	if a.LocalObjectReference != b.LocalObjectReference {
-		return false
-	}
-	if a.Optional == nil && b.Optional == nil {
-		return true
-	}
-	if a.Optional == nil || b.Optional == nil {
-		return false
-	}
-	return *a.Optional == *b.Optional
-}
-
-func compareSecretRef(a, b *corev1.SecretEnvSource) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	if a.LocalObjectReference != b.LocalObjectReference {
-		return false
-	}
-	if a.Optional == nil && b.Optional == nil {
-		return true
-	}
-	if a.Optional == nil || b.Optional == nil {
-		return false
-	}
-	return *a.Optional == *b.Optional
-}
-
-func compareEnvFromVar(envFromVar corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) bool {
-	if newEnvFromVar.Prefix != envFromVar.Prefix {
-		return false
-	}
-	if !compareConfigMap(envFromVar.ConfigMapRef, newEnvFromVar.ConfigMapRef) {
-		return false
-	}
-	if !compareSecretRef(envFromVar.SecretRef, newEnvFromVar.SecretRef) {
-		return false
-	}
-	return true
 }
 
 // InjectVolumesIntoDeployment injects the provided Volumes
