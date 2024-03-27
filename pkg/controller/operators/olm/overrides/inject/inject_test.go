@@ -706,11 +706,7 @@ func TestInjectEnvFromIntoDeployment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			inject.InjectEnvFromIntoDeployment(tt.podSpec, tt.envFromVar)
-
-			podSpecWant := tt.expected
-			podSpecGot := tt.podSpec
-
-			assert.Equal(t, podSpecWant, podSpecGot)
+			assert.Equal(t, tt.expected, tt.podSpec)
 		})
 	}
 }

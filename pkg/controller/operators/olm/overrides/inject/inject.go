@@ -80,61 +80,76 @@ func InjectEnvFromIntoDeployment(podSpec *corev1.PodSpec, envFromVars []corev1.E
 	return nil
 }
 
-func mergeEnvFromVars(containerEnvFromVars []corev1.EnvFromSource, newEnvFromVars []corev1.EnvFromSource) (merged []corev1.EnvFromSource) {
-	merged = containerEnvFromVars
+func mergeEnvFromVars(containerEnvFromVars []corev1.EnvFromSource, newEnvFromVars []corev1.EnvFromSource) []corev1.EnvFromSource {
+	merged := containerEnvFromVars
 
 	for _, newEnvFromVar := range newEnvFromVars {
-		found := findEnvFromVar(containerEnvFromVars, newEnvFromVar)
-		if found {
-			continue
+		if !findEnvFromVar(containerEnvFromVars, newEnvFromVar) {
+			merged = append(merged, newEnvFromVar)
 		}
-
-		merged = append(merged, newEnvFromVar)
 	}
 
-	return
+	return merged
 }
 
-func findEnvFromVar(EnvFromVar []corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) (found bool) {
-	for i := range EnvFromVar {
-		if compareEnvFromVar(EnvFromVar[i], newEnvFromVar) {
-			found = true
-			break
+func findEnvFromVar(envFromVar []corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) bool {
+	for i := range envFromVar {
+		if compareEnvFromVar(envFromVar[i], newEnvFromVar) {
+			return true
 		}
 	}
-
-	return
+	return false
 }
 
-func compareEnvFromVar(envFromVar corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) (found bool) {
-	compareprefix := newEnvFromVar.Prefix == envFromVar.Prefix
-	var compareConfigMap, compareSecret bool
+func compareConfigMap(a, b *corev1.ConfigMapEnvSource) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if a.LocalObjectReference != b.LocalObjectReference {
+		return false
+	}
+	if a.Optional == nil && b.Optional == nil {
+		return true
+	}
+	if a.Optional == nil || b.Optional == nil {
+		return false
+	}
+	return *a.Optional == *b.Optional
+}
 
-	// Compare ConfigMapRef
-	if newEnvFromVar.ConfigMapRef == nil && envFromVar.ConfigMapRef == nil {
-		compareConfigMap = true
-	} else if newEnvFromVar.ConfigMapRef != nil && envFromVar.ConfigMapRef != nil {
-		if newEnvFromVar.ConfigMapRef.Optional == nil && envFromVar.ConfigMapRef.Optional == nil {
-			compareConfigMap = newEnvFromVar.ConfigMapRef.LocalObjectReference == envFromVar.ConfigMapRef.LocalObjectReference
-		} else if newEnvFromVar.ConfigMapRef.Optional != nil && envFromVar.ConfigMapRef.Optional != nil {
-			compareConfigMap = newEnvFromVar.ConfigMapRef.LocalObjectReference == envFromVar.ConfigMapRef.LocalObjectReference && *newEnvFromVar.ConfigMapRef.Optional == *envFromVar.ConfigMapRef.Optional
-		} else {
-			compareConfigMap = false
-		}
+func compareSecretRef(a, b *corev1.SecretEnvSource) bool {
+	if a == nil && b == nil {
+		return true
 	}
-	// Compare SecretRef
-	if newEnvFromVar.SecretRef == nil && envFromVar.SecretRef == nil {
-		compareSecret = true
-	} else if newEnvFromVar.SecretRef != nil && envFromVar.SecretRef != nil {
-		if newEnvFromVar.SecretRef.Optional == nil && envFromVar.SecretRef.Optional == nil {
-			compareSecret = newEnvFromVar.SecretRef.LocalObjectReference == envFromVar.SecretRef.LocalObjectReference
-		} else if newEnvFromVar.SecretRef.Optional != nil && envFromVar.SecretRef.Optional != nil {
-			compareSecret = newEnvFromVar.SecretRef.LocalObjectReference == envFromVar.SecretRef.LocalObjectReference && *newEnvFromVar.SecretRef.Optional == *envFromVar.ConfigMapRef.Optional
-		} else {
-			compareSecret = false
-		}
+	if a == nil || b == nil {
+		return false
 	}
-	return compareprefix && compareConfigMap && compareSecret
+	if a.LocalObjectReference != b.LocalObjectReference {
+		return false
+	}
+	if a.Optional == nil && b.Optional == nil {
+		return true
+	}
+	if a.Optional == nil || b.Optional == nil {
+		return false
+	}
+	return *a.Optional == *b.Optional
+}
+
+func compareEnvFromVar(envFromVar corev1.EnvFromSource, newEnvFromVar corev1.EnvFromSource) bool {
+	if newEnvFromVar.Prefix != envFromVar.Prefix {
+		return false
+	}
+	if !compareConfigMap(envFromVar.ConfigMapRef, newEnvFromVar.ConfigMapRef) {
+		return false
+	}
+	if !compareSecretRef(envFromVar.SecretRef, newEnvFromVar.SecretRef) {
+		return false
+	}
+	return true
 }
 
 // InjectVolumesIntoDeployment injects the provided Volumes
