@@ -8,12 +8,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
-	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +15,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
+	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
@@ -525,12 +526,20 @@ func imageChanged(logger *logrus.Entry, updatePod *corev1.Pod, servingPods []*co
 // imageID returns the ImageID of the primary catalog source container or an empty string if the image ID isn't available yet.
 // Note: the pod must be running and the container in a ready status to return a valid ImageID.
 func imageID(pod *corev1.Pod) string {
-	if len(pod.Status.ContainerStatuses) < 1 {
-		logrus.WithField("CatalogSource", pod.GetName()).Warn("pod status unknown")
-		return ""
+	if len(pod.Status.InitContainerStatuses) == 2 && len(pod.Status.ContainerStatuses) == 1 {
+		// spec.grpcPodConfig.extractContent mode was used for this pod
+		return pod.Status.InitContainerStatuses[1].ImageID
 	}
-
-	return pod.Status.ContainerStatuses[0].ImageID
+	if len(pod.Status.InitContainerStatuses) == 0 && len(pod.Status.ContainerStatuses) == 1 {
+		// spec.grpcPodConfig.extractContent mode was NOT used for this pod (i.e. we're just running the catalog image directly)
+		return pod.Status.ContainerStatuses[0].ImageID
+	}
+	if len(pod.Status.InitContainerStatuses) == 0 && len(pod.Status.ContainerStatuses) == 0 {
+		logrus.WithField("CatalogSource", pod.GetName()).Warn("pod status unknown; pod has not yet populated initContainer and container status")
+	} else {
+		logrus.WithField("CatalogSource", pod.GetName()).Warn("pod status unknown; pod contains unexpected initContainer and container configuration")
+	}
+	return ""
 }
 
 func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string) error {
