@@ -10,7 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
@@ -190,7 +190,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: pointer.Bool(false),
+						ReadOnlyRootFilesystem: ptr.To(bool(false)),
 					},
 					ImagePullPolicy:          image.InferImagePullPolicy(img),
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
@@ -330,7 +330,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 }
 
 func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
-	pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = pointer.Bool(false)
+	pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = ptr.To(bool(false))
 	pod.Spec.Containers[0].SecurityContext.Capabilities = &corev1.Capabilities{
 		Drop: []corev1.Capability{"ALL"},
 	}
@@ -341,6 +341,6 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 	}
 	if runAsUser > 0 {
 		pod.Spec.SecurityContext.RunAsUser = &runAsUser
-		pod.Spec.SecurityContext.RunAsNonRoot = pointer.Bool(true)
+		pod.Spec.SecurityContext.RunAsNonRoot = ptr.To(bool(true))
 	}
 }

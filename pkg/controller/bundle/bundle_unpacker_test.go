@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -232,8 +232,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 									RestartPolicy:    corev1.RestartPolicyNever,
 									ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-secret"}},
 									SecurityContext: &corev1.PodSecurityContext{
-										RunAsNonRoot: pointer.Bool(true),
-										RunAsUser:    pointer.Int64(runAsUser),
+										RunAsNonRoot: ptr.To(bool(true)),
+										RunAsUser:    ptr.To(int64(runAsUser)),
 										SeccompProfile: &corev1.SeccompProfile{
 											Type: corev1.SeccompProfileTypeRuntimeDefault,
 										},
@@ -262,7 +262,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -287,7 +287,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -315,7 +315,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -463,8 +463,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
 									SecurityContext: &corev1.PodSecurityContext{
-										RunAsNonRoot: pointer.Bool(true),
-										RunAsUser:    pointer.Int64(runAsUser),
+										RunAsNonRoot: ptr.To(bool(true)),
+										RunAsUser:    ptr.To(int64(runAsUser)),
 										SeccompProfile: &corev1.SeccompProfile{
 											Type: corev1.SeccompProfileTypeRuntimeDefault,
 										},
@@ -493,7 +493,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -518,7 +518,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -546,7 +546,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -734,8 +734,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
 									SecurityContext: &corev1.PodSecurityContext{
-										RunAsNonRoot: pointer.Bool(true),
-										RunAsUser:    pointer.Int64(runAsUser),
+										RunAsNonRoot: ptr.To(bool(true)),
+										RunAsUser:    ptr.To(int64(runAsUser)),
 										SeccompProfile: &corev1.SeccompProfile{
 											Type: corev1.SeccompProfileTypeRuntimeDefault,
 										},
@@ -764,7 +764,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -789,7 +789,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -817,7 +817,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1000,8 +1000,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
 									SecurityContext: &corev1.PodSecurityContext{
-										RunAsNonRoot: pointer.Bool(true),
-										RunAsUser:    pointer.Int64(runAsUser),
+										RunAsNonRoot: ptr.To(bool(true)),
+										RunAsUser:    ptr.To(int64(runAsUser)),
 										SeccompProfile: &corev1.SeccompProfile{
 											Type: corev1.SeccompProfileTypeRuntimeDefault,
 										},
@@ -1030,7 +1030,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1055,7 +1055,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1083,7 +1083,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1235,8 +1235,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
 									SecurityContext: &corev1.PodSecurityContext{
-										RunAsNonRoot: pointer.Bool(true),
-										RunAsUser:    pointer.Int64(runAsUser),
+										RunAsNonRoot: ptr.To(bool(true)),
+										RunAsUser:    ptr.To(int64(runAsUser)),
 										SeccompProfile: &corev1.SeccompProfile{
 											Type: corev1.SeccompProfileTypeRuntimeDefault,
 										},
@@ -1265,7 +1265,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1290,7 +1290,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1318,7 +1318,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1481,8 +1481,8 @@ func TestConfigMapUnpacker(t *testing.T) {
 								Spec: corev1.PodSpec{
 									RestartPolicy: corev1.RestartPolicyNever,
 									SecurityContext: &corev1.PodSecurityContext{
-										RunAsNonRoot: pointer.Bool(true),
-										RunAsUser:    pointer.Int64(runAsUser),
+										RunAsNonRoot: ptr.To(bool(true)),
+										RunAsUser:    ptr.To(int64(runAsUser)),
 										SeccompProfile: &corev1.SeccompProfile{
 											Type: corev1.SeccompProfileTypeRuntimeDefault,
 										},
@@ -1511,7 +1511,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1536,7 +1536,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},
@@ -1564,7 +1564,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 												},
 											},
 											SecurityContext: &corev1.SecurityContext{
-												AllowPrivilegeEscalation: pointer.Bool(false),
+												AllowPrivilegeEscalation: ptr.To(bool(false)),
 												Capabilities: &corev1.Capabilities{
 													Drop: []corev1.Capability{"ALL"},
 												},

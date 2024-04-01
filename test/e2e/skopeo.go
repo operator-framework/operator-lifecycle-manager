@@ -6,7 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -93,13 +93,13 @@ func createSkopeoPod(client operatorclient.ClientInterface, args []string, names
 					Image: skopeoImage,
 					Args:  args,
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem:   pointer.Bool(false),
-						AllowPrivilegeEscalation: pointer.Bool(false),
+						ReadOnlyRootFilesystem:   ptr.To(bool(false)),
+						AllowPrivilegeEscalation: ptr.To(bool(false)),
 						Capabilities: &corev1.Capabilities{
 							Drop: []corev1.Capability{"ALL"},
 						},
-						RunAsNonRoot: pointer.Bool(true),
-						RunAsUser:    pointer.Int64(1001),
+						RunAsNonRoot: ptr.To(bool(true)),
+						RunAsUser:    ptr.To(int64(1001)),
 					},
 				},
 			},

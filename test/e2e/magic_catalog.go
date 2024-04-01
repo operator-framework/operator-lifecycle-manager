@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -311,13 +311,13 @@ func (c *MagicCatalog) makeCatalogSourcePod() *corev1.Pod {
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem:   pointer.Bool(false),
-						AllowPrivilegeEscalation: pointer.Bool(false),
+						ReadOnlyRootFilesystem:   ptr.To(bool(false)),
+						AllowPrivilegeEscalation: ptr.To(bool(false)),
 						Capabilities: &corev1.Capabilities{
 							Drop: []corev1.Capability{"ALL"},
 						},
-						RunAsNonRoot: pointer.Bool(true),
-						RunAsUser:    pointer.Int64(1001),
+						RunAsNonRoot: ptr.To(bool(true)),
+						RunAsUser:    ptr.To(int64(1001)),
 					},
 					ImagePullPolicy:          corev1.PullAlways,
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,

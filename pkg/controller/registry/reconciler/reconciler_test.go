@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
@@ -79,7 +79,7 @@ func TestPodMemoryTarget(t *testing.T) {
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.Bool(false),
+								ReadOnlyRootFilesystem: ptr.To(bool(false)),
 							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
@@ -153,7 +153,7 @@ func TestPodMemoryTarget(t *testing.T) {
 								Limits: corev1.ResourceList{},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.Bool(false),
+								ReadOnlyRootFilesystem: ptr.To(bool(false)),
 							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
@@ -246,7 +246,7 @@ func TestPodExtractContent(t *testing.T) {
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.Bool(false),
+								ReadOnlyRootFilesystem: ptr.To(bool(false)),
 							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
@@ -358,7 +358,7 @@ func TestPodExtractContent(t *testing.T) {
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.Bool(false),
+								ReadOnlyRootFilesystem: ptr.To(bool(false)),
 							},
 							ImagePullPolicy:          image.InferImagePullPolicy("image"),
 							TerminationMessagePolicy: "FallbackToLogsOnError",
@@ -575,16 +575,16 @@ func TestPodContainerSecurityContext(t *testing.T) {
 				},
 			},
 			expectedContainerSecurityContext: &corev1.SecurityContext{
-				ReadOnlyRootFilesystem:   pointer.Bool(false),
-				AllowPrivilegeEscalation: pointer.Bool(false),
+				ReadOnlyRootFilesystem:   ptr.To(bool(false)),
+				AllowPrivilegeEscalation: ptr.To(bool(false)),
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
 				},
 			},
 			expectedSecurityContext: &corev1.PodSecurityContext{
 				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-				RunAsUser:      pointer.Int64(workloadUserID),
-				RunAsNonRoot:   pointer.Bool(true),
+				RunAsUser:      ptr.To(int64(workloadUserID)),
+				RunAsNonRoot:   ptr.To(bool(true)),
 			},
 		},
 		{
