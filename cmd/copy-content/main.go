@@ -31,6 +31,10 @@ func main() {
 		*catalogSource: *catalogDestination,
 		*cacheSource:   *cacheDestination,
 	} {
+		if err := os.RemoveAll(to); err != nil {
+			fmt.Printf("failed to remove %s: %s", to, err)
+			os.Exit(1)
+		}
 		if err := copy.Copy(from, to); err != nil {
 			fmt.Printf("failed to copy %s to %s: %s\n", from, to, err)
 			os.Exit(1)
