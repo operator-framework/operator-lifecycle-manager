@@ -47,7 +47,7 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) completedCo
 	c.GenericConfig.OpenAPIConfig.Info.Version = strings.Split(c.GenericConfig.Version.String(), "-")[0]
 
 	// enable OpenAPIV3 schemas
-	c.GenericConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(generic.Scheme))
+	c.GenericConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(generic.Scheme))
 	c.GenericConfig.OpenAPIV3Config.Info.Title = "Package API server"
 	c.GenericConfig.OpenAPIV3Config.Info.Version = strings.Split(c.GenericConfig.Version.String(), "-")[0]
 

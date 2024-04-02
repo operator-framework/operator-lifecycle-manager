@@ -2,8 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: installplans.operators.coreos.com
 spec:
   group: operators.coreos.com
@@ -40,10 +39,19 @@ spec:
             - spec
           properties:
             apiVersion:
-              description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
               type: string
             kind:
-              description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
               type: string
             metadata:
               type: object
@@ -56,7 +64,9 @@ spec:
                 - clusterServiceVersionNames
               properties:
                 approval:
-                  description: Approval is the user approval policy for an InstallPlan. It must be one of "Automatic" or "Manual".
+                  description: |-
+                    Approval is the user approval policy for an InstallPlan.
+                    It must be one of "Automatic" or "Manual".
                   type: string
                 approved:
                   type: boolean
@@ -71,37 +81,63 @@ spec:
                 sourceNamespace:
                   type: string
             status:
-              description: "InstallPlanStatus represents the information about the status of steps required to complete installation. \n Status may trail the actual state of a system."
+              description: |-
+                InstallPlanStatus represents the information about the status of
+                steps required to complete installation.
+
+
+                Status may trail the actual state of a system.
               type: object
               required:
                 - catalogSources
                 - phase
               properties:
                 attenuatedServiceAccountRef:
-                  description: AttenuatedServiceAccountRef references the service account that is used to do scoped operator install.
+                  description: |-
+                    AttenuatedServiceAccountRef references the service account that is used
+                    to do scoped operator install.
                   type: object
                   properties:
                     apiVersion:
                       description: API version of the referent.
                       type: string
                     fieldPath:
-                      description: 'If referring to a piece of an object instead of an entire object, this string should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2]. For example, if the object reference is to a container within a pod, this would take on a value like: "spec.containers{name}" (where "name" refers to the name of the container that triggered the event) or if no container name is specified "spec.containers[2]" (container with index 2 in this pod). This syntax is chosen only to have some well-defined way of referencing a part of an object. TODO: this design is not final and this field is subject to change in the future.'
+                      description: |-
+                        If referring to a piece of an object instead of an entire object, this string
+                        should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                        For example, if the object reference is to a container within a pod, this would take on a value like:
+                        "spec.containers{name}" (where "name" refers to the name of the container that triggered
+                        the event) or if no container name is specified "spec.containers[2]" (container with
+                        index 2 in this pod). This syntax is chosen only to have some well-defined way of
+                        referencing a part of an object.
+                        TODO: this design is not final and this field is subject to change in the future.
                       type: string
                     kind:
-                      description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                      description: |-
+                        Kind of the referent.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
                       type: string
                     name:
-                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                      description: |-
+                        Name of the referent.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                       type: string
                     namespace:
-                      description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                      description: |-
+                        Namespace of the referent.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
                       type: string
                     resourceVersion:
-                      description: 'Specific resourceVersion to which this reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                      description: |-
+                        Specific resourceVersion to which this reference is made, if any.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
                       type: string
                     uid:
-                      description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                      description: |-
+                        UID of the referent.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
                       type: string
+                  x-kubernetes-map-type: atomic
                 bundleLookups:
                   description: BundleLookups is the set of in-progress requests to pull and unpackage bundle content to the cluster.
                   type: array
@@ -122,23 +158,42 @@ spec:
                             description: API version of the referent.
                             type: string
                           fieldPath:
-                            description: 'If referring to a piece of an object instead of an entire object, this string should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2]. For example, if the object reference is to a container within a pod, this would take on a value like: "spec.containers{name}" (where "name" refers to the name of the container that triggered the event) or if no container name is specified "spec.containers[2]" (container with index 2 in this pod). This syntax is chosen only to have some well-defined way of referencing a part of an object. TODO: this design is not final and this field is subject to change in the future.'
+                            description: |-
+                              If referring to a piece of an object instead of an entire object, this string
+                              should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                              For example, if the object reference is to a container within a pod, this would take on a value like:
+                              "spec.containers{name}" (where "name" refers to the name of the container that triggered
+                              the event) or if no container name is specified "spec.containers[2]" (container with
+                              index 2 in this pod). This syntax is chosen only to have some well-defined way of
+                              referencing a part of an object.
+                              TODO: this design is not final and this field is subject to change in the future.
                             type: string
                           kind:
-                            description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                            description: |-
+                              Kind of the referent.
+                              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
                             type: string
                           name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                            description: |-
+                              Name of the referent.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                             type: string
                           namespace:
-                            description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                            description: |-
+                              Namespace of the referent.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
                             type: string
                           resourceVersion:
-                            description: 'Specific resourceVersion to which this reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                            description: |-
+                              Specific resourceVersion to which this reference is made, if any.
+                              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
                             type: string
                           uid:
-                            description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                            description: |-
+                              UID of the referent.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
                             type: string
+                        x-kubernetes-map-type: atomic
                       conditions:
                         description: Conditions represents the overall state of a BundleLookup.
                         type: array
@@ -172,7 +227,9 @@ spec:
                         description: Identifier is the catalog-unique name of the operator (the name of the CSV for bundles that contain CSVs)
                         type: string
                       path:
-                        description: Path refers to the location of a bundle to pull. It's typically an image reference.
+                        description: |-
+                          Path refers to the location of a bundle to pull.
+                          It's typically an image reference.
                         type: string
                       properties:
                         description: The effective properties of the unpacked bundle.
@@ -187,7 +244,9 @@ spec:
                 conditions:
                   type: array
                   items:
-                    description: InstallPlanCondition represents the overall status of the execution of an InstallPlan.
+                    description: |-
+                      InstallPlanCondition represents the overall status of the execution of
+                      an InstallPlan.
                     type: object
                     properties:
                       lastTransitionTime:
@@ -207,7 +266,10 @@ spec:
                         description: InstallPlanConditionType describes the state of an InstallPlan at a certain point as a whole.
                         type: string
                 message:
-                  description: Message is a human-readable message containing detailed information that may be important to understanding why the plan has its current status.
+                  description: |-
+                    Message is a human-readable message containing detailed
+                    information that may be important to understanding why the
+                    plan has its current status.
                   type: string
                 phase:
                   description: InstallPlanPhase is the current status of a InstallPlan as a whole.
@@ -227,7 +289,9 @@ spec:
                       resolving:
                         type: string
                       resource:
-                        description: StepResource represents the status of a resource to be tracked by an InstallPlan.
+                        description: |-
+                          StepResource represents the status of a resource to be tracked by an
+                          InstallPlan.
                         type: object
                         required:
                           - group
@@ -252,10 +316,14 @@ spec:
                           version:
                             type: string
                       status:
-                        description: StepStatus is the current status of a particular resource an in InstallPlan
+                        description: |-
+                          StepStatus is the current status of a particular resource an in
+                          InstallPlan
                         type: string
                 startTime:
-                  description: StartTime is the time when the controller began applying the resources listed in the plan to the cluster.
+                  description: |-
+                    StartTime is the time when the controller began applying
+                    the resources listed in the plan to the cluster.
                   type: string
                   format: date-time
       served: true

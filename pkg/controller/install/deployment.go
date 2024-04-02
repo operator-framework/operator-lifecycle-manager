@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
@@ -178,7 +178,7 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 	// By default, each deployment created by OLM could spawn up to 10 replicaSets.
 	// By setting the deployments revisionHistoryLimit to 1, OLM will only create up
 	// to 2 ReplicaSets per deployment it manages, saving memory.
-	dep.Spec.RevisionHistoryLimit = pointer.Int32(1)
+	dep.Spec.RevisionHistoryLimit = ptr.To(int32(1))
 
 	hash, err = hashutil.DeepHashObject(&dep.Spec)
 	if err != nil {
