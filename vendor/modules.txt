@@ -98,7 +98,7 @@ github.com/chai2010/gettext-go/po
 # github.com/containerd/cgroups/v3 v3.0.2
 ## explicit; go 1.18
 github.com/containerd/cgroups/v3/cgroup1/stats
-# github.com/containerd/containerd v1.7.11
+# github.com/containerd/containerd v1.7.12
 ## explicit; go 1.19
 github.com/containerd/containerd/api/events
 github.com/containerd/containerd/api/runtime/sandbox/v1
@@ -284,7 +284,7 @@ github.com/docker/go-units
 ## explicit; go 1.13
 github.com/emicklei/go-restful/v3
 github.com/emicklei/go-restful/v3/log
-# github.com/evanphx/json-patch v5.6.0+incompatible
+# github.com/evanphx/json-patch v5.7.0+incompatible
 ## explicit
 github.com/evanphx/json-patch
 # github.com/evanphx/json-patch/v5 v5.8.0
@@ -324,7 +324,7 @@ github.com/go-bindata/go-bindata/v3/go-bindata
 # github.com/go-errors/errors v1.4.2
 ## explicit; go 1.14
 github.com/go-errors/errors
-# github.com/go-gorp/gorp/v3 v3.0.5
+# github.com/go-gorp/gorp/v3 v3.1.0
 ## explicit; go 1.18
 github.com/go-gorp/gorp/v3
 # github.com/go-logr/logr v1.4.1
@@ -800,8 +800,8 @@ github.com/prometheus/procfs/internal/util
 # github.com/rivo/uniseg v0.4.4
 ## explicit; go 1.18
 github.com/rivo/uniseg
-# github.com/rubenv/sql-migrate v1.3.1
-## explicit; go 1.16
+# github.com/rubenv/sql-migrate v1.5.2
+## explicit; go 1.17
 github.com/rubenv/sql-migrate
 github.com/rubenv/sql-migrate/sqlparse
 # github.com/russross/blackfriday/v2 v2.1.0
@@ -1036,7 +1036,6 @@ golang.org/x/sync/singleflight
 # golang.org/x/sys v0.18.0
 ## explicit; go 1.18
 golang.org/x/sys/cpu
-golang.org/x/sys/execabs
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
@@ -1250,13 +1249,12 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# helm.sh/helm/v3 v3.12.2
-## explicit; go 1.19
+# helm.sh/helm/v3 v3.14.3
+## explicit; go 1.21
 helm.sh/helm/v3/cmd/helm
 helm.sh/helm/v3/cmd/helm/require
 helm.sh/helm/v3/cmd/helm/search
 helm.sh/helm/v3/internal/fileutil
-helm.sh/helm/v3/internal/ignore
 helm.sh/helm/v3/internal/monocular
 helm.sh/helm/v3/internal/resolver
 helm.sh/helm/v3/internal/sympath
@@ -1277,6 +1275,7 @@ helm.sh/helm/v3/pkg/engine
 helm.sh/helm/v3/pkg/getter
 helm.sh/helm/v3/pkg/helmpath
 helm.sh/helm/v3/pkg/helmpath/xdg
+helm.sh/helm/v3/pkg/ignore
 helm.sh/helm/v3/pkg/kube
 helm.sh/helm/v3/pkg/kube/fake
 helm.sh/helm/v3/pkg/lint
