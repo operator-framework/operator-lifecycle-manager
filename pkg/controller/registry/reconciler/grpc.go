@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
@@ -32,6 +33,7 @@ const (
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
 type grpcCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
+	Reconciler      *GrpcRegistryReconciler
 	createPodAsUser int64
 	opmImage        string
 	utilImage       string
@@ -63,6 +65,27 @@ func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
 		CatalogSourceLabelKey:      s.GetName(),
 		install.OLMManagedLabelKey: install.OLMManagedLabelValue,
 	}
+}
+
+func (s *grpcCatalogSourceDecorator) getNamespaceSecurityContextConfig() (operatorsv1alpha1.SecurityConfig, error) {
+	namespace := s.GetNamespace()
+	if config, ok := s.Reconciler.namespacePSAConfigCache[namespace]; ok {
+		return config, nil
+	}
+	// Retrieve the client from the reconciler
+	client := s.Reconciler.OpClient
+
+	ns, err := client.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), s.GetNamespace(), metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("error fetching namespace: %v", err)
+	}
+	// 'pod-security.kubernetes.io/enforce' is the label used for enforcing namespace level security,
+	// and 'restricted' is the value indicating a restricted security policy.
+	if val, exists := ns.Labels["pod-security.kubernetes.io/enforce"]; exists && val == "restricted" {
+		return operatorsv1alpha1.Restricted, nil
+	}
+
+	return operatorsv1alpha1.Legacy, nil
 }
 
 func (s *grpcCatalogSourceDecorator) Annotations() map[string]string {
@@ -131,7 +154,11 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 }
 
 func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount) (*corev1.Pod, error) {
-	pod, err := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser)
+	securityContextConfig, err := s.getNamespaceSecurityContextConfig()
+	if err != nil {
+		return nil, err
+	}
+	pod, err := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser, securityContextConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -140,13 +167,14 @@ func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount) 
 }
 
 type GrpcRegistryReconciler struct {
-	now             nowFunc
-	Lister          operatorlister.OperatorLister
-	OpClient        operatorclient.ClientInterface
-	SSAClient       *controllerclient.ServerSideApplier
-	createPodAsUser int64
-	opmImage        string
-	utilImage       string
+	now                     nowFunc
+	Lister                  operatorlister.OperatorLister
+	OpClient                operatorclient.ClientInterface
+	SSAClient               *controllerclient.ServerSideApplier
+	createPodAsUser         int64
+	opmImage                string
+	utilImage               string
+	namespacePSAConfigCache map[string]operatorsv1alpha1.SecurityConfig
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
@@ -246,6 +274,9 @@ func correctImages(source grpcCatalogSourceDecorator, pod *corev1.Pod) bool {
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) error {
+	if c.namespacePSAConfigCache == nil {
+		c.namespacePSAConfigCache = make(map[string]operatorsv1alpha1.SecurityConfig)
+	}
 	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage, utilImage: c.utilImage}
 
 	// if service status is nil, we force create every object to ensure they're created the first time

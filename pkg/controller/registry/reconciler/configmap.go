@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/pkg/errors"
@@ -25,7 +26,8 @@ import (
 // configMapCatalogSourceDecorator wraps CatalogSource to add additional methods
 type configMapCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
-	runAsUser int64
+	Reconciler *ConfigMapRegistryReconciler
+	runAsUser  int64
 }
 
 const (
@@ -109,8 +111,32 @@ func (s *configMapCatalogSourceDecorator) Service() (*corev1.Service, error) {
 	return svc, nil
 }
 
+func (s *configMapCatalogSourceDecorator) getNamespaceSecurityContextConfig() (operatorsv1alpha1.SecurityConfig, error) {
+	namespace := s.GetNamespace()
+	if config, ok := s.Reconciler.namespacePSAConfigCache[namespace]; ok {
+		return config, nil
+	}
+	// Retrieve the client from the reconciler
+	client := s.Reconciler.OpClient
+
+	ns, err := client.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), s.GetNamespace(), metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("error fetching namespace: %v", err)
+	}
+	// 'pod-security.kubernetes.io/enforce' is the label used for enforcing namespace level security,
+	// and 'restricted' is the value indicating a restricted security policy.
+	if val, exists := ns.Labels["pod-security.kubernetes.io/enforce"]; exists && val == "restricted" {
+		return operatorsv1alpha1.Restricted, nil
+	}
+
+	return operatorsv1alpha1.Legacy, nil
+}
 func (s *configMapCatalogSourceDecorator) Pod(image string) (*corev1.Pod, error) {
-	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser)
+	securityContextConfig, err := s.getNamespaceSecurityContextConfig()
+	if err != nil {
+		return nil, err
+	}
+	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser, securityContextConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -183,11 +209,12 @@ func (s *configMapCatalogSourceDecorator) RoleBinding() *rbacv1.RoleBinding {
 }
 
 type ConfigMapRegistryReconciler struct {
-	now             nowFunc
-	Lister          operatorlister.OperatorLister
-	OpClient        operatorclient.ClientInterface
-	Image           string
-	createPodAsUser int64
+	now                     nowFunc
+	Lister                  operatorlister.OperatorLister
+	OpClient                operatorclient.ClientInterface
+	Image                   string
+	createPodAsUser         int64
+	namespacePSAConfigCache map[string]operatorsv1alpha1.SecurityConfig
 }
 
 var _ RegistryEnsurer = &ConfigMapRegistryReconciler{}
@@ -274,7 +301,10 @@ func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(sour
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) error {
-	source := configMapCatalogSourceDecorator{catalogSource, c.createPodAsUser}
+	if c.namespacePSAConfigCache == nil {
+		c.namespacePSAConfigCache = make(map[string]operatorsv1alpha1.SecurityConfig)
+	}
+	source := configMapCatalogSourceDecorator{catalogSource, c, c.createPodAsUser}
 
 	image := c.Image
 	if source.Spec.SourceType == "grpc" {
@@ -449,7 +479,7 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
-	source := configMapCatalogSourceDecorator{catalogSource, c.createPodAsUser}
+	source := configMapCatalogSourceDecorator{catalogSource, c, c.createPodAsUser}
 
 	image := c.Image
 	if source.Spec.SourceType == "grpc" {

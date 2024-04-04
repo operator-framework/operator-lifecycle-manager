@@ -114,7 +114,7 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) (*corev1.Pod, error) {
+func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64, namespacePSAConfig operatorsv1alpha1.SecurityConfig) (*corev1.Pod, error) {
 	// make a copy of the labels and annotations to avoid mutating the input parameters
 	podLabels := make(map[string]string)
 	podAnnotations := make(map[string]string)
@@ -206,21 +206,29 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 		},
 	}
 
-	// Check if GrpcPodConfig is defined
-	if source.Spec.GrpcPodConfig != nil {
-		// Determine the security context configuration
-		securityContextConfig := source.Spec.GrpcPodConfig.SecurityContextConfig
+	// Define default security context config
+	securityContextConfig := operatorsv1alpha1.Legacy
 
-		// Apply 'restricted' security settings if SecurityContextConfig is 'Restricted' or not set
-		if securityContextConfig == operatorsv1alpha1.Restricted || securityContextConfig == "" {
-			addSecurityContext(pod, runAsUser) // Apply restricted settings
+	// Determine the security context configuration based on GrpcPodConfig
+	if source.Spec.GrpcPodConfig != nil {
+		if source.Spec.GrpcPodConfig.SecurityContextConfig != "" {
+			securityContextConfig = source.Spec.GrpcPodConfig.SecurityContextConfig
 		} else {
-			// For 'Legacy' or any unspecified value, clear all security contexts
-			clearAllSecurityContexts(pod)
+			// If SecurityContextConfig is unset, use the namespace-based PSA configuration passed in
+			securityContextConfig = namespacePSAConfig
 		}
 	} else {
-		// If GrpcPodConfig is nil, apply 'restricted' security settings by default
-		addSecurityContext(pod, runAsUser) // Default to restricted settings
+		// If GrpcPodConfig is nil, apply legacy security settings by default
+		securityContextConfig = operatorsv1alpha1.Legacy
+	}
+
+	// Apply the determined security settings to the pod
+	if securityContextConfig == operatorsv1alpha1.Restricted {
+		// Apply 'restricted' security settings
+		addSecurityContext(pod, runAsUser)
+	} else {
+		// For 'Legacy' or any other case, clear all security contexts
+		clearAllSecurityContexts(pod)
 	}
 
 	// Override scheduling options if specified

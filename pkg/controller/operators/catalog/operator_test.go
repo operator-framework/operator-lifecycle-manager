@@ -59,7 +59,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
-	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -2006,14 +2005,15 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	}
 	op.sources = grpc.NewSourceStore(config.logger, 1*time.Second, 5*time.Second, op.syncSourceState)
 	if op.reconciler == nil {
-		s := runtime.NewScheme()
-		err := k8sfake.AddToScheme(s)
-		if err != nil {
-			return nil, err
+		op.reconciler = &fakes.FakeRegistryReconcilerFactory{
+			ReconcilerForSourceStub: func(source *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
+				return &fakes.FakeRegistryReconciler{
+					EnsureRegistryServerStub: func(logger *logrus.Entry, source *v1alpha1.CatalogSource) error {
+						return nil
+					},
+				}
+			},
 		}
-		applier := controllerclient.NewFakeApplier(s, "testowner")
-
-		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, 1001, "", "")
 	}
 
 	op.RunInformers(ctx)
@@ -2028,7 +2028,6 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 
 	return op, nil
 }
-
 func installPlan(name, namespace string, phase v1alpha1.InstallPlanPhase, names ...string) *v1alpha1.InstallPlan {
 	return &v1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2175,7 +2174,7 @@ func pod(t *testing.T, s v1alpha1.CatalogSource) *corev1.Pod {
 			Name:      s.GetName(),
 		},
 	}
-	pod, err := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
+	pod, err := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001, v1alpha1.Legacy)
 	if err != nil {
 		t.Fatal(err)
 	}
