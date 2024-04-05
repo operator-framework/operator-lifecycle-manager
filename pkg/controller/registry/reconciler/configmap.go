@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
 	"github.com/pkg/errors"
@@ -111,7 +110,7 @@ func (s *configMapCatalogSourceDecorator) Service() (*corev1.Service, error) {
 	return svc, nil
 }
 
-func (s *configMapCatalogSourceDecorator) getNamespaceSecurityContextConfig() (operatorsv1alpha1.SecurityConfig, error) {
+func (s *configMapCatalogSourceDecorator) getNamespaceSecurityContextConfig() (v1alpha1.SecurityConfig, error) {
 	namespace := s.GetNamespace()
 	if config, ok := s.Reconciler.namespacePSAConfigCache[namespace]; ok {
 		return config, nil
@@ -126,10 +125,10 @@ func (s *configMapCatalogSourceDecorator) getNamespaceSecurityContextConfig() (o
 	// 'pod-security.kubernetes.io/enforce' is the label used for enforcing namespace level security,
 	// and 'restricted' is the value indicating a restricted security policy.
 	if val, exists := ns.Labels["pod-security.kubernetes.io/enforce"]; exists && val == "restricted" {
-		return operatorsv1alpha1.Restricted, nil
+		return v1alpha1.Restricted, nil
 	}
 
-	return operatorsv1alpha1.Legacy, nil
+	return v1alpha1.Legacy, nil
 }
 func (s *configMapCatalogSourceDecorator) Pod(image string) (*corev1.Pod, error) {
 	securityContextConfig, err := s.getNamespaceSecurityContextConfig()
@@ -214,7 +213,7 @@ type ConfigMapRegistryReconciler struct {
 	OpClient                operatorclient.ClientInterface
 	Image                   string
 	createPodAsUser         int64
-	namespacePSAConfigCache map[string]operatorsv1alpha1.SecurityConfig
+	namespacePSAConfigCache map[string]v1alpha1.SecurityConfig
 }
 
 var _ RegistryEnsurer = &ConfigMapRegistryReconciler{}
@@ -302,7 +301,7 @@ func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(sour
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) error {
 	if c.namespacePSAConfigCache == nil {
-		c.namespacePSAConfigCache = make(map[string]operatorsv1alpha1.SecurityConfig)
+		c.namespacePSAConfigCache = make(map[string]v1alpha1.SecurityConfig)
 	}
 	source := configMapCatalogSourceDecorator{catalogSource, c, c.createPodAsUser}
 

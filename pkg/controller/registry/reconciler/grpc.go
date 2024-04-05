@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	hashutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/hash"
@@ -67,7 +66,7 @@ func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
 	}
 }
 
-func (s *grpcCatalogSourceDecorator) getNamespaceSecurityContextConfig() (operatorsv1alpha1.SecurityConfig, error) {
+func (s *grpcCatalogSourceDecorator) getNamespaceSecurityContextConfig() (v1alpha1.SecurityConfig, error) {
 	namespace := s.GetNamespace()
 	if config, ok := s.Reconciler.namespacePSAConfigCache[namespace]; ok {
 		return config, nil
@@ -82,10 +81,10 @@ func (s *grpcCatalogSourceDecorator) getNamespaceSecurityContextConfig() (operat
 	// 'pod-security.kubernetes.io/enforce' is the label used for enforcing namespace level security,
 	// and 'restricted' is the value indicating a restricted security policy.
 	if val, exists := ns.Labels["pod-security.kubernetes.io/enforce"]; exists && val == "restricted" {
-		return operatorsv1alpha1.Restricted, nil
+		return v1alpha1.Restricted, nil
 	}
 
-	return operatorsv1alpha1.Legacy, nil
+	return v1alpha1.Legacy, nil
 }
 
 func (s *grpcCatalogSourceDecorator) Annotations() map[string]string {
@@ -174,7 +173,7 @@ type GrpcRegistryReconciler struct {
 	createPodAsUser         int64
 	opmImage                string
 	utilImage               string
-	namespacePSAConfigCache map[string]operatorsv1alpha1.SecurityConfig
+	namespacePSAConfigCache map[string]v1alpha1.SecurityConfig
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
@@ -275,7 +274,7 @@ func correctImages(source grpcCatalogSourceDecorator, pod *corev1.Pod) bool {
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) error {
 	if c.namespacePSAConfigCache == nil {
-		c.namespacePSAConfigCache = make(map[string]operatorsv1alpha1.SecurityConfig)
+		c.namespacePSAConfigCache = make(map[string]v1alpha1.SecurityConfig)
 	}
 	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage, utilImage: c.utilImage}
 
