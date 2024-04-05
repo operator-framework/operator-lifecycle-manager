@@ -207,7 +207,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 	}
 
 	// Define default security context config
-	securityContextConfig := operatorsv1alpha1.Legacy
+	var securityContextConfig operatorsv1alpha1.SecurityConfig
 
 	// Determine the security context configuration based on GrpcPodConfig
 	if source.Spec.GrpcPodConfig != nil {
