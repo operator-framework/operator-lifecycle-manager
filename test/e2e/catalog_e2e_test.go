@@ -14,7 +14,6 @@ import (
 	"time"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	packageserverclientset "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serror "k8s.io/apimachinery/pkg/api/errors"
@@ -1421,7 +1420,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		var (
 			magicCatalog      *MagicCatalog
 			catalogSourceName string
-			subscription      *operatorsv1alpha1.Subscription
+			subscription      *v1alpha1.Subscription
 			c                 client.Client
 		)
 
@@ -1444,12 +1443,12 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		When("A Subscription is created catalogSource built with the malformed CSV", func() {
 
 			BeforeEach(func() {
-				subscription = &operatorsv1alpha1.Subscription{
+				subscription = &v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("%s-sub", catalogSourceName),
 						Namespace: generatedNamespace.GetName(),
 					},
-					Spec: &operatorsv1alpha1.SubscriptionSpec{
+					Spec: &v1alpha1.SubscriptionSpec{
 						CatalogSource:          catalogSourceName,
 						CatalogSourceNamespace: generatedNamespace.GetName(),
 						Channel:                "stable",
@@ -1514,7 +1513,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 						SourceType: v1alpha1.SourceTypeGrpc,
 						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
 						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
-							SecurityContextConfig: operatorsv1alpha1.Restricted,
+							SecurityContextConfig: v1alpha1.Restricted,
 						},
 					},
 				}
@@ -1585,7 +1584,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 						SourceType: v1alpha1.SourceTypeGrpc,
 						Image:      "quay.io/olmtest/old-opm-catsrc:v1.21.0",
 						GrpcPodConfig: &v1alpha1.GrpcPodConfig{
-							SecurityContextConfig: operatorsv1alpha1.Legacy,
+							SecurityContextConfig: v1alpha1.Legacy,
 						},
 					},
 				}
