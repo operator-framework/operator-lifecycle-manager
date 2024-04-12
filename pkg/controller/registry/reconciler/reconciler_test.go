@@ -277,7 +277,7 @@ func TestPodExtractContent(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
 					Namespace:    "testns",
-					Labels:       map[string]string{"olm.pod-spec-hash": "2AHzz8IDqQLwPsDyu4UjUmnROr4E59PMKm9OCm", "olm.managed": "true"},
+					Labels:       map[string]string{"olm.pod-spec-hash": "5MSUJs07MqD3fl9supmPaRNxD9N6tK8Bjo4OFl", "olm.managed": "true"},
 					Annotations:  map[string]string{"cluster-autoscaler.kubernetes.io/safe-to-evict": "true"},
 				},
 				Spec: corev1.PodSpec{
@@ -293,11 +293,12 @@ func TestPodExtractContent(t *testing.T) {
 					},
 					InitContainers: []corev1.Container{
 						{
-							Name:         "extract-utilities",
-							Image:        "utilImage",
-							Command:      []string{"cp"},
-							Args:         []string{"/bin/copy-content", "/utilities/copy-content"},
-							VolumeMounts: []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
+							Name:                     "extract-utilities",
+							Image:                    "utilImage",
+							Command:                  []string{"cp"},
+							Args:                     []string{"/bin/copy-content", "/utilities/copy-content"},
+							VolumeMounts:             []corev1.VolumeMount{{Name: "utilities", MountPath: "/utilities"}},
+							TerminationMessagePolicy: "FallbackToLogsOnError",
 						},
 						{
 							Name:            "extract-content",
@@ -314,6 +315,7 @@ func TestPodExtractContent(t *testing.T) {
 								{Name: "utilities", MountPath: "/utilities"},
 								{Name: "catalog-content", MountPath: "/extracted-catalog"},
 							},
+							TerminationMessagePolicy: "FallbackToLogsOnError",
 						},
 					},
 					Containers: []corev1.Container{
