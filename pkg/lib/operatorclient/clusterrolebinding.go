@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	acv1 "k8s.io/client-go/applyconfigurations/rbac/v1"
@@ -16,9 +17,13 @@ func (c *Client) ApplyClusterRoleBinding(applyConfig *acv1.ClusterRoleBindingApp
 	return c.RbacV1().ClusterRoleBindings().Apply(context.TODO(), applyConfig, applyOptions)
 }
 
-// CreateRoleBinding creates the roleBinding.
+// CreateRoleBinding creates the roleBinding or Updates if it already exists.
 func (c *Client) CreateClusterRoleBinding(ig *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error) {
-	return c.RbacV1().ClusterRoleBindings().Create(context.TODO(), ig, metav1.CreateOptions{})
+	createdCRB, err := c.RbacV1().ClusterRoleBindings().Create(context.TODO(), ig, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		return c.UpdateClusterRoleBinding(ig)
+	}
+	return createdCRB, err
 }
 
 // GetRoleBinding returns the existing roleBinding.

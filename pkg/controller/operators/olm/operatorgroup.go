@@ -408,11 +408,8 @@ func (a *Operator) ensureProvidedAPIClusterRole(namePrefix, suffix string, verbs
 		return err
 	}
 	if apierrors.IsNotFound(err) {
-		existingCR, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
-		if err == nil {
-			return nil
-		}
-		if !apierrors.IsAlreadyExists(err) {
+		existingCR, err = a.opClient.CreateClusterRole(clusterRole)
+		if err != nil {
 			a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
 			return err
 		}
@@ -546,12 +543,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 					Resources: []string{"namespaces"},
 				}),
 			}
-			// TODO: this should do something smarter if the cluster role already exists
-			if cr, err := a.opClient.CreateClusterRole(clusterRole); err != nil {
-				// If the CR already exists, but the label is correct, the cache is just behind
-				if apierrors.IsAlreadyExists(err) && cr != nil && ownerutil.IsOwnedByLabel(cr, csv) {
-					continue
-				}
+			if _, err := a.opClient.CreateClusterRole(clusterRole); err != nil {
 				return err
 			}
 			a.logger.Debug("created cluster role")
@@ -585,12 +577,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 					Name:     r.RoleRef.Name,
 				},
 			}
-			// TODO: this should do something smarter if the cluster role binding already exists
-			if crb, err := a.opClient.CreateClusterRoleBinding(clusterRoleBinding); err != nil {
-				// If the CRB already exists, but the label is correct, the cache is just behind
-				if apierrors.IsAlreadyExists(err) && crb != nil && ownerutil.IsOwnedByLabel(crb, csv) {
-					continue
-				}
+			if _, err := a.opClient.CreateClusterRoleBinding(clusterRoleBinding); err != nil {
 				return err
 			}
 		}
@@ -1056,7 +1043,7 @@ func (a *Operator) ensureOpGroupClusterRole(op *operatorsv1.OperatorGroup, suffi
 	clusterRole.Labels[install.OLMManagedLabelKey] = install.OLMManagedLabelValue
 
 	a.logger.Infof("creating cluster role: %s owned by operator group: %s/%s", clusterRole.GetName(), op.GetNamespace(), op.GetName())
-	_, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(context.TODO(), clusterRole, metav1.CreateOptions{})
+	_, err = a.opClient.CreateClusterRole(clusterRole)
 	return err
 }
 

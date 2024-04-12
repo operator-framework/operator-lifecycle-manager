@@ -5,14 +5,19 @@ import (
 	"fmt"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 )
 
-// CreateClusterRole creates the ClusterRole.
+// CreateClusterRole creates the ClusterRole or Updates if it already exists.
 func (c *Client) CreateClusterRole(r *rbacv1.ClusterRole) (*rbacv1.ClusterRole, error) {
-	return c.RbacV1().ClusterRoles().Create(context.TODO(), r, metav1.CreateOptions{})
+	createdClusterRole, err := c.RbacV1().ClusterRoles().Create(context.TODO(), r, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		return c.UpdateClusterRole(r)
+	}
+	return createdClusterRole, err
 }
 
 // GetClusterRole returns the existing ClusterRole.

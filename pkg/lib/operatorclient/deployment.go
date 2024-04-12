@@ -25,10 +25,15 @@ func (c *Client) GetDeployment(namespace, name string) (*appsv1.Deployment, erro
 	return c.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-// CreateDeployment creates the Deployment object.
+// CreateDeployment creates the Deployment object or Updates if it already exists.
 func (c *Client) CreateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, error) {
 	klog.V(4).Infof("[CREATE Deployment]: %s:%s", dep.Namespace, dep.Name)
-	return c.AppsV1().Deployments(dep.Namespace).Create(context.TODO(), dep, metav1.CreateOptions{})
+	createdDep, err := c.AppsV1().Deployments(dep.Namespace).Create(context.TODO(), dep, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		updatedDep, _, err := c.UpdateDeployment(dep)
+		return updatedDep, err
+	}
+	return createdDep, err
 }
 
 // DeleteDeployment deletes the Deployment object.

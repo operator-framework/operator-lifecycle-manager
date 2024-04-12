@@ -734,6 +734,9 @@ func (c *ConfigMapUnpacker) ensureRole(cmRef *corev1.ObjectReference) (role *rba
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			role, err = c.client.RbacV1().Roles(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+			if apierrors.IsAlreadyExists(err) {
+				role, err = c.client.RbacV1().Roles(fresh.GetNamespace()).Update(context.TODO(), fresh, metav1.UpdateOptions{})
+			}
 		}
 
 		return
@@ -778,6 +781,9 @@ func (c *ConfigMapUnpacker) ensureRoleBinding(cmRef *corev1.ObjectReference) (ro
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			roleBinding, err = c.client.RbacV1().RoleBindings(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+			if apierrors.IsAlreadyExists(err) {
+				roleBinding, err = c.client.RbacV1().RoleBindings(fresh.GetNamespace()).Update(context.TODO(), fresh, metav1.UpdateOptions{})
+			}
 		}
 
 		return

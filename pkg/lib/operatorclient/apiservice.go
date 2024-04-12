@@ -4,15 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
-// CreateAPIService creates the APIService.
+// CreateAPIService creates the APIService or Updates if it already exists.
 func (c *Client) CreateAPIService(ig *apiregistrationv1.APIService) (*apiregistrationv1.APIService, error) {
-	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Create(context.TODO(), ig, metav1.CreateOptions{})
+	createdAS, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Create(context.TODO(), ig, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		return c.UpdateAPIService(ig)
+	}
+	return createdAS, err
 }
 
 // GetAPIService returns the existing APIService.
