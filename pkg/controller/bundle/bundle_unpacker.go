@@ -157,6 +157,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 									Drop: []corev1.Capability{"ALL"},
 								},
 							},
+							TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 						},
 					},
 					InitContainers: []corev1.Container{
@@ -182,6 +183,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 									Drop: []corev1.Capability{"ALL"},
 								},
 							},
+							TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 						},
 						{
 							Name:            "pull",
@@ -210,6 +212,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 									Drop: []corev1.Capability{"ALL"},
 								},
 							},
+							TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 						},
 					},
 					Volumes: []corev1.Volume{

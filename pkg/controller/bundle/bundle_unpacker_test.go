@@ -267,6 +267,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -292,6 +293,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 										{
 											Name:            "pull",
@@ -320,6 +322,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -498,6 +501,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -523,6 +527,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 										{
 											Name:            "pull",
@@ -551,6 +556,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -769,6 +775,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -794,6 +801,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 										{
 											Name:            "pull",
@@ -822,6 +830,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -1035,6 +1044,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1060,6 +1070,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 										{
 											Name:            "pull",
@@ -1088,6 +1099,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -1270,6 +1282,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1295,6 +1308,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 										{
 											Name:            "pull",
@@ -1323,6 +1337,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									Volumes: []corev1.Volume{
@@ -1516,6 +1531,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									InitContainers: []corev1.Container{
@@ -1541,6 +1557,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 										{
 											Name:            "pull",
@@ -1569,6 +1586,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 													Drop: []corev1.Capability{"ALL"},
 												},
 											},
+											TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 										},
 									},
 									Volumes: []corev1.Volume{

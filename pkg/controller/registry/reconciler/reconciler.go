@@ -279,11 +279,12 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				MountPath: catalogPath,
 			}
 			pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
-				Name:         "extract-utilities",
-				Image:        utilImage,
-				Command:      []string{"cp"},
-				Args:         []string{"/bin/copy-content", fmt.Sprintf("%s/copy-content", utilitiesPath)},
-				VolumeMounts: []corev1.VolumeMount{utilitiesVolumeMount},
+				Name:                     "extract-utilities",
+				Image:                    utilImage,
+				Command:                  []string{"cp"},
+				Args:                     []string{"/bin/copy-content", fmt.Sprintf("%s/copy-content", utilitiesPath)},
+				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount},
+				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			}, corev1.Container{
 				Name:            "extract-content",
 				Image:           img,
@@ -295,7 +296,8 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 					"--cache.from=" + grpcPodConfig.ExtractContent.CacheDir,
 					"--cache.to=" + fmt.Sprintf("%s/cache", catalogPath),
 				},
-				VolumeMounts: []corev1.VolumeMount{utilitiesVolumeMount, contentVolumeMount},
+				VolumeMounts:             []corev1.VolumeMount{utilitiesVolumeMount, contentVolumeMount},
+				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			})
 
 			pod.Spec.Containers[0].Image = opmImg
