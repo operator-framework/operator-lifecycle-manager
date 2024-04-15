@@ -5,14 +5,19 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 )
 
-// CreateSecret creates the Secret.
+// CreateSecret creates the Secret or Updates if it already exists.
 func (c *Client) CreateSecret(ig *v1.Secret) (*v1.Secret, error) {
-	return c.CoreV1().Secrets(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
+	createdSecret, err := c.CoreV1().Secrets(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		return c.UpdateSecret(ig)
+	}
+	return createdSecret, err
 }
 
 // GetSecret returns the existing Secret.

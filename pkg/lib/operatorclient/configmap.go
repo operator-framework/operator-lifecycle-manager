@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
@@ -12,7 +13,11 @@ import (
 
 // CreateConfigMap creates the ConfigMap.
 func (c *Client) CreateConfigMap(ig *corev1.ConfigMap) (*corev1.ConfigMap, error) {
-	return c.CoreV1().ConfigMaps(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
+	createdCM, err := c.CoreV1().ConfigMaps(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		return c.UpdateConfigMap(ig)
+	}
+	return createdCM, err
 }
 
 // GetConfigMap returns the existing ConfigMap.

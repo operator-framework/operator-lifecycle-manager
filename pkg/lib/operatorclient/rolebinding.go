@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	acv1 "k8s.io/client-go/applyconfigurations/rbac/v1"
@@ -16,9 +17,13 @@ func (c *Client) ApplyRoleBinding(applyConfig *acv1.RoleBindingApplyConfiguratio
 	return c.RbacV1().RoleBindings(*applyConfig.Namespace).Apply(context.TODO(), applyConfig, applyOptions)
 }
 
-// CreateRoleBinding creates the roleBinding.
+// CreateRoleBinding creates the roleBinding or Updates if it already exists.
 func (c *Client) CreateRoleBinding(ig *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error) {
-	return c.RbacV1().RoleBindings(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
+	createdRB, err := c.RbacV1().RoleBindings(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		return c.UpdateRoleBinding(ig)
+	}
+	return createdRB, err
 }
 
 // GetRoleBinding returns the existing roleBinding.

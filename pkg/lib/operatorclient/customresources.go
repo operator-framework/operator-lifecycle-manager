@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -92,7 +93,7 @@ func (c *Client) CreateCustomResourceRaw(apiGroup, version, namespace, kind stri
 	return nil
 }
 
-// CreateCustomResourceRawIfNotFound creates the raw bytes of the custom resource if it doesn't exist.
+// CreateCustomResourceRawIfNotFound creates the raw bytes of the custom resource if it doesn't exist, or Updates if it does exist.
 // It also returns a boolean to indicate whether a new custom resource is created.
 func (c *Client) CreateCustomResourceRawIfNotFound(apiGroup, version, namespace, kind, name string, data []byte) (bool, error) {
 	klog.V(4).Infof("[CREATE CUSTOM RESOURCE RAW if not found]: %s:%s", namespace, name)
@@ -104,7 +105,11 @@ func (c *Client) CreateCustomResourceRawIfNotFound(apiGroup, version, namespace,
 		return false, err
 	}
 	err = c.CreateCustomResourceRaw(apiGroup, version, namespace, kind, data)
-	if err != nil {
+	if apierrors.IsAlreadyExists(err) {
+		if err = c.UpdateCustomResourceRaw(apiGroup, version, namespace, kind, name, data); err != nil {
+			return false, err
+		}
+	} else if err != nil {
 		return false, err
 	}
 	return true, nil

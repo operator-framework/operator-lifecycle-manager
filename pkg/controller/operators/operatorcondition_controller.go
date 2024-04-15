@@ -150,7 +150,10 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRole(operatorCondit
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		return r.Client.Create(context.TODO(), role)
+		err = r.Client.Create(context.TODO(), role)
+		if apierrors.IsAlreadyExists(err) {
+			return r.Client.Update(context.TODO(), role)
+		}
 	}
 
 	if ownerutil.IsOwnedBy(existingRole, operatorCondition) &&
@@ -199,7 +202,10 @@ func (r *OperatorConditionReconciler) ensureOperatorConditionRoleBinding(operato
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		return r.Client.Create(context.TODO(), roleBinding)
+		err = r.Client.Create(context.TODO(), roleBinding)
+		if apierrors.IsAlreadyExists(err) {
+			return r.Client.Update(context.TODO(), roleBinding)
+		}
 	}
 
 	if ownerutil.IsOwnedBy(existingRoleBinding, operatorCondition) &&

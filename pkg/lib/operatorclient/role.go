@@ -5,14 +5,19 @@ import (
 	"fmt"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 )
 
-// CreateRole creates the role.
+// CreateRole creates the role or Updates if it already exists.
 func (c *Client) CreateRole(r *rbacv1.Role) (*rbacv1.Role, error) {
-	return c.RbacV1().Roles(r.GetNamespace()).Create(context.TODO(), r, metav1.CreateOptions{})
+	createdRole, err := c.RbacV1().Roles(r.GetNamespace()).Create(context.TODO(), r, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		return c.UpdateRole(r)
+	}
+	return createdRole, err
 }
 
 // GetRole returns the existing role.

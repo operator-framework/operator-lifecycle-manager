@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	acv1 "k8s.io/client-go/applyconfigurations/core/v1"
@@ -16,9 +17,13 @@ func (c *Client) ApplyService(applyConfig *acv1.ServiceApplyConfiguration, apply
 	return c.CoreV1().Services(*applyConfig.Namespace).Apply(context.TODO(), applyConfig, applyOptions)
 }
 
-// CreateService creates the Service.
+// CreateService creates the Service or Updates if it already exists.
 func (c *Client) CreateService(ig *v1.Service) (*v1.Service, error) {
-	return c.CoreV1().Services(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
+	createdService, err := c.CoreV1().Services(ig.GetNamespace()).Create(context.TODO(), ig, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		return c.UpdateService(ig)
+	}
+	return createdService, err
 }
 
 // GetService returns the existing Service.

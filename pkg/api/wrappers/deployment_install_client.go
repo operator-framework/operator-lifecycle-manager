@@ -58,11 +58,11 @@ func (c *InstallStrategyDeploymentClientForNamespace) GetOpLister() operatorlist
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateRole(role *rbacv1.Role) (*rbacv1.Role, error) {
-	return c.opClient.KubernetesInterface().RbacV1().Roles(c.Namespace).Create(context.TODO(), role, metav1.CreateOptions{})
+	return c.opClient.CreateRole(role)
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateRoleBinding(roleBinding *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error) {
-	return c.opClient.KubernetesInterface().RbacV1().RoleBindings(c.Namespace).Create(context.TODO(), roleBinding, metav1.CreateOptions{})
+	return c.opClient.CreateRoleBinding(roleBinding)
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error) {
