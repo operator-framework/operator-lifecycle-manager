@@ -671,6 +671,9 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 	}
 	if len(jobs) == 0 {
 		job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+		if apierrors.IsAlreadyExists(err) {
+			job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Update(context.TODO(), fresh, metav1.UpdateOptions{})
+		}
 		return
 	}
 
@@ -685,6 +688,9 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 				if time.Now().After(cond.LastTransitionTime.Time.Add(unpackRetryInterval)) {
 					fresh.SetName(names.SimpleNameGenerator.GenerateName(fresh.GetName()))
 					job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
+					if apierrors.IsAlreadyExists(err) {
+						job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Update(context.TODO(), fresh, metav1.UpdateOptions{})
+					}
 				}
 			}
 
