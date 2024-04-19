@@ -3,7 +3,6 @@ package reconciler
 import (
 	"context"
 	"errors"
-
 	"fmt"
 	"slices"
 	"strings"
@@ -37,7 +36,6 @@ const (
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
 type grpcCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
-	Reconciler      *GrpcRegistryReconciler
 	createPodAsUser int64
 	opmImage        string
 	utilImage       string
@@ -69,27 +67,6 @@ func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
 		CatalogSourceLabelKey:      s.GetName(),
 		install.OLMManagedLabelKey: install.OLMManagedLabelValue,
 	}
-}
-
-func (s *grpcCatalogSourceDecorator) getNamespaceSecurityContextConfig() (v1alpha1.SecurityConfig, error) {
-	namespace := s.GetNamespace()
-	if config, ok := s.Reconciler.namespacePSAConfigCache[namespace]; ok {
-		return config, nil
-	}
-	// Retrieve the client from the reconciler
-	client := s.Reconciler.OpClient
-
-	ns, err := client.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), s.GetNamespace(), metav1.GetOptions{})
-	if err != nil {
-		return "", fmt.Errorf("error fetching namespace: %v", err)
-	}
-	// 'pod-security.kubernetes.io/enforce' is the label used for enforcing namespace level security,
-	// and 'restricted' is the value indicating a restricted security policy.
-	if val, exists := ns.Labels["pod-security.kubernetes.io/enforce"]; exists && val == "restricted" {
-		return v1alpha1.Restricted, nil
-	}
-
-	return v1alpha1.Legacy, nil
 }
 
 func (s *grpcCatalogSourceDecorator) Annotations() map[string]string {
@@ -157,12 +134,8 @@ func (s *grpcCatalogSourceDecorator) ServiceAccount() *corev1.ServiceAccount {
 	}
 }
 
-func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount) (*corev1.Pod, error) {
-	securityContextConfig, err := s.getNamespaceSecurityContextConfig()
-	if err != nil {
-		return nil, err
-	}
-	pod, err := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser, securityContextConfig)
+func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount, defaultPodSecurityConfig v1alpha1.SecurityConfig) (*corev1.Pod, error) {
+	pod, err := Pod(s.CatalogSource, "registry-server", s.opmImage, s.utilImage, s.Spec.Image, serviceAccount, s.Labels(), s.Annotations(), 5, 10, s.createPodAsUser, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -171,14 +144,13 @@ func (s *grpcCatalogSourceDecorator) Pod(serviceAccount *corev1.ServiceAccount) 
 }
 
 type GrpcRegistryReconciler struct {
-	now                     nowFunc
-	Lister                  operatorlister.OperatorLister
-	OpClient                operatorclient.ClientInterface
-	SSAClient               *controllerclient.ServerSideApplier
-	createPodAsUser         int64
-	opmImage                string
-	utilImage               string
-	namespacePSAConfigCache map[string]v1alpha1.SecurityConfig
+	now             nowFunc
+	Lister          operatorlister.OperatorLister
+	OpClient        operatorclient.ClientInterface
+	SSAClient       *controllerclient.ServerSideApplier
+	createPodAsUser int64
+	opmImage        string
+	utilImage       string
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
@@ -231,7 +203,7 @@ func (c *GrpcRegistryReconciler) currentUpdatePods(logger *logrus.Entry, source 
 	return pods
 }
 
-func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount) ([]*corev1.Pod, error) {
+func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount, defaultPodSecurityConfig v1alpha1.SecurityConfig) ([]*corev1.Pod, error) {
 	logger.Info("searching for current pods")
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
@@ -239,7 +211,7 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImageAndSpec(logger *logr
 		return nil, nil
 	}
 	found := []*corev1.Pod{}
-	newPod, err := source.Pod(serviceAccount)
+	newPod, err := source.Pod(serviceAccount, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -278,9 +250,6 @@ func correctImages(source grpcCatalogSourceDecorator, pod *corev1.Pod) bool {
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) error {
-	if c.namespacePSAConfigCache == nil {
-		c.namespacePSAConfigCache = make(map[string]v1alpha1.SecurityConfig)
-	}
 	source := grpcCatalogSourceDecorator{CatalogSource: catalogSource, createPodAsUser: c.createPodAsUser, opmImage: c.opmImage, utilImage: c.utilImage}
 
 	// if service status is nil, we force create every object to ensure they're created the first time
@@ -304,8 +273,13 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 		return err
 	}
 
+	defaultPodSecurityConfig, err := getDefaultPodContextConfig(c.OpClient, catalogSource.GetNamespace())
+	if err != nil {
+		return err
+	}
+
 	// recreate the pod if no existing pod is serving the latest image or correct spec
-	current, err := c.currentPodsWithCorrectImageAndSpec(logger, source, sa)
+	current, err := c.currentPodsWithCorrectImageAndSpec(logger, source, sa, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
@@ -314,14 +288,14 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, cata
 		logger.Info("registry pods invalid, need to overwrite")
 	}
 
-	pod, err := source.Pod(sa)
+	pod, err := source.Pod(sa, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
-	if err := c.ensurePod(logger, source, sa, overwritePod); err != nil {
+	if err := c.ensurePod(logger, source, sa, defaultPodSecurityConfig, overwritePod); err != nil {
 		return pkgerrors.Wrapf(err, "error ensuring pod: %s", pod.GetName())
 	}
-	if err := c.ensureUpdatePod(logger, sa, source); err != nil {
+	if err := c.ensureUpdatePod(logger, sa, defaultPodSecurityConfig, source); err != nil {
 		if _, ok := err.(UpdateNotReadyErr); ok {
 			return err
 		}
@@ -371,7 +345,7 @@ func isRegistryServiceStatusValid(source *grpcCatalogSourceDecorator) (bool, err
 	return true, nil
 }
 
-func (c *GrpcRegistryReconciler) ensurePod(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount, overwrite bool) error {
+func (c *GrpcRegistryReconciler) ensurePod(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount, defaultPodSecurityConfig v1alpha1.SecurityConfig, overwrite bool) error {
 	// currentPods refers to the current pod instances of the catalog source
 	currentPods := c.currentPods(logger, source)
 
@@ -404,7 +378,7 @@ func (c *GrpcRegistryReconciler) ensurePod(logger *logrus.Entry, source grpcCata
 			}
 		}
 	}
-	desiredPod, err := source.Pod(serviceAccount)
+	desiredPod, err := source.Pod(serviceAccount, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
@@ -418,7 +392,7 @@ func (c *GrpcRegistryReconciler) ensurePod(logger *logrus.Entry, source grpcCata
 }
 
 // ensureUpdatePod checks that for the same catalog source version the same container imageID is running
-func (c *GrpcRegistryReconciler) ensureUpdatePod(logger *logrus.Entry, serviceAccount *corev1.ServiceAccount, source grpcCatalogSourceDecorator) error {
+func (c *GrpcRegistryReconciler) ensureUpdatePod(logger *logrus.Entry, serviceAccount *corev1.ServiceAccount, podSecurityConfig v1alpha1.SecurityConfig, source grpcCatalogSourceDecorator) error {
 	if !source.Poll() {
 		logger.Info("polling not enabled, no update pod will be created")
 		return nil
@@ -429,7 +403,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(logger *logrus.Entry, serviceAc
 
 	if source.Update() && len(currentUpdatePods) == 0 {
 		logger.Infof("catalog update required at %s", time.Now().String())
-		pod, err := c.createUpdatePod(source, serviceAccount)
+		pod, err := c.createUpdatePod(source, serviceAccount, podSecurityConfig)
 		if err != nil {
 			return pkgerrors.Wrapf(err, "creating update catalog source pod")
 		}
@@ -537,9 +511,9 @@ func ServiceHashMatch(existing, new *corev1.Service) bool {
 }
 
 // createUpdatePod is an internal method that creates a pod using the latest catalog source.
-func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount) (*corev1.Pod, error) {
+func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount, defaultPodSecurityConfig v1alpha1.SecurityConfig) (*corev1.Pod, error) {
 	// remove label from pod to ensure service does not accidentally route traffic to the pod
-	p, err := source.Pod(serviceAccount)
+	p, err := source.Pod(serviceAccount, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -643,13 +617,18 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catal
 		return false, nil
 	}
 
+	registryPodSecurityConfig, err := getDefaultPodContextConfig(c.OpClient, catalogSource.GetNamespace())
+	if err != nil {
+		return false, err
+	}
+
 	// Check on registry resources
 	// TODO: add gRPC health check
 	service, err := c.currentService(source)
 	if err != nil {
 		return false, err
 	}
-	current, err := c.currentPodsWithCorrectImageAndSpec(logger, source, serviceAccount)
+	current, err := c.currentPodsWithCorrectImageAndSpec(logger, source, serviceAccount, registryPodSecurityConfig)
 	if err != nil {
 		return false, err
 	}

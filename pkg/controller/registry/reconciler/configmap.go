@@ -25,8 +25,7 @@ import (
 // configMapCatalogSourceDecorator wraps CatalogSource to add additional methods
 type configMapCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
-	Reconciler *ConfigMapRegistryReconciler
-	runAsUser  int64
+	runAsUser int64
 }
 
 const (
@@ -110,32 +109,8 @@ func (s *configMapCatalogSourceDecorator) Service() (*corev1.Service, error) {
 	return svc, nil
 }
 
-func (s *configMapCatalogSourceDecorator) getNamespaceSecurityContextConfig() (v1alpha1.SecurityConfig, error) {
-	namespace := s.GetNamespace()
-	if config, ok := s.Reconciler.namespacePSAConfigCache[namespace]; ok {
-		return config, nil
-	}
-	// Retrieve the client from the reconciler
-	client := s.Reconciler.OpClient
-
-	ns, err := client.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), s.GetNamespace(), metav1.GetOptions{})
-	if err != nil {
-		return "", fmt.Errorf("error fetching namespace: %v", err)
-	}
-	// 'pod-security.kubernetes.io/enforce' is the label used for enforcing namespace level security,
-	// and 'restricted' is the value indicating a restricted security policy.
-	if val, exists := ns.Labels["pod-security.kubernetes.io/enforce"]; exists && val == "restricted" {
-		return v1alpha1.Restricted, nil
-	}
-
-	return v1alpha1.Legacy, nil
-}
-func (s *configMapCatalogSourceDecorator) Pod(image string) (*corev1.Pod, error) {
-	securityContextConfig, err := s.getNamespaceSecurityContextConfig()
-	if err != nil {
-		return nil, err
-	}
-	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser, securityContextConfig)
+func (s *configMapCatalogSourceDecorator) Pod(image string, defaultPodSecurityConfig v1alpha1.SecurityConfig) (*corev1.Pod, error) {
+	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -208,12 +183,11 @@ func (s *configMapCatalogSourceDecorator) RoleBinding() *rbacv1.RoleBinding {
 }
 
 type ConfigMapRegistryReconciler struct {
-	now                     nowFunc
-	Lister                  operatorlister.OperatorLister
-	OpClient                operatorclient.ClientInterface
-	Image                   string
-	createPodAsUser         int64
-	namespacePSAConfigCache map[string]v1alpha1.SecurityConfig
+	now             nowFunc
+	Lister          operatorlister.OperatorLister
+	OpClient        operatorclient.ClientInterface
+	Image           string
+	createPodAsUser int64
 }
 
 var _ RegistryEnsurer = &ConfigMapRegistryReconciler{}
@@ -264,8 +238,8 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source configMapCatalog
 	return roleBinding
 }
 
-func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) ([]*corev1.Pod, error) {
-	protoPod, err := source.Pod(image)
+func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string, defaultPodSecurityConfig v1alpha1.SecurityConfig) ([]*corev1.Pod, error) {
+	protoPod, err := source.Pod(image, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -281,8 +255,8 @@ func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceD
 	return pods, nil
 }
 
-func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string) ([]*corev1.Pod, error) {
-	protoPod, err := source.Pod(image)
+func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string, defaultPodSecurityConfig v1alpha1.SecurityConfig) ([]*corev1.Pod, error) {
+	protoPod, err := source.Pod(image, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -300,10 +274,7 @@ func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(sour
 
 // EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) error {
-	if c.namespacePSAConfigCache == nil {
-		c.namespacePSAConfigCache = make(map[string]v1alpha1.SecurityConfig)
-	}
-	source := configMapCatalogSourceDecorator{catalogSource, c, c.createPodAsUser}
+	source := configMapCatalogSourceDecorator{catalogSource, c.createPodAsUser}
 
 	image := c.Image
 	if source.Spec.SourceType == "grpc" {
@@ -316,6 +287,11 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 	// if service status is nil, we force create every object to ensure they're created the first time
 	overwrite := source.Status.RegistryServiceStatus == nil
 	overwritePod := overwrite
+
+	defaultPodSecurityConfig, err := getDefaultPodContextConfig(c.OpClient, catalogSource.GetNamespace())
+	if err != nil {
+		return err
+	}
 
 	if source.Spec.SourceType == v1alpha1.SourceTypeConfigmap || source.Spec.SourceType == v1alpha1.SourceTypeInternal {
 		// fetch configmap first, exit early if we can't find it
@@ -340,7 +316,7 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 		}
 
 		// recreate the pod if no existing pod is serving the latest image
-		current, err := c.currentPodsWithCorrectResourceVersion(source, image)
+		current, err := c.currentPodsWithCorrectResourceVersion(source, image, defaultPodSecurityConfig)
 		if err != nil {
 			return err
 		}
@@ -359,11 +335,11 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 	if err := c.ensureRoleBinding(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring rolebinding: %s", source.RoleBinding().GetName())
 	}
-	pod, err := source.Pod(image)
+	pod, err := source.Pod(image, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
-	if err := c.ensurePod(source, overwritePod); err != nil {
+	if err := c.ensurePod(source, defaultPodSecurityConfig, overwritePod); err != nil {
 		return errors.Wrapf(err, "error ensuring pod: %s", pod.GetName())
 	}
 	service, err := source.Service()
@@ -429,12 +405,12 @@ func (c *ConfigMapRegistryReconciler) ensureRoleBinding(source configMapCatalogS
 	return err
 }
 
-func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDecorator, overwrite bool) error {
-	pod, err := source.Pod(c.Image)
+func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDecorator, defaultPodSecurityConfig v1alpha1.SecurityConfig, overwrite bool) error {
+	pod, err := source.Pod(c.Image, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
-	currentPods, err := c.currentPods(source, c.Image)
+	currentPods, err := c.currentPods(source, c.Image, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
@@ -478,7 +454,7 @@ func (c *ConfigMapRegistryReconciler) ensureService(source configMapCatalogSourc
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
 func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
-	source := configMapCatalogSourceDecorator{catalogSource, c, c.createPodAsUser}
+	source := configMapCatalogSourceDecorator{catalogSource, c.createPodAsUser}
 
 	image := c.Image
 	if source.Spec.SourceType == "grpc" {
@@ -487,6 +463,11 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, 
 	if image == "" {
 		err = fmt.Errorf("no image for registry")
 		return
+	}
+
+	defaultPodSecurityConfig, err := getDefaultPodContextConfig(c.OpClient, catalogSource.GetNamespace())
+	if err != nil {
+		return false, err
 	}
 
 	if source.Spec.SourceType == v1alpha1.SourceTypeConfigmap || source.Spec.SourceType == v1alpha1.SourceTypeInternal {
@@ -502,7 +483,7 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, 
 		}
 
 		// recreate the pod if no existing pod is serving the latest image
-		current, err := c.currentPodsWithCorrectResourceVersion(source, image)
+		current, err := c.currentPodsWithCorrectResourceVersion(source, image, defaultPodSecurityConfig)
 		if err != nil {
 			return false, err
 		}
@@ -518,7 +499,7 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, 
 	if err != nil {
 		return false, err
 	}
-	pods, err := c.currentPods(source, c.Image)
+	pods, err := c.currentPods(source, c.Image, defaultPodSecurityConfig)
 	if err != nil {
 		return false, err
 	}

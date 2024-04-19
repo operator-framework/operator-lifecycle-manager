@@ -185,17 +185,22 @@ func validConfigMapCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogS
 	}
 }
 
-func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource, reconciler RegistryReconciler) []runtime.Object {
-	var objs []runtime.Object
+func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []runtime.Object {
+	// the registry pod security context is derived from the defaultNamespace by default
+	// therefore a namespace resource must always be present
+	var objs = []runtime.Object{
+		defaultNamespace(),
+	}
+
 	switch catsrc.Spec.SourceType {
 	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
-		decorated := configMapCatalogSourceDecorator{catsrc, reconciler.(*ConfigMapRegistryReconciler), runAsUser}
+		decorated := configMapCatalogSourceDecorator{catsrc, runAsUser}
 		service, err := decorated.Service()
 		if err != nil {
 			t.Fatal(err)
 		}
 		serviceAccount := decorated.ServiceAccount()
-		pod, err := decorated.Pod(catsrc.Spec.Image)
+		pod, err := decorated.Pod(registryImageName, defaultPodSecurityConfig)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,13 +211,13 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource, recon
 		)
 	case v1alpha1.SourceTypeGrpc:
 		if catsrc.Spec.Image != "" {
-			decorated := grpcCatalogSourceDecorator{CatalogSource: catsrc, Reconciler: reconciler.(*GrpcRegistryReconciler), createPodAsUser: runAsUser, opmImage: ""}
+			decorated := grpcCatalogSourceDecorator{CatalogSource: catsrc, createPodAsUser: runAsUser, opmImage: ""}
 			serviceAccount := decorated.ServiceAccount()
 			service, err := decorated.Service()
 			if err != nil {
 				t.Fatal(err)
 			}
-			pod, err := decorated.Pod(serviceAccount)
+			pod, err := decorated.Pod(serviceAccount, defaultPodSecurityConfig)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -237,12 +242,11 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource, recon
 			Controller:         &isController,
 		}})
 	}
-
 	return objs
 }
 
 func modifyObjName(objs []runtime.Object, kind runtime.Object, newName string) []runtime.Object {
-	out := []runtime.Object{}
+	var out []runtime.Object
 	t := reflect.TypeOf(kind)
 	for _, obj := range objs {
 		o := obj.DeepCopyObject()
@@ -257,7 +261,7 @@ func modifyObjName(objs []runtime.Object, kind runtime.Object, newName string) [
 }
 
 func setLabel(objs []runtime.Object, kind runtime.Object, label, value string) []runtime.Object {
-	out := []runtime.Object{}
+	var out []runtime.Object
 	t := reflect.TypeOf(kind)
 	for _, obj := range objs {
 		o := obj.DeepCopyObject()
@@ -297,10 +301,15 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 		{
 			testName: "NoConfigMap",
 			in: in{
-				cluster: cluster{},
+				cluster: cluster{
+					k8sObjs: []runtime.Object{
+						validConfigMap,
+						defaultNamespace(),
+					},
+				},
 				catsrc: &v1alpha1.CatalogSource{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
+						Namespace: testNamespace,
 					},
 					Spec: v1alpha1.CatalogSourceSpec{
 						SourceType: v1alpha1.SourceTypeConfigmap,
@@ -309,14 +318,17 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				},
 			},
 			out: out{
-				err: fmt.Errorf(`unable to find configmap test-ns/test-cm: configmaps "test-cm" not found`),
+				err: fmt.Errorf(`unable to find configmap testns/test-cm: configmaps "test-cm" not found`),
 			},
 		},
 		{
 			testName: "NoExistingRegistry/CreateSuccessful",
 			in: in{
 				cluster: cluster{
-					k8sObjs: []runtime.Object{validConfigMap},
+					k8sObjs: []runtime.Object{
+						validConfigMap,
+						defaultNamespace(),
+					},
 				},
 				catsrc: validCatalogSource,
 			},
@@ -334,7 +346,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadServiceAccount",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(t, validCatalogSource, nil), &corev1.ServiceAccount{}, "badName"), validConfigMap),
+					k8sObjs: append(modifyObjName(objectsForCatalogSource(t, validCatalogSource), &corev1.ServiceAccount{}, "badName"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -352,7 +364,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadService",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(t, validCatalogSource, nil), &corev1.Service{}, "badName"), validConfigMap),
+					k8sObjs: append(modifyObjName(objectsForCatalogSource(t, validCatalogSource), &corev1.Service{}, "badName"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -370,7 +382,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadServiceWithWrongHash",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(setLabel(objectsForCatalogSource(t, validCatalogSource, nil), &corev1.Service{}, ServiceHashLabelKey, "wrongHash"), validConfigMap),
+					k8sObjs: append(setLabel(objectsForCatalogSource(t, validCatalogSource), &corev1.Service{}, ServiceHashLabelKey, "wrongHash"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -388,7 +400,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadPod",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(setLabel(objectsForCatalogSource(t, validCatalogSource, nil), &corev1.Pod{}, CatalogSourceLabelKey, "badValue"), validConfigMap),
+					k8sObjs: append(setLabel(objectsForCatalogSource(t, validCatalogSource), &corev1.Pod{}, CatalogSourceLabelKey, "badValue"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -406,7 +418,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadRole",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(t, validCatalogSource, nil), &rbacv1.Role{}, "badName"), validConfigMap),
+					k8sObjs: append(modifyObjName(objectsForCatalogSource(t, validCatalogSource), &rbacv1.Role{}, "badName"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -424,7 +436,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadRoleBinding",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(t, validCatalogSource, nil), &rbacv1.RoleBinding{}, "badName"), validConfigMap),
+					k8sObjs: append(modifyObjName(objectsForCatalogSource(t, validCatalogSource), &rbacv1.RoleBinding{}, "badName"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -442,7 +454,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/OldPod",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(objectsForCatalogSource(t, validCatalogSource, nil), validConfigMap),
+					k8sObjs: append(objectsForCatalogSource(t, validCatalogSource), validConfigMap),
 				},
 				catsrc: outdatedCatalogSource,
 			},
@@ -479,9 +491,9 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			}
 
 			// if no error, the reconciler should create the same set of kube objects every time
-			decorated := configMapCatalogSourceDecorator{tt.in.catsrc, rec.(*ConfigMapRegistryReconciler), runAsUser}
+			decorated := configMapCatalogSourceDecorator{tt.in.catsrc, runAsUser}
 
-			pod, err := decorated.Pod(registryImageName)
+			pod, err := decorated.Pod(registryImageName, defaultPodSecurityConfig)
 			require.NoError(t, err)
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
