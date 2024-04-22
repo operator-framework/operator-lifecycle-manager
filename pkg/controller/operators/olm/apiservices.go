@@ -93,15 +93,10 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 
 		// Check if CA is Active
 		caBundle := apiService.Spec.CABundle
-		ca, err := certs.PEMToCert(caBundle)
+		_, err = certs.PEMToCert(caBundle)
 		if err != nil {
 			logger.Warnf("could not convert APIService CA bundle to x509 cert")
 			errs = append(errs, err)
-			continue
-		}
-		if !certs.Active(ca) {
-			logger.Warnf("CA cert not active")
-			errs = append(errs, fmt.Errorf("found the CA cert is not active"))
 			continue
 		}
 
@@ -113,15 +108,10 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 			errs = append(errs, err)
 			continue
 		}
-		cert, err := certs.PEMToCert(secret.Data["tls.crt"])
+		_, err = certs.PEMToCert(secret.Data["tls.crt"])
 		if err != nil {
 			logger.Warnf("could not convert serving cert to x509 cert")
 			errs = append(errs, err)
-			continue
-		}
-		if !certs.Active(cert) {
-			logger.Warnf("serving cert not active")
-			errs = append(errs, fmt.Errorf("found the serving cert not active"))
 			continue
 		}
 
@@ -131,18 +121,6 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 			logger.WithField("secret", secretName).Warnf("secret CA cert hash does not match expected")
 			errs = append(errs, fmt.Errorf("secret %s CA cert hash does not match expected", secretName))
 			continue
-		}
-
-		// Check if serving cert is trusted by the CA
-		hosts := []string{
-			fmt.Sprintf("%s.%s", service.GetName(), csv.GetNamespace()),
-			fmt.Sprintf("%s.%s.svc", service.GetName(), csv.GetNamespace()),
-		}
-		for _, host := range hosts {
-			if err := certs.VerifyCert(ca, cert, host); err != nil {
-				errs = append(errs, fmt.Errorf("could not verify cert: %s", err.Error()))
-				continue
-			}
 		}
 
 		// Ensure the existing Deployment has a matching CA hash annotation

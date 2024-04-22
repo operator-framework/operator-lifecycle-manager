@@ -2207,16 +2207,16 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonWaiting); installErr != nil {
-			// Re-sync if kube-apiserver was unavailable
-			if apierrors.IsServiceUnavailable(installErr) {
-				logger.WithError(installErr).Info("could not update install status")
-				syncError = installErr
-				return
-			}
 			// Set phase to failed if it's been a long time since the last transition (5 minutes)
 			if out.Status.LastTransitionTime != nil && a.now().Sub(out.Status.LastTransitionTime.Time) >= 5*time.Minute {
 				logger.Warn("install timed out")
 				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, "install timeout", now, a.recorder)
+				return
+			}
+			// Re-sync if kube-apiserver was unavailable
+			if apierrors.IsServiceUnavailable(installErr) {
+				logger.WithError(installErr).Info("could not update install status")
+				syncError = installErr
 				return
 			}
 		}
@@ -2242,7 +2242,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check if it's time to refresh owned APIService certs
-		if install.ShouldRotateCerts(out) {
+		if shouldRotate, err := installer.ShouldRotateCerts(strategy); err != nil {
+			logger.WithError(err).Info("cert validity check")
+			return
+		} else if shouldRotate {
 			logger.Debug("CSV owns resources that require a cert refresh")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "CSV owns resources that require a cert refresh", now, a.recorder)
 			return
@@ -2352,7 +2355,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check if it's time to refresh owned APIService certs
-		if install.ShouldRotateCerts(out) {
+		if shouldRotate, err := installer.ShouldRotateCerts(strategy); err != nil {
+			logger.WithError(err).Info("cert validity check")
+			return
+		} else if shouldRotate {
 			logger.Debug("CSV owns resources that require a cert refresh")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now, a.recorder)
 			return
