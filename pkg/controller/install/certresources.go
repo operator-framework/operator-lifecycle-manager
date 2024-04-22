@@ -30,9 +30,9 @@ var certGenerator certs.CertGenerator = certs.CertGeneratorFunc(certs.CreateSign
 
 const (
 	// DefaultCertMinFresh is the default min-fresh value - 1 day
-	DefaultCertMinFresh = time.Hour * 24
+	DefaultCertMinFresh = time.Minute * 2
 	// DefaultCertValidFor is the default duration a cert can be valid for - 2 years
-	DefaultCertValidFor = time.Hour * 24 * 730
+	DefaultCertValidFor = time.Minute * 5
 	// OLMCAPEMKey is the CAPEM
 	OLMCAPEMKey = "olmCAKey"
 	// OLMCAHashAnnotationKey is the label key used to store the hash of the CA cert
