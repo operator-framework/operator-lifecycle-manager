@@ -34,6 +34,33 @@ ARCH := arm64
 else
 ARCH := 386
 endif
+
+.DEFAULT_GOAL := help-extended
+
+#SECTION General
+
+# The help target prints out all targets with their descriptions organized
+# beneath their categories. The categories are represented by '#SECTION' and the
+# target descriptions by '#HELP' or '#EXHELP'. The awk commands is responsible for reading the
+# entire set of makefiles included in this invocation, looking for lines of the
+# file as xyz: #HELP something, and then pretty-format the target and help. Then,
+# if there's a line with #SECTION something, that gets pretty-printed as a category.
+# More info on the usage of ANSI control characters for terminal formatting:
+# https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
+# More info on the awk command:
+# http://linuxcommand.org/lc3_adv_awk.php
+# The extended-help target uses '#EXHELP' as the delineator.
+
+.PHONY: help
+help: #HELP Display essential help.
+	@awk 'BEGIN {FS = ":[^#]*#HELP"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\n"} /^[a-zA-Z_0-9-]+:.*#HELP / { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } ' $(MAKEFILE_LIST)
+
+.PHONY: help-extended
+help-extended: #HELP Display extended help.
+	@awk 'BEGIN {FS = ":.*#(EX)?HELP"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*#(EX)?HELP / { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 } /^#SECTION / { printf "\n\033[1m%s\033[0m\n", substr($$0, 10) } ' $(MAKEFILE_LIST)
+
+#SECTION Legacy
+
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
 	coverage coverage-html e2e \
@@ -42,11 +69,11 @@ endif
 .PHONY: FORCE
 FORCE:
 
-all: test build
+all: test build #HELP Display extended help.
 
-test: clean cover.out
+test: clean cover.out #HELP Run tests and generate a coverage report.
 
-unit: kubebuilder
+unit: kubebuilder #HELP Run unit tests.
 	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
 # Ensure kubectl installed before continuing
@@ -67,64 +94,65 @@ cover.out:
 	go test $(MOD_FLAGS) -tags "json1" -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
-coverage: cover.out
+coverage: cover.out #HELP Display the coverage report.
 	go tool cover -func=cover.out
 
-coverage-html: cover.out
+coverage-html: cover.out #HELP Display the coverage report in HTML.
 	go tool cover -html=cover.out
 
-build: build_cmd=build
+build: build_cmd=build #HELP Build the OLM binaries.
 build: clean $(CMDS)
 
-test-bare: BUILD_TAGS=-tags=bare
+test-bare: BUILD_TAGS=-tags=bare #HELP Run tests with the bare tag.
 test-bare: clean $(TCMDS)
 
-test-bin: clean $(TCMDS)
+test-bin: clean $(TCMDS) #HELP Run tests with the bare tag and build the test binaries.
 
 # build versions of the binaries with coverage enabled
-build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
+build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/... #HELP Build the OLM binaries with coverage enabled.
 build-coverage: clean $(CMDS)
 
-build-linux: build_cmd=build
+build-linux: build_cmd=build #HELP Build the OLM binaries for Linux.
 build-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-linux: clean $(CMDS)
 
-build-wait: clean bin/wait
+build-wait: clean bin/wait #HELP Build the wait binary.
 
 bin/wait: FORCE
 	GOOS=linux GOARCH=$(ARCH) go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
-build-util-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
+build-util-linux: #HELP Build the OLM utility binaries for Linux.
+	arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-util-linux: build-util
 
-build-util: bin/cpb bin/copy-content
+build-util: bin/cpb bin/copy-content #HELP Build the OLM utility binaries.
 
-bin/cpb: FORCE
+bin/cpb: FORCE #HELP Build the cpb binary.
 	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
 
-bin/copy-content: FORCE
+bin/copy-content: FORCE #HELP Build the copy-content binary.
 	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./cmd/copy-content
 
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
 	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags $(BUILD_TAGS) -o bin/$(shell basename $@) $@
 
-build: clean $(CMDS)
+build: clean $(CMDS) #HELP Build the OLM binaries.
 
 $(TCMDS):
 	go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
-deploy-local:
+deploy-local: #HELP Deploy OLM locally.
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
 
-e2e.namespace:
+e2e.namespace: #HELP Create a namespace for e2e tests.
 	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
 
 # useful if running e2e directly with `go test -tags=bare`
-setup-bare: clean e2e.namespace
+setup-bare: clean e2e.namespace #HELP Setup the environment for bare e2e tests.
 	. ./scripts/build_bare.sh
 	. ./scripts/package_release.sh 1.0.0 test/e2e/resources test/e2e/e2e-bare-values.yaml
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
@@ -144,12 +172,12 @@ E2E_INSTALL_NS ?= operator-lifecycle-manager
 E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
 E2E_TEST_NS ?= operators
 
-e2e:
+e2e: #HELP Run end-to-end tests.
 	$(GINKGO) $(E2E_OPTS) $(or $(run), ./test/e2e) $< -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) -dummyImage=bitnami/nginx:latest $(or $(extra_args), -kubeconfig=${KUBECONFIG})
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
-e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
+e2e-local: BUILD_TAGS="json1 e2e experimental_metrics" #EXHELP Run end-to-end tests locally.
 e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar -test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
 e2e-local: run=bin/e2e-local.test
 e2e-local: bin/e2e-local.test test/e2e-local.image.tar
@@ -158,7 +186,8 @@ e2e-local: e2e
 # this target updates the zz_chart.go file with files found in deploy/chart
 # this will always fire since it has been marked as phony
 .PHONY: test/e2e/assets/chart/zz_chart.go
-test/e2e/assets/chart/zz_chart.go: $(shell find deploy/chart -type f)
+test/e2e/assets/chart/zz_chart.go:
+	$(shell find deploy/chart -type f)
 	$(BINDATA) -o $@ -pkg chart -prefix deploy/chart/ $^
 
 # execute kind and helm end to end tests
@@ -166,33 +195,33 @@ bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
 	$(GO) test -c -tags kind,helm -o $@ ./test/e2e
 
 # set go env and other vars, ensure that the dockerfile exists, and then build wait, cpb, and other command binaries and finally the kind image archive
-test/e2e-local.image.tar: export GOOS=linux
+test/e2e-local.image.tar: export GOOS=linux #EXHELP Build the e2e-local.image.tar image.
 test/e2e-local.image.tar: export GOARCH=386
 test/e2e-local.image.tar: build_cmd=build
 test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
 	docker save -o $@ quay.io/operator-framework/olm:local
 
-e2e-bare: setup-bare
+e2e-bare: setup-bare #HELP Run end-to-end tests with the bare tag.
 	. ./scripts/run_e2e_bare.sh $(TEST)
 
-e2e-local-docker:
+e2e-local-docker: #HELP Run end-to-end tests locally in a Docker container.
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh $(TEST)
 
-vendor:
+vendor: #HELP Vendor dependencies.
 	go mod tidy
 	go mod vendor
 
-container:
+container: #HELP Build the OLM container image.
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
 
-clean-e2e:
+clean-e2e: #HELP Clean up e2e test resources.
 	kubectl delete crds --all
 	kubectl delete apiservices.apiregistration.k8s.io v1.packages.operators.coreos.com || true
 	kubectl delete -f test/e2e/resources/0000_50_olm_00-namespace.yaml
 
-clean:
+clean: #HELP Clean up build artifacts.
 	@rm -rf cover.out
 	@rm -rf bin
 	@rm -rf test/e2e/resources
@@ -201,38 +230,38 @@ clean:
 	@rm -rf e2e.namespace
 
 # Copy CRD manifests
-manifests: vendor
+manifests: vendor #HELP Copy CRD manifests.
 	./scripts/copy_crds.sh
 
 # Generate deepcopy, conversion, clients, listers, and informers
-codegen:
+codegen: #HELP Generate deepcopy, conversion, clients, listers, and informers.
 	# Clients, listers, and informers
 	$(CODEGEN)
 
 # Generate mock types.
-mockgen:
+mockgen: #HELP Generate mock types.
 	$(MOCKGEN)
 
 # Generates everything.
-gen-all: codegen mockgen manifests
+gen-all: codegen mockgen manifests #HELP Generate everything.
 
-diff:
+diff: #HELP Check for changes in the generated code.
 	git diff --exit-code
 
-verify-codegen: codegen
+verify-codegen: codegen #HELP Verify codegen.
 	$(MAKE) diff
 
-verify-mockgen: mockgen
+verify-mockgen: mockgen #HELP Verify mockgen.
 	$(MAKE) diff
 
-verify-manifests: manifests
+verify-manifests: manifests #HELP Verify manifests.
 	$(MAKE) diff
 
-verify: verify-codegen verify-mockgen verify-manifests
+verify: verify-codegen verify-mockgen verify-manifests #HELP Verify everything.
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
-release: ver=v$(shell cat OLM_VERSION)
+release: ver=v$(shell cat OLM_VERSION) #HELP Generate a release.
 release: manifests
 	@echo "Generating the $(ver) release"
 	docker pull $(IMAGE_REPO):$(ver)
@@ -260,7 +289,7 @@ endif
 ################################
 
 .PHONY: uninstall
-uninstall:
+uninstall: #HELP Uninstall OLM.
 	@echo Uninstalling OLM:
 	- kubectl delete -f deploy/upstream/quickstart/crds.yaml
 	- kubectl delete -f deploy/upstream/quickstart/olm.yaml
@@ -280,12 +309,12 @@ uninstall:
 	- kubectl delete clusterrolebindings.rbac.authorization.k8s.io "olm-operator-binding-openshift-operator-lifecycle-manager"
 
 .PHONY: build-local
-build-local: build-linux build-wait build-util-linux
+build-local: build-linux build-wait build-util-linux #HELP Build OLM for local deployment.
 	rm -rf build
 	. ./scripts/build_local.sh
 
 .PHONY: run-local
-run-local: build-local
+run-local: build-local #HELP Run OLM locally.
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
