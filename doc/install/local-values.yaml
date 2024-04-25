@@ -1,8 +1,8 @@
 installType: upstream
 rbacApiVersion: rbac.authorization.k8s.io
-namespace: olm
+namespace: operator-lifecycle-manager
 writeStatusName: '""'
-catalog_namespace: olm
+catalog_namespace: operator-lifecycle-manager
 operator_namespace: operators
 debug: true
 

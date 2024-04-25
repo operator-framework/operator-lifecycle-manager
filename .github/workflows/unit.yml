@@ -1,6 +1,4 @@
 name: unit
-env:
-  K8S_VERSION: 1.19.2
 on:
   push:
     branches:
@@ -20,9 +18,5 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version-file: "go.mod"
-      - name: Envtest setup
-        run: |
-          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-          setup-envtest use ${K8S_VERSION}
       - name: Run unit tests
-        run: KUBEBUILDER_ASSETS=$(setup-envtest use -i -p path ${K8S_VERSION}) make unit
+        run: make unit

@@ -20,6 +20,7 @@ COPY go.sum go.sum
 COPY cmd cmd
 COPY util util
 COPY test test
+COPY .bingo .bingo
 RUN CGO_ENABLED=0 make build
 RUN make build-util
 
