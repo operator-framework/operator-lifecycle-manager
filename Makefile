@@ -2,6 +2,11 @@
 #  OLM - Build and Test  #
 ##########################
 
+# setup-envtest on *nix uses XDG_DATA_HOME, falling back to HOME, as the default storage directory. Some CI setups
+# don't have XDG_DATA_HOME set; in those cases, we set it here so setup-envtest functions correctly. This shouldn't
+# affect developers.
+export XDG_DATA_HOME ?= /tmp/.local/share
+
 # bingo manages consistent tooling versions for things like kind, kustomize, etc.
 include .bingo/Variables.mk
 
@@ -40,6 +45,15 @@ ARCH := arm64
 else
 ARCH := 386
 endif
+
+# kind cluster configuration
+KIND_CLUSTER_NAME ?= olmv0
+# Not guaranteed to have patch releases available and node image tags are full versions (i.e v1.28.0 - no v1.28, v1.29, etc.)
+# The KIND_NODE_VERSION is set by getting the version of the k8s.io/client-go dependency from the go.mod
+# and sets major version to "1" and the patch version to "0". For example, a client-go version of v0.28.5
+# will map to a KIND_NODE_VERSION of 1.28.0
+KIND_NODE_VERSION = $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1.0/')
+KIND_CLUSTER_IMAGE ?= kindest/node:v${KIND_NODE_VERSION}
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -117,6 +131,17 @@ mockgen: #EXHELP Generate mock types.
 	$(MOCKGEN)
 
 #SECTION Deploy
+
+.PHONY: kind-cluster
+kind-cluster: $(KIND) #HELP Standup a kind cluster.
+	-$(KIND) delete cluster --name ${KIND_CLUSTER_NAME}
+	# kind-config.yaml can be deleted after upgrading to Kubernetes 1.30
+	$(KIND) create cluster --name ${KIND_CLUSTER_NAME} --image ${KIND_CLUSTER_IMAGE}
+	$(KIND) export kubeconfig --name ${KIND_CLUSTER_NAME}
+
+.PHONY: kind-clean
+kind-clean: $(KIND) #HELP Delete the kind cluster.
+	$(KIND) delete cluster --name ${KIND_CLUSTER_NAME}
 
 .PHONY: build-local
 build-local: build-linux build-wait build-util-linux
