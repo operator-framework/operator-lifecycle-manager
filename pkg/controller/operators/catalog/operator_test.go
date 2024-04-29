@@ -251,8 +251,10 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 			testName:      "HasSteps/NoOperatorGroup",
 			err:           fmt.Errorf("attenuated service account query failed - no operator group found that is managing this namespace"),
 			expectedPhase: v1alpha1.InstallPlanPhaseInstalling,
-			expectedCondition: &v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
-				Message: "no operator group found that is managing this namespace"},
+			expectedCondition: &v1alpha1.InstallPlanCondition{
+				Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
+				Message: "no operator group found that is managing this namespace",
+			},
 			in: ipWithSteps,
 		},
 		{
@@ -261,8 +263,10 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 			err:           fmt.Errorf("attenuated service account query failed - more than one operator group(s) are managing this namespace count=2"),
 			expectedPhase: v1alpha1.InstallPlanPhaseInstalling,
 			in:            ipWithSteps,
-			expectedCondition: &v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
-				Message: "more than one operator group(s) are managing this namespace count=2"},
+			expectedCondition: &v1alpha1.InstallPlanCondition{
+				Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
+				Message: "more than one operator group(s) are managing this namespace count=2",
+			},
 			clientObjs: []runtime.Object{
 				operatorGroup("og1", "sa", namespace,
 					&corev1.ObjectReference{
@@ -283,8 +287,10 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 			testName:      "HasSteps/NonExistentServiceAccount",
 			err:           fmt.Errorf("attenuated service account query failed - please make sure the service account exists. sa=sa1 operatorgroup=ns/og"),
 			expectedPhase: v1alpha1.InstallPlanPhaseInstalling,
-			expectedCondition: &v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
-				Message: "please make sure the service account exists. sa=sa1 operatorgroup=ns/og"},
+			expectedCondition: &v1alpha1.InstallPlanCondition{
+				Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
+				Message: "please make sure the service account exists. sa=sa1 operatorgroup=ns/og",
+			},
 			in: ipWithSteps,
 			clientObjs: []runtime.Object{
 				operatorGroup("og", "sa1", namespace, nil),
@@ -1623,7 +1629,7 @@ func TestValidateV1Beta1CRDCompatibility(t *testing.T) {
 			},
 			oldCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
 			newCRD: unversionedCRDForV1beta1File("testdata/hivebug/crd.yaml"),
-			want:   fmt.Errorf("error validating hive.openshift.io/v1, Kind=MachinePool \"test\": updated validation is too restrictive: [[].spec.clusterDeploymentRef: Invalid value: \"null\": spec.clusterDeploymentRef in body must be of type object: \"null\", [].spec.name: Required value, [].spec.platform: Required value]"),
+			want:   ValidationError{fmt.Errorf("error validating hive.openshift.io/v1, Kind=MachinePool \"test\": updated validation is too restrictive: [[].spec.clusterDeploymentRef: Invalid value: \"null\": spec.clusterDeploymentRef in body must be of type object: \"null\", [].spec.name: Required value, [].spec.platform: Required value]")},
 		},
 		{
 			name: "backwards incompatible change",
@@ -1637,7 +1643,7 @@ func TestValidateV1Beta1CRDCompatibility(t *testing.T) {
 			},
 			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.old.yaml"),
 			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.yaml"),
-			want:   fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3"),
+			want:   ValidationError{fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3")},
 		},
 		{
 			name: "unserved version",
@@ -1670,7 +1676,7 @@ func TestValidateV1Beta1CRDCompatibility(t *testing.T) {
 			},
 			oldCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.no-versions-list.old.yaml"),
 			newCRD: unversionedCRDForV1beta1File("testdata/apiextensionsv1beta1/crd.no-versions-list.yaml"),
-			want:   fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3"),
+			want:   ValidationError{fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 2: spec.scalar in body should be greater than or equal to 3")},
 		},
 	}
 	for _, tt := range tests {
@@ -1725,7 +1731,7 @@ func TestValidateV1CRDCompatibility(t *testing.T) {
 			},
 			oldCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.old.yaml"),
 			newCRD: unversionedCRDForV1File("testdata/apiextensionsv1/crontabs.crd.yaml"),
-			want:   fmt.Errorf("error validating stable.example.com/v2, Kind=CronTab \"my-crontab\": updated validation is too restrictive: [].spec.replicas: Invalid value: 10: spec.replicas in body should be less than or equal to 9"),
+			want:   ValidationError{fmt.Errorf("error validating stable.example.com/v2, Kind=CronTab \"my-crontab\": updated validation is too restrictive: [].spec.replicas: Invalid value: 10: spec.replicas in body should be less than or equal to 9")},
 		},
 		{
 			name: "cr not invalidated by unserved version",
@@ -1752,7 +1758,7 @@ func TestValidateV1CRDCompatibility(t *testing.T) {
 			},
 			oldCRD: unversionedCRDForV1File("testdata/apiextensionsv1/single-version-crd.old.yaml"),
 			newCRD: unversionedCRDForV1File("testdata/apiextensionsv1/single-version-crd.yaml"),
-			want:   fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 100: spec.scalar in body should be less than or equal to 50"),
+			want:   ValidationError{fmt.Errorf("error validating cluster.com/v1alpha1, Kind=testcrd \"my-cr-1\": updated validation is too restrictive: [].spec.scalar: Invalid value: 100: spec.scalar in body should be less than or equal to 50")},
 		},
 	}
 	for _, tt := range tests {

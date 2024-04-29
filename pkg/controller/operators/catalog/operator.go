@@ -1585,9 +1585,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 }
 
 func (o *Operator) setIPReference(subs []*v1alpha1.Subscription, gen int, installPlanRef *corev1.ObjectReference) []*v1alpha1.Subscription {
-	var (
-		lastUpdated = o.now()
-	)
+	lastUpdated := o.now()
 	for _, sub := range subs {
 		sub.Status.LastUpdated = lastUpdated
 		if installPlanRef != nil {
@@ -2204,6 +2202,10 @@ func validateV1Beta1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *ap
 	return validateExistingCRs(dynamicClient, gr, validationsMap)
 }
 
+type ValidationError struct {
+	error
+}
+
 // validateExistingCRs lists all CRs for each version entry in validationsMap, then validates each using the paired validation.
 func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResource, validationsMap map[string]*apiextensions.CustomResourceValidation) error {
 	for version, schemaValidation := range validationsMap {
@@ -2212,7 +2214,6 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResourc
 		if err != nil {
 			return fmt.Errorf("error creating validator for schema version %s: %s", version, err)
 		}
-
 		gvr := schema.GroupVersionResource{Group: gr.Group, Version: version, Resource: gr.Resource}
 		crList, err := dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -2229,7 +2230,7 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResourc
 				} else {
 					namespacedName = fmt.Sprintf("%s/%s", cr.GetNamespace(), cr.GetName())
 				}
-				return fmt.Errorf("error validating %s %q: updated validation is too restrictive: %v", cr.GroupVersionKind(), namespacedName, err)
+				return ValidationError{fmt.Errorf("error validating %s %q: updated validation is too restrictive: %v", cr.GroupVersionKind(), namespacedName, err)}
 			}
 		}
 	}
@@ -2782,7 +2783,6 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 func (o *Operator) getExistingAPIOwners(namespace string) (map[string][]string, error) {
 	// Get a list of CSVs in the namespace
 	csvList, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(context.TODO(), metav1.ListOptions{})
-
 	if err != nil {
 		return nil, err
 	}

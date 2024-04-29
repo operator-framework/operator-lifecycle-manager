@@ -140,7 +140,21 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 					currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
 					crd.SetResourceVersion(currentCRD.GetResourceVersion())
 					if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-						return fmt.Errorf("error validating existing CRs against new CRD's schema for %q: %w", step.Resource.Name, err)
+						vErr := &ValidationError{}
+						// if the conversion strategy in the new CRD is "None" OR the error is not a ValidationError
+						// return an error. This will catch and return any errors that occur unrelated to actual validation.
+						// For example, the API server returning an error when performing a list operation
+						if crd.Spec.Conversion == nil || crd.Spec.Conversion.Strategy == apiextensionsv1.NoneConverter || !errors.As(err, vErr) {
+							return fmt.Errorf("error validating existing CRs against new CRD's schema for %q: %w", step.Resource.Name, err)
+						}
+						// If the conversion strategy in the new CRD is not "None" and the error that occurred
+						// is an error related to validation, warn that validation failed but that we are trusting
+						// that the conversion strategy specified by the author will successfully convert to a format
+						// that passes validation and allow the upgrade to continue
+						b.logger.Warnf("trusting conversion strategy detected in new CRD, but failed validation of existing CRs against new CRD's schema for %q: %s",
+							step.Resource.Name,
+							err.Error(),
+						)
 					}
 
 					// check to see if stored versions changed and whether the upgrade could cause potential data loss
@@ -267,9 +281,7 @@ func (b *builder) NewCRDV1Beta1Step(client apiextensionsv1beta1client.Apiextensi
 }
 
 func setInstalledAlongsideAnnotation(a alongside.Annotator, dst metav1.Object, namespace string, name string, lister listersv1alpha1.ClusterServiceVersionLister, srcs ...metav1.Object) {
-	var (
-		nns []alongside.NamespacedName
-	)
+	var nns []alongside.NamespacedName
 
 	// Only keep references to existing and non-copied CSVs to
 	// avoid unbounded growth.
