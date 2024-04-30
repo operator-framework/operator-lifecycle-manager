@@ -140,7 +140,7 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 					currentCRD, _ := client.CustomResourceDefinitions().Get(context.TODO(), crd.GetName(), metav1.GetOptions{})
 					crd.SetResourceVersion(currentCRD.GetResourceVersion())
 					if err = validateV1CRDCompatibility(b.dynamicClient, currentCRD, crd); err != nil {
-						vErr := &ValidationError{}
+						vErr := &validationError{}
 						// if the conversion strategy in the new CRD is "None" OR the error is not a ValidationError
 						// return an error. This will catch and return any errors that occur unrelated to actual validation.
 						// For example, the API server returning an error when performing a list operation

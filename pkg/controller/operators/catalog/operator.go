@@ -2202,7 +2202,7 @@ func validateV1Beta1CRDCompatibility(dynamicClient dynamic.Interface, oldCRD *ap
 	return validateExistingCRs(dynamicClient, gr, validationsMap)
 }
 
-type ValidationError struct {
+type validationError struct {
 	error
 }
 
@@ -2230,7 +2230,7 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResourc
 				} else {
 					namespacedName = fmt.Sprintf("%s/%s", cr.GetNamespace(), cr.GetName())
 				}
-				return ValidationError{fmt.Errorf("error validating %s %q: updated validation is too restrictive: %v", cr.GroupVersionKind(), namespacedName, err)}
+				return validationError{fmt.Errorf("error validating %s %q: updated validation is too restrictive: %v", cr.GroupVersionKind(), namespacedName, err)}
 			}
 		}
 	}
