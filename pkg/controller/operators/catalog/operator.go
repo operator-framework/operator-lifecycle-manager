@@ -2322,7 +2322,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		o.logger.Errorf("failed to get a client for plan execution- %v", err)
 		return err
 	}
-	b := newBuilder(plan, o.lister.OperatorsV1alpha1().ClusterServiceVersionLister(), builderKubeClient, builderDynamicClient, r, o.logger)
+	b := newBuilder(plan, o.lister.OperatorsV1alpha1().ClusterServiceVersionLister(), builderKubeClient, builderDynamicClient, r, o.logger, o.recorder)
 
 	for i, step := range plan.Status.Plan {
 		if err := func(i int, step *v1alpha1.Step) error {
