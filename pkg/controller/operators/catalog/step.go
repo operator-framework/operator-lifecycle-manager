@@ -155,9 +155,8 @@ func (b *builder) NewCRDV1Step(client apiextensionsv1client.ApiextensionsV1Inter
 						// is an error related to validation, warn that validation failed but that we are trusting
 						// that the conversion strategy specified by the author will successfully convert to a format
 						// that passes validation and allow the upgrade to continue
-						warnTempl := `validation of existing CRs against new CRD's schema failed, but a webhook conversion strategy was specified.
-allowing the CRD upgrade to occur as we can't run the webhook, but is assumed that it will successfully convert existing CRs
-to a format that would have passed validation.
+						warnTempl := `Validation of existing CRs against the new CRD's schema failed, but a webhook conversion strategy was specified in the new CRD.
+The new webhook will only start after the bundle is upgraded, so we must assume that it will successfully convert existing CRs to a format that would have passed validation.
 
 CRD: %q
 Validation Error: %s
