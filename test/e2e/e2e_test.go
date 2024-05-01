@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -82,21 +83,28 @@ var deprovision func() = func() {}
 
 // This function initializes a client which is used to create an operator group for a given namespace
 var _ = BeforeSuite(func() {
+	testNamespace = *namespace
+	operatorNamespace = *olmNamespace
+	communityOperatorsImage = *communityOperators
+	globalCatalogNamespace = *catalogNamespace
+	testdataDir = *testdataPath
+
 	if kubeConfigPath != nil && *kubeConfigPath != "" {
-		// This flag can be deprecated in favor of the kubeconfig provisioner:
 		os.Setenv("KUBECONFIG", *kubeConfigPath)
 	}
 	if collectArtifactsScriptPath != nil && *collectArtifactsScriptPath != "" {
 		os.Setenv("E2E_ARTIFACT_SCRIPT", *collectArtifactsScriptPath)
 	}
 
-	testNamespace = *namespace
-	operatorNamespace = *olmNamespace
-	communityOperatorsImage = *communityOperators
-	globalCatalogNamespace = *catalogNamespace
-	testdataDir = *testdataPath
-	deprovision = ctx.MustProvision(ctx.Ctx())
-	ctx.MustInstall(ctx.Ctx())
+	// Determine the kubeconfig path and initialize the test context
+	path := os.Getenv("KUBECONFIG")
+	if path == "" {
+		home, err := os.UserHomeDir()
+		Expect(err).NotTo(HaveOccurred())
+		path = filepath.Join(home, ".kube", "config")
+	}
+
+	Expect(ctx.InitCtx(path)).To(Succeed())
 
 	var groups operatorsv1.OperatorGroupList
 	Expect(ctx.Ctx().Client().List(context.Background(), &groups, client.InNamespace(testNamespace))).To(Succeed())

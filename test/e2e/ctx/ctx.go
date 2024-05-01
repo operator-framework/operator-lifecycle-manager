@@ -1,10 +1,14 @@
 package ctx
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/util"
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,7 +30,8 @@ import (
 	pversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 )
 
-var ctx TestContext
+var ctx *TestContext
+var lock sync.Mutex = sync.Mutex{}
 
 // TestContext represents the environment of an executing test. It can
 // be considered roughly analogous to a kubeconfig context.
@@ -49,62 +54,149 @@ type TestContext struct {
 	client k8scontrollerclient.Client
 }
 
+func InitCtx(kubeConfigPath string) error {
+	lock.Lock()
+	defer lock.Unlock()
+	if ctx != nil {
+		return nil
+	}
+	newCtx, err := newCtx(kubeConfigPath)
+	if err != nil {
+		return err
+	}
+	ctx = newCtx
+	return nil
+}
+
 // Ctx returns a pointer to the global test context. During parallel
 // test executions, Ginkgo starts one process per test "node", and
 // each node will have its own context, which may or may not point to
 // the same test cluster.
 func Ctx() *TestContext {
-	return &ctx
+	if ctx == nil {
+		panic("test context not initialized")
+	}
+	return ctx
 }
 
-func (ctx TestContext) Logf(f string, v ...interface{}) {
+func newCtx(kubeConfigPath string) (*TestContext, error) {
+	restConfig, err := getRestConfig(kubeConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	kubeClient, err := operatorclient.NewClientFromRestConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	operatorClient, err := versioned.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	packageClient, err := pversioned.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	ctxScheme := runtime.NewScheme()
+	localSchemeBuilder := runtime.NewSchemeBuilder(
+		apiextensionsv1.AddToScheme,
+		kscheme.AddToScheme,
+		operatorsv1alpha1.AddToScheme,
+		operatorsv1.AddToScheme,
+		operatorsv2.AddToScheme,
+		apiextensionsv1.AddToScheme,
+		appsv1.AddToScheme,
+		apiregistrationv1.AddToScheme,
+	)
+	if err := localSchemeBuilder.AddToScheme(ctxScheme); err != nil {
+		return nil, err
+	}
+
+	client, err := k8scontrollerclient.New(restConfig, k8scontrollerclient.Options{
+		Scheme: ctxScheme,
+	})
+	if err != nil {
+		return nil, err
+	}
+	e2eClient := util.NewK8sResourceManager(client)
+
+	ssaClient, err := controllerclient.NewForConfig(restConfig, ctxScheme, "test.olm.registry")
+	if err != nil {
+		return nil, err
+	}
+
+	return &TestContext{
+		artifactsDir:        os.Getenv("ARTIFACT_DIR"),
+		artifactsScriptPath: os.Getenv("E2E_ARTIFACT_SCRIPT"),
+		restConfig:          restConfig,
+		kubeClient:          kubeClient,
+		operatorClient:      operatorClient,
+		dynamicClient:       dynamicClient,
+		packageClient:       packageClient,
+		scheme:              ctxScheme,
+		e2eClient:           e2eClient,
+		client:              e2eClient,
+		ssaClient:           ssaClient,
+		kubeconfigPath:      kubeConfigPath,
+	}, nil
+}
+
+func (ctx *TestContext) Logf(f string, v ...interface{}) {
 	util.Logf(f, v...)
 }
 
-func (ctx TestContext) Scheme() *runtime.Scheme {
+func (ctx *TestContext) Scheme() *runtime.Scheme {
 	return ctx.scheme
 }
 
-func (ctx TestContext) RESTConfig() *rest.Config {
+func (ctx *TestContext) RESTConfig() *rest.Config {
 	return rest.CopyConfig(ctx.restConfig)
 }
 
-func (ctx TestContext) KubeClient() operatorclient.ClientInterface {
+func (ctx *TestContext) KubeClient() operatorclient.ClientInterface {
 	return ctx.kubeClient
 }
 
-func (ctx TestContext) OperatorClient() versioned.Interface {
+func (ctx *TestContext) OperatorClient() versioned.Interface {
 	return ctx.operatorClient
 }
 
-func (ctx TestContext) DynamicClient() dynamic.Interface {
+func (ctx *TestContext) DynamicClient() dynamic.Interface {
 	return ctx.dynamicClient
 }
 
-func (ctx TestContext) PackageClient() pversioned.Interface {
+func (ctx *TestContext) PackageClient() pversioned.Interface {
 	return ctx.packageClient
 }
 
-func (ctx TestContext) Client() k8scontrollerclient.Client {
+func (ctx *TestContext) Client() k8scontrollerclient.Client {
 	return ctx.client
 }
 
-func (ctx TestContext) SSAClient() *controllerclient.ServerSideApplier {
+func (ctx *TestContext) SSAClient() *controllerclient.ServerSideApplier {
 	return ctx.ssaClient
 }
 
-func (ctx TestContext) E2EClient() *util.E2EKubeClient {
+func (ctx *TestContext) E2EClient() *util.E2EKubeClient {
 	return ctx.e2eClient
 }
 
-func (ctx TestContext) NewE2EClientSession() {
+func (ctx *TestContext) NewE2EClientSession() {
 	if ctx.e2eClient != nil {
 		_ = ctx.e2eClient.Reset()
 	}
 	ctx.e2eClient = util.NewK8sResourceManager(ctx.Client())
 }
 
-func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
+func (ctx *TestContext) DumpNamespaceArtifacts(namespace string) error {
 	if ctx.artifactsDir == "" {
 		ctx.Logf("$ARTIFACT_DIR is unset -- not collecting failed test case logs")
 		return nil
@@ -139,78 +231,27 @@ func (ctx TestContext) DumpNamespaceArtifacts(namespace string) error {
 	return nil
 }
 
-func setDerivedFields(ctx *TestContext) error {
-	if ctx == nil {
-		return fmt.Errorf("nil test context")
-	}
-
-	if ctx.restConfig == nil {
-		return fmt.Errorf("nil RESTClient")
-	}
-
-	if ctx.artifactsDir == "" {
-		if artifactsDir := os.Getenv("ARTIFACT_DIR"); artifactsDir != "" {
-			ctx.artifactsDir = artifactsDir
-		}
-	}
-	if ctx.artifactsScriptPath == "" {
-		if scriptPath := os.Getenv("E2E_ARTIFACT_SCRIPT"); scriptPath != "" {
-			ctx.artifactsScriptPath = scriptPath
-		}
-	}
-
-	kubeClient, err := operatorclient.NewClientFromRestConfig(ctx.restConfig)
+func getRestConfig(kubeConfigPath string) (*rest.Config, error) {
+	f, err := os.Open(kubeConfigPath)
+	defer f.Close()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to open kubeconfig: %s", err.Error())
 	}
-	ctx.kubeClient = kubeClient
 
-	operatorClient, err := versioned.NewForConfig(ctx.restConfig)
+	const MaxKubeconfigBytes = 65535
+	var b bytes.Buffer
+	n, err := b.ReadFrom(io.LimitReader(f, MaxKubeconfigBytes))
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to read kubeconfig: %s", err.Error())
 	}
-	ctx.operatorClient = operatorClient
+	if n >= MaxKubeconfigBytes {
+		return nil, fmt.Errorf("kubeconfig larger than maximum allowed size: %d bytes", MaxKubeconfigBytes)
+	}
 
-	dynamicClient, err := dynamic.NewForConfig(ctx.restConfig)
+	restConfig, err := clientcmd.RESTConfigFromKubeConfig(b.Bytes())
 	if err != nil {
-		return err
-	}
-	ctx.dynamicClient = dynamicClient
-
-	packageClient, err := pversioned.NewForConfig(ctx.restConfig)
-	if err != nil {
-		return err
-	}
-	ctx.packageClient = packageClient
-
-	ctx.scheme = runtime.NewScheme()
-	localSchemeBuilder := runtime.NewSchemeBuilder(
-		apiextensionsv1.AddToScheme,
-		kscheme.AddToScheme,
-		operatorsv1alpha1.AddToScheme,
-		operatorsv1.AddToScheme,
-		operatorsv2.AddToScheme,
-		apiextensionsv1.AddToScheme,
-		appsv1.AddToScheme,
-		apiregistrationv1.AddToScheme,
-	)
-	if err := localSchemeBuilder.AddToScheme(ctx.scheme); err != nil {
-		return err
+		return nil, fmt.Errorf("error loading kubeconfig: %s", err.Error())
 	}
 
-	client, err := k8scontrollerclient.New(ctx.restConfig, k8scontrollerclient.Options{
-		Scheme: ctx.scheme,
-	})
-	if err != nil {
-		return err
-	}
-	ctx.e2eClient = util.NewK8sResourceManager(client)
-	ctx.client = ctx.e2eClient
-
-	ctx.ssaClient, err = controllerclient.NewForConfig(ctx.restConfig, ctx.scheme, "test.olm.registry")
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return restConfig, nil
 }

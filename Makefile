@@ -150,28 +150,14 @@ e2e:
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
 e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
-e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar -test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
+e2e-local: extra_args=-test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
 e2e-local: run=bin/e2e-local.test
-e2e-local: bin/e2e-local.test test/e2e-local.image.tar
+e2e-local: bin/e2e-local.test
 e2e-local: e2e
 
-# this target updates the zz_chart.go file with files found in deploy/chart
-# this will always fire since it has been marked as phony
-.PHONY: test/e2e/assets/chart/zz_chart.go
-test/e2e/assets/chart/zz_chart.go: $(shell find deploy/chart -type f)
-	$(BINDATA) -o $@ -pkg chart -prefix deploy/chart/ $^
-
 # execute kind and helm end to end tests
-bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
-	$(GO) test -c -tags kind,helm -o $@ ./test/e2e
-
-# set go env and other vars, ensure that the dockerfile exists, and then build wait, cpb, and other command binaries and finally the kind image archive
-test/e2e-local.image.tar: export GOOS=linux
-test/e2e-local.image.tar: export GOARCH=386
-test/e2e-local.image.tar: build_cmd=build
-test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
-	docker build -t quay.io/operator-framework/olm:local -f $< bin
-	docker save -o $@ quay.io/operator-framework/olm:local
+bin/e2e-local.test: FORCE
+	$(GO) test -c -o $@ ./test/e2e
 
 e2e-bare: setup-bare
 	. ./scripts/run_e2e_bare.sh $(TEST)
