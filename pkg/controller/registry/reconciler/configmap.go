@@ -109,8 +109,8 @@ func (s *configMapCatalogSourceDecorator) Service() (*corev1.Service, error) {
 	return svc, nil
 }
 
-func (s *configMapCatalogSourceDecorator) Pod(image string) (*corev1.Pod, error) {
-	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser)
+func (s *configMapCatalogSourceDecorator) Pod(image string, defaultPodSecurityConfig v1alpha1.SecurityConfig) (*corev1.Pod, error) {
+	pod, err := Pod(s.CatalogSource, "configmap-registry-server", "", "", image, nil, s.Labels(), s.Annotations(), 5, 5, s.runAsUser, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -238,8 +238,8 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source configMapCatalog
 	return roleBinding
 }
 
-func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) ([]*corev1.Pod, error) {
-	protoPod, err := source.Pod(image)
+func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string, defaultPodSecurityConfig v1alpha1.SecurityConfig) ([]*corev1.Pod, error) {
+	protoPod, err := source.Pod(image, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -255,8 +255,8 @@ func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceD
 	return pods, nil
 }
 
-func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string) ([]*corev1.Pod, error) {
-	protoPod, err := source.Pod(image)
+func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string, defaultPodSecurityConfig v1alpha1.SecurityConfig) ([]*corev1.Pod, error) {
+	protoPod, err := source.Pod(image, defaultPodSecurityConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -288,6 +288,11 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 	overwrite := source.Status.RegistryServiceStatus == nil
 	overwritePod := overwrite
 
+	defaultPodSecurityConfig, err := getDefaultPodContextConfig(c.OpClient, catalogSource.GetNamespace())
+	if err != nil {
+		return err
+	}
+
 	if source.Spec.SourceType == v1alpha1.SourceTypeConfigmap || source.Spec.SourceType == v1alpha1.SourceTypeInternal {
 		// fetch configmap first, exit early if we can't find it
 		// we use the live client here instead of a lister since our listers are scoped to objects with the olm.managed label,
@@ -311,7 +316,7 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 		}
 
 		// recreate the pod if no existing pod is serving the latest image
-		current, err := c.currentPodsWithCorrectResourceVersion(source, image)
+		current, err := c.currentPodsWithCorrectResourceVersion(source, image, defaultPodSecurityConfig)
 		if err != nil {
 			return err
 		}
@@ -330,11 +335,11 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(logger *logrus.Entry,
 	if err := c.ensureRoleBinding(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring rolebinding: %s", source.RoleBinding().GetName())
 	}
-	pod, err := source.Pod(image)
+	pod, err := source.Pod(image, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
-	if err := c.ensurePod(source, overwritePod); err != nil {
+	if err := c.ensurePod(source, defaultPodSecurityConfig, overwritePod); err != nil {
 		return errors.Wrapf(err, "error ensuring pod: %s", pod.GetName())
 	}
 	service, err := source.Service()
@@ -400,12 +405,12 @@ func (c *ConfigMapRegistryReconciler) ensureRoleBinding(source configMapCatalogS
 	return err
 }
 
-func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDecorator, overwrite bool) error {
-	pod, err := source.Pod(c.Image)
+func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDecorator, defaultPodSecurityConfig v1alpha1.SecurityConfig, overwrite bool) error {
+	pod, err := source.Pod(c.Image, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
-	currentPods, err := c.currentPods(source, c.Image)
+	currentPods, err := c.currentPods(source, c.Image, defaultPodSecurityConfig)
 	if err != nil {
 		return err
 	}
@@ -460,6 +465,11 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, 
 		return
 	}
 
+	defaultPodSecurityConfig, err := getDefaultPodContextConfig(c.OpClient, catalogSource.GetNamespace())
+	if err != nil {
+		return false, err
+	}
+
 	if source.Spec.SourceType == v1alpha1.SourceTypeConfigmap || source.Spec.SourceType == v1alpha1.SourceTypeInternal {
 		// we use the live client here instead of a lister since our listers are scoped to objects with the olm.managed label,
 		// and this configmap is a user-provided input to the catalog source and will not have that label
@@ -473,7 +483,7 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, 
 		}
 
 		// recreate the pod if no existing pod is serving the latest image
-		current, err := c.currentPodsWithCorrectResourceVersion(source, image)
+		current, err := c.currentPodsWithCorrectResourceVersion(source, image, defaultPodSecurityConfig)
 		if err != nil {
 			return false, err
 		}
@@ -489,7 +499,7 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, 
 	if err != nil {
 		return false, err
 	}
-	pods, err := c.currentPods(source, c.Image)
+	pods, err := c.currentPods(source, c.Image, defaultPodSecurityConfig)
 	if err != nil {
 		return false, err
 	}

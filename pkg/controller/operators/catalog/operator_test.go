@@ -13,6 +13,10 @@ import (
 	"testing/quick"
 	"time"
 
+	"k8s.io/utils/ptr"
+
+	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 
 	"github.com/sirupsen/logrus"
@@ -59,7 +63,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/solver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
-	controllerclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/controller-runtime/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -838,6 +841,160 @@ func withStatus(catalogSource v1alpha1.CatalogSource, status v1alpha1.CatalogSou
 	return copy
 }
 
+func TestSyncCatalogSourcesSecurityPolicy(t *testing.T) {
+	assertLegacySecurityPolicy := func(t *testing.T, pod *corev1.Pod) {
+		require.Nil(t, pod.Spec.SecurityContext)
+		require.Equal(t, &corev1.SecurityContext{
+			ReadOnlyRootFilesystem: ptr.To(false),
+		}, pod.Spec.Containers[0].SecurityContext)
+	}
+
+	assertRestrictedPolicy := func(t *testing.T, pod *corev1.Pod) {
+		require.Equal(t, &corev1.PodSecurityContext{
+			SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+			RunAsNonRoot:   ptr.To(true),
+			RunAsUser:      ptr.To(int64(1001)),
+		}, pod.Spec.SecurityContext)
+		require.Equal(t, &corev1.SecurityContext{
+			ReadOnlyRootFilesystem:   ptr.To(false),
+			AllowPrivilegeEscalation: ptr.To(false),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		}, pod.Spec.Containers[0].SecurityContext)
+	}
+
+	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	tests := []struct {
+		testName      string
+		namespace     *corev1.Namespace
+		catalogSource *v1alpha1.CatalogSource
+		check         func(*testing.T, *corev1.Pod)
+	}{
+		{
+			testName: "UnlabeledNamespace/NoUserPreference/LegacySecurityPolicy",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cool-namespace",
+				},
+			},
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cool-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					Image:      "catalog-image",
+					SourceType: v1alpha1.SourceTypeGrpc,
+				},
+			},
+			check: assertLegacySecurityPolicy,
+		}, {
+			testName: "UnlabeledNamespace/UserPreferenceForRestricted/RestrictedSecurityPolicy",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cool-namespace",
+				},
+			},
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cool-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					Image:      "catalog-image",
+					SourceType: v1alpha1.SourceTypeGrpc,
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Restricted,
+					},
+				},
+			},
+			check: assertRestrictedPolicy,
+		}, {
+			testName: "LabeledNamespace/NoUserPreference/RestrictedSecurityPolicy",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cool-namespace",
+					Labels: map[string]string{
+						// restricted is the default psa policy
+						"pod-security.kubernetes.io/enforce": "restricted",
+					},
+				},
+			},
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cool-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					Image:      "catalog-image",
+					SourceType: v1alpha1.SourceTypeGrpc,
+				},
+			},
+			check: assertRestrictedPolicy,
+		}, {
+			testName: "LabeledNamespace/UserPreferenceForLegacy/LegacySecurityPolicy",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cool-namespace",
+				},
+			},
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cool-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					Image:      "catalog-image",
+					SourceType: v1alpha1.SourceTypeGrpc,
+					GrpcPodConfig: &v1alpha1.GrpcPodConfig{
+						SecurityContextConfig: v1alpha1.Legacy,
+					},
+				},
+			},
+			check: assertLegacySecurityPolicy,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			// Create existing objects
+			clientObjs := []runtime.Object{tt.catalogSource}
+
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			op, err := NewFakeOperator(
+				ctx,
+				tt.namespace.GetName(),
+				[]string{tt.namespace.GetName()},
+				withClock(clockFake),
+				withClientObjs(clientObjs...),
+			)
+			require.NoError(t, err)
+
+			// Because NewFakeOperator creates the namespace, we need to update the namespace to match the test case
+			// before running the sync function
+			_, err = op.opClient.KubernetesInterface().CoreV1().Namespaces().Update(context.TODO(), tt.namespace, metav1.UpdateOptions{})
+			require.NoError(t, err)
+
+			// Run sync
+			err = op.syncCatalogSources(tt.catalogSource)
+			require.NoError(t, err)
+
+			pods, err := op.opClient.KubernetesInterface().CoreV1().Pods(tt.catalogSource.Namespace).List(context.TODO(), metav1.ListOptions{})
+			require.NoError(t, err)
+			require.Len(t, pods.Items, 1)
+
+			tt.check(t, &pods.Items[0])
+		})
+	}
+}
+
 func TestSyncCatalogSources(t *testing.T) {
 	clockFake := utilclocktesting.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
@@ -1165,7 +1322,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			if tt.expectedStatus != nil {
 				if tt.expectedStatus.GRPCConnectionState != nil {
 					updated.Status.GRPCConnectionState.LastConnectTime = now
-					// Ignore LastObservedState difference if an expected LastObservedState is no provided
+					// Ignore LastObservedState difference if an expected LastObservedState is not provided
 					if tt.expectedStatus.GRPCConnectionState.LastObservedState == "" {
 						updated.Status.GRPCConnectionState.LastObservedState = ""
 					}
@@ -2012,7 +2169,6 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 			return nil, err
 		}
 		applier := controllerclient.NewFakeApplier(s, "testowner")
-
 		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, applier, 1001, "", "")
 	}
 
@@ -2028,7 +2184,6 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 
 	return op, nil
 }
-
 func installPlan(name, namespace string, phase v1alpha1.InstallPlanPhase, names ...string) *v1alpha1.InstallPlan {
 	return &v1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2175,7 +2330,7 @@ func pod(t *testing.T, s v1alpha1.CatalogSource) *corev1.Pod {
 			Name:      s.GetName(),
 		},
 	}
-	pod, err := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001)
+	pod, err := reconciler.Pod(&s, "registry-server", "central-opm", "central-util", s.Spec.Image, serviceAccount, s.GetLabels(), s.GetAnnotations(), 5, 10, 1001, v1alpha1.Legacy)
 	if err != nil {
 		t.Fatal(err)
 	}

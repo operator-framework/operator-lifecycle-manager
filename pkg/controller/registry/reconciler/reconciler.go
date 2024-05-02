@@ -2,6 +2,7 @@
 package reconciler
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -29,7 +30,7 @@ const (
 	CatalogPriorityClassKey string = "operatorframework.io/priorityclass"
 	// PodHashLabelKey is the key of a label for podspec hash information
 	PodHashLabelKey = "olm.pod-spec-hash"
-	//ClusterAutoscalingAnnotation is the annotation that enables the cluster autoscaler to evict catalog pods
+	//ClusterAutoscalingAnnotationKey is the annotation that enables the cluster autoscaler to evict catalog pods
 	ClusterAutoscalingAnnotationKey string = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 )
 
@@ -114,7 +115,7 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 	}
 }
 
-func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64) (*corev1.Pod, error) {
+func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img string, serviceAccount *corev1.ServiceAccount, labels, annotations map[string]string, readinessDelay, livenessDelay int32, runAsUser int64, defaultSecurityConfig operatorsv1alpha1.SecurityConfig) (*corev1.Pod, error) {
 	// make a copy of the labels and annotations to avoid mutating the input parameters
 	podLabels := make(map[string]string)
 	podAnnotations := make(map[string]string)
@@ -190,7 +191,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: ptr.To(bool(false)),
+						ReadOnlyRootFilesystem: ptr.To(false),
 					},
 					ImagePullPolicy:          image.InferImagePullPolicy(img),
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
@@ -200,13 +201,26 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 				"kubernetes.io/os": "linux",
 			},
 			ServiceAccountName: saName,
-			// If this field is not set, there that the is a chance that pod will be created without the imagePullSecret
+			// If this field is not set, there is a chance that pod will be created without the imagePullSecret
 			// defined by the serviceAccount
 			ImagePullSecrets: saImagePullSecrets,
 		},
 	}
 
-	if source.Spec.GrpcPodConfig != nil && source.Spec.GrpcPodConfig.SecurityContextConfig == operatorsv1alpha1.Restricted {
+	// Determine the security context configuration
+	var securityContextConfig operatorsv1alpha1.SecurityConfig
+
+	// Use the user-provided security context config if it is defined
+	if source.Spec.GrpcPodConfig != nil && source.Spec.GrpcPodConfig.SecurityContextConfig != "" {
+		securityContextConfig = source.Spec.GrpcPodConfig.SecurityContextConfig
+	} else {
+		// Default to the defaultNamespace based and provided security context config
+		securityContextConfig = defaultSecurityConfig
+	}
+
+	// Apply the appropriate security context configuration
+	if securityContextConfig == operatorsv1alpha1.Restricted {
+		// Apply 'restricted' security settings
 		addSecurityContext(pod, runAsUser)
 	}
 
@@ -332,7 +346,7 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 }
 
 func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
-	pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = ptr.To(bool(false))
+	pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
 	pod.Spec.Containers[0].SecurityContext.Capabilities = &corev1.Capabilities{
 		Drop: []corev1.Capability{"ALL"},
 	}
@@ -343,6 +357,22 @@ func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
 	}
 	if runAsUser > 0 {
 		pod.Spec.SecurityContext.RunAsUser = &runAsUser
-		pod.Spec.SecurityContext.RunAsNonRoot = ptr.To(bool(true))
+		pod.Spec.SecurityContext.RunAsNonRoot = ptr.To(true)
 	}
+}
+
+// getDefaultPodContextConfig returns Restricted if the defaultNamespace has the 'pod-security.kubernetes.io/enforce' label	set to 'restricted',
+// otherwise it returns Legacy. This is used to help determine the security context of the registry pod when it is not already defined by the user
+func getDefaultPodContextConfig(client operatorclient.ClientInterface, namespace string) (operatorsv1alpha1.SecurityConfig, error) {
+	ns, err := client.KubernetesInterface().CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("error fetching defaultNamespace: %v", err)
+	}
+	// 'pod-security.kubernetes.io/enforce' is the label used for enforcing defaultNamespace level security,
+	// and 'restricted' is the value indicating a restricted security policy.
+	if val, exists := ns.Labels["pod-security.kubernetes.io/enforce"]; exists && val == "restricted" {
+		return operatorsv1alpha1.Restricted, nil
+	}
+
+	return operatorsv1alpha1.Legacy, nil
 }

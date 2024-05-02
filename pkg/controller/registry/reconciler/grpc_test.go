@@ -2,11 +2,9 @@ package reconciler
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -26,7 +24,7 @@ func validGrpcCatalogSource(image, address string) *v1alpha1.CatalogSource {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "img-catalog",
 			Namespace: testNamespace,
-			UID:       types.UID("catalog-uid"),
+			UID:       "catalog-uid",
 			Labels:    map[string]string{"olm.catalogSource": "img-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
@@ -101,6 +99,9 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 		{
 			testName: "Grpc/NoExistingRegistry/CreateSuccessful",
 			in: in{
+				cluster: cluster{
+					k8sObjs: baseClusterState(),
+				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
 			out: out{
@@ -116,6 +117,9 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 		{
 			testName: "Grpc/NoExistingRegistry/CreateSuccessful/CatalogSourceWithPeriodInNameCreatesValidServiceName",
 			in: in{
+				cluster: cluster{
+					k8sObjs: baseClusterState(),
+				},
 				catsrc: grpcCatalogSourceWithName("img.catalog"),
 			},
 			out: out{
@@ -149,8 +153,10 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 		{
 			testName: "Grpc/Address/CreateSuccessful",
 			in: in{
-				cluster: cluster{},
-				catsrc:  validGrpcCatalogSource("", "catalog.svc.cluster.local:50001"),
+				cluster: cluster{
+					k8sObjs: baseClusterState(),
+				},
+				catsrc: validGrpcCatalogSource("", "catalog.svc.cluster.local:50001"),
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
@@ -162,8 +168,10 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 		{
 			testName: "Grpc/AddressAndImage/CreateSuccessful",
 			in: in{
-				cluster: cluster{},
-				catsrc:  validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
+				cluster: cluster{
+					k8sObjs: baseClusterState(),
+				},
+				catsrc: validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
@@ -252,6 +260,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			in: in{
 				cluster: cluster{
 					k8sObjs: []runtime.Object{
+						defaultNamespace(),
 						&corev1.Secret{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "test-secret",
@@ -301,6 +310,9 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 		{
 			testName: "Grpc/NoExistingRegistry/CreateWithAnnotations",
 			in: in{
+				cluster: cluster{
+					k8sObjs: baseClusterState(),
+				},
 				catsrc: grpcCatalogSourceWithAnnotations(map[string]string{
 					"annotation1": "value1",
 					"annotation2": "value2",
@@ -360,7 +372,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{CatalogSource: tt.in.catsrc, createPodAsUser: runAsUser}
 			sa := decorated.ServiceAccount()
-			pod, err := decorated.Pod(sa)
+			pod, err := decorated.Pod(sa, defaultPodSecurityConfig)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -376,9 +388,6 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			case *GrpcRegistryReconciler:
 				// Should be created by a GrpcRegistryReconciler
 				require.NoError(t, podErr)
-				if diff := cmp.Diff(outPods.Items, []corev1.Pod{*pod}); diff != "" {
-					fmt.Printf("incorrect pods: %s\n", diff)
-				}
 				require.Len(t, outPods.Items, 1)
 				outPod := outPods.Items[0]
 				require.Equal(t, pod.GetGenerateName(), outPod.GetGenerateName())
@@ -450,7 +459,11 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 			stopc := make(chan struct{})
 			defer close(stopc)
 
-			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
+			// a defaultNamespace resource must be present so that the reconciler can determine the
+			// security context configuration for the underlying pod
+			clusterState := append(tt.in.cluster.k8sObjs, defaultNamespace())
+
+			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(clusterState...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
 			err := rec.EnsureRegistryServer(logrus.NewEntry(logrus.New()), tt.in.catsrc)
@@ -458,7 +471,7 @@ func TestRegistryPodPriorityClass(t *testing.T) {
 
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{CatalogSource: tt.in.catsrc, createPodAsUser: runAsUser}
-			pod, err := decorated.Pod(serviceAccount(tt.in.catsrc.Namespace, tt.in.catsrc.Name))
+			pod, err := decorated.Pod(serviceAccount(tt.in.catsrc.Namespace, tt.in.catsrc.Name), defaultPodSecurityConfig)
 			require.NoError(t, err)
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
@@ -581,8 +594,7 @@ func TestGrpcRegistryChecker(t *testing.T) {
 		{
 			testName: "Grpc/NoExistingRegistry/AddressAndImage/NotHealthy",
 			in: in{
-				cluster: cluster{},
-				catsrc:  validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
+				catsrc: validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
 			},
 			out: out{
 				healthy: false,

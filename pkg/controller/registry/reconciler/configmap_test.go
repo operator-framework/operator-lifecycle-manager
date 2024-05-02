@@ -186,7 +186,12 @@ func validConfigMapCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogS
 }
 
 func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []runtime.Object {
-	var objs []runtime.Object
+	// the registry pod security context is derived from the defaultNamespace by default
+	// therefore a namespace resource must always be present
+	var objs = []runtime.Object{
+		defaultNamespace(),
+	}
+
 	switch catsrc.Spec.SourceType {
 	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
 		decorated := configMapCatalogSourceDecorator{catsrc, runAsUser}
@@ -194,16 +199,15 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []run
 		if err != nil {
 			t.Fatal(err)
 		}
-		pod, err := decorated.Pod(registryImageName)
+		serviceAccount := decorated.ServiceAccount()
+		pod, err := decorated.Pod(registryImageName, defaultPodSecurityConfig)
 		if err != nil {
 			t.Fatal(err)
 		}
-		objs = clientfake.AddSimpleGeneratedNames(
-			clientfake.AddSimpleGeneratedName(pod),
+		objs = append(objs,
+			pod,
 			service,
-			decorated.ServiceAccount(),
-			decorated.Role(),
-			decorated.RoleBinding(),
+			serviceAccount,
 		)
 	case v1alpha1.SourceTypeGrpc:
 		if catsrc.Spec.Image != "" {
@@ -213,11 +217,11 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []run
 			if err != nil {
 				t.Fatal(err)
 			}
-			pod, err := decorated.Pod(serviceAccount)
+			pod, err := decorated.Pod(serviceAccount, defaultPodSecurityConfig)
 			if err != nil {
 				t.Fatal(err)
 			}
-			objs = clientfake.AddSimpleGeneratedNames(
+			objs = append(objs,
 				pod,
 				service,
 				serviceAccount,
@@ -242,7 +246,7 @@ func objectsForCatalogSource(t *testing.T, catsrc *v1alpha1.CatalogSource) []run
 }
 
 func modifyObjName(objs []runtime.Object, kind runtime.Object, newName string) []runtime.Object {
-	out := []runtime.Object{}
+	var out []runtime.Object
 	t := reflect.TypeOf(kind)
 	for _, obj := range objs {
 		o := obj.DeepCopyObject()
@@ -257,7 +261,7 @@ func modifyObjName(objs []runtime.Object, kind runtime.Object, newName string) [
 }
 
 func setLabel(objs []runtime.Object, kind runtime.Object, label, value string) []runtime.Object {
-	out := []runtime.Object{}
+	var out []runtime.Object
 	t := reflect.TypeOf(kind)
 	for _, obj := range objs {
 		o := obj.DeepCopyObject()
@@ -297,10 +301,15 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 		{
 			testName: "NoConfigMap",
 			in: in{
-				cluster: cluster{},
+				cluster: cluster{
+					k8sObjs: []runtime.Object{
+						validConfigMap,
+						defaultNamespace(),
+					},
+				},
 				catsrc: &v1alpha1.CatalogSource{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
+						Namespace: testNamespace,
 					},
 					Spec: v1alpha1.CatalogSourceSpec{
 						SourceType: v1alpha1.SourceTypeConfigmap,
@@ -309,14 +318,17 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				},
 			},
 			out: out{
-				err: fmt.Errorf(`unable to find configmap test-ns/test-cm: configmaps "test-cm" not found`),
+				err: fmt.Errorf(`unable to find configmap testns/test-cm: configmaps "test-cm" not found`),
 			},
 		},
 		{
 			testName: "NoExistingRegistry/CreateSuccessful",
 			in: in{
 				cluster: cluster{
-					k8sObjs: []runtime.Object{validConfigMap},
+					k8sObjs: []runtime.Object{
+						validConfigMap,
+						defaultNamespace(),
+					},
 				},
 				catsrc: validCatalogSource,
 			},
@@ -481,7 +493,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			// if no error, the reconciler should create the same set of kube objects every time
 			decorated := configMapCatalogSourceDecorator{tt.in.catsrc, runAsUser}
 
-			pod, err := decorated.Pod(registryImageName)
+			pod, err := decorated.Pod(registryImageName, defaultPodSecurityConfig)
 			require.NoError(t, err)
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(context.TODO(), listOptions)
