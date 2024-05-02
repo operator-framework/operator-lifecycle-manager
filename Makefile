@@ -8,6 +8,9 @@ $(warning Undefining GOFLAGS set in CI)
 undefine GOFLAGS
 endif
 
+# bingo manages consistent tooling versions for things like kind, kustomize, etc.
+include .bingo/Variables.mk
+
 SHELL := /bin/bash
 ORG := github.com/operator-framework
 PKG   := $(ORG)/operator-lifecycle-manager

@@ -66,7 +66,6 @@ var (
 	operatorNamespace       = ""
 	communityOperatorsImage = ""
 	globalCatalogNamespace  = ""
-	junitDir                = "junit"
 )
 
 func TestEndToEnd(t *testing.T) {
