@@ -24,19 +24,30 @@ IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
+OLM_OPERATOR_NAMESPACE := "operator-lifecycle-manager"
+CATALOG_OPERATOR_NAMESPACE := "operator-lifecycle-manager"
 export GO111MODULE=on
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
+HELM := go run $(MOD_FLAGS) ./vendor/helm.sh/helm/v3/cmd/helm
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
-BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
 GIT_COMMIT := $(shell git rev-parse HEAD)
 ifeq ($(shell arch), arm64) 
 ARCH := arm64
 else
 ARCH := 386
 endif
+
+KIND_CLUSTER_NAME ?= olmv0
+# Not guaranteed to have patch releases available and node image tags are full versions (i.e v1.28.0 - no v1.28, v1.29, etc.)
+# The KIND_NODE_VERSION is set by getting the version of the k8s.io/client-go dependency from the go.mod
+# and sets major version to "1" and the patch version to "0". For example, a client-go version of v0.28.5
+# will map to a KIND_NODE_VERSION of 1.28.0
+KIND_NODE_VERSION = $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1.0/')
+KIND_CLUSTER_IMAGE ?= kindest/node:v${KIND_NODE_VERSION}
+
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
 	coverage coverage-html e2e \
@@ -56,7 +67,7 @@ unit: kubebuilder
 KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest
 KUBECTL_ASSETS_ERR := kubectl not detected.
 kubebuilder:
-ifeq (, $(shell which kubectl))
+ifeq (, $(shell command -v kubectl))
 	$(error $(KUBECTL_ASSETS_ERR))
 endif
 ifeq (, $(wildcard $(KUBEBUILDER_ASSETS)/etcd))
@@ -117,12 +128,6 @@ build: clean $(CMDS)
 $(TCMDS):
 	go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
-deploy-local:
-	mkdir -p build/resources
-	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
-	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
-	rm -rf build
-
 e2e.namespace:
 	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
 
@@ -150,17 +155,43 @@ E2E_TEST_NS ?= operators
 e2e:
 	$(GINKGO) $(E2E_OPTS) $(or $(run), ./test/e2e) $< -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) -dummyImage=bitnami/nginx:latest $(or $(extra_args), -kubeconfig=${KUBECONFIG})
 
+.PHONY: e2e-build
+e2e-build: build-linux build-wait build-util-linux
+	docker build -f e2e.Dockerfile -t $(IMAGE_REPO):$(IMAGE_TAG) ./bin
+
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
-e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
-e2e-local: extra_args=-test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
-e2e-local: run=bin/e2e-local.test
-e2e-local: bin/e2e-local.test
+e2e-local: clean e2e-build kind-create kind-load
+e2e-local: OLM_OPERATOR_NAMESPACE=$(E2E_INSTALL_NS)
+e2e-local: CATALOG_OPERATOR_NAMESPACE=$(E2E_CATALOG_NS)
+e2e-local: helm-deploy
+e2e-local: extra_args=-test-data-dir=$(shell realpath ./test/e2e/testdata) -gather-artifacts-script-path=$(shell realpath ./test/e2e/collect-ci-artifacts.sh)
 e2e-local: e2e
 
-# execute kind and helm end to end tests
-bin/e2e-local.test: FORCE
-	$(GO) test -c -o $@ ./test/e2e
+.PHONY: kind-load
+kind-load: $(KIND)
+	$(KIND) load docker-image $(IMAGE_REPO):$(IMAGE_TAG) --name ${KIND_CLUSTER_NAME}
+
+.PHONY: kind-create
+kind-create: $(KIND)
+	-$(KIND) delete cluster --name ${KIND_CLUSTER_NAME}
+	$(KIND) create cluster --name ${KIND_CLUSTER_NAME} # --image ${KIND_CLUSTER_IMAGE}
+	$(KIND) export kubeconfig --name ${KIND_CLUSTER_NAME}
+
+.PHONY:
+helm-deploy:
+	# deploy operator-lifecycle-manager with helm to the operator-lifecycle-manager namespace
+	# both olm and catalog operators will be deployed to the operator-lifecycle-manager namespace
+	# CRDs will be installed on the first install of the operator but not on upgrades
+	$(HELM) upgrade operator-lifecycle-manager deploy/chart \
+		--values doc/install/local-values.yaml \
+ 		--set namespace=$(OLM_OPERATOR_NAMESPACE) \
+ 		--set catalog_namespace=$(CATALOG_OPERATOR_NAMESPACE) \
+ 		--set olm.image.ref=$(IMAGE_REPO):$(IMAGE_TAG) \
+ 		--set catalog.image.ref=$(IMAGE_REPO):$(IMAGE_TAG) \
+ 		--set package.image.ref=$(IMAGE_REPO):$(IMAGE_TAG) \
+ 		--install \
+ 		--wait
 
 e2e-bare: setup-bare
 	. ./scripts/run_e2e_bare.sh $(TEST)
