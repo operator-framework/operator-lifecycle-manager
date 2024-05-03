@@ -52,7 +52,7 @@ var (
 	collectArtifactsScriptPath = flag.String(
 		"gather-artifacts-script-path",
 		"./collect-ci-artifacts.sh",
-		"configures the relative/absolute path to the script resposible for collecting CI artifacts",
+		"configures the relative/absolute path to the script responsible for collecting CI artifacts",
 	)
 
 	testdataPath = flag.String(
