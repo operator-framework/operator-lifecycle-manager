@@ -148,24 +148,28 @@ E2E_INSTALL_NS ?= operator-lifecycle-manager
 E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
 E2E_TEST_NS ?= operators
 
+TEST_CLUSTER_SUFFIX := $(shell cat /dev/urandom | tr -dc 'a-z0-9' | head -c 5)
+TEST_KUBE_CONFIG := /tmp/kind-olmv0-$(TEST_CLUSTER_SUFFIX).kubeconfig
+
 e2e:
 	$(GINKGO) $(E2E_OPTS) $(or $(run), ./test/e2e) $< -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) -dummyImage=bitnami/nginx:latest $(or $(extra_args), -kubeconfig=${KUBECONFIG})
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
 e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
-e2e-local: extra_args=-test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
+e2e-local: extra_args=-test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh -kubeconfig=$(TEST_KUBE_CONFIG)
 e2e-local: run=bin/e2e-local.test
 e2e-local: e2e-local-deploy bin/e2e-local.test
 e2e-local: e2e
 
 .PHONY: e2e-local-deploy
 e2e-local-deploy: $(KIND) test/e2e-local.image.tar
-	-$(KIND) delete cluster --name kind-olmv0
-	$(KIND) create cluster --name kind-olmv0
-	$(KIND) export kubeconfig --name kind-olmv0
-	$(KIND) load docker-image quay.io/operator-framework/olm:local --name kind-olmv0
+	@KIND_CLUSTER_NAME=kind-olmv0-$(TEST_CLUSTER_SUFFIX); \
+	$(KIND) delete cluster --name $$KIND_CLUSTER_NAME; \
+	$(KIND) create cluster --name $$KIND_CLUSTER_NAME --kubeconfig=$(TEST_KUBE_CONFIG); \
+	$(KIND) load docker-image quay.io/operator-framework/olm:local --name $$KIND_CLUSTER_NAME;
 #	$(HELM) install olm deploy/chart \
+#		--kubeconfig=$(TEST_KUBE_CONFIG) \
 #		--set debug=true \
 #		--set olm.image.ref=quay.io/operator-framework/olm:local \
 #		--set olm.image.pullPolicy=IfNotPresent \
@@ -173,7 +177,7 @@ e2e-local-deploy: $(KIND) test/e2e-local.image.tar
 #		--set catalog.image.pullPolicy=IfNotPresent \
 #		--set package.image.ref=quay.io/operator-framework/olm:local \
 #		--set package.image.pullPolicy=IfNotPresent \
-#		--wait
+#		--wait;
 
 
 # this target updates the zz_chart.go file with files found in deploy/chart
