@@ -15,6 +15,7 @@ COPY Makefile Makefile
 COPY OLM_VERSION OLM_VERSION
 COPY pkg pkg
 COPY vendor vendor
+COPY .bingo .bingo
 COPY go.mod go.mod
 COPY go.sum go.sum
 COPY cmd cmd
