@@ -160,20 +160,20 @@ e2e-local: e2e-local-deploy bin/e2e-local.test
 e2e-local: e2e
 
 .PHONY: e2e-local-deploy
-e2e-local-deploy: $(KIND) e2e-local-build
+e2e-local-deploy: $(KIND) test/e2e-local.image.tar
 	-$(KIND) delete cluster --name kind-olmv0
 	$(KIND) create cluster --name kind-olmv0
 	$(KIND) export kubeconfig --name kind-olmv0
 	$(KIND) load docker-image quay.io/operator-framework/olm:local --name kind-olmv0
-	$(HELM) install olm deploy/chart \
-		--set debug=true \
-		--set olm.image.ref=quay.io/operator-framework/olm:local \
-		--set olm.image.pullPolicy=IfNotPresent \
-		--set catalog.image.ref=quay.io/operator-framework/olm:local \
-		--set catalog.image.pullPolicy=IfNotPresent \
-		--set package.image.ref=quay.io/operator-framework/olm:local \
-		--set package.image.pullPolicy=IfNotPresent \
-		--wait
+#	$(HELM) install olm deploy/chart \
+#		--set debug=true \
+#		--set olm.image.ref=quay.io/operator-framework/olm:local \
+#		--set olm.image.pullPolicy=IfNotPresent \
+#		--set catalog.image.ref=quay.io/operator-framework/olm:local \
+#		--set catalog.image.pullPolicy=IfNotPresent \
+#		--set package.image.ref=quay.io/operator-framework/olm:local \
+#		--set package.image.pullPolicy=IfNotPresent \
+#		--wait
 
 
 # this target updates the zz_chart.go file with files found in deploy/chart
@@ -184,15 +184,15 @@ test/e2e/assets/chart/zz_chart.go: $(shell find deploy/chart -type f)
 
 # execute kind and helm end to end tests
 bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
-	$(GO) test -c -o $@ ./test/e2e
+	$(GO) test -c -tags helm -o $@ ./test/e2e
 
 # set go env and other vars, ensure that the dockerfile exists, and then build wait, cpb, and other command binaries and finally the kind image archive
-.PHONY: e2e-local-build
-e2e-local-build: export GOOS=linux
-e2e-local-build: export GOARCH=386
-e2e-local-build: build_cmd=build
-e2e-local-build: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
+test/e2e-local.image.tar: export GOOS=linux
+test/e2e-local.image.tar: export GOARCH=386
+test/e2e-local.image.tar: build_cmd=build
+test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
+	docker save -o $@ quay.io/operator-framework/olm:local
 
 e2e-bare: setup-bare
 	. ./scripts/run_e2e_bare.sh $(TEST)
