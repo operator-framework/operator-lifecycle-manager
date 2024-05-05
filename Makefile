@@ -8,6 +8,9 @@ $(warning Undefining GOFLAGS set in CI)
 undefine GOFLAGS
 endif
 
+# bingo manages consistent tooling versions for things like kind, kustomize, etc.
+include .bingo/Variables.mk
+
 SHELL := /bin/bash
 ORG := github.com/operator-framework
 PKG   := $(ORG)/operator-lifecycle-manager
@@ -23,6 +26,7 @@ SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
+HELM := go run $(MOD_FLAGS) ./vendor/helm.sh/helm/v3/cmd/helm/
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
@@ -150,10 +154,27 @@ e2e:
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
 e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
-e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar -test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
+e2e-local: extra_args=-test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
 e2e-local: run=bin/e2e-local.test
-e2e-local: bin/e2e-local.test test/e2e-local.image.tar
+e2e-local: e2e-local-deploy bin/e2e-local.test
 e2e-local: e2e
+
+.PHONY: e2e-local-deploy
+e2e-local-deploy: $(KIND) e2e-local-build
+	-$(KIND) delete cluster --name kind-olmv0
+	$(KIND) create cluster --name kind-olmv0
+	$(KIND) export kubeconfig --name kind-olmv0
+	$(KIND) load docker-image quay.io/operator-framework/olm:local --name kind-olmv0
+	$(HELM) install olm deploy/chart \
+		--set debug=true \
+		--set olm.image.ref=quay.io/operator-framework/olm:local \
+		--set olm.image.pullPolicy=IfNotPresent \
+		--set catalog.image.ref=quay.io/operator-framework/olm:local \
+		--set catalog.image.pullPolicy=IfNotPresent \
+		--set package.image.ref=quay.io/operator-framework/olm:local \
+		--set package.image.pullPolicy=IfNotPresent \
+		--wait
+
 
 # this target updates the zz_chart.go file with files found in deploy/chart
 # this will always fire since it has been marked as phony
@@ -163,15 +184,15 @@ test/e2e/assets/chart/zz_chart.go: $(shell find deploy/chart -type f)
 
 # execute kind and helm end to end tests
 bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
-	$(GO) test -c -tags kind,helm -o $@ ./test/e2e
+	$(GO) test -c -o $@ ./test/e2e
 
 # set go env and other vars, ensure that the dockerfile exists, and then build wait, cpb, and other command binaries and finally the kind image archive
-test/e2e-local.image.tar: export GOOS=linux
-test/e2e-local.image.tar: export GOARCH=386
-test/e2e-local.image.tar: build_cmd=build
-test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
+.PHONY: e2e-local-build
+e2e-local-build: export GOOS=linux
+e2e-local-build: export GOARCH=386
+e2e-local-build: build_cmd=build
+e2e-local-build: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
-	docker save -o $@ quay.io/operator-framework/olm:local
 
 e2e-bare: setup-bare
 	. ./scripts/run_e2e_bare.sh $(TEST)
