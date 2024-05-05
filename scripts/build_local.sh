@@ -6,13 +6,7 @@
 set -e
 set -o xtrace
 
-[ -x "$(command -v kind)" ] && [[ "$(kubectl config current-context)" =~ ^kind-? ]] && KIND=1 NO_MINIKUBE=1
-
-if [ -z "$NO_MINIKUBE" ]; then
-  pgrep -f "[m]inikube" >/dev/null || minikube start "${MINIKUBE_ARGS}" --extra-config=apiserver.v=4 || { echo 'Cannot start minikube.'; exit 1; }
-  eval "$(minikube docker-env)" || { echo 'Cannot switch to minikube docker'; exit 1; }
-  kubectl config use-context minikube
-fi
+[ -x "$(command -v kind)" ] && [[ "$(kubectl config current-context)" =~ ^kind-? ]] && KIND=1
 
 docker build -f e2e.Dockerfile -t quay.io/operator-framework/olm:local -t quay.io/operator-framework/olm-e2e:local ./bin
 docker build -f test/e2e/hang.Dockerfile -t hang:10 ./bin
