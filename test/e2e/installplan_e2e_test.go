@@ -1406,7 +1406,9 @@ var _ = Describe("Install Plan", func() {
 
 			By(`Wait for InstallPlan to be status: Complete or Failed before checking resource presence`)
 			fetchedInstallPlan, err = fetchInstallPlan(GinkgoT(), crc, installPlanName, generatedNamespace.GetName(), buildInstallPlanPhaseCheckFunc(tt.expectedPhase))
-			require.NoError(GinkgoT(), err, fmt.Sprintf("%s", fetchedInstallPlan))
+			// Marshal the JSON object to a pretty format
+			prettyJSON, _ := json.MarshalIndent(fetchedInstallPlan, "", "  ")
+			require.NoError(GinkgoT(), err, fmt.Sprintf("%s", prettyJSON))
 			GinkgoT().Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 			require.Equal(GinkgoT(), tt.expectedPhase, fetchedInstallPlan.Status.Phase)

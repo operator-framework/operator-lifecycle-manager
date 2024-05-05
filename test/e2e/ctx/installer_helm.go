@@ -82,6 +82,8 @@ func Install(ctx *TestContext) error {
 	cfg := action.Configuration{}
 	cfg.Init(clientAdapter{ctx.RESTConfig()}, "", "memory", ctx.Logf)
 	act := action.NewInstall(&cfg)
+	act.IncludeCRDs = true
+	act.OutputDir = "/home/perdasilva/repos/perdasilva/operator-lifecycle-manager/manifests"
 	act.Timeout = 5 * time.Second
 	act.ReleaseName = fmt.Sprintf("release-%s", rand.String(8))
 
@@ -92,6 +94,7 @@ func Install(ctx *TestContext) error {
 			return err
 		}
 		files = append(files, &loader.BufferedFile{Name: name, Data: data})
+		fmt.Printf("Loaded chart file %s\n", name)
 	}
 
 	valueOptions := values.Options{
