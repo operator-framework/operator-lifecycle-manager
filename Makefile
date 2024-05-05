@@ -176,10 +176,6 @@ test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 e2e-bare: setup-bare
 	. ./scripts/run_e2e_bare.sh $(TEST)
 
-e2e-local-docker:
-	. ./scripts/build_local.sh
-	. ./scripts/run_e2e_docker.sh $(TEST)
-
 vendor:
 	go mod tidy
 	go mod vendor
