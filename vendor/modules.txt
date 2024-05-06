@@ -2188,7 +2188,7 @@ sigs.k8s.io/controller-tools/pkg/webhook
 ## explicit; go 1.18
 sigs.k8s.io/json
 sigs.k8s.io/json/internal/golang/encoding/json
-# sigs.k8s.io/kind v0.22.0
+# sigs.k8s.io/kind v0.20.0
 ## explicit; go 1.16
 sigs.k8s.io/kind
 sigs.k8s.io/kind/cmd/kind/app

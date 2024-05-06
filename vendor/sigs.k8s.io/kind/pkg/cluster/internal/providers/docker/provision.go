@@ -386,12 +386,9 @@ func generatePortMappings(clusterIPFamily config.ClusterIPFamily, portMappings .
 		}
 
 		// get a random port if necessary (port = 0)
-		hostPort, releaseHostPortFn, err := common.PortOrGetFreePort(pm.HostPort, pm.ListenAddress)
+		hostPort, err := common.PortOrGetFreePort(pm.HostPort, pm.ListenAddress)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get random host port for port mapping")
-		}
-		if releaseHostPortFn != nil {
-			defer releaseHostPortFn()
 		}
 
 		// generate the actual mapping arg
