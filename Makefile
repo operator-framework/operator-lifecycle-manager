@@ -32,7 +32,6 @@ IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
-YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 GIT_COMMIT := $(shell git rev-parse HEAD)
@@ -234,9 +233,9 @@ endif
 ifndef ver
 	$(error ver is undefined)
 endif
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
+	$(YQ_V3) w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
+	$(YQ_V3) w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
+	$(YQ_V3) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)
