@@ -1,6 +1,3 @@
-//go:build !bare
-// +build !bare
-
 package e2e
 
 import (

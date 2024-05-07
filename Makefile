@@ -14,7 +14,6 @@ PKG   := $(ORG)/operator-lifecycle-manager
 MOD_FLAGS := -mod=vendor -buildvcs=false
 BUILD_TAGS := "json1"
 CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
-TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
 MOCKGEN := ./scripts/update_mockgen.sh
 CODEGEN := ./scripts/update_codegen.sh
 IMAGE_REPO := quay.io/operator-framework/olm
@@ -76,11 +75,6 @@ coverage-html: cover.out
 build: build_cmd=build
 build: clean $(CMDS)
 
-test-bare: BUILD_TAGS=-tags=bare
-test-bare: clean $(TCMDS)
-
-test-bin: clean $(TCMDS)
-
 # build versions of the binaries with coverage enabled
 build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
 build-coverage: clean $(CMDS)
@@ -111,9 +105,6 @@ $(CMDS):
 
 build: clean $(CMDS)
 
-$(TCMDS):
-	go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
-
 deploy-local:
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
@@ -122,12 +113,6 @@ deploy-local:
 
 e2e.namespace:
 	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
-
-# useful if running e2e directly with `go test -tags=bare`
-setup-bare: clean e2e.namespace
-	. ./scripts/build_bare.sh
-	. ./scripts/package_release.sh 1.0.0 test/e2e/resources test/e2e/e2e-bare-values.yaml
-	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
 E2E_NODES ?= 1
 E2E_FLAKE_ATTEMPTS ?= 1
@@ -172,9 +157,6 @@ test/e2e-local.image.tar: build_cmd=build
 test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
 	docker save -o $@ quay.io/operator-framework/olm:local
-
-e2e-bare: setup-bare
-	. ./scripts/run_e2e_bare.sh $(TEST)
 
 vendor:
 	go mod tidy
