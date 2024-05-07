@@ -20,21 +20,17 @@ ifeq ($(shell [[ $$HOME == "" || $$HOME == "/" ]] && [[ $$XDG_DATA_HOME == "" ]]
 endif
 
 SHELL := /bin/bash
-ORG := github.com/operator-framework
-PKG   := $(ORG)/operator-lifecycle-manager
 MOD_FLAGS := -mod=vendor -buildvcs=false
-BUILD_TAGS := "json1"
-CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
+BUILD_TAGS := json1
 MOCKGEN := ./scripts/update_mockgen.sh
 CODEGEN := ./scripts/update_codegen.sh
 IMAGE_REPO := quay.io/operator-framework/olm
-IMAGE_TAG ?= "dev"
+IMAGE_TAG ?= dev
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
-LOCAL_NAMESPACE := "olm"
+LOCAL_NAMESPACE := olm
 export GO111MODULE=on
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
-GIT_COMMIT := $(shell git rev-parse HEAD)
 ifeq ($(shell arch), arm64) 
 ARCH := arm64
 else
@@ -50,73 +46,60 @@ KIND_NODE_VERSION := $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed '
 KIND_CLUSTER_IMAGE := kindest/node:v$(KIND_NODE_VERSION)
 
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
-.PHONY: build test clean vendor \
-	coverage coverage-html e2e \
-	kubebuilder
+.PHONY: build clean vendor e2e kubebuilder
 
 .PHONY: FORCE
 FORCE:
-
-all: test build
-
-test: clean cover.out
 
 .PHONY: unit
 ENVTEST_VERSION := $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1.x/')
 unit: $(SETUP_ENVTEST)
 	eval $$($(SETUP_ENVTEST) use -p env $(ENVTEST_VERSION) $(SETUP_ENVTEST_BIN_DIR_OVERRIDE)) && go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
-cover.out:
-	go test $(MOD_FLAGS) -tags "json1" -race -coverprofile=cover.out -covermode=atomic \
-		-coverpkg ./pkg/controller/... ./pkg/...
-
-coverage: cover.out
-	go tool cover -func=cover.out
-
-coverage-html: cover.out
-	go tool cover -html=cover.out
-
-build: build_cmd=build
-build: clean $(CMDS)
-
-# build versions of the binaries with coverage enabled
-build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
-build-coverage: clean $(CMDS)
-
-build-linux: build_cmd=build
-build-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
-build-linux: clean $(CMDS)
-
 build-wait: clean bin/wait
 
 bin/wait: FORCE
 	GOOS=linux GOARCH=$(ARCH) go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
-build-util-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
-build-util-linux: build-util
+# Default CGO_ENABLED setting if not already set
+CGO_ENABLED ?= 0
+export CGO_ENABLED
 
-build-util: bin/cpb bin/copy-content
+# Dynamic version and commit data
+export PKG := github.com/operator-framework/operator-lifecycle-manager
+export GIT_COMMIT := $(shell git rev-parse HEAD)
+export OLM_VERSION := $(shell cat OLM_VERSION)
 
-bin/cpb: FORCE
-	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
+# Linker and build flags
+export GO_BUILD_LDFLAGS := -s -w -X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=$(OLM_VERSION)
+export GO_BUILD_FLAGS := -mod=vendor
+export GO_BUILD_EXT_LDFLAGS ?=
 
-bin/copy-content: FORCE
-	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./cmd/copy-content
+BUILDCMD = go build $(GO_BUILD_FLAGS) -ldflags '$(GO_BUILD_LDFLAGS) $(GO_BUILD_EXT_LDFLAGS)'
 
-$(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
-$(CMDS):
-	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags $(BUILD_TAGS) -o bin/$(shell basename $@) $@
+.PHONY: build go-build-local
+build: clean go-build-local go-build-local-util
+go-build-local:
+	$(BUILDCMD) -o bin/olm ./cmd/olm
+	$(BUILDCMD) -o bin/catalog ./cmd/catalog
+	$(BUILDCMD) -o bin/package-server ./cmd/package-server
 
-build: clean $(CMDS)
+.PHONY: go-build-util go-build-local-util
+go-build-util: go-build-local-util
+go-build-local-util: GO_BUILD_EXT_LDFLAGS := -extldflags "-static"
+go-build-local-util:
+	$(BUILDCMD) -o bin/copy-content ./cmd/copy-content
+	$(BUILDCMD) -o bin/cpb ./util/cpb
+
+.PHONY: build-linux
+build-linux:
+	export GOOS=linux; $(MAKE) build
 
 deploy-local:
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
-
-e2e.namespace:
-	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
 
 E2E_NODES ?= 1
 E2E_FLAKE_ATTEMPTS ?= 1
@@ -144,7 +127,7 @@ e2e-local: e2e-local-deploy
 e2e-local: e2e
 
 .PHONY: e2e-local-deploy
-e2e-local-deploy: $(KIND) $(HELM) e2e-local-build
+e2e-local-deploy: $(KIND) $(HELM) build-linux container
 	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)
 	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) --image $(KIND_CLUSTER_IMAGE)
 	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
@@ -159,20 +142,12 @@ e2e-local-deploy: $(KIND) $(HELM) e2e-local-build
 		--set package.image.pullPolicy=IfNotPresent \
 		--wait;
 
-# set go env and other vars, ensure that the dockerfile exists, and then build wait, cpb, and other command binaries and finally the kind image archive
-.PHONY: e2e-local-build
-e2e-local-build: export GOOS=linux
-e2e-local-build: export GOARCH=386
-e2e-local-build: build_cmd=build
-e2e-local-build: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
-	docker build -t quay.io/operator-framework/olm:local -f $< bin
-
 vendor:
 	go mod tidy
 	go mod vendor
 
 container:
-	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
+	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) -f Dockerfile ./bin
 
 clean-e2e:
 	kubectl delete crds --all
@@ -265,15 +240,3 @@ uninstall:
 	- kubectl delete clusterrole.rbac.authorization.k8s.io/system:controller:operator-lifecycle-manager
 	- kubectl delete clusterroles.rbac.authorization.k8s.io "system:controller:operator-lifecycle-manager"
 	- kubectl delete clusterrolebindings.rbac.authorization.k8s.io "olm-operator-binding-openshift-operator-lifecycle-manager"
-
-.PHONY: build-local
-build-local: build-linux build-wait build-util-linux
-	rm -rf build
-	. ./scripts/build_local.sh
-
-.PHONY: run-local
-run-local: build-local
-	mkdir -p build/resources
-	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
-	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
-	rm -rf build
