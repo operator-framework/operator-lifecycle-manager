@@ -15,7 +15,6 @@ require (
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.6.0
-	github.com/googleapis/gnostic v0.5.5
 	github.com/itchyny/gojq v0.11.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.8.1
 	github.com/mitchellh/hashstructure v1.0.0
