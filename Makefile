@@ -11,6 +11,14 @@ endif
 # bingo manages consistent tooling versions for things like kind, kustomize, etc.
 include .bingo/Variables.mk
 
+# By default setup-envtest will write to $XDG_DATA_HOME, or $HOME/.local/share if that is not defined.
+# If $HOME is not set, we need to specify a binary directory to prevent an error in setup-envtest.
+# Useful for some CI/CD environments that set neither $XDG_DATA_HOME nor $HOME.
+SETUP_ENVTEST_BIN_DIR_OVERRIDE=
+ifeq ($(shell [[ $$HOME == "" || $$HOME == "/" ]] && [[ $$XDG_DATA_HOME == "" ]] && echo true ), true)
+	SETUP_ENVTEST_BIN_DIR_OVERRIDE += --bin-dir /tmp/envtest-binaries
+endif
+
 SHELL := /bin/bash
 ORG := github.com/operator-framework
 PKG   := $(ORG)/operator-lifecycle-manager
@@ -25,8 +33,6 @@ SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
-KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
-export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
@@ -57,22 +63,10 @@ all: test build
 
 test: clean cover.out
 
-unit: kubebuilder
-	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
-
-# Ensure kubectl installed before continuing
-KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest
-KUBECTL_ASSETS_ERR := kubectl not detected.
-kubebuilder:
-ifeq (, $(shell which kubectl))
-	$(error $(KUBECTL_ASSETS_ERR))
-endif
-ifeq (, $(wildcard $(KUBEBUILDER_ASSETS)/etcd))
-	$(error etcd $(KUBEBUILDER_ASSETS_ERR))
-endif
-ifeq (, $(wildcard $(KUBEBUILDER_ASSETS)/kube-apiserver))
-	$(error kube-apiserver $(KUBEBUILDER_ASSETS_ERR))
-endif
+.PHONY: unit
+ENVTEST_VERSION := $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1.x/')
+unit: $(SETUP_ENVTEST)
+	eval $$($(SETUP_ENVTEST) use -p env $(ENVTEST_VERSION) $(SETUP_ENVTEST_BIN_DIR_OVERRIDE)) && go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
 cover.out:
 	go test $(MOD_FLAGS) -tags "json1" -race -coverprofile=cover.out -covermode=atomic \
