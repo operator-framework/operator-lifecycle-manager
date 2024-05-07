@@ -4,7 +4,6 @@ This runs a series of tests against the Kubernetes API to verify that OLM is fun
 
 ## Requirements
 
-* Minikube > 0.25.0
 * Helm > 2.7.0
 
 ## How to use
@@ -55,13 +54,3 @@ make file and use `-dryRun` with `-focus` and see if the regex would trigger you
 ## Build infrastructure
 
 Note that the make file target `e2e-local` is executed by the github workflow `.github/workflows/e2e-tests.yml` and uses two parallel `go test` processes.
-
-## Running on minikube
-
-The e2e suite is also runnable on a minikube cluster. First spin up the minikube cluster manually with the desired provisioner, 
-then run `make run-local` to deploy OLM onto the cluster. Tests can be run by invoking ginkgo and passing the required command line
-arguments to the test suite. For example to run a specific test:
-
-```bash
-GO111MODULE=on go run github.com/onsi/ginkgo/v2/ginkgo -focus "static provider" -v --progress ./test/e2e -- -namespace=operators -olmNamespace=olm -dummyImage=bitnami/nginx:latest
-```

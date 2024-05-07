@@ -16,19 +16,6 @@ kubectl create -f deploy/upstream/quickstart/olm.yaml
 
 Check out the latest [releases on github](https://github.com/operator-framework/operator-lifecycle-manager/releases) for release-specific install instructions.
 
-## Run locally with minikube
-
-This command starts minikube, builds the OLM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for OLM.
-
-```bash
-# To install and run locally
-$ make run-local
-```
-
-You can verify that the OLM components have been successfully deployed by running `kubectl -n olm get deployments`
-
-**NOTE** It is recommended for development purposes and will use the source locally
-
 ## OpenShift
 
 **IMPORTANT:** OLM is installed by default in OpenShift 4.0 and above.
