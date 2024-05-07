@@ -36,6 +36,15 @@ ARCH := arm64
 else
 ARCH := amd64
 endif
+
+KIND_CLUSTER_NAME := kind-olmv0
+# Not guaranteed to have patch releases available and node image tags are full versions (i.e v1.28.0 - no v1.28, v1.29, etc.)
+# The KIND_NODE_VERSION is set by getting the version of the k8s.io/client-go dependency from the go.mod
+# and sets major version to "1" and the patch version to "0". For example, a client-go version of v0.28.5
+# will map to a KIND_NODE_VERSION of 1.28.0
+KIND_NODE_VERSION := $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1.0/')
+KIND_CLUSTER_IMAGE := kindest/node:v$(KIND_NODE_VERSION)
+
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
 	coverage coverage-html e2e \
@@ -144,13 +153,11 @@ e2e-local: e2e
 
 .PHONY: e2e-local-deploy
 e2e-local-deploy: $(KIND) $(HELM) e2e-local-build
-	@KIND_CLUSTER_NAME=kind-olmv0; \
-	$(KIND) delete cluster --name $$KIND_CLUSTER_NAME; \
-	$(KIND) create cluster --name $$KIND_CLUSTER_NAME; \
-	$(KIND) export kubeconfig --name $$KIND_CLUSTER_NAME; \
-	$(KIND) load docker-image quay.io/operator-framework/olm:local --name $$KIND_CLUSTER_NAME; \
+	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)
+	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) --image $(KIND_CLUSTER_IMAGE)
+	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
+	$(KIND) load docker-image quay.io/operator-framework/olm:local --name $(KIND_CLUSTER_NAME)
 	$(HELM) install olm deploy/chart \
-		--kubeconfig=$(TEST_KUBE_CONFIG) \
 		--set debug=true \
 		--set olm.image.ref=quay.io/operator-framework/olm:local \
 		--set olm.image.pullPolicy=IfNotPresent \
