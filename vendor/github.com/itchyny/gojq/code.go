@@ -1,8 +1,8 @@
 package gojq
 
 type code struct {
+	v  any
 	op opcode
-	v  interface{}
 }
 
 type opcode int
@@ -25,17 +25,19 @@ const (
 	opbacktrack
 	opjump
 	opjumpifnot
+	opindex
+	opindexarray
 	opcall
+	opcallrec
 	oppushpc
 	opcallpc
 	opscope
 	opret
-	opeach
+	opiter
 	opexpbegin
 	opexpend
 	oppathbegin
 	oppathend
-	opdebug
 )
 
 func (op opcode) String() string {
@@ -74,8 +76,14 @@ func (op opcode) String() string {
 		return "jump"
 	case opjumpifnot:
 		return "jumpifnot"
+	case opindex:
+		return "index"
+	case opindexarray:
+		return "indexarray"
 	case opcall:
 		return "call"
+	case opcallrec:
+		return "callrec"
 	case oppushpc:
 		return "pushpc"
 	case opcallpc:
@@ -84,8 +92,8 @@ func (op opcode) String() string {
 		return "scope"
 	case opret:
 		return "ret"
-	case opeach:
-		return "each"
+	case opiter:
+		return "iter"
 	case opexpbegin:
 		return "expbegin"
 	case opexpend:
@@ -94,8 +102,6 @@ func (op opcode) String() string {
 		return "pathbegin"
 	case oppathend:
 		return "pathend"
-	case opdebug:
-		return "debug"
 	default:
 		panic(op)
 	}

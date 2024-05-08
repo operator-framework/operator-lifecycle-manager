@@ -1,14 +1,12 @@
 package gojq
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
+	"encoding/json"
 	"unicode/utf8"
 )
 
 type lexer struct {
-	source    []byte
+	source    string
 	offset    int
 	result    *Query
 	token     string
@@ -18,7 +16,7 @@ type lexer struct {
 }
 
 func newLexer(src string) *lexer {
-	return &lexer{source: []byte(src)}
+	return &lexer{source: src}
 }
 
 const eof = -1
@@ -67,7 +65,7 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 	case isIdent(ch, false):
 		i := l.offset - 1
 		j, isModule := l.scanIdentOrModule()
-		l.token = string(l.source[i:j])
+		l.token = l.source[i:j]
 		lval.token = l.token
 		if isModule {
 			return tokModuleIdent
@@ -80,10 +78,10 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 		i := l.offset - 1
 		j := l.scanNumber(numberStateLead)
 		if j < 0 {
-			l.token = string(l.source[i:-j])
+			l.token = l.source[i:-j]
 			return tokInvalid
 		}
-		l.token = string(l.source[i:j])
+		l.token = l.source[i:j]
 		lval.token = l.token
 		return tokNumber
 	}
@@ -96,17 +94,17 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 			l.token = ".."
 			return tokRecurse
 		case isIdent(ch, false):
-			l.token = string(l.source[l.offset-1 : l.scanIdent()])
+			l.token = l.source[l.offset-1 : l.scanIdent()]
 			lval.token = l.token[1:]
 			return tokIndex
 		case isNumber(ch):
 			i := l.offset - 1
 			j := l.scanNumber(numberStateFloat)
 			if j < 0 {
-				l.token = string(l.source[i:-j])
+				l.token = l.source[i:-j]
 				return tokInvalid
 			}
-			l.token = string(l.source[i:j])
+			l.token = l.source[i:j]
 			lval.token = l.token
 			return tokNumber
 		default:
@@ -116,7 +114,7 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 		if isIdent(l.peek(), false) {
 			i := l.offset - 1
 			j, isModule := l.scanIdentOrModule()
-			l.token = string(l.source[i:j])
+			l.token = l.source[i:j]
 			lval.token = l.token
 			if isModule {
 				return tokModuleVariable
@@ -138,6 +136,7 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 				l.token = "?//"
 				return tokDestAltOp
 			}
+			l.offset--
 		}
 	case '+':
 		if l.peek() == '=' {
@@ -224,8 +223,8 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 		lval.operator = OpLt
 		return tokCompareOp
 	case '@':
-		if isIdent(l.peek(), false) {
-			l.token = string(l.source[l.offset-1 : l.scanIdent()])
+		if isIdent(l.peek(), true) {
+			l.token = l.source[l.offset-1 : l.scanIdent()]
 			lval.token = l.token
 			return tokFormat
 		}
@@ -235,9 +234,9 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 		return tok
 	default:
 		if ch >= utf8.RuneSelf {
-			r, _ := utf8.DecodeRune(l.source[l.offset-1:])
+			r, size := utf8.DecodeRuneInString(l.source[l.offset-1:])
+			l.offset += size
 			l.token = string(r)
-			l.offset += len(l.token)
 		}
 	}
 	return int(ch)
@@ -248,19 +247,35 @@ func (l *lexer) next() (byte, bool) {
 		ch := l.source[l.offset]
 		l.offset++
 		if ch == '#' {
-			if len(l.source) == l.offset {
+			if l.skipComment() {
 				return 0, true
-			}
-			for !isNewLine(l.source[l.offset]) {
-				l.offset++
-				if len(l.source) == l.offset {
-					return 0, true
-				}
 			}
 		} else if !isWhite(ch) {
 			return ch, false
 		} else if len(l.source) == l.offset {
 			return 0, true
+		}
+	}
+}
+
+func (l *lexer) skipComment() bool {
+	for {
+		switch l.peek() {
+		case 0:
+			return true
+		case '\\':
+			switch l.offset++; l.peek() {
+			case '\\', '\n':
+				l.offset++
+			case '\r':
+				if l.offset++; l.peek() == '\n' {
+					l.offset++
+				}
+			}
+		case '\n', '\r':
+			return false
+		default:
+			l.offset++
 		}
 	}
 }
@@ -300,6 +315,14 @@ func (l *lexer) scanIdentOrModule() (int, bool) {
 	return index, isModule
 }
 
+func (l *lexer) validVarName() bool {
+	if l.peek() != '$' {
+		return false
+	}
+	l.offset++
+	return isIdent(l.peek(), false) && l.scanIdent() == len(l.source)
+}
+
 const (
 	numberStateLead = iota
 	numberStateFloat
@@ -317,7 +340,8 @@ func (l *lexer) scanNumber(state int) int {
 				switch ch {
 				case '.':
 					if state != numberStateLead {
-						return l.offset
+						l.offset++
+						return -l.offset
 					}
 					l.offset++
 					state = numberStateFloat
@@ -342,7 +366,7 @@ func (l *lexer) scanNumber(state int) int {
 					l.offset++
 					return -l.offset
 				}
-				if state == numberStateExpLead && len(l.source) == l.offset {
+				if state == numberStateExpLead {
 					return -l.offset
 				}
 				return l.offset
@@ -355,116 +379,176 @@ func (l *lexer) scanNumber(state int) int {
 	}
 }
 
+func (l *lexer) validNumber() bool {
+	ch := l.peek()
+	switch ch {
+	case '+', '-':
+		l.offset++
+		ch = l.peek()
+	}
+	state := numberStateLead
+	if ch == '.' {
+		l.offset++
+		ch = l.peek()
+		state = numberStateFloat
+	}
+	return isNumber(ch) && l.scanNumber(state) == len(l.source)
+}
+
 func (l *lexer) scanString(start int) (int, string) {
-	var quote bool
-	for i, m := l.offset, len(l.source); i < m; i++ {
+	var decode bool
+	var controls int
+	unquote := func(src string, quote bool) (string, error) {
+		if !decode {
+			if quote {
+				return src, nil
+			}
+			return src[1 : len(src)-1], nil
+		}
+		var buf []byte
+		if !quote && controls == 0 {
+			buf = []byte(src)
+		} else {
+			buf = quoteAndEscape(src, quote, controls)
+		}
+		if err := json.Unmarshal(buf, &src); err != nil {
+			return "", err
+		}
+		return src, nil
+	}
+	for i := l.offset; i < len(l.source); i++ {
 		ch := l.source[i]
 		switch ch {
 		case '\\':
-			quote = !quote
-		case '"':
-			if !quote {
-				if !l.inString {
-					l.offset = i + 1
-					l.token = string(l.source[start:l.offset])
-					str, err := strconv.Unquote(l.token)
-					if err != nil {
-						return tokInvalid, ""
-					}
-					return tokString, str
-				}
-				if i > l.offset {
-					l.offset = i
-					l.token = string(l.source[start:l.offset])
-					str, err := strconv.Unquote("\"" + l.token + "\"")
-					if err != nil {
-						return tokInvalid, ""
-					}
-					return tokString, str
-				}
-				l.inString = false
-				l.offset = i + 1
-				return tokStringEnd, ""
+			if i++; i >= len(l.source) {
+				break
 			}
-			quote = false
-		case '(':
-			if quote {
-				if l.inString {
-					if i > l.offset+1 {
-						l.offset = i - 1
-						l.token = string(l.source[start:l.offset])
-						str, err := strconv.Unquote("\"" + l.token + "\"")
-						if err != nil {
-							return tokInvalid, ""
-						}
-						return tokString, str
+			switch l.source[i] {
+			case 'u':
+				for j := 1; j <= 4; j++ {
+					if i+j >= len(l.source) || !isHex(l.source[i+j]) {
+						l.offset = i + j
+						l.token = l.source[i-1 : l.offset]
+						return tokInvalidEscapeSequence, ""
 					}
-					l.offset = i + 1
+				}
+				i += 4
+				fallthrough
+			case '"', '/', '\\', 'b', 'f', 'n', 'r', 't':
+				decode = true
+			case '(':
+				if !l.inString {
+					l.inString = true
+					return tokStringStart, ""
+				}
+				if i == l.offset+1 {
+					l.offset += 2
 					l.inString = false
 					return tokStringQuery, ""
 				}
-				l.inString = true
-				return tokStringStart, ""
-			}
-		default:
-			if quote {
-				if !('a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' ||
-					'0' <= ch && ch <= '9' || ch == '\'' || ch == '"') {
-					l.offset = i + 1
-					l.token = string(l.source[l.offset-2 : l.offset])
+				l.offset = i - 1
+				l.token = l.source[start:l.offset]
+				str, err := unquote(l.token, true)
+				if err != nil {
 					return tokInvalid, ""
 				}
-				quote = false
+				return tokString, str
+			default:
+				l.offset = i + 1
+				l.token = l.source[l.offset-2 : l.offset]
+				return tokInvalidEscapeSequence, ""
+			}
+		case '"':
+			if !l.inString {
+				l.offset = i + 1
+				l.token = l.source[start:l.offset]
+				str, err := unquote(l.token, false)
+				if err != nil {
+					return tokInvalid, ""
+				}
+				return tokString, str
+			}
+			if i > l.offset {
+				l.offset = i
+				l.token = l.source[start:l.offset]
+				str, err := unquote(l.token, true)
+				if err != nil {
+					return tokInvalid, ""
+				}
+				return tokString, str
+			}
+			l.inString = false
+			l.offset = i + 1
+			return tokStringEnd, ""
+		default:
+			if !decode {
+				decode = ch > '~'
+			}
+			if ch < ' ' { // ref: unquoteBytes in encoding/json
+				controls++
 			}
 		}
 	}
 	l.offset = len(l.source)
-	l.token = string(l.source[start:l.offset])
-	return tokInvalid, ""
+	l.token = ""
+	return tokUnterminatedString, ""
 }
 
-type parseError struct {
-	offset    int
-	token     string
+func quoteAndEscape(src string, quote bool, controls int) []byte {
+	size := len(src) + controls*5
+	if quote {
+		size += 2
+	}
+	buf := make([]byte, size)
+	var j int
+	if quote {
+		buf[0] = '"'
+		buf[len(buf)-1] = '"'
+		j++
+	}
+	for i := 0; i < len(src); i++ {
+		if ch := src[i]; ch < ' ' {
+			const hex = "0123456789abcdef"
+			copy(buf[j:], `\u00`)
+			buf[j+4] = hex[ch>>4]
+			buf[j+5] = hex[ch&0xF]
+			j += 6
+		} else {
+			buf[j] = ch
+			j++
+		}
+	}
+	return buf
+}
+
+// ParseError represents a description of a query parsing error.
+type ParseError struct {
+	Offset    int    // the error occurred after reading Offset bytes
+	Token     string // the Token that caused the error (may be empty)
 	tokenType int
 }
 
-func (err *parseError) Error() string {
-	var message string
-	prefix := "unexpected"
-	switch {
-	case err.tokenType == eof:
-		message = "<EOF>"
-	case err.tokenType == tokInvalid:
-		prefix = "invalid"
-		fallthrough
-	case err.tokenType >= utf8.RuneSelf:
-		if strings.HasPrefix(err.token, "\"") {
-			message = err.token
-		} else {
-			message = "\"" + err.token + "\""
-		}
+func (err *ParseError) Error() string {
+	switch err.tokenType {
+	case eof:
+		return "unexpected EOF"
+	case tokInvalid:
+		return "invalid token " + jsonMarshal(err.Token)
+	case tokInvalidEscapeSequence:
+		return `invalid escape sequence "` + err.Token + `" in string literal`
+	case tokUnterminatedString:
+		return "unterminated string literal"
 	default:
-		message = strconv.Quote(string(err.tokenType))
+		return "unexpected token " + jsonMarshal(err.Token)
 	}
-	return fmt.Sprintf("%s token %s", prefix, message)
 }
 
-func (err *parseError) Token() (string, int) {
-	return err.token, err.offset
-}
-
-func (l *lexer) Error(e string) {
+func (l *lexer) Error(string) {
 	offset, token := l.offset, l.token
-	switch {
-	case l.tokenType == eof:
-		offset++
-	case l.tokenType >= utf8.RuneSelf:
-		offset -= len(token) - 1
-	default:
-		token = fmt.Sprintf("%c", l.tokenType)
+	if l.tokenType != eof && l.tokenType < utf8.RuneSelf {
+		token = string(rune(l.tokenType))
 	}
-	l.err = &parseError{offset, token, l.tokenType}
+	l.err = &ParseError{offset, token, l.tokenType}
 }
 
 func isWhite(ch byte) bool {
@@ -482,15 +566,12 @@ func isIdent(ch byte, tail bool) bool {
 		tail && isNumber(ch)
 }
 
-func isNumber(ch byte) bool {
-	return '0' <= ch && ch <= '9'
+func isHex(ch byte) bool {
+	return 'a' <= ch && ch <= 'f' ||
+		'A' <= ch && ch <= 'F' ||
+		isNumber(ch)
 }
 
-func isNewLine(ch byte) bool {
-	switch ch {
-	case '\n', '\r':
-		return true
-	default:
-		return false
-	}
+func isNumber(ch byte) bool {
+	return '0' <= ch && ch <= '9'
 }
