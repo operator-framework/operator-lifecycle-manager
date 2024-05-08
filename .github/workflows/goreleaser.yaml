@@ -41,7 +41,7 @@ jobs:
           release_name: ${{ github.ref }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
         if: startsWith(github.ref, 'refs/tags')
 
       - name: Docker Login
