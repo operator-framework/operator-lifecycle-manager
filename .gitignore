@@ -448,7 +448,6 @@ __pycache__/
 **/resources/*
 /build
 /apiserver.local.config
-e2e.namespace
 apiserver.crt
 apiserver.key
 

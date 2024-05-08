@@ -41,11 +41,12 @@ export OLM_VERSION := $(shell cat OLM_VERSION)
 export GO_BUILD_LDFLAGS := -s -w -X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=$(OLM_VERSION)
 export GO_BUILD_FLAGS := -mod=vendor
 export GO_BUILD_EXT_LDFLAGS ?=
+export GO_BUILD_TAGS ?= "json1"
 
 MOD_FLAGS := -mod=vendor -buildvcs=false
 BUILD_TAGS := json1
 
-BUILDCMD = go build $(GO_BUILD_FLAGS) -ldflags '$(GO_BUILD_LDFLAGS) $(GO_BUILD_EXT_LDFLAGS)'
+BUILDCMD = go build $(GO_BUILD_FLAGS) -tags '$(GO_BUILD_TAGS)' -ldflags '$(GO_BUILD_LDFLAGS) $(GO_BUILD_EXT_LDFLAGS)'
 
 .PHONY: build-local
 build-local:
@@ -85,9 +86,15 @@ unit: $(SETUP_ENVTEST)
 	eval $$($(SETUP_ENVTEST) use -p env $(ENVTEST_VERSION) $(SETUP_ENVTEST_BIN_DIR_OVERRIDE)) && CGO_ENABLED=1 go test $(MOD_FLAGS) $(if $(TEST),-run $(TEST),) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
 # e2e test settings
-E2E_NODES ?= 1
-E2E_FLAKE_ATTEMPTS ?= 1
-E2E_TIMEOUT ?= 90m
+# Default values for variables
+E2E_SEED ?=
+SKIP ?=
+TEST ?=
+ARTIFACT_DIR ?=
+E2E_FLAKE_ATTEMPTS ?= 1  # Default value for flake attempts if not specified
+E2E_NODES ?= 1           # Default value for nodes if not specified
+E2E_TIMEOUT ?= 90m       # Default timeout value
+
 # Optionally run an individual chunk of e2e test specs.
 # Do not use this from the CLI; this is intended to be used by CI only.
 E2E_TEST_CHUNK ?= all
@@ -95,19 +102,30 @@ E2E_TEST_NUM_CHUNKS ?= 4
 ifneq (all,$(E2E_TEST_CHUNK))
 TEST := $(shell go run ./test/e2e/split/... -chunks $(E2E_TEST_NUM_CHUNKS) -print-chunk $(E2E_TEST_CHUNK) ./test/e2e)
 endif
-E2E_OPTS ?= $(if $(E2E_SEED),-seed '$(E2E_SEED)') $(if $(SKIP), -skip '$(SKIP)') $(if $(TEST),-focus '$(TEST)') $(if $(ARTIFACT_DIR), -output-dir $(ARTIFACT_DIR) -junit-report junit_e2e.xml) -flake-attempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) -timeout $(E2E_TIMEOUT) -v -randomize-suites -trace --show-node-events
+
+# Conditional flags
+SEED_OPT := $(if $(E2E_SEED),-seed '$(E2E_SEED)')
+SKIP_OPT := $(if $(SKIP),-skip '$(SKIP)')
+TEST_OPT := $(if $(TEST),-focus '$(TEST)')
+ARTIFACT_OPTS := $(if $(ARTIFACT_DIR),-output-dir $(ARTIFACT_DIR) -junit-report junit_e2e.xml)
+
+# Compose the final E2E_OPTS
+E2E_OPTS := $(SEED_OPT) $(SKIP_OPT) $(TEST_OPT) $(ARTIFACT_OPTS) \
+            -flake-attempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) \
+            -timeout $(E2E_TIMEOUT) -v -randomize-suites -trace --show-node-events
+
+# e2e namespace settings
 E2E_INSTALL_NS ?= operator-lifecycle-manager
 E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
 E2E_TEST_NS ?= operators
 
 .PHONY: e2e
 e2e:
-	$(GINKGO) $(E2E_OPTS) $(or $(run), ./test/e2e) $< -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) -dummyImage=bitnami/nginx:latest $(or $(extra_args), -kubeconfig=${KUBECONFIG})
+	$(GINKGO) -tags '$(GO_BUILD_TAGS)' $(E2E_OPTS) $(or $(run), ./test/e2e) $< -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) -dummyImage=bitnami/nginx:latest $(or $(extra_args), -kubeconfig=${KUBECONFIG})
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
-e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
-e2e-local: extra_args=-test-data-dir=./testdata -gather-artifacts-script-path=./collect-ci-artifacts.sh
+e2e-local: GO_BUILD_TAGS=json1 e2e experimental_metrics
 e2e-local: e2e
 
 # cluster provisioning settings
@@ -155,12 +173,6 @@ IMAGE_TAG ?= local
 container:
 	$(CONTAINER_RUNTIME) build -t $(IMAGE_REPO):$(IMAGE_TAG) -f Dockerfile ./bin
 
-.PHONY: clean-e2e
-clean-e2e:
-	kubectl delete crds --all
-	kubectl delete apiservices.apiregistration.k8s.io v1.packages.operators.coreos.com || true
-	kubectl delete -f test/e2e/resources/0000_50_olm_00-namespace.yaml
-
 .PHONY: clean
 clean:
 	@rm -rf cover.out
@@ -168,7 +180,6 @@ clean:
 	@rm -rf test/e2e/resources
 	@rm -rf test/e2e/test-resources
 	@rm -rf test/e2e/log
-	@rm -rf e2e.namespace
 
 # Copy CRD manifests
 .PHONY: manifests
