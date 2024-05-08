@@ -122,7 +122,7 @@ e2e:
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
-e2e-local: GO_BUILD_TAGS=json1 e2e experimental_metrics
+e2e-local: GO_BUILD_TAGS += e2e experimental_metrics
 e2e-local: e2e
 
 # cluster provisioning settings
