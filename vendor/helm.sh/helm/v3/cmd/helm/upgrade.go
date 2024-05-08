@@ -36,6 +36,7 @@ import (
 	"helm.sh/helm/v3/pkg/cli/values"
 	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
 )
 
@@ -115,12 +116,13 @@ func newUpgradeCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 				client.DryRunOption = "none"
 			}
 			// Fixes #7002 - Support reading values from STDIN for `upgrade` command
-			// Must load values AFTER determining if we have to call install so that values loaded from stdin are are not read twice
+			// Must load values AFTER determining if we have to call install so that values loaded from stdin are not read twice
 			if client.Install {
 				// If a release does not exist, install it.
 				histClient := action.NewHistory(cfg)
 				histClient.Max = 1
-				if _, err := histClient.Run(args[0]); err == driver.ErrReleaseNotFound {
+				versions, err := histClient.Run(args[0])
+				if err == driver.ErrReleaseNotFound || isReleaseUninstalled(versions) {
 					// Only print this to stdout for table output
 					if outfmt == output.Table {
 						fmt.Fprintf(out, "Release %q does not exist. Installing it now.\n", args[0])
@@ -146,6 +148,9 @@ func newUpgradeCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 					instClient.DependencyUpdate = client.DependencyUpdate
 					instClient.Labels = client.Labels
 					instClient.EnableDNS = client.EnableDNS
+					if isReleaseUninstalled(versions) {
+						instClient.Replace = true
+					}
 
 					rel, err := runInstall(args, instClient, valueOpts, out)
 					if err != nil {
@@ -284,4 +289,8 @@ func newUpgradeCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	}
 
 	return cmd
+}
+
+func isReleaseUninstalled(versions []*release.Release) bool {
+	return len(versions) > 0 && versions[len(versions)-1].Info.Status == release.StatusUninstalled
 }
