@@ -18,7 +18,7 @@ jobs:
         sudo mv kubectl /bin/
         kind create cluster
         kind export kubeconfig
-        kubectl apply -f deploy/upstream/quickstart/crds.yaml
+        kubectl create -f deploy/upstream/quickstart/crds.yaml
         kubectl wait --timeout=5m --for=condition=Established crd $(kubectl get crd --output=jsonpath='{.items[*].metadata.name}')
         kubectl apply -f deploy/upstream/quickstart/olm.yaml
 
