@@ -233,7 +233,7 @@ github.com/cyphar/filepath-securejoin
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
-# github.com/distribution/distribution v2.7.1+incompatible
+# github.com/distribution/distribution v2.8.3+incompatible
 ## explicit
 github.com/distribution/distribution/reference
 # github.com/distribution/reference v0.6.0
@@ -248,7 +248,6 @@ github.com/docker/cli/cli/config/types
 # github.com/docker/distribution v2.8.3+incompatible
 ## explicit
 github.com/docker/distribution
-github.com/docker/distribution/digestset
 github.com/docker/distribution/metrics
 github.com/docker/distribution/registry/api/errcode
 github.com/docker/distribution/registry/api/v2

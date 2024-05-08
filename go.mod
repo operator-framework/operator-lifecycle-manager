@@ -7,7 +7,7 @@ toolchain go1.22.2
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/coreos/go-semver v0.3.1
-	github.com/distribution/distribution v2.7.1+incompatible
+	github.com/distribution/distribution v2.8.3+incompatible
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/ghodss/yaml v1.0.0
