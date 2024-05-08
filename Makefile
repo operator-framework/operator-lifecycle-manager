@@ -31,7 +31,7 @@ GIT_COMMIT := $(shell git rev-parse HEAD)
 ifeq ($(shell arch), arm64) 
 ARCH := arm64
 else
-ARCH := 386
+ARCH := amd64
 endif
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
@@ -152,7 +152,7 @@ bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
 
 # set go env and other vars, ensure that the dockerfile exists, and then build wait, cpb, and other command binaries and finally the kind image archive
 test/e2e-local.image.tar: export GOOS=linux
-test/e2e-local.image.tar: export GOARCH=386
+test/e2e-local.image.tar: export GOARCH=amd64
 test/e2e-local.image.tar: build_cmd=build
 test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
