@@ -1,18 +1,23 @@
 %{
 package gojq
 
-// Parse parses a query.
-func Parse(src string) (*Query, error) {
-	l := newLexer(src)
-	if yyParse(l) > 0 {
-		return nil, l.err
+func reverseFuncDef(xs []*FuncDef) []*FuncDef {
+	for i, j := 0, len(xs)-1; i < j; i, j = i+1, j-1 {
+		xs[i], xs[j] = xs[j], xs[i]
 	}
-	return l.result, nil
+	return xs
+}
+
+func prependFuncDef(xs []*FuncDef, x *FuncDef) []*FuncDef {
+	xs = append(xs, nil)
+	copy(xs[1:], xs)
+	xs[0] = x
+	return xs
 }
 %}
 
 %union {
-  value    interface{}
+  value    any
   token    string
   operator Operator
 }
@@ -20,20 +25,21 @@ func Parse(src string) (*Query, error) {
 %type<value> program moduleheader programbody imports import metaopt funcdefs funcdef funcdefargs query
 %type<value> bindpatterns pattern arraypatterns objectpatterns objectpattern
 %type<value> term string stringparts suffix args ifelifs ifelse trycatch
-%type<value> object objectkeyval objectval
+%type<value> objectkeyvals objectkeyval objectval
 %type<value> constterm constobject constobjectkeyvals constobjectkeyval constarray constarrayelems
 %type<token> tokIdentVariable tokIdentModuleIdent tokVariableModuleVariable tokKeyword objectkey
 %token<operator> tokAltOp tokUpdateOp tokDestAltOp tokOrOp tokAndOp tokCompareOp
 %token<token> tokModule tokImport tokInclude tokDef tokAs tokLabel tokBreak
 %token<token> tokNull tokTrue tokFalse
 %token<token> tokIdent tokVariable tokModuleIdent tokModuleVariable
-%token<token> tokIndex tokNumber tokFormat tokInvalid
+%token<token> tokIndex tokNumber tokFormat
 %token<token> tokString tokStringStart tokStringQuery tokStringEnd
 %token<token> tokIf tokThen tokElif tokElse tokEnd
 %token<token> tokTry tokCatch tokReduce tokForeach
 %token tokRecurse tokFuncDefPost tokTermPost tokEmptyCatch
+%token tokInvalid tokInvalidEscapeSequence tokUnterminatedString
 
-%nonassoc tokFuncDefPost tokTermPost tokEmptyCatch
+%nonassoc tokFuncDefPost tokTermPost
 %right '|'
 %left ','
 %right tokAltOp
@@ -43,7 +49,7 @@ func Parse(src string) (*Query, error) {
 %nonassoc tokCompareOp
 %left '+' '-'
 %left '*' '/' '%'
-%nonassoc tokAs tokIndex '.' '?'
+%nonassoc tokAs tokIndex '.' '?' tokEmptyCatch
 %nonassoc '[' tokTry tokCatch
 
 %%
@@ -68,7 +74,7 @@ moduleheader
 programbody
     : imports funcdefs
     {
-        $$ = &Query{Imports: $1.([]*Import), FuncDefs: $2.([]*FuncDef), Term: &Term{Type: TermTypeIdentity}}
+        $$ = &Query{Imports: $1.([]*Import), FuncDefs: reverseFuncDef($2.([]*FuncDef)), Term: &Term{Type: TermTypeIdentity}}
     }
     | imports query
     {
@@ -81,9 +87,9 @@ imports
     {
         $$ = []*Import(nil)
     }
-    | import imports
+    | imports import
     {
-        $$ = prependImport($2.([]*Import), $1.(*Import))
+        $$ = append($1.([]*Import), $2.(*Import))
     }
 
 import
@@ -110,7 +116,7 @@ funcdefs
     }
     | funcdef funcdefs
     {
-        $$ = prependFuncDef($2.([]*FuncDef), $1.(*FuncDef))
+        $$ = append($2.([]*FuncDef), $1.(*FuncDef))
     }
 
 funcdef
@@ -152,37 +158,9 @@ query
         $1.(*Term).SuffixList = append($1.(*Term).SuffixList, &Suffix{Bind: &Bind{$3.([]*Pattern), $5.(*Query)}})
         $$ = &Query{Term: $1.(*Term)}
     }
-    | tokReduce term tokAs pattern '(' query ';' query ')'
-    {
-        $$ = &Query{Term: &Term{Type: TermTypeReduce, Reduce: &Reduce{$2.(*Term), $4.(*Pattern), $6.(*Query), $8.(*Query)}}}
-    }
-    | tokForeach term tokAs pattern '(' query ';' query ')'
-    {
-        $$ = &Query{Term: &Term{Type: TermTypeForeach, Foreach: &Foreach{$2.(*Term), $4.(*Pattern), $6.(*Query), $8.(*Query), nil}}}
-    }
-    | tokForeach term tokAs pattern '(' query ';' query ';' query ')'
-    {
-        $$ = &Query{Term: &Term{Type: TermTypeForeach, Foreach: &Foreach{$2.(*Term), $4.(*Pattern), $6.(*Query), $8.(*Query), $10.(*Query)}}}
-    }
-    | tokIf query tokThen query ifelifs ifelse tokEnd
-    {
-        $$ = &Query{Term: &Term{Type: TermTypeIf, If: &If{$2.(*Query), $4.(*Query), $5.([]*IfElif), $6.(*Query)}}}
-    }
-    | tokTry query trycatch
-    {
-        $$ = &Query{Term: &Term{Type: TermTypeTry, Try: &Try{$2.(*Query), $3.(*Query)}}}
-    }
     | tokLabel tokVariable '|' query
     {
         $$ = &Query{Term: &Term{Type: TermTypeLabel, Label: &Label{$2, $4.(*Query)}}}
-    }
-    | query '?'
-    {
-        if t := $1.(*Query).Term; t != nil {
-            t.SuffixList = append(t.SuffixList, &Suffix{Optional: true})
-        } else {
-            $$ = &Query{Term: &Term{Type: TermTypeQuery, Query: $1.(*Query), SuffixList: []*Suffix{&Suffix{Optional: true}}}}
-        }
     }
     | query ',' query
     {
@@ -292,7 +270,7 @@ objectpattern
     }
     | tokVariable
     {
-        $$ = &PatternObject{KeyOnly: $1}
+        $$ = &PatternObject{Key: $1}
     }
 
 term
@@ -344,9 +322,37 @@ term
     {
         $$ = &Term{Type: TermTypeFunc, Func: &Func{Name: $1}}
     }
+    | '{' '}'
+    {
+        $$ = &Term{Type: TermTypeObject, Object: &Object{}}
+    }
+    | '{' objectkeyvals '}'
+    {
+        $$ = &Term{Type: TermTypeObject, Object: &Object{$2.([]*ObjectKeyVal)}}
+    }
+    | '{' objectkeyvals ',' '}'
+    {
+        $$ = &Term{Type: TermTypeObject, Object: &Object{$2.([]*ObjectKeyVal)}}
+    }
+    | '[' ']'
+    {
+        $$ = &Term{Type: TermTypeArray, Array: &Array{}}
+    }
+    | '[' query ']'
+    {
+        $$ = &Term{Type: TermTypeArray, Array: &Array{$2.(*Query)}}
+    }
     | tokNumber
     {
         $$ = &Term{Type: TermTypeNumber, Number: $1}
+    }
+    | '+' term
+    {
+        $$ = &Term{Type: TermTypeUnary, Unary: &Unary{OpAdd, $2.(*Term)}}
+    }
+    | '-' term
+    {
+        $$ = &Term{Type: TermTypeUnary, Unary: &Unary{OpSub, $2.(*Term)}}
     }
     | tokFormat
     {
@@ -360,33 +366,33 @@ term
     {
         $$ = &Term{Type: TermTypeString, Str: $1.(*String)}
     }
-    | '(' query ')'
+    | tokIf query tokThen query ifelifs ifelse tokEnd
     {
-        $$ = &Term{Type: TermTypeQuery, Query: $2.(*Query)}
+        $$ = &Term{Type: TermTypeIf, If: &If{$2.(*Query), $4.(*Query), $5.([]*IfElif), $6.(*Query)}}
     }
-    | '-' term
+    | tokTry query trycatch
     {
-        $$ = &Term{Type: TermTypeUnary, Unary: &Unary{OpSub, $2.(*Term)}}
+        $$ = &Term{Type: TermTypeTry, Try: &Try{$2.(*Query), $3.(*Query)}}
     }
-    | '+' term
+    | tokReduce term tokAs pattern '(' query ';' query ')'
     {
-        $$ = &Term{Type: TermTypeUnary, Unary: &Unary{OpAdd, $2.(*Term)}}
+        $$ = &Term{Type: TermTypeReduce, Reduce: &Reduce{$2.(*Term), $4.(*Pattern), $6.(*Query), $8.(*Query)}}
     }
-    | '{' object '}'
+    | tokForeach term tokAs pattern '(' query ';' query ')'
     {
-        $$ = &Term{Type: TermTypeObject, Object: &Object{$2.([]*ObjectKeyVal)}}
+        $$ = &Term{Type: TermTypeForeach, Foreach: &Foreach{$2.(*Term), $4.(*Pattern), $6.(*Query), $8.(*Query), nil}}
     }
-    | '[' query ']'
+    | tokForeach term tokAs pattern '(' query ';' query ';' query ')'
     {
-        $$ = &Term{Type: TermTypeArray, Array: &Array{$2.(*Query)}}
-    }
-    | '[' ']'
-    {
-        $$ = &Term{Type: TermTypeArray, Array: &Array{}}
+        $$ = &Term{Type: TermTypeForeach, Foreach: &Foreach{$2.(*Term), $4.(*Pattern), $6.(*Query), $8.(*Query), $10.(*Query)}}
     }
     | tokBreak tokVariable
     {
         $$ = &Term{Type: TermTypeBreak, Break: $2}
+    }
+    | '(' query ')'
+    {
+        $$ = &Term{Type: TermTypeQuery, Query: $2.(*Query)}
     }
     | term tokIndex
     {
@@ -457,11 +463,11 @@ suffix
     }
     | '[' ':' query ']'
     {
-        $$ = &Suffix{Index: &Index{End: $3.(*Query)}}
+        $$ = &Suffix{Index: &Index{End: $3.(*Query), IsSlice: true}}
     }
     | '[' query ':' query ']'
     {
-        $$ = &Suffix{Index: &Index{Start: $2.(*Query), IsSlice: true, End: $4.(*Query)}}
+        $$ = &Suffix{Index: &Index{Start: $2.(*Query), End: $4.(*Query), IsSlice: true}}
     }
 
 args
@@ -479,9 +485,9 @@ ifelifs
     {
         $$ = []*IfElif(nil)
     }
-    | tokElif query tokThen query ifelifs
+    | ifelifs tokElif query tokThen query
     {
-        $$ = prependIfElif($5.([]*IfElif), &IfElif{$2.(*Query), $4.(*Query)})
+        $$ = append($1.([]*IfElif), &IfElif{$3.(*Query), $5.(*Query)})
     }
 
 ifelse
@@ -504,18 +510,14 @@ trycatch
         $$ = $2
     }
 
-object
-    :
-    {
-        $$ = []*ObjectKeyVal(nil)
-    }
-    | objectkeyval
+objectkeyvals
+    : objectkeyval
     {
         $$ = []*ObjectKeyVal{$1.(*ObjectKeyVal)}
     }
-    | objectkeyval ',' object
+    | objectkeyvals ',' objectkeyval
     {
-        $$ = prependObjectKeyVal($3.([]*ObjectKeyVal), $1.(*ObjectKeyVal))
+        $$ = append($1.([]*ObjectKeyVal), $3.(*ObjectKeyVal))
     }
 
 objectkeyval
@@ -533,11 +535,11 @@ objectkeyval
     }
     | objectkey
     {
-        $$ = &ObjectKeyVal{KeyOnly: $1}
+        $$ = &ObjectKeyVal{Key: $1}
     }
     | string
     {
-        $$ = &ObjectKeyVal{KeyOnlyString: $1.(*String)}
+        $$ = &ObjectKeyVal{KeyString: $1.(*String)}
     }
 
 objectkey
@@ -548,11 +550,11 @@ objectkey
 objectval
     : term
     {
-        $$ = &ObjectVal{[]*Query{&Query{Term: $1.(*Term)}}}
+        $$ = &ObjectVal{[]*Query{{Term: $1.(*Term)}}}
     }
-    | term '|' objectval
+    | objectval '|' term
     {
-        $$ = &ObjectVal{prependQuery($3.(*ObjectVal).Queries, &Query{Term: $1.(*Term)})}
+        $$ = &ObjectVal{append($1.(*ObjectVal).Queries, &Query{Term: $3.(*Term)})}
     }
 
 constterm
@@ -586,23 +588,27 @@ constterm
     }
 
 constobject
-    : '{' constobjectkeyvals '}'
+    : '{' '}'
+    {
+        $$ = &ConstObject{}
+    }
+    | '{' constobjectkeyvals '}'
+    {
+        $$ = &ConstObject{$2.([]*ConstObjectKeyVal)}
+    }
+    | '{' constobjectkeyvals ',' '}'
     {
         $$ = &ConstObject{$2.([]*ConstObjectKeyVal)}
     }
 
 constobjectkeyvals
-    :
-    {
-        $$ = []*ConstObjectKeyVal(nil)
-    }
-    | constobjectkeyval
+    : constobjectkeyval
     {
         $$ = []*ConstObjectKeyVal{$1.(*ConstObjectKeyVal)}
     }
-    | constobjectkeyval ',' constobjectkeyvals
+    | constobjectkeyvals ',' constobjectkeyval
     {
-        $$ = prependConstObjectKeyVal($3.([]*ConstObjectKeyVal), $1.(*ConstObjectKeyVal))
+        $$ = append($1.([]*ConstObjectKeyVal), $3.(*ConstObjectKeyVal))
     }
 
 constobjectkeyval

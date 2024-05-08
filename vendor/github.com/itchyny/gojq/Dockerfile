@@ -1,12 +1,14 @@
-FROM golang:1.14 as builder
+FROM golang:1.22 AS builder
 
 WORKDIR /app
+COPY go.* ./
+RUN go mod download
 COPY . .
 ENV CGO_ENABLED 0
 RUN make build
 
-FROM alpine:3.12
+FROM gcr.io/distroless/static:debug
 
-COPY --from=builder /app/gojq /usr/local/bin/
-ENTRYPOINT ["/usr/local/bin/gojq"]
+COPY --from=builder /app/gojq /
+ENTRYPOINT ["/gojq"]
 CMD ["--help"]

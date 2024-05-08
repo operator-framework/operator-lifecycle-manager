@@ -7,36 +7,40 @@ import (
 	"strings"
 )
 
-func normalizeNumbers(v interface{}) interface{} {
+func normalizeNumber(v json.Number) any {
+	if i, err := v.Int64(); err == nil && math.MinInt <= i && i <= math.MaxInt {
+		return int(i)
+	}
+	if strings.ContainsAny(v.String(), ".eE") {
+		if f, err := v.Float64(); err == nil {
+			return f
+		}
+	}
+	if bi, ok := new(big.Int).SetString(v.String(), 10); ok {
+		return bi
+	}
+	if strings.HasPrefix(v.String(), "-") {
+		return math.Inf(-1)
+	}
+	return math.Inf(1)
+}
+
+func normalizeNumbers(v any) any {
 	switch v := v.(type) {
 	case json.Number:
-		if i, err := v.Int64(); err == nil && minInt <= i && i <= maxInt {
-			return int(i)
-		}
-		if strings.ContainsAny(string(v), ".eE") {
-			if f, err := v.Float64(); err == nil {
-				return f
-			}
-		}
-		if bi, ok := new(big.Int).SetString(string(v), 10); ok {
-			return bi
-		}
-		if strings.HasPrefix(string(v), "-") {
-			return -math.MaxFloat64
-		}
-		return math.MaxFloat64
+		return normalizeNumber(v)
 	case *big.Int:
 		if v.IsInt64() {
-			if i := v.Int64(); minInt <= i && i <= maxInt {
+			if i := v.Int64(); math.MinInt <= i && i <= math.MaxInt {
 				return int(i)
 			}
 		}
 		return v
 	case int64:
-		if v > int64(maxInt) {
-			return new(big.Int).SetUint64(uint64(v))
+		if math.MinInt <= v && v <= math.MaxInt {
+			return int(v)
 		}
-		return int(v)
+		return big.NewInt(v)
 	case int32:
 		return int(v)
 	case int16:
@@ -44,95 +48,36 @@ func normalizeNumbers(v interface{}) interface{} {
 	case int8:
 		return int(v)
 	case uint:
-		if v > uint(maxInt) {
-			return new(big.Int).SetUint64(uint64(v))
+		if v <= math.MaxInt {
+			return int(v)
 		}
-		return int(v)
+		return new(big.Int).SetUint64(uint64(v))
 	case uint64:
-		if v > uint64(maxInt) {
-			return new(big.Int).SetUint64(v)
+		if v <= math.MaxInt {
+			return int(v)
 		}
-		return int(v)
+		return new(big.Int).SetUint64(v)
 	case uint32:
-		if v > uint32(maxHalfInt) {
-			return new(big.Int).SetUint64(uint64(v))
+		if uint64(v) <= math.MaxInt {
+			return int(v)
 		}
-		return int(v)
+		return new(big.Int).SetUint64(uint64(v))
 	case uint16:
 		return int(v)
 	case uint8:
 		return int(v)
 	case float32:
 		return float64(v)
-	case map[string]interface{}:
-		for k, x := range v {
-			v[k] = normalizeNumbers(x)
-		}
-		return v
-	case []interface{}:
+	case []any:
 		for i, x := range v {
 			v[i] = normalizeNumbers(x)
 		}
 		return v
-	default:
-		return v
-	}
-}
-
-func normalizeValues(v interface{}) interface{} {
-	switch v := v.(type) {
-	case float64:
-		if math.IsNaN(v) {
-			return nil
-		} else if isinf(v) {
-			return math.Copysign(math.MaxFloat64, v)
-		} else {
-			return v
-		}
-	case map[string]interface{}:
-		u := make(map[string]interface{}, len(v))
-		for k, v := range v {
-			u[k] = normalizeValues(v)
-		}
-		return u
-	case []interface{}:
-		u := make([]interface{}, len(v))
-		for i, v := range v {
-			u[i] = normalizeValues(v)
-		}
-		return u
-	default:
-		return v
-	}
-}
-
-// It's ok to delete destructively because this function is used right after
-// updatePaths, where it shallow-copies maps or slices on updates.
-func deleteEmpty(v interface{}) interface{} {
-	switch v := v.(type) {
-	case struct{}:
-		return nil
-	case map[string]interface{}:
-		for k, w := range v {
-			if w == struct{}{} {
-				delete(v, k)
-			} else {
-				v[k] = deleteEmpty(w)
-			}
+	case map[string]any:
+		for k, x := range v {
+			v[k] = normalizeNumbers(x)
 		}
 		return v
-	case []interface{}:
-		var j int
-		for _, w := range v {
-			if w != struct{}{} {
-				v[j] = deleteEmpty(w)
-				j++
-			}
-		}
-		for i := j; i < len(v); i++ {
-			v[i] = nil
-		}
-		return v[:j]
 	default:
 		return v
 	}

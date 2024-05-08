@@ -1,71 +1,81 @@
 BIN := gojq
 VERSION := $$(make -s show-version)
 VERSION_PATH := cli
-CURRENT_REVISION := $(shell git rev-parse --short HEAD)
-BUILD_LDFLAGS := "-s -w -X github.com/itchyny/$(BIN)/cli.revision=$(CURRENT_REVISION)"
+CURRENT_REVISION = $(shell git rev-parse --short HEAD)
+BUILD_LDFLAGS = "-s -w -X github.com/itchyny/$(BIN)/cli.revision=$(CURRENT_REVISION)"
 GOBIN ?= $(shell go env GOPATH)/bin
-export GO111MODULE=on
+SHELL := /bin/bash
 
 .PHONY: all
 all: build
 
 .PHONY: build
-build: parser.go builtin.go
+build:
+	go build -ldflags=$(BUILD_LDFLAGS) -o $(BIN) ./cmd/$(BIN)
+
+.PHONY: build-dev
+build-dev: parser.go builtin.go
 	go build -ldflags=$(BUILD_LDFLAGS) -o $(BIN) ./cmd/$(BIN)
 
 .PHONY: build-debug
 build-debug: parser.go builtin.go
-	go build -tags debug -ldflags=$(BUILD_LDFLAGS) -o $(BIN) ./cmd/$(BIN)
+	go build -tags gojq_debug -ldflags=$(BUILD_LDFLAGS) -o $(BIN) ./cmd/$(BIN)
 
 builtin.go: builtin.jq parser.go.y parser.go query.go operator.go _tools/*
 	GOOS= GOARCH= go generate
 
 .SUFFIXES:
-parser.go: parser.go.y lexer.go $(GOBIN)/goyacc
+parser.go: parser.go.y $(GOBIN)/goyacc
 	goyacc -o $@ $<
 
 $(GOBIN)/goyacc:
-	@cd && go get golang.org/x/tools/cmd/goyacc
+	@go install golang.org/x/tools/cmd/goyacc@latest
 
 .PHONY: install
-install: builtin.go
-	go install -ldflags=$(BUILD_LDFLAGS) ./...
+install:
+	go install -ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
+
+.PHONY: install-dev
+install-dev: parser.go builtin.go
+	go install -ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
 
 .PHONY: install-debug
-install-debug: builtin.go
-	go install -tags debug -ldflags=$(BUILD_LDFLAGS) ./...
+install-debug: parser.go builtin.go
+	go install -tags gojq_debug -ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
 
 .PHONY: show-version
 show-version: $(GOBIN)/gobump
-	@gobump show -r $(VERSION_PATH)
+	@gobump show -r "$(VERSION_PATH)"
 
 $(GOBIN)/gobump:
-	@cd && go get github.com/x-motemen/gobump/cmd/gobump
+	@go install github.com/x-motemen/gobump/cmd/gobump@latest
 
 .PHONY: cross
-cross: $(GOBIN)/goxz
-	goxz -n $(BIN) -pv=v$(VERSION) -include _$(BIN) -build-ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
+cross: $(GOBIN)/goxz CREDITS
+	goxz -n $(BIN) -pv=v$(VERSION) -include _$(BIN) \
+		-build-ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
 
 $(GOBIN)/goxz:
-	cd && go get github.com/Songmu/goxz/cmd/goxz
+	go install github.com/Songmu/goxz/cmd/goxz@latest
+
+CREDITS: $(GOBIN)/gocredits go.sum
+	go mod tidy
+	gocredits -w .
+
+$(GOBIN)/gocredits:
+	go install github.com/Songmu/gocredits/cmd/gocredits@latest
 
 .PHONY: test
 test: build
-	go test -v ./...
+	go test -v -race ./...
 
 .PHONY: lint
-lint: $(GOBIN)/golint
-	golint -set_exit_status ./...
+lint: $(GOBIN)/staticcheck
+	go vet ./...
+	staticcheck -checks all -tags gojq_debug ./...
 
-$(GOBIN)/golint:
-	cd && go get golang.org/x/lint/golint
-
-.PHONY: maligned
-maligned: $(GOBIN)/maligned
-	! maligned *.go | grep ^
-
-$(GOBIN)/maligned:
-	cd && go get github.com/mdempsky/maligned
+$(GOBIN)/staticcheck:
+	go install honnef.co/go/tools/cmd/staticcheck@latest
 
 .PHONY: check-tools
 check-tools:
@@ -73,26 +83,21 @@ check-tools:
 
 .PHONY: clean
 clean:
-	rm -rf $(BIN) goxz
+	rm -rf $(BIN) goxz CREDITS
 	go clean
+
+.PHONY: update
+update: export GOPROXY=direct
+update:
+	go get -u -d ./... && go mod tidy
+	go mod edit -modfile=go.dev.mod -droprequire=github.com/itchyny/{astgen,timefmt}-go
+	go get -u -d -modfile=go.dev.mod github.com/itchyny/{astgen,timefmt}-go && go generate
 
 .PHONY: bump
 bump: $(GOBIN)/gobump
-ifneq ($(shell git status --porcelain),)
-	$(error git workspace is dirty)
-endif
-ifneq ($(shell git rev-parse --abbrev-ref HEAD),master)
-	$(error current branch is not master)
-endif
+	test -z "$$(git status --porcelain || echo .)"
+	test "$$(git branch --show-current)" = "main"
 	@gobump up -w "$(VERSION_PATH)"
 	git commit -am "bump up version to $(VERSION)"
 	git tag "v$(VERSION)"
-	git push origin master
-	git push origin "refs/tags/v$(VERSION)"
-
-.PHONY: upload
-upload: $(GOBIN)/ghr
-	ghr "v$(VERSION)" goxz
-
-$(GOBIN)/ghr:
-	cd && go get github.com/tcnksm/ghr
+	git push --atomic origin main tag "v$(VERSION)"
