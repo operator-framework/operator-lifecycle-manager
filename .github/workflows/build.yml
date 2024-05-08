@@ -9,9 +9,7 @@ jobs:
     steps:
     - name: Check out the repo
       uses: actions/checkout@v3
+    - name: Build binaries
+      run: make build
     - name: Build the container image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        file: Dockerfile
-        push: false
+      run: make container
