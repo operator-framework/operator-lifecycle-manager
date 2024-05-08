@@ -41,10 +41,7 @@ export OLM_VERSION := $(shell cat OLM_VERSION)
 export GO_BUILD_LDFLAGS := -s -w -X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=$(OLM_VERSION)
 export GO_BUILD_FLAGS := -mod=vendor
 export GO_BUILD_EXT_LDFLAGS ?=
-export GO_BUILD_TAGS ?= "json1"
-
-MOD_FLAGS := -mod=vendor -buildvcs=false
-BUILD_TAGS := json1
+export GO_BUILD_TAGS ?= json1
 
 BUILDCMD = go build $(GO_BUILD_FLAGS) -tags '$(GO_BUILD_TAGS)' -ldflags '$(GO_BUILD_LDFLAGS) $(GO_BUILD_EXT_LDFLAGS)'
 
@@ -69,7 +66,7 @@ build-linux:
 build-wait: clean bin/wait
 
 bin/wait: FORCE
-	GOOS=linux go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
+	GOOS=linux go build $(GO_BUILD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
 # unit-test settings
 # By default setup-envtest will write to $XDG_DATA_HOME, or $HOME/.local/share if that is not defined.
@@ -83,7 +80,7 @@ ENVTEST_VERSION := $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/
 
 .PHONY: unit
 unit: $(SETUP_ENVTEST)
-	eval $$($(SETUP_ENVTEST) use -p env $(ENVTEST_VERSION) $(SETUP_ENVTEST_BIN_DIR_OVERRIDE)) && CGO_ENABLED=1 go test $(MOD_FLAGS) $(if $(TEST),-run $(TEST),) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
+	eval $$($(SETUP_ENVTEST) use -p env $(ENVTEST_VERSION) $(SETUP_ENVTEST_BIN_DIR_OVERRIDE)) && CGO_ENABLED=1 go test $(GO_BUILD_FLAGS) $(if $(TEST),-run $(TEST),) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
 # e2e test settings
 # Default values for variables
