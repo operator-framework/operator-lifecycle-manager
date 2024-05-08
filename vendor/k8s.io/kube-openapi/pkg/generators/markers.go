@@ -24,8 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	defaultergen "k8s.io/gengo/examples/defaulter-gen/generators"
-	"k8s.io/gengo/types"
+	"k8s.io/gengo/v2/types"
 	openapi "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )
@@ -456,7 +455,7 @@ func parseMarkers(markerComments []string, prefix string) (map[string]any, error
 
 		if len(key) == 0 {
 			return nil, fmt.Errorf("cannot have empty key for marker comment")
-		} else if _, ok := defaultergen.ParseSymbolReference(value, ""); ok {
+		} else if _, ok := parseSymbolReference(value, ""); ok {
 			// Skip ref markers
 			continue
 		} else if len(value) == 0 {
