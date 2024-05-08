@@ -82,7 +82,7 @@ ENVTEST_VERSION := $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/
 
 .PHONY: unit
 unit: $(SETUP_ENVTEST)
-	eval $$($(SETUP_ENVTEST) use -p env $(ENVTEST_VERSION) $(SETUP_ENVTEST_BIN_DIR_OVERRIDE)) && go test $(MOD_FLAGS) $(if $(TEST),-run $(TEST),) -tags "json1" -count=1 ./pkg/... ./test/e2e/split/...
+	eval $$($(SETUP_ENVTEST) use -p env $(ENVTEST_VERSION) $(SETUP_ENVTEST_BIN_DIR_OVERRIDE)) && CGO_ENABLED=1 go test $(MOD_FLAGS) $(if $(TEST),-run $(TEST),) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
 # e2e test settings
 E2E_NODES ?= 1
