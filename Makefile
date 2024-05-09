@@ -41,6 +41,10 @@ endif
 .PHONY: FORCE
 FORCE:
 
+.PHONY: vet
+vet:
+	go vet $(MOD_FLAGS) ./...
+
 all: test build
 
 test: clean cover.out
@@ -73,7 +77,7 @@ coverage-html: cover.out
 	go tool cover -html=cover.out
 
 build: build_cmd=build
-build: clean $(CMDS)
+build: clean vet $(CMDS)
 
 # build versions of the binaries with coverage enabled
 build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
