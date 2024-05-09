@@ -37,7 +37,7 @@ func TestGetNewStatus(t *testing.T) {
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Version: version.OperatorVersion{
-							semver.Version{
+							Version: semver.Version{
 								Major: 1, Minor: 0, Patch: 0,
 							},
 						},
@@ -100,7 +100,7 @@ func TestGetNewStatus(t *testing.T) {
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Version: version.OperatorVersion{
-							semver.Version{
+							Version: semver.Version{
 								Major: 1, Minor: 0, Patch: 0,
 							},
 						},
@@ -180,7 +180,7 @@ func TestGetNewStatus(t *testing.T) {
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Version: version.OperatorVersion{
-							semver.Version{
+							Version: semver.Version{
 								Major: 1, Minor: 0, Patch: 0,
 							},
 						},
@@ -260,7 +260,7 @@ func TestGetNewStatus(t *testing.T) {
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
 						Version: version.OperatorVersion{
-							semver.Version{
+							Version: semver.Version{
 								Major: 1, Minor: 0, Patch: 0,
 							},
 						},
