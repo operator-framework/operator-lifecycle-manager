@@ -1,6 +1,6 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
-go 1.22
+go 1.22.0
 
 toolchain go1.22.2
 
@@ -54,7 +54,7 @@ require (
 	k8s.io/kube-aggregator v0.29.3
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
-	sigs.k8s.io/controller-runtime v0.17.3
+	sigs.k8s.io/controller-runtime v0.18.0
 	sigs.k8s.io/controller-tools v0.8.0
 	sigs.k8s.io/kind v0.22.0
 )
@@ -103,7 +103,7 @@ require (
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.2 // indirect
-	github.com/evanphx/json-patch/v5 v5.8.0 // indirect
+	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
