@@ -553,9 +553,7 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 		defaultCsv    *operatorsv1alpha1.ClusterServiceVersion
 	)
 	for _, pkgChannel := range pkgChannels {
-		// TODO: replace with non-deprecated API (e.g. client.GetBundle())
-		// nolint:staticcheck
-		bundle, err := client.GetBundleForChannel(ctx, &api.GetBundleInChannelRequest{PkgName: pkg.GetName(), ChannelName: pkgChannel.GetName()})
+		bundle, err := client.GetBundle(ctx, &api.GetBundleRequest{PkgName: pkg.GetName(), ChannelName: pkgChannel.GetName()})
 		if err != nil {
 			logger.WithError(err).WithField("channel", pkgChannel.GetName()).Warn("error getting bundle, eliding channel")
 			defaultElided = defaultElided || pkgChannel.Name == manifest.Status.DefaultChannel
