@@ -22,6 +22,7 @@ SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
+STATICCHECK := go run $(MOD_FLAGS) honnef.co/go/tools/cmd/staticcheck
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
@@ -268,3 +269,10 @@ run-local: build-local
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
+
+.PHONY: staticcheck
+staticcheck:
+	@echo "Installing staticcheck"
+	go install honnef.co/go/tools/cmd/staticcheck@latest
+	@echo "Running staticcheck"
+	@staticcheck ./pkg/... ./cmd/...
