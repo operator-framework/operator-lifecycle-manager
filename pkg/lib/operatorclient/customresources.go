@@ -207,7 +207,7 @@ type CustomResourceModifier func(*unstructured.Unstructured, interface{}) error
 // If it's modified by other writers, we will retry until it succeeds.
 func (c *Client) AtomicModifyCustomResource(apiGroup, version, namespace, resourcePlural, resourceName string, f CustomResourceModifier, data interface{}) error {
 	klog.V(4).Infof("[ATOMIC MODIFY CUSTOM RESOURCE]: %s:%s", namespace, resourceName)
-	return wait.PollInfinite(time.Second, func() (bool, error) {
+	return wait.PollUntilContextCancel(context.Background(), time.Second, true, func(ctx context.Context) (bool, error) {
 		var customResource unstructured.Unstructured
 		b, err := c.GetCustomResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName)
 		if err != nil {
@@ -233,7 +233,6 @@ func (c *Client) AtomicModifyCustomResource(apiGroup, version, namespace, resour
 			klog.Errorf("Failed to update CUSTOM RESOURCE %q, kind:%q: %v", resourceName, resourcePlural, err)
 			return false, err
 		}
-
 		return true, nil
 	})
 }
