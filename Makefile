@@ -210,7 +210,7 @@ verify-mockgen: mockgen
 verify-manifests: manifests
 	$(MAKE) diff
 
-verify: verify-codegen verify-mockgen verify-manifests
+verify: vendor verify-codegen verify-mockgen verify-manifests
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
