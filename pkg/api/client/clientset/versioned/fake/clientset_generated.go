@@ -85,6 +85,11 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
+// OperatorsV1 retrieves the OperatorsV1Client
+func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
+	return &fakeoperatorsv1.FakeOperatorsV1{Fake: &c.Fake}
+}
+
 // OperatorsV1alpha1 retrieves the OperatorsV1alpha1Client
 func (c *Clientset) OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Interface {
 	return &fakeoperatorsv1alpha1.FakeOperatorsV1alpha1{Fake: &c.Fake}
@@ -93,11 +98,6 @@ func (c *Clientset) OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Inter
 // OperatorsV1alpha2 retrieves the OperatorsV1alpha2Client
 func (c *Clientset) OperatorsV1alpha2() operatorsv1alpha2.OperatorsV1alpha2Interface {
 	return &fakeoperatorsv1alpha2.FakeOperatorsV1alpha2{Fake: &c.Fake}
-}
-
-// OperatorsV1 retrieves the OperatorsV1Client
-func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
-	return &fakeoperatorsv1.FakeOperatorsV1{Fake: &c.Fake}
 }
 
 // OperatorsV2 retrieves the OperatorsV2Client
