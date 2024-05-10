@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+
 	"html"
 	"net"
 	"net/http"
@@ -121,8 +122,10 @@ func TestOLMGetCertRotationFn(t *testing.T) {
 	err = os.Rename(atomicKey, loadKey)
 	require.NoError(t, err)
 
-	// sometimes the the filesystem operations need time to catch up so the server cert is updated
-	err = wait.PollImmediate(500*time.Millisecond, 10*time.Second, func() (bool, error) {
+	// sometimes the filesystem operations need time to catch up so the server cert is updated
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err = wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 10*time.Second, true, func(ctx context.Context) (bool, error) {
 		currentCert, err := tlsGetCertFn(nil)
 		require.NoError(t, err)
 		info, err := x509.ParseCertificate(currentCert.Certificate[0])
