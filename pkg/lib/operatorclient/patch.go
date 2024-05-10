@@ -161,7 +161,6 @@ func cloneAndNormalizeObject(obj runtime.Object) (runtime.Object, error) {
 			// These are only extracted from current; should not be considered for diffs.
 			obj.ObjectMeta.ResourceVersion = ""
 			obj.ObjectMeta.CreationTimestamp = metav1.Time{}
-			obj.ObjectMeta.SelfLink = ""
 			obj.ObjectMeta.UID = ""
 			obj.Status = v1beta1ext.CustomResourceDefinitionStatus{}
 		}
