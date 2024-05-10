@@ -98,7 +98,7 @@ func (c *ServerSideApplier) Apply(ctx context.Context, obj Object, changeFunc in
 	// Ensure given object is a pointer
 	objType := reflect.TypeOf(obj)
 	if objType.Kind() != reflect.Ptr {
-		panic(fmt.Sprintf("argument object must be a pointer"))
+		panic("argument object must be a pointer")
 	}
 
 	// Ensure given function matches expected signature

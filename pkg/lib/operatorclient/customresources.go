@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -101,7 +100,7 @@ func (c *Client) CreateCustomResourceRawIfNotFound(apiGroup, version, namespace,
 	if err == nil {
 		return false, nil
 	}
-	if !errors.IsNotFound(err) {
+	if !apierrors.IsNotFound(err) {
 		return false, err
 	}
 	err = c.CreateCustomResourceRaw(apiGroup, version, namespace, kind, data)
@@ -165,7 +164,7 @@ func (c *Client) CreateOrUpdateCustomeResourceRaw(apiGroup, version, namespace, 
 	klog.V(4).Infof("[CREATE OR UPDATE UPDATE CUSTOM RESOURCE RAW]: %s:%s", namespace, resourceName)
 	old, err := c.GetCustomResourceRaw(apiGroup, version, namespace, resourcePlural, resourceName)
 	if err != nil {
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		return c.CreateCustomResourceRaw(apiGroup, version, namespace, resourcePlural, data)
@@ -227,7 +226,7 @@ func (c *Client) AtomicModifyCustomResource(apiGroup, version, namespace, resour
 		}
 
 		if err := c.UpdateCustomResource(&customResource); err != nil {
-			if errors.IsConflict(err) {
+			if apierrors.IsConflict(err) {
 				klog.Errorf("Failed to update CUSTOM RESOURCE %q, kind:%q: %v, will retry", resourceName, resourcePlural, err)
 				return false, nil
 			}

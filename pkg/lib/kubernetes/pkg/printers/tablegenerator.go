@@ -46,7 +46,6 @@ type PrintHandler interface {
 type handlerEntry struct {
 	columnDefinitions []metav1beta1.TableColumnDefinition
 	printFunc         reflect.Value
-	args              []reflect.Value
 }
 
 // HumanReadableGenerator is an implementation of TableGenerator used to generate
@@ -162,8 +161,7 @@ func ValidateRowPrintHandlerFunc(printFunc reflect.Value) error {
 	}
 	funcType := printFunc.Type()
 	if funcType.NumIn() != 2 || funcType.NumOut() != 2 {
-		return fmt.Errorf("invalid print handler." +
-			"Must accept 2 parameters and return 2 value.")
+		return fmt.Errorf("invalid print handler: must accept 2 parameters and return 2 value")
 	}
 	if funcType.In(1) != reflect.TypeOf((*GenerateOptions)(nil)).Elem() ||
 		funcType.Out(0) != reflect.TypeOf((*[]metav1beta1.TableRow)(nil)).Elem() ||

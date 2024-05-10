@@ -10,23 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var (
-	globalProxyConfig = []corev1.EnvVar{
-		{
-			Name:  "HTTP_PROXY",
-			Value: "http://foo.com:8080",
-		},
-		{
-			Name:  "HTTPS_PROXY",
-			Value: "https://foo.com:443",
-		},
-		{
-			Name:  "NO_PROXY",
-			Value: "a.com,b.com",
-		},
-	}
-)
-
 func TestIsOverridden(t *testing.T) {
 	tests := []struct {
 		name     string

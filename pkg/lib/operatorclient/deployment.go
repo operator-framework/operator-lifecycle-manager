@@ -4,19 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
-)
-
-const (
-	deploymentRolloutPollInterval = time.Second
 )
 
 // GetDeployment returns the Deployment object for the given namespace and name.
@@ -158,25 +151,9 @@ func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f Patc
 func checkDeploymentRollingUpdateEnabled(dep *appsv1.Deployment) error {
 	enabled := dep.Spec.Strategy.Type == appsv1.RollingUpdateDeploymentStrategyType || dep.Spec.Strategy.Type == "" // Deployments rolling update by default
 	if !enabled {
-		return fmt.Errorf("Deployment %s/%s does not have rolling update strategy enabled", dep.GetNamespace(), dep.GetName())
+		return fmt.Errorf("deployment %s/%s does not have rolling update strategy enabled", dep.GetNamespace(), dep.GetName())
 	}
 	return nil
-}
-
-func (c *Client) waitForDeploymentRollout(dep *appsv1.Deployment) error {
-	return wait.PollInfinite(deploymentRolloutPollInterval, func() (bool, error) {
-		d, err := c.GetDeployment(dep.Namespace, dep.Name)
-		if err != nil {
-			// Do not return error here, as we could be updating the API Server itself, in which case we
-			// want to continue waiting.
-			klog.Errorf("error getting Deployment %s during rollout: %v", dep.Name, err)
-			return false, nil
-		}
-		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
-			return true, nil
-		}
-		return false, nil
-	})
 }
 
 // CreateOrRollingUpdateDeployment creates the Deployment if it doesn't exist. If the Deployment

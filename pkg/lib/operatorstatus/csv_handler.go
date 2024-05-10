@@ -148,12 +148,12 @@ func (h *handler) isMatchingCSV(in *v1alpha1.ClusterServiceVersion) (name string
 	}
 
 	// Does it have the right label?
-	labels := in.GetLabels()
-	if labels == nil {
+	csvLabels := in.GetLabels()
+	if csvLabels == nil {
 		return
 	}
 
-	name, _ = labels[SelectorKey]
+	name = csvLabels[SelectorKey]
 	if name == "" {
 		return
 	}

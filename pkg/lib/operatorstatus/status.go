@@ -60,30 +60,28 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 		// proxy for "working" (we can't know when we hit level, but we can at least verify
 		// we are seeing some syncs succeeding). Once we observe at least one successful
 		// sync we can begin reporting available and level.
-		select {
-		case err, ok := <-syncCh:
-			if !ok {
-				// syncCh should only close if the Run() loop exits
-				time.Sleep(5 * time.Second)
-				log.Fatalf("Status sync channel closed but process did not exit in time")
-			}
-			syncs++
-			if err == nil {
+		err, ok := <-syncCh
+		if !ok {
+			// syncCh should only close if the Run() loop exits
+			time.Sleep(5 * time.Second)
+			log.Fatalf("Status sync channel closed but process did not exit in time")
+		}
+		syncs++
+		if err == nil {
+			successfulSyncs++
+		}
+		// grab any other sync events that have accumulated
+		for len(syncCh) > 0 {
+			if err := <-syncCh; err == nil {
 				successfulSyncs++
 			}
-			// grab any other sync events that have accumulated
-			for len(syncCh) > 0 {
-				if err := <-syncCh; err == nil {
-					successfulSyncs++
-				}
-				syncs++
-			}
-			// if we haven't yet accumulated enough syncs, wait longer
-			// TODO: replace these magic numbers with a better measure of syncs across all queueInformers
-			if successfulSyncs < 5 || syncs < 10 {
-				log.Printf("Waiting to observe more successful syncs")
-				return
-			}
+			syncs++
+		}
+		// if we haven't yet accumulated enough syncs, wait longer
+		// TODO: replace these magic numbers with a better measure of syncs across all queueInformers
+		if successfulSyncs < 5 || syncs < 10 {
+			log.Printf("Waiting to observe more successful syncs")
+			return
 		}
 
 		// create the cluster operator in an initial state if it does not exist

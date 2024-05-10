@@ -81,6 +81,4 @@ func (w *Syncer) HandleProxyDelete(object interface{}) {
 		w.logger.Error("wrong type in proxy delete syncer")
 		return
 	}
-
-	return
 }

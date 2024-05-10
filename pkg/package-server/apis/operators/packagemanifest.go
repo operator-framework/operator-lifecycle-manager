@@ -8,11 +8,6 @@ import (
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
-const (
-	// The yaml attribute that specifies the related images of the ClusterServiceVersion
-	relatedImages = "relatedImages"
-)
-
 // CreateCSVDescription creates a CSVDescription from a given CSV
 func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion, csvJSON string) CSVDescription {
 	desc := CSVDescription{
