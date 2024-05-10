@@ -43,6 +43,7 @@ require (
 	google.golang.org/grpc v1.61.1
 	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.14.4
+	honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc
 	k8s.io/api v0.29.3
 	k8s.io/apiextensions-apiserver v0.29.3
 	k8s.io/apimachinery v0.29.3

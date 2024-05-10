@@ -12,6 +12,7 @@ import (
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "github.com/operator-framework/api/crds" // operators.coreos.com CRD manifests
 	_ "helm.sh/helm/v3/cmd/helm"
+	_ "honnef.co/go/tools/cmd/staticcheck"
 	_ "k8s.io/code-generator"
 	_ "k8s.io/kube-openapi/cmd/openapi-gen"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
