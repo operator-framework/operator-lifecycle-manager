@@ -13,7 +13,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        parallel-id: [0, 1, 2, 3]
+        parallel-id: [
+          "MagicCatalog",
+          "Operator API",
+          "Fail Forward Upgrades",
+          "User defined service account",
+          "Installing bundles with new object types",
+          "Global Catalog Exclusion",
+          "CatalogSource Grpc Pod Config",
+          "ClusterServiceVersion",
+          "Not found APIs",
+          "Disabling copied CSVs",
+          "Subscriptions create required objects from Catalogs",
+          "Operator Condition",
+          "Operator Group",
+          "Package Manifest API lists available Operators from Catalog Sources",
+          "ResourceManager",
+          "Scoped Client bound to a service account can be used to make API calls",
+          "CSVs with a Webhook",
+          "Subscription",
+          "Garbage collection for dependent resources",
+          "CRD Versions",
+          "Install Plan",
+          "Starting CatalogSource e2e tests",
+          "Metrics are generated for OLM managed resources"
+        ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -21,7 +45,7 @@ jobs:
         with:
           go-version-file: "go.mod"
       - run: mkdir -p artifacts
-      - run: make e2e-local E2E_TEST_CHUNK=${{ matrix.parallel-id }} E2E_TEST_NUM_CHUNKS=${{ strategy.job-total }} E2E_NODES=2 ARTIFACT_DIR=./artifacts/ SKIP='\[FLAKE\]'
+      - run: make e2e-local E2E_NODES=1 ARTIFACT_DIR=./artifacts/ SKIP='\[FLAKE\]' TEST='${{ matrix.parallel-id }} .*'
       - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
