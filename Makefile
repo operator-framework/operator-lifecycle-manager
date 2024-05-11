@@ -150,13 +150,11 @@ e2e:
 
 # See workflows/e2e-tests.yml See test/e2e/README.md for details.
 .PHONY: e2e-local
-e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
 e2e-local: extra_args=-test-data-dir=./testdata -gather-artifacts-script-path=./collect-ci-artifacts.sh
-e2e-local: e2e-local-deploy
 e2e-local: e2e
 
 .PHONY: e2e-local-deploy
-e2e-local-deploy: $(KIND) $(HELM) e2e-local-build
+e2e-local-deploy: $(KIND) $(HELM)
 	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)
 	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) --image $(KIND_CLUSTER_IMAGE)
 	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
@@ -176,6 +174,7 @@ e2e-local-deploy: $(KIND) $(HELM) e2e-local-build
 e2e-local-build: export GOOS=linux
 e2e-local-build: export GOARCH=386
 e2e-local-build: build_cmd=build
+e2e-local-build: BUILD_TAGS="json1 e2e experimental_metrics"
 e2e-local-build: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
 
