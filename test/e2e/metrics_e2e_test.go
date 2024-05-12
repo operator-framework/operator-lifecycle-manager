@@ -111,7 +111,9 @@ var _ = Describe("Metrics are generated for OLM managed resources", func() {
 
 				It("deletes its associated CSV metrics", func() {
 					By(`Verify that when the csv has been deleted, it deletes the corresponding CSV metrics`)
-					Expect(getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))).ToNot(And(
+					Eventually(func() []Metric {
+						return getMetricsFromPod(c, getPodWithLabel(c, "app=olm-operator"))
+					}).ShouldNot(And(
 						ContainElement(LikeMetric(WithFamily("csv_abnormal"), WithName(failingCSV.Name))),
 						ContainElement(LikeMetric(WithFamily("csv_succeeded"), WithName(failingCSV.Name))),
 					))
