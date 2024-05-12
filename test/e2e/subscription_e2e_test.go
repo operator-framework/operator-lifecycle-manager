@@ -3600,30 +3600,13 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	require.NoError(t, err)
 }
 
-func updateCatSrcPriority(crClient versioned.Interface, namespace string, catsrc *operatorsv1alpha1.CatalogSource, priority int) {
-	catsrc.Spec.Priority = priority
-	_, err := crClient.OperatorsV1alpha1().CatalogSources(namespace).Update(context.Background(), catsrc, metav1.UpdateOptions{})
-	Expect(err).Should(BeNil())
-}
-
 func subscriptionCurrentCSVGetter(crclient versioned.Interface, namespace, subName string) func() string {
 	return func() string {
 		subscription, err := crclient.OperatorsV1alpha1().Subscriptions(namespace).Get(context.Background(), subName, metav1.GetOptions{})
 		if err != nil || subscription == nil {
 			return ""
 		}
+		ctx.Ctx().Logf("subscription %s/%s currentCSV: %s", subscription.Namespace, subscription.Name, subscription.Status.CurrentCSV)
 		return subscription.Status.CurrentCSV
-	}
-}
-
-func operatorGroupServiceAccountNameSetter(crclient versioned.Interface, namespace, name, saName string) func() error {
-	return func() error {
-		toUpdate, err := crclient.OperatorsV1().OperatorGroups(namespace).Get(context.Background(), name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		toUpdate.Spec.ServiceAccountName = saName
-		_, err = crclient.OperatorsV1().OperatorGroups(namespace).Update(context.Background(), toUpdate, metav1.UpdateOptions{})
-		return err
 	}
 }
