@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -159,7 +160,6 @@ var _ = Describe("ClusterServiceVersion", func() {
 						Status:  operatorsv1alpha1.RequirementStatusReasonPresent,
 					},
 				))
-
 				Eventually(func() error {
 					return ctx.Ctx().Client().Delete(context.Background(), &associated)
 				}).Should(Succeed())
@@ -217,8 +217,14 @@ var _ = Describe("ClusterServiceVersion", func() {
 					},
 				}
 				Expect(ctx.Ctx().Client().Create(context.Background(), &associated)).To(Succeed())
-				Eventually(ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated)).
-					Should(WithTransform(apierrors.IsNotFound, BeTrue()))
+				Eventually(func() bool {
+					err := ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated)
+					defer func() {
+						data, _ := json.Marshal(&unassociated)
+						ctx.Ctx().Logf("unassociated CSV: %s", string(data))
+					}()
+					return apierrors.IsNotFound(err)
+				}).Should(BeTrue())
 				Eventually(ctx.Ctx().Client().Delete(context.Background(), &associated)).Should(Succeed())
 			})
 
