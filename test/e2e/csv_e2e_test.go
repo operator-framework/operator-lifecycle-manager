@@ -3,6 +3,8 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"os"
 	"strconv"
 	"strings"
@@ -59,19 +61,21 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		When("a CustomResourceDefinition was installed alongside a ClusterServiceVersion", func() {
 			var (
-				crd         apiextensionsv1.CustomResourceDefinition
-				apiname     string
-				apifullname string
+				crd               apiextensionsv1.CustomResourceDefinition
+				apiname           string
+				apifullname       string
+				associatedCsvName string
 			)
 
 			BeforeEach(func() {
 				apiname = genName("api")
 				apifullname = apiname + "s.example.com"
+				associatedCsvName = genName("associated-csv-")
 				crd = apiextensionsv1.CustomResourceDefinition{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: apifullname,
 						Annotations: map[string]string{
-							"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/associated-csv", generatedNamespace.GetName()),
+							"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/%s", generatedNamespace.GetName(), associatedCsvName),
 						},
 					},
 					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
@@ -103,13 +107,13 @@ var _ = Describe("ClusterServiceVersion", func() {
 			AfterEach(func() {
 				Eventually(func() error {
 					return ctx.Ctx().KubeClient().ApiextensionsInterface().ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.GetName(), metav1.DeleteOptions{})
-				}).Should(Succeed())
+				}).Should(BeNil())
 			})
 
 			It("[FLAKE] can satisfy an associated ClusterServiceVersion's ownership requirement", func() {
 				associated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "associated-csv",
+						Name:      associatedCsvName,
 						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
@@ -167,8 +171,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 			It("can satisfy an unassociated ClusterServiceVersion's ownership requirement if replaced by an associated ClusterServiceVersion", func() {
 				unassociated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "unassociated-csv",
-						Namespace: generatedNamespace.GetName(),
+						GenerateName: "unassociated-csv-",
+						Namespace:    generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
@@ -191,7 +195,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 				associated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "associated-csv",
+						Name:      associatedCsvName,
 						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
@@ -213,21 +217,16 @@ var _ = Describe("ClusterServiceVersion", func() {
 					},
 				}
 				Expect(ctx.Ctx().Client().Create(context.Background(), &associated)).To(Succeed())
-
-				Eventually(func() error {
-					return ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated)
-				}).Should(WithTransform(apierrors.IsNotFound, BeTrue()))
-
-				Eventually(func() error {
-					return ctx.Ctx().Client().Delete(context.Background(), &associated)
-				}).Should(Succeed())
+				Eventually(ctx.Ctx().Client().Get(context.Background(), client.ObjectKeyFromObject(&unassociated), &unassociated)).
+					Should(WithTransform(apierrors.IsNotFound, BeTrue()))
+				Eventually(ctx.Ctx().Client().Delete(context.Background(), &associated)).Should(Succeed())
 			})
 
 			It("can satisfy an unassociated ClusterServiceVersion's non-ownership requirement", func() {
 				unassociated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "unassociated-csv",
-						Namespace: generatedNamespace.GetName(),
+						GenerateName: "unassociated-csv-",
+						Namespace:    generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
@@ -280,19 +279,21 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 		When("an unassociated ClusterServiceVersion in different namespace owns the same CRD", func() {
 			var (
-				crd         apiextensionsv1.CustomResourceDefinition
-				apiname     string
-				apifullname string
+				crd               apiextensionsv1.CustomResourceDefinition
+				apiname           string
+				apifullname       string
+				associatedCsvName string
 			)
 
 			BeforeEach(func() {
 				apiname = genName("api")
 				apifullname = apiname + "s.example.com"
+				associatedCsvName = genName("associated-csv-")
 				crd = apiextensionsv1.CustomResourceDefinition{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: apifullname,
 						Annotations: map[string]string{
-							"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/associated-csv", generatedNamespace.GetName()),
+							"operatorframework.io/installed-alongside-0": fmt.Sprintf("%s/%s", generatedNamespace.GetName(), associatedCsvName),
 						},
 					},
 					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
@@ -301,8 +302,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 						Names: apiextensionsv1.CustomResourceDefinitionNames{
 							Plural:   apiname + "s",
 							Singular: apiname,
-							Kind:     strings.Title(apiname),
-							ListKind: strings.Title(apiname) + "List",
+							Kind:     (cases.Title(language.English)).String(apiname),
+							ListKind: (cases.Title(language.English)).String(apiname) + "List",
 						},
 						Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
 							Name:    "v1",
@@ -324,7 +325,7 @@ var _ = Describe("ClusterServiceVersion", func() {
 			It("can satisfy the unassociated ClusterServiceVersion's ownership requirement", func() {
 				associated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "associated-csv",
+						Name:      associatedCsvName,
 						Namespace: generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
@@ -348,8 +349,8 @@ var _ = Describe("ClusterServiceVersion", func() {
 
 				unassociated := operatorsv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "unassociated-csv",
-						Namespace: generatedNamespace.GetName(),
+						GenerateName: "unassociated-csv-",
+						Namespace:    generatedNamespace.GetName(),
 					},
 					Spec: operatorsv1alpha1.ClusterServiceVersionSpec{
 						CustomResourceDefinitions: operatorsv1alpha1.CustomResourceDefinitions{
