@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"strings"
 	"time"
 
@@ -25,22 +26,19 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
-// Global Variables
-const (
-	webhookName = "webhook.test.com"
-)
-
 var _ = Describe("CSVs with a Webhook", func() {
 	var (
 		generatedNamespace corev1.Namespace
 		c                  operatorclient.ClientInterface
 		crc                versioned.Interface
 		nsLabels           map[string]string
+		webhookName        string
 	)
 
 	BeforeEach(func() {
 		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
+		webhookName = fmt.Sprintf("%s.test.com", genName("webhook-"))
 		nsLabels = map[string]string{
 			"foo": "bar",
 		}
@@ -100,10 +98,17 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
-			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
-			Expect(err).Should(BeNil())
+			Eventually(func() error {
+				actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+				if err != nil {
+					return err
+				}
 
-			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(ogSelector))
+				if !equality.Semantic.DeepEqual(actualWebhook.Webhooks[0].NamespaceSelector, ogSelector) {
+					return fmt.Errorf("expected %v, got %v", ogSelector, actualWebhook.Webhooks[0].NamespaceSelector)
+				}
+				return nil
+			}).Should(Succeed())
 		})
 	})
 	When("Installed in a SingleNamespace OperatorGroup", func() {
@@ -142,17 +147,24 @@ var _ = Describe("CSVs with a Webhook", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
-			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
-			Expect(err).Should(BeNil())
+			Eventually(func() error {
+				actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+				if err != nil {
+					return err
+				}
 
-			ogLabel, err := getOGLabelKey(og)
-			require.NoError(GinkgoT(), err)
+				ogLabel, err := getOGLabelKey(og)
+				require.NoError(GinkgoT(), err)
 
-			expected := &metav1.LabelSelector{
-				MatchLabels:      map[string]string{ogLabel: ""},
-				MatchExpressions: []metav1.LabelSelectorRequirement(nil),
-			}
-			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(expected))
+				expected := &metav1.LabelSelector{
+					MatchLabels:      map[string]string{ogLabel: ""},
+					MatchExpressions: []metav1.LabelSelectorRequirement(nil),
+				}
+				if !equality.Semantic.DeepEqual(actualWebhook.Webhooks[0].NamespaceSelector, expected) {
+					return fmt.Errorf("expected %v, got %v", expected, actualWebhook.Webhooks[0].NamespaceSelector)
+				}
+				return nil
+			}).Should(Succeed())
 
 			By(`Ensure that changes to the WebhookDescription within the CSV trigger an update to on cluster resources`)
 			changedGenerateName := webhookName + "-changed"
@@ -502,11 +514,20 @@ var _ = Describe("CSVs with a Webhook", func() {
 			Expect(err).Should(BeNil())
 
 			By(`get new webhook`)
-			actualWebhook, err = getWebhookWithGenerateName(c, webhook.GenerateName)
-			Expect(err).Should(BeNil())
+			Eventually(func() error {
+				actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+				if err != nil {
+					return err
+				}
 
-			newWebhookCABundle := actualWebhook.Webhooks[0].ClientConfig.CABundle
-			Expect(newWebhookCABundle).ShouldNot(Equal(oldWebhookCABundle))
+				newWebhookCABundle := actualWebhook.Webhooks[0].ClientConfig.CABundle
+				Expect(newWebhookCABundle).ShouldNot(Equal(oldWebhookCABundle))
+
+				if !equality.Semantic.DeepEqual(newWebhookCABundle, oldWebhookCABundle) {
+					return fmt.Errorf("expected %v, got %v", oldWebhookCABundle, newWebhookCABundle)
+				}
+				return nil
+			}).Should(Succeed())
 		})
 	})
 	When("Installed in a Global OperatorGroup", func() {
@@ -543,14 +564,22 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
-			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
-			Expect(err).Should(BeNil())
 
-			expected := &metav1.LabelSelector{
-				MatchLabels:      map[string]string(nil),
-				MatchExpressions: []metav1.LabelSelectorRequirement(nil),
-			}
-			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(expected))
+			Eventually(func() error {
+				actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+				if err != nil {
+					return err
+				}
+
+				expected := &metav1.LabelSelector{
+					MatchLabels:      map[string]string(nil),
+					MatchExpressions: []metav1.LabelSelectorRequirement(nil),
+				}
+				if !equality.Semantic.DeepEqual(actualWebhook.Webhooks[0].NamespaceSelector, expected) {
+					return fmt.Errorf("expected %v, got %v", expected, actualWebhook.Webhooks[0].NamespaceSelector)
+				}
+				return nil
+			}).Should(Succeed())
 		})
 	})
 	It("Allows multiple installs of the same webhook", func() {
@@ -585,6 +614,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 		}).Should(Succeed())
 
 		sideEffect := admissionregistrationv1.SideEffectClassNone
+
 		webhook := operatorsv1alpha1.WebhookDescription{
 			GenerateName:            webhookName,
 			Type:                    operatorsv1alpha1.ValidatingAdmissionWebhook,
@@ -856,14 +886,23 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
-			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
-			Expect(err).Should(BeNil())
 
-			expected := &metav1.LabelSelector{
-				MatchLabels:      map[string]string(nil),
-				MatchExpressions: []metav1.LabelSelectorRequirement(nil),
-			}
-			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(expected))
+			Eventually(func() error {
+				actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+				if err != nil {
+					return err
+				}
+
+				expected := &metav1.LabelSelector{
+					MatchLabels:      map[string]string(nil),
+					MatchExpressions: []metav1.LabelSelectorRequirement(nil),
+				}
+
+				if !equality.Semantic.DeepEqual(actualWebhook.Webhooks[0].NamespaceSelector, expected) {
+					return fmt.Errorf("expected %v, got %v", expected, actualWebhook.Webhooks[0].NamespaceSelector)
+				}
+				return nil
+			}).Should(Succeed())
 
 			expectedUpdatedCrdFields := &apiextensionsv1.CustomResourceConversion{
 				Strategy: "Webhook",
@@ -919,14 +958,23 @@ var _ = Describe("CSVs with a Webhook", func() {
 
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
-			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
-			Expect(err).Should(BeNil())
 
-			expected := &metav1.LabelSelector{
-				MatchLabels:      map[string]string(nil),
-				MatchExpressions: []metav1.LabelSelectorRequirement(nil),
-			}
-			Expect(actualWebhook.Webhooks[0].NamespaceSelector).Should(Equal(expected))
+			Eventually(func() error {
+				actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
+				if err != nil {
+					return err
+				}
+
+				expected := &metav1.LabelSelector{
+					MatchLabels:      map[string]string(nil),
+					MatchExpressions: []metav1.LabelSelectorRequirement(nil),
+				}
+
+				if !equality.Semantic.DeepEqual(actualWebhook.Webhooks[0].NamespaceSelector, expected) {
+					return fmt.Errorf("expected %v, got %v", expected, actualWebhook.Webhooks[0].NamespaceSelector)
+				}
+				return nil
+			}).Should(Succeed())
 
 			expectedUpdatedCrdFields := &apiextensionsv1.CustomResourceConversion{
 				Strategy: "Webhook",
