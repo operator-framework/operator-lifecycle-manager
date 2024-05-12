@@ -313,7 +313,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			}
 
 			By("waiting for the subscription to maintain the example-operator.v0.2.0&invalid status.currentCSV")
-			Consistently(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.2.0&invalid"))
+			Eventually(subscriptionCurrentCSVGetter(crclient, subscription.GetNamespace(), subscription.GetName())).Should(Equal("example-operator.v0.2.0&invalid"))
 
 			By("verifying the subscription is referencing the same InstallPlan")
 			subscription, err := fetchSubscription(crclient, subscription.GetNamespace(), subscription.GetName(), subscriptionHasInstallPlanChecker())
