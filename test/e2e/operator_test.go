@@ -305,6 +305,10 @@ var _ = Describe("Operator API", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			sub = &operatorsv1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: cs.GetNamespace(),
+					Name:      genName("sub-"),
+				},
 				Spec: &operatorsv1alpha1.SubscriptionSpec{
 					CatalogSource:          cs.GetName(),
 					CatalogSourceNamespace: cs.GetNamespace(),
@@ -313,8 +317,7 @@ var _ = Describe("Operator API", func() {
 					InstallPlanApproval:    operatorsv1alpha1.ApprovalAutomatic,
 				},
 			}
-			sub.SetNamespace(cs.GetNamespace())
-			sub.SetName(genName("sub-"))
+
 			Eventually(func() error {
 				return client.Create(clientCtx, sub)
 			}).Should(Succeed())
@@ -536,6 +539,7 @@ func ReferenceComponents(refs []*corev1.ObjectReference) gomegatypes.GomegaMatch
 
 			for _, ref := range refs {
 				if _, ok := actual[*ref]; !ok {
+					ctx.Ctx().Logf("missing reference %v", ref)
 					return false, nil
 				}
 			}
