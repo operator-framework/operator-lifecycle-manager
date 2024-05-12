@@ -26,7 +26,7 @@ const (
 	protectedCopiedCSVNamespacesRuntimeFlag = "--protectedCopiedCSVNamespaces"
 )
 
-var _ = Describe("Disabling copied CSVs", func() {
+var _ = Describe("OLMConfig: DisableCopyCSVs", func() {
 	var (
 		generatedNamespace              corev1.Namespace
 		csv                             operatorsv1alpha1.ClusterServiceVersion
@@ -70,211 +70,200 @@ var _ = Describe("Disabling copied CSVs", func() {
 		TeardownNamespace(generatedNamespace.GetName())
 	})
 
-	When("an operator is installed in AllNamespace mode", func() {
-		It("should have Copied CSVs in all other namespaces", func() {
-			Eventually(func() error {
-				requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
-				if err != nil {
-					return err
-				}
+	It("should control the presence of copied CSVs", func() {
+		By("by default copied CSVs should exist")
+		Eventually(func() error {
+			requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
+			if err != nil {
+				return err
+			}
 
-				var copiedCSVs operatorsv1alpha1.ClusterServiceVersionList
-				err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
-					LabelSelector: k8slabels.NewSelector().Add(*requirement),
-				})
-				if err != nil {
-					return err
-				}
+			var copiedCSVs operatorsv1alpha1.ClusterServiceVersionList
+			err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
+				LabelSelector: k8slabels.NewSelector().Add(*requirement),
+			})
+			if err != nil {
+				return err
+			}
 
-				var namespaces corev1.NamespaceList
-				if err := ctx.Ctx().Client().List(context.TODO(), &namespaces, &client.ListOptions{
-					FieldSelector: nonTerminatingNamespaceSelector,
-				}); err != nil {
-					return err
-				}
+			var namespaces corev1.NamespaceList
+			if err := ctx.Ctx().Client().List(context.TODO(), &namespaces, &client.ListOptions{
+				FieldSelector: nonTerminatingNamespaceSelector,
+			}); err != nil {
+				return err
+			}
 
-				if len(namespaces.Items)-1 != len(copiedCSVs.Items) {
-					return fmt.Errorf("%d copied CSVs found, expected %d", len(copiedCSVs.Items), len(namespaces.Items)-1)
-				}
+			if len(namespaces.Items)-1 != len(copiedCSVs.Items) {
+				return fmt.Errorf("%d copied CSVs found, expected %d", len(copiedCSVs.Items), len(namespaces.Items)-1)
+			}
 
+			return nil
+		}).Should(Succeed())
+
+		By("disabling copied CSVs")
+		Eventually(func() error {
+			var olmConfig operatorsv1.OLMConfig
+			if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
+				ctx.Ctx().Logf("Error getting olmConfig %v", err)
+				return err
+			}
+
+			By(`Exit early if copied CSVs are disabled.`)
+			if !olmConfig.CopiedCSVsAreEnabled() {
 				return nil
-			}).Should(Succeed())
-		})
-	})
+			}
 
-	When("Copied CSVs are disabled", func() {
-		BeforeEach(func() {
-			Eventually(func() error {
-				var olmConfig operatorsv1.OLMConfig
-				if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
-					ctx.Ctx().Logf("Error getting olmConfig %v", err)
-					return err
+			olmConfig.Spec = operatorsv1.OLMConfigSpec{
+				Features: &operatorsv1.Features{
+					DisableCopiedCSVs: getPointer(true),
+				},
+			}
+
+			if err := ctx.Ctx().Client().Update(context.TODO(), &olmConfig); err != nil {
+				ctx.Ctx().Logf("Error setting olmConfig %v", err)
+				return err
+			}
+
+			return nil
+		}).Should(Succeed())
+
+		Eventually(func() error {
+			return setProtectedCopiedCSVNamespaces(protectedCopiedCSVNamespaces)
+		}).Should(Succeed())
+
+		By("checking that copied CSVs are no longer present")
+		Eventually(func() error {
+			requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
+			if err != nil {
+				return err
+			}
+
+			var copiedCSVs operatorsv1alpha1.ClusterServiceVersionList
+			err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
+				LabelSelector: k8slabels.NewSelector().Add(*requirement),
+			})
+			if err != nil {
+				return err
+			}
+
+			if numCSVs := len(copiedCSVs.Items); numCSVs != len(protectedCopiedCSVNamespaces) {
+				return fmt.Errorf("Found %d copied CSVs, should be %d", numCSVs, len(protectedCopiedCSVNamespaces))
+			}
+
+			for _, csv := range copiedCSVs.Items {
+				if _, ok := protectedCopiedCSVNamespaces[csv.GetNamespace()]; !ok {
+					return fmt.Errorf("copied CSV %s/%s should not exist in the given namespace", csv.GetNamespace(), csv.GetName())
 				}
+			}
+			return nil
+		}).Should(Succeed())
 
-				By(`Exit early if copied CSVs are disabled.`)
-				if !olmConfig.CopiedCSVsAreEnabled() {
-					return nil
-				}
+		By("ensuring that the olmConfig.Status.Condition array reflects that copied CSVs are disabled")
+		Eventually(func() error {
+			var olmConfig operatorsv1.OLMConfig
+			if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
+				return err
+			}
 
-				olmConfig.Spec = operatorsv1.OLMConfigSpec{
-					Features: &operatorsv1.Features{
-						DisableCopiedCSVs: getPointer(true),
-					},
-				}
+			foundCondition := meta.FindStatusCondition(olmConfig.Status.Conditions, operatorsv1.DisabledCopiedCSVsConditionType)
+			if foundCondition == nil {
+				return fmt.Errorf("%s condition not found", operatorsv1.DisabledCopiedCSVsConditionType)
+			}
 
-				if err := ctx.Ctx().Client().Update(context.TODO(), &olmConfig); err != nil {
-					ctx.Ctx().Logf("Error setting olmConfig %v", err)
-					return err
-				}
+			expectedCondition := metav1.Condition{
+				Reason:  "CopiedCSVsDisabled",
+				Message: "Copied CSVs are disabled and no unexpected copied CSVs were found for operators installed in AllNamespace mode",
+				Status:  metav1.ConditionTrue,
+			}
 
+			if foundCondition.Reason != expectedCondition.Reason ||
+				foundCondition.Message != expectedCondition.Message ||
+				foundCondition.Status != expectedCondition.Status {
+				return fmt.Errorf("condition does not have expected reason, message, and status. Expected %v, got %v", expectedCondition, foundCondition)
+			}
+
+			return nil
+		}).Should(Succeed())
+
+		By("enabling copied CSVs")
+		Eventually(func() error {
+			var olmConfig operatorsv1.OLMConfig
+			if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
+				return err
+			}
+
+			By(`Exit early if copied CSVs are enabled.`)
+			if olmConfig.CopiedCSVsAreEnabled() {
 				return nil
-			}).Should(Succeed())
+			}
 
-			Eventually(func() error {
-				return setProtectedCopiedCSVNamespaces(protectedCopiedCSVNamespaces)
-			}).Should(Succeed())
-		})
+			olmConfig.Spec = operatorsv1.OLMConfigSpec{
+				Features: &operatorsv1.Features{
+					DisableCopiedCSVs: getPointer(false),
+				},
+			}
 
-		It("should not have any copied CSVs", func() {
-			Eventually(func() error {
-				requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
-				if err != nil {
-					return err
-				}
+			if err := ctx.Ctx().Client().Update(context.TODO(), &olmConfig); err != nil {
+				return err
+			}
 
-				var copiedCSVs operatorsv1alpha1.ClusterServiceVersionList
-				err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
-					LabelSelector: k8slabels.NewSelector().Add(*requirement),
-				})
-				if err != nil {
-					return err
-				}
+			return nil
+		}).Should(Succeed())
 
-				if numCSVs := len(copiedCSVs.Items); numCSVs != len(protectedCopiedCSVNamespaces) {
-					return fmt.Errorf("Found %d copied CSVs, should be %d", numCSVs, len(protectedCopiedCSVNamespaces))
-				}
+		By("checking that copied CSVs are present")
+		Eventually(func() error {
+			By(`find copied csvs...`)
+			requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
+			if err != nil {
+				return err
+			}
 
-				for _, csv := range copiedCSVs.Items {
-					if _, ok := protectedCopiedCSVNamespaces[csv.GetNamespace()]; !ok {
-						return fmt.Errorf("copied CSV %s/%s should not exist in the given namespace", csv.GetNamespace(), csv.GetName())
-					}
-				}
-				return nil
-			}).Should(Succeed())
-		})
+			var copiedCSVs operatorsv1alpha1.ClusterServiceVersionList
+			err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
+				LabelSelector: k8slabels.NewSelector().Add(*requirement),
+			})
+			if err != nil {
+				return err
+			}
 
-		It("should be reflected in the olmConfig.Status.Condition array that the expected number of copied CSVs exist", func() {
-			Eventually(func() error {
-				var olmConfig operatorsv1.OLMConfig
-				if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
-					return err
-				}
+			var namespaces corev1.NamespaceList
+			if err := ctx.Ctx().Client().List(context.TODO(), &namespaces, &client.ListOptions{FieldSelector: nonTerminatingNamespaceSelector}); err != nil {
+				return err
+			}
 
-				foundCondition := meta.FindStatusCondition(olmConfig.Status.Conditions, operatorsv1.DisabledCopiedCSVsConditionType)
-				if foundCondition == nil {
-					return fmt.Errorf("%s condition not found", operatorsv1.DisabledCopiedCSVsConditionType)
-				}
+			if len(namespaces.Items)-1 != len(copiedCSVs.Items) {
+				return fmt.Errorf("%d copied CSVs found, expected %d", len(copiedCSVs.Items), len(namespaces.Items)-1)
+			}
 
-				expectedCondition := metav1.Condition{
-					Reason:  "CopiedCSVsDisabled",
-					Message: "Copied CSVs are disabled and no unexpected copied CSVs were found for operators installed in AllNamespace mode",
-					Status:  metav1.ConditionTrue,
-				}
+			return nil
+		}).Should(Succeed())
 
-				if foundCondition.Reason != expectedCondition.Reason ||
-					foundCondition.Message != expectedCondition.Message ||
-					foundCondition.Status != expectedCondition.Status {
-					return fmt.Errorf("condition does not have expected reason, message, and status. Expected %v, got %v", expectedCondition, foundCondition)
-				}
+		By("ensuring that the olmConfig.Status.Condition array reflects that copied CSVs are enabled")
+		Eventually(func() error {
+			var olmConfig operatorsv1.OLMConfig
+			if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
+				return err
+			}
+			foundCondition := meta.FindStatusCondition(olmConfig.Status.Conditions, operatorsv1.DisabledCopiedCSVsConditionType)
+			if foundCondition == nil {
+				return fmt.Errorf("%s condition not found", operatorsv1.DisabledCopiedCSVsConditionType)
+			}
 
-				return nil
-			}).Should(Succeed())
-		})
-	})
+			expectedCondition := metav1.Condition{
+				Reason:  "CopiedCSVsEnabled",
+				Message: "Copied CSVs are enabled and present across the cluster",
+				Status:  metav1.ConditionFalse,
+			}
 
-	When("Copied CSVs are toggled back on", func() {
+			if foundCondition.Reason != expectedCondition.Reason ||
+				foundCondition.Message != expectedCondition.Message ||
+				foundCondition.Status != expectedCondition.Status {
+				return fmt.Errorf("condition does not have expected reason, message, and status. Expected %v, got %v", expectedCondition, foundCondition)
+			}
 
-		BeforeEach(func() {
-			Eventually(func() error {
-				var olmConfig operatorsv1.OLMConfig
-				if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
-					return err
-				}
+			return nil
+		}).Should(Succeed())
 
-				By(`Exit early if copied CSVs are enabled.`)
-				if olmConfig.CopiedCSVsAreEnabled() {
-					return nil
-				}
-
-				olmConfig.Spec = operatorsv1.OLMConfigSpec{
-					Features: &operatorsv1.Features{
-						DisableCopiedCSVs: getPointer(false),
-					},
-				}
-
-				if err := ctx.Ctx().Client().Update(context.TODO(), &olmConfig); err != nil {
-					return err
-				}
-
-				return nil
-			}).Should(Succeed())
-		})
-
-		It("should have copied CSVs in all other Namespaces", func() {
-			Eventually(func() error {
-				By(`find copied csvs...`)
-				requirement, err := k8slabels.NewRequirement(operatorsv1alpha1.CopiedLabelKey, selection.Equals, []string{csv.GetNamespace()})
-				if err != nil {
-					return err
-				}
-
-				var copiedCSVs operatorsv1alpha1.ClusterServiceVersionList
-				err = ctx.Ctx().Client().List(context.TODO(), &copiedCSVs, &client.ListOptions{
-					LabelSelector: k8slabels.NewSelector().Add(*requirement),
-				})
-				if err != nil {
-					return err
-				}
-
-				var namespaces corev1.NamespaceList
-				if err := ctx.Ctx().Client().List(context.TODO(), &namespaces, &client.ListOptions{FieldSelector: nonTerminatingNamespaceSelector}); err != nil {
-					return err
-				}
-
-				if len(namespaces.Items)-1 != len(copiedCSVs.Items) {
-					return fmt.Errorf("%d copied CSVs found, expected %d", len(copiedCSVs.Items), len(namespaces.Items)-1)
-				}
-
-				return nil
-			}).Should(Succeed())
-		})
-
-		It("should be reflected in the olmConfig.Status.Condition array that the expected number of copied CSVs exist", func() {
-			Eventually(func() error {
-				var olmConfig operatorsv1.OLMConfig
-				if err := ctx.Ctx().Client().Get(context.TODO(), apitypes.NamespacedName{Name: "cluster"}, &olmConfig); err != nil {
-					return err
-				}
-				foundCondition := meta.FindStatusCondition(olmConfig.Status.Conditions, operatorsv1.DisabledCopiedCSVsConditionType)
-				if foundCondition == nil {
-					return fmt.Errorf("%s condition not found", operatorsv1.DisabledCopiedCSVsConditionType)
-				}
-
-				expectedCondition := metav1.Condition{
-					Reason:  "CopiedCSVsEnabled",
-					Message: "Copied CSVs are enabled and present across the cluster",
-					Status:  metav1.ConditionFalse,
-				}
-
-				if foundCondition.Reason != expectedCondition.Reason ||
-					foundCondition.Message != expectedCondition.Message ||
-					foundCondition.Status != expectedCondition.Status {
-					return fmt.Errorf("condition does not have expected reason, message, and status. Expected %v, got %v", expectedCondition, foundCondition)
-				}
-
-				return nil
-			}).Should(Succeed())
-		})
 	})
 })
 
