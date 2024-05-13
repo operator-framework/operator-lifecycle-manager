@@ -43,7 +43,7 @@ const (
 	badCSVDir             = "bad-csv"
 )
 
-var _ = Describe("Starting CatalogSource e2e tests", func() {
+var _ = Describe("CatalogSource", func() {
 	var (
 		generatedNamespace  corev1.Namespace
 		c                   operatorclient.ClientInterface
@@ -53,7 +53,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 
 	BeforeEach(func() {
 		// In OCP, PSA labels for any namespace created that is not prefixed with "openshift-" is overridden to enforce
-		// PSA restricted. This test namespace needs to prefixed with openshift- so that baseline/privileged enforcement
+		// PSA restricted. This test namespace needs to be prefixed with openshift- so that baseline/privileged enforcement
 		// for the PSA specific tests are not overridden,
 		// Change it only after https://github.com/operator-framework/operator-lifecycle-manager/issues/2859 is closed.
 		namespaceName := genName("openshift-catsrc-e2e-")
@@ -1467,7 +1467,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			})
 		})
 	})
-	When("The namespace is labled as Pod Security Admission policy enforce:restricted", func() {
+	When("The namespace is labeled as Pod Security Admission policy enforce:restricted", func() {
 		BeforeEach(func() {
 			var err error
 			testNS := &corev1.Namespace{}
@@ -1538,7 +1538,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			})
 		})
 	})
-	When("The namespace is labled as Pod Security Admission policy enforce:baseline", func() {
+	When("The namespace is labeled as Pod Security Admission policy enforce:baseline", func() {
 		BeforeEach(func() {
 			var err error
 			testNS := &corev1.Namespace{}
