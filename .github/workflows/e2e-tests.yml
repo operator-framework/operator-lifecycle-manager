@@ -14,10 +14,8 @@ jobs:
       fail-fast: false
       matrix:
         parallel-id: [
-          "(bundle_e2e_test.go|catalog_exclusion_test.go|catsrc_pod_config_e2e_test.go|deprecated_e2e_test.go|disabling_copied_csv_e2e_test.go)",
-          "(dynamic_resource_e2e_test.go|gc_e2e_test.go|like_metric_matcher_test.go|magic_catalog_test.go|metrics_e2e_test.go)",
+          "(bundle_e2e_test.go|catalog_exclusion_test.go|catsrc_pod_config_e2e_test.go|deprecated_e2e_test.go|disabling_copied_csv_e2e_test.go|dynamic_resource_e2e_test.go|gc_e2e_test.go|like_metric_matcher_test.go|magic_catalog_test.go|metrics_e2e_test.go|scoped_client_test.go|user_defined_sa_test.go|webhook_e2e_test.go)",
           "(operator_condition_e2e_test.go|operator_groups_e2e_test.go|operator_test.go|packagemanifest_e2e_test.go|resource_manager_test.go)",
-          "(scoped_client_test.go|user_defined_sa_test.go|webhook_e2e_test.go)",
           "subscription_e2e_test.go",
           "installplan_e2e_test.go",
           "fail_forward_e2e_test.go",
