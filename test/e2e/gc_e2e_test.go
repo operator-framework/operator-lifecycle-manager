@@ -13,7 +13,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -49,7 +48,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		)
 
 		BeforeEach(func() {
-			group := fmt.Sprintf("%s.com", rand.String(16))
+			group := genName("cluster-") + ".example.com"
 
 			crd = &apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
@@ -134,7 +133,7 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		)
 
 		BeforeEach(func() {
-			group := rand.String(16)
+			group := genName("cluster-") + ".example.com"
 
 			apiService = &apiregistrationv1.APIService{
 				ObjectMeta: metav1.ObjectMeta{
@@ -324,18 +323,22 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 		const (
 			packageName   = "busybox"
 			channelName   = "alpha"
-			subName       = "test-subscription"
 			secretName    = "mysecret"
 			configmapName = "special-config"
 		)
 
+		var (
+			subName = "test-subscription"
+		)
+
 		BeforeEach(func() {
 			const (
-				sourceName = "test-catalog"
-				imageName  = "quay.io/olmtest/single-bundle-index:objects"
+				imageName = "quay.io/olmtest/single-bundle-index:objects"
 			)
 			var installPlanRef string
 
+			subName = genName("test-subscription-")
+			sourceName := genName("test-catalog-")
 			By(`create catalog source`)
 			source := &v1alpha1.CatalogSource{
 				TypeMeta: metav1.TypeMeta{
@@ -446,17 +449,22 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 	When("a bundle with a configmap is installed", func() {
 
 		const (
-			subName       = "test-subscription"
 			configmapName = "special-config"
+		)
+
+		var (
+			subName = "test-subscription"
 		)
 
 		BeforeEach(func() {
 			const (
 				packageName = "busybox"
 				channelName = "alpha"
-				sourceName  = "test-catalog"
 				imageName   = "quay.io/olmtest/single-bundle-index:objects-upgrade-samename"
 			)
+
+			subName = genName("test-subscription-")
+			sourceName := genName("test-catalog-")
 
 			var installPlanRef string
 			By(`create catalog source`)
@@ -564,17 +572,22 @@ var _ = Describe("Garbage collection for dependent resources", func() {
 	When("a bundle with a new configmap is installed", func() {
 
 		const (
-			subName       = "test-subscription"
 			configmapName = "special-config"
+		)
+
+		var (
+			subName = "test-subscription"
 		)
 
 		BeforeEach(func() {
 			const (
 				packageName = "busybox"
 				channelName = "alpha"
-				sourceName  = "test-catalog"
 				imageName   = "quay.io/olmtest/single-bundle-index:objects-upgrade-diffname"
 			)
+
+			subName := genName("test-subscription-")
+			sourceName := genName("test-catalog-")
 
 			var installPlanRef string
 			By(`create catalog source`)
