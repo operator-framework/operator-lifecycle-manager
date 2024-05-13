@@ -53,7 +53,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         if: startsWith(github.ref, 'refs/tags')
         with:
           version: 0.177.0
