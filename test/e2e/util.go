@@ -353,7 +353,7 @@ func catalogSourceRegistryPodSynced() func(catalog *operatorsv1alpha1.CatalogSou
 	var lastState string
 	lastTime := time.Now()
 	return func(catalog *operatorsv1alpha1.CatalogSource) bool {
-		registry := catalog.Status.RegistryServiceStatus
+		reg := catalog.Status.RegistryServiceStatus
 		connState := catalog.Status.GRPCConnectionState
 		state := "NO_CONNECTION"
 		if connState != nil {
@@ -364,9 +364,9 @@ func catalogSourceRegistryPodSynced() func(catalog *operatorsv1alpha1.CatalogSou
 			lastState = state
 			lastTime = time.Now()
 		}
-		if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
-			fmt.Printf("probing catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
-			return registryPodHealthy(registry.Address())
+		if reg != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
+			fmt.Printf("probing catalog %s pod with address %s\n", catalog.GetName(), reg.Address())
+			return registryPodHealthy(reg.Address())
 		}
 		return false
 	}
