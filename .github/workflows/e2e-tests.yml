@@ -79,7 +79,7 @@ jobs:
       - name: Deploy
         run: make e2e-local-deploy
       - name: Run e2e tests
-        run: make e2e-local E2E_NODES=1 ARTIFACT_DIR=./artifacts/ SKIP='\[FLAKE\]' TEST_FILE='${{ matrix.parallel-id }}'
+        run: make e2e-local E2E_NODES=2 ARTIFACT_DIR=./artifacts/ SKIP='\[FLAKE\]' TEST_FILE='${{ matrix.parallel-id }}'
       - name: Archive Test Artifacts
         if: always()
         uses: actions/upload-artifact@v4
