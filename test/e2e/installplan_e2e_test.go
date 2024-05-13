@@ -3968,7 +3968,7 @@ func newCRD(plural string) apiextensionsv1.CustomResourceDefinition {
 			Name: plural + ".cluster.com",
 		},
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group: "cluster.com",
+			Group: genName("cluster") + ".com",
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 				{
 					Name:    "v1alpha1",

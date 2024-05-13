@@ -1,27 +1,66 @@
 name: e2e
 on:
   schedule:
-    - cron: '30 5,17 * * *' # run this every day at 5:30 and 17:30 UTC (00:30 and 12:30 ET)
+    - cron: '30 5,17 * * *'  # run this every day at 5:30 and 17:30 UTC
   push:
     branches:
       - master
   pull_request:
   workflow_dispatch:
-  merge_group:
+
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.vars.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - name: Build
+        run: make e2e-local-build
+      - name: Output Variables
+        id: vars
+        run: echo "::set-output name=sha::$(git rev-parse HEAD)"
+      - name: Save docker image
+        run: docker save quay.io/operator-framework/olm:local -o olm-image.tar
+      - name: Upload Docker image as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: olm-image.tar
+          path: olm-image.tar
+
   e2e:
+    needs: build
     strategy:
       fail-fast: false
       matrix:
         parallel-id: [
-          "(bundle_e2e_test.go|catalog_exclusion_test.go|catsrc_pod_config_e2e_test.go|deprecated_e2e_test.go|disabling_copied_csv_e2e_test.go|dynamic_resource_e2e_test.go|gc_e2e_test.go|like_metric_matcher_test.go|magic_catalog_test.go|metrics_e2e_test.go|scoped_client_test.go|user_defined_sa_test.go|webhook_e2e_test.go)",
-          "(operator_condition_e2e_test.go|operator_groups_e2e_test.go|operator_test.go|packagemanifest_e2e_test.go|resource_manager_test.go)",
+          "bundle_e2e_test.go",
+          "catalog_exclusion_test.go",
+          "catsrc_pod_config_e2e_test.go",
+          "deprecated_e2e_test.go",
+          "disabling_copied_csv_e2e_test.go",
+          "dynamic_resource_e2e_test.go",
+          "gc_e2e_test.go",
+          "like_metric_matcher_test.go",
+          "magic_catalog_test.go",
+          "metrics_e2e_test.go",
+          "operator_condition_e2e_test.go",
+          "operator_groups_e2e_test.go",
+          "operator_test.go",
+          "packagemanifest_e2e_test.go",
+          "resource_manager_test.go",
+          "scoped_client_test.go",
+          "user_defined_sa_test.go",
+          "webhook_e2e_test.go",
           "subscription_e2e_test.go",
           "installplan_e2e_test.go",
           "fail_forward_e2e_test.go",
           "catalog_e2e_test.go",
           "crd_e2e_test.go",
-          "csv_e2e_test.go"
+          "csv_e2e_test.go",
         ]
     runs-on: ubuntu-latest
     steps:
@@ -29,29 +68,34 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
-      - run: mkdir -p artifacts
-      - name: Build
-        run: make e2e-local-build
+      - name: Download Docker image from artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: olm-image.tar
+          path: .
+      - name: Load Docker image
+        run: |
+          docker load < olm-image.tar
       - name: Deploy
         run: make e2e-local-deploy
       - name: Run e2e tests
         run: make e2e-local E2E_NODES=4 ARTIFACT_DIR=./artifacts/ SKIP='\[FLAKE\]' TEST_FILE='${{ matrix.parallel-id }}'
-      - name: Archive Test Artifacts # test results, failed or not, are always uploaded.
-        if: ${{ always() }}
+      - name: Archive Test Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-output-${{ (github.event.pull_request.head.sha || github.sha) }}-${{ github.run_id }}-${{ matrix.parallel-id }}
-          path: ${{ github.workspace }}/bin/artifacts/*
-        # TODO: create job to combine test artifacts using code in https://github.com/operator-framework/operator-lifecycle-manager/pull/1476
+          name: e2e-test-output-${{ needs.build.outputs.sha }}-${{ github.run_id }}-${{ matrix.parallel-id }}
+          path: ./artifacts/*
+
   e2e-tests:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     needs: e2e
     steps:
-    - run: |
-        echo "Matrix result: ${{ needs.e2e.result }}"
-    - name: check individual matrix results
-      if: ${{ needs.e2e.result == 'failure' }}
-      run: |
-        echo 'Failure: at least one e2e matrix job has failed'
-        exit 1
+      - run: |
+          echo "Matrix result: ${{ needs.e2e.result }}"
+      - name: check individual matrix results
+        if: ${{ needs.e2e.result == 'failure' }}
+        run: |
+          echo 'Failure: at least one e2e matrix job has failed'
+          exit 1
