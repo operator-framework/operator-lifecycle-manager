@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/distribution/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
