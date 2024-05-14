@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Feature Requests
+    url: https://github.com/operator-framework/operator-controller/issues/new/choose
+    about: Please open any feature requests against OLMv1 version instead
   - name: OLM Kubernetes Slack Channel
     url: https://kubernetes.slack.com/archives/C0181L6JYQ2
     about: Join the "#olm-dev" channel on the kubernetes slack - it's a good place to ask OLM-related questions!

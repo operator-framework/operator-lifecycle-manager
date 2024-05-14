@@ -6,6 +6,20 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/operator-framework/operator-lifecycle-manager)](https://goreportcard.com/report/github.com/operator-framework/operator-lifecycle-manager)
 [![Slack Channel](https://img.shields.io/badge/chat-4A154B?logo=slack&logoColor=white "Slack Channel")](https://kubernetes.slack.com/archives/C0181L6JYQ2)
 
+---
+> [!WARNING]  
+> This repository is associated with **Operator Lifecycle Manager** version 0 (v0) which is in maintenance mode. The community is excited to be working on a new design (v1) which intends to overcome a number of limitations of the v0 architecture, the primary repository for which is [operator controller](https://www.github.com/operator-framework/operator-controller).  
+
+In maintenance mode, we have the following changes to support expectations:
+1. We will accept no new features.
+2. We will accept no non-critical outage issues, defined here as a cluster-wide outage with no workaround.
+3. We will close backlog issues which do not meet the above criteria.
+4. We will continue to update the project to address emergent vulnerabilities on a best-effort basis.
+
+If you have any questions, please engage with us: [![Slack Channel](https://img.shields.io/badge/chat-4A154B?logo=slack&logoColor=white "Slack Channel")](https://kubernetes.slack.com/archives/C0181L6JYQ2)
+
+---
+
 ## Documentation
 
 User documentation can be found on the [OLM website][olm-docs].
