@@ -106,6 +106,7 @@ const (
 	TypeGVKRequired     = "olm.gvk.required"
 	TypeBundleObject    = "olm.bundle.object"
 	TypeCSVMetadata     = "olm.csv.metadata"
+	TypeConstraint      = "olm.constraint"
 	TypeChannel         = "olm.channel"
 )
 
