@@ -94,7 +94,7 @@ var _ = Describe("Global Catalog Exclusion", func() {
 				Spec: &v1alpha1.SubscriptionSpec{
 					CatalogSource:          localCatalog.GetName(),
 					CatalogSourceNamespace: localCatalog.GetNamespace(),
-					Package:                "packageA",
+					Package:                "test-package",
 					Channel:                "stable",
 					InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
 				},

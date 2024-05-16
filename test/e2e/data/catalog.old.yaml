@@ -1,4 +1,4 @@
-# Contains PackageA, PackageB
+# Contains test-package, another-package
 kind: ConfigMap
 apiVersion: v1
 metadata:

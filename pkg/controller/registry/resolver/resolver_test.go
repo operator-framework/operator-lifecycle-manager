@@ -53,17 +53,17 @@ func TestSolveOperators(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	sub := existingSub(namespace, "test-package.v1", "test-package", "alpha", catalog)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
-					genEntry("packageB.v1", "1.0.1", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genEntry("another-package.v1", "1.0.1", "", "another-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
@@ -75,7 +75,7 @@ func TestSolveOperators(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := []*cache.Entry{
-		genEntry("packageB.v1", "1.0.1", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+		genEntry("another-package.v1", "1.0.1", "", "another-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 	}
 	require.ElementsMatch(t, expected, operators)
 }
@@ -91,14 +91,14 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
 
-	packageASub := newSub(namespace, "packageA", "alpha", catalog)
+	packageASub := newSub(namespace, "test-package", "alpha", catalog)
 	packageDSub := existingSub(namespace, "packageD.v1", "packageD", "alpha", catalog)
 
 	APISet := cache.APISet{opregistry.APIKey{Group: "g", Version: "v", Kind: "k", Plural: "ks"}: struct{}{}}
 
-	// packageA requires an API that can be provided by B or C
-	packageA := genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, APISet, nil, nil, "", false)
-	packageB := genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
+	// test-package requires an API that can be provided by B or C
+	test -package := genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", catalog.Name, catalog.Namespace, APISet, nil, nil, "", false)
+	another-package := genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
 	packageC := genEntry("packageC.v1", "1.0.0", "", "packageC", "alpha", catalog.Name, catalog.Namespace, nil, APISet, nil, "", false)
 
 	// Existing operators
@@ -133,39 +133,39 @@ func TestSolveOperators_WithSystemConstraints(t *testing.T) {
 	}{
 		{
 			title:                     "No runtime constraints",
-			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
+			snapshotEntries:           []*cache.Entry{test -package, another-package, packageC, packageD},
 			systemConstraintsProvider: nil,
-			expectedOperators:         []*cache.Entry{packageA, packageB},
+			expectedOperators:         []*cache.Entry{test -package, another-package},
 			csvs:                      nil,
 			subs:                      []*v1alpha1.Subscription{packageASub},
 			err:                       "",
 		},
 		{
 			title:                     "Runtime constraints only accept packages A and C",
-			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
-			systemConstraintsProvider: whiteListConstraintProvider(packageA, packageC),
-			expectedOperators:         []*cache.Entry{packageA, packageC},
+			snapshotEntries:           []*cache.Entry{test -package, another-package, packageC, packageD},
+			systemConstraintsProvider: whiteListConstraintProvider(test-package, packageC),
+			expectedOperators:         []*cache.Entry{test -package, packageC},
 			csvs:                      nil,
 			subs:                      []*v1alpha1.Subscription{packageASub},
 			err:                       "",
 		},
 		{
 			title:                     "Existing packages are ignored",
-			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
-			systemConstraintsProvider: whiteListConstraintProvider(packageA, packageC),
-			expectedOperators:         []*cache.Entry{packageA, packageC},
+			snapshotEntries:           []*cache.Entry{test -package, another-package, packageC, packageD},
+			systemConstraintsProvider: whiteListConstraintProvider(test-package, packageC),
+			expectedOperators:         []*cache.Entry{test -package, packageC},
 			csvs:                      []*v1alpha1.ClusterServiceVersion{existingPackageD},
 			subs:                      []*v1alpha1.Subscription{packageASub, packageDSub},
 			err:                       "",
 		},
 		{
 			title:                     "Runtime constraints don't allow A",
-			snapshotEntries:           []*cache.Entry{packageA, packageB, packageC, packageD},
-			systemConstraintsProvider: whiteListConstraintProvider(packageB, packageC, packageD),
+			snapshotEntries:           []*cache.Entry{test -package, another-package, packageC, packageD},
+			systemConstraintsProvider: whiteListConstraintProvider(another-package, packageC, packageD),
 			expectedOperators:         nil,
 			csvs:                      nil,
 			subs:                      []*v1alpha1.Subscription{packageASub},
-			err:                       "packageA is not white listed",
+			err:                       "test-package is not white listed",
 		},
 	}
 
@@ -195,17 +195,17 @@ func TestDisjointChannelGraph(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
 
-	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	newSub := newSub(namespace, "test-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.side1.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
-					genEntry("packageA.side1.v2", "0.0.2", "packageA.side1.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
-					genEntry("packageA.side2.v1", "1.0.0", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
-					genEntry("packageA.side2.v2", "2.0.0", "packageA.side2.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genEntry("test-package.side1.v1", "0.0.1", "", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genEntry("test-package.side1.v2", "0.0.2", "test-package.side1.v1", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genEntry("test-package.side2.v1", "1.0.0", "", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genEntry("test-package.side2.v2", "2.0.0", "test-package.side2.v1", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
 				},
 			},
 		}),
@@ -213,7 +213,7 @@ func TestDisjointChannelGraph(t *testing.T) {
 	}
 
 	_, err := resolver.Resolve([]string{namespace}, subs)
-	require.Error(t, err, "a unique replacement chain within a channel is required to determine the relative order between channel entries, but 2 replacement chains were found in channel \"alpha\" of package \"packageA\": packageA.side1.v2...packageA.side1.v1, packageA.side2.v2...packageA.side2.v1")
+	require.Error(t, err, "a unique replacement chain within a channel is required to determine the relative order between channel entries, but 2 replacement chains were found in channel \"alpha\" of package \"test-package\": test-package.side1.v2...test-package.side1.v1, test-package.side2.v2...test-package.side2.v1")
 }
 
 func TestSolveOperators_MultipleChannels(t *testing.T) {
@@ -223,18 +223,18 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	sub := existingSub(namespace, "test-package.v1", "test-package", "alpha", catalog)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1", "1.0.0", "", "packageB", "beta", "community", "olm", nil, nil, nil, "", false),
+					genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1", "1.0.0", "", "another-package", "beta", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
@@ -245,7 +245,7 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	operators, err := resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := []*cache.Entry{
-		genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
+		genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
 }
@@ -257,9 +257,9 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	sub := existingSub(namespace, "test-package.v1", "test-package", "alpha", catalog)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	resolver := Resolver{
@@ -269,10 +269,10 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 				Name:      "community",
 			}: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v0.9.0", "0.9.0", "", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1.0.0", "1.0.0", "another-package.v0.9.0", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
@@ -288,8 +288,8 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	}
 
 	expected := []*cache.Entry{
-		genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-		genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
+		genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+		genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
 }
@@ -301,9 +301,9 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	sub := existingSub(namespace, "test-package.v1", "test-package", "alpha", catalog)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	opToAddVersionDeps := []*api.Dependency{
@@ -321,10 +321,10 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+					genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v0.9.0", "0.9.0", "", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1.0.0", "1.0.0", "another-package.v0.9.0", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 					genEntry("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genEntry("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil, "", false),
 					genEntry("packageD.v1.0.0", "1.0.0", "", "packageD", "alpha", "community", "olm", nil, nil, nil, "", false),
@@ -342,8 +342,8 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 	assert.Equal(t, 4, len(operators))
 
 	expected := []*cache.Entry{
-		genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-		genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+		genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+		genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 		genEntry("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nil, "", false),
 		genEntry("packageD.v1.0.1", "1.0.1", "packageD.v1.0.0", "packageD", "alpha", "community", "olm", nil, nil, nil, "", false),
 	}
@@ -357,9 +357,9 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	sub := existingSub(namespace, "test-package.v1", "test-package", "alpha", catalog)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	opToAddVersionDeps := []*api.Dependency{
@@ -383,10 +383,10 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v0.9.0", "0.9.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1.0.0", "1.0.0", "packageB.v0.9.0", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+					genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v0.9.0", "0.9.0", "", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1.0.0", "1.0.0", "another-package.v0.9.0", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 					genEntry("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps, "", false),
 					genEntry("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps, "", false),
 					genEntry("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, nil, nil, "", false),
@@ -403,8 +403,8 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := []*cache.Entry{
-		genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-		genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+		genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+		genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 		genEntry("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", nil, nil, nestedVersionDeps, "", false),
 		genEntry("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, nil, nil, "", false),
 		genEntry("packageE.v1.0.1", "1.0.1", "packageE.v1.0.0", "packageE", "alpha", "community", "olm", nil, nil, nil, "", false),
@@ -422,31 +422,31 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	opToAddVersionDeps := []*api.Dependency{
 		{
 			Type:  "olm.package",
-			Value: `{"packageName":"packageB","version":"0.0.1"}`,
+			Value: `{"packageName":"another-package","version":"0.0.1"}`,
 		},
 	}
 
 	namespace := "olm"
 	customCatalog := cache.SourceKey{Name: "community", Namespace: namespace}
-	newSub := newSub(namespace, "packageA", "alpha", customCatalog)
+	newSub := newSub(namespace, "test-package", "alpha", customCatalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	ssp := cache.StaticSourceProvider{
 		cache.SourceKey{Namespace: "olm", Name: "community"}: &cache.Snapshot{
 			Entries: []*cache.Entry{
-				genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", namespace, nil,
+				genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "community", namespace, nil,
 					nil, opToAddVersionDeps, "", false),
 			},
 		},
 		cache.SourceKey{Namespace: "olm", Name: "community-operator"}: &cache.Snapshot{
 			Entries: []*cache.Entry{
-				genEntry("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
+				genEntry("another-package.v1", "0.0.1", "", "another-package", "alpha", "community-operator",
 					namespace, nil, nil, nil, "", false),
 			},
 		},
 		cache.SourceKey{Namespace: "olm", Name: "high-priority-operator"}: &cache.Snapshot{
 			Entries: []*cache.Entry{
-				genEntry("packageB.v1", "0.0.1", "", "packageB", "alpha", "high-priority-operator",
+				genEntry("another-package.v1", "0.0.1", "", "another-package", "alpha", "high-priority-operator",
 					namespace, nil, nil, nil, "", false),
 			},
 		},
@@ -459,9 +459,9 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	operators, err := resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := []*cache.Entry{
-		genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
+		genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "community", "olm",
 			nil, nil, opToAddVersionDeps, "", false),
-		genEntry("packageB.v1", "0.0.1", "", "packageB", "alpha", "high-priority-operator", "olm",
+		genEntry("another-package.v1", "0.0.1", "", "another-package", "alpha", "high-priority-operator", "olm",
 			nil, nil, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
@@ -472,7 +472,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		Name:      "community-operator",
 	}] = &cache.Snapshot{
 		Entries: []*cache.Entry{
-			genEntry("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator",
+			genEntry("another-package.v1", "0.0.1", "", "another-package", "alpha", "community-operator",
 				namespace, nil, nil, nil, "", false),
 		},
 	}
@@ -487,9 +487,9 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	operators, err = resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected = []*cache.Entry{
-		genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
+		genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "community", "olm",
 			nil, nil, opToAddVersionDeps, "", false),
-		genEntry("packageB.v1", "0.0.1", "", "packageB", "alpha", "community-operator", "olm",
+		genEntry("another-package.v1", "0.0.1", "", "another-package", "alpha", "community-operator", "olm",
 			nil, nil, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
@@ -500,9 +500,9 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		Name:      "community",
 	}] = &cache.Snapshot{
 		Entries: []*cache.Entry{
-			genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", namespace, nil,
+			genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "community", namespace, nil,
 				nil, opToAddVersionDeps, "", false),
-			genEntry("packageB.v1", "0.0.1", "", "packageB", "alpha", "community",
+			genEntry("another-package.v1", "0.0.1", "", "another-package", "alpha", "community",
 				namespace, nil, nil, nil, "", false),
 		},
 	}
@@ -514,9 +514,9 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 	operators, err = resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected = []*cache.Entry{
-		genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
+		genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "community", "olm",
 			nil, nil, opToAddVersionDeps, "", false),
-		genEntry("packageB.v1", "0.0.1", "", "packageB", "alpha", "community", "olm",
+		genEntry("another-package.v1", "0.0.1", "", "another-package", "alpha", "community", "olm",
 			nil, nil, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
@@ -529,9 +529,9 @@ func TestSolveOperators_WithPackageDependencies(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	sub := existingSub(namespace, "test-package.v1", "test-package", "alpha", catalog)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	opToAddVersionDeps := []*api.Dependency{
@@ -545,8 +545,8 @@ func TestSolveOperators_WithPackageDependencies(t *testing.T) {
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+					genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 					genEntry("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
@@ -560,8 +560,8 @@ func TestSolveOperators_WithPackageDependencies(t *testing.T) {
 	assert.Equal(t, 3, len(operators))
 
 	expected := []*cache.Entry{
-		genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-		genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+		genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+		genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 		genEntry("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
@@ -575,8 +575,8 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 	community := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	subs := []*v1alpha1.Subscription{
-		existingSub(namespace, "packageA.v1", "packageA", "alpha", community),
-		newSub(namespace, "packageB", "alpha", community),
+		existingSub(namespace, "test-package.v1", "test-package", "alpha", community),
+		newSub(namespace, "another-package", "alpha", community),
 	}
 
 	deps := []*api.Dependency{
@@ -590,15 +590,15 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 		cache: cache.New(cache.StaticSourceProvider{
 			community: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
+					genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", Provides, nil, deps, "", false),
 					genEntry("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, Provides, nil, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(
 				namespace,
 				subs,
-				existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", nil, nil, nil, nil),
+				existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", nil, nil, nil, nil),
 			),
 		}),
 		log: logrus.New(),
@@ -608,7 +608,7 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := []*cache.Entry{
-		genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
+		genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", Provides, nil, deps, "", false),
 		genEntry("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, Provides, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
@@ -618,7 +618,7 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	newSub := newSub(namespace, "test-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	deps := []*api.Dependency{
@@ -635,14 +635,14 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 		},
 	}
 
-	operatorBv1 := genEntry("packageB.v1", "1.0.0", "", "packageB", "beta", "community", "olm", nil, nil, nil, "", false)
+	operatorBv1 := genEntry("another-package.v1", "1.0.0", "", "another-package", "beta", "community", "olm", nil, nil, nil, "", false)
 	operatorBv1.Properties = append(operatorBv1.Properties, props...)
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, deps, "", false),
+					genEntry("test-package", "0.0.1", "", "test-package", "alpha", "community", "olm", nil, nil, deps, "", false),
 					operatorBv1,
 				},
 			},
@@ -654,7 +654,7 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 	assert.Equal(t, 2, len(operators))
 
 	expected := []*cache.Entry{
-		genEntry("packageA", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, deps, "", false),
+		genEntry("test-package", "0.0.1", "", "test-package", "alpha", "community", "olm", nil, nil, deps, "", false),
 		operatorBv1,
 	}
 	assert.ElementsMatch(t, expected, operators)
@@ -664,7 +664,7 @@ func TestSolveOperators_WithUnsatisfiableLabelDependencies(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	newSub := newSub(namespace, "test-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	deps := []*api.Dependency{
@@ -678,8 +678,8 @@ func TestSolveOperators_WithUnsatisfiableLabelDependencies(t *testing.T) {
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, deps, "", false),
-					genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("test-package", "0.0.1", "", "test-package", "alpha", "community", "olm", nil, nil, deps, "", false),
+					genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, nil, "", false),
 				},
 			},
 		}),
@@ -697,9 +697,9 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	sub := existingSub(namespace, "test-package.v1", "test-package", "alpha", catalog)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
 	deps := []*api.Dependency{
@@ -723,9 +723,9 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 				Name:      "community",
 			}: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
-					genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
+					genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1.0.0", "1.0.0", "", "another-package", "alpha", "community", "olm", Provides, nil, deps, "", false),
+					genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", Provides, nil, deps, "", false),
 					genEntry("packageC.v1.0.0", "1.0.0", "", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2, "", false),
 					genEntry("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2, "", false),
 					genEntry("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, Provides2, deps2, "", false),
@@ -749,8 +749,8 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 	operators, err := resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := []*cache.Entry{
-		genEntry("packageA.v1.0.1", "1.0.1", "packageA.v1", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-		genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
+		genEntry("test-package.v1.0.1", "1.0.1", "test-package.v1", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+		genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", Provides, nil, deps, "", false),
 		genEntry("packageC.v1.0.1", "1.0.1", "packageC.v1.0.0", "packageC", "alpha", "community", "olm", Provides2, Provides, deps2, "", false),
 		genEntry("packageD.v1.0.1", "1.0.1", "", "packageD", "alpha", "community", "olm", nil, Provides2, deps2, "", false),
 	}
@@ -1053,8 +1053,8 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	community := cache.SourceKey{Name: "community", Namespace: namespace}
 
 	subs := []*v1alpha1.Subscription{
-		existingSub(namespace, "packageA.v1", "packageA", "alpha", community),
-		newSub(namespace, "packageB", "alpha", community),
+		existingSub(namespace, "test-package.v1", "test-package", "alpha", community),
+		newSub(namespace, "another-package", "alpha", community),
 	}
 
 	opToAddVersionDeps := []*api.Dependency{
@@ -1074,22 +1074,22 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 		cache: cache.New(cache.StaticSourceProvider{
 			community: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+					genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "community", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 					genEntry("packageC.v1", "0.1.0", "", "packageC", "alpha", "community", "olm", nil, nil, unsatisfiableVersionDeps, "", false),
 				},
 			},
 			{Namespace: "olm", Name: "certified"}: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", "certified", "olm", nil, nil, nil, "", false),
-					genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps, "", false),
+					genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", "certified", "olm", nil, nil, nil, "", false),
+					genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "certified", "olm", nil, nil, opToAddVersionDeps, "", false),
 					genEntry("packageC.v1", "0.1.0", "", "packageC", "alpha", "certified", "olm", nil, nil, nil, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(
 				namespace,
 				subs,
-				existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil),
+				existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil),
 			),
 		}),
 		log: logrus.New(),
@@ -1098,7 +1098,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 	operators, err := resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := []*cache.Entry{
-		genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
+		genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
 		genEntry("packageC.v1", "0.1.0", "", "packageC", "alpha", "certified", "olm", nil, nil, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
@@ -1115,20 +1115,20 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 	altnsCatalog := cache.SourceKey{Name: "alt-community", Namespace: altNamespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	sub := existingSub(namespace, "test-package.v1", "test-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, "", false),
+					genEntry("test-package.v0.0.1", "0.0.1", "test-package.v1", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, "", false),
 				},
 			},
 			altnsCatalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", altnsCatalog.Name, altnsCatalog.Namespace, nil, Provides, nil, "", false),
+					genEntry("test-package.v0.0.1", "0.0.1", "test-package.v1", "test-package", "alpha", altnsCatalog.Name, altnsCatalog.Namespace, nil, Provides, nil, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
@@ -1140,7 +1140,7 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := []*cache.Entry{
-		genEntry("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, "", false),
+		genEntry("test-package.v0.0.1", "0.0.1", "test-package.v1", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, "", false),
 	}
 	require.ElementsMatch(t, expected, operators)
 }
@@ -1155,15 +1155,15 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 	otherCatalog := cache.SourceKey{Name: "secret", Namespace: "secret"}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	newSub := newSub(namespace, "test-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", otherCatalog.Name, otherCatalog.Namespace, nil, Provides, nil, "", false),
+					genEntry("test-package.v0.0.1", "0.0.1", "test-package.v1", "test-package", "alpha", otherCatalog.Name, otherCatalog.Namespace, nil, Provides, nil, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
@@ -1187,7 +1187,7 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 
 	const defaultChannel = "stable"
 	// do not specify a channel explicitly on the subscription
-	newSub := newSub(namespace, "packageA", "", catalog)
+	newSub := newSub(namespace, "test-package", "", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	resolver := Resolver{
@@ -1195,8 +1195,8 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
 					// Default channel is stable in this case
-					genEntry("packageA.v0.0.2", "0.0.2", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
-					genEntry("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
+					genEntry("test-package.v0.0.2", "0.0.2", "test-package.v1", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
+					genEntry("test-package.v0.0.1", "0.0.1", "test-package.v1", "test-package", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 				},
 			},
 		}),
@@ -1208,7 +1208,7 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 
 	// operator should be from the default stable channel
 	expected := []*cache.Entry{
-		genEntry("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
+		genEntry("test-package.v0.0.1", "0.0.1", "test-package.v1", "test-package", "stable", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 	}
 	require.ElementsMatch(t, expected, operators)
 }
@@ -1221,7 +1221,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	newSub := newSub(namespace, "packageA", "alpha", catalog)
+	newSub := newSub(namespace, "test-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	const defaultChannel = "stable"
@@ -1230,9 +1230,9 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(nil, Provides), defaultChannel, false),
-					genEntry("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
-					genEntry("packageB.v0.0.2", "0.0.2", "packageB.v0.0.1", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
+					genEntry("test-package.v0.0.1", "0.0.1", "test-package.v1", "test-package", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(nil, Provides), defaultChannel, false),
+					genEntry("another-package.v0.0.1", "0.0.1", "another-package.v1", "another-package", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
+					genEntry("another-package.v0.0.2", "0.0.2", "another-package.v0.0.1", "another-package", "alpha", catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 				},
 			},
 		}),
@@ -1244,8 +1244,8 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 
 	// operator should be from the default stable channel
 	expected := []*cache.Entry{
-		genEntry("packageA.v0.0.1", "0.0.1", "packageA.v1", "packageA", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(nil, Provides), defaultChannel, false),
-		genEntry("packageB.v0.0.1", "0.0.1", "packageB.v1", "packageB", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
+		genEntry("test-package.v0.0.1", "0.0.1", "test-package.v1", "test-package", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(nil, Provides), defaultChannel, false),
+		genEntry("another-package.v0.0.1", "0.0.1", "another-package.v1", "another-package", defaultChannel, catalog.Name, catalog.Namespace, nil, Provides, nil, defaultChannel, false),
 	}
 	require.ElementsMatch(t, expected, operators)
 }
@@ -1257,8 +1257,8 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	deps := []*api.Dependency{
@@ -1272,8 +1272,8 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
-					genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", Provides, nil, deps, "", false),
+					genEntry("another-package.v1.0.0", "1.0.0", "", "another-package", "alpha", "community", "olm", Provides, nil, deps, "", false),
+					genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", Provides, nil, deps, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
@@ -1284,7 +1284,7 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 	operators, err := resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := []*cache.Entry{
-		genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(Provides, nil), "", false),
+		genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", catalog.Name, catalog.Namespace, Provides, nil, apiSetToDependencies(Provides, nil), "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
 }
@@ -1296,16 +1296,16 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	csv := existingOperator(namespace, "packageA.v1", "packageA", "alpha", "", Provides, nil, nil, nil)
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	csv := existingOperator(namespace, "test-package.v1", "test-package", "alpha", "", Provides, nil, nil, nil)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageB.v1.0.0", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, Provides, nil, "", false),
-					genEntry("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", "community", "olm", nil, Provides, nil, "", false),
+					genEntry("another-package.v1.0.0", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, Provides, nil, "", false),
+					genEntry("another-package.v1.0.1", "1.0.1", "another-package.v1.0.0", "another-package", "alpha", "community", "olm", nil, Provides, nil, "", false),
 				},
 			},
 			cache.NewVirtualSourceKey(namespace): csvSnapshotOrPanic(namespace, subs, csv),
@@ -1329,24 +1329,24 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 	secondaryCatalog := cache.SourceKey{Namespace: "olm", Name: "secondary"}
 
-	newSub := newSub(namespace, "packageA", "stable", catalog)
+	newSub := newSub(namespace, "test-package", "stable", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, "", false),
+					genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, "", false),
 					// Despite satisfying dependencies of opA, this is not chosen because it is in the same package
-					genEntry("opABC.v1.0.0", "1.0.0", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "", false),
+					genEntry("opABC.v1.0.0", "1.0.0", "", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "", false),
 
-					genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
-					genEntry("opD.v1.0.0", "1.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
+					genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
+					genEntry("opD.v1.0.0", "1.0.0", "", "another-package", "alpha", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
 				},
 			},
 			secondaryCatalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("opC.v1.0.0", "1.0.0", "", "packageB", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, "stable", false),
+					genEntry("opC.v1.0.0", "1.0.0", "", "another-package", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, "stable", false),
 
 					genEntry("opE.v1.0.0", "1.0.0", "", "packageC", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, "", false),
 				},
@@ -1358,8 +1358,8 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 	operators, err := resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
 	expected := []*cache.Entry{
-		genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, "", false),
-		genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
+		genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, "", false),
+		genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
 		genEntry("opE.v1.0.0", "1.0.0", "", "packageC", "stable", secondaryCatalog.Name, secondaryCatalog.Namespace, nil, Provides2, nil, "", false),
 	}
 	assert.ElementsMatch(t, expected, operators)
@@ -1386,29 +1386,29 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 		expected []*cache.Entry
 	}{
 		{
-			subs: []*v1alpha1.Subscription{newSub(namespace, "packageB", "stable", catalog)},
+			subs: []*v1alpha1.Subscription{newSub(namespace, "another-package", "stable", catalog)},
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
-					genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
+					genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
+					genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
 				},
 			},
 			expected: []*cache.Entry{
-				genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
-				genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
+				genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
+				genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
 			},
 		},
 		{
 			// will have two existing subs after resolving once
 			subs: []*v1alpha1.Subscription{
-				existingSub(namespace, "opA.v1.0.0", "packageA", "stable", catalog),
-				existingSub(namespace, "opB.v1.0.0", "packageB", "stable", catalog),
+				existingSub(namespace, "opA.v1.0.0", "test-package", "stable", catalog),
+				existingSub(namespace, "opB.v1.0.0", "another-package", "stable", catalog),
 			},
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
-					genEntry("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "packageA", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, "", false),
-					genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
+					genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
+					genEntry("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "test-package", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, "", false),
+					genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
 				},
 			},
 			// nothing new to do here
@@ -1417,20 +1417,20 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 		{
 			// will have two existing subs after resolving once
 			subs: []*v1alpha1.Subscription{
-				existingSub(namespace, "opA.v1.0.0", "packageA", "stable", catalog),
-				existingSub(namespace, "opB.v1.0.0", "packageB", "stable", catalog),
+				existingSub(namespace, "opA.v1.0.0", "test-package", "stable", catalog),
+				existingSub(namespace, "opB.v1.0.0", "another-package", "stable", catalog),
 			},
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
-					genEntry("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "packageA", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, "", false),
-					genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
-					genEntry("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "packageB", "stable", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "stable", false),
+					genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
+					genEntry("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "test-package", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, "", false),
+					genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, Requires1, Provides2, nil, "stable", false),
+					genEntry("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "another-package", "stable", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "stable", false),
 				},
 			},
 			expected: []*cache.Entry{
-				genEntry("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "packageA", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, "", false),
-				genEntry("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "packageB", "stable", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "stable", false),
+				genEntry("opA.v1.0.1", "1.0.1", "opA.v1.0.0", "test-package", "stable", catalog.Name, catalog.Namespace, Requires1, nil, nil, "", false),
+				genEntry("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "another-package", "stable", catalog.Name, catalog.Namespace, nil, ProvidesBoth, nil, "stable", false),
 			},
 		},
 	}
@@ -1530,14 +1530,14 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 	catalog := cache.SourceKey{Name: "catalog", Namespace: "namespace"}
 
 	subs := []*v1alpha1.Subscription{
-		newSub(catalog.Namespace, "packageA", "alpha", catalog),
+		newSub(catalog.Namespace, "test-package", "alpha", catalog),
 	}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("packageA.v1", "0.0.1", "", "packageA", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", true),
+					genEntry("test-package.v1", "0.0.1", "", "test-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", true),
 				},
 			},
 		}),
@@ -1581,7 +1581,7 @@ func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
 	namespace := "olm"
 	catalog := cache.SourceKey{Name: "community", Namespace: namespace}
 
-	newSub := newSub(namespace, "packageB", "alpha", catalog, withStartingCSV("packageB.v1"))
+	newSub := newSub(namespace, "another-package", "alpha", catalog, withStartingCSV("another-package.v1"))
 	subs := []*v1alpha1.Subscription{newSub}
 
 	opToAddVersionDeps := []*api.Dependency{
@@ -1591,17 +1591,17 @@ func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
 		},
 	}
 
-	opB := genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false)
-	opB2 := genEntry("packageB.v2", "2.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false)
-	opB2.Skips = []string{"packageB.v1"}
-	op1 := genEntry("packageA.v1", "1.0.0", "", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
-	op2 := genEntry("packageA.v2", "2.0.0", "packageA.v1", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
-	op3 := genEntry("packageA.v3", "3.0.0", "packageA.v2", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
-	op4 := genEntry("packageA.v4", "4.0.0", "packageA.v3", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
-	op4.Skips = []string{"packageA.v3"}
-	op5 := genEntry("packageA.v5", "5.0.0", "packageA.v4", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
-	op5.Skips = []string{"packageA.v2", "packageA.v3", "packageA.v4"}
-	op6 := genEntry("packageA.v6", "6.0.0", "packageA.v5", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	opB := genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false)
+	opB2 := genEntry("another-package.v2", "2.0.0", "", "another-package", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false)
+	opB2.Skips = []string{"another-package.v1"}
+	op1 := genEntry("test-package.v1", "1.0.0", "", "test-package", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op2 := genEntry("test-package.v2", "2.0.0", "test-package.v1", "test-package", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op3 := genEntry("test-package.v3", "3.0.0", "test-package.v2", "test-package", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op4 := genEntry("test-package.v4", "4.0.0", "test-package.v3", "test-package", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op4.Skips = []string{"test-package.v3"}
+	op5 := genEntry("test-package.v5", "5.0.0", "test-package.v4", "test-package", "alpha", "community", "olm", nil, Provides, nil, "", false)
+	op5.Skips = []string{"test-package.v2", "test-package.v3", "test-package.v4"}
+	op6 := genEntry("test-package.v6", "6.0.0", "test-package.v5", "test-package", "alpha", "community", "olm", nil, Provides, nil, "", false)
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
@@ -1616,7 +1616,7 @@ func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
 
 	operators, err := resolver.Resolve([]string{"olm"}, subs)
 	assert.NoError(t, err)
-	opB.SourceInfo.StartingCSV = "packageB.v1"
+	opB.SourceInfo.StartingCSV = "another-package.v1"
 	expected := []*cache.Entry{opB, op6}
 	require.ElementsMatch(t, expected, operators)
 }
@@ -1625,12 +1625,12 @@ func TestSolveOperators_WithSkips(t *testing.T) {
 	const namespace = "test-namespace"
 	catalog := cache.SourceKey{Name: "test-catalog", Namespace: namespace}
 
-	newSub := newSub(namespace, "packageB", "alpha", catalog)
+	newSub := newSub(namespace, "another-package", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	opB := genEntry("packageB.v1", "1.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
-	opB2 := genEntry("packageB.v2", "2.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
-	opB2.Skips = []string{"packageB.v1"}
+	opB := genEntry("another-package.v1", "1.0.0", "", "another-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
+	opB2 := genEntry("another-package.v2", "2.0.0", "", "another-package", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
+	opB2.Skips = []string{"another-package.v1"}
 
 	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
@@ -1951,7 +1951,7 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 		{
 			Type: "olm.constraint",
 			Value: `{"failureMessage":"package-constraint",
-				"cel":{"rule":"properties.exists(p, p.type == 'olm.package' && p.value.packageName == 'packageB' && (semver_compare(p.value.version, '1.0.1') == 0))"}}`,
+				"cel":{"rule":"properties.exists(p, p.type == 'olm.package' && p.value.packageName == 'another-package' && (semver_compare(p.value.version, '1.0.1') == 0))"}}`,
 		},
 	}
 
@@ -1968,17 +1968,17 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 			name:  "Generic Constraint/Satisfiable GVK Dependency",
 			isErr: false,
 			subs: []*v1alpha1.Subscription{
-				newSub(namespace, "packageA", "stable", catalog),
+				newSub(namespace, "test-package", "stable", catalog),
 			},
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps1, "", false),
-					genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
+					genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, nil, deps1, "", false),
+					genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
 				},
 			},
 			expected: []*cache.Entry{
-				genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps1, "", false),
-				genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
+				genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, nil, deps1, "", false),
+				genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "stable", false),
 			},
 		},
 		{
@@ -1986,12 +1986,12 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 			name:  "Generic Constraint/NotSatisfiable GVK Dependency",
 			isErr: true,
 			subs: []*v1alpha1.Subscription{
-				newSub(namespace, "packageA", "stable", catalog),
+				newSub(namespace, "test-package", "stable", catalog),
 			},
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps2, "", false),
-					genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
+					genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, nil, deps2, "", false),
+					genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, nil, Provides1, nil, "", false),
 				},
 			},
 			// unable to find satisfiable gvk dependency
@@ -2004,19 +2004,19 @@ func TestSolveOperators_GenericConstraint(t *testing.T) {
 			name:  "Generic Constraint/Satisfiable Package Dependency",
 			isErr: false,
 			subs: []*v1alpha1.Subscription{
-				newSub(namespace, "packageA", "stable", catalog),
+				newSub(namespace, "test-package", "stable", catalog),
 			},
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Entry{
-					genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps3, "", false),
-					genEntry("opB.v1.0.0", "1.0.0", "", "packageB", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
-					genEntry("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "packageB", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
-					genEntry("opB.v1.0.2", "1.0.2", "opB.v1.0.1", "packageB", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
+					genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, nil, deps3, "", false),
+					genEntry("opB.v1.0.0", "1.0.0", "", "another-package", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "", false),
+					genEntry("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "another-package", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
+					genEntry("opB.v1.0.2", "1.0.2", "opB.v1.0.1", "another-package", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
 				},
 			},
 			expected: []*cache.Entry{
-				genEntry("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, nil, nil, deps3, "", false),
-				genEntry("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "packageB", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
+				genEntry("opA.v1.0.0", "1.0.0", "", "test-package", "stable", catalog.Name, catalog.Namespace, nil, nil, deps3, "", false),
+				genEntry("opB.v1.0.1", "1.0.1", "opB.v1.0.0", "another-package", "stable", catalog.Name, catalog.Namespace, nil, nil, nil, "stable", false),
 			},
 		},
 	}
