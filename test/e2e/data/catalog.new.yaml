@@ -1,4 +1,4 @@
-# Contains PackageB (Updated), PackageC (new)
+# Contains another-package (Updated), PackageC (new)
 kind: ConfigMap
 apiVersion: v1
 metadata:

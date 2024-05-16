@@ -1,23 +1,23 @@
 {
   "schema": "olm.package",
-  "name": "packageA",
+  "name": "test-package",
   "defaultChannel": "stable"
 }
 {
   "schema": "olm.channel",
   "name": "stable",
-  "package": "packageA",
+  "package": "test-package",
   "entries": [
     {
-      "name": "packageA.v1.0.0"
+      "name": "test-package.v1.0.0"
     }
   ]
 }
 {
   "schema": "olm.bundle",
-  "name": "packageA.v1.0.0",
-  "package": "packageA",
-  "image": "packageA:v1.0.0",
+  "name": "test-package.v1.0.0",
+  "package": "test-package",
+  "image": "test-package:v1.0.0",
   "properties": [
     {
       "type": "olm.gvk",
@@ -30,7 +30,7 @@
     {
       "type": "olm.package",
       "value": {
-        "packageName": "packageA",
+        "packageName": "test-package",
         "version": "1.0.0"
       }
     }

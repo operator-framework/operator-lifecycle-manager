@@ -1,10 +1,10 @@
 ---
 schema: olm.package
-name: packageA
+name: test-package
 defaultChannel: stable
 ---
 schema: olm.channel
-package: packageA
+package: test-package
 name: stable
 entries:
   - name: example-operator.v0.3.0
@@ -12,7 +12,7 @@ entries:
 ---
 schema: olm.bundle
 name: example-operator.v0.3.0
-package: packageA
+package: test-package
 image: quay.io/olmtest/example-operator-bundle:0.3.0
 properties:
   - type: olm.gvk
@@ -22,5 +22,5 @@ properties:
       version: v1alpha1
   - type: olm.package
     value:
-      packageName: packageA
+      packageName: test-package
       version: 0.3.0
