@@ -90,11 +90,11 @@ var _ = Describe("MagicCatalog", func() {
 					return data
 				}, ContainSubstring(`---
 schema: olm.package
-name: packageA
+name: test-package
 defaultChannel: stable
 ---
 schema: olm.channel
-package: packageA
+package: test-package
 name: stable
 entries:
   - name: busybox.v2.0.0
@@ -102,7 +102,7 @@ entries:
 ---
 schema: olm.bundle
 name: busybox.v2.0.0
-package: packageA
+package: test-package
 image: quay.io/olmtest/busybox-bundle:2.0.0
 properties:
   - type: olm.gvk
@@ -112,7 +112,7 @@ properties:
       version: v1alpha1
   - type: olm.package
     value:
-      packageName: packageA
+      packageName: test-package
       version: 1.0.0
 `)),
 			))

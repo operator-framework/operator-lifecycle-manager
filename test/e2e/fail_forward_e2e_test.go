@@ -183,7 +183,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 					CatalogSource:          catalogSourceName,
 					CatalogSourceNamespace: generatedNamespace.GetName(),
 					Channel:                "stable",
-					Package:                "packageA",
+					Package:                "test-package",
 				},
 			}
 			Expect(c.Create(context.Background(), subscription)).To(BeNil())
@@ -348,7 +348,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 					CatalogSource:          catalogSourceName,
 					CatalogSourceNamespace: generatedNamespace.GetName(),
 					Channel:                "stable",
-					Package:                "packageA",
+					Package:                "test-package",
 				},
 			}
 			Expect(c.Create(context.Background(), subscription)).To(BeNil())
