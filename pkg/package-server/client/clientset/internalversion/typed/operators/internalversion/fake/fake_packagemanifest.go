@@ -24,7 +24,6 @@ import (
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakePackageManifests struct {
 	ns   string
 }
 
-var packagemanifestsResource = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "", Resource: "packagemanifests"}
+var packagemanifestsResource = operators.SchemeGroupVersion.WithResource("packagemanifests")
 
-var packagemanifestsKind = schema.GroupVersionKind{Group: "operators.coreos.com", Version: "", Kind: "PackageManifest"}
+var packagemanifestsKind = operators.SchemeGroupVersion.WithKind("PackageManifest")
 
 // Get takes name of the packageManifest, and returns the corresponding packageManifest object, and an error if there is any.
 func (c *FakePackageManifests) Get(ctx context.Context, name string, options v1.GetOptions) (result *operators.PackageManifest, err error) {

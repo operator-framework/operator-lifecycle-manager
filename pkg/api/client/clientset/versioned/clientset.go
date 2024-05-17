@@ -33,19 +33,24 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	OperatorsV1() operatorsv1.OperatorsV1Interface
 	OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Interface
 	OperatorsV1alpha2() operatorsv1alpha2.OperatorsV1alpha2Interface
-	OperatorsV1() operatorsv1.OperatorsV1Interface
 	OperatorsV2() operatorsv2.OperatorsV2Interface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
+	operatorsV1       *operatorsv1.OperatorsV1Client
 	operatorsV1alpha1 *operatorsv1alpha1.OperatorsV1alpha1Client
 	operatorsV1alpha2 *operatorsv1alpha2.OperatorsV1alpha2Client
-	operatorsV1       *operatorsv1.OperatorsV1Client
 	operatorsV2       *operatorsv2.OperatorsV2Client
+}
+
+// OperatorsV1 retrieves the OperatorsV1Client
+func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
+	return c.operatorsV1
 }
 
 // OperatorsV1alpha1 retrieves the OperatorsV1alpha1Client
@@ -56,11 +61,6 @@ func (c *Clientset) OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Inter
 // OperatorsV1alpha2 retrieves the OperatorsV1alpha2Client
 func (c *Clientset) OperatorsV1alpha2() operatorsv1alpha2.OperatorsV1alpha2Interface {
 	return c.operatorsV1alpha2
-}
-
-// OperatorsV1 retrieves the OperatorsV1Client
-func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
-	return c.operatorsV1
 }
 
 // OperatorsV2 retrieves the OperatorsV2Client
@@ -112,15 +112,15 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
+	cs.operatorsV1, err = operatorsv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.operatorsV1alpha1, err = operatorsv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
 	cs.operatorsV1alpha2, err = operatorsv1alpha2.NewForConfigAndClient(&configShallowCopy, httpClient)
-	if err != nil {
-		return nil, err
-	}
-	cs.operatorsV1, err = operatorsv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -149,9 +149,9 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.operatorsV1 = operatorsv1.New(c)
 	cs.operatorsV1alpha1 = operatorsv1alpha1.New(c)
 	cs.operatorsV1alpha2 = operatorsv1alpha2.New(c)
-	cs.operatorsV1 = operatorsv1.New(c)
 	cs.operatorsV2 = operatorsv2.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

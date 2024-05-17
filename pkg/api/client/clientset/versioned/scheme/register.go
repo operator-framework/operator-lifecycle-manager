@@ -34,9 +34,9 @@ var Scheme = runtime.NewScheme()
 var Codecs = serializer.NewCodecFactory(Scheme)
 var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
+	operatorsv1.AddToScheme,
 	operatorsv1alpha1.AddToScheme,
 	operatorsv1alpha2.AddToScheme,
-	operatorsv1.AddToScheme,
 	operatorsv2.AddToScheme,
 }
 

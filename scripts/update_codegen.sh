@@ -14,43 +14,112 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This script is based off: https://github.com/kubernetes/code-generator/blob/v0.30.0/examples/hack/update-codegen.sh
+# It is used to update the generated code for the OLM API and package-server API.
+
 set -o errexit
 set -o nounset
 set -o pipefail
 
-SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
+# Setting the SCRIPT_ROOT and attempting to locate the vendored code generator directory.
+SCRIPT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+CODEGEN_PKG=$(cd "${SCRIPT_ROOT}" && ls -d ./vendor/k8s.io/code-generator 2>/dev/null)
 
-# create a temporary directory to generate code in and ensure we clean it up on exit
-OUTPUT_BASE=$(mktemp -d)
-# Hack the script to make it executable from within generate-groups.sh
-# Because vendored sources do not include permission bits
-chmod u+x "${CODEGEN_PKG}/generate-internal-groups.sh"
-trap 'rm -rf "${OUTPUT_BASE}"; chmod u-x "${CODEGEN_PKG}/generate-internal-groups.sh"' ERR EXIT
+# Check if the CODEGEN_PKG has been set and points to a directory, else throw an error.
+if [[ -z "$CODEGEN_PKG" || ! -d "$CODEGEN_PKG" ]]; then
+    echo "Error: Required vendored code generator directory does not exist." >&2
+    exit 1
+fi
 
-ORG="github.com/operator-framework"
-API_MODULE="${ORG}/api"
-MODULE="${ORG}/operator-lifecycle-manager"
+# Set verbosity of code-generators
+export KUBE_VERBOSE=2
 
-# generate the code with:
-# --output-base    because this script should also be able to run inside the vendor dir of
-#                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
-#                  instead of the $GOPATH directly. For normal projects this can be dropped.
-bash "${CODEGEN_PKG}/generate-groups.sh" "client,lister,informer" \
-  "${MODULE}/pkg/api/client" \
-  "${API_MODULE}/pkg" \
-  "operators:v1alpha1,v1alpha2,v1,v2" \
-  --output-base "${OUTPUT_BASE}" \
-  --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
+# Set module and boilerplate paths
+API_MODULE="github.com/operator-framework/api"
+OLM_MODULE="github.com/operator-framework/operator-lifecycle-manager"
+BOILERPLATE="$SCRIPT_ROOT/boilerplate.go.txt"
 
-export OPENAPI_EXTRA_PACKAGES="${API_MODULE}/pkg/operators/v1alpha1,${API_MODULE}/pkg/lib/version"
-bash "${CODEGEN_PKG}/generate-internal-groups.sh" all \
-  "${MODULE}/pkg/package-server/client" \
-  "${MODULE}/pkg/package-server/apis" \
-  "${MODULE}/pkg/package-server/apis" \
-  "operators:v1" \
-  --output-base "${OUTPUT_BASE}" \
-  --go-header-file "${SCRIPT_ROOT}/boilerplate.go.txt"
+# Use vendored code generators
+CLIENT_GEN="go run ${CODEGEN_PKG}/cmd/client-gen"
+LISTER_GEN="go run ${CODEGEN_PKG}/cmd/lister-gen"
+INFORMER_GEN="go run ${CODEGEN_PKG}/cmd/informer-gen"
 
-# copy the generated resources
-cp -R "${OUTPUT_BASE}/${MODULE}/." "${SCRIPT_ROOT}"
+# Source the kube_codegen.sh script to generate the OLM API client, listers and informers
+source "${CODEGEN_PKG}/kube_codegen.sh"
+
+##################################################
+# Generate OLM API client, listers and informers #
+##################################################
+kube::codegen::gen_client \
+  --with-watch \
+  --output-dir "${SCRIPT_ROOT}/pkg/api/client" \
+  --output-pkg "${OLM_MODULE}/pkg/api/client" \
+  --boilerplate "${BOILERPLATE}" \
+  "${SCRIPT_ROOT}/vendor/${API_MODULE}/pkg"
+
+##############################################################
+# Generate Package Manager API client, listers and informers #
+##############################################################
+
+# NOTE: The kube_codegen.sh script does not seem to support generating clients for the package-server internal API.
+# Therefore, we will generate the clients for the package-server API manually.
+
+# When generating the openapi, we can optionally update the known api violation report
+# New violations will break the codegen process
+REPORT_FILENAME="${SCRIPT_ROOT}/scripts/codegen_violation_exceptions.list"
+if [[ "${UPDATE_API_KNOWN_VIOLATIONS:-}" == "true" ]]; then
+  UPDATE_REPORT="--update-report"
+fi
+
+# generate openapi
+kube::codegen::gen_openapi \
+    --output-dir "${SCRIPT_ROOT}/pkg/package-server/client/openapi" \
+    --output-pkg "${OLM_MODULE}/pkg/package-server/client/openapi" \
+    --extra-pkgs "${API_MODULE}/pkg/operators/v1alpha1" \
+    --extra-pkgs "${API_MODULE}/pkg/lib/version" \
+    --boilerplate "${BOILERPLATE}" \
+    --report-filename "${REPORT_FILENAME}" \
+    ${UPDATE_REPORT:+"${UPDATE_REPORT}"} \
+    "${SCRIPT_ROOT}/pkg/package-server/apis" # input
+
+# generate clients
+# generate pacakge-server operators/v1 client
+${CLIENT_GEN} \
+  -v "${KUBE_VERBOSE}" \
+  --go-header-file "${BOILERPLATE}" \
+  --output-dir "${SCRIPT_ROOT}/pkg/package-server/client/clientset" \
+  --output-pkg "${OLM_MODULE}/pkg/package-server/client/clientset" \
+  --clientset-name versioned \
+  --input-base "${SCRIPT_ROOT}/pkg/package-server/apis" \
+  --input operators/v1
+
+# generate pacakge-server operators internal client
+${CLIENT_GEN} \
+  -v "${KUBE_VERBOSE}" \
+  --go-header-file "${BOILERPLATE}" \
+  --output-dir "${SCRIPT_ROOT}/pkg/package-server/client/clientset" \
+  --output-pkg "${OLM_MODULE}/pkg/package-server/client/clientset" \
+  --clientset-name internalversion \
+  --input-base "${SCRIPT_ROOT}/pkg/package-server/apis" \
+  --input operators
+
+# generate listers for both api clients
+${LISTER_GEN} \
+  -v "${KUBE_VERBOSE}" \
+  --go-header-file "${BOILERPLATE}" \
+  --output-dir "${SCRIPT_ROOT}/pkg/package-server/client/listers" \
+  --output-pkg "${OLM_MODULE}/pkg/package-server/client/listers" \
+  "${OLM_MODULE}/pkg/package-server/apis/operators" \
+  "${OLM_MODULE}/pkg/package-server/apis/operators/v1"
+
+# generate informers for both api clients
+${INFORMER_GEN} \
+  -v "${KUBE_VERBOSE}" \
+  --go-header-file "${BOILERPLATE}" \
+  --output-dir "${SCRIPT_ROOT}/pkg/package-server/client/informers" \
+  --output-pkg "${OLM_MODULE}/pkg/package-server/client/informers" \
+  --versioned-clientset-package "${OLM_MODULE}/pkg/package-server/client/clientset/versioned" \
+  --internal-clientset-package "${OLM_MODULE}/pkg/package-server/client/clientset/internalversion" \
+  --listers-package "${OLM_MODULE}/pkg/package-server/client/listers" \
+  "${OLM_MODULE}/pkg/package-server/apis/operators" \
+  "${OLM_MODULE}/pkg/package-server/apis/operators/v1"
