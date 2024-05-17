@@ -669,6 +669,19 @@ func (c *ConfigMapUnpacker) ensureJob(cmRef *corev1.ObjectReference, bundlePath 
 	if err != nil {
 		return
 	}
+
+	// This is to ensure that we account for any existing unpack jobs that may be missing the label
+	jobWithoutLabel, err := c.jobLister.Jobs(fresh.GetNamespace()).Get(cmRef.Name)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return
+	}
+	if jobWithoutLabel != nil {
+		_, labelExists := jobWithoutLabel.Labels[bundleUnpackRefLabel]
+		if !labelExists {
+			jobs = append(jobs, jobWithoutLabel)
+		}
+	}
+
 	if len(jobs) == 0 {
 		job, err = c.client.BatchV1().Jobs(fresh.GetNamespace()).Create(context.TODO(), fresh, metav1.CreateOptions{})
 		return
