@@ -2190,8 +2190,13 @@ sigs.k8s.io/json
 sigs.k8s.io/json/internal/golang/encoding/json
 # sigs.k8s.io/kind v0.22.0
 ## explicit; go 1.16
+sigs.k8s.io/kind
+sigs.k8s.io/kind/cmd/kind/app
 sigs.k8s.io/kind/pkg/apis/config/defaults
 sigs.k8s.io/kind/pkg/apis/config/v1alpha4
+sigs.k8s.io/kind/pkg/build/nodeimage
+sigs.k8s.io/kind/pkg/build/nodeimage/internal/container/docker
+sigs.k8s.io/kind/pkg/build/nodeimage/internal/kube
 sigs.k8s.io/kind/pkg/cluster
 sigs.k8s.io/kind/pkg/cluster/constants
 sigs.k8s.io/kind/pkg/cluster/internal/create
@@ -2216,6 +2221,28 @@ sigs.k8s.io/kind/pkg/cluster/internal/providers/podman
 sigs.k8s.io/kind/pkg/cluster/nodes
 sigs.k8s.io/kind/pkg/cluster/nodeutils
 sigs.k8s.io/kind/pkg/cmd
+sigs.k8s.io/kind/pkg/cmd/kind
+sigs.k8s.io/kind/pkg/cmd/kind/build
+sigs.k8s.io/kind/pkg/cmd/kind/build/nodeimage
+sigs.k8s.io/kind/pkg/cmd/kind/completion
+sigs.k8s.io/kind/pkg/cmd/kind/completion/bash
+sigs.k8s.io/kind/pkg/cmd/kind/completion/fish
+sigs.k8s.io/kind/pkg/cmd/kind/completion/zsh
+sigs.k8s.io/kind/pkg/cmd/kind/create
+sigs.k8s.io/kind/pkg/cmd/kind/create/cluster
+sigs.k8s.io/kind/pkg/cmd/kind/delete
+sigs.k8s.io/kind/pkg/cmd/kind/delete/cluster
+sigs.k8s.io/kind/pkg/cmd/kind/delete/clusters
+sigs.k8s.io/kind/pkg/cmd/kind/export
+sigs.k8s.io/kind/pkg/cmd/kind/export/kubeconfig
+sigs.k8s.io/kind/pkg/cmd/kind/export/logs
+sigs.k8s.io/kind/pkg/cmd/kind/get
+sigs.k8s.io/kind/pkg/cmd/kind/get/clusters
+sigs.k8s.io/kind/pkg/cmd/kind/get/kubeconfig
+sigs.k8s.io/kind/pkg/cmd/kind/get/nodes
+sigs.k8s.io/kind/pkg/cmd/kind/load
+sigs.k8s.io/kind/pkg/cmd/kind/load/docker-image
+sigs.k8s.io/kind/pkg/cmd/kind/load/image-archive
 sigs.k8s.io/kind/pkg/cmd/kind/version
 sigs.k8s.io/kind/pkg/errors
 sigs.k8s.io/kind/pkg/exec
@@ -2225,6 +2252,7 @@ sigs.k8s.io/kind/pkg/internal/apis/config/encoding
 sigs.k8s.io/kind/pkg/internal/cli
 sigs.k8s.io/kind/pkg/internal/env
 sigs.k8s.io/kind/pkg/internal/patch
+sigs.k8s.io/kind/pkg/internal/runtime
 sigs.k8s.io/kind/pkg/internal/sets
 sigs.k8s.io/kind/pkg/internal/version
 sigs.k8s.io/kind/pkg/log
