@@ -1,6 +1,10 @@
 ##########################
 #  OLM - Build and Test  #
 ##########################
+# Setting SHELL to bash allows bash commands to be executed by recipes.
+# Options are set to exit when a recipe line exits non-zero or a piped command fails.
+SHELL := /usr/bin/env bash -o pipefail
+.SHELLFLAGS := -ec
 
 # Undefine GOFLAGS environment variable.
 ifdef GOFLAGS
@@ -22,6 +26,8 @@ SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
+HELM := go run $(MOD_FLAGS) ./vendor/helm.sh/helm/v3/cmd/helm
+KIND := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/kind
 KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
 export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
@@ -33,6 +39,15 @@ ARCH := arm64
 else
 ARCH := amd64
 endif
+
+KIND_CLUSTER_NAME ?= kind-olmv0
+# Not guaranteed to have patch releases available and node image tags are full versions (i.e v1.28.0 - no v1.28, v1.29, etc.)
+# The KIND_NODE_VERSION is set by getting the version of the k8s.io/client-go dependency from the go.mod
+# and sets major version to "1" and the patch version to "0". For example, a client-go version of v0.28.5
+# will map to a KIND_NODE_VERSION of 1.28.0
+KIND_NODE_VERSION := $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1.0/')
+KIND_CLUSTER_IMAGE := kindest/node:v$(KIND_NODE_VERSION)
+
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
 	coverage coverage-html e2e \
@@ -118,49 +133,43 @@ deploy-local:
 e2e.namespace:
 	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
 
-E2E_NODES ?= 1
-E2E_FLAKE_ATTEMPTS ?= 1
-E2E_TIMEOUT ?= 90m
-# Optionally run an individual chunk of e2e test specs.
-# Do not use this from the CLI; this is intended to be used by CI only.
-E2E_TEST_CHUNK ?= all
-E2E_TEST_NUM_CHUNKS ?= 4
-ifneq (all,$(E2E_TEST_CHUNK))
-TEST := $(shell go run ./test/e2e/split/... -chunks $(E2E_TEST_NUM_CHUNKS) -print-chunk $(E2E_TEST_CHUNK) ./test/e2e)
-endif
-E2E_OPTS ?= $(if $(E2E_SEED),-seed '$(E2E_SEED)') $(if $(SKIP), -skip '$(SKIP)') $(if $(TEST),-focus '$(TEST)') $(if $(ARTIFACT_DIR), -output-dir $(ARTIFACT_DIR) -junit-report junit_e2e.xml) -flake-attempts $(E2E_FLAKE_ATTEMPTS) -nodes $(E2E_NODES) -timeout $(E2E_TIMEOUT) -v -randomize-suites -race -trace -progress
-E2E_INSTALL_NS ?= operator-lifecycle-manager
-E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
-E2E_TEST_NS ?= operators
-
+.PHONY: e2e
+GINKGO_E2E_OPTS += -timeout 90m -v -randomize-suites -race -trace --show-node-events
+E2E_OPTS += -namespace=operators -olmNamespace=operator-lifecycle-manager -catalogNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest
 e2e:
-	$(GINKGO) $(E2E_OPTS) $(or $(run), ./test/e2e) $< -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) -dummyImage=bitnami/nginx:latest $(or $(extra_args), -kubeconfig=${KUBECONFIG})
+	$(GINKGO) $(GINKGO_E2E_OPTS) ./test/e2e -- $(E2E_OPTS)
 
-# See workflows/e2e-tests.yml See test/e2e/README.md for details.
-.PHONY: e2e-local
-e2e-local: BUILD_TAGS="json1 e2e experimental_metrics"
-e2e-local: extra_args=-kind.images=../test/e2e-local.image.tar -test-data-dir=../test/e2e/testdata -gather-artifacts-script-path=../test/e2e/collect-ci-artifacts.sh
-e2e-local: run=bin/e2e-local.test
-e2e-local: bin/e2e-local.test test/e2e-local.image.tar
-e2e-local: e2e
+.PHONY: kind-clean
+kind-clean:
+	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME) || true
 
-# this target updates the zz_chart.go file with files found in deploy/chart
-# this will always fire since it has been marked as phony
-.PHONY: test/e2e/assets/chart/zz_chart.go
-test/e2e/assets/chart/zz_chart.go: $(shell find deploy/chart -type f)
-	$(BINDATA) -o $@ -pkg chart -prefix deploy/chart/ $^
+.PHONY: kind-create
+kind-create: kind-clean
+	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) --image $(KIND_CLUSTER_IMAGE) $(KIND_CREATE_OPTS)
+	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
 
-# execute kind and helm end to end tests
-bin/e2e-local.test: FORCE test/e2e/assets/chart/zz_chart.go
-	$(GO) test -c -tags kind,helm -o $@ ./test/e2e
+.PHONY: deploy
+OLM_IMAGE := quay.io/operator-framework/olm:local
+deploy:
+	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
+	$(HELM) install olm deploy/chart \
+		--set debug=true \
+		--set olm.image.ref=$(OLM_IMAGE) \
+		--set olm.image.pullPolicy=IfNotPresent \
+		--set catalog.image.ref=$(OLM_IMAGE) \
+		--set catalog.image.pullPolicy=IfNotPresent \
+		--set package.image.ref=$(OLM_IMAGE) \
+		--set package.image.pullPolicy=IfNotPresent \
+		$(HELM_INSTALL_OPTS) \
+		--wait;
 
-# set go env and other vars, ensure that the dockerfile exists, and then build wait, cpb, and other command binaries and finally the kind image archive
-test/e2e-local.image.tar: export GOOS=linux
-test/e2e-local.image.tar: export GOARCH=amd64
-test/e2e-local.image.tar: build_cmd=build
-test/e2e-local.image.tar: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
+.PHONY: e2e-build
+e2e-build: BUILD_TAGS="json1 e2e experimental_metrics"
+e2e-build: export GOOS=linux
+e2e-build: export GOARCH=amd64
+e2e-build: build_cmd=build
+e2e-build: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
-	docker save -o $@ quay.io/operator-framework/olm:local
 
 vendor:
 	go mod tidy

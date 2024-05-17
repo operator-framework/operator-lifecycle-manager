@@ -1,6 +1,3 @@
-//go:build !kind
-// +build !kind
-
 package ctx
 
 import (
