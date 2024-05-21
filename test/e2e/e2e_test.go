@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
+	"strconv"
 	"testing"
 	"time"
 
@@ -51,7 +53,7 @@ var (
 	collectArtifactsScriptPath = flag.String(
 		"gather-artifacts-script-path",
 		"./collect-ci-artifacts.sh",
-		"configures the relative/absolute path to the script resposible for collecting CI artifacts",
+		"configures the relative/absolute path to the script responsible for collecting CI artifacts",
 	)
 
 	testdataPath = flag.String(
@@ -60,12 +62,20 @@ var (
 		"configures where to find the testdata directory",
 	)
 
+	kubeconfigRootDir = flag.String(
+		"kubeconfig-root",
+		"",
+		"configures the root directory for kubeconfig files when running tests in parallel. "+
+			"Each test worker will expect their kubeconfig file to be <kubeconfig-root>/kubeconfig-<test-number>. "+
+			"Where, <test-number> is the number of the test worker (> 0). "+
+			"Note that this flag will override the kubeconfig flag.",
+	)
+
 	testdataDir             = ""
 	testNamespace           = ""
 	operatorNamespace       = ""
 	communityOperatorsImage = ""
 	globalCatalogNamespace  = ""
-	junitDir                = "junit"
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -82,10 +92,12 @@ var deprovision func() = func() {}
 
 // This function initializes a client which is used to create an operator group for a given namespace
 var _ = BeforeSuite(func() {
-	if kubeConfigPath != nil && *kubeConfigPath != "" {
-		// This flag can be deprecated in favor of the kubeconfig provisioner:
+	if kubeconfigRootDir != nil && *kubeconfigRootDir != "" {
+		os.Setenv("KUBECONFIG", path.Join(*kubeconfigRootDir, "kubeconfig-"+strconv.Itoa(GinkgoParallelProcess())))
+	} else if kubeConfigPath != nil && *kubeConfigPath != "" {
 		os.Setenv("KUBECONFIG", *kubeConfigPath)
 	}
+
 	if collectArtifactsScriptPath != nil && *collectArtifactsScriptPath != "" {
 		os.Setenv("E2E_ARTIFACT_SCRIPT", *collectArtifactsScriptPath)
 	}

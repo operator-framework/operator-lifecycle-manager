@@ -453,6 +453,5 @@ apiserver.crt
 apiserver.key
 
 !vendor/**
-test/e2e-local.image.tar
 test/e2e/.kube
 dist/

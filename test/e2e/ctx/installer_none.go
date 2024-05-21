@@ -1,8 +1,5 @@
-//go:build !helm
-// +build !helm
-
 package ctx
 
-func Install(ctx *TestContext) error {
+func Install(_ *TestContext) error {
 	return nil
 }
