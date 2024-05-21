@@ -165,11 +165,13 @@ deploy:
 
 .PHONY: e2e-build
 e2e-build: BUILD_TAGS="json1 e2e experimental_metrics"
-e2e-build: export GOOS=linux
-e2e-build: export GOARCH=amd64
+e2e-build: GOOS=linux
 e2e-build: build_cmd=build
 e2e-build: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
+
+.PHONE: e2e-local
+e2e-local: e2e-build kind-create deploy e2e kind-clean
 
 vendor:
 	go mod tidy
