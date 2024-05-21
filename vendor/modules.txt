@@ -2021,8 +2021,8 @@ k8s.io/kms/apis/v1beta1
 k8s.io/kms/apis/v2
 k8s.io/kms/pkg/service
 k8s.io/kms/pkg/util
-# k8s.io/kube-aggregator v0.29.3
-## explicit; go 1.21
+# k8s.io/kube-aggregator v0.30.0
+## explicit; go 1.22.0
 k8s.io/kube-aggregator/pkg/apis/apiregistration
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1
@@ -2190,8 +2190,8 @@ sigs.k8s.io/controller-tools/pkg/webhook
 ## explicit; go 1.18
 sigs.k8s.io/json
 sigs.k8s.io/json/internal/golang/encoding/json
-# sigs.k8s.io/kind v0.22.0
-## explicit; go 1.16
+# sigs.k8s.io/kind v0.23.0
+## explicit; go 1.17
 sigs.k8s.io/kind
 sigs.k8s.io/kind/cmd/kind/app
 sigs.k8s.io/kind/pkg/apis/config/defaults
@@ -2219,6 +2219,7 @@ sigs.k8s.io/kind/pkg/cluster/internal/logs
 sigs.k8s.io/kind/pkg/cluster/internal/providers
 sigs.k8s.io/kind/pkg/cluster/internal/providers/common
 sigs.k8s.io/kind/pkg/cluster/internal/providers/docker
+sigs.k8s.io/kind/pkg/cluster/internal/providers/nerdctl
 sigs.k8s.io/kind/pkg/cluster/internal/providers/podman
 sigs.k8s.io/kind/pkg/cluster/nodes
 sigs.k8s.io/kind/pkg/cluster/nodeutils
