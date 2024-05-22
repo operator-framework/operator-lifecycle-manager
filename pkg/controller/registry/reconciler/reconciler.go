@@ -207,23 +207,6 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 		},
 	}
 
-	// Determine the security context configuration
-	var securityContextConfig operatorsv1alpha1.SecurityConfig
-
-	// Use the user-provided security context config if it is defined
-	if source.Spec.GrpcPodConfig != nil && source.Spec.GrpcPodConfig.SecurityContextConfig != "" {
-		securityContextConfig = source.Spec.GrpcPodConfig.SecurityContextConfig
-	} else {
-		// Default to the defaultNamespace based and provided security context config
-		securityContextConfig = defaultSecurityConfig
-	}
-
-	// Apply the appropriate security context configuration
-	if securityContextConfig == operatorsv1alpha1.Restricted {
-		// Apply 'restricted' security settings
-		addSecurityContext(pod, runAsUser)
-	}
-
 	// Override scheduling options if specified
 	if source.Spec.GrpcPodConfig != nil {
 		grpcPodConfig := source.Spec.GrpcPodConfig
@@ -325,6 +308,23 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 		}
 	}
 
+	// Determine the security context configuration
+	var securityContextConfig operatorsv1alpha1.SecurityConfig
+
+	// Use the user-provided security context config if it is defined
+	if source.Spec.GrpcPodConfig != nil && source.Spec.GrpcPodConfig.SecurityContextConfig != "" {
+		securityContextConfig = source.Spec.GrpcPodConfig.SecurityContextConfig
+	} else {
+		// Default to the defaultNamespace based and provided security context config
+		securityContextConfig = defaultSecurityConfig
+	}
+
+	// Apply the appropriate security context configuration
+	if securityContextConfig == operatorsv1alpha1.Restricted {
+		// Apply 'restricted' security settings
+		addSecurityContext(pod, runAsUser)
+	}
+
 	// Set priorityclass if its annotation exists
 	if prio, ok := podAnnotations[CatalogPriorityClassKey]; ok && prio != "" {
 		pod.Spec.PriorityClassName = prio
@@ -346,10 +346,25 @@ func Pod(source *operatorsv1alpha1.CatalogSource, name, opmImg, utilImage, img s
 }
 
 func addSecurityContext(pod *corev1.Pod, runAsUser int64) {
-	pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
-	pod.Spec.Containers[0].SecurityContext.Capabilities = &corev1.Capabilities{
-		Drop: []corev1.Capability{"ALL"},
+	for i := range pod.Spec.InitContainers {
+		if pod.Spec.InitContainers[i].SecurityContext == nil {
+			pod.Spec.InitContainers[i].SecurityContext = &corev1.SecurityContext{}
+		}
+		pod.Spec.InitContainers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
+		pod.Spec.InitContainers[i].SecurityContext.Capabilities = &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		}
 	}
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].SecurityContext == nil {
+			pod.Spec.Containers[i].SecurityContext = &corev1.SecurityContext{}
+		}
+		pod.Spec.Containers[i].SecurityContext.AllowPrivilegeEscalation = ptr.To(false)
+		pod.Spec.Containers[i].SecurityContext.Capabilities = &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		}
+	}
+
 	pod.Spec.SecurityContext = &corev1.PodSecurityContext{
 		SeccompProfile: &corev1.SeccompProfile{
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
