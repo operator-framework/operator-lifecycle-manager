@@ -14,7 +14,6 @@
 package expfmt
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"math"
@@ -22,8 +21,8 @@ import (
 	"net/http"
 
 	dto "github.com/prometheus/client_model/go"
-	"google.golang.org/protobuf/encoding/protodelim"
 
+	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/common/model"
 )
 
@@ -73,8 +72,8 @@ func ResponseFormat(h http.Header) Format {
 // NewDecoder returns a new decoder based on the given input format.
 // If the input format does not imply otherwise, a text format decoder is returned.
 func NewDecoder(r io.Reader, format Format) Decoder {
-	switch format.FormatType() {
-	case TypeProtoDelim:
+	switch format {
+	case FmtProtoDelim:
 		return &protoDecoder{r: r}
 	}
 	return &textDecoder{r: r}
@@ -87,10 +86,8 @@ type protoDecoder struct {
 
 // Decode implements the Decoder interface.
 func (d *protoDecoder) Decode(v *dto.MetricFamily) error {
-	opts := protodelim.UnmarshalOptions{
-		MaxSize: -1,
-	}
-	if err := opts.UnmarshalFrom(bufio.NewReader(d.r), v); err != nil {
+	_, err := pbutil.ReadDelimited(d.r, v)
+	if err != nil {
 		return err
 	}
 	if !model.IsValidMetricName(model.LabelValue(v.GetName())) {
