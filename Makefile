@@ -33,6 +33,7 @@ export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
+SETUP_ENVTEST := $(GO) run sigs.k8s.io/controller-runtime/tools/setup-envtest
 GIT_COMMIT := $(shell git rev-parse HEAD)
 ifeq ($(shell arch), arm64) 
 ARCH := arm64
