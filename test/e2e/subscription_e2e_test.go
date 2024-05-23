@@ -2840,6 +2840,24 @@ properties:
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), subscription.Status.CurrentCSV, buildCSVConditionChecker(operatorsv1alpha1.CSVPhaseSucceeded))
 			Expect(err).ShouldNot(HaveOccurred())
 
+			By("waiting for the subscription bundle unpack conditions to be scrubbed")
+			// This step removes flakes from this test where the conditions on the subscription haven't been
+			// updated by the time the Consistently block executed a couple of steps below to ensure that the unpack
+			// job has not been retried
+			Eventually(func() error {
+				fetched, err := crc.OperatorsV1alpha1().Subscriptions(generatedNamespace.GetName()).Get(context.Background(), subName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpacking); cond.Status == corev1.ConditionTrue {
+					return fmt.Errorf("unexpected condition status for %s on subscription %s", operatorsv1alpha1.SubscriptionBundleUnpacking, subName)
+				}
+				if cond := fetched.Status.GetCondition(operatorsv1alpha1.SubscriptionBundleUnpackFailed); cond.Status == corev1.ConditionTrue {
+					return fmt.Errorf("unexpected condition status for %s on subscription %s", operatorsv1alpha1.SubscriptionBundleUnpackFailed, subName)
+				}
+				return nil
+			}).Should(Succeed())
+
 			By("patching operator group to enable unpack retries")
 			ogNN := types.NamespacedName{Name: operatorGroup.GetName(), Namespace: generatedNamespace.GetName()}
 			setBundleUnpackRetryMinimumIntervalAnnotation(context.Background(), ctx.Ctx().Client(), ogNN, "1s")
