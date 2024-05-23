@@ -2263,12 +2263,26 @@ var _ = Describe("Install Plan", func() {
 				Permissions:        permissions,
 				ClusterPermissions: clusterPermissions,
 			}
-			csv.Spec.InstallStrategy = operatorsv1alpha1.NamedInstallStrategy{
-				StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
-				StrategySpec: modifiedDetails,
-			}
-			_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Update(context.Background(), csv, metav1.UpdateOptions{})
-			require.NoError(GinkgoT(), err)
+
+			// wrapping the csv update in an eventually helps eliminate a flake in this test
+			// it can happen that the csv changes in the meantime (e.g. reconciler adds a condition)
+			// and the update fails with a conflict
+			Eventually(func() error {
+				csv, err := crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Get(context.Background(), csv.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return nil
+				}
+
+				// update spec
+				csv.Spec.InstallStrategy = operatorsv1alpha1.NamedInstallStrategy{
+					StrategyName: operatorsv1alpha1.InstallStrategyNameDeployment,
+					StrategySpec: modifiedDetails,
+				}
+
+				// update csv
+				_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(generatedNamespace.GetName()).Update(context.Background(), csv, metav1.UpdateOptions{})
+				return err
+			}).Should(Succeed())
 
 			By(`Wait for csv to update`)
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.GetName(), csvSucceededChecker)
