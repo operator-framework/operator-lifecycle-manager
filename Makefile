@@ -28,8 +28,6 @@ export GO111MODULE=on
 YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
 HELM := go run $(MOD_FLAGS) ./vendor/helm.sh/helm/v3/cmd/helm
 KIND := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/kind
-KUBEBUILDER_ASSETS := $(or $(or $(KUBEBUILDER_ASSETS),$(dir $(shell command -v kubebuilder))),/usr/local/kubebuilder/bin)
-export KUBEBUILDER_ASSETS
 GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
 GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
 BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
@@ -41,12 +39,17 @@ else
 ARCH := amd64
 endif
 
+# Track the minor version of kubernetes we are building against by looking at the client-go dependency version
+# For example, a client-go version of v0.28.5 will map to kube version 1.28
+KUBE_MINOR ?= $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1/')
+
+# Unit test against the latest available version for the minor version of kubernetes we are building against e.g. 1.30.x
+ENVTEST_KUBE_VERSION ?= $(KUBE_MINOR).x
+
+# Kind node image tags are in the format x.y.z we pin to version x.y.0 because patch releases and node images
+# are not guaranteed to be available when a new version of the kube apis is released
+KIND_NODE_VERSION ?= $(KUBE_MINOR).0
 KIND_CLUSTER_NAME ?= kind-olmv0
-# Not guaranteed to have patch releases available and node image tags are full versions (i.e v1.28.0 - no v1.28, v1.29, etc.)
-# The KIND_NODE_VERSION is set by getting the version of the k8s.io/client-go dependency from the go.mod
-# and sets major version to "1" and the patch version to "0". For example, a client-go version of v0.28.5
-# will map to a KIND_NODE_VERSION of 1.28.0
-KIND_NODE_VERSION := $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1.0/')
 KIND_CLUSTER_IMAGE := kindest/node:v$(KIND_NODE_VERSION)
 
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
@@ -64,23 +67,11 @@ vet:
 all: test build
 
 test: clean cover.out
-
-unit: kubebuilder
+.PHONY: unit
+KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use -p path $(ENVTEST_KUBE_VERSION))
+unit:
+	@echo "Running unit tests with setup_envtest for kubernetes $(ENVTEST_KUBE_VERSION)"
 	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
-
-# Ensure kubectl installed before continuing
-KUBEBUILDER_ASSETS_ERR := not detected in $(KUBEBUILDER_ASSETS), to override the assets path set the KUBEBUILDER_ASSETS environment variable, for install instructions see https://pkg.go.dev/sigs.k8s.io/controller-runtime/tools/setup-envtest
-KUBECTL_ASSETS_ERR := kubectl not detected.
-kubebuilder:
-ifeq (, $(shell which kubectl))
-	$(error $(KUBECTL_ASSETS_ERR))
-endif
-ifeq (, $(wildcard $(KUBEBUILDER_ASSETS)/etcd))
-	$(error etcd $(KUBEBUILDER_ASSETS_ERR))
-endif
-ifeq (, $(wildcard $(KUBEBUILDER_ASSETS)/kube-apiserver))
-	$(error kube-apiserver $(KUBEBUILDER_ASSETS_ERR))
-endif
 
 cover.out:
 	go test $(MOD_FLAGS) -tags "json1" -race -coverprofile=cover.out -covermode=atomic \
