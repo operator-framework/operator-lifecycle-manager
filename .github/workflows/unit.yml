@@ -1,6 +1,6 @@
 name: unit
 env:
-  K8S_VERSION: 1.19.2
+  K8S_VERSION: 1.30.0
 on:
   push:
     branches:
