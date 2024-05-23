@@ -163,7 +163,7 @@ deploy:
 		--set olm.image.pullPolicy=IfNotPresent \
 		--set catalog.image.ref=$(OLM_IMAGE) \
 		--set catalog.image.pullPolicy=IfNotPresent \
-		--set catalog.commandArgs=--configmapServerImage=$(CONFIGMAP_SERVER_IMAGE)\
+		--set catalog.commandArgs=--configmapServerImage=$(CONFIGMAP_SERVER_IMAGE) \
 		--set catalog.opmImageArgs=--opmImage=$(OPERATOR_REGISTRY_IMAGE) \
 		--set package.image.ref=$(OLM_IMAGE) \
 		--set package.image.pullPolicy=IfNotPresent \
@@ -227,15 +227,21 @@ verify-manifests: manifests
 
 verify: vendor verify-codegen verify-mockgen verify-manifests
 
+.PHONY: pull-opm
+pull-opm:
+	docker pull $(OPERATOR_REGISTRY_IMAGE)
+
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
 release: ver=v$(shell cat OLM_VERSION)
-release: manifests
+# pull the opm image to get the digest
+release: pull-opm manifests
 	@echo "Generating the $(ver) release"
 	docker pull $(IMAGE_REPO):$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(IMAGE_REPO):$(ver))
+package: opmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(OPERATOR_REGISTRY_IMAGE))
 package:
 ifndef target
 	$(error target is undefined)
@@ -243,9 +249,12 @@ endif
 ifndef ver
 	$(error ver is undefined)
 endif
+	@echo "Getting operator registry image"
+	docker pull $(OPERATOR_REGISTRY_IMAGE)
 	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
 	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
 	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
+	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml -- catalog.opmImageArgs "--opmImage=$(opmref)"
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)
