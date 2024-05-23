@@ -64,7 +64,7 @@ jobs:
 
       # set e2e environment variables
       # Set ginkgo output and parallelism
-      - run: echo "GINKGO_E2E_OPTS=-output-dir ${ARTIFACT_DIR} -junit-report junit_e2e.xml -nodes ${E2E_NODES}" >> $GITHUB_ENV
+      - run: echo "GINKGO_OPTS=-output-dir ${ARTIFACT_DIR} -junit-report junit_e2e.xml -nodes ${E2E_NODES}" >> $GITHUB_ENV
 
       # Setting -kubeconfig-root tells the e2e test suite to look for kubeconfigs
       # in <kubeconfig-root>/kubeconfig-<node-number>
@@ -98,7 +98,7 @@ jobs:
         # focus on those tests and skip tests marked as FLAKE
         run: |
           E2E_TEST_NUM_CHUNKS=$(( ${{ strategy.job-total }} - 1 )) \
-          GINKGO_E2E_OPTS="${GINKGO_E2E_OPTS} -focus '$(go run ./test/e2e/split/... -chunks $E2E_TEST_NUM_CHUNKS -print-chunk $E2E_TEST_CHUNK ./test/e2e)' -skip '\[FLAKE\]'" \
+          GINKGO_OPTS="${GINKGO_OPTS} -focus '$(go run ./test/e2e/split/... -chunks $E2E_TEST_NUM_CHUNKS -print-chunk $E2E_TEST_CHUNK ./test/e2e)' -skip '\[FLAKE\]'" \
           make e2e;
 
       # run e2e tests for flakes if matrix-id is 'flakes'
@@ -106,7 +106,7 @@ jobs:
         if: ${{ matrix.parallel-id == 'flakes' }}
         # focus on tests marked as FLAKE
         run: |
-          GINKGO_E2E_OPTS="${GINKGO_E2E_OPTS} -focus '\[FLAKE\]'" make e2e
+          GINKGO_OPTS="${GINKGO_OPTS} -focus '\[FLAKE\]'" make e2e
 
       # archive test results
       - name: Archive Test Artifacts

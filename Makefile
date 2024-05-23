@@ -126,10 +126,16 @@ e2e.namespace:
 	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
 
 .PHONY: e2e
-GINKGO_E2E_OPTS += -timeout 90m -v -randomize-suites -race -trace --show-node-events
-E2E_OPTS += -namespace=operators -olmNamespace=operator-lifecycle-manager -catalogNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest
+E2E_TIMEOUT ?= 90m
+E2E_TEST_NS ?= operators
+E2E_INSTALL_NS ?= operator-lifecycle-manager
+E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
+GINKGO_OPTS += -v -randomize-suites -race -trace --show-node-events
 e2e:
-	$(GINKGO) $(GINKGO_E2E_OPTS) ./test/e2e -- $(E2E_OPTS)
+	$(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) ./test/e2e -- -namespace=E2E_TEST_NS -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
+
+.PHONY: e2e-local
+e2e-local: e2e-build kind-create deploy e2e
 
 .PHONY: kind-clean
 kind-clean:
