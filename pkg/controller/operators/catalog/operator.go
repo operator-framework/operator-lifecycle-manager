@@ -213,6 +213,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		bundleUnpackTimeout:      bundleUnpackTimeout,
 		clientFactory:            clients.NewFactory(validatingConfig),
 	}
+
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.sourceInvalidator = resolver.SourceProviderFromRegistryClientProvider(op.sources, logger)
 	resolverSourceProvider := NewOperatorGroupToggleSourceProvider(op.sourceInvalidator, logger, op.lister.OperatorsV1().OperatorGroupLister())

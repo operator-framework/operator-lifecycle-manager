@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/grpc/connectivity"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -3607,7 +3608,8 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 		before := fetchedInitialCatalog.Status.ConfigMapResource
 		after := catalog.Status.ConfigMapResource
 		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion &&
-			catalog.Status.GRPCConnectionState.LastConnectTime.After(after.LastUpdateTime.Time) && catalog.Status.GRPCConnectionState.LastObservedState == "READY" {
+			catalog.Status.GRPCConnectionState.LastConnectTime.After(after.LastUpdateTime.Time) &&
+			(catalog.Status.GRPCConnectionState.LastObservedState == connectivity.Ready.String() || catalog.Status.GRPCConnectionState.LastObservedState == connectivity.Idle.String()) {
 			fmt.Println("catalog updated")
 			return true
 		}

@@ -1,11 +1,5 @@
 run:
   timeout: 8m
-  skip-dirs:
-  - pkg/lib
-  - pkg/api
-  - pkg/fakes
-  - pkg/package-server/apis
-  - test/e2e
 
 linters:
   enable:
@@ -41,7 +35,13 @@ linters-settings:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-dirs:
+    - pkg/lib
+    - pkg/api
+    - pkg/fakes
+    - pkg/package-server/apis
+    - test/e2e
 
 output:
-  format: tab
+  formats: tab
   sort-results: true

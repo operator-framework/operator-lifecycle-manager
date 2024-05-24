@@ -174,6 +174,13 @@ func (s *SourceStore) Add(key registry.CatalogKey, address string) (*SourceConn,
 		return nil, err
 	}
 
+	// non-blocking call to start exercising the connection
+	// recent changes to the grpc library have changed the way connection status was transitioning.
+	// it seems that previously, creating the connection would make a connection attempt and start the state machine.
+	// now, it seems like the connection is no longer being attempted - so we must call it here in lieu of a better
+	// solution. One suggestion might be to
+	// conn.Connect()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	source := SourceConn{
 		SourceMeta: SourceMeta{
@@ -233,6 +240,11 @@ func (s *SourceStore) watch(ctx context.Context, key registry.CatalogKey, source
 					// This function is non-blocking. Therefore, when it returns we'll still return IDLE
 					// as the state (we'll see further state changes in subsequent iterations of the loop).
 					source.Conn.Connect()
+					regitryClient := registry.NewClientFromConn(source.Conn)
+
+					// Let's force a health check to make sure the connection is healthy
+					c, err := regitryClient.HealthCheck(ctx, 10*time.Second)
+					s.logger.WithError(err).WithField("address", source.Address).Debugf("gRPC health check: %v", c)
 
 					// notify subscriber
 					s.notify <- SourceState{Key: key, State: newState}

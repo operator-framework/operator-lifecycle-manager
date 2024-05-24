@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"google.golang.org/grpc/connectivity"
 	"os"
 	"regexp"
 	"strings"
@@ -364,7 +365,8 @@ func catalogSourceRegistryPodSynced() func(catalog *operatorsv1alpha1.CatalogSou
 			lastState = state
 			lastTime = time.Now()
 		}
-		if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() && connState.LastObservedState == "READY" {
+		if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() &&
+			(connState.LastObservedState == connectivity.Ready.String() || connState.LastObservedState == connectivity.Idle.String()) {
 			fmt.Printf("probing catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
 			return registryPodHealthy(registry.Address())
 		}

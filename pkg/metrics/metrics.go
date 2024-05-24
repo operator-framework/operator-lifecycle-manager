@@ -147,7 +147,7 @@ var (
 	catalogSourceReady = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "catalogsource_ready",
-			Help: "State of a CatalogSource. 1 indicates that the CatalogSource is in a READY state. 0 indicates CatalogSource is in a Non READY state.",
+			Help: "State of a CatalogSource. 1 indicates that the CatalogSource is in a READY/IDLE state. 0 indicates CatalogSource is in a Non READY/IDLE state.",
 		},
 		[]string{NamespaceLabel, NameLabel},
 	)
@@ -262,6 +262,8 @@ func CounterForSubscription(name, installedCSV, channelName, packageName, planAp
 func RegisterCatalogSourceState(name, namespace string, state connectivity.State) {
 	switch state {
 	case connectivity.Ready:
+		fallthrough
+	case connectivity.Idle:
 		catalogSourceReady.WithLabelValues(namespace, name).Set(1)
 	default:
 		catalogSourceReady.WithLabelValues(namespace, name).Set(0)

@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc/connectivity"
 	"os"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -20,7 +21,6 @@ const (
 	olmCatalogLabel    string = "olm.catalogSource"
 	catalogMountPath   string = "/opt/olm"
 	catalogServicePort int32  = 50051
-	catalogReadyState  string = "READY"
 )
 
 type MagicCatalog struct {
@@ -147,7 +147,7 @@ func (c *MagicCatalog) catalogSourceIsReady(ctx context.Context) error {
 			return false, err
 		}
 		state := catalogSource.Status.GRPCConnectionState.LastObservedState
-		if state != catalogReadyState {
+		if state != connectivity.Idle.String() && state != connectivity.Ready.String() {
 			return false, nil
 		}
 		return true, nil
