@@ -52,6 +52,13 @@ KIND_NODE_VERSION ?= $(KUBE_MINOR).0
 KIND_CLUSTER_NAME ?= kind-olmv0
 KIND_CLUSTER_IMAGE := kindest/node:v$(KIND_NODE_VERSION)
 
+# Take operator registry tag from operator registry version in go.mod
+export OPERATOR_REGISTRY_TAG ?= $(shell go list -m github.com/operator-framework/operator-registry | cut -d" " -f2)
+
+# Pin operator registry images to the OPERATOR_REGISTRY_TAG
+export OPERATOR_REGISTRY_IMAGE ?= quay.io/operator-framework/opm:$(OPERATOR_REGISTRY_TAG)
+export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-registry:$(OPERATOR_REGISTRY_TAG)
+
 # Phony prerequisite for targets that rely on the go build cache to determine staleness.
 .PHONY: build test clean vendor \
 	coverage coverage-html e2e \
@@ -126,10 +133,16 @@ e2e.namespace:
 	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
 
 .PHONY: e2e
-GINKGO_E2E_OPTS += -timeout 90m -v -randomize-suites -race -trace --show-node-events
-E2E_OPTS += -namespace=operators -olmNamespace=operator-lifecycle-manager -catalogNamespace=operator-lifecycle-manager -dummyImage=bitnami/nginx:latest
+E2E_TIMEOUT ?= 90m
+E2E_TEST_NS ?= operators
+E2E_INSTALL_NS ?= operator-lifecycle-manager
+E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
+GINKGO_OPTS += -v -randomize-suites -race -trace --show-node-events
 e2e:
-	$(GINKGO) $(GINKGO_E2E_OPTS) ./test/e2e -- $(E2E_OPTS)
+	$(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
+
+.PHONY: e2e-local
+e2e-local: e2e-build kind-create deploy e2e
 
 .PHONY: kind-clean
 kind-clean:
@@ -144,12 +157,14 @@ kind-create: kind-clean
 OLM_IMAGE := quay.io/operator-framework/olm:local
 deploy:
 	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
-	$(HELM) install olm deploy/chart \
+	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
 		--set olm.image.ref=$(OLM_IMAGE) \
 		--set olm.image.pullPolicy=IfNotPresent \
 		--set catalog.image.ref=$(OLM_IMAGE) \
 		--set catalog.image.pullPolicy=IfNotPresent \
+		--set catalog.commandArgs=--configmapServerImage=$(CONFIGMAP_SERVER_IMAGE) \
+		--set catalog.opmImageArgs=--opmImage=$(OPERATOR_REGISTRY_IMAGE) \
 		--set package.image.ref=$(OLM_IMAGE) \
 		--set package.image.pullPolicy=IfNotPresent \
 		$(HELM_INSTALL_OPTS) \
@@ -158,7 +173,6 @@ deploy:
 .PHONY: e2e-build
 e2e-build: BUILD_TAGS="json1 e2e experimental_metrics"
 e2e-build: export GOOS=linux
-e2e-build: export GOARCH=amd64
 e2e-build: build_cmd=build
 e2e-build: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
@@ -213,15 +227,21 @@ verify-manifests: manifests
 
 verify: vendor verify-codegen verify-mockgen verify-manifests
 
+.PHONY: pull-opm
+pull-opm:
+	docker pull $(OPERATOR_REGISTRY_IMAGE)
+
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
 release: ver=v$(shell cat OLM_VERSION)
-release: manifests
+# pull the opm image to get the digest
+release: pull-opm manifests
 	@echo "Generating the $(ver) release"
 	docker pull $(IMAGE_REPO):$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(IMAGE_REPO):$(ver))
+package: opmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(OPERATOR_REGISTRY_IMAGE))
 package:
 ifndef target
 	$(error target is undefined)
@@ -229,9 +249,12 @@ endif
 ifndef ver
 	$(error ver is undefined)
 endif
+	@echo "Getting operator registry image"
+	docker pull $(OPERATOR_REGISTRY_IMAGE)
 	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
 	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
 	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
+	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml -- catalog.opmImageArgs "--opmImage=$(opmref)"
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)

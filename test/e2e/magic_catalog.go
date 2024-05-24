@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -257,11 +258,15 @@ func (c *MagicCatalog) makeCatalogSource() *operatorsv1alpha1.CatalogSource {
 func (c *MagicCatalog) makeCatalogSourcePod() *corev1.Pod {
 
 	const (
-		image                  = "quay.io/operator-framework/opm"
 		readinessDelay  int32  = 5
 		livenessDelay   int32  = 10
 		volumeMountName string = "fbc-catalog"
 	)
+
+	var image = "quay.io/operator-framework/opm"
+	if os.Getenv("OPERATOR_REGISTRY_TAG") != "" {
+		image = fmt.Sprintf("quay.io/operator-framework/opm:%s", os.Getenv("OPERATOR_REGISTRY_TAG"))
+	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

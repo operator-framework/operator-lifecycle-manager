@@ -40,6 +40,7 @@ catalog:
   setWorkloadUserID: true
   replicaCount: 1
   commandArgs: --configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
+  opmImageArgs: --opmImage=quay.io/operator-framework/opm:latest
   image:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
