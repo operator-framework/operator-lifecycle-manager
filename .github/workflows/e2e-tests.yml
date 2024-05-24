@@ -21,6 +21,16 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
+          cache: false
+      - name: Cache go-build and mod
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build/
+            ~/go/pkg/mod/
+          key: go-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-
       # build binaries and image for e2e test (includes experimental features)
       - name: Build controller image
         run: make e2e-build
@@ -53,6 +63,16 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
+          cache: false
+      - name: Cache go-build and mod
+        uses: actions/cache@v4
+        with:
+         path: |
+           ~/.cache/go-build/
+           ~/go/pkg/mod/
+         key: go-${{ hashFiles('go.sum') }}
+         restore-keys: |
+           go-
 
       # load the olm image
       - name: Load OLM Docker image
