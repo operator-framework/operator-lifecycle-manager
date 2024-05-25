@@ -101,11 +101,6 @@ build-linux: build_cmd=build
 build-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-linux: clean $(CMDS)
 
-build-wait: clean bin/wait
-
-bin/wait: FORCE
-	GOOS=linux GOARCH=$(ARCH) go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
-
 build-util-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
 build-util-linux: build-util
 
@@ -174,7 +169,7 @@ deploy:
 e2e-build: BUILD_TAGS="json1 e2e experimental_metrics"
 e2e-build: export GOOS=linux
 e2e-build: build_cmd=build
-e2e-build: e2e.Dockerfile bin/wait bin/cpb $(CMDS)
+e2e-build: e2e.Dockerfile bin/cpb $(CMDS)
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
 
 vendor:
