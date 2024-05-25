@@ -4030,7 +4030,7 @@ func TestUpdates(t *testing.T) {
 					csvsToSync = syncCSVs(csvsToSync, deletedCSVs(e.shouldBe))
 					current = csvsToSync[e.whenIn.name]
 					fmt.Printf("waiting for (when) %s to be %s\n", e.whenIn.name, e.whenIn.phase)
-					time.Sleep(1 * time.Millisecond)
+					time.Sleep(1 * time.Second)
 				}
 
 				// sync the other csvs until they're in the expected status
