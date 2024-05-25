@@ -94,7 +94,7 @@ builds:
 dockers:
 - image_templates:
   - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64"
-  dockerfile: Dockerfile.goreleaser
+  dockerfile: Dockerfile
   use: buildx
   goos: linux
   goarch: amd64
@@ -102,7 +102,7 @@ dockers:
   - --platform=linux/amd64
 - image_templates:
   - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-arm64"
-  dockerfile: Dockerfile.goreleaser
+  dockerfile: Dockerfile
   use: buildx
   goos: linux
   goarch: arm64
@@ -110,7 +110,7 @@ dockers:
   - --platform=linux/arm64
 - image_templates:
   - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-ppc64le"
-  dockerfile: Dockerfile.goreleaser
+  dockerfile: Dockerfile
   use: buildx
   goos: linux
   goarch: ppc64le
@@ -118,7 +118,7 @@ dockers:
   - --platform=linux/ppc64le
 - image_templates:
   - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-s390x"
-  dockerfile: Dockerfile.goreleaser
+  dockerfile: Dockerfile
   use: buildx
   goos: linux
   goarch: s390x
