@@ -74,6 +74,23 @@ builds:
     ldflags:
     - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
     - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
+  - id: copy-content
+    main: ./cmd/copy-content
+    binary: copy-content
+    goos:
+    - linux
+    goarch:
+    - amd64
+    - arm64
+    - ppc64le
+    - s390x
+    tags:
+    - json1
+    flags:
+      - -mod=vendor
+    ldflags:
+    - -X {{ .Env.PKG }}/pkg/version.GitCommit={{ .FullCommit }}
+    - -X {{ .Env.PKG }}/pkg/version.OLMVersion={{ .Tag }}
 dockers:
 - image_templates:
   - "{{ .Env.IMAGE_REPO }}:{{ .Tag }}-amd64"
