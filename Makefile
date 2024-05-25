@@ -97,15 +97,6 @@ build: clean vet $(CMDS)
 build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
 build-coverage: clean $(CMDS)
 
-build-linux: build_cmd=build
-build-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
-build-linux: clean $(CMDS)
-
-build-util-linux: arch_flags=GOOS=linux GOARCH=$(ARCH)
-build-util-linux: build-util
-
-build-util: bin/cpb bin/copy-content
-
 bin/cpb: FORCE
 	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
 
@@ -123,9 +114,6 @@ deploy-local:
 	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
-
-e2e.namespace:
-	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
 
 .PHONY: e2e
 E2E_TIMEOUT ?= 90m
