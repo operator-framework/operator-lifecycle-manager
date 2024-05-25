@@ -12,12 +12,10 @@ $(warning Undefining GOFLAGS set in CI)
 undefine GOFLAGS
 endif
 
-SHELL := /bin/bash
 ORG := github.com/operator-framework
 PKG   := $(ORG)/operator-lifecycle-manager
 MOD_FLAGS := -mod=vendor -buildvcs=false
 BUILD_TAGS := "json1"
-CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
 MOCKGEN := ./scripts/update_mockgen.sh
 CODEGEN := ./scripts/update_codegen.sh
 IMAGE_REPO := quay.io/operator-framework/olm
@@ -64,21 +62,44 @@ export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-r
 	coverage coverage-html e2e \
 	kubebuilder
 
+all: test build
+
 .PHONY: FORCE
 FORCE:
 
-.PHONY: vet
-vet:
-	go vet $(MOD_FLAGS) ./...
+ifeq ($(origin CGO_ENABLED), undefined)
+CGO_ENABLED := 0
+endif
+export CGO_ENABLED
 
-all: test build
+export GIT_REPO := $(shell go list -m)
+export VERSION := $(shell cat OLM_VERSION)
+export VERSION_PATH := ${GIT_REPO}/pkg/version
+export GO_BUILD_ASMFLAGS := all=-trimpath=$(PWD)
+export GO_BUILD_GCFLAGS := all=-trimpath=$(PWD)
+export GO_BUILD_FLAGS := -mod=vendor -buildvcs=false
+export GO_BUILD_LDFLAGS := -s -w -X '$(VERSION_PATH).version=$(VERSION)' -X '$(VERSION_PATH).gitCommit=$(GIT_COMMIT)' -extldflags "-static"
+export GO_BUILD_TAGS := json1
+
+BUILDCMD = go build $(GO_BUILD_FLAGS) -ldflags '$(GO_BUILD_LDFLAGS)' -tags '$(GO_BUILD_TAGS)' -gcflags '$(GO_BUILD_GCFLAGS)' -asmflags '$(GO_BUILD_ASMFLAGS)'
+
+bin/cpb: FORCE
+	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
+
+CMDS := $(shell go list $(MOD_FLAGS) ./cmd/...)
+$(CMDS): FORCE
+	@echo "Building $(@)"
+	$(BUILDCMD) -o ./bin/$(shell basename $@) ./cmd/$(notdir $@)
+
+.PHONY: build
+build: bin/cpb $(CMDS)
 
 test: clean cover.out
 .PHONY: unit
 KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use -p path $(ENVTEST_KUBE_VERSION))
 unit:
 	@echo "Running unit tests with setup_envtest for kubernetes $(ENVTEST_KUBE_VERSION)"
-	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
+	CGO_ENABLED=1 KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
 
 cover.out:
 	go test $(MOD_FLAGS) -tags "json1" -race -coverprofile=cover.out -covermode=atomic \
@@ -89,25 +110,6 @@ coverage: cover.out
 
 coverage-html: cover.out
 	go tool cover -html=cover.out
-
-build: build_cmd=build
-build: clean vet $(CMDS)
-
-# build versions of the binaries with coverage enabled
-build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
-build-coverage: clean $(CMDS)
-
-bin/cpb: FORCE
-	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
-
-bin/copy-content: FORCE
-	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./cmd/copy-content
-
-$(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
-$(CMDS):
-	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -tags $(BUILD_TAGS) -o bin/$(shell basename $@) $@
-
-build: clean $(CMDS)
 
 deploy-local:
 	mkdir -p build/resources
@@ -120,9 +122,9 @@ E2E_TIMEOUT ?= 90m
 E2E_TEST_NS ?= operators
 E2E_INSTALL_NS ?= operator-lifecycle-manager
 E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
-GINKGO_OPTS += -v -randomize-suites -race -trace --show-node-events
+GINKGO_OPTS += -v -randomize-suites -race -trace --show-node-events --flake-attempts=3
 e2e:
-	$(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
+	CGO_ENABLED=1 $(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
 
 .PHONY: e2e-local
 e2e-local: e2e-build kind-create deploy e2e
@@ -154,17 +156,15 @@ deploy:
 		--wait;
 
 .PHONY: e2e-build
-e2e-build: BUILD_TAGS="json1 e2e experimental_metrics"
-e2e-build: export GOOS=linux
-e2e-build: build_cmd=build
-e2e-build: e2e.Dockerfile bin/cpb $(CMDS)
+e2e-build: export GO_BUILD_TAGS += e2e experimental_metrics
+e2e-build: Dockerfile build
 	docker build -t quay.io/operator-framework/olm:local -f $< bin
 
 vendor:
 	go mod tidy
 	go mod vendor
 
-container:
+container: build
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
 
 clean-e2e:
@@ -179,6 +179,10 @@ clean:
 	@rm -rf test/e2e/test-resources
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
+
+.PHONY: vet
+vet:
+	go vet $(MOD_FLAGS) ./...
 
 # Copy CRD manifests
 manifests: vendor
