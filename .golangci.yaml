@@ -1,11 +1,5 @@
 run:
   timeout: 8m
-  skip-dirs:
-  - pkg/lib
-  - pkg/api
-  - pkg/fakes
-  - pkg/package-server/apis
-  - test/e2e
 
 linters:
   enable:
@@ -21,6 +15,11 @@ linters:
   - errcheck
 
 linters-settings:
+  # This stanza is needed to avoid getting the warning
+  # WARN [config_reader] The configuration option `linters.errcheck.ignore` is deprecated, please use `linters.errcheck.exclude-functions`.
+  errcheck:
+    ignore: ''
+
   importas:
     alias:
     - pkg: k8s.io/api/core/v1
@@ -41,7 +40,13 @@ linters-settings:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-dirs:
+    - pkg/lib
+    - pkg/api
+    - pkg/fakes
+    - pkg/package-server/apis
+    - test/e2e
 
 output:
-  format: tab
+  formats: tab
   sort-results: true
