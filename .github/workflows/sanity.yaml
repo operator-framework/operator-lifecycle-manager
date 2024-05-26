@@ -7,24 +7,20 @@ on:
   workflow_dispatch:
   merge_group:
 jobs:
-  vendor:
+  check:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v5
       with:
-        go-version-file: "go.mod"
+        go-version: '>=1.22.0'
     - name: Run sanity checks
       run: make vendor && make diff
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: "go.mod"
-    - name: Run linting checks
-      uses: "golangci/golangci-lint-action@v6"
-      with:
-        skip-pkg-cache: true
+    - name: Run static checks
+      run: |
+        make lint
+        make vet
+    - name: Run code generation checks
+      run: make verify
+
   
