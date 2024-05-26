@@ -1,6 +1,7 @@
-##########################
-#  OLM - Build and Test  #
-##########################
+#####################################################
+#  Operator-Framework - Operator Lifecycle Manager  #
+#####################################################
+
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL := /usr/bin/env bash -o pipefail
@@ -12,122 +13,153 @@ $(warning Undefining GOFLAGS set in CI)
 undefine GOFLAGS
 endif
 
-ORG := github.com/operator-framework
-PKG   := $(ORG)/operator-lifecycle-manager
-MOD_FLAGS := -mod=vendor -buildvcs=false
-BUILD_TAGS := "json1"
-MOCKGEN := ./scripts/update_mockgen.sh
-CODEGEN := ./scripts/update_codegen.sh
-IMAGE_REPO := quay.io/operator-framework/olm
-IMAGE_TAG ?= "dev"
-SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
-LOCAL_NAMESPACE := "olm"
-export GO111MODULE=on
-YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v3/
-HELM := go run $(MOD_FLAGS) ./vendor/helm.sh/helm/v3/cmd/helm
-KIND := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/kind
-GO := GO111MODULE=on GOFLAGS="$(MOD_FLAGS)" go
-GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
-BINDATA := $(GO) run github.com/go-bindata/go-bindata/v3/go-bindata
-SETUP_ENVTEST := $(GO) run sigs.k8s.io/controller-runtime/tools/setup-envtest
-GIT_COMMIT := $(shell git rev-parse HEAD)
-ifeq ($(shell arch), arm64) 
-ARCH := arm64
-else
-ARCH := amd64
-endif
+# Target environment and Dependencies #
 
-# Track the minor version of kubernetes we are building against by looking at the client-go dependency version
-# For example, a client-go version of v0.28.5 will map to kube version 1.28
+# Minor Kubernetes version to build against derived from the client-go dependency version
 KUBE_MINOR ?= $(shell go list -m k8s.io/client-go | cut -d" " -f2 | sed 's/^v0\.\([[:digit:]]\{1,\}\)\.[[:digit:]]\{1,\}$$/1.\1/')
+
+# operator registry version to build against
+OPERATOR_REGISTRY_VERSION ?= $(shell go list -m github.com/operator-framework/operator-registry | cut -d" " -f2 | sed 's/^v//')
+
+# Pin operator registry images to the same version as the operator registry
+export OPERATOR_REGISTRY_TAG ?= v$(OPERATOR_REGISTRY_VERSION)
+export OPERATOR_REGISTRY_IMAGE ?= quay.io/operator-framework/opm:$(OPERATOR_REGISTRY_TAG)
+export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-registry:$(OPERATOR_REGISTRY_TAG)
+
+# Artifact settings #
+
+PKG := github.com/operator-framework/operator-lifecycle-manager
+IMAGE_REPO ?= quay.io/operator-framework/olm
+IMAGE_TAG ?= "dev"
+
+# Go build settings #
+
+export CGO_ENABLED ?= 0
+export GO111MODULE ?= on
+export GIT_REPO := $(shell go list -m)
+export GIT_COMMIT := $(shell git rev-parse HEAD)
+export VERSION := $(shell cat OLM_VERSION)
+export VERSION_PATH := ${GIT_REPO}/pkg/version
+
+# GO_BUILD flags are set with = to allow for re-evaluation of the variables
+export GO_BUILD_ASMFLAGS = all=-trimpath=$(PWD)
+export GO_BUILD_GCFLAGS = all=-trimpath=$(PWD)
+export GO_BUILD_FLAGS = -mod=vendor -buildvcs=false
+export GO_BUILD_LDFLAGS = -s -w -X '$(VERSION_PATH).version=$(VERSION)' -X '$(VERSION_PATH).gitCommit=$(GIT_COMMIT)' -extldflags "-static"
+export GO_BUILD_TAGS = json1
+
+# Tools #
+GO := GO111MODULE=on GOFLAGS="$(GO_BUILD_FLAGS)" go
+YQ := $(GO) run github.com/mikefarah/yq/v3/
+HELM := $(GO) run helm.sh/helm/v3/cmd/helm
+KIND := $(GO) run sigs.k8s.io/kind
+GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
+SETUP_ENVTEST := $(GO) run sigs.k8s.io/controller-runtime/tools/setup-envtest
+GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint
+
+# Test environment configuration #
 
 # Unit test against the latest available version for the minor version of kubernetes we are building against e.g. 1.30.x
 ENVTEST_KUBE_VERSION ?= $(KUBE_MINOR).x
 
 # Kind node image tags are in the format x.y.z we pin to version x.y.0 because patch releases and node images
 # are not guaranteed to be available when a new version of the kube apis is released
-KIND_NODE_VERSION ?= $(KUBE_MINOR).0
+KIND_CLUSTER_IMAGE := kindest/node:v$(KUBE_MINOR).0
 KIND_CLUSTER_NAME ?= kind-olmv0
-KIND_CLUSTER_IMAGE := kindest/node:v$(KIND_NODE_VERSION)
 
-# Take operator registry tag from operator registry version in go.mod
-export OPERATOR_REGISTRY_TAG ?= $(shell go list -m github.com/operator-framework/operator-registry | cut -d" " -f2)
+# Targets #
+# Disable -j flag for make
+.NOTPARALLEL:
 
-# Pin operator registry images to the OPERATOR_REGISTRY_TAG
-export OPERATOR_REGISTRY_IMAGE ?= quay.io/operator-framework/opm:$(OPERATOR_REGISTRY_TAG)
-export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-registry:$(OPERATOR_REGISTRY_TAG)
+.DEFAULT_GOAL := build
 
-# Phony prerequisite for targets that rely on the go build cache to determine staleness.
-.PHONY: build test clean vendor \
-	coverage coverage-html e2e \
-	kubebuilder
+.PHONY: all
+all: clean test container
 
-all: test build
+#SECTION Build
 
-.PHONY: FORCE
-FORCE:
-
-ifeq ($(origin CGO_ENABLED), undefined)
-CGO_ENABLED := 0
-endif
-export CGO_ENABLED
-
-export GIT_REPO := $(shell go list -m)
-export VERSION := $(shell cat OLM_VERSION)
-export VERSION_PATH := ${GIT_REPO}/pkg/version
-export GO_BUILD_ASMFLAGS := all=-trimpath=$(PWD)
-export GO_BUILD_GCFLAGS := all=-trimpath=$(PWD)
-export GO_BUILD_FLAGS := -mod=vendor -buildvcs=false
-export GO_BUILD_LDFLAGS := -s -w -X '$(VERSION_PATH).version=$(VERSION)' -X '$(VERSION_PATH).gitCommit=$(GIT_COMMIT)' -extldflags "-static"
-export GO_BUILD_TAGS := json1
-
+# Note: We want to use BUILDCMD = because we need it to be re-evaluated every time it is used
+# since different targets might have different go build flags
 BUILDCMD = go build $(GO_BUILD_FLAGS) -ldflags '$(GO_BUILD_LDFLAGS)' -tags '$(GO_BUILD_TAGS)' -gcflags '$(GO_BUILD_GCFLAGS)' -asmflags '$(GO_BUILD_ASMFLAGS)'
 
-bin/cpb: FORCE
-	CGO_ENABLED=0 $(arch_flags) go build -buildvcs=false $(MOD_FLAGS) -ldflags '-extldflags "-static"' -o $@ ./util/cpb
-
-CMDS := $(shell go list $(MOD_FLAGS) ./cmd/...)
+CMDS := $(shell go list $(GO_BUILD_FLAGS) ./cmd/...)
 $(CMDS): FORCE
 	@echo "Building $(@)"
 	$(BUILDCMD) -o ./bin/$(shell basename $@) ./cmd/$(notdir $@)
 
+.PHONY: build-utils
+build-utils:
+	$(BUILDCMD) -o ./bin/cpb ./util/cpb
+
 .PHONY: build
-build: bin/cpb $(CMDS)
+build: build-utils $(CMDS)
 
-test: clean cover.out
+.PHONY: e2e-build
+# the e2e and experimental_metrics tags are required to get e2e tests to pass
+# search the code for go:build e2e or go:build experimental_metrics to see where these tags are used
+e2e-build: export GO_BUILD_TAGS += e2e experimental_metrics
+e2e-build: IMAGE_TAG = local
+e2e-build: container
+
+.PHONY: container
+# Set GOOS to linux to build a linux binary for the container
+# Don't set GOARCH because we want the default host architecture - this is important for developers on MacOS
+container: export GOOS = linux
+container: clean build
+	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) -f Dockerfile bin
+
+.PHONY: clean
+clean:
+	@rm -rf cover.out
+	@rm -rf bin
+
+#SECTION Development
+
+.PHONY: lint
+lint:
+	$(GOLANGCI_LINT) run $(GOLANGCI_LINT_ARGS)
+
+.PHONY: vet
+vet:
+	go vet $(GO_BUILD_FLAGS) ./...
+
+.PHONY: fmt
+fmt:
+	go fmt ./...
+
+vendor:
+	go mod tidy
+	go mod vendor
+
+# SECTION Testing
+
+KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use -p path $(KUBE_MINOR).x)
+GO_TEST_FLAGS = -race -count=1 $(if $(TEST),-run '$(TEST)',)
+
+# CGO_ENABLED=1 is required for -race to work
+GO_TEST_ENV = CGO_ENABLED=1
+
+.PHONE: test
+test: clean unit test-split
+
 .PHONY: unit
-KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use -p path $(ENVTEST_KUBE_VERSION))
+unit: GO_TEST_ENV += KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS)
 unit:
-	@echo "Running unit tests with setup_envtest for kubernetes $(ENVTEST_KUBE_VERSION)"
-	CGO_ENABLED=1 KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -tags "json1" -race -count=1 ./pkg/... ./test/e2e/split/...
+	@echo "Running unit tests with setup_envtest for kubernetes $(KUBE_MINOR).x"
+	# Test the olm and package server manager
+	$(GO_TEST_ENV) go test $(GO_BUILD_FLAGS) -tags $(GO_BUILD_TAGS) $(GO_TEST_FLAGS) ./pkg/controller/... ./pkg/...
 
-cover.out:
-	go test $(MOD_FLAGS) -tags "json1" -race -coverprofile=cover.out -covermode=atomic \
-		-coverpkg ./pkg/controller/... ./pkg/...
+.PHONY: test-split
+test-split:
+	# Test the e2e test split utility
+	$(GO_TEST_ENV) go test $(GO_BUILD_FLAGS) -tags $(GO_BUILD_TAGS) $(GO_TEST_FLAGS) ./test/e2e/split/...
 
-coverage: cover.out
+.PHONY: coverage
+coverage: GO_TEST_FLAGS += -coverprofile=cover.out -covermode=atomic -coverpkg
+coverage: unit
 	go tool cover -func=cover.out
 
-coverage-html: cover.out
-	go tool cover -html=cover.out
-
-deploy-local:
-	mkdir -p build/resources
-	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
-	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
-	rm -rf build
-
-.PHONY: e2e
-E2E_TIMEOUT ?= 90m
-E2E_TEST_NS ?= operators
-E2E_INSTALL_NS ?= operator-lifecycle-manager
-E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
-GINKGO_OPTS += -v -randomize-suites -race -trace --show-node-events --flake-attempts=3
-e2e:
-	CGO_ENABLED=1 $(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
-
-.PHONY: e2e-local
-e2e-local: e2e-build kind-create deploy e2e
+#SECTION Deployment
 
 .PHONY: kind-clean
 kind-clean:
@@ -155,64 +187,77 @@ deploy:
 		$(HELM_INSTALL_OPTS) \
 		--wait;
 
-.PHONY: e2e-build
-e2e-build: export GO_BUILD_TAGS += e2e experimental_metrics
-e2e-build: Dockerfile build
-	docker build -t quay.io/operator-framework/olm:local -f $< bin
+.PHONY: undeploy
+undeploy:
+	# Uninstall Helm chart and remove CRDs
+	kubectl delete --all-namespaces --all sub
+	kubectl delete --all-namespaces --all ip
+	kubectl delete --all-namespaces --all csv
+	kubectl delete --all-namespaces --all catsrc
+	$(HELM) uninstall olm
+	kubectl delete -f deploy/chart/crds
 
-vendor:
-	go mod tidy
-	go mod vendor
+#SECTION e2e
 
-container: build
-	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
+# E2E test configuration
+# Can be overridden when running make e2e, e.g. E2E_TIMEOUT=60m make e2e/e2e-local
+E2E_TIMEOUT ?= 90m
+E2E_TEST_NS ?= operators
+E2E_INSTALL_NS ?= operator-lifecycle-manager
+E2E_CATALOG_NS ?= $(E2E_INSTALL_NS)
+E2E_FLAKE_ATTEMPTS ?= 1
+GINKGO_OPTS += -v -randomize-suites -race -trace --show-node-events --flake-attempts=$(E2E_FLAKE_ATTEMPTS)
 
-clean-e2e:
-	kubectl delete crds --all
-	kubectl delete apiservices.apiregistration.k8s.io v1.packages.operators.coreos.com || true
-	kubectl delete -f test/e2e/resources/0000_50_olm_00-namespace.yaml
+.PHONY: e2e
+e2e:
+	$(GO_TEST_ENV) $(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
 
-clean:
-	@rm -rf cover.out
-	@rm -rf bin
-	@rm -rf test/e2e/resources
-	@rm -rf test/e2e/test-resources
-	@rm -rf test/e2e/log
-	@rm -rf e2e.namespace
+.PHONY: e2e-local
+e2e-local: e2e-build kind-create deploy e2e
 
-.PHONY: vet
-vet:
-	go vet $(MOD_FLAGS) ./...
+#SECTION Code Generation
+
+.PHONY: gen-all
+gen-all: manifests codegen mockgen
 
 # Copy CRD manifests
+.PHONY: manifests
 manifests: vendor
 	./scripts/copy_crds.sh
 
 # Generate deepcopy, conversion, clients, listers, and informers
+.PHONY: codegen
 codegen:
 	# Clients, listers, and informers
-	$(CODEGEN)
+	./scripts/update_codegen.sh
 
 # Generate mock types.
+.PHONY: mockgen
 mockgen:
-	$(MOCKGEN)
+	./scripts/update_mockgen.sh
 
-# Generates everything.
-gen-all: codegen mockgen manifests
+#SECTION Verification
 
+.PHONY: diff
 diff:
 	git diff --exit-code
 
+.PHONY: verify-codegen
 verify-codegen: codegen
 	$(MAKE) diff
 
+.PHONY: verify-mockgen
 verify-mockgen: mockgen
 	$(MAKE) diff
 
+.PHONY: verify-manifests
 verify-manifests: manifests
 	$(MAKE) diff
 
+.PHONY: verify-vendor
 verify: vendor verify-codegen verify-mockgen verify-manifests
+
+#SECTION Release
 
 .PHONY: pull-opm
 pull-opm:
@@ -238,10 +283,10 @@ ifndef ver
 endif
 	@echo "Getting operator registry image"
 	docker pull $(OPERATOR_REGISTRY_IMAGE)
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
-	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml -- catalog.opmImageArgs "--opmImage=$(opmref)"
+	$(YQ) w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
+	$(YQ) w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
+	$(YQ) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
+	$(YQ) w -i deploy/$(target)/values.yaml -- catalog.opmImageArgs "--opmImage=$(opmref)"
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)
@@ -271,3 +316,6 @@ uninstall:
 	- kubectl delete clusterrole.rbac.authorization.k8s.io/system:controller:operator-lifecycle-manager
 	- kubectl delete clusterroles.rbac.authorization.k8s.io "system:controller:operator-lifecycle-manager"
 	- kubectl delete clusterrolebindings.rbac.authorization.k8s.io "olm-operator-binding-openshift-operator-lifecycle-manager"
+
+.PHONY: FORCE
+FORCE:
