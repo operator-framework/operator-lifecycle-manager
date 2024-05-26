@@ -1,14 +1,14 @@
 # errcheck
 
-errcheck is a program for checking for unchecked errors in go programs.
+errcheck is a program for checking for unchecked errors in Go code.
 
 ![errcheck](https://github.com/kisielk/errcheck/workflows/errcheck/badge.svg)
 
 ## Install
 
-    go get -u github.com/kisielk/errcheck
+    go install github.com/kisielk/errcheck@latest
 
-errcheck requires Go 1.12 or newer, and depends on the package go/packages from the golang.org/x/tools repository.
+errcheck requires Go 1.18 or newer.
 
 ## Use
 
@@ -20,7 +20,7 @@ To check all packages beneath the current directory:
 
     errcheck ./...
 
-Or check all packages in your $GOPATH and $GOROOT:
+Or check all packages in your `$GOPATH` and `$GOROOT`:
 
     errcheck all
 
@@ -36,6 +36,18 @@ takes no arguments.
 The `-blank` flag enables checking for assignments of errors to the
 blank identifier. It takes no arguments.
 
+The `-abspath` flag prints the absolute paths to files with unchecked errors.
+
+The `-mod` flag sets the module download mode to use: `readonly` or `vendor`.
+
+### go/analysis
+
+The package provides `Analyzer` instance that can be used with
+[go/analysis](https://pkg.go.dev/golang.org/x/tools/go/analysis) API.
+
+Currently supported flags are `blank`, `assert`, `exclude`, and `excludeonly`.
+Just as the API itself, the analyzer is experimental and may change in the
+future.
 
 ## Excluding functions
 
@@ -52,9 +64,9 @@ the the function call is excluded only if the type of the first argument is `TYP
 
 An example of an exclude file is:
 
-    io/ioutil.ReadFile
     io.Copy(*bytes.Buffer)
     io.Copy(os.Stdout)
+    os.ReadFile
 
     // Sometimes we don't care if a HTTP request fails.
     (*net/http.Client).Do
@@ -111,6 +123,8 @@ specified for it. To disable this, specify a regex that matches nothing:
 
 The `-ignoretests` flag disables checking of `_test.go` files. It takes
 no arguments.
+
+The `-ignoregenerated` flag disables checking of generated source code. It takes no arguments.
 
 ## Exit Codes
 
