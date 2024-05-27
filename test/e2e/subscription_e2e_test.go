@@ -2597,7 +2597,7 @@ var _ = Describe("Subscription", func() {
 				err = magicCatalog.UpdateCatalog(context.Background(), provider)
 				Expect(err).To(BeNil())
 
-				By("waiting for the subscription to have v0.3.0 installed ")
+				By("waiting for the subscription to have v0.3.0 installed")
 				sub, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasCurrentCSV("example-operator.v0.3.0"))
 				Expect(err).Should(BeNil())
 
