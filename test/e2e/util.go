@@ -55,7 +55,6 @@ const (
 
 	olmConfigMap = "olm-operators" // No-longer used, how long do we keep this around?
 
-	// sync name with scripts/install_local.sh
 	packageServerCSV = "packageserver.v1.0.0"
 )
 
