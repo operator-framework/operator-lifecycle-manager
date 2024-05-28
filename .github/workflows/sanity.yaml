@@ -7,25 +7,30 @@ on:
   workflow_dispatch:
   merge_group:
 jobs:
-  vendor:
+  check-vendor:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v5
       with:
         go-version-file: "go.mod"
-    - name: Run sanity checks
+    - name: Verify vendor directory
       run: make vendor && make diff
-  lint:
+  static-analysis:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v5
       with:
         go-version-file: "go.mod"
-    - name: Run linting checks
-      uses: "golangci/golangci-lint-action@v6"
-      with:
-        version: "v1.58.2"
-        skip-pkg-cache: true
-  
+    - name: Run static analysis tools
+      run: make lint vet
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - name: Verify generated code (mocks, clients, listers, etc.)
+        run: make verify
