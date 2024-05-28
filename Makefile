@@ -63,7 +63,7 @@ export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-r
 
 PKG := github.com/operator-framework/operator-lifecycle-manager
 IMAGE_REPO ?= quay.io/operator-framework/olm
-IMAGE_TAG ?= "dev"
+IMAGE_TAG ?= "local"
 
 # Go build settings #
 
@@ -148,7 +148,7 @@ image: clean build #HELP Build image image for linux on host architecture
 .PHONY: e2e-build
 # the e2e and experimental_metrics tags are required to get e2e tests to pass
 # search the code for go:build e2e or go:build experimental_metrics to see where these tags are used
-e2e-build: export GO_BUILD_TAGS += e2e experimental_metrics #HELP Build image for e2e testing
+e2e-build: export GO_BUILD_TAGS += experimental_metrics #HELP Build image for e2e testing
 e2e-build: IMAGE_TAG = local
 e2e-build: image
 
