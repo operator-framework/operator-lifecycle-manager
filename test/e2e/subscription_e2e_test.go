@@ -3614,11 +3614,11 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 		after := catalog.Status.ConfigMapResource
 		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion &&
 			catalog.Status.GRPCConnectionState.LastConnectTime.After(after.LastUpdateTime.Time) && catalog.Status.GRPCConnectionState.LastObservedState == "READY" {
-			fmt.Println("catalog updated")
+			ctx.Ctx().Logf("catalog updated")
 			return true
 		}
 		if catalog.Status.GRPCConnectionState.LastObservedState != lastState {
-			fmt.Printf("waited %s for catalog pod %v to be available (after catalog update) - %s\n", time.Since(lastTime), catalog.GetName(), catalog.Status.GRPCConnectionState.LastObservedState)
+			ctx.Ctx().Logf("waited %s for catalog pod %v to be available (after catalog update) - %s\n", time.Since(lastTime), catalog.GetName(), catalog.Status.GRPCConnectionState.LastObservedState)
 			lastState = catalog.Status.GRPCConnectionState.LastObservedState
 			lastTime = time.Now()
 		}

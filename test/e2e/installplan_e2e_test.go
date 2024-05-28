@@ -1379,6 +1379,7 @@ var _ = Describe("Install Plan", func() {
 			require.NoError(GinkgoT(), err)
 			defer cleanupCR()
 
+			By("Updating the internal catalog")
 			updateInternalCatalog(GinkgoT(), c, crc, mainCatalogSourceName, generatedNamespace.GetName(), []apiextensionsv1.CustomResourceDefinition{*tt.newCRD}, []operatorsv1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
 
 			By(`Attempt to get the catalog source before creating install plan(s)`)

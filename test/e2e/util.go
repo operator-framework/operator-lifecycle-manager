@@ -383,7 +383,7 @@ func fetchCatalogSourceOnStatus(crc versioned.Interface, name, namespace string,
 		fetched, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Get(context.Background(), name, metav1.GetOptions{})
 		if err != nil || fetched == nil {
 			err = fmt.Errorf("failed to fetch catalogSource %s/%s: %v\n", namespace, name, err)
-			fmt.Println(err.Error())
+			ctx.Ctx().Logf(err.Error())
 			return false, err
 		}
 		return check(fetched), nil
