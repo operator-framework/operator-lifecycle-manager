@@ -12,6 +12,8 @@ version=$1
 chartdir=$2
 values=$3
 
+source .bingo/variables.env
+
 charttmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t charttmpdir)
 
 charttmpdir=${charttmpdir}/chart
@@ -23,6 +25,6 @@ sed "s/^[Vv]ersion:.*\$/version: ${version}/" deploy/chart/Chart.yaml > "${chart
 
 mkdir -p "${chartdir}"
 
-go run -mod=vendor helm.sh/helm/v3/cmd/helm template -n olm -f "${values}" --include-crds --output-dir "${charttmpdir}" "${charttmpdir}"
+${HELM} template -n olm -f "${values}" --include-crds --output-dir "${charttmpdir}" "${charttmpdir}"
 
 cp -R "${charttmpdir}"/olm/{templates,crds}/. "${chartdir}"

@@ -13,6 +13,39 @@ $(warning Undefining GOFLAGS set in CI)
 undefine GOFLAGS
 endif
 
+# Tools #
+
+# The tools required to build and test the project come from three sources:
+# 1. .bingo/Variables.mk: tools that are orthogonal to OLM, e.g.
+#   - golangci-lint
+#   - helm
+#   - kind
+#   - setup-envtest
+#   - yq
+# 2. go.mod/tools.go: imports testing libraries, modules that need to be vendored and/or have a low tolerance for skew with the main module
+#                     or because they are already imported by the main module but we want to pull down the whole dependency
+#                     to run some cmd or script, or get some resource (e.g. CRD yaml files).
+#   - OLM API CRDs
+#   - Code generation tools, e.g. k8s.io/code-generator
+
+# bingo manages the type 1 tools. If
+#  a) we don't want their dependencies affecting ours, and
+#  b) the tool's version doesn't need to track closely with OLM
+# the tool goes here
+include .bingo/Variables.mk
+
+# go.mod/tools.go manages type 2 tools. If
+# a) we use the library for development, e.g testing, assertion, etc.
+# b) we need some resource (e.g. yaml file)
+# c) need to run a script that is in the library
+# c) need to track tools closely with OLM (e.g. have the same k8s library version)
+# the tools belongs in go.mod. If your normal imports don't pull down everything you need into vendor
+# then add the import to tools.go
+# Note: The code generation tools are either being used in go:generate directives or
+# they are setup in a different script, e.g. ./scripts/update_codegen.sh
+TOOL_EXEC := go run -mod=vendor
+GINKGO := $(TOOL_EXEC) github.com/onsi/ginkgo/v2/ginkgo
+
 # Target environment and Dependencies #
 
 # Minor Kubernetes version to build against derived from the client-go dependency version
@@ -53,16 +86,15 @@ export GO_BUILD_TAGS = json1
 GO_TEST_FLAGS = -race -count=1 $(if $(TEST),-run '$(TEST)',)
 GO_TEST_ENV = CGO_ENABLED=1
 
-# Tools #
-GO := GO111MODULE=on GOFLAGS="$(GO_BUILD_FLAGS)" go
-YQ := $(GO) run github.com/mikefarah/yq/v3/
-HELM := $(GO) run helm.sh/helm/v3/cmd/helm
-KIND := $(GO) run sigs.k8s.io/kind
-GINKGO := $(GO) run github.com/onsi/ginkgo/v2/ginkgo
-SETUP_ENVTEST := $(GO) run sigs.k8s.io/controller-runtime/tools/setup-envtest
-GOLANGCI_LINT := $(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint
-
 # Test environment configuration #
+
+# By default setup-envtest will write to $XDG_DATA_HOME, or $HOME/.local/share if that is not defined.
+# If $HOME is not set, we need to specify a binary directory to prevent an error in setup-envtest.
+# Useful for some CI/CD environments that set neither $XDG_DATA_HOME nor $HOME.
+SETUP_ENVTEST_BIN_DIR_OVERRIDE=
+ifeq ($(shell [[ $$HOME == "" || $$HOME == "/" ]] && [[ $$XDG_DATA_HOME == "" ]] && echo true ), true)
+	SETUP_ENVTEST_BIN_DIR_OVERRIDE += --bin-dir /tmp/envtest-binaries
+endif
 
 # Unit test against the latest available version for the minor version of kubernetes we are building against e.g. 1.30.x
 ENVTEST_KUBE_VERSION ?= $(KUBE_MINOR).x
@@ -128,7 +160,7 @@ clean: #HELP Clean up build artifacts
 #SECTION Development
 
 .PHONY: lint
-lint: #HELP Run linters
+lint: $(GOLANGCI_LINT) #HELP Run linters
 	$(GOLANGCI_LINT) run $(GOLANGCI_LINT_ARGS)
 
 .PHONY: vet
@@ -153,10 +185,8 @@ UNIT_TEST_CMD = $(GO_TEST_ENV) go test $(GO_BUILD_FLAGS) -tags '$(GO_BUILD_TAGS)
 test: clean unit test-split #HELP Run all tests
 
 .PHONY: unit
-unit: GO_TEST_ENV += KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) #HELP Run OLM unit tests with setup-envtest for kubernetes $(KUBE_MINOR).x
-unit:
-	@echo "Running unit tests with setup_envtest for kubernetes $(KUBE_MINOR).x"
-	# Test the olm and package server manager
+unit: GO_TEST_ENV += KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS)
+unit: $(SETUP_ENVTEST) #HELP Run OLM unit tests with setup-envtest for kubernetes $(KUBE_MINOR).x
 	$(UNIT_TEST_CMD) ./pkg/controller/... ./pkg/...
 
 .PHONY: test-split
@@ -172,7 +202,7 @@ coverage: unit #HELP Run OLM unit tests with coverage
 #SECTION Deployment
 
 .PHONY: kind-clean
-kind-clean: #HELP Delete kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
+kind-clean: $(KIND) #HELP Delete kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
 	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME) || true
 
 .PHONY: kind-create
@@ -182,7 +212,7 @@ kind-create: kind-clean #HELP Create a new kind cluster $KIND_CLUSTER_NAME (defa
 
 .PHONY: deploy
 OLM_IMAGE := quay.io/operator-framework/olm:local
-deploy: #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0) using $OLM_IMAGE (default: quay.io/operator-framework/olm:local)
+deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0) using $OLM_IMAGE (default: quay.io/operator-framework/olm:local)
 	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
 	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
@@ -198,7 +228,7 @@ deploy: #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0
 		--wait;
 
 .PHONY: undeploy
-undeploy: #HELP Uninstall OLM from kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
+undeploy: $(KIND) $(HELM) #HELP Uninstall OLM from kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
 	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
 
 	# Uninstall Helm chart and remove CRDs
@@ -242,7 +272,12 @@ codegen: #HELP Generate clients, deepcopy, listers, and informers
 
 .PHONY: mockgen
 mockgen: #HELP Generate mocks
-	./scripts/update_mockgen.sh
+	# Generate mocks and silence the followign warning:
+	# WARNING: Invoking counterfeiter multiple times from "go generate" is slow.
+	# Consider using counterfeiter:generate directives to speed things up.
+	# See https://github.com/maxbrunsfeld/counterfeiter#step-2b---add-counterfeitergenerate-directives for more information.
+	# Set the "COUNTERFEITER_NO_GENERATE_WARNING" environment variable to suppress this message.
+	COUNTERFEITER_NO_GENERATE_WARNING=1 go generate ./pkg/...
 
 #SECTION Verification
 
@@ -273,6 +308,7 @@ pull-opm:
 	docker pull $(OPERATOR_REGISTRY_IMAGE)
 
 .PHONY: package
+package: $(YQ) $(HELM) #HELP Package OLM for release
 package: OLM_RELEASE_IMG_REF=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(IMAGE_REPO):$(RELEASE_VERSION))
 package: OPM_IMAGE_REF=$(shell docker inspect --format='{{index .RepoDigests 0}}' $(OPERATOR_REGISTRY_IMAGE))
 package:
