@@ -2705,7 +2705,7 @@ var _ = Describe("Subscription", func() {
 				}
 			} else {
 				registryURL = fmt.Sprintf("%s/%s", openshiftregistryFQDN, generatedNamespace.GetName())
-				registryAuth, err := openshiftRegistryAuth(c, generatedNamespace.GetName())
+				registryAuthSecretName, err := getRegistryAuthSecretName(c, generatedNamespace.GetName())
 				Expect(err).NotTo(HaveOccurred(), "error getting openshift registry authentication: %s", err)
 				copyImage = func(dst, dstTag, src, srcTag string) error {
 					if !strings.HasPrefix(src, "docker://") {
@@ -2714,14 +2714,15 @@ var _ = Describe("Subscription", func() {
 					if !strings.HasPrefix(dst, "docker://") {
 						dst = fmt.Sprintf("docker://%s", dst)
 					}
-					skopeoArgs := skopeoCopyCmd(dst, dstTag, src, srcTag, registryAuth)
-					err = createSkopeoPod(c, skopeoArgs, generatedNamespace.GetName())
+					skopeoArgs := skopeoCopyCmd(dst, dstTag, src, srcTag, registryAuthSecretName)
+					err = createSkopeoPod(c, skopeoArgs, generatedNamespace.GetName(), registryAuthSecretName)
 					if err != nil {
 						return fmt.Errorf("error creating skopeo pod: %v", err)
 					}
 
 					By(`wait for skopeo pod to exit successfully`)
 					awaitPod(GinkgoT(), c, generatedNamespace.GetName(), skopeo, func(pod *corev1.Pod) bool {
+						ctx.Ctx().Logf("skopeo pod status: %s (waiting for: %s)", pod.Status.Phase, corev1.PodSucceeded)
 						return pod.Status.Phase == corev1.PodSucceeded
 					})
 
@@ -3627,12 +3628,6 @@ func updateInternalCatalog(t GinkgoTInterface, c operatorclient.ClientInterface,
 	require.NoError(t, err)
 }
 
-func updateCatSrcPriority(crClient versioned.Interface, namespace string, catsrc *operatorsv1alpha1.CatalogSource, priority int) {
-	catsrc.Spec.Priority = priority
-	_, err := crClient.OperatorsV1alpha1().CatalogSources(namespace).Update(context.Background(), catsrc, metav1.UpdateOptions{})
-	Expect(err).Should(BeNil())
-}
-
 func subscriptionCurrentCSVGetter(crclient versioned.Interface, namespace, subName string) func() string {
 	return func() string {
 		subscription, err := crclient.OperatorsV1alpha1().Subscriptions(namespace).Get(context.Background(), subName, metav1.GetOptions{})
@@ -3640,17 +3635,5 @@ func subscriptionCurrentCSVGetter(crclient versioned.Interface, namespace, subNa
 			return ""
 		}
 		return subscription.Status.CurrentCSV
-	}
-}
-
-func operatorGroupServiceAccountNameSetter(crclient versioned.Interface, namespace, name, saName string) func() error {
-	return func() error {
-		toUpdate, err := crclient.OperatorsV1().OperatorGroups(namespace).Get(context.Background(), name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		toUpdate.Spec.ServiceAccountName = saName
-		_, err = crclient.OperatorsV1().OperatorGroups(namespace).Update(context.Background(), toUpdate, metav1.UpdateOptions{})
-		return err
 	}
 }

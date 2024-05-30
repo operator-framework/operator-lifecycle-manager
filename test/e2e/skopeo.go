@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"k8s.io/utils/ptr"
@@ -18,14 +19,15 @@ const (
 	debug                 = "--debug"
 	skipTLS               = "--dest-tls-verify=false"
 	skipCreds             = "--dest-no-creds=true"
-	destCreds             = "--dest-creds="
+	destCreds             = "--dest-authfile="
 	v2format              = "--format=v2s2"
-	skopeoImage           = "quay.io/olmtest/skopeo:0.1.40"
+	skopeoImage           = "quay.io/skopeo/stable:v1.15.0"
 	BuilderServiceAccount = "builder"
+	authPath              = "/mnt/registry-auth"
+	cachePath             = ".local"
 )
 
-func openshiftRegistryAuth(client operatorclient.ClientInterface, namespace string) (string, error) {
-
+func getRegistryAuthSecretName(client operatorclient.ClientInterface, namespace string) (string, error) {
 	var sa *corev1.ServiceAccount
 	var err error
 
@@ -47,15 +49,7 @@ func openshiftRegistryAuth(client operatorclient.ClientInterface, namespace stri
 	if err != nil {
 		return "", err
 	}
-	annotations := secret.Annotations
-	if annotations == nil {
-		return "", fmt.Errorf("annotations not present on builder secret")
-	}
-
-	user := annotations["openshift.io/token-secret.name"]
-	pass := annotations["openshift.io/token-secret.value"]
-
-	return fmt.Sprint(user, ":", pass), nil
+	return secret.GetName(), nil
 }
 
 func skopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
@@ -66,7 +60,7 @@ func skopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
 	if auth == "" {
 		creds = skipCreds
 	} else {
-		creds = fmt.Sprint(destCreds, auth)
+		creds = fmt.Sprint(destCreds, path.Join(cachePath, "auth.json"))
 	}
 
 	cmd := []string{debug, insecure, "copy", skipTLS, v2format, creds, oldImageName, newImageName}
@@ -74,7 +68,7 @@ func skopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
 	return cmd
 }
 
-func createSkopeoPod(client operatorclient.ClientInterface, args []string, namespace string) error {
+func createSkopeoPod(client operatorclient.ClientInterface, args []string, namespace string, registrySecret string) error {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      skopeo,
@@ -93,12 +87,12 @@ func createSkopeoPod(client operatorclient.ClientInterface, args []string, names
 					Image: skopeoImage,
 					Args:  args,
 					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem:   ptr.To(bool(false)),
-						AllowPrivilegeEscalation: ptr.To(bool(false)),
+						ReadOnlyRootFilesystem:   ptr.To(false),
+						AllowPrivilegeEscalation: ptr.To(false),
 						Capabilities: &corev1.Capabilities{
 							Drop: []corev1.Capability{"ALL"},
 						},
-						RunAsNonRoot: ptr.To(bool(true)),
+						RunAsNonRoot: ptr.To(true),
 						RunAsUser:    ptr.To(int64(1001)),
 					},
 				},
@@ -106,6 +100,43 @@ func createSkopeoPod(client operatorclient.ClientInterface, args []string, names
 			RestartPolicy: corev1.RestartPolicyNever,
 			// ServiceAccountName: "builder",
 		},
+	}
+
+	if registrySecret != "" {
+		// update container command to first convert the dockercfg to an auth.json file that skopeo can use
+		authJsonPath := path.Join(cachePath, "auth.json")
+		authJson := "\"{\\\"auths\\\": $(cat /mnt/registry-auth/.dockercfg)}\""
+		cmd := fmt.Sprintf("echo %s > %s && exec skopeo $@", authJson, authJsonPath)
+
+		pod.Spec.Containers[0].Command = []string{"bash", "-c", cmd}
+
+		pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+			{
+				Name:      "registry-auth",
+				MountPath: authPath,
+				ReadOnly:  true,
+			}, {
+				Name:      "cache",
+				MountPath: cachePath,
+				ReadOnly:  false,
+			},
+		}
+		pod.Spec.Volumes = []corev1.Volume{
+			{
+				Name: "registry-auth",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: registrySecret,
+					},
+				},
+			},
+			{
+				Name: "cache",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		}
 	}
 
 	_, err := client.KubernetesInterface().CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
