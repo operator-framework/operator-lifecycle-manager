@@ -868,6 +868,16 @@ func sortUnpackJobs(jobs []*batchv1.Job, maxRetainedJobs int) (latest *batchv1.J
 		if failedI != failedJ {
 			return !failedI // non-failed job goes first
 		}
+		// sort multiple jobs without the Failed condition
+		if condI == nil && condJ == nil {
+			return jobs[i].CreationTimestamp.After(jobs[j].CreationTimestamp.Time)
+		}
+		if condI == nil {
+			return false
+		}
+		if condJ == nil {
+			return true
+		}
 		return condI.LastTransitionTime.After(condJ.LastTransitionTime.Time)
 	})
 	latest = jobs[0]
