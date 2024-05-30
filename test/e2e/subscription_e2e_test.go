@@ -2597,19 +2597,24 @@ var _ = Describe("Subscription", func() {
 				err = magicCatalog.UpdateCatalog(context.Background(), provider)
 				Expect(err).To(BeNil())
 
-				By("waiting for the subscription to have v0.3.0 installed")
+				By("waiting for the subscription to switch to v0.3.0")
 				sub, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionHasCurrentCSV("example-operator.v0.3.0"))
 				Expect(err).Should(BeNil())
 
-				By("waiting for the subscription to have v0.3.0 installed with a Package deprecated condition")
+				By("waiting for the subscription to have be at latest known")
+				sub, err = fetchSubscription(crc, generatedNamespace.GetName(), subName, subscriptionStateAtLatestChecker())
+				Expect(err).Should(BeNil())
+
+				By("waiting for the subscription to have v0.3.0 installed without a bundle deprecated condition")
 				sub, err = fetchSubscription(crc, generatedNamespace.GetName(), subName,
 					subscriptionHasCondition(
-						operatorsv1alpha1.SubscriptionPackageDeprecated,
-						corev1.ConditionTrue,
+						operatorsv1alpha1.SubscriptionInstallPlanPending,
+						corev1.ConditionUnknown,
 						"",
-						"olm.package/test-package: test-package has been deprecated. Please switch to another-package.",
+						"",
 					),
 				)
+				Expect(err).Should(BeNil())
 
 				By("checking for the deprecated conditions")
 				By(`Operator is deprecated at only Package and Channel levels`)
