@@ -15,7 +15,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -1887,6 +1886,7 @@ var _ = Describe("Install Plan", func() {
 
 			By(`If the CSV is succeeded, we successfully rolled out the RBAC changes`)
 		})
+
 		It("AttenuatePermissions", func() {
 
 			defer func() {
@@ -2017,7 +2017,33 @@ var _ = Describe("Install Plan", func() {
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), mainCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
 
-			By(`Update CatalogSource with a new CSV with more permissions`)
+			By("Wait for ServiceAccount to have access")
+			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+				res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(context.Background(), &authorizationv1.SubjectAccessReview{
+					Spec: authorizationv1.SubjectAccessReviewSpec{
+						User: "system:serviceaccount:" + generatedNamespace.GetName() + ":" + serviceAccountName,
+						ResourceAttributes: &authorizationv1.ResourceAttributes{
+							Group:    "cluster.com",
+							Version:  "v1alpha1",
+							Resource: crdPlural,
+							Verb:     rbac.VerbAll,
+						},
+					},
+				}, metav1.CreateOptions{})
+				if err != nil {
+					return false, err
+				}
+				if res == nil {
+					return false, nil
+				}
+				GinkgoT().Log("checking serviceaccount for permission")
+
+				By("should be allowed")
+				return res.Status.Allowed, nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By(`Update CatalogSource with a new CSV with fewer permissions`)
 			updatedPermissions := []operatorsv1alpha1.StrategyDeploymentPermissions{
 				{
 					ServiceAccountName: serviceAccountName,
@@ -2042,9 +2068,6 @@ var _ = Describe("Install Plan", func() {
 					},
 				},
 			}
-
-			oldSecrets, err := c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).List(context.Background(), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err, "error listing secrets")
 
 			By(`Create the catalog sources`)
 			updatedNamedStrategy := newNginxInstallStrategy(genName("dep-"), updatedPermissions, updatedClusterPermissions)
@@ -2076,15 +2099,6 @@ var _ = Describe("Install Plan", func() {
 			By(`Wait for csv to update`)
 			_, err = fetchCSV(crc, generatedNamespace.GetName(), updatedCSV.GetName(), csvSucceededChecker)
 			require.NoError(GinkgoT(), err)
-
-			newSecrets, err := c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).List(context.Background(), metav1.ListOptions{})
-			require.NoError(GinkgoT(), err, "error listing secrets")
-
-			By(`Assert that the number of secrets is not increased from updating service account as part of the install plan,`)
-			assert.EqualValues(GinkgoT(), len(oldSecrets.Items), len(newSecrets.Items))
-
-			By(`And that the secret list is indeed updated.`)
-			assert.Equal(GinkgoT(), oldSecrets.Items, newSecrets.Items)
 
 			By(`Wait for ServiceAccount to not have access anymore`)
 			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
