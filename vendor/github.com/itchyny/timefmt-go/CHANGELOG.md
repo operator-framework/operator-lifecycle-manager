@@ -1,4 +1,9 @@
 # Changelog
+## [v0.1.6](https://github.com/itchyny/timefmt-go/compare/v0.1.5..v0.1.6) (2024-06-01)
+* support parsing week directives (`%A`, `%a`, `%w`, `%u`, `%V`, `%U`, `%W`)
+* validate range of values on parsing directives
+* fix formatting `%l` to show `12` at midnight
+
 ## [v0.1.5](https://github.com/itchyny/timefmt-go/compare/v0.1.4..v0.1.5) (2022-12-01)
 * support parsing time zone offset with name using both `%z` and `%Z`
 
