@@ -1,0 +1,89 @@
+{
+    "schema": "olm.package",
+    "name": "busybox",
+    "defaultChannel": "alpha"
+}
+{
+    "schema": "olm.channel",
+    "name": "alpha",
+    "package": "busybox",
+    "entries": [
+        {
+            "name": "busybox.v1.0.0"
+        }
+    ]
+}
+{
+    "schema": "olm.bundle",
+    "name": "busybox.v1.0.0",
+    "package": "busybox",
+    "image": "quay.io/olmtest/busybox-bundle:1.0.0",
+    "properties": [
+        {
+            "type": "olm.gvk.required",
+            "value": {
+                "group": "olm.test.io",
+                "kind": "Foo",
+                "version": "v1"
+            }
+        },
+        {
+            "type": "olm.package",
+            "value": {
+                "packageName": "busybox",
+                "version": "1.0.0"
+            }
+        },
+        {
+            "type": "olm.csv.metadata",
+            "value": {
+                "apiServiceDefinitions": {},
+                "crdDescriptions": {
+                    "required": [
+                        {
+                            "name": "foos.olm.test.io",
+                            "version": "v1",
+                            "kind": "Foo",
+                            "displayName": "Foo",
+                            "description": "Foo resources for testing dependencies"
+                        }
+                    ]
+                },
+                "description": "A busybox CSV.\n",
+                "displayName": "busybox",
+                "installModes": [
+                    {
+                        "type": "OwnNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "SingleNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "MultiNamespace",
+                        "supported": true
+                    },
+                    {
+                        "type": "AllNamespaces",
+                        "supported": true
+                    }
+                ],
+                "maturity": "alpha",
+                "provider": {
+                    "name": "Red Hat"
+                }
+            }
+        }
+    ],
+    "relatedImages": [
+        {
+            "name": "",
+            "image": "busybox"
+        },
+        {
+            "name": "",
+            "image": "quay.io/olmtest/busybox-bundle:1.0.0"
+        }
+    ]
+}
