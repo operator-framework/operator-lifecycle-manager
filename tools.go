@@ -7,6 +7,9 @@
 // - They share dependencies (e.g. k8s libraries) with the main module and should be kept in sync
 package tools
 
+// OPM
+import _ "github.com/operator-framework/operator-registry/cmd/opm"
+
 // The OLM API CRDs used as input to the code generators
 import _ "github.com/operator-framework/api/crds" // operators.coreos.com CRD manifests
 
