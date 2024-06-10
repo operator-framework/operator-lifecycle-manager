@@ -49,6 +49,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		c                   operatorclient.ClientInterface
 		crc                 versioned.Interface
 		packageserverClient *packageserverclientset.Clientset
+		testCatalogImage    string
 	)
 
 	BeforeEach(func() {
@@ -67,6 +68,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
 		packageserverClient = packageserverclientset.NewForConfigOrDie(ctx.Ctx().RESTConfig())
+		testCatalogImage = fmt.Sprintf("%s/test-catalog:e2e", testClusterRegistry)
 	})
 
 	AfterEach(func() {
@@ -704,7 +706,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
-				Image:      communityOperatorsImage,
+				Image:      testCatalogImage,
 				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 					SecurityContextConfig: v1alpha1.Restricted,
 				},
@@ -764,7 +766,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
-				Image:      communityOperatorsImage,
+				Image:      testCatalogImage,
 				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 					SecurityContextConfig: v1alpha1.Restricted,
 					ExtractContent: &v1alpha1.ExtractContentConfig{
@@ -1075,7 +1077,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			},
 			Spec: v1alpha1.CatalogSourceSpec{
 				SourceType: v1alpha1.SourceTypeGrpc,
-				Image:      catSrcImage + ":1.0.0-with-ListBundles-method",
+				Image:      fmt.Sprintf("%s:1.0.0-with-ListBundles-method", catSrcImage),
 				GrpcPodConfig: &v1alpha1.GrpcPodConfig{
 					SecurityContextConfig: v1alpha1.Restricted,
 				},
@@ -1126,8 +1128,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 			if err != nil {
 				return err
 			}
-			existingSource.Spec.Image = catSrcImage + ":2.0.0-with-ListBundles-method"
-
+			existingSource.Spec.Image = fmt.Sprintf("%s:2.0.0-with-ListBundles-method", catSrcImage)
 			source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(context.Background(), existingSource, metav1.UpdateOptions{})
 			return err
 		}).Should(Succeed())

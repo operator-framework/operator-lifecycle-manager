@@ -38,12 +38,6 @@ var (
 	catalogNamespace = flag.String(
 		"catalogNamespace", "", "namespace where the global catalog content is stored")
 
-	communityOperators = flag.String(
-		"communityOperators",
-		"quay.io/operatorhubio/catalog:latest",
-		"reference to upstream-community-operators image",
-	)
-
 	dummyImage = flag.String(
 		"dummyImage",
 		"bitnami/nginx:latest",
@@ -62,6 +56,12 @@ var (
 		"configures where to find the testdata directory",
 	)
 
+	clusterRegistry = flag.String(
+		"cluster-registry",
+		"localhost:5001",
+		"set cluster registry url (default: localhost:5001)",
+	)
+
 	kubeconfigRootDir = flag.String(
 		"kubeconfig-root",
 		"",
@@ -71,11 +71,11 @@ var (
 			"Note that this flag will override the kubeconfig flag.",
 	)
 
-	testdataDir             = ""
-	testNamespace           = ""
-	operatorNamespace       = ""
-	communityOperatorsImage = ""
-	globalCatalogNamespace  = ""
+	testdataDir            = ""
+	testNamespace          = ""
+	operatorNamespace      = ""
+	globalCatalogNamespace = ""
+	testClusterRegistry    = ""
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -104,9 +104,9 @@ var _ = BeforeSuite(func() {
 
 	testNamespace = *namespace
 	operatorNamespace = *olmNamespace
-	communityOperatorsImage = *communityOperators
 	globalCatalogNamespace = *catalogNamespace
 	testdataDir = *testdataPath
+	testClusterRegistry = *clusterRegistry
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 
