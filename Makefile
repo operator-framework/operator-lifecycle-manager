@@ -213,7 +213,10 @@ kind-create: kind-clean #HELP Create a new kind cluster $KIND_CLUSTER_NAME (defa
 .PHONY: deploy
 OLM_IMAGE := quay.io/operator-framework/olm:local
 deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0) using $OLM_IMAGE (default: quay.io/operator-framework/olm:local)
-	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME); \
+	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME)
+	@if [ "${UPDATE_FIXTURES}" = "true" ]; then \
+		scripts/e2e_test_fixtures.sh --kind-load --skip-build; \
+	fi
 	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
 		--set olm.image.ref=$(OLM_IMAGE) \

@@ -15,22 +15,36 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.vars.outputs.sha }}
+      UPDATE_FIXTURES: ${{ steps.fixtures.outputs.UPDATE_FIXTURES }}
     steps:
       # checkout code and setup go
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
+      # add the fixtures changed flag (UPDATE_FIXTURES) to the job output to others can use it
+      - name: Rebuild fixtures if necessary
+        id: fixtures
+        run: |
+          UPDATE_FIXTURES="$(scripts/e2e_test_fixtures.sh --check)"
+          if [ "${UPDATE_FIXTURES}" == "true" ]; then
+            # rebuild fixtures and export the images to .tar.gz files with --save
+            scripts/e2e_test_fixtures.sh --save
+          fi
+          
+          # Add UPDATE_FIXTURES to the job output
+          echo "UPDATE_FIXTURES=${UPDATE_FIXTURES}" >> $GITHUB_OUTPUT
+
       # build binaries and image for e2e test (includes experimental features)
-      - name: Build controller image
-        run: make e2e-build
-      - name: Save image
-        run: docker save quay.io/operator-framework/olm:local -o olm-image.tar
-      - name: Upload Docker image as artifact
+      - name: Build OLM Image
+        run: |
+          make e2e-build
+          docker save quay.io/operator-framework/olm:local | gzip > olm-image.tar.gz
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: olm-image.tar
-          path: olm-image.tar
+          name: docker-images
+          path: "*.tar.gz"
 
   # Run e2e tests in parallel jobs
   # Take olm image from the previous stage
@@ -54,13 +68,17 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      # load the olm image
-      - name: Load OLM Docker image
+      # load images into kind
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: olm-image.tar
-          path: .
-      - run: docker load < olm-image.tar
+          name: docker-images
+          path: images/
+      - name: Load Docker images
+        run: |
+          for image in images/*.tar.gz; do
+            docker load -i $image
+          done
 
       # set e2e environment variables
       # Set ginkgo output and parallelism
@@ -87,6 +105,7 @@ jobs:
             KIND_CLUSTER_NAME="kind-olmv0-${i}" \
             KIND_CREATE_OPTS="--kubeconfig=${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
             HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
+            UPDATE_FIXTURES="${{ needs.build.outputs.UPDATE_FIXTURES }}" \
             make kind-create deploy;
           done
 
