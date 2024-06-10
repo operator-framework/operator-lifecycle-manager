@@ -38,10 +38,10 @@ var (
 	catalogNamespace = flag.String(
 		"catalogNamespace", "", "namespace where the global catalog content is stored")
 
-	communityOperators = flag.String(
-		"communityOperators",
-		"quay.io/operatorhubio/catalog:latest",
-		"reference to upstream-community-operators image",
+	opmVersion = flag.String(
+		"opmVersion",
+		"latest",
+		"opm version used by test images",
 	)
 
 	dummyImage = flag.String(
@@ -71,11 +71,11 @@ var (
 			"Note that this flag will override the kubeconfig flag.",
 	)
 
-	testdataDir             = ""
-	testNamespace           = ""
-	operatorNamespace       = ""
-	communityOperatorsImage = ""
-	globalCatalogNamespace  = ""
+	testdataDir            = ""
+	testNamespace          = ""
+	operatorNamespace      = ""
+	testOpmVersion         = ""
+	globalCatalogNamespace = ""
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -104,7 +104,7 @@ var _ = BeforeSuite(func() {
 
 	testNamespace = *namespace
 	operatorNamespace = *olmNamespace
-	communityOperatorsImage = *communityOperators
+	testOpmVersion = *opmVersion
 	globalCatalogNamespace = *catalogNamespace
 	testdataDir = *testdataPath
 	deprovision = ctx.MustProvision(ctx.Ctx())

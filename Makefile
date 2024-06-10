@@ -251,7 +251,7 @@ GINKGO_OPTS += -v -randomize-suites -race -trace --show-node-events $(if $(E2E_F
 
 .PHONY: e2e
 e2e: #HELP Run e2e tests against a cluster running OLM (params: $E2E_TEST_NS (operator), $E2E_INSTALL_NS (operator-lifecycle-manager), $E2E_CATALOG_NS (operator-lifecycle-manager), $E2E_TIMEOUT (90m), $E2E_FLAKE_ATTEMPTS (1), $TEST(undefined))
-	$(GO_TEST_ENV) $(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) $(E2E_OPTS)
+	$(GO_TEST_ENV) $(GINKGO) -timeout $(E2E_TIMEOUT) $(GINKGO_OPTS) ./test/e2e -- -namespace=$(E2E_TEST_NS) -olmNamespace=$(E2E_INSTALL_NS) -catalogNamespace=$(E2E_CATALOG_NS) -opmVersion=$(OPERATOR_REGISTRY_VERSION) $(E2E_OPTS)
 
 .PHONY: e2e-local
 e2e-local: e2e-build kind-create deploy e2e
