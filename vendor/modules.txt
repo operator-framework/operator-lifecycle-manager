@@ -271,9 +271,6 @@ github.com/go-air/gini/inter
 github.com/go-air/gini/internal/xo
 github.com/go-air/gini/logic
 github.com/go-air/gini/z
-<<<<<<< HEAD
-# github.com/go-logr/logr v1.4.2
-=======
 # github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376
 ## explicit; go 1.13
 github.com/go-git/gcfg
@@ -289,8 +286,7 @@ github.com/go-git/go-git/v5/internal/path_util
 github.com/go-git/go-git/v5/plumbing/format/config
 github.com/go-git/go-git/v5/plumbing/format/gitignore
 github.com/go-git/go-git/v5/utils/ioutil
-# github.com/go-logr/logr v1.4.1
->>>>>>> 2452c2f43 (add opm to tools)
+# github.com/go-logr/logr v1.4.2
 ## explicit; go 1.18
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
