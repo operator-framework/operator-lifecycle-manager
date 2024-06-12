@@ -12,6 +12,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	rbacv1ac "k8s.io/client-go/applyconfigurations/rbac/v1"
 
@@ -161,6 +162,7 @@ func HostnamesForService(serviceName, namespace string) []string {
 	return []string{
 		fmt.Sprintf("%s.%s", serviceName, namespace),
 		fmt.Sprintf("%s.%s.svc", serviceName, namespace),
+		fmt.Sprintf("%s.%s.svc.cluster.local", serviceName, namespace),
 	}
 }
 
@@ -274,15 +276,15 @@ func shouldRotateCerts(certSecret *corev1.Secret, hosts []string) bool {
 func (i *StrategyDeploymentInstaller) ShouldRotateCerts(s Strategy) (bool, error) {
 	strategy, ok := s.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
-		return false, fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
+		return false, fmt.Errorf("failed to install %s strategy with deployment installer: unsupported deployment install strategy", strategy.GetStrategyName())
 	}
 
-	hasCerts := map[string]struct{}{}
+	hasCerts := sets.New[string]()
 	for _, c := range i.getCertResources() {
-		hasCerts[c.getDeploymentName()] = struct{}{}
+		hasCerts.Insert(c.getDeploymentName())
 	}
 	for _, sddSpec := range strategy.DeploymentSpecs {
-		if _, ok := hasCerts[sddSpec.Name]; ok {
+		if hasCerts.Has(sddSpec.Name) {
 			certSecret, err := i.strategyClient.GetOpLister().CoreV1().SecretLister().Secrets(i.owner.GetNamespace()).Get(SecretName(ServiceName(sddSpec.Name)))
 			if err == nil {
 				if shouldRotateCerts(certSecret, HostnamesForService(ServiceName(sddSpec.Name), i.owner.GetNamespace())) {
