@@ -4,17 +4,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 )
 
 type FileBasedCatalogProvider interface {
 	GetCatalog() string
 }
 
+type FileBasedCatalogProviderOption func(provider *fileBasedFileBasedCatalogProvider)
+
 type fileBasedFileBasedCatalogProvider struct {
 	fbc string
 }
 
-func NewFileBasedFiledBasedCatalogProvider(path string) (FileBasedCatalogProvider, error) {
+func NewFileBasedFiledBasedCatalogProvider(path string, opts ...FileBasedCatalogProviderOption) (FileBasedCatalogProvider, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("path %s does not exist: %w", path, err)
@@ -23,9 +26,18 @@ func NewFileBasedFiledBasedCatalogProvider(path string) (FileBasedCatalogProvide
 		return nil, err
 	}
 
-	return &fileBasedFileBasedCatalogProvider{
+	p := &fileBasedFileBasedCatalogProvider{
 		fbc: string(data),
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p, nil
+}
+
+func (f *fileBasedFileBasedCatalogProvider) Modify(mod func(fbc string) string) {
+	f.fbc = mod(f.fbc)
 }
 
 func (f *fileBasedFileBasedCatalogProvider) GetCatalog() string {
@@ -36,4 +48,10 @@ func NewRawFileBasedCatalogProvider(data string) (FileBasedCatalogProvider, erro
 	return &fileBasedFileBasedCatalogProvider{
 		fbc: string(data),
 	}, nil
+}
+
+func BundleRegistry(registry string) FileBasedCatalogProviderOption {
+	return func(provider *fileBasedFileBasedCatalogProvider) {
+		provider.fbc = strings.ReplaceAll(registry, provider.fbc, "quay.io/olmtest")
+	}
 }

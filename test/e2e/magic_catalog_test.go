@@ -32,7 +32,7 @@ var _ = Describe("MagicCatalog", func() {
 		// create dependencies
 		const catalogName = "test"
 		namespace := generatedNamespace.GetName()
-		provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "magiccatalog/fbc_catalog.json"))
+		provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "magiccatalog/fbc_catalog.json"), BundleRegistry(fixtureRegistryUrl))
 		Expect(err).To(BeNil())
 
 		// create and deploy and undeploy the magic catalog
@@ -50,7 +50,7 @@ var _ = Describe("MagicCatalog", func() {
 		)
 
 		BeforeEach(func() {
-			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "magiccatalog/fbc_initial.yaml"))
+			provider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "magiccatalog/fbc_initial.yaml"), BundleRegistry(fixtureRegistryUrl))
 			Expect(err).To(BeNil())
 
 			catalogName = genName("mc-e2e-catalog-")
@@ -64,7 +64,7 @@ var _ = Describe("MagicCatalog", func() {
 		})
 
 		It("should succeed when the magic catalog is updated", func() {
-			updatedProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "magiccatalog/fbc_updated.yaml"))
+			updatedProvider, err := NewFileBasedFiledBasedCatalogProvider(filepath.Join(testdataDir, "magiccatalog/fbc_updated.yaml"), BundleRegistry(fixtureRegistryUrl))
 			Expect(err).To(BeNil())
 
 			updatedMC := NewMagicCatalog(c, generatedNamespace.GetName(), catalogName, updatedProvider)

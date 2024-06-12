@@ -62,6 +62,12 @@ var (
 		"configures where to find the testdata directory",
 	)
 
+	fixtureRegistry = flag.String(
+		"fixture-registry",
+		"localhost:5001",
+		"configure registry for e2e fixture images",
+	)
+
 	kubeconfigRootDir = flag.String(
 		"kubeconfig-root",
 		"",
@@ -76,6 +82,7 @@ var (
 	operatorNamespace      = ""
 	testOpmVersion         = ""
 	globalCatalogNamespace = ""
+	fixtureRegistryUrl     = "localhost:5001"
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -107,6 +114,7 @@ var _ = BeforeSuite(func() {
 	testOpmVersion = *opmVersion
 	globalCatalogNamespace = *catalogNamespace
 	testdataDir = *testdataPath
+	fixtureRegistryUrl = *fixtureRegistry
 	deprovision = ctx.MustProvision(ctx.Ctx())
 	ctx.MustInstall(ctx.Ctx())
 

@@ -68,7 +68,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
 		packageserverClient = packageserverclientset.NewForConfigOrDie(ctx.Ctx().RESTConfig())
-		testCatalogImage = fmt.Sprintf("quay.io/olmtest/test-catalog:v%s", testOpmVersion)
+		testCatalogImage = fmt.Sprintf("%s/test-catalog:v%s", fixtureRegistryUrl, testOpmVersion)
 	})
 
 	AfterEach(func() {
@@ -1063,7 +1063,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		packageName := "busybox"
 		channelName := "alpha"
 
-		catSrcImage := "quay.io/olmtest/busybox-dependencies-index"
+		catSrcImage := fmt.Sprintf("%s/busybox-dependencies-index", fixtureRegistryUrl)
 
 		By("creating gRPC CatalogSource")
 		source := &v1alpha1.CatalogSource{
