@@ -4,17 +4,22 @@
 source .bingo/variables.env
 
 # Default values
+OPM_VERSION=$(go list -m github.com/operator-framework/operator-registry | cut -d" " -f2 | sed 's/^v//')
+
+# Parameters
 KIND=${KIND:-kind}
 KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME:-kind-olmv0}
-OPM_VERSION=$(go list -m github.com/operator-framework/operator-registry | cut -d" " -f2 | sed 's/^v//')
-PUSH=false
-SAVE=false
-CONTAINER_RUNTIME=docker
-REGISTRY=quay.io/olmtest
-TARGET_BRANCH=master
+CONTAINER_RUNTIME=${CONTAINER_RUNTIME:-docker}
+REGISTRY=${REGISTRY:-quay.io/olmtest}
+TARGET_BRANCH=${TARGET_BRANCH:-master}
+PUSH_TO=${PUSH_TO:-quay.io/olmtest}
+
+# Flags
 CHECK=false
 LOAD_KIND=false
 BUILD=true
+PUSH=false
+SAVE=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -24,6 +29,11 @@ while [ $# -gt 0 ]; do
       ;;
     # push images to registry after build
     --push)
+      PUSH="true"
+      ;;
+    # push images to a different registry
+    --push-to=*)
+      PUSH_TO="${1#*=}"
       PUSH="true"
       ;;
     # check if images need to be updated - won't build or push images
@@ -158,6 +168,23 @@ fi
 
 # Assumes images are already built
 if [ "$PUSH" = true ]; then
+  if [ ! "$PUSH_TO" = "" ]; then
+    ${CONTAINER_RUNTIME} tag "${BUNDLE_V1_IMAGE}" "${PUSH_TO}/busybox-bundle:1.0.0-${OPM_VERSION}"
+    ${CONTAINER_RUNTIME} tag "${BUNDLE_V1_DEP_IMAGE}" "${PUSH_TO}/busybox-dependency-bundle:1.0.0-${OPM_VERSION}"
+    ${CONTAINER_RUNTIME} tag "${BUNDLE_V2_IMAGE}" "${PUSH_TO}/busybox-bundle:2.0.0-${OPM_VERSION}"
+    ${CONTAINER_RUNTIME} tag "${BUNDLE_V2_DEP_IMAGE}" "${PUSH_TO}/busybox-dependency-bundle:2.0.0-${OPM_VERSION}"
+    ${CONTAINER_RUNTIME} tag "${INDEX_V1}" "${PUSH_TO}/busybox-dependencies-index:1.0.0-with-ListBundles-method-${OPM_VERSION}"
+    ${CONTAINER_RUNTIME} tag "${INDEX_V2}" "${PUSH_TO}/busybox-dependencies-index:2.0.0-with-ListBundles-method-${OPM_VERSION}"
+    ${CONTAINER_RUNTIME} tag "${TEST_CATALOG_IMAGE}" "${PUSH_TO}/test-catalog:${OPM_VERSION}"
+
+    BUNDLE_V1_IMAGE="${PUSH_TO}/busybox-bundle:1.0.0-${OPM_VERSION}"
+    BUNDLE_V1_DEP_IMAGE="${PUSH_TO}/busybox-dependency-bundle:1.0.0-${OPM_VERSION}"
+    BUNDLE_V2_IMAGE="${PUSH_TO}/busybox-bundle:2.0.0-${OPM_VERSION}"
+    BUNDLE_V2_DEP_IMAGE="${PUSH_TO}/busybox-dependency-bundle:2.0.0-${OPM_VERSION}"
+    INDEX_V1="${PUSH_TO}/busybox-dependencies-index:1.0.0-with-ListBundles-method-${OPM_VERSION}"
+    INDEX_V2="${PUSH_TO}/busybox-dependencies-index:2.0.0-with-ListBundles-method-${OPM_VERSION}"
+    TEST_CATALOG_IMAGE="${PUSH_TO}/test-catalog:${OPM_VERSION}"
+  fi
   # push bundles
   ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
   ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"

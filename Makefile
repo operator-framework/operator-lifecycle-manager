@@ -63,7 +63,7 @@ export CONFIGMAP_SERVER_IMAGE ?= quay.io/operator-framework/configmap-operator-r
 
 PKG := github.com/operator-framework/operator-lifecycle-manager
 IMAGE_REPO ?= quay.io/operator-framework/olm
-IMAGE_TAG ?= "dev"
+IMAGE_TAG ?= "local"
 
 # Go build settings #
 
@@ -103,7 +103,7 @@ KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use -p path $(KUBE_MINOR).x)
 # Kind node image tags are in the format x.y.z we pin to version x.y.0 because patch releases and node images
 # are not guaranteed to be available when a new version of the kube apis is released
 KIND_CLUSTER_IMAGE := kindest/node:v$(KUBE_MINOR).0
-KIND_CLUSTER_NAME ?= kind-olmv0
+export KIND_CLUSTER_NAME ?= kind-olmv0
 
 # Targets #
 # Disable -j flag for make
@@ -144,6 +144,10 @@ build: build-utils $(CMDS)
 image: export GOOS = linux
 image: clean build #HELP Build image image for linux on host architecture
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) -f Dockerfile bin
+
+.PHONE: build-e2e-fixture-images
+build-e2e-fixture-images: #HELP Build images for e2e testing
+	./scripts/e2e_test_fixtures.sh
 
 .PHONY: e2e-build
 # the e2e and experimental_metrics tags are required to get e2e tests to pass
@@ -207,16 +211,21 @@ kind-clean: $(KIND) #HELP Delete kind cluster $KIND_CLUSTER_NAME (default: kind-
 
 .PHONY: kind-create
 kind-create: kind-clean #HELP Create a new kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0)
-	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) --image $(KIND_CLUSTER_IMAGE) $(KIND_CREATE_OPTS)
+	./scripts/kind_with_registry.sh
 	$(KIND) export kubeconfig --name $(KIND_CLUSTER_NAME)
 
+.PHONY: kind-load
+kind-load: #HELP Load the OLM images into the kind cluster's registry
+	# upload olm image to kind registry
+	docker tag $(IMAGE_REPO):$(IMAGE_TAG) localhost:5001/olm:$(IMAGE_TAG)
+	docker push localhost:5001/olm:$(IMAGE_TAG)
+
+	# upload e2e fixture images
+	./scripts/e2e_test_fixtures.sh --skip-build --push-to="localhost:5001"
+
 .PHONY: deploy
-OLM_IMAGE := quay.io/operator-framework/olm:local
+OLM_IMAGE ?= localhost:5001/olm:local
 deploy: $(KIND) $(HELM) #HELP Deploy OLM to kind cluster $KIND_CLUSTER_NAME (default: kind-olmv0) using $OLM_IMAGE (default: quay.io/operator-framework/olm:local)
-	$(KIND) load docker-image $(OLM_IMAGE) --name $(KIND_CLUSTER_NAME)
-	@if [ "${UPDATE_FIXTURES}" = "true" ]; then \
-		scripts/e2e_test_fixtures.sh --kind-load --skip-build; \
-	fi
 	$(HELM) upgrade --install olm deploy/chart \
 		--set debug=true \
 		--set olm.image.ref=$(OLM_IMAGE) \
