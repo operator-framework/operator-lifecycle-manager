@@ -1817,8 +1817,8 @@ github.com/openshift/api v0.0.0-20221021112143-4226c2167e40 h1:PxjGCA72RtsdHWToZ
 github.com/openshift/api v0.0.0-20221021112143-4226c2167e40/go.mod h1:aQ6LDasvHMvHZXqLHnX2GRmnfTWCF/iIwz8EMTTIE9A=
 github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c h1:CV76yFOTXmq9VciBR3Bve5ZWzSxdft7gaMVB3kS0rwg=
 github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c/go.mod h1:lFMO8mLHXWFzSdYvGNo8ivF9SfF6zInA8ZGw4phRnUE=
-github.com/operator-framework/api v0.25.0 h1:pSQwFSoPmZaTIERadawxtCwicehLkC7i9n3w3+70SVI=
-github.com/operator-framework/api v0.25.0/go.mod h1:PvyCQb0x53ytIqdTECH5e+iqv+am3uZ0qGsZWmL35gQ=
+github.com/operator-framework/api v0.26.0 h1:YVntU2NkVl5zSLLwK5kFcH6P3oSvN9QDgTsY9mb4yUM=
+github.com/operator-framework/api v0.26.0/go.mod h1:3IxOwzVUeGxYlzfwKCcfCyS+q3EEhWA/4kv7UehbeyM=
 github.com/operator-framework/operator-registry v1.43.1 h1:ACahVHGIL/hINBXd3RKWqSFR5SmSM6L5/n9xXqpR51s=
 github.com/operator-framework/operator-registry v1.43.1/go.mod h1:qhssAIYWXDIW+nTg0C5i4iD9zpMtiXtfXqGUuUmGz5c=
 github.com/otiai10/copy v1.14.0 h1:dCI/t1iTdYGtkvCuBG2BgR6KZa83PTclw4U5n2wAllU=
