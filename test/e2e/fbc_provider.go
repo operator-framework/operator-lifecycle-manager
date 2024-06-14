@@ -52,6 +52,6 @@ func NewRawFileBasedCatalogProvider(data string) (FileBasedCatalogProvider, erro
 
 func BundleRegistry(registry string) FileBasedCatalogProviderOption {
 	return func(provider *fileBasedFileBasedCatalogProvider) {
-		provider.fbc = strings.ReplaceAll(registry, provider.fbc, "quay.io/olmtest")
+		provider.fbc = strings.ReplaceAll(provider.fbc, "quay.io/olmtest", registry)
 	}
 }

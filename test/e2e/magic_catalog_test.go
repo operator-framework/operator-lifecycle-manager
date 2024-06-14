@@ -88,7 +88,7 @@ var _ = Describe("MagicCatalog", func() {
 						return ""
 					}
 					return data
-				}, ContainSubstring(`---
+				}, MatchRegexp(`---
 schema: olm.package
 name: test-package
 defaultChannel: stable
@@ -103,7 +103,7 @@ entries:
 schema: olm.bundle
 name: busybox.v2.0.0
 package: test-package
-image: quay.io/olmtest/busybox-bundle:2.0.0
+image: .*/busybox-bundle:2.0.0
 properties:
   - type: olm.gvk
     value:
