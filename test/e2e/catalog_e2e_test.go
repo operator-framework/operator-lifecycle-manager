@@ -41,6 +41,7 @@ const (
 	openshiftregistryFQDN = "image-registry.openshift-image-registry.svc:5000"
 	catsrcImage           = "docker://quay.io/olmtest/catsrc-update-test:"
 	badCSVDir             = "bad-csv"
+	testCatalogImage      = "docker-registry.olm-e2e.svc:5000/test-catalog:e2e"
 )
 
 var _ = Describe("Starting CatalogSource e2e tests", func() {
@@ -49,7 +50,6 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		c                   operatorclient.ClientInterface
 		crc                 versioned.Interface
 		packageserverClient *packageserverclientset.Clientset
-		testCatalogImage    string
 	)
 
 	BeforeEach(func() {
@@ -68,7 +68,6 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		c = ctx.Ctx().KubeClient()
 		crc = ctx.Ctx().OperatorClient()
 		packageserverClient = packageserverclientset.NewForConfigOrDie(ctx.Ctx().RESTConfig())
-		testCatalogImage = fmt.Sprintf("quay.io/olmtest/test-catalog:v%s", testOpmVersion)
 	})
 
 	AfterEach(func() {

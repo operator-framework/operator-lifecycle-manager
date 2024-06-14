@@ -22,19 +22,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
-      # add the fixtures changed flag (UPDATE_FIXTURES) to the job output to others can use it
-      - name: Rebuild fixtures if necessary
-        id: fixtures
-        run: |
-          UPDATE_FIXTURES="$(scripts/e2e_test_fixtures.sh --check)"
-          if [ "${UPDATE_FIXTURES}" == "true" ]; then
-            # rebuild fixtures and export the images to .tar.gz files with --save
-            scripts/e2e_test_fixtures.sh --save
-          fi
-          
-          # Add UPDATE_FIXTURES to the job output
-          echo "UPDATE_FIXTURES=${UPDATE_FIXTURES}" >> $GITHUB_OUTPUT
-
       # build binaries and image for e2e test (includes experimental features)
       - name: Build OLM Image
         run: |
@@ -106,7 +93,7 @@ jobs:
             KIND_CREATE_OPTS="--kubeconfig=${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
             HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
             UPDATE_FIXTURES="${{ needs.build.outputs.UPDATE_FIXTURES }}" \
-            make kind-create deploy;
+            make kind-create image-registry build-and-load-e2e-fixture-images deploy;
           done
 
       # run non-flakes if matrix-id is not 'flakes'

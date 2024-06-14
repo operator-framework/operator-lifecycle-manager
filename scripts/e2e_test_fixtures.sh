@@ -128,6 +128,8 @@ if [ "$BUILD" = "true" ]; then
   # See catalog_e2e_test.go
   # let's just reuse one of the other catalogs for this - the tests don't care about the content
   # only that a catalog's content can be extracted and served by a different container
+  # There is no point in kind-loading this image since the image pull policy is AlwaysPull
+  # This image will be published in an on cluster registry
   ${CONTAINER_RUNTIME} tag "${INDEX_V2}" "${TEST_CATALOG_IMAGE}"
 fi
 
@@ -139,7 +141,6 @@ if [ "$LOAD_KIND" = true ]; then
   ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${BUNDLE_V2_DEP_IMAGE}"
   ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${INDEX_V1}"
   ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${INDEX_V2}"
-  ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${TEST_CATALOG_IMAGE}"
 fi
 
 # Assumes images are already built
@@ -152,8 +153,6 @@ if [ "${SAVE}" = true ]; then
 
   ${CONTAINER_RUNTIME} save "${INDEX_V1}" | gzip > indexv1.tar.gz
   ${CONTAINER_RUNTIME} save "${INDEX_V2}" | gzip > indexv2.tar.gz
-
-  ${CONTAINER_RUNTIME} save "${TEST_CATALOG_IMAGE}" | gzip > testcatalog.tar.gz
 fi
 
 # Assumes images are already built
@@ -167,7 +166,4 @@ if [ "$PUSH" = true ]; then
   # push indexes
   ${CONTAINER_RUNTIME} push "${INDEX_V1}"
   ${CONTAINER_RUNTIME} push "${INDEX_V2}"
-
-  # push test catalog
-  ${CONTAINER_RUNTIME} push "${TEST_CATALOG_IMAGE}"
 fi
