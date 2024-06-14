@@ -187,9 +187,9 @@ if [ "$PUSH" = true ]; then
   fi
   # push bundles
   ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
-  ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
-  ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
-  ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
+  ${CONTAINER_RUNTIME} push "${BUNDLE_V1_DEP_IMAGE}"
+  ${CONTAINER_RUNTIME} push "${BUNDLE_V2_IMAGE}"
+  ${CONTAINER_RUNTIME} push "${BUNDLE_V2_DEP_IMAGE}"
 
   # push indexes
   ${CONTAINER_RUNTIME} push "${INDEX_V1}"
