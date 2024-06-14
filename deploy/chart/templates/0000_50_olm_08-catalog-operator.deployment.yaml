@@ -90,8 +90,8 @@ spec:
           - --set-workload-user-id=false
           {{ end }}
           image: {{ .Values.catalog.image.ref }}
-          env:
           {{- if .Values.debug }}
+          env:
             - name: CI
               value: "true"
           {{- end }}
