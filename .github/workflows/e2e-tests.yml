@@ -92,7 +92,6 @@ jobs:
             KIND_CLUSTER_NAME="kind-olmv0-${i}" \
             KIND_CREATE_OPTS="--kubeconfig=${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
             HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
-            UPDATE_FIXTURES="${{ needs.build.outputs.UPDATE_FIXTURES }}" \
             make kind-create image-registry build-and-load-e2e-fixture-images deploy;
           done
 

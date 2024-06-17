@@ -220,11 +220,10 @@ image-registry: ## Setup in-cluster image registry
 
 .PHONY: build-and-load-e2e-fixture-images
 build-and-load-e2e-fixture-images: # Build e2e fixture images and either kind-load or push them to an on-cluster registry
-	# build and kind-load fixture images
-	scripts/e2e_test_fixtures.sh --kind-load
-
 	# push the test-catalog to an on-cluster registry
-	./scripts/publish_e2e_catalog.sh $(E2E_REGISTRY_NAMESPACE) $(CATALOG_IMG)
+	./scripts/publish_e2e_catalog.sh "test/images/busybox-index-v1" "indexv1" "$(E2E_REGISTRY_NAMESPACE)" "$(REGISTRY_ROOT)/busybox-dependencies-index:1.0.0-with-ListBundles-method-${OPERATOR_REGISTRY_VERSION}"
+	./scripts/publish_e2e_catalog.sh "test/images/busybox-index-v2" "indexv2" "$(E2E_REGISTRY_NAMESPACE)" "$(REGISTRY_ROOT)/busybox-dependencies-index:2.0.0-with-ListBundles-method-${OPERATOR_REGISTRY_VERSION}"
+	./scripts/publish_e2e_catalog.sh "test/images/busybox-index-v2" "test-catalog" "$(E2E_REGISTRY_NAMESPACE)" "$(REGISTRY_ROOT)/test-catalog:e2e"
 
 .PHONY: deploy
 OLM_IMAGE := quay.io/operator-framework/olm:local

@@ -1,44 +1,30 @@
 #! /bin/bash
 
+set -x
 set -o errexit
 set -o nounset
 set -o pipefail
 
-help="
-build-push-e2e-catalog.sh is a script to build and push the e2e catalog image using kaniko.
-Usage:
-  build-push-e2e-catalog.sh [NAMESPACE] [TAG]
-
-Argument Descriptions:
-  - NAMESPACE is the namespace the kaniko Job should be created in
-  - TAG is the full tag used to build and push the catalog image
-"
-
-if [[ "$#" -ne 2 ]]; then
-  echo "Illegal number of arguments passed"
-  echo "${help}"
-  exit 1
-fi
-
-namespace=$1
-tag=$2
+src=$1
+name=$2
+namespace=$3
+dest=$4
 
 OPM_VERSION=${OPM_VERSION:-"latest"}
 
-echo "${namespace}" "${tag}"
-
 # Delete existing configmaps
-kubectl delete configmap -n "${namespace}" test-catalog.dockerfile --ignore-not-found
-kubectl delete configmap -n "${namespace}" test-catalog.build-contents --ignore-not-found
+kubectl delete configmap -n "${namespace}" "${name}.dockerfile" --ignore-not-found
+kubectl delete configmap -n "${namespace}" "${name}.build-contents" --ignore-not-found
 
-kubectl create configmap -n "${namespace}" --from-file=test/images/test-catalog/dockerfile test-catalog.dockerfile
-kubectl create configmap -n "${namespace}" --from-file=test/images/test-catalog/configs test-catalog.build-contents
+kubectl create configmap -n "${namespace}" --from-file="${src}/dockerfile" "${name}.dockerfile"
+kubectl create configmap -n "${namespace}" --from-file="${src}/configs" "${name}.build-contents"
 
+# Create the kaniko job
 kubectl apply -f - << EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: kaniko
+  name: "kaniko-${name}"
   namespace: "${namespace}"
 spec:
   template:
@@ -49,7 +35,7 @@ spec:
         args: [ "--build-arg=OPM_VERSION=${OPM_VERSION}",
                 "--dockerfile=/workspace/dockerfile",
                 "--context=/workspace",
-                "--destination=${tag}",
+                "--destination=${dest}",
                 "--verbosity=trace",
                 "--skip-tls-verify"]
         volumeMounts:
@@ -61,13 +47,13 @@ spec:
       volumes:
         - name: dockerfile
           configMap:
-            name: test-catalog.dockerfile
+            name: "${name}.dockerfile"
             items:
               - key: dockerfile
                 path: dockerfile
         - name: build-contents
           configMap:
-            name: test-catalog.build-contents
+            name: "${name}.build-contents"
 EOF
 
-kubectl wait --for=condition=Complete -n "${namespace}" jobs/kaniko --timeout=60s
+kubectl wait --for=condition=Complete -n "${namespace}" "jobs/kaniko-${name}" --timeout=60s

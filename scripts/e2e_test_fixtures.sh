@@ -6,7 +6,6 @@ source .bingo/variables.env
 # Default values
 KIND=${KIND:-kind}
 KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME:-kind-olmv0}
-OPM_VERSION=$(go list -m github.com/operator-framework/operator-registry | cut -d" " -f2 | sed 's/^v//')
 PUSH=false
 SAVE=false
 CONTAINER_RUNTIME=docker
@@ -133,16 +132,6 @@ if [ "$BUILD" = "true" ]; then
   ${CONTAINER_RUNTIME} tag "${INDEX_V2}" "${TEST_CATALOG_IMAGE}"
 fi
 
-# Assumes images are already built, kind cluster is running, and kubeconfig is set
-if [ "$LOAD_KIND" = true ]; then
-  ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${BUNDLE_V1_IMAGE}"
-  ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${BUNDLE_V1_DEP_IMAGE}"
-  ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${BUNDLE_V2_IMAGE}"
-  ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${BUNDLE_V2_DEP_IMAGE}"
-  ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${INDEX_V1}"
-  ${KIND} load docker-image --name="${KIND_CLUSTER_NAME}" "${INDEX_V2}"
-fi
-
 # Assumes images are already built
 if [ "${SAVE}" = true ]; then
   ${CONTAINER_RUNTIME} save "${BUNDLE_V1_IMAGE}" | gzip > bundlev1.tar.gz
@@ -153,17 +142,4 @@ if [ "${SAVE}" = true ]; then
 
   ${CONTAINER_RUNTIME} save "${INDEX_V1}" | gzip > indexv1.tar.gz
   ${CONTAINER_RUNTIME} save "${INDEX_V2}" | gzip > indexv2.tar.gz
-fi
-
-# Assumes images are already built
-if [ "$PUSH" = true ]; then
-  # push bundles
-  ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
-  ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
-  ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
-  ${CONTAINER_RUNTIME} push "${BUNDLE_V1_IMAGE}"
-
-  # push indexes
-  ${CONTAINER_RUNTIME} push "${INDEX_V1}"
-  ${CONTAINER_RUNTIME} push "${INDEX_V2}"
 fi

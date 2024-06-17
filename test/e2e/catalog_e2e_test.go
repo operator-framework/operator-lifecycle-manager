@@ -1062,7 +1062,7 @@ var _ = Describe("Starting CatalogSource e2e tests", func() {
 		packageName := "busybox"
 		channelName := "alpha"
 
-		catSrcImage := "quay.io/olmtest/busybox-dependencies-index"
+		catSrcImage := "docker-registry.olm-e2e.svc:5000/busybox-dependencies-index"
 
 		By("creating gRPC CatalogSource")
 		source := &v1alpha1.CatalogSource{
