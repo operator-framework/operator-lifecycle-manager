@@ -19,18 +19,16 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Get the image tag
-        if: startsWith(github.ref, 'refs/tags')
         run: |
           # Source: https://github.community/t/how-to-get-just-the-tag-name/16241/32
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             echo IMAGE_TAG="${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          else
+            echo IMAGE_TAG="snapshot" >> $GITHUB_ENV
           fi
-      
-      # TODO dtfranz 
-      # This action uses node12 and the source repo is archived; 
-      # we should remove it or find a suitable replacement before it becomes a blocker.
+
       - name: Create a draft release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v2
         id: release
         if: startsWith(github.ref, 'refs/tags')
         env:
@@ -42,7 +40,6 @@ jobs:
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-        if: startsWith(github.ref, 'refs/tags')
 
       - name: Docker Login
         uses: docker/login-action@v3
@@ -54,17 +51,15 @@ jobs:
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
-        if: startsWith(github.ref, 'refs/tags')
         with:
           version: 0.177.0
-          args: release --rm-dist
+          args: release --rm-dist ${{ github.event_name == 'pull_request' && '--snapshot' || '' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           IMAGE_REPO: quay.io/operator-framework/olm
           PKG: github.com/operator-framework/operator-lifecycle-manager
 
       - name: Generate quickstart release manifests
-        if: startsWith(github.ref, 'refs/tags')
         run: make release ver=${{ env.IMAGE_TAG }} IMAGE_REPO=quay.io/operator-framework/olm
 
       - name: Update release artifacts with rendered Kubernetes release manifests
