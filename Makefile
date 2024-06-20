@@ -145,6 +145,12 @@ image: export GOOS = linux
 image: clean build #HELP Build image image for linux on host architecture
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) -f Dockerfile bin
 
+.PHONY: save-image
+TARGZ_FILE ?= olm-image.tar.gz
+save-image:
+	docker save $(IMAGE_REPO):$(IMAGE_TAG) | gzip > "$(TARGZ_FILE)"
+
+
 .PHONE: build-e2e-fixture-images
 build-e2e-fixture-images: #HELP Build images for e2e testing
 	./scripts/e2e_test_fixtures.sh
@@ -152,6 +158,7 @@ build-e2e-fixture-images: #HELP Build images for e2e testing
 .PHONY: e2e-build
 # the e2e and experimental_metrics tags are required to get e2e tests to pass
 # search the code for go:build e2e or go:build experimental_metrics to see where these tags are used
+
 e2e-build: export GO_BUILD_TAGS += e2e experimental_metrics #HELP Build image for e2e testing
 e2e-build: IMAGE_TAG = local
 e2e-build: image
@@ -217,7 +224,7 @@ kind-create: kind-clean #HELP Create a new kind cluster $KIND_CLUSTER_NAME (defa
 .PHONY: load-test-images
 export REGISTRY ?= localhost:5001
 load-test-images: #HELP Load the OLM images into the kind cluster's registry
-	./scripts/e2e_test_fixtures.sh --push-to="localhost:5001"
+	./scripts/e2e_test_fixtures.sh --push-to="$(REGISTRY)"
 
 .PHONY: deploy
 OLM_IMAGE ?= $(IMAGE_REPO):$(IMAGE_TAG)
