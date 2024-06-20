@@ -1997,6 +1997,15 @@ func TestSortUnpackJobs(t *testing.T) {
 			},
 		}
 	}
+	nilConditionJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "nc",
+			Labels: map[string]string{install.OLMManagedLabelKey: install.OLMManagedLabelValue, bundleUnpackRefLabel: "test"},
+		},
+		Status: batchv1.JobStatus{
+			Conditions: nil,
+		},
+	}
 	failedJobs := []*batchv1.Job{
 		testJob("f-1", true, 1),
 		testJob("f-2", true, 2),
@@ -2028,6 +2037,24 @@ func TestSortUnpackJobs(t *testing.T) {
 		}, {
 			name:        "empty job list",
 			maxRetained: 1,
+		}, {
+			name:        "nil job in list",
+			maxRetained: 1,
+			jobs: []*batchv1.Job{
+				failedJobs[2],
+				nil,
+				failedJobs[1],
+			},
+			expectedLatest: failedJobs[2],
+		}, {
+			name:        "nil condition",
+			maxRetained: 3,
+			jobs: []*batchv1.Job{
+				failedJobs[2],
+				nilConditionJob,
+				failedJobs[1],
+			},
+			expectedLatest: nilConditionJob,
 		}, {
 			name:        "retain oldest",
 			maxRetained: 1,

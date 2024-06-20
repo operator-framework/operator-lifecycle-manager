@@ -863,6 +863,9 @@ func sortUnpackJobs(jobs []*batchv1.Job, maxRetainedJobs int) (latest *batchv1.J
 	// sort jobs so that latest job is first
 	// with preference for non-failed jobs
 	sort.Slice(jobs, func(i, j int) bool {
+		if jobs[i] == nil || jobs[j] == nil {
+			return jobs[i] != nil
+		}
 		condI, failedI := getCondition(jobs[i], batchv1.JobFailed)
 		condJ, failedJ := getCondition(jobs[j], batchv1.JobFailed)
 		if failedI != failedJ {
@@ -870,7 +873,16 @@ func sortUnpackJobs(jobs []*batchv1.Job, maxRetainedJobs int) (latest *batchv1.J
 		}
 		return condI.LastTransitionTime.After(condJ.LastTransitionTime.Time)
 	})
+	if jobs[0] == nil {
+		// all nil jobs
+		return
+	}
 	latest = jobs[0]
+	nilJobsIndex := len(jobs) - 1
+	for ; nilJobsIndex >= 0 && jobs[nilJobsIndex] == nil; nilJobsIndex-- {
+	}
+
+	jobs = jobs[:nilJobsIndex+1] // exclude nil jobs from list of jobs to delete
 	if len(jobs) <= maxRetainedJobs {
 		return
 	}
@@ -880,7 +892,7 @@ func sortUnpackJobs(jobs []*batchv1.Job, maxRetainedJobs int) (latest *batchv1.J
 	}
 
 	// cleanup old failed jobs, n-1 recent jobs and the oldest job
-	for i := 0; i < maxRetainedJobs && i+maxRetainedJobs < len(jobs); i++ {
+	for i := 0; i < maxRetainedJobs && i+maxRetainedJobs < len(jobs)-1; i++ {
 		toDelete = append(toDelete, jobs[maxRetainedJobs+i])
 	}
 
