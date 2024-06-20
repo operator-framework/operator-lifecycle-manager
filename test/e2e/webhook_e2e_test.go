@@ -2,7 +2,14 @@ package e2e
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
+	"math"
+	"math/big"
 	"strings"
 	"time"
 
@@ -21,6 +28,7 @@ import (
 	v1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
@@ -455,7 +463,7 @@ var _ = Describe("CSVs with a Webhook", func() {
 			cleanupCSV, err = createCSV(c, crc, csv, generatedNamespace.GetName(), false, false)
 			Expect(err).Should(BeNil())
 
-			fetchedCSV, err := fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
+			_, err = fetchCSV(crc, generatedNamespace.GetName(), csv.Name, csvSucceededChecker)
 			Expect(err).Should(BeNil())
 
 			actualWebhook, err := getWebhookWithGenerateName(c, webhook.GenerateName)
@@ -471,11 +479,15 @@ var _ = Describe("CSVs with a Webhook", func() {
 			oldCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[install.OLMCAHashAnnotationKey]
 			Expect(ok).Should(BeTrue())
 
+			caSecret, err := c.KubernetesInterface().CoreV1().Secrets(generatedNamespace.GetName()).Get(context.TODO(), install.SecretName(install.ServiceName(dep.Name)), metav1.GetOptions{})
+			Expect(err).Should(BeNil())
+
+			caPEM, certPEM, privPEM := generateExpiredCerts(install.HostnamesForService(install.ServiceName(dep.Name), generatedNamespace.GetName()))
 			By(`Induce a cert rotation`)
-			Eventually(Apply(fetchedCSV, func(csv *operatorsv1alpha1.ClusterServiceVersion) error {
-				now := metav1.Now()
-				csv.Status.CertsLastUpdated = &now
-				csv.Status.CertsRotateAt = &now
+			Eventually(Apply(caSecret, func(caSecret *corev1.Secret) error {
+				caSecret.Data[install.OLMCAPEMKey] = caPEM
+				caSecret.Data["tls.crt"] = certPEM
+				caSecret.Data["tls.key"] = privPEM
 				return nil
 			})).Should(Succeed())
 
@@ -1168,4 +1180,71 @@ func newV1CRD(plural string) apiextensionsv1.CustomResourceDefinition {
 	}
 
 	return crd
+}
+
+func generateExpiredCerts(hosts []string) ([]byte, []byte, []byte) {
+	caSerial, err := rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
+	Expect(err).Should(BeNil())
+
+	caDetails := &x509.Certificate{
+		SerialNumber: caSerial,
+		Subject: pkix.Name{
+			CommonName:   fmt.Sprintf("olm-selfsigned-%x", caSerial),
+			Organization: []string{install.Organization},
+		},
+		NotBefore:             time.Now().Add(-5 * time.Minute),
+		NotAfter:              time.Now().Add(-5 * time.Minute),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	Expect(err).Should(BeNil())
+
+	caRaw, err := x509.CreateCertificate(rand.Reader, caDetails, caDetails, &caKey.PublicKey, caKey)
+	Expect(err).Should(BeNil())
+
+	caCert, err := x509.ParseCertificate(caRaw)
+	Expect(err).Should(BeNil())
+
+	caPEM, _, err := (&certs.KeyPair{
+		Cert: caCert,
+		Priv: caKey,
+	}).ToPEM()
+	Expect(err).Should(BeNil())
+
+	serial, err := rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
+	Expect(err).Should(BeNil())
+
+	certDetails := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName:   hosts[0],
+			Organization: []string{install.Organization},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now(),
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              hosts,
+	}
+
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	Expect(err).Should(BeNil())
+
+	publicKey := &privateKey.PublicKey
+	certRaw, err := x509.CreateCertificate(rand.Reader, certDetails, caCert, publicKey, caKey)
+	Expect(err).Should(BeNil())
+
+	cert, err := x509.ParseCertificate(certRaw)
+	Expect(err).Should(BeNil())
+
+	certPEM, privPEM, err := (&certs.KeyPair{
+		Cert: cert,
+		Priv: privateKey,
+	}).ToPEM()
+	Expect(err).Should(BeNil())
+
+	return caPEM, certPEM, privPEM
 }

@@ -21,6 +21,7 @@ type Strategy interface {
 type StrategyInstaller interface {
 	Install(strategy Strategy) error
 	CheckInstalled(strategy Strategy) (bool, error)
+	ShouldRotateCerts(strategy Strategy) (bool, error)
 	CertsRotateAt() time.Time
 	CertsRotated() bool
 }
@@ -78,4 +79,8 @@ func (i *NullStrategyInstaller) CertsRotateAt() time.Time {
 
 func (i *NullStrategyInstaller) CertsRotated() bool {
 	return false
+}
+
+func (i *NullStrategyInstaller) ShouldRotateCerts(s Strategy) (bool, error) {
+	return false, nil
 }

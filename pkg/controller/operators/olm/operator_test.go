@@ -101,6 +101,10 @@ func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
 	return true, nil
 }
 
+func (i *TestInstaller) ShouldRotateCerts(s install.Strategy) (bool, error) {
+	return false, nil
+}
+
 func (i *TestInstaller) CertsRotateAt() time.Time {
 	return time.Time{}
 }
@@ -1956,26 +1960,26 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
+					apiService("a1", "v1", install.ServiceName("a1"), namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
 						install.OLMCAHashAnnotationKey: expiredCAHash,
 					})),
-					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+					withAnnotations(keyPairToTLSSecret(install.SecretName(install.ServiceName("a1")), namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, install.HostnamesForService(install.ServiceName("a1"), "ns"))), map[string]string{
 						install.OLMCAHashAnnotationKey: expiredCAHash,
 					}),
-					service("v1-a1", namespace, "a1", 80),
+					service(install.ServiceName("a1"), namespace, "a1", 80),
 					serviceAccount("sa", namespace),
-					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+					role(install.SecretName(install.ServiceName("a1")), namespace, []rbacv1.PolicyRule{
 						{
 							Verbs:         []string{"get"},
 							APIGroups:     []string{""},
 							Resources:     []string{"secrets"},
-							ResourceNames: []string{"v1.a1-cert"},
+							ResourceNames: []string{install.SecretName(install.ServiceName("a1"))},
 						},
 					}),
-					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					roleBinding(install.SecretName(install.ServiceName("a1")), namespace, install.SecretName(install.ServiceName("a1")), "sa", namespace),
 					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
 						{
 							Verbs:         []string{"get"},
@@ -1984,7 +1988,7 @@ func TestTransitionCSV(t *testing.T) {
 							ResourceNames: []string{"extension-apiserver-authentication"},
 						},
 					}),
-					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					roleBinding(install.AuthReaderRoleBindingName(install.ServiceName("a1")), "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
 					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
 						{
 							Verbs:     []string{"create"},
@@ -1997,7 +2001,7 @@ func TestTransitionCSV(t *testing.T) {
 							Resources: []string{"subjectaccessreviews"},
 						},
 					}),
-					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+					clusterRoleBinding(install.AuthDelegatorClusterRoleBindingName(install.ServiceName("a1")), "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
 					crd("c1", "v1", "g1"),
@@ -2005,7 +2009,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonAPIServiceResourceIssue},
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonNeedsCertRotation},
 				},
 			},
 		},
@@ -2025,26 +2029,26 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
+					apiService("a1", "v1", install.ServiceName("a1"), namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
 						install.OLMCAHashAnnotationKey: expiredCAHash,
 					})),
-					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+					withAnnotations(keyPairToTLSSecret(install.SecretName(install.ServiceName("a1")), namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, install.HostnamesForService(install.ServiceName("a1"), "ns"))), map[string]string{
 						install.OLMCAHashAnnotationKey: expiredCAHash,
 					}),
-					service("v1-a1", namespace, "a1", 80),
+					service(install.ServiceName("a1"), namespace, "a1", 80),
 					serviceAccount("sa", namespace),
-					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+					role(install.SecretName(install.ServiceName("a1")), namespace, []rbacv1.PolicyRule{
 						{
 							Verbs:         []string{"get"},
 							APIGroups:     []string{""},
 							Resources:     []string{"secrets"},
-							ResourceNames: []string{"v1.a1-cert"},
+							ResourceNames: []string{install.SecretName(install.ServiceName("a1"))},
 						},
 					}),
-					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					roleBinding(install.SecretName(install.ServiceName("a1")), namespace, install.SecretName(install.ServiceName("a1")), "sa", namespace),
 					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
 						{
 							Verbs:         []string{"get"},
@@ -2053,7 +2057,7 @@ func TestTransitionCSV(t *testing.T) {
 							ResourceNames: []string{"extension-apiserver-authentication"},
 						},
 					}),
-					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					roleBinding(install.AuthReaderRoleBindingName(install.ServiceName("a1")), "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
 					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
 						{
 							Verbs:     []string{"create"},
@@ -2066,7 +2070,7 @@ func TestTransitionCSV(t *testing.T) {
 							Resources: []string{"subjectaccessreviews"},
 						},
 					}),
-					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+					clusterRoleBinding(install.AuthDelegatorClusterRoleBindingName(install.ServiceName("a1")), "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
 					crd("c1", "v1", "g1"),
@@ -2074,7 +2078,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending, reason: v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall},
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending, reason: v1alpha1.CSVReasonNeedsCertRotation},
 				},
 			},
 		},

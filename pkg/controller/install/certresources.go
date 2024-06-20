@@ -12,6 +12,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	rbacv1ac "k8s.io/client-go/applyconfigurations/rbac/v1"
 
@@ -157,6 +158,14 @@ func ServiceName(deploymentName string) string {
 	return deploymentName + "-service"
 }
 
+func HostnamesForService(serviceName, namespace string) []string {
+	return []string{
+		fmt.Sprintf("%s.%s", serviceName, namespace),
+		fmt.Sprintf("%s.%s.svc", serviceName, namespace),
+		fmt.Sprintf("%s.%s.svc.cluster.local", serviceName, namespace),
+	}
+}
+
 func (i *StrategyDeploymentInstaller) getCertResources() []certResource {
 	return append(i.apiServiceDescriptions, i.webhookDescriptions...)
 }
@@ -223,13 +232,72 @@ func (i *StrategyDeploymentInstaller) CertsRotated() bool {
 	return i.certificatesRotated
 }
 
-func ShouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
+// shouldRotateCerts indicates whether an apiService cert should be rotated due to being
+// malformed, invalid, expired, inactive or within a specific freshness interval (DefaultCertMinFresh) before expiry.
+func shouldRotateCerts(certSecret *corev1.Secret, hosts []string) bool {
 	now := metav1.Now()
-	if !csv.Status.CertsRotateAt.IsZero() && csv.Status.CertsRotateAt.Before(&now) {
+	caPEM, ok := certSecret.Data[OLMCAPEMKey]
+	if !ok {
+		// missing CA cert in secret
+		return true
+	}
+	certPEM, ok := certSecret.Data["tls.crt"]
+	if !ok {
+		// missing cert in secret
 		return true
 	}
 
+	ca, err := certs.PEMToCert(caPEM)
+	if err != nil {
+		// malformed CA cert
+		return true
+	}
+	cert, err := certs.PEMToCert(certPEM)
+	if err != nil {
+		// malformed cert
+		return true
+	}
+
+	// check for cert freshness
+	if !certs.Active(ca) || now.Time.After(CalculateCertRotatesAt(ca.NotAfter)) ||
+		!certs.Active(cert) || now.Time.After(CalculateCertRotatesAt(cert.NotAfter)) {
+		return true
+	}
+
+	// Check validity of serving cert and if serving cert is trusted by the CA
+	for _, host := range hosts {
+		if err := certs.VerifyCert(ca, cert, host); err != nil {
+			return true
+		}
+	}
 	return false
+}
+
+func (i *StrategyDeploymentInstaller) ShouldRotateCerts(s Strategy) (bool, error) {
+	strategy, ok := s.(*v1alpha1.StrategyDetailsDeployment)
+	if !ok {
+		return false, fmt.Errorf("failed to install %s strategy with deployment installer: unsupported deployment install strategy", strategy.GetStrategyName())
+	}
+
+	hasCerts := sets.New[string]()
+	for _, c := range i.getCertResources() {
+		hasCerts.Insert(c.getDeploymentName())
+	}
+	for _, sddSpec := range strategy.DeploymentSpecs {
+		if hasCerts.Has(sddSpec.Name) {
+			certSecret, err := i.strategyClient.GetOpLister().CoreV1().SecretLister().Secrets(i.owner.GetNamespace()).Get(SecretName(ServiceName(sddSpec.Name)))
+			if err == nil {
+				if shouldRotateCerts(certSecret, HostnamesForService(ServiceName(sddSpec.Name), i.owner.GetNamespace())) {
+					return true, nil
+				}
+			} else if apierrors.IsNotFound(err) {
+				return true, nil
+			} else {
+				return false, err
+			}
+		}
+	}
+	return false, nil
 }
 
 func CalculateCertExpiration(startingFrom time.Time) time.Time {
@@ -267,10 +335,7 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 	}
 
 	// Create signed serving cert
-	hosts := []string{
-		fmt.Sprintf("%s.%s", serviceName, i.owner.GetNamespace()),
-		fmt.Sprintf("%s.%s.svc", serviceName, i.owner.GetNamespace()),
-	}
+	hosts := HostnamesForService(serviceName, i.owner.GetNamespace())
 	servingPair, err := certGenerator.Generate(expiration, Organization, ca, hosts)
 	if err != nil {
 		logger.Warnf("could not generate signed certs for hosts %v", hosts)
@@ -314,10 +379,10 @@ func (i *StrategyDeploymentInstaller) installCertRequirementsForDeployment(deplo
 
 		// Attempt an update
 		// TODO: Check that the secret was not modified
-		if existingCAPEM, ok := existingSecret.Data[OLMCAPEMKey]; ok && !ShouldRotateCerts(i.owner.(*v1alpha1.ClusterServiceVersion)) {
+		if !shouldRotateCerts(existingSecret, HostnamesForService(serviceName, i.owner.GetNamespace())) {
 			logger.Warnf("reusing existing cert %s", secret.GetName())
 			secret = existingSecret
-			caPEM = existingCAPEM
+			caPEM = existingSecret.Data[OLMCAPEMKey]
 			caHash = certs.PEMSHA256(caPEM)
 		} else {
 			if _, err := i.strategyClient.GetOpClient().UpdateSecret(secret); err != nil {
