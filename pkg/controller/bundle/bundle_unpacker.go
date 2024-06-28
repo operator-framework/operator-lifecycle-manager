@@ -89,7 +89,7 @@ var catalogSourceGVK = operatorsv1alpha1.SchemeGroupVersion.WithKind(operatorsv1
 func newBundleUnpackResult(lookup *operatorsv1alpha1.BundleLookup) *BundleUnpackResult {
 	return &BundleUnpackResult{
 		BundleLookup: lookup.DeepCopy(),
-		name:         hash(lookup.Path),
+		name:         hash(lookup.CatalogSourceRef.Name, lookup.Path),
 	}
 }
 
@@ -817,7 +817,8 @@ func (c *ConfigMapUnpacker) ensureRoleBinding(cmRef *corev1.ObjectReference) (ro
 }
 
 // hash hashes data with sha256 and returns the hex string.
-func hash(data string) string {
+func hash(catalogName, bundlePath string) string {
+	data := strings.Join([]string{catalogName, bundlePath}, "#")
 	// A SHA256 hash is 64 characters, which is within the 253 character limit for kube resource names
 	h := fmt.Sprintf("%x", sha256.Sum256([]byte(data)))
 
