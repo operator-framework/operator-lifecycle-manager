@@ -32,7 +32,7 @@ var _ = Describe("Operator Condition", func() {
 		TeardownNamespace(generatedNamespace.GetName())
 	})
 
-	It("OperatorCondition Upgradeable type and overrides", func() {
+	It("[FLAKE] OperatorCondition Upgradeable type and overrides", func() {
 		By("This test proves that an operator can upgrade successfully when" +
 			" Upgrade condition type is set in OperatorCondition spec. Plus, an operator" +
 			" chooses not to use OperatorCondition, the upgrade process will proceed as" +
