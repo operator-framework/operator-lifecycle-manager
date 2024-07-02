@@ -92,7 +92,7 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 
 func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.StrategyDeploymentSpec) error {
 	for _, d := range deps {
-		deployment, _, err := i.deploymentForSpec(d.Name, d.Spec, d.Label)
+		deployment, _, err := i.deploymentForSpec(d.Name, d.Spec, d.Label, d.Annotations)
 		if err != nil {
 			return err
 		}
@@ -134,10 +134,13 @@ func (i *StrategyDeploymentInstaller) createOrUpdateCertResourcesForDeployment()
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec, specLabels k8slabels.Set) (deployment *appsv1.Deployment, hash string, err error) {
+func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec, specLabels k8slabels.Set, specAnnotations map[string]string) (deployment *appsv1.Deployment, hash string, err error) {
 	dep := &appsv1.Deployment{Spec: spec}
 	dep.SetName(name)
 	dep.SetNamespace(i.owner.GetNamespace())
+
+	// Set custom annotations
+	dep.SetAnnotations(specAnnotations)
 
 	// Merge annotations (to avoid losing info from pod template)
 	annotations := map[string]string{}
@@ -282,7 +285,7 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1al
 			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment %s doesn't have a spec hash, update it", dep.Name)}
 		}
 
-		_, calculatedDeploymentHash, err := i.deploymentForSpec(spec.Name, spec.Spec, labels)
+		_, calculatedDeploymentHash, err := i.deploymentForSpec(spec.Name, spec.Spec, labels, dep.GetAnnotations())
 		if err != nil {
 			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("couldn't calculate deployment spec hash: %v", err)}
 		}
