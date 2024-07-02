@@ -1435,7 +1435,7 @@ var _ = Describe("Install Plan", func() {
 		// excluded: new CRD, same version, same schema - won't trigger a CRD update
 
 		tableEntries := []TableEntry{
-			Entry("upgrade CRD with deprecated version", schemaPayload{
+			Entry("[FLAKE] upgrade CRD with deprecated version", schemaPayload{
 				name:          "upgrade CRD with deprecated version",
 				expectedPhase: operatorsv1alpha1.InstallPlanPhaseComplete,
 				oldCRD: func() *apiextensionsv1.CustomResourceDefinition {

@@ -412,7 +412,7 @@ var _ = Describe("Fail Forward Upgrades", func() {
 			Expect(err).Should(BeNil())
 		})
 
-		It("eventually reports a successful state when using replaces", func() {
+		It("[FLAKE] eventually reports a successful state when using replaces", func() {
 			By("patching the catalog with a fixed version")
 			cleanup, deployError := updateCatalogSource(generatedNamespace.GetName(), catalogSourceName, "v0.1.0", "v0.2.0-invalid-deployment", "v0.3.0-replaces-invalid-deployment")
 			Expect(deployError).To(BeNil())
