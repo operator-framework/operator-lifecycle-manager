@@ -185,7 +185,7 @@ UNIT_TEST_CMD = $(GO_TEST_ENV) go test $(GO_BUILD_FLAGS) -tags '$(GO_BUILD_TAGS)
 test: clean unit test-split #HELP Run all tests
 
 .PHONY: unit
-unit: GO_TEST_ENV += KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS)
+unit: GO_TEST_ENV += KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)"
 unit: $(SETUP_ENVTEST) #HELP Run OLM unit tests with setup-envtest for kubernetes $(KUBE_MINOR).x
 	$(UNIT_TEST_CMD) ./pkg/controller/... ./pkg/...
 
