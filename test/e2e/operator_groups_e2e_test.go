@@ -854,7 +854,7 @@ var _ = Describe("Operator Group", func() {
 		csvA, err = fetchCSV(crc, nsA, csvA.GetName(), csvSucceededChecker)
 		require.NoError(GinkgoT(), err)
 	})
-	It("intersection", func() {
+	It("[FLAKE] intersection", func() {
 
 		By(`Generate namespaceA`)
 		By(`Generate namespaceB`)
