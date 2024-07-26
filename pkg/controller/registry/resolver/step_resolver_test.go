@@ -1218,7 +1218,7 @@ func TestResolver(t *testing.T) {
 				steps: [][]*v1alpha1.Step{},
 				subs:  []*v1alpha1.Subscription{},
 				errAssert: func(t *testing.T, err error) {
-					assert.Contains(t, err.Error(), "failed to populate resolver cache from source @existing/catsrc-namespace: csv")
+					assert.Contains(t, err.Error(), "error using catalogsource catsrc-namespace/@existing: csv")
 					assert.Contains(t, err.Error(), "in phase Failed instead of Replacing")
 				},
 			},
@@ -1377,6 +1377,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			name: "NewSubscription/Permissions/ClusterPermissions",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("test-og", namespace),
 			},
 			bundlesInCatalog: []*api.Bundle{bundle},
 			out: out{
@@ -1392,6 +1393,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			name: "don't create default service accounts",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
+				newOperatorGroup("test-og", namespace),
 			},
 			bundlesInCatalog: []*api.Bundle{bundleWithDefaultServiceAccount},
 			out: out{
@@ -1418,6 +1420,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			lister := operatorlister.NewLister()
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
+			lister.OperatorsV1().RegisterOperatorGroupLister(namespace, informerFactory.Operators().V1().OperatorGroups().Lister())
 
 			stubSnapshot := &resolvercache.Snapshot{}
 			for _, bundle := range tt.bundlesInCatalog {

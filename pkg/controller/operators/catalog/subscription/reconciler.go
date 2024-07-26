@@ -91,11 +91,16 @@ func (c *catalogHealthReconciler) Reconcile(ctx context.Context, in kubestate.St
 
 				var healthUpdated, deprecationUpdated bool
 				next, healthUpdated = s.UpdateHealth(c.now(), catalogHealth...)
+				if healthUpdated {
+					if _, err := c.client.OperatorsV1alpha1().Subscriptions(ns).UpdateStatus(ctx, s.Subscription(), metav1.UpdateOptions{}); err != nil {
+						return nil, err
+					}
+				}
 				deprecationUpdated, err = c.updateDeprecatedStatus(ctx, s.Subscription())
 				if err != nil {
 					return next, err
 				}
-				if healthUpdated || deprecationUpdated {
+				if deprecationUpdated {
 					_, err = c.client.OperatorsV1alpha1().Subscriptions(ns).UpdateStatus(ctx, s.Subscription(), metav1.UpdateOptions{})
 				}
 			case SubscriptionExistsState:

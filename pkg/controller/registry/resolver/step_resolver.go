@@ -7,6 +7,7 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	v1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	controllerbundle "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
@@ -16,10 +17,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
 	BundleLookupConditionPacked v1alpha1.BundleLookupConditionType = "BundleLookupNotPersisted"
+	exclusionAnnotation         string                             = "olm.operatorframework.io/exclude-global-namespace-resolution"
 )
 
 // init hooks provides the downstream a way to modify the upstream behavior
@@ -32,6 +35,7 @@ type StepResolver interface {
 type OperatorStepResolver struct {
 	subLister              v1alpha1listers.SubscriptionLister
 	csvLister              v1alpha1listers.ClusterServiceVersionLister
+	ogLister               v1listers.OperatorGroupLister
 	client                 versioned.Interface
 	globalCatalogNamespace string
 	resolver               *Resolver
@@ -69,6 +73,7 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 	stepResolver := &OperatorStepResolver{
 		subLister:              lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister:              lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		ogLister:               lister.OperatorsV1().OperatorGroupLister(),
 		client:                 client,
 		globalCatalogNamespace: globalCatalogNamespace,
 		resolver:               NewDefaultResolver(cacheSourceProvider, catsrcPriorityProvider{lister: lister.OperatorsV1alpha1().CatalogSourceLister()}, log),
@@ -91,7 +96,22 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 		return nil, nil, nil, err
 	}
 
-	namespaces := []string{namespace, r.globalCatalogNamespace}
+	namespaces := []string{namespace}
+	ogs, err := r.ogLister.OperatorGroups(namespace).List(labels.Everything())
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("listing operatorgroups in namespace %s: %s", namespace, err)
+	}
+	if len(ogs) != 1 {
+		return nil, nil, nil, fmt.Errorf("expected 1 OperatorGroup in the namespace, found %d", len(ogs))
+	}
+	og := ogs[0]
+	if val, ok := og.Annotations[exclusionAnnotation]; ok && val == "true" {
+		// Exclusion specified
+		// Ignore the globalNamespace for the purposes of resolution in this namespace
+		r.log.Printf("excluding global catalogs from resolution in namespace %s", namespace)
+	} else {
+		namespaces = append(namespaces, r.globalCatalogNamespace)
+	}
 	operators, err := r.resolver.Resolve(namespaces, subs)
 	if err != nil {
 		return nil, nil, nil, err
