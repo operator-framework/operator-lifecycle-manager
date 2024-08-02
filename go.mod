@@ -193,3 +193,7 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20221021112143-4226c2167e40 // release-4.12
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c // release-4.12
 )
+
+retract (
+    v3.11.0+incompatible // https://github.com/operator-framework/operator-lifecycle-manager/issues/2253
+)
