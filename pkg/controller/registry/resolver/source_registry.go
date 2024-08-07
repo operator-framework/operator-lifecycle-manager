@@ -8,12 +8,15 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/cache"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // todo: move to pkg/controller/operators/catalog
@@ -65,15 +68,17 @@ func (i *sourceInvalidator) GetValidChannel(key cache.SourceKey) <-chan struct{}
 }
 
 type RegistrySourceProvider struct {
-	rcp         RegistryClientProvider
-	logger      logrus.StdLogger
-	invalidator *sourceInvalidator
+	rcp          RegistryClientProvider
+	catsrcLister v1alpha1listers.CatalogSourceLister
+	logger       logrus.StdLogger
+	invalidator  *sourceInvalidator
 }
 
-func SourceProviderFromRegistryClientProvider(rcp RegistryClientProvider, logger logrus.StdLogger) *RegistrySourceProvider {
+func SourceProviderFromRegistryClientProvider(rcp RegistryClientProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.StdLogger) *RegistrySourceProvider {
 	return &RegistrySourceProvider{
-		rcp:    rcp,
-		logger: logger,
+		rcp:          rcp,
+		logger:       logger,
+		catsrcLister: catsrcLister,
 		invalidator: &sourceInvalidator{
 			validChans: make(map[cache.SourceKey]chan struct{}),
 			ttl:        5 * time.Minute,
@@ -81,15 +86,47 @@ func SourceProviderFromRegistryClientProvider(rcp RegistryClientProvider, logger
 	}
 }
 
+type errorSource struct {
+	error
+}
+
+func (s errorSource) Snapshot(_ context.Context) (*cache.Snapshot, error) {
+	return nil, s.error
+}
+
 func (a *RegistrySourceProvider) Sources(namespaces ...string) map[cache.SourceKey]cache.Source {
 	result := make(map[cache.SourceKey]cache.Source)
-	for key, client := range a.rcp.ClientsForNamespaces(namespaces...) {
-		result[cache.SourceKey(key)] = &registrySource{
-			key:         cache.SourceKey(key),
-			client:      client,
-			logger:      a.logger,
-			invalidator: a.invalidator,
+
+	cats := []*operatorsv1alpha1.CatalogSource{}
+	for _, ns := range namespaces {
+		catsInNamespace, err := a.catsrcLister.CatalogSources(ns).List(labels.Everything())
+		if err != nil {
+			result[cache.SourceKey{Name: "", Namespace: ns}] = errorSource{
+				error: fmt.Errorf("failed to list catalogsources for namespace %q: %w", ns, err),
+			}
+			return result
 		}
+		cats = append(cats, catsInNamespace...)
+	}
+
+	clients := a.rcp.ClientsForNamespaces(namespaces...)
+	for _, cat := range cats {
+		key := cache.SourceKey{Name: cat.Name, Namespace: cat.Namespace}
+		if client, ok := clients[registry.CatalogKey{Name: cat.Name, Namespace: cat.Namespace}]; ok {
+			result[key] = &registrySource{
+				key:         key,
+				client:      client,
+				logger:      a.logger,
+				invalidator: a.invalidator,
+			}
+		} else {
+			result[key] = errorSource{
+				error: fmt.Errorf("no registry client established for catalogsource %s/%s", cat.Namespace, cat.Name),
+			}
+		}
+	}
+	if len(result) == 0 {
+		return nil
 	}
 	return result
 }

@@ -238,5 +238,5 @@ func TestNamespaceOperatorCacheError(t *testing.T) {
 		key: ErrorSource{Error: errors.New("testing")},
 	})
 
-	require.EqualError(t, c.Namespaced("dummynamespace").Error(), "failed to populate resolver cache from source dummyname/dummynamespace: testing")
+	require.EqualError(t, c.Namespaced("dummynamespace").Error(), "error using catalogsource dummynamespace/dummyname: testing")
 }
