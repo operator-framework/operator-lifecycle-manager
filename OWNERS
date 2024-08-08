@@ -2,13 +2,13 @@
 # approval == this is a good idea /approve
 approvers:
   - kevinrizza
-  - benluddy
-  - awgreene
-  - dinhxuanvu
   - perdasilva
   - grokspawn
   - joelanford
   - tmshort
+  - dtfranz
+  - anik120
+
 # review == this code is good /lgtm
 reviewers:
   - kevinrizza
@@ -16,7 +16,6 @@ reviewers:
   - dinhxuanvu
   - gallettilance
   - anik120
-  - awgreene
   - ankitathomas
   - joelanford
   - perdasilva
