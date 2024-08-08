@@ -13,8 +13,6 @@ jobs:
   # Build the OLM image and save it as an artifact
   build:
     runs-on: ubuntu-latest
-    outputs:
-      sha: ${{ steps.vars.outputs.sha }}
     steps:
       # checkout code and setup go
       - uses: actions/checkout@v4
@@ -22,15 +20,13 @@ jobs:
         with:
           go-version-file: "go.mod"
       # build binaries and image for e2e test (includes experimental features)
-      - name: Build controller image
-        run: make e2e-build
-      - name: Save image
-        run: docker save quay.io/operator-framework/olm:local -o olm-image.tar
-      - name: Upload Docker image as artifact
+      - name: Build OLM Image
+        run: make e2e-build save-image
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: olm-image.tar
-          path: olm-image.tar
+          name: docker-images
+          path: "*.tar.gz"
 
   # Run e2e tests in parallel jobs
   # Take olm image from the previous stage
@@ -53,14 +49,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
-
-      # load the olm image
-      - name: Load OLM Docker image
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: olm-image.tar
-          path: .
-      - run: docker load < olm-image.tar
+          name: docker-images
+          path: images/
+      - name: Load Docker images
+        run: |
+          for image in images/*.tar.gz; do
+            echo "Loading image $image"
+            docker load -i $image
+          done
 
       # set e2e environment variables
       # Set ginkgo output and parallelism
@@ -87,7 +86,7 @@ jobs:
             KIND_CLUSTER_NAME="kind-olmv0-${i}" \
             KIND_CREATE_OPTS="--kubeconfig=${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
             HELM_INSTALL_OPTS="--kubeconfig ${E2E_KUBECONFIG_ROOT}/kubeconfig-${i}" \
-            make kind-create deploy;
+            make kind-create load-test-images deploy;
           done
 
       # run non-flakes if matrix-id is not 'flakes'
