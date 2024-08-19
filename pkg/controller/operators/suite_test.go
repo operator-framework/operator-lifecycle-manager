@@ -132,7 +132,7 @@ var _ = BeforeSuite(func() {
 
 	operatorConditionGeneratorReconciler, err := NewOperatorConditionGeneratorReconciler(
 		mgr.GetClient(),
-		ctrl.Log.WithName("controllers").WithName("OperatorCondition"),
+		ctrl.Log.WithName("controllers").WithName("OperatorConditionGeneration"),
 		mgr.GetScheme(),
 	)
 	Expect(err).ToNot(HaveOccurred())

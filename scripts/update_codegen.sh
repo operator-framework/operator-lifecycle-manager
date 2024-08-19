@@ -20,6 +20,7 @@
 set -o errexit
 set -o nounset
 set -o pipefail
+set -x
 
 # Setting the SCRIPT_ROOT and attempting to locate the vendored code generator directory.
 SCRIPT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)

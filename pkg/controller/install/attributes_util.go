@@ -9,10 +9,26 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
+// an intermediate type since authorizer.AttributesRecord is not orderable
+type theAttributrix struct {
+	User            user.Info
+	Verb            string
+	Namespace       string
+	APIGroup        string
+	APIVersion      string
+	Resource        string
+	Subresource     string
+	Name            string
+	ResourceRequest bool
+	Path            string
+}
+
+type attributeSet map[theAttributrix]struct{}
+
 // toAttributesSet converts the given user, namespace, and PolicyRule into a set of Attributes expected. This is useful for checking
 // if a composed set of Roles/RoleBindings satisfies a PolicyRule.
 func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) []authorizer.Attributes {
-	set := map[authorizer.AttributesRecord]struct{}{}
+	set := attributeSet{}
 
 	// add empty string for empty groups, resources, resource names, and non resource urls
 	groups := rule.APIGroups
@@ -47,7 +63,7 @@ func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) [
 	attributes := make([]authorizer.Attributes, len(set))
 	i := 0
 	for attribute := range set {
-		attributes[i] = attribute
+		attributes[i] = attribute.Attributes()
 		i++
 	}
 	log.Debugf("attributes set %+v", attributes)
@@ -55,10 +71,23 @@ func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) [
 	return attributes
 }
 
-// attribute creates a new AttributesRecord with the given info. Currently RBAC authz only looks at user, verb, apiGroup, resource, and name.
-func attributesRecord(user user.Info, namespace, verb, apiGroup, resource, name, path string) authorizer.AttributesRecord {
-	resourceRequest := path == ""
+func (a theAttributrix) Attributes() authorizer.Attributes {
 	return authorizer.AttributesRecord{
+		User:            a.User,
+		Verb:            a.Verb,
+		Namespace:       a.Namespace,
+		APIGroup:        a.APIGroup,
+		Resource:        a.Resource,
+		Name:            a.Name,
+		ResourceRequest: a.ResourceRequest,
+		Path:            a.Path,
+	}
+}
+
+// attribute creates a new AttributesRecord with the given info. Currently RBAC authz only looks at user, verb, apiGroup, resource, and name.
+func attributesRecord(user user.Info, namespace, verb, apiGroup, resource, name, path string) theAttributrix {
+	resourceRequest := path == ""
+	return theAttributrix{
 		User:            user,
 		Verb:            verb,
 		Namespace:       namespace,

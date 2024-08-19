@@ -19,7 +19,7 @@ func TestToAttributeSet(t *testing.T) {
 	tests := []struct {
 		description        string
 		rule               rbacv1.PolicyRule
-		expectedAttributes map[authorizer.AttributesRecord]struct{}
+		expectedAttributes attributeSet
 	}{
 		{
 			description: "SimpleRule",
@@ -28,7 +28,7 @@ func TestToAttributeSet(t *testing.T) {
 				APIGroups: []string{"*"},
 				Resources: []string{"*"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+			expectedAttributes: attributeSet{
 				attributesRecord(user, namespace, "*", "*", "*", "", ""): {},
 			},
 		},
@@ -38,7 +38,7 @@ func TestToAttributeSet(t *testing.T) {
 				Verbs:           []string{"*"},
 				NonResourceURLs: []string{"/api"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+			expectedAttributes: attributeSet{
 				attributesRecord(user, namespace, "*", "", "", "", "/api"): {},
 			},
 		},
@@ -49,7 +49,7 @@ func TestToAttributeSet(t *testing.T) {
 				APIGroups: []string{"*"},
 				Resources: []string{"*"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+			expectedAttributes: attributeSet{
 				attributesRecord(user, namespace, "create", "*", "*", "", ""): {},
 				attributesRecord(user, namespace, "delete", "*", "*", "", ""): {},
 			},
@@ -60,7 +60,7 @@ func TestToAttributeSet(t *testing.T) {
 				Verbs:     []string{"get", "update"},
 				Resources: []string{"donuts", "coffee"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+			expectedAttributes: attributeSet{
 				attributesRecord(user, namespace, "get", "", "donuts", "", ""):    {},
 				attributesRecord(user, namespace, "update", "", "donuts", "", ""): {},
 				attributesRecord(user, namespace, "get", "", "coffee", "", ""):    {},
@@ -73,7 +73,7 @@ func TestToAttributeSet(t *testing.T) {
 				Verbs:           []string{"*"},
 				NonResourceURLs: []string{"/capybaras", "/caviidaes"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+			expectedAttributes: attributeSet{
 				attributesRecord(user, namespace, "*", "", "", "", "/capybaras"): {},
 				attributesRecord(user, namespace, "*", "", "", "", "/caviidaes"): {},
 			},
@@ -85,7 +85,7 @@ func TestToAttributeSet(t *testing.T) {
 				Resources:     []string{"donuts", "coffee"},
 				ResourceNames: []string{"nyc"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+			expectedAttributes: attributeSet{
 				attributesRecord(user, namespace, "get", "", "donuts", "nyc", ""):    {},
 				attributesRecord(user, namespace, "update", "", "donuts", "nyc", ""): {},
 				attributesRecord(user, namespace, "get", "", "coffee", "nyc", ""):    {},
@@ -100,7 +100,7 @@ func TestToAttributeSet(t *testing.T) {
 				APIGroups:     []string{"apps.coreos.com", "apps.redhat.com"},
 				ResourceNames: []string{"nyc"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+			expectedAttributes: attributeSet{
 				attributesRecord(user, namespace, "get", "apps.coreos.com", "donuts", "nyc", ""):    {},
 				attributesRecord(user, namespace, "update", "apps.coreos.com", "donuts", "nyc", ""): {},
 				attributesRecord(user, namespace, "get", "apps.coreos.com", "coffee", "nyc", ""):    {},
@@ -114,7 +114,7 @@ func TestToAttributeSet(t *testing.T) {
 		{
 			description:        "NoVerbs",
 			rule:               rbacv1.PolicyRule{},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{},
+			expectedAttributes: map[theAttributrix]struct{}{},
 		},
 	}
 
@@ -130,15 +130,33 @@ func TestToAttributeSet(t *testing.T) {
 				require.True(t, ok, "type assertion for attributes failed")
 
 				// make sure we're expecting the attribute
-				_, exists := tt.expectedAttributes[a]
+				_, exists := tt.expectedAttributes[toAttributrix(a)]
 				require.True(t, exists, fmt.Sprintf("found unexpected attributes %v", attributes))
 
 				// ensure each expected attribute only appears once
-				delete(tt.expectedAttributes, a)
+				delete(tt.expectedAttributes, toAttributrix(a))
 			}
 
 			// check that all expected have been found
 			require.Zero(t, len(tt.expectedAttributes), fmt.Sprintf("%d expected attributes not found", len(tt.expectedAttributes)))
 		})
+	}
+}
+
+
+func toAttributrix(a authorizer.Attributes) theAttributrix {
+	attributes, ok := a.(authorizer.AttributesRecord)
+	if !ok {
+		return theAttributrix{}
+	}
+	return theAttributrix{
+		User:            attributes.GetUser(),
+		Verb:            attributes.GetVerb(),
+		Namespace:       attributes.GetNamespace(),
+		APIGroup:        attributes.GetAPIGroup(),
+		Resource:        attributes.GetResource(),
+		Name:            attributes.GetName(),
+		ResourceRequest: attributes.IsResourceRequest(),
+		Path:            attributes.Path,
 	}
 }
