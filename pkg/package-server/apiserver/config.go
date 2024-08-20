@@ -39,17 +39,17 @@ type completedConfig struct {
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
 func (c *Config) Complete(informers informers.SharedInformerFactory) completedConfig {
-	c.GenericConfig.Version = version.VersionInfo()
+	versionInfo := version.VersionInfo()
 
 	// enable OpenAPI schemas
 	c.GenericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(generic.Scheme))
 	c.GenericConfig.OpenAPIConfig.Info.Title = "Package API server"
-	c.GenericConfig.OpenAPIConfig.Info.Version = strings.Split(c.GenericConfig.Version.String(), "-")[0]
+	c.GenericConfig.OpenAPIConfig.Info.Version = strings.Split(versionInfo.String(), "-")[0]
 
 	// enable OpenAPIV3 schemas
 	c.GenericConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(generic.Scheme))
 	c.GenericConfig.OpenAPIV3Config.Info.Title = "Package API server"
-	c.GenericConfig.OpenAPIV3Config.Info.Version = strings.Split(c.GenericConfig.Version.String(), "-")[0]
+	c.GenericConfig.OpenAPIV3Config.Info.Version = strings.Split(versionInfo.String(), "-")[0]
 
 	return completedConfig{
 		CompletedConfig: c.GenericConfig.Complete(informers),
