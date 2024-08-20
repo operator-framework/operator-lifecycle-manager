@@ -48,7 +48,7 @@ require (
 	k8s.io/kube-aggregator v0.31.0
 	k8s.io/kube-openapi v0.0.0-20240816214639-573285566f34
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
-	sigs.k8s.io/controller-runtime v0.18.5
+	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/controller-tools v0.16.1
 )
 
@@ -180,10 +180,10 @@ require (
 
 // pin to v1.18.0 until k8s.io/component-base updates its prometheus dependency
 // issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3283
-replace (
-	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.18.0
-	github.com/prometheus/common => github.com/prometheus/common v0.47.0
-)
+//replace (
+//	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.18.0
+//	github.com/prometheus/common => github.com/prometheus/common v0.47.0
+//)
 
 // v1.64.0 breaks our e2e tests as it affects the grpc connection state transition
 // issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3284

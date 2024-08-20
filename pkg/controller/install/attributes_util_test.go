@@ -19,7 +19,7 @@ func TestToAttributeSet(t *testing.T) {
 	tests := []struct {
 		description        string
 		rule               rbacv1.PolicyRule
-		expectedAttributes map[authorizer.AttributesRecord]struct{}
+		expectedAttributes map[string]authorizer.AttributesRecord
 	}{
 		{
 			description: "SimpleRule",
@@ -28,8 +28,8 @@ func TestToAttributeSet(t *testing.T) {
 				APIGroups: []string{"*"},
 				Resources: []string{"*"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "*", "*", "*", "", ""): {},
+			expectedAttributes: map[string]authorizer.AttributesRecord{
+				attributesKey(user, namespace, "*", "*", "*", "", ""): attributesRecord(user, namespace, "*", "*", "*", "", ""),
 			},
 		},
 		{
@@ -38,8 +38,8 @@ func TestToAttributeSet(t *testing.T) {
 				Verbs:           []string{"*"},
 				NonResourceURLs: []string{"/api"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "*", "", "", "", "/api"): {},
+			expectedAttributes: map[string]authorizer.AttributesRecord{
+				attributesKey(user, namespace, "*", "", "", "", "/api"): attributesRecord(user, namespace, "*", "", "", "", "/api"),
 			},
 		},
 		{
@@ -49,9 +49,9 @@ func TestToAttributeSet(t *testing.T) {
 				APIGroups: []string{"*"},
 				Resources: []string{"*"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "create", "*", "*", "", ""): {},
-				attributesRecord(user, namespace, "delete", "*", "*", "", ""): {},
+			expectedAttributes: map[string]authorizer.AttributesRecord{
+				attributesKey(user, namespace, "create", "*", "*", "", ""): attributesRecord(user, namespace, "create", "*", "*", "", ""),
+				attributesKey(user, namespace, "delete", "*", "*", "", ""): attributesRecord(user, namespace, "delete", "*", "*", "", ""),
 			},
 		},
 		{
@@ -60,11 +60,11 @@ func TestToAttributeSet(t *testing.T) {
 				Verbs:     []string{"get", "update"},
 				Resources: []string{"donuts", "coffee"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "get", "", "donuts", "", ""):    {},
-				attributesRecord(user, namespace, "update", "", "donuts", "", ""): {},
-				attributesRecord(user, namespace, "get", "", "coffee", "", ""):    {},
-				attributesRecord(user, namespace, "update", "", "coffee", "", ""): {},
+			expectedAttributes: map[string]authorizer.AttributesRecord{
+				attributesKey(user, namespace, "get", "", "donuts", "", ""):    attributesRecord(user, namespace, "get", "", "donuts", "", ""),
+				attributesKey(user, namespace, "update", "", "donuts", "", ""): attributesRecord(user, namespace, "update", "", "donuts", "", ""),
+				attributesKey(user, namespace, "get", "", "coffee", "", ""):    attributesRecord(user, namespace, "get", "", "coffee", "", ""),
+				attributesKey(user, namespace, "update", "", "coffee", "", ""): attributesRecord(user, namespace, "update", "", "coffee", "", ""),
 			},
 		},
 		{
@@ -73,9 +73,9 @@ func TestToAttributeSet(t *testing.T) {
 				Verbs:           []string{"*"},
 				NonResourceURLs: []string{"/capybaras", "/caviidaes"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "*", "", "", "", "/capybaras"): {},
-				attributesRecord(user, namespace, "*", "", "", "", "/caviidaes"): {},
+			expectedAttributes: map[string]authorizer.AttributesRecord{
+				attributesKey(user, namespace, "*", "", "", "", "/capybaras"): attributesRecord(user, namespace, "*", "", "", "", "/capybaras"),
+				attributesKey(user, namespace, "*", "", "", "", "/caviidaes"): attributesRecord(user, namespace, "*", "", "", "", "/caviidaes"),
 			},
 		},
 		{
@@ -85,11 +85,11 @@ func TestToAttributeSet(t *testing.T) {
 				Resources:     []string{"donuts", "coffee"},
 				ResourceNames: []string{"nyc"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "get", "", "donuts", "nyc", ""):    {},
-				attributesRecord(user, namespace, "update", "", "donuts", "nyc", ""): {},
-				attributesRecord(user, namespace, "get", "", "coffee", "nyc", ""):    {},
-				attributesRecord(user, namespace, "update", "", "coffee", "nyc", ""): {},
+			expectedAttributes: map[string]authorizer.AttributesRecord{
+				attributesKey(user, namespace, "get", "", "donuts", "nyc", ""):    attributesRecord(user, namespace, "get", "", "donuts", "nyc", ""),
+				attributesKey(user, namespace, "update", "", "donuts", "nyc", ""): attributesRecord(user, namespace, "update", "", "donuts", "nyc", ""),
+				attributesKey(user, namespace, "get", "", "coffee", "nyc", ""):    attributesRecord(user, namespace, "get", "", "coffee", "nyc", ""),
+				attributesKey(user, namespace, "update", "", "coffee", "nyc", ""): attributesRecord(user, namespace, "update", "", "coffee", "nyc", ""),
 			},
 		},
 		{
@@ -100,21 +100,21 @@ func TestToAttributeSet(t *testing.T) {
 				APIGroups:     []string{"apps.coreos.com", "apps.redhat.com"},
 				ResourceNames: []string{"nyc"},
 			},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "get", "apps.coreos.com", "donuts", "nyc", ""):    {},
-				attributesRecord(user, namespace, "update", "apps.coreos.com", "donuts", "nyc", ""): {},
-				attributesRecord(user, namespace, "get", "apps.coreos.com", "coffee", "nyc", ""):    {},
-				attributesRecord(user, namespace, "update", "apps.coreos.com", "coffee", "nyc", ""): {},
-				attributesRecord(user, namespace, "get", "apps.redhat.com", "donuts", "nyc", ""):    {},
-				attributesRecord(user, namespace, "update", "apps.redhat.com", "donuts", "nyc", ""): {},
-				attributesRecord(user, namespace, "get", "apps.redhat.com", "coffee", "nyc", ""):    {},
-				attributesRecord(user, namespace, "update", "apps.redhat.com", "coffee", "nyc", ""): {},
+			expectedAttributes: map[string]authorizer.AttributesRecord{
+				attributesKey(user, namespace, "get", "apps.coreos.com", "donuts", "nyc", ""):    attributesRecord(user, namespace, "get", "apps.coreos.com", "donuts", "nyc", ""),
+				attributesKey(user, namespace, "update", "apps.coreos.com", "donuts", "nyc", ""): attributesRecord(user, namespace, "update", "apps.coreos.com", "donuts", "nyc", ""),
+				attributesKey(user, namespace, "get", "apps.coreos.com", "coffee", "nyc", ""):    attributesRecord(user, namespace, "get", "apps.coreos.com", "coffee", "nyc", ""),
+				attributesKey(user, namespace, "update", "apps.coreos.com", "coffee", "nyc", ""): attributesRecord(user, namespace, "update", "apps.coreos.com", "coffee", "nyc", ""),
+				attributesKey(user, namespace, "get", "apps.redhat.com", "donuts", "nyc", ""):    attributesRecord(user, namespace, "get", "apps.redhat.com", "donuts", "nyc", ""),
+				attributesKey(user, namespace, "update", "apps.redhat.com", "donuts", "nyc", ""): attributesRecord(user, namespace, "update", "apps.redhat.com", "donuts", "nyc", ""),
+				attributesKey(user, namespace, "get", "apps.redhat.com", "coffee", "nyc", ""):    attributesRecord(user, namespace, "get", "apps.redhat.com", "coffee", "nyc", ""),
+				attributesKey(user, namespace, "update", "apps.redhat.com", "coffee", "nyc", ""): attributesRecord(user, namespace, "update", "apps.redhat.com", "coffee", "nyc", ""),
 			},
 		},
 		{
 			description:        "NoVerbs",
 			rule:               rbacv1.PolicyRule{},
-			expectedAttributes: map[authorizer.AttributesRecord]struct{}{},
+			expectedAttributes: map[string]authorizer.AttributesRecord{},
 		},
 	}
 
@@ -130,11 +130,12 @@ func TestToAttributeSet(t *testing.T) {
 				require.True(t, ok, "type assertion for attributes failed")
 
 				// make sure we're expecting the attribute
-				_, exists := tt.expectedAttributes[a]
+				key := attributesKey(a.GetUser(), a.GetNamespace(), a.GetVerb(), a.GetAPIGroup(), a.GetResource(), a.GetName(), a.GetPath())
+				_, exists := tt.expectedAttributes[key]
 				require.True(t, exists, fmt.Sprintf("found unexpected attributes %v", attributes))
 
 				// ensure each expected attribute only appears once
-				delete(tt.expectedAttributes, a)
+				delete(tt.expectedAttributes, key)
 			}
 
 			// check that all expected have been found

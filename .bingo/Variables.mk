@@ -41,11 +41,11 @@ $(KIND): $(BINGO_DIR)/kind.mod
 	@echo "(re)installing $(GOBIN)/kind-v0.23.0"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=kind.mod -o=$(GOBIN)/kind-v0.23.0 "sigs.k8s.io/kind"
 
-SETUP_ENVTEST := $(GOBIN)/setup-envtest-v0.0.0-20240522175850-2e9781e9fc60
+SETUP_ENVTEST := $(GOBIN)/setup-envtest-v0.0.0-20240813183042-b901db121e1f
 $(SETUP_ENVTEST): $(BINGO_DIR)/setup-envtest.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/setup-envtest-v0.0.0-20240522175850-2e9781e9fc60"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=setup-envtest.mod -o=$(GOBIN)/setup-envtest-v0.0.0-20240522175850-2e9781e9fc60 "sigs.k8s.io/controller-runtime/tools/setup-envtest"
+	@echo "(re)installing $(GOBIN)/setup-envtest-v0.0.0-20240813183042-b901db121e1f"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=setup-envtest.mod -o=$(GOBIN)/setup-envtest-v0.0.0-20240813183042-b901db121e1f "sigs.k8s.io/controller-runtime/tools/setup-envtest"
 
 YQ := $(GOBIN)/yq-v3.0.0-20201202084205-8846255d1c37
 $(YQ): $(BINGO_DIR)/yq.mod

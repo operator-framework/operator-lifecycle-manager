@@ -62,6 +62,7 @@ func (r *OperatorConditionGeneratorReconciler) SetupWithManager(mgr ctrl.Manager
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("operator-condition-generator").
 		For(&operatorsv1alpha1.ClusterServiceVersion{}, builder.WithPredicates(p)).
 		Watches(&operatorsv2.OperatorCondition{}, handler).
 		Complete(r)
