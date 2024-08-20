@@ -40,20 +40,22 @@ var olmconfigsKind = v1.SchemeGroupVersion.WithKind("OLMConfig")
 
 // Get takes name of the oLMConfig, and returns the corresponding oLMConfig object, and an error if there is any.
 func (c *FakeOLMConfigs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.OLMConfig, err error) {
+	emptyResult := &v1.OLMConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(olmconfigsResource, name), &v1.OLMConfig{})
+		Invokes(testing.NewRootGetActionWithOptions(olmconfigsResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.OLMConfig), err
 }
 
 // List takes label and field selectors, and returns the list of OLMConfigs that match those selectors.
 func (c *FakeOLMConfigs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.OLMConfigList, err error) {
+	emptyResult := &v1.OLMConfigList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(olmconfigsResource, olmconfigsKind, opts), &v1.OLMConfigList{})
+		Invokes(testing.NewRootListActionWithOptions(olmconfigsResource, olmconfigsKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -72,36 +74,39 @@ func (c *FakeOLMConfigs) List(ctx context.Context, opts metav1.ListOptions) (res
 // Watch returns a watch.Interface that watches the requested oLMConfigs.
 func (c *FakeOLMConfigs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(olmconfigsResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(olmconfigsResource, opts))
 }
 
 // Create takes the representation of a oLMConfig and creates it.  Returns the server's representation of the oLMConfig, and an error, if there is any.
 func (c *FakeOLMConfigs) Create(ctx context.Context, oLMConfig *v1.OLMConfig, opts metav1.CreateOptions) (result *v1.OLMConfig, err error) {
+	emptyResult := &v1.OLMConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(olmconfigsResource, oLMConfig), &v1.OLMConfig{})
+		Invokes(testing.NewRootCreateActionWithOptions(olmconfigsResource, oLMConfig, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.OLMConfig), err
 }
 
 // Update takes the representation of a oLMConfig and updates it. Returns the server's representation of the oLMConfig, and an error, if there is any.
 func (c *FakeOLMConfigs) Update(ctx context.Context, oLMConfig *v1.OLMConfig, opts metav1.UpdateOptions) (result *v1.OLMConfig, err error) {
+	emptyResult := &v1.OLMConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(olmconfigsResource, oLMConfig), &v1.OLMConfig{})
+		Invokes(testing.NewRootUpdateActionWithOptions(olmconfigsResource, oLMConfig, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.OLMConfig), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOLMConfigs) UpdateStatus(ctx context.Context, oLMConfig *v1.OLMConfig, opts metav1.UpdateOptions) (*v1.OLMConfig, error) {
+func (c *FakeOLMConfigs) UpdateStatus(ctx context.Context, oLMConfig *v1.OLMConfig, opts metav1.UpdateOptions) (result *v1.OLMConfig, err error) {
+	emptyResult := &v1.OLMConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(olmconfigsResource, "status", oLMConfig), &v1.OLMConfig{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(olmconfigsResource, "status", oLMConfig, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.OLMConfig), err
 }
@@ -115,7 +120,7 @@ func (c *FakeOLMConfigs) Delete(ctx context.Context, name string, opts metav1.De
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeOLMConfigs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(olmconfigsResource, listOpts)
+	action := testing.NewRootDeleteCollectionActionWithOptions(olmconfigsResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.OLMConfigList{})
 	return err
@@ -123,10 +128,11 @@ func (c *FakeOLMConfigs) DeleteCollection(ctx context.Context, opts metav1.Delet
 
 // Patch applies the patch and returns the patched oLMConfig.
 func (c *FakeOLMConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OLMConfig, err error) {
+	emptyResult := &v1.OLMConfig{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(olmconfigsResource, name, pt, data, subresources...), &v1.OLMConfig{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(olmconfigsResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.OLMConfig), err
 }

@@ -20,8 +20,8 @@ package v1alpha1
 
 import (
 	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -38,25 +38,17 @@ type InstallPlanLister interface {
 
 // installPlanLister implements the InstallPlanLister interface.
 type installPlanLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1alpha1.InstallPlan]
 }
 
 // NewInstallPlanLister returns a new InstallPlanLister.
 func NewInstallPlanLister(indexer cache.Indexer) InstallPlanLister {
-	return &installPlanLister{indexer: indexer}
-}
-
-// List lists all InstallPlans in the indexer.
-func (s *installPlanLister) List(selector labels.Selector) (ret []*v1alpha1.InstallPlan, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.InstallPlan))
-	})
-	return ret, err
+	return &installPlanLister{listers.New[*v1alpha1.InstallPlan](indexer, v1alpha1.Resource("installplan"))}
 }
 
 // InstallPlans returns an object that can list and get InstallPlans.
 func (s *installPlanLister) InstallPlans(namespace string) InstallPlanNamespaceLister {
-	return installPlanNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return installPlanNamespaceLister{listers.NewNamespaced[*v1alpha1.InstallPlan](s.ResourceIndexer, namespace)}
 }
 
 // InstallPlanNamespaceLister helps list and get InstallPlans.
@@ -74,26 +66,5 @@ type InstallPlanNamespaceLister interface {
 // installPlanNamespaceLister implements the InstallPlanNamespaceLister
 // interface.
 type installPlanNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all InstallPlans in the indexer for a given namespace.
-func (s installPlanNamespaceLister) List(selector labels.Selector) (ret []*v1alpha1.InstallPlan, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.InstallPlan))
-	})
-	return ret, err
-}
-
-// Get retrieves the InstallPlan from the indexer for a given namespace and name.
-func (s installPlanNamespaceLister) Get(name string) (*v1alpha1.InstallPlan, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1alpha1.Resource("installplan"), name)
-	}
-	return obj.(*v1alpha1.InstallPlan), nil
+	listers.ResourceIndexer[*v1alpha1.InstallPlan]
 }

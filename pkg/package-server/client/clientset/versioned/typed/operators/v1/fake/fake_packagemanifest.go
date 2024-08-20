@@ -41,22 +41,24 @@ var packagemanifestsKind = v1.SchemeGroupVersion.WithKind("PackageManifest")
 
 // Get takes name of the packageManifest, and returns the corresponding packageManifest object, and an error if there is any.
 func (c *FakePackageManifests) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.PackageManifest, err error) {
+	emptyResult := &v1.PackageManifest{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(packagemanifestsResource, c.ns, name), &v1.PackageManifest{})
+		Invokes(testing.NewGetActionWithOptions(packagemanifestsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.PackageManifest), err
 }
 
 // List takes label and field selectors, and returns the list of PackageManifests that match those selectors.
 func (c *FakePackageManifests) List(ctx context.Context, opts metav1.ListOptions) (result *v1.PackageManifestList, err error) {
+	emptyResult := &v1.PackageManifestList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(packagemanifestsResource, packagemanifestsKind, c.ns, opts), &v1.PackageManifestList{})
+		Invokes(testing.NewListActionWithOptions(packagemanifestsResource, packagemanifestsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakePackageManifests) List(ctx context.Context, opts metav1.ListOptions
 // Watch returns a watch.Interface that watches the requested packageManifests.
 func (c *FakePackageManifests) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(packagemanifestsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(packagemanifestsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a packageManifest and creates it.  Returns the server's representation of the packageManifest, and an error, if there is any.
 func (c *FakePackageManifests) Create(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.CreateOptions) (result *v1.PackageManifest, err error) {
+	emptyResult := &v1.PackageManifest{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(packagemanifestsResource, c.ns, packageManifest), &v1.PackageManifest{})
+		Invokes(testing.NewCreateActionWithOptions(packagemanifestsResource, c.ns, packageManifest, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.PackageManifest), err
 }
 
 // Update takes the representation of a packageManifest and updates it. Returns the server's representation of the packageManifest, and an error, if there is any.
 func (c *FakePackageManifests) Update(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.UpdateOptions) (result *v1.PackageManifest, err error) {
+	emptyResult := &v1.PackageManifest{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(packagemanifestsResource, c.ns, packageManifest), &v1.PackageManifest{})
+		Invokes(testing.NewUpdateActionWithOptions(packagemanifestsResource, c.ns, packageManifest, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.PackageManifest), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakePackageManifests) UpdateStatus(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.UpdateOptions) (*v1.PackageManifest, error) {
+func (c *FakePackageManifests) UpdateStatus(ctx context.Context, packageManifest *v1.PackageManifest, opts metav1.UpdateOptions) (result *v1.PackageManifest, err error) {
+	emptyResult := &v1.PackageManifest{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(packagemanifestsResource, "status", c.ns, packageManifest), &v1.PackageManifest{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(packagemanifestsResource, "status", c.ns, packageManifest, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.PackageManifest), err
 }
@@ -123,7 +128,7 @@ func (c *FakePackageManifests) Delete(ctx context.Context, name string, opts met
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakePackageManifests) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(packagemanifestsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(packagemanifestsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.PackageManifestList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakePackageManifests) DeleteCollection(ctx context.Context, opts metav1
 
 // Patch applies the patch and returns the patched packageManifest.
 func (c *FakePackageManifests) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.PackageManifest, err error) {
+	emptyResult := &v1.PackageManifest{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(packagemanifestsResource, c.ns, name, pt, data, subresources...), &v1.PackageManifest{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(packagemanifestsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.PackageManifest), err
 }
