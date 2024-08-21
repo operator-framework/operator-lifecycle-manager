@@ -2,9 +2,7 @@ package reconciler
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -24,7 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/ptr"
 )
 
 const (
@@ -348,25 +345,6 @@ func isRegistryServiceStatusValid(source *grpcCatalogSourceDecorator) (bool, err
 func (c *GrpcRegistryReconciler) ensurePod(logger *logrus.Entry, source grpcCatalogSourceDecorator, serviceAccount *corev1.ServiceAccount, defaultPodSecurityConfig v1alpha1.SecurityConfig, overwrite bool) error {
 	// currentPods refers to the current pod instances of the catalog source
 	currentPods := c.currentPods(logger, source)
-
-	var forceDeleteErrs []error
-	currentPods = slices.DeleteFunc(currentPods, func(pod *corev1.Pod) bool {
-		if !isPodDead(pod) {
-			logger.WithFields(logrus.Fields{"pod.namespace": source.GetNamespace(), "pod.name": pod.GetName()}).Debug("pod is alive")
-			return false
-		}
-		logger.WithFields(logrus.Fields{"pod.namespace": source.GetNamespace(), "pod.name": pod.GetName()}).Info("force deleting dead pod")
-		if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(context.TODO(), pod.GetName(), metav1.DeleteOptions{
-			GracePeriodSeconds: ptr.To[int64](0),
-		}); err != nil && !apierrors.IsNotFound(err) {
-			forceDeleteErrs = append(forceDeleteErrs, pkgerrors.Wrapf(err, "error deleting old pod: %s", pod.GetName()))
-		}
-		return true
-	})
-	if len(forceDeleteErrs) > 0 {
-		return errors.Join(forceDeleteErrs...)
-	}
-
 	if len(currentPods) > 0 {
 		if !overwrite {
 			return nil
@@ -628,16 +606,19 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(logger *logrus.Entry, catal
 	if err != nil {
 		return false, err
 	}
-	current, err := c.currentPodsWithCorrectImageAndSpec(logger, source, serviceAccount, registryPodSecurityConfig)
+	currentPods, err := c.currentPodsWithCorrectImageAndSpec(logger, source, serviceAccount, registryPodSecurityConfig)
 	if err != nil {
 		return false, err
 	}
-	if len(current) < 1 ||
+	if len(currentPods) < 1 ||
 		service == nil || c.currentServiceAccount(source) == nil {
 		return false, nil
 	}
-
-	return true, nil
+	podsAreLive, e := detectAndDeleteDeadPods(logger, c.OpClient, currentPods, source.GetNamespace())
+	if e != nil {
+		return false, fmt.Errorf("error deleting dead pods: %v", e)
+	}
+	return podsAreLive, nil
 }
 
 // promoteCatalog swaps the labels on the update pod so that the update pod is now reachable by the catalog service.

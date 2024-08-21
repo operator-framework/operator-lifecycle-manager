@@ -70,6 +70,23 @@ func grpcCatalogSourceWithName(name string) *v1alpha1.CatalogSource {
 	return catsrc
 }
 
+func withPodDeletedButNotRemoved(objs []runtime.Object) []runtime.Object {
+	var out []runtime.Object
+	for _, obj := range objs {
+		o := obj.DeepCopyObject()
+		if pod, ok := obj.(*corev1.Pod); ok {
+			pod.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+			pod.Status.Conditions = append(pod.Status.Conditions, corev1.PodCondition{
+				Type:   corev1.DisruptionTarget,
+				Reason: "DeletionByTaintManager",
+				Status: corev1.ConditionTrue,
+			})
+			o = pod
+		}
+		out = append(out, o)
+	}
+	return out
+}
 func TestGrpcRegistryReconciler(t *testing.T) {
 	now := func() metav1.Time { return metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC) }
 	blockOwnerDeletion := true
@@ -551,6 +568,18 @@ func TestGrpcRegistryChecker(t *testing.T) {
 			in: in{
 				cluster: cluster{
 					k8sObjs: setLabel(objectsForCatalogSource(t, validGrpcCatalogSource("test-img", "")), &corev1.Pod{}, CatalogSourceLabelKey, ""),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/Image/DeadPod",
+			in: in{
+				cluster: cluster{
+					k8sObjs: withPodDeletedButNotRemoved(objectsForCatalogSource(t, validGrpcCatalogSource("test-img", ""))),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
