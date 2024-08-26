@@ -83,11 +83,11 @@ type Operator struct {
 	copiedCSVLister              metadatalister.Lister
 	ogQueueSet                   *queueinformer.ResourceQueueSet
 	csvQueueSet                  *queueinformer.ResourceQueueSet
-	olmConfigQueue               workqueue.RateLimitingInterface
+	olmConfigQueue               workqueue.TypedRateLimitingInterface[any]
 	csvCopyQueueSet              *queueinformer.ResourceQueueSet
 	copiedCSVGCQueueSet          *queueinformer.ResourceQueueSet
-	nsQueueSet                   workqueue.RateLimitingInterface
-	apiServiceQueue              workqueue.RateLimitingInterface
+	nsQueueSet                   workqueue.TypedRateLimitingInterface[any]
+	apiServiceQueue              workqueue.TypedRateLimitingInterface[any]
 	csvIndexers                  map[string]cache.Indexer
 	recorder                     record.EventRecorder
 	resolver                     install.StrategyResolverInterface
@@ -191,17 +191,26 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	}
 
 	op := &Operator{
-		Operator:                     queueOperator,
-		clock:                        config.clock,
-		logger:                       config.logger,
-		opClient:                     config.operatorClient,
-		client:                       config.externalClient,
-		ogQueueSet:                   queueinformer.NewEmptyResourceQueueSet(),
-		csvQueueSet:                  queueinformer.NewEmptyResourceQueueSet(),
-		olmConfigQueue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "olmConfig"),
-		csvCopyQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
-		copiedCSVGCQueueSet:          queueinformer.NewEmptyResourceQueueSet(),
-		apiServiceQueue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
+		Operator:    queueOperator,
+		clock:       config.clock,
+		logger:      config.logger,
+		opClient:    config.operatorClient,
+		client:      config.externalClient,
+		ogQueueSet:  queueinformer.NewEmptyResourceQueueSet(),
+		csvQueueSet: queueinformer.NewEmptyResourceQueueSet(),
+		olmConfigQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
+			workqueue.DefaultTypedControllerRateLimiter[any](),
+			workqueue.TypedRateLimitingQueueConfig[any]{
+				Name: "olmConfig",
+			}),
+
+		csvCopyQueueSet:     queueinformer.NewEmptyResourceQueueSet(),
+		copiedCSVGCQueueSet: queueinformer.NewEmptyResourceQueueSet(),
+		apiServiceQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
+			workqueue.DefaultTypedControllerRateLimiter[any](),
+			workqueue.TypedRateLimitingQueueConfig[any]{
+				Name: "apiservice",
+			}),
 		resolver:                     config.strategyResolver,
 		apiReconciler:                config.apiReconciler,
 		lister:                       lister,
@@ -237,7 +246,11 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		).Operators().V1alpha1().ClusterServiceVersions()
 		informersByNamespace[namespace].CSVInformer = csvInformer
 		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
-		csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv", namespace))
+		csvQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](
+			workqueue.DefaultTypedControllerRateLimiter[any](),
+			workqueue.TypedRateLimitingQueueConfig[any]{
+				Name: fmt.Sprintf("%s/csv", namespace),
+			})
 		op.csvQueueSet.Set(namespace, csvQueue)
 		csvQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
@@ -260,7 +273,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		op.csvIndexers[namespace] = csvIndexer
 
 		// Register separate queue for copying csvs
-		csvCopyQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv-copy", namespace))
+		csvCopyQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), fmt.Sprintf("%s/csv-copy", namespace))
 		op.csvCopyQueueSet.Set(namespace, csvCopyQueue)
 		csvCopyQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
@@ -294,7 +307,11 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		informersByNamespace[namespace].CopiedCSVLister = op.copiedCSVLister
 
 		// Register separate queue for gcing copied csvs
-		copiedCSVGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv-gc", namespace))
+		copiedCSVGCQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](
+			workqueue.DefaultTypedControllerRateLimiter[any](),
+			workqueue.TypedRateLimitingQueueConfig[any]{
+				Name: fmt.Sprintf("%s/csv-gc", namespace),
+			})
 		op.copiedCSVGCQueueSet.Set(namespace, copiedCSVGCQueue)
 		copiedCSVGCQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
@@ -316,7 +333,11 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		operatorGroupInformer := extInformerFactory.Operators().V1().OperatorGroups()
 		informersByNamespace[namespace].OperatorGroupInformer = operatorGroupInformer
 		op.lister.OperatorsV1().RegisterOperatorGroupLister(namespace, operatorGroupInformer.Lister())
-		ogQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/og", namespace))
+		ogQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](
+			workqueue.DefaultTypedControllerRateLimiter[any](),
+			workqueue.TypedRateLimitingQueueConfig[any]{
+				Name: fmt.Sprintf("%s/og", namespace),
+			})
 		op.ogQueueSet.Set(namespace, ogQueue)
 		operatorGroupQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
@@ -501,7 +522,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		logger := op.logger.WithFields(logrus.Fields{"gvr": gvr.String(), "index": idx})
 		logger.Info("registering labeller")
 
-		queue := workqueue.NewRateLimitingQueueWithConfig(workqueue.DefaultControllerRateLimiter(), workqueue.RateLimitingQueueConfig{
+		queue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{
 			Name: gvr.String(),
 		})
 		queueInformer, err := queueinformer.NewQueueInformer(
@@ -675,7 +696,11 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), config.resyncPeriod()).Core().V1().Namespaces()
 	informersByNamespace[metav1.NamespaceAll].NamespaceInformer = namespaceInformer
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
-	op.nsQueueSet = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver")
+	op.nsQueueSet = workqueue.NewTypedRateLimitingQueueWithConfig[any](
+		workqueue.DefaultTypedControllerRateLimiter[any](),
+		workqueue.TypedRateLimitingQueueConfig[any]{
+			Name: "resolver",
+		})
 	namespaceInformer.Informer().AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
 			DeleteFunc: op.namespaceAddedOrRemoved,
