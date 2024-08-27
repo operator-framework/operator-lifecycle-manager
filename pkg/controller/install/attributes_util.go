@@ -1,6 +1,8 @@
 package install
 
 import (
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -12,7 +14,7 @@ import (
 // toAttributesSet converts the given user, namespace, and PolicyRule into a set of Attributes expected. This is useful for checking
 // if a composed set of Roles/RoleBindings satisfies a PolicyRule.
 func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) []authorizer.Attributes {
-	set := map[authorizer.AttributesRecord]struct{}{}
+	set := map[string]authorizer.Attributes{}
 
 	// add empty string for empty groups, resources, resource names, and non resource urls
 	groups := rule.APIGroups
@@ -37,18 +39,18 @@ func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) [
 			for _, resource := range resources {
 				for _, name := range names {
 					for _, nonResourceURL := range nonResourceURLs {
-						set[attributesRecord(user, namespace, verb, group, resource, name, nonResourceURL)] = struct{}{}
+						attr := attributesRecord(user, namespace, verb, group, resource, name, nonResourceURL)
+						key := attributesKey(user, namespace, verb, group, resource, name, nonResourceURL)
+						set[key] = attr
 					}
 				}
 			}
 		}
 	}
 
-	attributes := make([]authorizer.Attributes, len(set))
-	i := 0
-	for attribute := range set {
-		attributes[i] = attribute
-		i++
+	attributes := make([]authorizer.Attributes, 0, len(set))
+	for _, attribute := range set {
+		attributes = append(attributes, attribute)
 	}
 	log.Debugf("attributes set %+v", attributes)
 
@@ -76,4 +78,17 @@ func toDefaultInfo(sa *corev1.ServiceAccount) *user.DefaultInfo {
 		Name: serviceaccount.MakeUsername(sa.GetNamespace(), sa.GetName()),
 		UID:  string(sa.GetUID()),
 	}
+}
+
+func attributesKey(user user.Info, namespace, verb, apiGroup, resource, name, path string) string {
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+		user.GetName(),
+		verb,
+		namespace,
+		apiGroup,
+		resource,
+		name,
+		resource,
+		path,
+	)
 }

@@ -35,7 +35,7 @@ const DefaultWakeupInterval = 12 * time.Hour
 
 type Operator struct {
 	queueinformer.Operator
-	olmConfigQueue workqueue.RateLimitingInterface
+	olmConfigQueue workqueue.TypedRateLimitingInterface[any]
 	options        *PackageServerOptions
 }
 
@@ -238,9 +238,13 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 	}
 
 	op := &Operator{
-		Operator:       queueOperator,
-		olmConfigQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "olmConfig"),
-		options:        o,
+		Operator: queueOperator,
+		olmConfigQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
+			workqueue.DefaultTypedControllerRateLimiter[any](),
+			workqueue.TypedRateLimitingQueueConfig[any]{
+				Name: "olmConfig",
+			}),
+		options: o,
 	}
 
 	olmConfigInformer := olminformers.NewSharedInformerFactoryWithOptions(crClient, 0).Operators().V1().OLMConfigs()
@@ -295,7 +299,7 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 	sourceProvider.Run(ctx)
 	<-sourceProvider.Ready()
 
-	err = server.GenericAPIServer.PrepareRun().Run(ctx.Done())
+	err = server.GenericAPIServer.PrepareRun().RunWithContext(ctx)
 	<-sourceProvider.Done()
 
 	return err

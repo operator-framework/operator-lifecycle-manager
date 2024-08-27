@@ -20,8 +20,8 @@ package internalversion
 
 import (
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -38,25 +38,17 @@ type PackageManifestLister interface {
 
 // packageManifestLister implements the PackageManifestLister interface.
 type packageManifestLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*operators.PackageManifest]
 }
 
 // NewPackageManifestLister returns a new PackageManifestLister.
 func NewPackageManifestLister(indexer cache.Indexer) PackageManifestLister {
-	return &packageManifestLister{indexer: indexer}
-}
-
-// List lists all PackageManifests in the indexer.
-func (s *packageManifestLister) List(selector labels.Selector) (ret []*operators.PackageManifest, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*operators.PackageManifest))
-	})
-	return ret, err
+	return &packageManifestLister{listers.New[*operators.PackageManifest](indexer, operators.Resource("packagemanifest"))}
 }
 
 // PackageManifests returns an object that can list and get PackageManifests.
 func (s *packageManifestLister) PackageManifests(namespace string) PackageManifestNamespaceLister {
-	return packageManifestNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return packageManifestNamespaceLister{listers.NewNamespaced[*operators.PackageManifest](s.ResourceIndexer, namespace)}
 }
 
 // PackageManifestNamespaceLister helps list and get PackageManifests.
@@ -74,26 +66,5 @@ type PackageManifestNamespaceLister interface {
 // packageManifestNamespaceLister implements the PackageManifestNamespaceLister
 // interface.
 type packageManifestNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all PackageManifests in the indexer for a given namespace.
-func (s packageManifestNamespaceLister) List(selector labels.Selector) (ret []*operators.PackageManifest, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*operators.PackageManifest))
-	})
-	return ret, err
-}
-
-// Get retrieves the PackageManifest from the indexer for a given namespace and name.
-func (s packageManifestNamespaceLister) Get(name string) (*operators.PackageManifest, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(operators.Resource("packagemanifest"), name)
-	}
-	return obj.(*operators.PackageManifest), nil
+	listers.ResourceIndexer[*operators.PackageManifest]
 }

@@ -41,22 +41,24 @@ var clusterserviceversionsKind = v1alpha1.SchemeGroupVersion.WithKind("ClusterSe
 
 // Get takes name of the clusterServiceVersion, and returns the corresponding clusterServiceVersion object, and an error if there is any.
 func (c *FakeClusterServiceVersions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
+	emptyResult := &v1alpha1.ClusterServiceVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(clusterserviceversionsResource, c.ns, name), &v1alpha1.ClusterServiceVersion{})
+		Invokes(testing.NewGetActionWithOptions(clusterserviceversionsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.ClusterServiceVersion), err
 }
 
 // List takes label and field selectors, and returns the list of ClusterServiceVersions that match those selectors.
 func (c *FakeClusterServiceVersions) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.ClusterServiceVersionList, err error) {
+	emptyResult := &v1alpha1.ClusterServiceVersionList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(clusterserviceversionsResource, clusterserviceversionsKind, c.ns, opts), &v1alpha1.ClusterServiceVersionList{})
+		Invokes(testing.NewListActionWithOptions(clusterserviceversionsResource, clusterserviceversionsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeClusterServiceVersions) List(ctx context.Context, opts v1.ListOptio
 // Watch returns a watch.Interface that watches the requested clusterServiceVersions.
 func (c *FakeClusterServiceVersions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(clusterserviceversionsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(clusterserviceversionsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a clusterServiceVersion and creates it.  Returns the server's representation of the clusterServiceVersion, and an error, if there is any.
 func (c *FakeClusterServiceVersions) Create(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.CreateOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
+	emptyResult := &v1alpha1.ClusterServiceVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(clusterserviceversionsResource, c.ns, clusterServiceVersion), &v1alpha1.ClusterServiceVersion{})
+		Invokes(testing.NewCreateActionWithOptions(clusterserviceversionsResource, c.ns, clusterServiceVersion, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.ClusterServiceVersion), err
 }
 
 // Update takes the representation of a clusterServiceVersion and updates it. Returns the server's representation of the clusterServiceVersion, and an error, if there is any.
 func (c *FakeClusterServiceVersions) Update(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
+	emptyResult := &v1alpha1.ClusterServiceVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(clusterserviceversionsResource, c.ns, clusterServiceVersion), &v1alpha1.ClusterServiceVersion{})
+		Invokes(testing.NewUpdateActionWithOptions(clusterserviceversionsResource, c.ns, clusterServiceVersion, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.ClusterServiceVersion), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterServiceVersions) UpdateStatus(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (*v1alpha1.ClusterServiceVersion, error) {
+func (c *FakeClusterServiceVersions) UpdateStatus(ctx context.Context, clusterServiceVersion *v1alpha1.ClusterServiceVersion, opts v1.UpdateOptions) (result *v1alpha1.ClusterServiceVersion, err error) {
+	emptyResult := &v1alpha1.ClusterServiceVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(clusterserviceversionsResource, "status", c.ns, clusterServiceVersion), &v1alpha1.ClusterServiceVersion{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(clusterserviceversionsResource, "status", c.ns, clusterServiceVersion, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.ClusterServiceVersion), err
 }
@@ -123,7 +128,7 @@ func (c *FakeClusterServiceVersions) Delete(ctx context.Context, name string, op
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeClusterServiceVersions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(clusterserviceversionsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(clusterserviceversionsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.ClusterServiceVersionList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeClusterServiceVersions) DeleteCollection(ctx context.Context, opts 
 
 // Patch applies the patch and returns the patched clusterServiceVersion.
 func (c *FakeClusterServiceVersions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.ClusterServiceVersion, err error) {
+	emptyResult := &v1alpha1.ClusterServiceVersion{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(clusterserviceversionsResource, c.ns, name, pt, data, subresources...), &v1alpha1.ClusterServiceVersion{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(clusterserviceversionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.ClusterServiceVersion), err
 }

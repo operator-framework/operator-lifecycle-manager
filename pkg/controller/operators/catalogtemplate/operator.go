@@ -101,7 +101,10 @@ func NewOperator(ctx context.Context, kubeconfigPath string, logger *logrus.Logg
 	// Wire CatalogSources
 	catsrcInformer := crInformerFactory.Operators().V1alpha1().CatalogSources()
 	op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(metav1.NamespaceAll, catsrcInformer.Lister())
-	catalogTemplateSrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogSourceTemplate")
+	catalogTemplateSrcQueue := workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](),
+		workqueue.TypedRateLimitingQueueConfig[any]{
+			Name: "catalogSourceTemplate",
+		})
 	op.catalogSourceTemplateQueueSet.Set(metav1.NamespaceAll, catalogTemplateSrcQueue)
 	catsrcQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,

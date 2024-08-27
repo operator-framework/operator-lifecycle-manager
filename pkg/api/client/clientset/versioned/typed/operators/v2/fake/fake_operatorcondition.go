@@ -41,22 +41,24 @@ var operatorconditionsKind = v2.SchemeGroupVersion.WithKind("OperatorCondition")
 
 // Get takes name of the operatorCondition, and returns the corresponding operatorCondition object, and an error if there is any.
 func (c *FakeOperatorConditions) Get(ctx context.Context, name string, options v1.GetOptions) (result *v2.OperatorCondition, err error) {
+	emptyResult := &v2.OperatorCondition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(operatorconditionsResource, c.ns, name), &v2.OperatorCondition{})
+		Invokes(testing.NewGetActionWithOptions(operatorconditionsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v2.OperatorCondition), err
 }
 
 // List takes label and field selectors, and returns the list of OperatorConditions that match those selectors.
 func (c *FakeOperatorConditions) List(ctx context.Context, opts v1.ListOptions) (result *v2.OperatorConditionList, err error) {
+	emptyResult := &v2.OperatorConditionList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(operatorconditionsResource, operatorconditionsKind, c.ns, opts), &v2.OperatorConditionList{})
+		Invokes(testing.NewListActionWithOptions(operatorconditionsResource, operatorconditionsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeOperatorConditions) List(ctx context.Context, opts v1.ListOptions) 
 // Watch returns a watch.Interface that watches the requested operatorConditions.
 func (c *FakeOperatorConditions) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(operatorconditionsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(operatorconditionsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a operatorCondition and creates it.  Returns the server's representation of the operatorCondition, and an error, if there is any.
 func (c *FakeOperatorConditions) Create(ctx context.Context, operatorCondition *v2.OperatorCondition, opts v1.CreateOptions) (result *v2.OperatorCondition, err error) {
+	emptyResult := &v2.OperatorCondition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(operatorconditionsResource, c.ns, operatorCondition), &v2.OperatorCondition{})
+		Invokes(testing.NewCreateActionWithOptions(operatorconditionsResource, c.ns, operatorCondition, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v2.OperatorCondition), err
 }
 
 // Update takes the representation of a operatorCondition and updates it. Returns the server's representation of the operatorCondition, and an error, if there is any.
 func (c *FakeOperatorConditions) Update(ctx context.Context, operatorCondition *v2.OperatorCondition, opts v1.UpdateOptions) (result *v2.OperatorCondition, err error) {
+	emptyResult := &v2.OperatorCondition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(operatorconditionsResource, c.ns, operatorCondition), &v2.OperatorCondition{})
+		Invokes(testing.NewUpdateActionWithOptions(operatorconditionsResource, c.ns, operatorCondition, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v2.OperatorCondition), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOperatorConditions) UpdateStatus(ctx context.Context, operatorCondition *v2.OperatorCondition, opts v1.UpdateOptions) (*v2.OperatorCondition, error) {
+func (c *FakeOperatorConditions) UpdateStatus(ctx context.Context, operatorCondition *v2.OperatorCondition, opts v1.UpdateOptions) (result *v2.OperatorCondition, err error) {
+	emptyResult := &v2.OperatorCondition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(operatorconditionsResource, "status", c.ns, operatorCondition), &v2.OperatorCondition{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(operatorconditionsResource, "status", c.ns, operatorCondition, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v2.OperatorCondition), err
 }
@@ -123,7 +128,7 @@ func (c *FakeOperatorConditions) Delete(ctx context.Context, name string, opts v
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeOperatorConditions) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(operatorconditionsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(operatorconditionsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v2.OperatorConditionList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeOperatorConditions) DeleteCollection(ctx context.Context, opts v1.D
 
 // Patch applies the patch and returns the patched operatorCondition.
 func (c *FakeOperatorConditions) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v2.OperatorCondition, err error) {
+	emptyResult := &v2.OperatorCondition{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(operatorconditionsResource, c.ns, name, pt, data, subresources...), &v2.OperatorCondition{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(operatorconditionsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v2.OperatorCondition), err
 }

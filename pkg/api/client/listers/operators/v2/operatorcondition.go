@@ -20,8 +20,8 @@ package v2
 
 import (
 	v2 "github.com/operator-framework/api/pkg/operators/v2"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -38,25 +38,17 @@ type OperatorConditionLister interface {
 
 // operatorConditionLister implements the OperatorConditionLister interface.
 type operatorConditionLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v2.OperatorCondition]
 }
 
 // NewOperatorConditionLister returns a new OperatorConditionLister.
 func NewOperatorConditionLister(indexer cache.Indexer) OperatorConditionLister {
-	return &operatorConditionLister{indexer: indexer}
-}
-
-// List lists all OperatorConditions in the indexer.
-func (s *operatorConditionLister) List(selector labels.Selector) (ret []*v2.OperatorCondition, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v2.OperatorCondition))
-	})
-	return ret, err
+	return &operatorConditionLister{listers.New[*v2.OperatorCondition](indexer, v2.Resource("operatorcondition"))}
 }
 
 // OperatorConditions returns an object that can list and get OperatorConditions.
 func (s *operatorConditionLister) OperatorConditions(namespace string) OperatorConditionNamespaceLister {
-	return operatorConditionNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return operatorConditionNamespaceLister{listers.NewNamespaced[*v2.OperatorCondition](s.ResourceIndexer, namespace)}
 }
 
 // OperatorConditionNamespaceLister helps list and get OperatorConditions.
@@ -74,26 +66,5 @@ type OperatorConditionNamespaceLister interface {
 // operatorConditionNamespaceLister implements the OperatorConditionNamespaceLister
 // interface.
 type operatorConditionNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all OperatorConditions in the indexer for a given namespace.
-func (s operatorConditionNamespaceLister) List(selector labels.Selector) (ret []*v2.OperatorCondition, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v2.OperatorCondition))
-	})
-	return ret, err
-}
-
-// Get retrieves the OperatorCondition from the indexer for a given namespace and name.
-func (s operatorConditionNamespaceLister) Get(name string) (*v2.OperatorCondition, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v2.Resource("operatorcondition"), name)
-	}
-	return obj.(*v2.OperatorCondition), nil
+	listers.ResourceIndexer[*v2.OperatorCondition]
 }

@@ -20,14 +20,13 @@ package internalversion
 
 import (
 	"context"
-	"time"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	scheme "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // PackageManifestsGetter has a method to return a PackageManifestInterface.
@@ -40,6 +39,7 @@ type PackageManifestsGetter interface {
 type PackageManifestInterface interface {
 	Create(ctx context.Context, packageManifest *operators.PackageManifest, opts v1.CreateOptions) (*operators.PackageManifest, error)
 	Update(ctx context.Context, packageManifest *operators.PackageManifest, opts v1.UpdateOptions) (*operators.PackageManifest, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 	UpdateStatus(ctx context.Context, packageManifest *operators.PackageManifest, opts v1.UpdateOptions) (*operators.PackageManifest, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
@@ -52,144 +52,18 @@ type PackageManifestInterface interface {
 
 // packageManifests implements PackageManifestInterface
 type packageManifests struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*operators.PackageManifest, *operators.PackageManifestList]
 }
 
 // newPackageManifests returns a PackageManifests
 func newPackageManifests(c *OperatorsClient, namespace string) *packageManifests {
 	return &packageManifests{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*operators.PackageManifest, *operators.PackageManifestList](
+			"packagemanifests",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *operators.PackageManifest { return &operators.PackageManifest{} },
+			func() *operators.PackageManifestList { return &operators.PackageManifestList{} }),
 	}
-}
-
-// Get takes name of the packageManifest, and returns the corresponding packageManifest object, and an error if there is any.
-func (c *packageManifests) Get(ctx context.Context, name string, options v1.GetOptions) (result *operators.PackageManifest, err error) {
-	result = &operators.PackageManifest{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of PackageManifests that match those selectors.
-func (c *packageManifests) List(ctx context.Context, opts v1.ListOptions) (result *operators.PackageManifestList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &operators.PackageManifestList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested packageManifests.
-func (c *packageManifests) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a packageManifest and creates it.  Returns the server's representation of the packageManifest, and an error, if there is any.
-func (c *packageManifests) Create(ctx context.Context, packageManifest *operators.PackageManifest, opts v1.CreateOptions) (result *operators.PackageManifest, err error) {
-	result = &operators.PackageManifest{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(packageManifest).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a packageManifest and updates it. Returns the server's representation of the packageManifest, and an error, if there is any.
-func (c *packageManifests) Update(ctx context.Context, packageManifest *operators.PackageManifest, opts v1.UpdateOptions) (result *operators.PackageManifest, err error) {
-	result = &operators.PackageManifest{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		Name(packageManifest.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(packageManifest).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *packageManifests) UpdateStatus(ctx context.Context, packageManifest *operators.PackageManifest, opts v1.UpdateOptions) (result *operators.PackageManifest, err error) {
-	result = &operators.PackageManifest{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		Name(packageManifest.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(packageManifest).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the packageManifest and deletes it. Returns an error if one occurs.
-func (c *packageManifests) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *packageManifests) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched packageManifest.
-func (c *packageManifests) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operators.PackageManifest, err error) {
-	result = &operators.PackageManifest{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("packagemanifests").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }
