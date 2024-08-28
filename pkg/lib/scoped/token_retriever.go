@@ -38,7 +38,7 @@ func (r *BearerTokenRetriever) Retrieve(reference *corev1.ObjectReference) (toke
 
 	if secret == nil {
 		err = fmt.Errorf("the service account does not have any API secret sa=%s/%s", sa.GetNamespace(), sa.GetName())
-		token = requestSAToken(r.kubeclient, sa)
+		token, _ = requestSAToken(r.kubeclient, sa)
 		if token != "" {
 			err = nil
 		}
@@ -55,16 +55,16 @@ func (r *BearerTokenRetriever) Retrieve(reference *corev1.ObjectReference) (toke
 
 // requestSAToken requests for a service account token from the Kubernetes API server whenever the Operator
 // Lifecycle manager is unable to find a service account token secret
-func requestSAToken(kubeclient operatorclient.ClientInterface, sa *corev1.ServiceAccount) string {
+func requestSAToken(kubeclient operatorclient.ClientInterface, sa *corev1.ServiceAccount) (string, error) {
 	req := new(authv1.TokenRequest)
 	req, err := kubeclient.KubernetesInterface().
 		CoreV1().ServiceAccounts(sa.GetNamespace()).
 		CreateToken(context.Background(), sa.GetName(), req, metav1.CreateOptions{})
 	if err != nil {
-		return ""
+		return "", err
 	}
 
-	return req.Status.Token
+	return req.Status.Token, nil
 }
 
 func getAPISecret(logger logrus.FieldLogger, kubeclient operatorclient.ClientInterface, sa *corev1.ServiceAccount) (APISecret *corev1.Secret, err error) {
