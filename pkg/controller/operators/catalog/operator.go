@@ -1052,7 +1052,7 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 			return
 		}
 		if out.Spec.UpdateStrategy.RegistryPoll.ParsingError != "" && out.Status.Reason != v1alpha1.CatalogSourceIntervalInvalidError {
-			out.SetError(v1alpha1.CatalogSourceIntervalInvalidError, fmt.Errorf(out.Spec.UpdateStrategy.RegistryPoll.ParsingError))
+			out.SetError(v1alpha1.CatalogSourceIntervalInvalidError, errors.New(out.Spec.UpdateStrategy.RegistryPoll.ParsingError))
 		}
 		logger.Infof("requeuing registry server sync based on polling interval %s", out.Spec.UpdateStrategy.Interval.Duration.String())
 		resyncPeriod := reconciler.SyncRegistryUpdateInterval(out, time.Now())
@@ -1592,7 +1592,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	updatedSub, err := o.client.OperatorsV1alpha1().Subscriptions(out.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
 	if err != nil {
 		logger.WithError(err).Info("error updating subscription status")
-		return nil, false, fmt.Errorf("error updating Subscription status: " + err.Error())
+		return nil, false, fmt.Errorf("error updating Subscription status: %s", err.Error())
 	}
 
 	// subscription status represents cluster state
@@ -1983,7 +1983,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	if err != nil {
 		// Set status condition/message and retry sync if any error
 		ipFailError := fmt.Errorf("attenuated service account query failed - %v", err)
-		logger.Infof(ipFailError.Error())
+		logger.Info(ipFailError.Error())
 		_, err := o.setInstallPlanInstalledCond(out, v1alpha1.InstallPlanReasonInstallCheckFailed, err.Error(), logger)
 		if err != nil {
 			syncError = err

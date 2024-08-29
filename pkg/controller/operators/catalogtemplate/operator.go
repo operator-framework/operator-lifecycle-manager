@@ -228,7 +228,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) error {
 		return err
 	}
 
-	logger.Infof(message)
+	logger.Info(message)
 
 	return nil
 }

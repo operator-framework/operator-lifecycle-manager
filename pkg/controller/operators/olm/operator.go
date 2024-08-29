@@ -2525,7 +2525,7 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 			a.logger.Warn(err.Error())
 		}
 
-		return fmt.Errorf(msg)
+		return errors.New(msg)
 	}
 
 	if webhookErr != nil {
@@ -2540,7 +2540,7 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 			a.logger.Warn(err.Error())
 		}
 
-		return fmt.Errorf(msg)
+		return errors.New(msg)
 	}
 
 	if strategyErr != nil {

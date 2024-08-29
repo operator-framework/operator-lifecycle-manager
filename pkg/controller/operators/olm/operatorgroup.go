@@ -946,7 +946,7 @@ func (a *Operator) getOperatorGroupTargets(op *operatorsv1.OperatorGroup) (map[s
 	}
 
 	namespaceSet := make(map[string]struct{})
-	if op.Spec.TargetNamespaces != nil && len(op.Spec.TargetNamespaces) > 0 {
+	if len(op.Spec.TargetNamespaces) > 0 {
 		for _, ns := range op.Spec.TargetNamespaces {
 			if ns == corev1.NamespaceAll {
 				return nil, fmt.Errorf("TargetNamespaces cannot contain NamespaceAll: %v", op.Spec.TargetNamespaces)
