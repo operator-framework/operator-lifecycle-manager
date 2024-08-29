@@ -822,7 +822,7 @@ func hash(data string) string {
 	h := fmt.Sprintf("%x", sha256.Sum256([]byte(data)))
 
 	// Make the hash 63 characters instead to comply with the 63 character limit for labels
-	return fmt.Sprintf(h[:len(h)-1])
+	return h[:len(h)-1]
 }
 
 var blockOwnerDeletion = false
