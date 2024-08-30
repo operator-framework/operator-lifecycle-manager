@@ -527,3 +527,55 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigMapRegistryChecker(t *testing.T) {
+	validConfigMap := validConfigMap()
+	validCatalogSource := validConfigMapCatalogSource(validConfigMap)
+	type cluster struct {
+		k8sObjs []runtime.Object
+	}
+	type in struct {
+		cluster cluster
+		catsrc  *v1alpha1.CatalogSource
+	}
+	type out struct {
+		healthy bool
+		err     error
+	}
+	tests := []struct {
+		testName string
+		in       in
+		out      out
+	}{
+		{
+			testName: "ConfigMap/ExistingRegistry/DeadPod",
+			in: in{
+				cluster: cluster{
+					k8sObjs: append(withPodDeletedButNotRemoved(objectsForCatalogSource(t, validCatalogSource)), validConfigMap),
+				},
+				catsrc: validCatalogSource,
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			stopc := make(chan struct{})
+			defer close(stopc)
+
+			factory, _ := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...))
+			rec := factory.ReconcilerForSource(tt.in.catsrc)
+
+			healthy, err := rec.CheckRegistryServer(logrus.NewEntry(logrus.New()), tt.in.catsrc)
+
+			require.Equal(t, tt.out.err, err)
+			if tt.out.err != nil {
+				return
+			}
+
+			require.Equal(t, tt.out.healthy, healthy)
+		})
+	}
+}
