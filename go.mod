@@ -178,13 +178,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-// pin to v1.18.0 until k8s.io/component-base updates its prometheus dependency
-// issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3283
-//replace (
-//	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.18.0
-//	github.com/prometheus/common => github.com/prometheus/common v0.47.0
-//)
-
 // v1.64.0 breaks our e2e tests as it affects the grpc connection state transition
 // issue: https://github.com/operator-framework/operator-lifecycle-manager/issues/3284
 replace google.golang.org/grpc => google.golang.org/grpc v1.63.2
