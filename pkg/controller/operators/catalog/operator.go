@@ -45,6 +45,7 @@ import (
 	"k8s.io/client-go/metadata/metadatalister"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/pager"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
@@ -2230,15 +2231,15 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResourc
 			return fmt.Errorf("error creating validator for schema version %s: %s", version, err)
 		}
 		gvr := schema.GroupVersionResource{Group: gr.Group, Version: version, Resource: gr.Resource}
-		crList, err := dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			return fmt.Errorf("error listing resources in GroupVersionResource %#v: %s", gvr, err)
-		}
-
-		// validate each CR against this version schema
-		for _, cr := range crList.Items {
-			err = validation.ValidateCustomResource(field.NewPath(""), cr.UnstructuredContent(), validator).ToAggregate()
+		pager := pager.New(pager.SimplePageFunc(func(opts metav1.ListOptions) (runtime.Object, error) {
+			return dynamicClient.Resource(gvr).List(context.TODO(), metav1.ListOptions{})
+		}))
+		validationFn := func(obj runtime.Object) error {
+			err = validation.ValidateCustomResource(field.NewPath(""), obj, validator).ToAggregate()
 			if err != nil {
+				// lister will only provide unstructured objects as runtime.Object, so this should never fail to convert
+				// if it does, it's a programming error
+				cr := obj.(*unstructured.Unstructured)
 				var namespacedName string
 				if cr.GetNamespace() == "" {
 					namespacedName = cr.GetName()
@@ -2247,6 +2248,11 @@ func validateExistingCRs(dynamicClient dynamic.Interface, gr schema.GroupResourc
 				}
 				return validationError{fmt.Errorf("error validating %s %q: updated validation is too restrictive: %v", cr.GroupVersionKind(), namespacedName, err)}
 			}
+			return nil
+		}
+		err = pager.EachListItem(context.Background(), metav1.ListOptions{}, validationFn)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
